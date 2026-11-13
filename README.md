@@ -68,5 +68,6 @@ vocabulary and services and make no host call of their own.
 | Preference Ranked Voting | `voting.hpp` | batch 3c4 |
 | math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic; the same bits on every target) | `math.hpp` | batch 3c5 |
 | row height index (stx_btree's sequence tree behind a compiled facade: offsets, rows at offsets, cursors) | `row_height_index.hpp` | batch 3c6 |
+| ordered map (stx_btree's unsync map and pooled pages; private, no interface yet) | none (`src/algorithms/stx_btree/unsync_map.hpp`) | batch 3c7 |
 
 Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); stx_btree, a C++ form of bbtree, is MIT with its own notice (`src/algorithms/stx_btree/LICENSE`, `NOTICE`); FreeBSD components keep their BSD licences.

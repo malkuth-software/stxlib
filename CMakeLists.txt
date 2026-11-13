@@ -417,13 +417,21 @@ option(STXLIB_BUILD_TOOLS "Build STXlib's table generators" OFF)
 if(STXLIB_BUILD_TOOLS)
     # Each regenerates its family's table header in src/algorithms/math/ byte
     # for byte, at the path given as its one argument (from stx_auxlib
-    # b6e330a). The minimum-remainder search of tools/math/sincos_certificate.py
-    # arrives with stx_btree.
+    # b6e330a).
     foreach(table IN ITEMS atan exp log sincos)
         add_executable(stxlib_gen_${table}_table tools/math/gen_${table}_table.cpp)
         target_compile_features(stxlib_gen_${table}_table PRIVATE cxx_std_20)
         target_compile_options(stxlib_gen_${table}_table PRIVATE -ffp-contract=off -fno-fast-math)
     endforeach()
+    # The minimum-remainder search of tools/math/sincos_certificate.py (an
+    # ordered index from src/algorithms/stx_btree; unsigned __int128, so Clang
+    # or GCC only).
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        add_executable(stxlib_sincos_minimum_remainder tools/math/sincos_minimum_remainder.cpp)
+        target_compile_features(stxlib_sincos_minimum_remainder PRIVATE cxx_std_20)
+        target_include_directories(stxlib_sincos_minimum_remainder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(stxlib_sincos_minimum_remainder PRIVATE stxlib::algorithms)
+    endif()
 endif()
 
 # ---- tests ------------------------------------------------------------------
@@ -493,6 +501,16 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_${sequence_test}_tests COMMAND stxlib_${sequence_test}_tests)
         set_tests_properties(stxlib_${sequence_test}_tests PROPERTIES TIMEOUT 1200)
     endforeach()
+    # The unsync ordered map (src/algorithms/stx_btree/unsync_map.hpp)
+    # against std::map with every structural invariant checked after each
+    # phase, on both page allocators, plus refused insertions. From
+    # stx_auxlib b6e330a.
+    add_executable(stxlib_unsync_map_tests tests/stx_btree/unsync_map_test.cpp)
+    target_link_libraries(stxlib_unsync_map_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_unsync_map_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_unsync_map_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_unsync_map_tests COMMAND stxlib_unsync_map_tests)
+    set_tests_properties(stxlib_unsync_map_tests PROPERTIES TIMEOUT 600)
     # The facade against the template it wraps (offset to row, row to
     # offset, set_heights), for the integrator to run by hand; not a ctest.
     add_executable(stxlib_row_height_bench tests/stx_btree/row_height_bench.cpp)

@@ -25,7 +25,7 @@ stxlib::math::sincos(double) and tan(double), in four steps:
      small-remainder threshold (sincos_small_remainder_limit).
 
 Usage (--search names the built tools/math/sincos_minimum_remainder.cpp,
-target stxlib_sincos_minimum_remainder with STXLIB_BUILD_TOOLS=ON; it arrives with stx_btree):
+target stxlib_sincos_minimum_remainder with STXLIB_BUILD_TOOLS=ON):
   sincos_certificate.py --search PROGRAM
                                       print the certificate; exit 1 if any
                                       step fails

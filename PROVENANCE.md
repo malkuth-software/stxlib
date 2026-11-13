@@ -270,8 +270,9 @@ Copied unchanged (the file's SHA-256 here equals the source's):
 stx_btree is the owner's C++ form of bbtree (Xiangpeng Hao, MIT OR
 Apache-2.0; stx_btree takes MIT): `src/algorithms/stx_btree/LICENSE` and
 `NOTICE` are its own, copied unchanged, and bind these files. Only the
-sequence tree and its RowHeightIndex come, the part GUI.Forms uses; the
-ordered maps, the optimal search trees and their tests stay in stx_auxlib.
+sequence tree and its RowHeightIndex come in this batch, the part GUI.Forms
+uses; the ordered maps, the optimal search trees and their tests follow
+from batch 3c7.
 The templates are private (coordinator's option 1, the compiled facade):
 namespace `stxlib::stx_btree`, included only by STXlib's own sources and
 tests. Changed at the adaptation points only, each listed in the file's
@@ -304,6 +305,57 @@ Copied unchanged (the file's SHA-256 here equals the source's):
 | `src/algorithms/stx_btree/LICENSE` | `btree/LICENSE` | `fde6789f4937c8c9741e00f823ef07d199269180950b3db03d2d806909a05a62` |
 | `src/algorithms/stx_btree/NOTICE` | `btree/NOTICE` | `5a87d6e9a4a55880424b78c8518e4a45f3d2a171f200697f9f552cd593ec2381` |
 | `src/algorithms/stx_btree/ORDER_STATISTIC_RESEARCH.md` (the study: design, invariants, proof sketches, measurements) | `btree/docs/ORDER_STATISTIC_RESEARCH.md` | `0bdc4c40dd0cc9fdb8cbab0eee37e6f06c1c0b95d5c2dd222514da4ebfc82f57` |
+
+### Batch 3c7: stx_btree's unsync ordered map, from `b6e330a`
+
+The first part of the rest of stx_btree (the coordinator's direction on the
+owner's M1: STXlib takes all of stx_auxlib's content, private until a
+consumer needs an interface). The unsync map comes first so that the
+minimum-remainder search of `tools/math/sincos_certificate.py` builds on
+STXlib (`stxlib_sincos_minimum_remainder`, with `STXLIB_BUILD_TOOLS=ON`).
+Same licence, namespace and privacy as batch 3c6. The node and tree headers
+are renamed only (include paths, namespace, `STXLIB_BTREE_` inlining
+macros, `MemoryPageAllocator`) but for the four marked, whose changes are in
+their headers: a page the allocator refuses makes the insertion refuse with
+nothing changed and `out_of_memory()` true, where stx_auxlib threw
+std::bad_alloc; the pooled allocator counts its sharers itself and takes
+chunks from memory::allocate (no std::shared_ptr, no std::vector). The
+latched tree comes because `detail/tree_algorithms.hpp` names its policy,
+but carries a static assertion that stops any instantiation until the
+shared-map batch adapts its page reservation (it still catches
+std::bad_alloc there). `inline_key.hpp` keeps its std::string traits,
+header only: STXlib's own sources instantiate none. The test runs
+unchanged but for the shared pool, now shared by copying one allocator; it
+also checks every insertion against `out_of_memory()` and adds refused
+insertions (new). The search tool reports a refused insertion as its own
+failure; its search is unchanged.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/detail/inlining.hpp` | `btree/include/stx_btree/detail/inlining.hpp` | `31f757a01c1299d5bd49606118758083e6f6cb4b88a2344b1352715567066494` |
+| `src/algorithms/stx_btree/detail/prefetch.hpp` | `btree/include/stx_btree/detail/prefetch.hpp` | `8d1becaeb5cc29a0d2eaf2a499de1298c1bf131c012a16f93d612cfe4a849356` |
+| `src/algorithms/stx_btree/detail/vector_count.hpp` | `btree/include/stx_btree/detail/vector_count.hpp` | `9e0fbc0e604492019b0e8d4f9cf10541b9b6ba2f16cca7a70ca1ef6d6ef8c16d` |
+| `src/algorithms/stx_btree/detail/node_layout.hpp` | `btree/include/stx_btree/detail/node_layout.hpp` | `7966611592b8278c2f94e3d1d83b273a656c5949e7a1cdd2d127c1c9123cb59e` |
+| `src/algorithms/stx_btree/detail/node.hpp` (the empty-leaf fault calls `requirement_failed`) | `btree/include/stx_btree/detail/node.hpp` | `59b9128c7b472c5d823171b689b52e6efef4cb41d52c083c9dbfac81bdc09433` |
+| `src/algorithms/stx_btree/detail/node_stack.hpp` | `btree/include/stx_btree/detail/node_stack.hpp` | `ebdb097951d07597d12fbeb0971474f3d80d0113c805740e7763c156cbe69837` |
+| `src/algorithms/stx_btree/detail/root_page.hpp` | `btree/include/stx_btree/detail/root_page.hpp` | `3fd3fcc81778acf81e9bc9fff1f2e488a035d1ef72ba0e94f5fd651ad76e6d32` |
+| `src/algorithms/stx_btree/detail/tree_algorithms.hpp` | `btree/include/stx_btree/detail/tree_algorithms.hpp` | `9885b89fd8c757e66ba5785a8b0be7e6b50115eac806bb4c6920fee2f836e26a` |
+| `src/algorithms/stx_btree/detail/tree_walk.hpp` | `btree/include/stx_btree/detail/tree_walk.hpp` | `a780c970259fb436fb1b5780d19cdd0074adad9a025b070cd015083ba05ccf16` |
+| `src/algorithms/stx_btree/detail/latch.hpp` (spins yield through `stxlib::yield_thread`) | `btree/include/stx_btree/detail/latch.hpp` | `da1043072930651c4d28bb8aa9e13163ca3f88c74a558045052f814bd78a3943` |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` (guarded: not instantiable until adapted) | `btree/include/stx_btree/detail/latched_tree.hpp` | `2598aeea11a5a5d6dea4b5ddbbc7000043584b0b42c506e568ccb0963d53e67e` |
+| `src/algorithms/stx_btree/detail/batch.hpp` | `btree/include/stx_btree/detail/batch.hpp` | `6008ad6c7006fdb485af4a48fae28bac18ca8274f45e7bfd33de48e197bf3904` |
+| `src/algorithms/stx_btree/detail/unsync_tree.hpp` (refuses an insertion it has no page for) | `btree/include/stx_btree/detail/unsync_tree.hpp` | `ab0621b94129a488853106030e4bdb486e388804fcbcb4be6d9441dd29cbcfa1` |
+| `src/algorithms/stx_btree/inline_key.hpp` | `btree/include/stx_btree/inline_key.hpp` | `0a9cfca23e44f5e3884584791e215ab14518e0690d9096007e9ac93619d98e0a` |
+| `src/algorithms/stx_btree/unsync_map.hpp` (`out_of_memory()`) | `btree/include/stx_btree/unsync_map.hpp` | `96a39f913bcf8c257c95e3d323c9cf2818ebf2c58d5a20462d876015ddd08a54` |
+| `src/algorithms/stx_btree/pooled_page_allocator.hpp` (rewritten at the ownership and failure points) | `btree/include/stx_btree/pooled_page_allocator.hpp` | `b7730067f3c95cdde921078261e35151e09817ee7fdcdb095e0dc95408163e3c` |
+| `tests/stx_btree/unsync_map_test.cpp` | `btree/tests/unsync_map_test.cpp` | `76a3f55e7a2f091c93455d392622178c3f7257d286cb25b913daca7b5a7f7a9f` |
+| `tests/stx_btree/tree_invariants.hpp` | `btree/tests/tree_invariants.hpp` | `43a4940562842dd10ab6f67f6cdcc2a161c0410dffafd89c36134945936e1823` |
+| `tests/stx_btree/btree_test_support.hpp` (now the whole file; modular marks on the key makers' mixing) | `btree/tests/test_support.hpp` | `f5a8ae4d3704175d7e3b09e4913bc180a22e5da15b351f522e71a0da99ef7bab` |
+| `tools/math/sincos_minimum_remainder.cpp` | `tools/sincos_minimum_remainder.cpp` | `f593c2d7c102c9858f01b7ef70aa27a6ad9ff2c5f2303a527691cbc54b4d27a5` |
+
+Still in stx_auxlib, for the next batch: the synchronized map and the
+latched tree's adaptation, the optimal search trees, their weights and
+packing, and their tests.
 
 ## Third party
 

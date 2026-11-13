@@ -120,7 +120,7 @@ evidence, not proof.
 |---|---|---|---|
 | `src/algorithms/math/` (every function) | the same bits as stx_auxlib's kernels on every input the tests reach, under every variant this machine runs (native or v128 and avx2_fma), and under the Dekker exact product | tested, not proved: the frozen output hashes of `tests/math_tests.cpp`, carried unchanged from stx_auxlib, in ctest as `stxlib_math_tests`, `stxlib_math_dekker_tests` and, with dispatch, one run per forced SIMD level | `tests/math_tests.cpp` |
 | `src/algorithms/math/` (float functions) | correctly rounded over the ranges `math.hpp` states | exhaustive in stx_auxlib (`math_tests --exhaustive`, counts as `math.hpp` gives them); not yet rerun on STXlib's build. The frozen hashes tie STXlib's bits to the build that was checked, so a pass of them carries the result only as far as those hashes sample | `tests/math_tests.cpp --exhaustive` |
-| `src/algorithms/math/sincos_core.hpp` (double sin, cos, tan) | within 0.51 ulp for 2^-27 <= abs(x) <= 2^32 | proved in stx_auxlib by `tools/math/sincos_certificate.py` (interval error analysis over every binade's worst remainders); the certificate reads this tree's constants, and its search tool arrives with stx_btree, so it has not been rerun here | `tools/math/sincos_certificate.py` |
+| `src/algorithms/math/sincos_core.hpp` (double sin, cos, tan) | within 0.51 ulp for 2^-27 <= abs(x) <= 2^32 | proved in stx_auxlib by `tools/math/sincos_certificate.py` (interval error analysis over every binade's worst remainders); the certificate reads this tree's constants, and its search tool builds from batch 3c7 (`stxlib_sincos_minimum_remainder`); not yet rerun here | `tools/math/sincos_certificate.py` |
 | `src/algorithms/math/` (double functions other than sin, cos, tan) | within the ulp bounds `math.hpp` states | sampled in stx_auxlib (sample counts as `math.hpp` gives them); not proved | `tests/math_tests.cpp` |
 
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
@@ -132,6 +132,15 @@ evidence, not proof.
 | `src/algorithms/stx_btree/sequence_tree.hpp` (Lemma S, coarsen, finger) | splitting a run keeps every row's height; coarsen keeps offsets outside its range bit for bit; seek_offset_from equals seek_offset | exhaustive over the stated small domains (every run of up to 16 rows and 80 units; every range of a 40-row sequence; every row of a deep small tree), as in stx_auxlib | `tests/stx_btree/sequence_tree_test.cpp` |
 | `src/algorithms/row_height_index.cpp` (the facade) | the facade answers as the template and the model, and each failure has the kind its cause names | the exhaustive enumeration and the packing cases run through the facade at production capacity ("facade-production"); at that capacity the sequences split no page, so this checks the translation, not the structure | `tests/stx_btree/sequence_tree_exhaustive_test.cpp` |
 | `src/algorithms/row_height_index.cpp` (cost) | the facade's cost over the template on row-to-offset, offset-to-row and set_heights | not measured yet: `stxlib_row_height_bench` is for the integrator | `tests/stx_btree/row_height_bench.cpp` |
+
+## stxlib::algorithms, batch 3c7 (stx_btree's unsync ordered map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/unsync_map.hpp` | the map answers as std::map (insert, try_insert, remove, find, lower_bound, pop, insert_many, iteration), and every structural invariant (depths, fills, heads, order, windows at exact prefixes, padding, hash tags, shared prefix) holds after each phase | tested, not proved: the differential runs carried from stx_auxlib (seven key and value shapes, random and ordered, both page allocators, batches) | `tests/stx_btree/unsync_map_test.cpp`, `tests/stx_btree/tree_invariants.hpp` |
+| `src/algorithms/stx_btree/unsync_map.hpp` (failure) | an insertion the allocator refuses a page leaves the map unchanged and reports `out_of_memory()`; it then succeeds | tested over 20000 insertions of small-leaf entries with every page first refused (first root page, leaf splits and splits that climb), not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_refusals`) |
+| `src/algorithms/stx_btree/pooled_page_allocator.hpp` | maps sharing a pool get every page back and reuse freed pages; the pool ends with its last sharer | tested, not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_shared_pool`) |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` | none yet | not instantiable (static assertion) until the shared-map batch | none |
 
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.
