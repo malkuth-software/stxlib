@@ -4,7 +4,8 @@
 # versions checked) against the sysroot made by appliance/vm/c1_sysroot.sh:
 #
 #   stxinit                 runtime/init/stxinit.cpp (PID 1)
-#   stxsupervisor           runtime/supervisor/stxsupervisor.cpp and
+#   stxsupervisor           runtime/supervisor/stxsupervisor.cpp,
+#                           runtime/supervisor/shim_client.cpp and
 #                           runtime/supervisor/config/*.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
 #
@@ -66,5 +67,5 @@ build() {
 build stxinit runtime/init/stxinit.cpp
 build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/config/boot_config.cpp \
     runtime/supervisor/config/init_executor.cpp runtime/supervisor/config/service_registry.cpp \
-    runtime/supervisor/config/system_actions.cpp
+    runtime/supervisor/config/system_actions.cpp runtime/supervisor/shim_client.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp

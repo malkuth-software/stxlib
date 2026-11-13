@@ -36,6 +36,10 @@
   `c1_s3.sh KERNCONF` (S3): the init section starts two services from
   `configs/s3-appliance.conf`; one is restarted with back-off, both are
   stopped by the supervisor at power-off.
+  `c1_s5.sh KERNCONF` (S5): the kernel shim (`appliance/shim/`): the
+  supervisor registers, a terminate of userspace kills the services (one
+  only by SIGKILL) and they restart by their policy; the supervisor is
+  killed, the shim reports it, PID 1 respawns it and it registers again.
 - `c1_sysroot.sh`: a cross sysroot (headers, static libraries) taken from
   the pinned image's own userland, for building `runtime/`.
 

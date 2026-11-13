@@ -1,6 +1,8 @@
-// stxsupervisor: the appliance supervisor, first form (C1, steps S1-S3).
+// stxsupervisor: the appliance supervisor, first form (C1, steps S1-S3, S5).
 //
-// It writes one marker; on the boot's first start (restart count 0) it
+// It writes one marker and registers with the kernel shim (shim_client.h;
+// a kernel without the shim leaves it unregistered and otherwise
+// unchanged); on the boot's first start (restart count 0) it
 // reads the boot configuration and runs its init section once
 // (config/boot_config.h, config/init_executor.h; the init section is the
 // supervisor's, not PID 1's: coordinator, 2026-11-13, option a); then it
@@ -18,12 +20,26 @@
 // session), reparented to stxinit, which reaps them; nothing restarts them.
 // Adoption, or their termination by the shim, is C2 work.
 //
+// SIGUSR1 asks the shim to terminate userspace (owner, question 3, option 1;
+// shim_client.h). It is the first form's trigger, for tests: in C2 the
+// reserved chord, read by the shim below the console, starts the terminate
+// and the supervisor's own interface offers it. The supervisor waits for
+// the shim (about 2 s at most plus the sync), then reaps the terminated
+// services and restarts them by their registration.
+//
+// Not yet in the first form (C2, with the contention measurements): real-
+// time priority and locked memory for the supervisor (C-appliance-design.md
+// section 3). Services would inherit the priority class across fork(2) and
+// would need it reset before execve(2); locked memory makes fork(2) copy
+// the wired pages at once. Both are measured before they are adopted.
+//
 // stxinit starts it in its own session with the console as standard input,
 // output and error, and passes "--restart-count=<n>".
 //
 // Console lines, matched by appliance/vm/scenario.py:
 //
 //   STXSUPERVISOR start restart_count=<n|unknown> uptime_ns=<n> cntvct=<n> cntfrq=<n>
+//   STXSUPERVISOR shim registered | absent | refused errno=<n>
 //   STXSUPERVISOR config path=<p> sections=<n> settings=<n> commands=<n>
 //   STXSUPERVISOR config path=<p> absent | too-large | errno=<n>
 //   STXSUPERVISOR config path=<p> refused line=<n> column=<n> error=<name>
@@ -31,6 +47,7 @@
 //   STXSUPERVISOR init done commands=<n> skipped=<n> failed=<n> ms=<n>
 //   STXSUPERVISOR init not-run restart_count=<n|unknown>
 //   STXSUPERVISOR service <name> started | exited | ...   (system_actions.h)
+//   STXSUPERVISOR terminate done ... | failed errno=<n> | unavailable   (shim_client.h)
 //   STXSUPERVISOR stop services=<stopped|left-running>
 //
 // Signals stay blocked and are taken with sigwaitinfo, as in stxinit.
@@ -54,6 +71,7 @@
 #include "config/service_registry.h"
 #include "config/system_actions.h"
 #include "restart_argument.h"
+#include "shim_client.h"
 
 namespace stxsupervisor {
 
@@ -229,13 +247,26 @@ constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
     _exit(EXIT_SUCCESS);
 }
 
-[[noreturn]] void run() noexcept {
+// SIGUSR1: the shim terminates userspace; the supervisor waits, then the
+// caller reaps and the registry restarts services by their policy.
+void terminate(const ShimRegistration& shim) noexcept {
+    const ShimRegistered* const registered = shim.as_registered();
+    if (registered == nullptr) {
+        report_terminate_unavailable(STDOUT_FILENO);
+        return;
+    }
+    const TerminateOutcome outcome = terminate_userspace(*registered);
+    report_terminate(STDOUT_FILENO, outcome);
+}
+
+[[noreturn]] void run(const ShimRegistration& shim) noexcept {
     sigset_t blocked{};
     sigemptyset(&blocked);
     sigaddset(&blocked, SIGTERM);
     sigaddset(&blocked, SIGINT);
     sigaddset(&blocked, SIGHUP);
     sigaddset(&blocked, SIGCHLD);
+    sigaddset(&blocked, SIGUSR1);
     (void)sigprocmask(SIG_BLOCK, &blocked, nullptr);
     struct sigaction on_child{};
     on_child.sa_handler = note_signal;
@@ -260,6 +291,9 @@ constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
         const int signal_number = sigtimedwait(&blocked, &information, &timeout);
         if (signal_number == SIGTERM) {
             stop(blocked);
+        }
+        if (signal_number == SIGUSR1) {
+            terminate(shim);
         }
         // SIGCHLD: reap. SIGINT, SIGHUP: nothing to do in the first form.
         // A time-out (EAGAIN) or EINTR: go round; tick does what is due.
@@ -287,11 +321,22 @@ int main(int argument_count, char** argument_vector) {
     stxruntime::append_text(marker, "\n");
     stxruntime::write_line(STDOUT_FILENO, marker);
 
+    // SIGUSR1 (terminate) stays pending until run() takes it; the programs
+    // and services the supervisor starts unblock every signal before
+    // execve (system_actions.cpp).
+    sigset_t terminate_request{};
+    sigemptyset(&terminate_request);
+    sigaddset(&terminate_request, SIGUSR1);
+    (void)sigprocmask(SIG_BLOCK, &terminate_request, nullptr);
+
+    const stxsupervisor::ShimRegistration shim = stxsupervisor::register_with_shim();
+    stxsupervisor::report_registration(STDOUT_FILENO, shim);
+
     // The init section runs before run() blocks signals: the executor waits
     // for each program itself (SIGCHLD keeps its default, which discards the
     // signal but not the child's status). A shutdown during the init section
     // ends the supervisor by SIGTERM's default action, without its stop
     // line; stxinit's shutdown goes on regardless.
     stxsupervisor::boot_once(STDOUT_FILENO, restart_count);
-    stxsupervisor::run();
+    stxsupervisor::run(shim);
 }

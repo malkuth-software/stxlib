@@ -10,7 +10,7 @@ decisions live on the notes branch: `planning/FORWARD_PROGRAMME.md` sections
 | `toolchain.env` | the one toolchain variable (LLVM pin) every appliance build reads |
 | `vm/` | C1: the FreeBSD arm64 VM on the M4, its preparation and boot-stage timing |
 | `kernel/` | kernel configurations, starting with the C1 draft `STXLIB-VM` |
-| `shim/` | the kernel shim module (later in C1) |
+| `shim/` | the kernel shim, compiled into the appliance kernel (C1 step S5, first form) |
 
 The appliance's first programs live under `runtime/` at the repository root,
 since they issue system calls (AGENTS.md: only `src/hosted/`, `runtime/` and

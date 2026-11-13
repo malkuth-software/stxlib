@@ -311,3 +311,12 @@ nooptions LINUX_BOOT_ABI # booted through UEFI, never U-Boot's booti
 
 # --- Batch 2, round 15
 nooptions IEEE80211_SUPPORT_MESH # no wlan device in this kernel
+
+# ==========================================================================
+# The STXlib kernel shim (appliance/shim/, C1 step S5), compiled in. config(8)
+# reads the extra files list named here (usr.sbin/config/config.y:145) from
+# an include directory; build_kernel.sh writes it, naming the shim's source
+# by absolute path as a "local" file, so no FreeBSD file is changed.
+# ==========================================================================
+files		"files.stxlib"
+device		stxshim
