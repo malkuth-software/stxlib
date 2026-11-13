@@ -340,8 +340,9 @@ endif()
 # The owned transcendental kernels (include/stxlib/math.hpp), one source and
 # table header per family under src/algorithms/math/, from stx_auxlib
 # b6e330a. Each kernel source compiles once per variant
-# (src/algorithms/math/variant.hpp); dispatch.cpp defines the public
-# functions over them.
+# (src/algorithms/math/variant.hpp); dispatch.cpp selects among them
+# (namespace stxlib::math::unflushed), and flush.cpp defines the public
+# functions over those with STXlib's subnormal rule (batch 3c8).
 set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/atan.cpp
     src/algorithms/math/cbrt.cpp
@@ -355,7 +356,8 @@ set(STXLIB_MATH_KERNEL_SOURCES
 set(STXLIB_MATH_SOURCES
     ${STXLIB_MATH_KERNEL_SOURCES}
     src/algorithms/math/constants.cpp
-    src/algorithms/math/dispatch.cpp)
+    src/algorithms/math/dispatch.cpp
+    src/algorithms/math/flush.cpp)
 # x86-64 builds carry two kernel variants, v128 (SSE2) and avx2_fma, and
 # call the one the process's SIMD level selects (include/stxlib/simd.hpp).
 # Every other build has one native variant.

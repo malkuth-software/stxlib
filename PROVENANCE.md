@@ -357,6 +357,26 @@ Still in stx_auxlib, for the next batch: the synchronized map and the
 latched tree's adaptation, the optimal search trees, their weights and
 packing, and their tests.
 
+### Batch 3c8: no subnormals in the math (STXlib's own change)
+
+Owner decision 2026-11-13 (notes `decisions/2026-11-13-locals-float-mutability.md`,
+"Subnormals"): STXlib's numeric code neither accepts nor produces
+subnormal values. Nothing is ported in this batch. The kernels, tables and
+constants of batch 3c5 are unchanged; so are the functions of
+`dispatch.cpp`, which now sit in namespace `stxlib::math::unflushed`.
+`src/algorithms/math/flush.cpp` is new: it defines the public functions of
+`math.hpp`, reading every subnormal argument as zero of its sign and
+returning a subnormal result as zero of its sign. The flush works on the
+bits; the floating-point environment is never set. `math.hpp` states the
+rule in its shared contract and lists each function's subnormal outcomes.
+In `tests/math_tests.cpp`:
+- the checks carried from stx_auxlib call the unflushed functions, so their
+  frozen hashes and measurements still describe stx_auxlib's bits;
+- in the subnormal regions (exp's, pow's and hypot's subnormal results,
+  log's subnormal arguments) they verify the flush instead of measuring ulp;
+- `flush_rule()` and `public_special_values()` are new. They check the
+  public functions against the unflushed ones bit for bit.
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

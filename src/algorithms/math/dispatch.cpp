@@ -1,8 +1,17 @@
-// The public math functions (stxlib/math.hpp): each calls the kernel
-// variant (variant.hpp) the process's SIMD level selects
-// (stxlib/simd.hpp). Generated once by hand from math.hpp's list; keep
-// the four lists below (table fields, the two variant tables, the resolvers
-// and the public functions) in math.hpp's order.
+// The unflushed math functions (namespace stxlib::math::unflushed, the
+// public set of stxlib/math.hpp): each calls the kernel variant
+// (variant.hpp) the process's SIMD level selects (stxlib/simd.hpp).
+// Generated once by hand from math.hpp's list; keep the four lists below
+// (table fields, the two variant tables, the resolvers and the unflushed
+// functions) in math.hpp's order.
+//
+// STXlib batch 3c8: the public functions are in flush.cpp, which flushes
+// subnormal arguments and results to zero of their sign around these (owner
+// decision 2026-11-13, notes decisions/2026-11-13-locals-float-mutability.md,
+// "Subnormals"). Here the functions are stx_auxlib b6e330a's public ones,
+// moved into namespace unflushed and otherwise unchanged; the tests' frozen
+// output hashes call them, so the hashes still tie these bits to the build
+// that was checked.
 //
 // On x86-64 the selection is made once: `active` starts at a table of
 // resolvers, the first call through any of them selects the level, stores
@@ -12,6 +21,10 @@
 // variant is called directly.
 
 #include "stxlib/math.hpp"
+
+#define STXLIB_MATH_DECLARE_VARIANT unflushed
+#include "variant_functions.hpp"
+#undef STXLIB_MATH_DECLARE_VARIANT
 
 #if defined(STXLIB_MATH_DISPATCH_X86)
 
@@ -403,6 +416,8 @@ const Kernels* resolve() noexcept {
 
 } // namespace
 
+namespace unflushed {
+
 void sincos(const float angle, float& s, float& c) noexcept {
     (*(*active.load(std::memory_order_relaxed)).sincos_f)(angle, s, c);
 }
@@ -591,6 +606,8 @@ float atanh(const float x) noexcept {
     return result;
 }
 
+} // namespace unflushed
+
 } // namespace stxlib::math
 
 #else
@@ -600,6 +617,8 @@ float atanh(const float x) noexcept {
 #undef STXLIB_MATH_DECLARE_VARIANT
 
 namespace stxlib::math {
+
+namespace unflushed {
 
 void sincos(const float angle, float& s, float& c) noexcept {
     native::sincos(angle, s, c);
@@ -788,6 +807,8 @@ float atanh(const float x) noexcept {
     const float result = native::atanh(x);
     return result;
 }
+
+} // namespace unflushed
 
 } // namespace stxlib::math
 

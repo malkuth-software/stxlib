@@ -25,6 +25,18 @@
 #define STXLIB_MATH_VARIANT native
 #endif
 #include "algorithms/math/sincos_core.hpp"
+// STXlib batch 3c8: the checks carried from stx_auxlib call the unflushed
+// functions (src/algorithms/math/dispatch.cpp: the kernel the SIMD level
+// selects, without the subnormal rule), so their measurements and frozen
+// hashes still describe stx_auxlib's bits; flush_rule() and
+// public_special_values() check the public functions of stxlib/math.hpp,
+// which apply the rule (flush.cpp), against them exactly. In the subnormal
+// regions (exp's, pow's and hypot's subnormal results, log's subnormal
+// arguments) the double checks verify the flush instead of measuring ulp.
+// The bench times the public functions.
+#define STXLIB_MATH_DECLARE_VARIANT unflushed
+#include "algorithms/math/variant_functions.hpp"
+#undef STXLIB_MATH_DECLARE_VARIANT
 
 #include <algorithm>
 #include <bit>
@@ -36,6 +48,8 @@
 #include <limits>
 #include <stdexcept>
 #include <vector>
+
+namespace unflushed = stxlib::math::unflushed;
 
 namespace {
 
@@ -51,6 +65,16 @@ struct Lcg final {
     STXLIB_MODULAR double unit() {
         state = state * 6364136223846793005ULL + 1442695040888963407ULL;
         const double result = static_cast<double>(state >> 11) * 0x1.0p-53;
+        return result;
+    }
+
+    // 64 bits from the high halves of two steps (STXlib batch 3c8, for
+    // random bit patterns: every exponent equally likely).
+    STXLIB_MODULAR std::uint64_t bits() {
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        const std::uint64_t high = state >> 32;
+        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        const std::uint64_t result = (high << 32) | (state >> 32);
         return result;
     }
 };
@@ -149,6 +173,26 @@ bool same_bits(const float a, const float b) {
     return result;
 }
 
+// STXlib's subnormal rule, written here independently of flush.cpp (by
+// classification, not by bits): a subnormal value becomes zero of its sign.
+bool subnormal(const double value) {
+    return std::fpclassify(value) == FP_SUBNORMAL;
+}
+
+bool subnormal(const float value) {
+    return std::fpclassify(value) == FP_SUBNORMAL;
+}
+
+double flushed(const double value) {
+    if (subnormal(value)) return std::copysign(0.0, value);
+    return value;
+}
+
+float flushed(const float value) {
+    if (subnormal(value)) return std::copysign(0.0f, value);
+    return value;
+}
+
 // Inputs off the computed range must return exactly what the stated rule
 // says: x and 1 below 2^-27 (keeping the sign of zero), NaN above 2^32 and
 // for infinities and NaN. Edges of the computed range must meet the bound.
@@ -157,12 +201,12 @@ void special_values() {
     for (const double x : tiny) {
         double s = 0.0;
         double c = 0.0;
-        stxlib::math::sincos(x, s, c);
+        unflushed::sincos(x, s, c);
         require(same_bits(s, x) && same_bits(c, 1.0), "sincos(double): tiny input is not (x, 1)");
         const float xf = static_cast<float>(x);
         float sf = 0.0f;
         float cf = 0.0f;
-        stxlib::math::sincos(xf, sf, cf);
+        unflushed::sincos(xf, sf, cf);
         require(same_bits(sf, xf) && same_bits(cf, 1.0f), "sincos(float): tiny input is not (x, 1)");
     }
     const double refused[] = {0x1.0000000000001p32, -0x1.0000000000001p32, 1e300,
@@ -172,15 +216,15 @@ void special_values() {
     for (const double x : refused) {
         double s = 0.0;
         double c = 0.0;
-        stxlib::math::sincos(x, s, c);
-        require(std::isnan(s) && std::isnan(c) && std::isnan(stxlib::math::tan(x)),
+        unflushed::sincos(x, s, c);
+        require(std::isnan(s) && std::isnan(c) && std::isnan(unflushed::tan(x)),
                 "sincos/tan(double): an angle above 2^32 was not refused");
         const float xf = static_cast<float>(x);
         if (std::isfinite(xf) && std::fabs(xf) <= 0x1p32f) continue;
         float sf = 0.0f;
         float cf = 0.0f;
-        stxlib::math::sincos(xf, sf, cf);
-        require(std::isnan(sf) && std::isnan(cf) && std::isnan(stxlib::math::tan(xf)),
+        unflushed::sincos(xf, sf, cf);
+        require(std::isnan(sf) && std::isnan(cf) && std::isnan(unflushed::tan(xf)),
                 "sincos/tan(float): an angle above 2^32 was not refused");
     }
     const double edges[] = {0x1p-27, -0x1p-27, 0x1p20, -0x1p20, 0x1.fffffffffffffp19,
@@ -188,7 +232,7 @@ void special_values() {
     for (const double x : edges) {
         double s = 0.0;
         double c = 0.0;
-        stxlib::math::sincos(x, s, c);
+        unflushed::sincos(x, s, c);
         const wide::WideSinCos exact = wide::reference(x);
         require(std::max(double_ulps(s, exact.s), double_ulps(c, exact.c)) <= double_ulp_limit,
                 "sincos(double): edge above the stated bound");
@@ -230,14 +274,14 @@ void sincos_hard_reduction(const int count) {
         if (std::fabs(x) > 0x1p32) continue;
         double s = 0.0;
         double c = 0.0;
-        stxlib::math::sincos(x, s, c);
+        unflushed::sincos(x, s, c);
         const wide::WideSinCos exact = wide::reference(x);
         const double error = std::max(double_ulps(s, exact.s), double_ulps(c, exact.c));
         if (error > worst) {
             worst = error;
             worst_x = x;
         }
-        require(double_ulps(stxlib::math::tan(x), wide::tan_reference(x)) <= tan_ulp_limit,
+        require(double_ulps(unflushed::tan(x), wide::tan_reference(x)) <= tan_ulp_limit,
                 "tan(double): hard reduction case above the stated bound");
     }
     std::printf("sincos(double) near k*pi/128 %10d inputs  max %.6f ulp at %a\n", count, worst, worst_x);
@@ -251,7 +295,7 @@ void sincos_hard_reduction(const int count) {
 // exact remainder, and sin, cos and tan must be within the stated bound of
 // the exact values the certificate computed (not of the reference).
 void sincos_certified_worst_cases() {
-    namespace detail = stxlib::math::STXLIB_MATH_VARIANT::detail;
+    namespace detail = unflushed::STXLIB_MATH_VARIANT::detail;
     int checked = 0;
     for (const sincos_worst_cases::Case& entry : sincos_worst_cases::cases) {
         for (int sign = 0; sign < 2; ++sign) {
@@ -280,8 +324,8 @@ void sincos_certified_worst_cases() {
             require(reduction_error <= allowed, "sincos worst case: reduction outside the certified contract");
             double s = 0.0;
             double c = 0.0;
-            stxlib::math::sincos(x, s, c);
-            const double t = stxlib::math::tan(x);
+            unflushed::sincos(x, s, c);
+            const double t = unflushed::tan(x);
             const double sin_error = double_ulps(s, wide::Wide{flip * entry.sin_hi, flip * entry.sin_lo});
             const double cos_error = double_ulps(c, wide::Wide{entry.cos_hi, entry.cos_lo});
             const double tan_error = double_ulps(t, wide::Wide{flip * entry.tan_hi, flip * entry.tan_lo});
@@ -308,7 +352,7 @@ void double_accuracy(const int per_region) {
             const double x = region.low + (region.high - region.low) * lcg.unit();
             double s = 0.0;
             double c = 0.0;
-            stxlib::math::sincos(x, s, c);
+            unflushed::sincos(x, s, c);
             const wide::WideSinCos exact = wide::reference(x);
             const double error = std::max(double_ulps(s, exact.s), double_ulps(c, exact.c));
             if (error > 0.5) misrounded += 1;
@@ -337,7 +381,7 @@ void float_rounding(const std::uint32_t stride) {
         for (const float x : signs) {
             float s = 0.0f;
             float c = 0.0f;
-            stxlib::math::sincos(x, s, c);
+            unflushed::sincos(x, s, c);
             const double xd = static_cast<double>(x);
             const float screen_s = static_cast<float>(std::sin(xd));
             const float screen_c = static_cast<float>(std::cos(xd));
@@ -364,10 +408,10 @@ STXLIB_MODULAR std::uint64_t output_hash() {
             const double x = (2.0 * lcg.unit() - 1.0) * range;
             double s = 0.0;
             double c = 0.0;
-            stxlib::math::sincos(x, s, c);
+            unflushed::sincos(x, s, c);
             float sf = 0.0f;
             float cf = 0.0f;
-            stxlib::math::sincos(static_cast<float>(x), sf, cf);
+            unflushed::sincos(static_cast<float>(x), sf, cf);
             const std::uint64_t words[4] = {std::bit_cast<std::uint64_t>(s),
                                             std::bit_cast<std::uint64_t>(c),
                                             std::bit_cast<std::uint32_t>(sf),
@@ -457,36 +501,36 @@ double exp_correctly_rounded_subnormal(const wide::ScaledWide exact) {
 void exp_special_values() {
     const double infinity = std::numeric_limits<double>::infinity();
     const double nan = std::numeric_limits<double>::quiet_NaN();
-    require(std::isnan(stxlib::math::exp(nan)) &&
-                std::isnan(stxlib::math::exp(static_cast<float>(nan))),
+    require(std::isnan(unflushed::exp(nan)) &&
+                std::isnan(unflushed::exp(static_cast<float>(nan))),
             "exp: NaN did not return NaN");
-    require(same_bits(stxlib::math::exp(infinity), infinity) &&
-                same_bits(stxlib::math::exp(-infinity), 0.0),
+    require(same_bits(unflushed::exp(infinity), infinity) &&
+                same_bits(unflushed::exp(-infinity), 0.0),
             "exp(double): infinities do not give +infinity and +0");
-    require(same_bits(stxlib::math::exp(static_cast<float>(infinity)),
+    require(same_bits(unflushed::exp(static_cast<float>(infinity)),
                       std::numeric_limits<float>::infinity()) &&
-                same_bits(stxlib::math::exp(static_cast<float>(-infinity)), 0.0f),
+                same_bits(unflushed::exp(static_cast<float>(-infinity)), 0.0f),
             "exp(float): infinities do not give +infinity and +0");
     const double overflowing[] = {709.7827128933841, 709.79, 710.0, 1e300};
     for (const double x : overflowing) {
-        require(same_bits(stxlib::math::exp(x), infinity), "exp(double): did not overflow");
+        require(same_bits(unflushed::exp(x), infinity), "exp(double): did not overflow");
     }
-    require(std::isfinite(stxlib::math::exp(709.782712893384)),
+    require(std::isfinite(unflushed::exp(709.782712893384)),
             "exp(double): overflowed below ln(DBL_MAX)");
     const double vanishing[] = {-745.1332191019412, -746.0, -800.0, -1e300};
     for (const double x : vanishing) {
-        require(same_bits(stxlib::math::exp(x), 0.0), "exp(double): did not underflow to +0");
+        require(same_bits(unflushed::exp(x), 0.0), "exp(double): did not underflow to +0");
     }
-    require(stxlib::math::exp(-745.13321910194) == 0x1p-1074,
+    require(unflushed::exp(-745.13321910194) == 0x1p-1074,
             "exp(double): the smallest subnormal result is wrong");
-    require(same_bits(stxlib::math::exp(0.0), 1.0) && same_bits(stxlib::math::exp(-0.0), 1.0),
+    require(same_bits(unflushed::exp(0.0), 1.0) && same_bits(unflushed::exp(-0.0), 1.0),
             "exp(double): e^0 is not exactly 1");
-    require(same_bits(stxlib::math::exp(0.0f), 1.0f), "exp(float): e^0 is not exactly 1");
-    require(std::isinf(stxlib::math::exp(89.0f)), "exp(float): 89 did not overflow");
-    require(stxlib::math::exp(-104.0f) == 0.0f, "exp(float): -104 did not underflow");
+    require(same_bits(unflushed::exp(0.0f), 1.0f), "exp(float): e^0 is not exactly 1");
+    require(std::isinf(unflushed::exp(89.0f)), "exp(float): 89 did not overflow");
+    require(unflushed::exp(-104.0f) == 0.0f, "exp(float): -104 did not underflow");
     const double edges[] = {708.0, -708.0, 1e-300, -1e-300, 0x1p-54, -0x1p-54, 709.78, -708.39};
     for (const double x : edges) {
-        require(exp_ulps(stxlib::math::exp(x), wide::exp_reference(x)) <= exp_ulp_limit,
+        require(exp_ulps(unflushed::exp(x), wide::exp_reference(x)) <= exp_ulp_limit,
                 "exp(double): edge above the stated bound");
     }
 }
@@ -499,22 +543,31 @@ void exp_double_outside(const int count) {
     double worst = 0.0;
     for (int i = 0; i < count; ++i) {
         const double x = 708.0 + (709.7827128933840 - 708.0) * lcg.unit();
-        worst = std::max(worst, exp_ulps(stxlib::math::exp(x), wide::exp_reference(x)));
+        worst = std::max(worst, exp_ulps(unflushed::exp(x), wide::exp_reference(x)));
     }
     std::printf("exp(double) (708, 709.78]   %10d inputs  max %.6f ulp\n", count, worst);
     require(worst <= exp_ulp_limit, "exp(double): error above the bound near overflow");
-    std::uint64_t misrounded = 0;
+    // STXlib: the subnormal results flush to +0 (math.hpp), verified
+    // exactly; within one subnormal ulp of 2^-1022 the kernel's rounding
+    // decides between +0 and 2^-1022.
+    std::uint64_t flushed_count = 0;
+    std::uint64_t boundary_count = 0;
     for (int i = 0; i < count; ++i) {
         const double x = -745.1332191019412 + (745.1332191019412 - 708.3964185322641) * lcg.unit();
         const double y = stxlib::math::exp(x);
-        const double expected = exp_correctly_rounded_subnormal(wide::exp_reference(x));
-        if (y != expected) misrounded += 1;
-        require(std::fabs(y - expected) <= 0x1p-1074, "exp(double): subnormal off by more than an ulp");
+        require(same_bits(y, flushed(unflushed::exp(x))), "exp(double): not the flushed kernel result");
+        const double nearest = exp_correctly_rounded_subnormal(wide::exp_reference(x));
+        if (nearest < 0x1p-1022 - 0x1p-1074) {
+            require(same_bits(y, 0.0), "exp(double): a subnormal result was not flushed to +0");
+            flushed_count += 1;
+        } else {
+            require(same_bits(y, 0.0) || y >= 0x1p-1022, "exp(double): a subnormal result near 2^-1022");
+            boundary_count += 1;
+        }
     }
-    std::printf("exp(double) subnormal range  %10d inputs  %llu not correctly rounded\n", count,
-                static_cast<unsigned long long>(misrounded));
-    require(misrounded * 1000000 <= static_cast<std::uint64_t>(count),
-            "exp(double): subnormal results misrounded more than one in a million");
+    std::printf("exp(double) subnormal range  %10d inputs  %llu flushed to +0, %llu at the 2^-1022 boundary\n",
+                count, static_cast<unsigned long long>(flushed_count),
+                static_cast<unsigned long long>(boundary_count));
 }
 
 const Region exp_regions[] = {
@@ -533,7 +586,7 @@ void exp_double_accuracy(const int per_region) {
         std::uint64_t misrounded = 0;
         for (int i = 0; i < per_region; ++i) {
             const double x = region.low + (region.high - region.low) * lcg.unit();
-            const double error = exp_ulps(stxlib::math::exp(x), wide::exp_reference(x));
+            const double error = exp_ulps(unflushed::exp(x), wide::exp_reference(x));
             if (error > 0.5) misrounded += 1;
             if (error > worst) {
                 worst = error;
@@ -558,7 +611,7 @@ void exp_float_rounding(const std::uint32_t stride) {
         const float magnitude = std::bit_cast<float>(static_cast<std::uint32_t>(wide_bits));
         const float signs[2] = {magnitude, -magnitude};
         for (const float x : signs) {
-            const float y = stxlib::math::exp(x);
+            const float y = unflushed::exp(x);
             const double xd = static_cast<double>(x);
             const float screen = static_cast<float>(std::exp(xd));
             checked += 1;
@@ -583,8 +636,8 @@ STXLIB_MODULAR std::uint64_t exp_output_hash() {
     for (const double range : ranges) {
         for (int i = 0; i < 4000000; ++i) {
             const double x = (2.0 * lcg.unit() - 1.0) * range;
-            const double y = stxlib::math::exp(x);
-            const float yf = stxlib::math::exp(static_cast<float>(x));
+            const double y = unflushed::exp(x);
+            const float yf = unflushed::exp(static_cast<float>(x));
             const std::uint64_t words[2] = {std::bit_cast<std::uint64_t>(y),
                                             std::bit_cast<std::uint32_t>(yf)};
             for (const std::uint64_t word : words) {
@@ -622,14 +675,18 @@ struct LogKernel final {
     LogFloat owned_float{nullptr};
     LogDouble library_double{nullptr};
     wide::Wide inverse{1.0, 0.0};
+    LogDouble public_double{nullptr};  // STXlib: stxlib/math.hpp's, with the subnormal rule
 };
 
-double owned_log_d(const double x) { return stxlib::math::log(x); }
-float owned_log_f(const float x) { return stxlib::math::log(x); }
-double owned_log2_d(const double x) { return stxlib::math::log2(x); }
-float owned_log2_f(const float x) { return stxlib::math::log2(x); }
-double owned_log10_d(const double x) { return stxlib::math::log10(x); }
-float owned_log10_f(const float x) { return stxlib::math::log10(x); }
+double owned_log_d(const double x) { return unflushed::log(x); }
+float owned_log_f(const float x) { return unflushed::log(x); }
+double owned_log2_d(const double x) { return unflushed::log2(x); }
+float owned_log2_f(const float x) { return unflushed::log2(x); }
+double owned_log10_d(const double x) { return unflushed::log10(x); }
+float owned_log10_f(const float x) { return unflushed::log10(x); }
+double public_log_d(const double x) { return stxlib::math::log(x); }
+double public_log2_d(const double x) { return stxlib::math::log2(x); }
+double public_log10_d(const double x) { return stxlib::math::log10(x); }
 double library_log_d(const double x) { return std::log(x); }
 double library_log2_d(const double x) { return std::log2(x); }
 double library_log10_d(const double x) { return std::log10(x); }
@@ -639,9 +696,9 @@ std::vector<LogKernel> log_kernels() {
     const wide::Wide inv_ln2 = wide::divide(wide::Wide{1.0, 0.0}, ln2);
     const wide::Wide inv_ln10 = wide::divide(wide::Wide{1.0, 0.0}, wide::log_reference(10.0));
     std::vector<LogKernel> kernels{};
-    kernels.push_back(LogKernel{"log", owned_log_d, owned_log_f, library_log_d, wide::Wide{1.0, 0.0}});
-    kernels.push_back(LogKernel{"log2", owned_log2_d, owned_log2_f, library_log2_d, inv_ln2});
-    kernels.push_back(LogKernel{"log10", owned_log10_d, owned_log10_f, library_log10_d, inv_ln10});
+    kernels.push_back(LogKernel{"log", owned_log_d, owned_log_f, library_log_d, wide::Wide{1.0, 0.0}, public_log_d});
+    kernels.push_back(LogKernel{"log2", owned_log2_d, owned_log2_f, library_log2_d, inv_ln2, public_log2_d});
+    kernels.push_back(LogKernel{"log10", owned_log10_d, owned_log10_f, library_log10_d, inv_ln10, public_log10_d});
     return kernels;
 }
 
@@ -682,22 +739,22 @@ void log_special_values(const std::vector<LogKernel>& kernels) {
         }
     }
     for (int k = -1074; k <= 1023; ++k) {
-        require(stxlib::math::log2(std::ldexp(1.0, k)) == static_cast<double>(k),
+        require(unflushed::log2(std::ldexp(1.0, k)) == static_cast<double>(k),
                 "log2(double): log2(2^k) is not exactly k");
     }
     for (int k = -149; k <= 127; ++k) {
-        require(stxlib::math::log2(std::ldexp(1.0f, k)) == static_cast<float>(k),
+        require(unflushed::log2(std::ldexp(1.0f, k)) == static_cast<float>(k),
                 "log2(float): log2(2^k) is not exactly k");
     }
     double power = 1.0;
     for (int n = 0; n <= 22; ++n) {
-        require(stxlib::math::log10(power) == static_cast<double>(n),
+        require(unflushed::log10(power) == static_cast<double>(n),
                 "log10(double): log10(10^n) is not exactly n");
         power *= 10.0;
     }
     float power_float = 1.0f;
     for (int n = 0; n <= 10; ++n) {
-        require(stxlib::math::log10(power_float) == static_cast<float>(n),
+        require(unflushed::log10(power_float) == static_cast<float>(n),
                 "log10(float): log10(10^n) is not exactly n");
         power_float *= 10.0f;
     }
@@ -727,12 +784,27 @@ void log_double_accuracy(const std::vector<LogKernel>& kernels, const int per_re
             std::uint64_t misrounded = 0;
             for (int i = 0; i < per_region; ++i) {
                 const double x = log_input(region, lcg);
+                if (region == 3) {
+                    // STXlib: a subnormal argument reads as zero of its sign
+                    // (math.hpp), so the public result is -infinity for
+                    // either sign; verified exactly instead of measured.
+                    const double infinity = std::numeric_limits<double>::infinity();
+                    require(same_bits((*kernel.public_double)(x), -infinity) &&
+                                same_bits((*kernel.public_double)(-x), -infinity),
+                            "log(double): a subnormal argument did not give -infinity");
+                    continue;
+                }
                 const double error = double_ulps((*kernel.owned_double)(x), log_exact(kernel, x));
                 if (error > 0.5) misrounded += 1;
                 if (error > worst) {
                     worst = error;
                     worst_x = x;
                 }
+            }
+            if (region == 3) {
+                std::printf("%s(double) %-14s %10d inputs  -infinity for both signs (verified)\n",
+                            kernel.name, log_region_names[region], per_region);
+                continue;
             }
             std::printf("%s(double) %-14s %10d inputs  max %.6f ulp at %a  %llu above 0.5 ulp\n",
                         kernel.name, log_region_names[region], per_region, worst, worst_x,
@@ -940,7 +1012,7 @@ void pow_special_values() {
     for (const BinarySpecial& special : recorded) {
         const double x = xs[special.first_index];
         const double y = ys[special.second_index];
-        require(same_bits(stxlib::math::pow(x, y), std::bit_cast<double>(special.expected_bits)),
+        require(same_bits(unflushed::pow(x, y), std::bit_cast<double>(special.expected_bits)),
                 "pow(double): special input differs from its recorded result");
     }
     // The same inputs rounded to float.
@@ -1020,31 +1092,31 @@ void pow_special_values() {
     for (const BinarySpecialFloat& special : recorded_float) {
         const float xf = static_cast<float>(xs[special.first_index]);
         const float yf = static_cast<float>(ys[special.second_index]);
-        require(same_bits(stxlib::math::pow(xf, yf), std::bit_cast<float>(special.expected_bits)),
+        require(same_bits(unflushed::pow(xf, yf), std::bit_cast<float>(special.expected_bits)),
                 "pow(float): special input differs from its recorded result");
     }
     // Exactly representable results are exact.
     for (int n = -1074; n <= 1023; ++n) {
-        require(stxlib::math::pow(2.0, static_cast<double>(n)) == std::ldexp(1.0, n),
+        require(unflushed::pow(2.0, static_cast<double>(n)) == std::ldexp(1.0, n),
                 "pow(double): 2^n is not exact");
     }
     double power = 1.0;
     for (int n = 0; n <= 22; ++n) {
-        require(stxlib::math::pow(10.0, static_cast<double>(n)) == power,
+        require(unflushed::pow(10.0, static_cast<double>(n)) == power,
                 "pow(double): 10^n is not exact");
         power *= 10.0;
     }
     for (int a = 1; a <= 100; ++a) {
         double exact = 1.0;
         for (int b = 0; b <= 12 && exact < 0x1p53; ++b) {
-            require(stxlib::math::pow(static_cast<double>(a), static_cast<double>(b)) == exact &&
-                        stxlib::math::pow(-static_cast<double>(a), static_cast<double>(b)) ==
+            require(unflushed::pow(static_cast<double>(a), static_cast<double>(b)) == exact &&
+                        unflushed::pow(-static_cast<double>(a), static_cast<double>(b)) ==
                             (b % 2 == 1 ? -exact : exact),
                     "pow(double): small integer power is not exact");
             exact *= static_cast<double>(a);
         }
     }
-    require(stxlib::math::pow(4.0, 0.5) == 2.0 && stxlib::math::pow(0.25, -0.5) == 2.0,
+    require(unflushed::pow(4.0, 0.5) == 2.0 && unflushed::pow(0.25, -0.5) == 2.0,
             "pow(double): exact square roots are not exact");
 }
 
@@ -1058,16 +1130,16 @@ void pow_input(const int region, Lcg& lcg, double& x, double& y) {
     } else if (region == 1) {
         const double exponent = std::floor(lcg.unit() * 2000.0) - 1000.0;
         x = std::ldexp(1.0 + lcg.unit(), static_cast<int>(exponent));
-        y = (lcg.unit() - 0.5) * 1400.0 / std::fabs(stxlib::math::log(x));
+        y = (lcg.unit() - 0.5) * 1400.0 / std::fabs(unflushed::log(x));
     } else if (region == 2) {
         x = 1.0 + (lcg.unit() - 0.5) * 2e-10;
         y = (lcg.unit() - 0.5) * 2e10;
     } else if (region == 3) {
         x = 1.0 + lcg.unit();
-        y = 709.0 / stxlib::math::log(x) * (0.999 + 0.0012 * lcg.unit());
+        y = 709.0 / unflushed::log(x) * (0.999 + 0.0012 * lcg.unit());
     } else {
         x = 1.0 + lcg.unit();
-        y = -1.0 * (708.5 + 36.5 * lcg.unit()) / stxlib::math::log(x);
+        y = -1.0 * (708.5 + 36.5 * lcg.unit()) / unflushed::log(x);
     }
 }
 
@@ -1086,14 +1158,24 @@ void pow_double_accuracy(const int per_region) {
             double x = 0.0;
             double y = 0.0;
             pow_input(region, lcg, x, y);
-            const double result = stxlib::math::pow(x, y);
+            const double result = unflushed::pow(x, y);
             const wide::ScaledWide exact = pow_reference(x, y);
             double error = 0.0;
             if (region == 4) {
+                // STXlib: subnormal results flush to +0 (math.hpp), verified
+                // exactly instead of measured; x > 0, so the zero is +0.
+                const double public_result = stxlib::math::pow(x, y);
+                require(same_bits(public_result, flushed(result)), "pow(double): not the flushed kernel result");
                 if (result >= 0x1p-1022) continue;
-                const double expected = exp_correctly_rounded_subnormal(exact);
-                error = std::fabs(result - expected) / 0x1p-1074;
-                if (result != expected) misrounded += 1;
+                const double nearest = exp_correctly_rounded_subnormal(exact);
+                if (nearest < 0x1p-1022 - 0x1p-1074) {
+                    require(same_bits(public_result, 0.0), "pow(double): a subnormal result was not flushed to +0");
+                }
+                require(same_bits(public_result, 0.0) || public_result >= 0x1p-1022,
+                        "pow(double): a subnormal result near 2^-1022");
+                misrounded += 1;
+                measured += 1;
+                continue;
             } else {
                 if (!std::isfinite(result) || result < 0x1p-1022) continue;
                 error = exp_ulps(result, exact);
@@ -1109,7 +1191,7 @@ void pow_double_accuracy(const int per_region) {
         std::printf("pow(double) %-15s %10d inputs  max %.6f ulp at (%a, %a)  %llu %s\n",
                     pow_region_names[region], measured, worst, worst_x, worst_y,
                     static_cast<unsigned long long>(misrounded),
-                    region == 4 ? "not correctly rounded" : "above 0.5 ulp");
+                    region == 4 ? "flushed (verified, not measured)" : "above 0.5 ulp");
         require(worst <= pow_ulp_limit, "pow(double): error above the stated bound");
     }
 }
@@ -1122,7 +1204,7 @@ void pow_float_rounding(const int count) {
     for (int i = 0; i < count; ++i) {
         const float x = static_cast<float>(lcg.unit() * 16.0);
         const float y = static_cast<float>((lcg.unit() - 0.5) * 80.0);
-        const float result = stxlib::math::pow(x, y);
+        const float result = unflushed::pow(x, y);
         if (!(x > 0.0f) || !std::isfinite(result) || result < 0x1p-126f) continue;
         const wide::ScaledWide exact = pow_reference(static_cast<double>(x), static_cast<double>(y));
         require(result == exp_correctly_rounded_float(exact),
@@ -1141,9 +1223,9 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
             double x = 0.0;
             double y = 0.0;
             pow_input(region, lcg, x, y);
-            const double result = stxlib::math::pow(x, y);
-            const double negative = stxlib::math::pow(-x, std::floor(y));
-            const float result_float = stxlib::math::pow(static_cast<float>(x), static_cast<float>(y));
+            const double result = unflushed::pow(x, y);
+            const double negative = unflushed::pow(-x, std::floor(y));
+            const float result_float = unflushed::pow(static_cast<float>(x), static_cast<float>(y));
             const std::uint64_t words[3] = {std::bit_cast<std::uint64_t>(result),
                                             std::bit_cast<std::uint64_t>(negative),
                                             std::bit_cast<std::uint32_t>(result_float)};
@@ -1220,7 +1302,7 @@ void hypot_special_values() {
     for (const BinarySpecial& special : recorded) {
         const double x = values[special.first_index];
         const double y = values[special.second_index];
-        require(same_bits(stxlib::math::hypot(x, y), std::bit_cast<double>(special.expected_bits)),
+        require(same_bits(unflushed::hypot(x, y), std::bit_cast<double>(special.expected_bits)),
                 "hypot(double): special input differs from its recorded result");
     }
     const BinarySpecialFloat recorded_float[] = {
@@ -1250,7 +1332,7 @@ void hypot_special_values() {
     for (const BinarySpecialFloat& special : recorded_float) {
         const float xf = static_cast<float>(values[special.first_index]);
         const float yf = static_cast<float>(values[special.second_index]);
-        require(same_bits(stxlib::math::hypot(xf, yf), std::bit_cast<float>(special.expected_bits)),
+        require(same_bits(unflushed::hypot(xf, yf), std::bit_cast<float>(special.expected_bits)),
                 "hypot(float): special input differs from its recorded result");
     }
     // Pythagorean triples are exact, at any common power of two.
@@ -1261,15 +1343,15 @@ void hypot_special_values() {
         for (const int scale : scales) {
             const double x = std::ldexp(triple[0], scale);
             const double y = std::ldexp(triple[1], scale);
-            require(stxlib::math::hypot(x, y) == std::ldexp(triple[2], scale) &&
-                        stxlib::math::hypot(-y, x) == std::ldexp(triple[2], scale),
+            require(unflushed::hypot(x, y) == std::ldexp(triple[2], scale) &&
+                        unflushed::hypot(-y, x) == std::ldexp(triple[2], scale),
                     "hypot(double): Pythagorean triple is not exact");
         }
-        require(stxlib::math::hypot(static_cast<float>(triple[0]), static_cast<float>(triple[1])) ==
+        require(unflushed::hypot(static_cast<float>(triple[0]), static_cast<float>(triple[1])) ==
                     static_cast<float>(triple[2]),
                 "hypot(float): Pythagorean triple is not exact");
     }
-    require(std::isinf(stxlib::math::hypot(0x1.fffffffffffffp1023, 0x1.fffffffffffffp1023)),
+    require(std::isinf(unflushed::hypot(0x1.fffffffffffffp1023, 0x1.fffffffffffffp1023)),
             "hypot(double): did not overflow");
 }
 
@@ -1301,20 +1383,30 @@ void hypot_double_accuracy(const int per_region) {
     for (int region = 0; region < 5; ++region) {
         double worst = 0.0;
         std::uint64_t misrounded = 0;
+        std::uint64_t flushed_count = 0;
         int measured = 0;
         for (int i = 0; i < per_region; ++i) {
             double x = 0.0;
             double y = 0.0;
             hypot_input(region, lcg, x, y);
             if (x == 0.0 && y == 0.0) continue;
-            const double result = stxlib::math::hypot(x, y);
+            const double result = unflushed::hypot(x, y);
             if (!std::isfinite(result)) continue;
             const wide::ScaledWide exact = wide::hypot_reference(x, y);
             double error = 0.0;
-            if (result < 0x1p-1022) {
-                const double expected = exp_correctly_rounded_subnormal(exact);
-                error = std::fabs(result - expected) / 0x1p-1074;
-                if (result != expected) misrounded += 1;
+            if (subnormal(x) || subnormal(y) || result < 0x1p-1022) {
+                // STXlib: subnormal operands read as zero and subnormal
+                // results flush (math.hpp), verified exactly instead of
+                // measured.
+                const double public_result = stxlib::math::hypot(x, y);
+                require(same_bits(public_result, flushed(unflushed::hypot(flushed(x), flushed(y)))),
+                        "hypot(double): not the flushed kernel result");
+                require(!subnormal(public_result), "hypot(double): a subnormal result");
+                if (subnormal(x) && subnormal(y)) {
+                    require(same_bits(public_result, 0.0), "hypot(double): two subnormals did not give +0");
+                }
+                flushed_count += 1;
+                continue;
             } else {
                 error = exp_ulps(result, exact);
                 if (error > 0.5) misrounded += 1;
@@ -1322,9 +1414,10 @@ void hypot_double_accuracy(const int per_region) {
             measured += 1;
             worst = std::max(worst, error);
         }
-        std::printf("hypot(double) %-15s %10d inputs  max %.6f ulp  %llu not correctly rounded\n",
+        std::printf("hypot(double) %-15s %10d inputs  max %.6f ulp  %llu not correctly rounded  %llu flushed\n",
                     hypot_region_names[region], measured, worst,
-                    static_cast<unsigned long long>(misrounded));
+                    static_cast<unsigned long long>(misrounded),
+                    static_cast<unsigned long long>(flushed_count));
         require(worst <= hypot_ulp_limit, "hypot(double): error above the stated bound");
     }
 }
@@ -1336,7 +1429,7 @@ void hypot_float_rounding(const int count) {
         const float x = static_cast<float>(std::ldexp(lcg.unit(), static_cast<int>(lcg.unit() * 250.0) - 125));
         float y = static_cast<float>(x * std::ldexp(lcg.unit(), -static_cast<int>(lcg.unit() * 14.0)));
         if (i % 3 == 0) y = static_cast<float>(lcg.unit());
-        const float result = stxlib::math::hypot(x, y);
+        const float result = unflushed::hypot(x, y);
         if (!std::isfinite(result) || result == 0.0f) continue;
         const float expected = exp_correctly_rounded_float(
             wide::hypot_reference(static_cast<double>(x), static_cast<double>(y)));
@@ -1355,8 +1448,8 @@ STXLIB_MODULAR std::uint64_t hypot_output_hash() {
             double x = 0.0;
             double y = 0.0;
             hypot_input(region, lcg, x, y);
-            const double result = stxlib::math::hypot(x, -y);
-            const float result_float = stxlib::math::hypot(static_cast<float>(x), static_cast<float>(y));
+            const double result = unflushed::hypot(x, -y);
+            const float result_float = unflushed::hypot(static_cast<float>(x), static_cast<float>(y));
             const std::uint64_t words[2] = {std::bit_cast<std::uint64_t>(result),
                                             std::bit_cast<std::uint32_t>(result_float)};
             for (const std::uint64_t word : words) {
@@ -1383,12 +1476,12 @@ using UnaryDouble = double (*)(double x);
 using UnaryFloat = float (*)(float x);
 using UnaryReference = wide::Wide (*)(double x);
 
-double owned_atan_d(const double x) { return stxlib::math::atan(x); }
-float owned_atan_f(const float x) { return stxlib::math::atan(x); }
-double owned_asin_d(const double x) { return stxlib::math::asin(x); }
-float owned_asin_f(const float x) { return stxlib::math::asin(x); }
-double owned_acos_d(const double x) { return stxlib::math::acos(x); }
-float owned_acos_f(const float x) { return stxlib::math::acos(x); }
+double owned_atan_d(const double x) { return unflushed::atan(x); }
+float owned_atan_f(const float x) { return unflushed::atan(x); }
+double owned_asin_d(const double x) { return unflushed::asin(x); }
+float owned_asin_f(const float x) { return unflushed::asin(x); }
+double owned_acos_d(const double x) { return unflushed::acos(x); }
+float owned_acos_f(const float x) { return unflushed::acos(x); }
 double library_atan_d(const double x) { return std::atan(x); }
 double library_asin_d(const double x) { return std::asin(x); }
 double library_acos_d(const double x) { return std::acos(x); }
@@ -1504,10 +1597,10 @@ void inverse_trig_special_values() {
     for (const BinarySpecial& special : recorded_atan2) {
         const double y = atan2_inputs[special.first_index];
         const double x = atan2_inputs[special.second_index];
-        require(same_bits(stxlib::math::atan2(y, x), std::bit_cast<double>(special.expected_bits)),
+        require(same_bits(unflushed::atan2(y, x), std::bit_cast<double>(special.expected_bits)),
                 "atan2(double): special input differs from its recorded result");
     }
-    require(same_bits(stxlib::math::acos(1.0), 0.0) && same_bits(stxlib::math::acos(1.0f), 0.0f),
+    require(same_bits(unflushed::acos(1.0), 0.0) && same_bits(unflushed::acos(1.0f), 0.0f),
             "acos: acos(1) is not +0");
 }
 
@@ -1552,7 +1645,7 @@ void inverse_trig_double_accuracy(const int per_region) {
         const double x = std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 40.0) - 20);
         const double y = std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 40.0) - 20);
         if (x == 0.0 || y == 0.0) continue;
-        worst = std::max(worst, double_ulps(stxlib::math::atan2(y, x), wide::atan2_reference(y, x)));
+        worst = std::max(worst, double_ulps(unflushed::atan2(y, x), wide::atan2_reference(y, x)));
     }
     std::printf("atan2(double) %10d pairs  max %.6f ulp\n", per_region, worst);
     require(worst <= inverse_trig_ulp_limit, "atan2(double): error above the bound");
@@ -1586,7 +1679,7 @@ void inverse_trig_float_rounding(const std::uint32_t stride) {
         const float x = static_cast<float>(std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 60.0) - 30));
         const float y = static_cast<float>(std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 60.0) - 30));
         if (x == 0.0f || y == 0.0f) continue;
-        const float result = stxlib::math::atan2(y, x);
+        const float result = unflushed::atan2(y, x);
         require(result == correctly_rounded_float(wide::atan2_reference(static_cast<double>(y), static_cast<double>(x))),
                 "atan2(float): result is not correctly rounded");
         checked += 1;
@@ -1616,8 +1709,8 @@ STXLIB_MODULAR std::uint64_t inverse_trig_output_hash() {
     for (int i = 0; i < 1000000; ++i) {
         const double x = std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 40.0) - 20);
         const double y = std::ldexp(lcg.unit() - 0.5, static_cast<int>(lcg.unit() * 40.0) - 20);
-        const std::uint64_t words[2] = {std::bit_cast<std::uint64_t>(stxlib::math::atan2(y, x)),
-                                        std::bit_cast<std::uint32_t>(stxlib::math::atan2(
+        const std::uint64_t words[2] = {std::bit_cast<std::uint64_t>(unflushed::atan2(y, x)),
+                                        std::bit_cast<std::uint32_t>(unflushed::atan2(
                                             static_cast<float>(y), static_cast<float>(x)))};
         for (const std::uint64_t word : words) {
             hash ^= word;
@@ -1638,22 +1731,22 @@ void inverse_trig_determinism() {
 
 // ---- tan, cbrt, hyperbolic ------------------------------------------------------------
 
-double owned_tan_d(const double x) { return stxlib::math::tan(x); }
-float owned_tan_f(const float x) { return stxlib::math::tan(x); }
-double owned_sinh_d(const double x) { return stxlib::math::sinh(x); }
-float owned_sinh_f(const float x) { return stxlib::math::sinh(x); }
-double owned_cosh_d(const double x) { return stxlib::math::cosh(x); }
-float owned_cosh_f(const float x) { return stxlib::math::cosh(x); }
-double owned_tanh_d(const double x) { return stxlib::math::tanh(x); }
-float owned_tanh_f(const float x) { return stxlib::math::tanh(x); }
-double owned_asinh_d(const double x) { return stxlib::math::asinh(x); }
-float owned_asinh_f(const float x) { return stxlib::math::asinh(x); }
-double owned_acosh_d(const double x) { return stxlib::math::acosh(x); }
-float owned_acosh_f(const float x) { return stxlib::math::acosh(x); }
-double owned_atanh_d(const double x) { return stxlib::math::atanh(x); }
-float owned_atanh_f(const float x) { return stxlib::math::atanh(x); }
-double owned_cbrt_d(const double x) { return stxlib::math::cbrt(x); }
-float owned_cbrt_f(const float x) { return stxlib::math::cbrt(x); }
+double owned_tan_d(const double x) { return unflushed::tan(x); }
+float owned_tan_f(const float x) { return unflushed::tan(x); }
+double owned_sinh_d(const double x) { return unflushed::sinh(x); }
+float owned_sinh_f(const float x) { return unflushed::sinh(x); }
+double owned_cosh_d(const double x) { return unflushed::cosh(x); }
+float owned_cosh_f(const float x) { return unflushed::cosh(x); }
+double owned_tanh_d(const double x) { return unflushed::tanh(x); }
+float owned_tanh_f(const float x) { return unflushed::tanh(x); }
+double owned_asinh_d(const double x) { return unflushed::asinh(x); }
+float owned_asinh_f(const float x) { return unflushed::asinh(x); }
+double owned_acosh_d(const double x) { return unflushed::acosh(x); }
+float owned_acosh_f(const float x) { return unflushed::acosh(x); }
+double owned_atanh_d(const double x) { return unflushed::atanh(x); }
+float owned_atanh_f(const float x) { return unflushed::atanh(x); }
+double owned_cbrt_d(const double x) { return unflushed::cbrt(x); }
+float owned_cbrt_f(const float x) { return unflushed::cbrt(x); }
 double library_tan_d(const double x) { return std::tan(x); }
 double library_sinh_d(const double x) { return std::sinh(x); }
 double library_cosh_d(const double x) { return std::cosh(x); }
@@ -1818,12 +1911,12 @@ void remaining_special_values() {
     }
     for (int k = 1; k <= 200; ++k) {
         const double cube = static_cast<double>(k) * static_cast<double>(k) * static_cast<double>(k);
-        require(stxlib::math::cbrt(cube) == static_cast<double>(k) &&
-                    stxlib::math::cbrt(-cube) == -static_cast<double>(k) &&
-                    stxlib::math::cbrt(static_cast<float>(cube)) == static_cast<float>(k),
+        require(unflushed::cbrt(cube) == static_cast<double>(k) &&
+                    unflushed::cbrt(-cube) == -static_cast<double>(k) &&
+                    unflushed::cbrt(static_cast<float>(cube)) == static_cast<float>(k),
                 "cbrt: an exact cube's root is not exact");
     }
-    require(stxlib::math::cbrt(0x1p-1074) == 0x1p-358, "cbrt(double): 2^-1074 has no exact root");
+    require(unflushed::cbrt(0x1p-1074) == 0x1p-358, "cbrt(double): 2^-1074 has no exact root");
 }
 
 void remaining_double_accuracy(const int per_region) {
@@ -1910,6 +2003,276 @@ void remaining_determinism() {
     const std::uint64_t hash = remaining_output_hash();
     std::printf("tan/cbrt/hyperbolic output hash %016llx\n", static_cast<unsigned long long>(hash));
     require(hash == expected_remaining_output_hash, "tan/cbrt/hyperbolic: outputs differ from the frozen bits");
+}
+
+// ---- the subnormal rule (STXlib batch 3c8) ------------------------------------
+//
+// Every public function of stxlib/math.hpp reads a subnormal argument as zero
+// of its sign and returns a would-be-subnormal result as zero of its sign
+// (owner decision 2026-11-13). Checked exactly, bit for bit: the public
+// result equals flushed(unflushed(flushed(arguments))), with this file's own
+// flushed(), and is never subnormal. --exhaustive takes every float for the
+// one-argument float functions (the subnormal range included), every
+// subnormal float against fixed partners for the two-argument ones, and 20
+// million doubles per category; the ctest run strides through the same.
+
+using FloatUnary = float (*)(float) noexcept;
+using DoubleUnary = double (*)(double) noexcept;
+using FloatBinary = float (*)(float, float) noexcept;
+using DoubleBinary = double (*)(double, double) noexcept;
+
+struct FlushUnary final {
+    const char* name{nullptr};
+    FloatUnary public_float{nullptr};
+    FloatUnary unflushed_float{nullptr};
+    DoubleUnary public_double{nullptr};
+    DoubleUnary unflushed_double{nullptr};
+};
+
+struct FlushBinary final {
+    const char* name{nullptr};
+    FloatBinary public_float{nullptr};
+    FloatBinary unflushed_float{nullptr};
+    DoubleBinary public_double{nullptr};
+    DoubleBinary unflushed_double{nullptr};
+};
+
+const FlushUnary flush_unary[] = {
+    {"exp", stxlib::math::exp, unflushed::exp, stxlib::math::exp, unflushed::exp},
+    {"log", stxlib::math::log, unflushed::log, stxlib::math::log, unflushed::log},
+    {"log2", stxlib::math::log2, unflushed::log2, stxlib::math::log2, unflushed::log2},
+    {"log10", stxlib::math::log10, unflushed::log10, stxlib::math::log10, unflushed::log10},
+    {"atan", stxlib::math::atan, unflushed::atan, stxlib::math::atan, unflushed::atan},
+    {"asin", stxlib::math::asin, unflushed::asin, stxlib::math::asin, unflushed::asin},
+    {"acos", stxlib::math::acos, unflushed::acos, stxlib::math::acos, unflushed::acos},
+    {"tan", stxlib::math::tan, unflushed::tan, stxlib::math::tan, unflushed::tan},
+    {"cbrt", stxlib::math::cbrt, unflushed::cbrt, stxlib::math::cbrt, unflushed::cbrt},
+    {"sinh", stxlib::math::sinh, unflushed::sinh, stxlib::math::sinh, unflushed::sinh},
+    {"cosh", stxlib::math::cosh, unflushed::cosh, stxlib::math::cosh, unflushed::cosh},
+    {"tanh", stxlib::math::tanh, unflushed::tanh, stxlib::math::tanh, unflushed::tanh},
+    {"asinh", stxlib::math::asinh, unflushed::asinh, stxlib::math::asinh, unflushed::asinh},
+    {"acosh", stxlib::math::acosh, unflushed::acosh, stxlib::math::acosh, unflushed::acosh},
+    {"atanh", stxlib::math::atanh, unflushed::atanh, stxlib::math::atanh, unflushed::atanh},
+};
+
+const FlushBinary flush_binary[] = {
+    {"pow", stxlib::math::pow, unflushed::pow, stxlib::math::pow, unflushed::pow},
+    {"hypot", stxlib::math::hypot, unflushed::hypot, stxlib::math::hypot, unflushed::hypot},
+    {"atan2", stxlib::math::atan2, unflushed::atan2, stxlib::math::atan2, unflushed::atan2},
+};
+
+// Partners for the two-argument functions: zeros, subnormals at both ends,
+// the smallest normal, ordinary values, exponents that take pow's results
+// into the subnormal range, huge values (atan2's tiny quotients),
+// infinities and NaN.
+const double flush_partners[] = {0.0, -0.0, 0x1p-1074, -0x1p-1074, 0x0.fffffffffffffp-1022,
+                                 -0x0.8p-1022, 0x1p-149, -0x1p-140, 0x1p-1022, -0x1p-1022,
+                                 0x1p-126, 1.0, -1.0, 0.5, 2.0, -3.0, 1074.0, -1074.0, 1060.5,
+                                 140.0, -140.0, 149.5, 1e30, 0x1p1000, 0x1.fffffep127,
+                                 std::numeric_limits<double>::infinity(),
+                                 -std::numeric_limits<double>::infinity(),
+                                 std::numeric_limits<double>::quiet_NaN()};
+
+void flush_failed(const char* name, const char* type, const double x, const double y) {
+    std::fprintf(stderr, "subnormal rule broken: %s(%s) at x = %a, y = %a\n", name, type, x, y);
+    require(false, "math: a public result breaks the subnormal rule");
+}
+
+void check_unary_float(const FlushUnary& unary, const float x) {
+    const float result = (*unary.public_float)(x);
+    const float expected = flushed((*unary.unflushed_float)(flushed(x)));
+    if (!same_bits(result, expected) || subnormal(result)) flush_failed(unary.name, "float", x, 0.0);
+}
+
+void check_unary_double(const FlushUnary& unary, const double x) {
+    const double result = (*unary.public_double)(x);
+    const double expected = flushed((*unary.unflushed_double)(flushed(x)));
+    if (!same_bits(result, expected) || subnormal(result)) flush_failed(unary.name, "double", x, 0.0);
+}
+
+void check_binary_float(const FlushBinary& binary, const float x, const float y) {
+    const float result = (*binary.public_float)(x, y);
+    const float expected = flushed((*binary.unflushed_float)(flushed(x), flushed(y)));
+    if (!same_bits(result, expected) || subnormal(result)) flush_failed(binary.name, "float", x, y);
+}
+
+void check_binary_double(const FlushBinary& binary, const double x, const double y) {
+    const double result = (*binary.public_double)(x, y);
+    const double expected = flushed((*binary.unflushed_double)(flushed(x), flushed(y)));
+    if (!same_bits(result, expected) || subnormal(result)) flush_failed(binary.name, "double", x, y);
+}
+
+void check_sincos_float(const float x) {
+    float s = 0.0f;
+    float c = 0.0f;
+    stxlib::math::sincos(x, s, c);
+    float unflushed_s = 0.0f;
+    float unflushed_c = 0.0f;
+    unflushed::sincos(flushed(x), unflushed_s, unflushed_c);
+    if (!same_bits(s, flushed(unflushed_s)) || !same_bits(c, flushed(unflushed_c)) || subnormal(s) ||
+        subnormal(c)) {
+        flush_failed("sincos", "float", x, 0.0);
+    }
+}
+
+void check_sincos_double(const double x) {
+    double s = 0.0;
+    double c = 0.0;
+    stxlib::math::sincos(x, s, c);
+    double unflushed_s = 0.0;
+    double unflushed_c = 0.0;
+    unflushed::sincos(flushed(x), unflushed_s, unflushed_c);
+    if (!same_bits(s, flushed(unflushed_s)) || !same_bits(c, flushed(unflushed_c)) || subnormal(s) ||
+        subnormal(c)) {
+        flush_failed("sincos", "double", x, 0.0);
+    }
+}
+
+// A random subnormal double of either sign (biased exponent 0, significand
+// not 0).
+double random_subnormal(Lcg& lcg) {
+    const std::uint64_t pattern = lcg.bits();
+    std::uint64_t significand = pattern & 0x000fffffffffffffULL;
+    if (significand == 0) significand = 1;
+    const double result = std::bit_cast<double>((pattern & 0x8000000000000000ULL) | significand);
+    return result;
+}
+
+void flush_rule(const bool exhaustive) {
+    // Floats, one argument: every bit pattern (stride 1) or a stride, and
+    // every subnormal pattern at a finer stride in the ctest run.
+    const std::uint64_t float_stride = exhaustive ? 1 : 997;
+    const std::uint64_t subnormal_stride = exhaustive ? 1 : 61;
+    std::uint64_t float_checked = 0;
+    for (std::uint64_t pattern = 0; pattern <= 0xffffffffULL; pattern += float_stride) {
+        const float x = std::bit_cast<float>(static_cast<std::uint32_t>(pattern));
+        for (const FlushUnary& unary : flush_unary) check_unary_float(unary, x);
+        check_sincos_float(x);
+        float_checked += 1;
+    }
+    std::uint64_t subnormal_checked = 0;
+    for (std::uint64_t significand = 1; significand < 0x800000ULL; significand += subnormal_stride) {
+        const std::uint32_t signs[2] = {0U, 0x80000000U};
+        for (const std::uint32_t sign : signs) {
+            const float x = std::bit_cast<float>(sign | static_cast<std::uint32_t>(significand));
+            for (const FlushUnary& unary : flush_unary) check_unary_float(unary, x);
+            check_sincos_float(x);
+            for (const FlushBinary& binary : flush_binary) {
+                for (const double partner : flush_partners) {
+                    const float other = static_cast<float>(partner);
+                    check_binary_float(binary, x, other);
+                    check_binary_float(binary, other, x);
+                }
+            }
+            subnormal_checked += 1;
+        }
+    }
+    // Floats, two arguments: a stride through every pattern against the
+    // partners, both ways round.
+    const std::uint64_t binary_stride = exhaustive ? 4099 : 65537;
+    for (std::uint64_t pattern = 0; pattern <= 0xffffffffULL; pattern += binary_stride) {
+        const float x = std::bit_cast<float>(static_cast<std::uint32_t>(pattern));
+        for (const FlushBinary& binary : flush_binary) {
+            for (const double partner : flush_partners) {
+                const float other = static_cast<float>(partner);
+                check_binary_float(binary, x, other);
+                check_binary_float(binary, other, x);
+            }
+        }
+    }
+    // Doubles: random bit patterns (every exponent), random subnormals, and
+    // the arguments whose results fall in the subnormal range (exp below
+    // ln(2^-1022); pow with results there, both signs of x).
+    const int count = exhaustive ? 20000000 : 100000;
+    Lcg lcg{3008};
+    for (int i = 0; i < count; ++i) {
+        const double any = std::bit_cast<double>(lcg.bits());
+        const double tiny = random_subnormal(lcg);
+        const std::size_t partner_count = sizeof(flush_partners) / sizeof(flush_partners[0]);
+        const double partner = flush_partners[static_cast<std::size_t>(lcg.unit() * static_cast<double>(partner_count))];
+        const double other = std::bit_cast<double>(lcg.bits());
+        for (const FlushUnary& unary : flush_unary) {
+            check_unary_double(unary, any);
+            check_unary_double(unary, tiny);
+        }
+        check_sincos_double(any);
+        check_sincos_double(tiny);
+        for (const FlushBinary& binary : flush_binary) {
+            check_binary_double(binary, any, other);
+            check_binary_double(binary, tiny, partner);
+            check_binary_double(binary, partner, tiny);
+            check_binary_double(binary, any, partner);
+            check_binary_double(binary, partner, any);
+        }
+        const double underflowing = -746.0 + 37.7 * lcg.unit();
+        check_unary_double(flush_unary[0], underflowing);
+        const double base = 1.0 + lcg.unit();
+        const double power = -1.0 * (708.0 + 37.5 * lcg.unit()) / unflushed::log(base);
+        check_binary_double(flush_binary[0], base, power);
+        check_binary_double(flush_binary[0], -base, std::floor(power));
+        check_binary_double(flush_binary[2], std::ldexp(1.0 + lcg.unit(), -1000), std::ldexp(1.0 + lcg.unit(), 100));
+    }
+    std::printf("subnormal rule  %llu float patterns, %llu subnormal floats, %d rounds of 51 double cases: exact\n",
+                static_cast<unsigned long long>(float_checked),
+                static_cast<unsigned long long>(subnormal_checked), count);
+}
+
+// The subnormal outcomes math.hpp states, one by one.
+void public_special_values() {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double pi = 3.141592653589793;
+    double s = 0.0;
+    double c = 0.0;
+    stxlib::math::sincos(0x1p-1074, s, c);
+    require(same_bits(s, 0.0) && same_bits(c, 1.0), "sincos(double): a subnormal angle is not (+0, 1)");
+    stxlib::math::sincos(-0x1p-1030, s, c);
+    require(same_bits(s, -0.0) && same_bits(c, 1.0), "sincos(double): a subnormal angle is not (-0, 1)");
+    float sf = 0.0f;
+    float cf = 0.0f;
+    stxlib::math::sincos(-0x1p-149f, sf, cf);
+    require(same_bits(sf, -0.0f) && same_bits(cf, 1.0f), "sincos(float): a subnormal angle is not (-0, 1)");
+    require(same_bits(stxlib::math::exp(-745.13321910194), 0.0) &&
+                unflushed::exp(-745.13321910194) == 0x1p-1074,
+            "exp(double): the smallest subnormal result is not flushed to +0");
+    require(same_bits(stxlib::math::exp(0x1p-1074), 1.0) && same_bits(stxlib::math::exp(-0x1p-1074), 1.0),
+            "exp(double): a subnormal argument does not give 1");
+    require(same_bits(stxlib::math::exp(-100.0f), 0.0f) && stxlib::math::exp(-87.0f) >= 0x1p-126f,
+            "exp(float): the subnormal range is not flushed to +0");
+    require(same_bits(stxlib::math::log(0x1p-1074), -infinity) &&
+                same_bits(stxlib::math::log(-0x1p-1074), -infinity) &&
+                same_bits(stxlib::math::log2(0x1p-1030), -infinity) &&
+                same_bits(stxlib::math::log10(-0x0.fffffffffffffp-1022), -infinity) &&
+                std::isinf(stxlib::math::log(0x1p-149f)) && stxlib::math::log(0x1p-149f) < 0.0f,
+            "log: a subnormal argument does not give -infinity");
+    require(same_bits(stxlib::math::pow(0x1p-1074, -1.0), infinity) &&
+                same_bits(stxlib::math::pow(-0x1p-1074, -1.0), -infinity) &&
+                same_bits(stxlib::math::pow(2.0, 0x1p-1074), 1.0) &&
+                same_bits(stxlib::math::pow(0.5, 1074.0), 0.0) && unflushed::pow(0.5, 1074.0) == 0x1p-1074 &&
+                same_bits(stxlib::math::pow(-0.5, 1073.0), -0.0) &&
+                stxlib::math::pow(0.5, 1022.0) == 0x1p-1022 &&
+                same_bits(stxlib::math::pow(0.5f, 140.0f), 0.0f),
+            "pow: the subnormal rule's cases");
+    require(same_bits(stxlib::math::hypot(0x1p-1074, -0x1p-1060), 0.0) &&
+                same_bits(stxlib::math::hypot(3.0, 0x1p-1074), 3.0),
+            "hypot: subnormal operands are not read as zero");
+    require(same_bits(stxlib::math::atan(-0x1p-1074), -0.0) && same_bits(stxlib::math::asin(0x1p-1074), 0.0) &&
+                same_bits(stxlib::math::acos(0x1p-1074), stxlib::math::acos(0.0)) &&
+                same_bits(stxlib::math::atan2(0x1p-1000, 0x1p100), 0.0) &&
+                stxlib::math::atan2(-0x1p-1074, -1.0) == -pi &&
+                same_bits(stxlib::math::atan2(-0x1p-1074, -1.0), stxlib::math::atan2(-0.0, -1.0)),
+            "inverse trigonometric: the subnormal rule's cases");
+    require(same_bits(stxlib::math::tan(-0x1p-1074), -0.0) && same_bits(stxlib::math::tan(0x1p-1022), 0x1p-1022),
+            "tan(double): the subnormal rule's cases");
+    require(same_bits(stxlib::math::cbrt(0x1p-1074), 0.0) && same_bits(stxlib::math::cbrt(-0x1p-1074), -0.0) &&
+                unflushed::cbrt(0x1p-1074) == 0x1p-358,
+            "cbrt(double): a subnormal argument does not give its zero");
+    require(same_bits(stxlib::math::sinh(0x1p-1074), 0.0) && same_bits(stxlib::math::tanh(-0x1p-1074), -0.0) &&
+                same_bits(stxlib::math::asinh(0x1p-1074), 0.0) &&
+                same_bits(stxlib::math::atanh(-0x1p-1074), -0.0) &&
+                same_bits(stxlib::math::cosh(0x1p-1074), 1.0) && std::isnan(stxlib::math::acosh(0x1p-1074)) &&
+                same_bits(stxlib::math::sinh(0x1p-1022), 0x1p-1022),
+            "hyperbolic: the subnormal rule's cases");
+    std::printf("subnormal rule  stated cases hold\n");
 }
 
 // ---- --bench ----------------------------------------------------------------
@@ -2268,6 +2631,8 @@ int main(const int argument_count, char** const arguments) {
         remaining_determinism();
         remaining_double_accuracy(exhaustive ? 5000000 : 50000);
         remaining_float_rounding(exhaustive ? 1 : 1999);
+        public_special_values();
+        flush_rule(exhaustive);
     } catch (const std::exception& failure) {
         std::fprintf(stderr, "math tests failed: %s\n", failure.what());
         return 1;
