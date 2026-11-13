@@ -34,6 +34,10 @@ options 	_KPOSIX_PRIORITY_SCHEDULING # POSIX real-time scheduling for the superv
 options 	PRINTF_BUFR_SIZE=128	# Prevent printf output being interspersed.
 options 	EFIRT			# EFI Runtime Services support
 options 	PERTHREAD_SSP		# Per-thread SSP canary
+options 	HWPMC_HOOKS		# Necessary kernel hooks for hwpmc(4) (std.arm64). Kept because
+				# sys/arm/arm/pmu.c:66-89 (always built on arm64) leaves 'r' set but
+				# unused without it, an error under -Werror: the first build,
+				# 2026-11-13, stopped there (LLVM 22.1.8, -Wunused-but-set-variable).
 
 # --- Boot timing (sys/conf/NOTES:641-642) ----------------------------------
 options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user

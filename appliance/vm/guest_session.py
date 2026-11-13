@@ -178,6 +178,10 @@ def run_session(arguments: argparse.Namespace, commands: List[str], session_dir:
         answer = console.expect(AFTER_LOGIN, 'a shell prompt after login')
         if answer.group(0) == 'Password:':
             raise SessionError('the console asked for a password; none is sent')
+        # Once logged in, the VM is always powered off cleanly, even after a
+        # failed command: killing QEMU loses unsynced writes and makes the
+        # next boot check the file systems (the first C1 step 2 run did that).
+        command_failure: Optional[SessionError] = None
         for index in range(len(commands)):
             command = commands[index]
             console.send(command + '; echo "@@DONE $?@@"\r')
@@ -188,8 +192,10 @@ def run_session(arguments: argparse.Namespace, commands: List[str], session_dir:
                 stream.write(f'$ {command}\n{console.consumed}\nexit {status}\n')
             summary.append(f'command {index + 1}: exit {status}: {command}')
             if status != 0:
-                raise SessionError(f'command {index + 1} exited {status}; stopping before the rest')
-        console.send('shutdown -p now\r')
+                command_failure = SessionError(f'command {index + 1} exited {status}; '
+                                               'the rest were not run')
+                break
+        console.send('sync; shutdown -p now\r')
         power_off_deadline = time.monotonic() + POWER_OFF_SECONDS
         while process.poll() is None and time.monotonic() < power_off_deadline:
             try:
@@ -199,6 +205,8 @@ def run_session(arguments: argparse.Namespace, commands: List[str], session_dir:
         if process.poll() is None:
             raise SessionError('the VM did not power off in time')
         summary.append(f'powered off at {time.monotonic() - started:.3f} s')
+        if command_failure is not None:
+            raise command_failure
     finally:
         console.close()
         stop_process(process)
