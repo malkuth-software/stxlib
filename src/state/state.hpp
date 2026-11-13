@@ -14,7 +14,8 @@
 // stxlib::memory's backend, tags and ownership check live here, so a block
 // allocated in one module may be released in another. Layout 6 drops the
 // zone's load state (owner decision D12 = a: no host zone rules are read)
-// and adds Windows' ICU module handle.
+// and adds Windows' ICU module handle. Layout 7 adds the SIMD level
+// selection (stxlib::algorithms), so one choice holds in every module.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -60,7 +61,10 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 6;
+inline constexpr u32 layout_version = 7;
+
+// ProcessState::simd_selection before any request or selection.
+inline constexpr i32 simd_unset = -1;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -230,6 +234,9 @@ struct ProcessState final {
     // Windows' ICU (local_time_windows.cpp), loaded on first use and kept
     // for the process's life: its module handle, published once.
     std::atomic<void*> zone_mapping_module{nullptr};
+    // The SIMD level (algorithms simd.cpp): simd_unset, a request (16 plus
+    // the level) or the selected level (0 to 2); a selection is final.
+    std::atomic<i32> simd_selection{simd_unset};
 };
 
 // What memory::release did with an address (allocator.cpp).
