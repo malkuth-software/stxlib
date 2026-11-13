@@ -7,6 +7,7 @@
 #include "stxlib/random.hpp"
 
 #include "core/checked.hpp"
+#include "core/subnormal.hpp"
 #include "stxlib/entropy.hpp"
 
 #include <bit>
@@ -218,7 +219,13 @@ i64 detail::advance(const i64 low, const u64 offset) noexcept {
     return result;
 }
 
-double detail::scale_into(const double low, const double high, const double unit) noexcept {
+// STXlib batch 3c9 (owner decision D1, 2026-11-13): no subnormals. The
+// bounds are read with subnormals as zero of their sign, and a result that
+// would be subnormal is zero of its sign, or `low` when that zero is not
+// below `high`.
+double detail::scale_into(const double given_low, const double given_high, const double unit) noexcept {
+    const double low = ::stxlib::detail::flush_subnormal(given_low);
+    const double high = ::stxlib::detail::flush_subnormal(given_high);
     if (!(low < high) || !std::isfinite(low) || !std::isfinite(high)) return low;
     const double width = high - low;
     double result = 0.0;
@@ -231,6 +238,8 @@ double detail::scale_into(const double low, const double high, const double unit
     }
     if (result >= high) result = std::nextafter(high, low);
     if (result < low) result = low;
+    result = ::stxlib::detail::flush_subnormal(result);
+    if (!(result < high)) result = low;
     return result;
 }
 

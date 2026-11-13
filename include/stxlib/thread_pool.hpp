@@ -25,6 +25,14 @@
 // begin must call wait. Tasks stay borrowed until run or wait returns. A
 // task must not call into its own pool.
 //
+// Reductions (STXlib's floating-point discipline, F5 = 1, 2026-11-13): a
+// reduction STXlib spreads over a pool partitions its terms into fixed
+// chunks of 4096, never by thread count; each chunk reduces in the fixed
+// lane order, and the chunk results combine in chunk-index order on the
+// calling thread (src/core/float_reduce.hpp states the shape). The pool's
+// unspecified task order and its thread count then change the speed of a
+// reduction, never its bits. A consumer's own reductions are its to order.
+//
 // Validation happens before any task runs: an empty run succeeds; an empty
 // begin, a batch of more than 2^32 - 1 tasks, or a task without a function
 // is refused and runs nothing.

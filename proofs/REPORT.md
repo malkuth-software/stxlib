@@ -134,6 +134,35 @@ evidence, not proof.
 | `src/algorithms/math/` (exp, pow and hypot double, subnormal results; log double, subnormal arguments) | the flush is exact: +0 wherever the correctly rounded result is at least one subnormal ulp below 2^-1022 (+0 or 2^-1022 within that ulp); -infinity for subnormal log arguments of either sign | **not yet run;** sampled, not proved, at 20 million inputs per region in `--exhaustive`. This replaces the ulp measurement there, so the 6 of 20 million pow results one ulp off on the subnormal grid (stx_auxlib b6e330a's kernel, found by sbi) are no longer within the contract | `tests/math_tests.cpp` |
 | `src/algorithms/math/sincos_core.hpp` (the certificate) | the 0.51 ulp bound carries to the public sincos and tan | unchanged kernel. For 2^-27 <= abs(x) <= 2^32 the argument is normal, and so is every sine and cosine (none is below 2^-1022), so the flush never acts there. The certificate is still to be rerun on STXlib's build (batch 3c5 row) | `tools/math/sincos_certificate.py` |
 
+## stxlib::algorithms, batch 3c9 (no subnormals in text and random)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/numeric_text.cpp` (parsing) | a real below the smallest normal parses as zero of its sign on every host; out_of_range only on overflow | tested, not proved, at named texts in both types: subnormal results, results below the subnormal range, the boundary on either side of the smallest normal, and saturating exponents. Risk: a host that reports out_of_range for a text rounding up to the smallest normal would give zero for it | `tests/numeric_text_tests.cpp` (`parsing`) |
+| `src/algorithms/numeric_text.cpp` (formatting) | a subnormal formats as zero of its sign; normal values unchanged (round trip and host agreement over 200,000 doubles and 100,000 floats, subnormal samples taken flushed) | tested, not proved | `tests/numeric_text_tests.cpp` (`reals`, `round_trips_and_host_agreement`) |
+| `src/algorithms/random.cpp` (`scale_into`) | never subnormal, within [low, high) of the read bounds, or `low` | tested at named bounds and units, not proved | `tests/random_tests.cpp` |
+
+## Batch float_exact (src/core/float_exact.hpp)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `split` (float) | hi + lo == a exactly; each half at most 12 significant bits; both zero or normal | **not yet run.** Proved by exhaustive enumeration of every float in range (2^32 patterns screened) once `stxlib_float_exact_tests --exhaustive` passes; the ctest run strides. ESBMC harness `harness_split` written, not run | `tests/float_exact_tests.cpp` (`float_split`); `proofs/esbmc/float_exact_float.cpp` |
+| `two_product`, `two_sum`, `fast_two_sum` (float) | exact; the error zero or normal; the fused and Dekker forms agree bit for bit | **not yet run.** `--exhaustive` takes every significand of a binade, both signs, against 512 partners: that is a sample of pairs, not a proof. ESBMC harnesses (bit-precise, over all pairs in range) are written but not run; once they pass, this is proved for float, by ESBMC at the pinned version | `tests/float_exact_tests.cpp`; `proofs/esbmc/float_exact_float.cpp` |
+| `two_sum`, `fast_two_sum`, `two_product`, `split` (double) | as above | sampled against the exact integer reference (20 million in `--exhaustive`), not proved. Literature proofs: Knuth Theorem B, Dekker 1971, the Flocq formalisation (Boldo and Melquiond 2011; Boldo 2006 for Veltkamp and Dekker) | `tests/float_exact_tests.cpp` |
+| expansions | exact sums, scalings and products; nonoverlapping output in increasing magnitude; the sign | sampled against the exact reference, not proved; Shewchuk 1997's theorems | `tests/float_exact_tests.cpp` (`expansions`) |
+| `KahanSum`, `NeumaierSum` | within Higham's bounds (section 4.3) | sampled, not proved | `tests/float_exact_tests.cpp` (`compensated`) |
+| `orient2d`, `incircle` | the exact sign, in float and double | sampled against the exact reference, with exactly collinear and cocircular inputs (scaled to the range bounds) nudged by one ulp, not proved. The filters are Shewchuk's stage-A bounds, plus an absolute slack for incircle's underflowing products, argued in the header | `tests/float_exact_tests.cpp` (`predicates`) |
+| `src/algorithms/math/kernel_support.hpp` | the math's bits are unchanged by the move | the frozen hashes of `tests/math_tests.cpp` at every level and in the Dekker build (to run) | `tests/math_tests.cpp` |
+
+## Batch reduction order (src/core/float_reduce.hpp, the bit identity, the flag check)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/float_reduce.hpp` (shape) | ordered_sum and ordered_dot compute F5's shape: 8 lanes, the fixed tree, the tail in index order, no added zero | tested, not proved: hand-worked cases on which sequential order, another grouping, or a tail in lane 0 give different bits; every length 0..300 against a restatement (sampled terms); signed zeros | `tests/float_reduce_tests.cpp` (`shape_by_hand`, `shape_against_reference`, `signed_zeros`) |
+| `src/core/float_reduce.hpp` (pool) | the pool forms give the serial chunked bits at every thread count | tested at 1, 2, 3 and 8 threads, for batches on the calling thread and on the workers (601 chunks), not proved. The argument: each chunk's value depends only on its terms, and the combine runs on the caller in chunk order after run returns | `tests/float_reduce_tests.cpp` (`chunks`, `pool`) |
+| `tests/bit_identity.cpp` | every host, SIMD level and product form prints the frozen hash per item (math, float_exact, reductions, numeric text, random) | **not frozen yet**: the lines are frozen from the integrator's first M4 run; until then CI prints each host's lines and unfrozen items are warnings. Once frozen, a match is evidence over the fixed inputs only (sampled), not a proof of identity on all inputs | `tools/compare_bit_identity.py`, `tests/bit_identity_expected.txt`, `.github/workflows/ci.yml` |
+| `CMakeLists.txt` (rule 1) | every target defined there has `-ffp-contract=off`, and no target option or global flag undoes the discipline | checked at configure time over every target (`stxlib_check_float_flags`); not yet configured | `CMakeLists.txt` |
+
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
 
 | Module | Property | Status | Evidence |

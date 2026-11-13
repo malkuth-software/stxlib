@@ -377,6 +377,64 @@ In `tests/math_tests.cpp`:
 - `flush_rule()` and `public_special_values()` are new. They check the
   public functions against the unflushed ones bit for bit.
 
+### Batch 3c9: no subnormals in text and random (STXlib's own change)
+
+Owner decision D1 = 1 (2026-11-13, notes
+`decisions/2026-11-13-locals-float-mutability.md`). Nothing is ported in
+this batch.
+- `src/core/subnormal.hpp` (new) holds the flush on the bits.
+  `src/algorithms/math/flush.cpp` (batch 3c8) now uses it; its behaviour
+  is unchanged.
+- In `src/algorithms/numeric_text.cpp`:
+  - parsing returns zero of the text's sign for every real below the
+    smallest normal;
+  - hosts that report underflow as out_of_range are recognised from the
+    text's magnitude (`below_one`), so out_of_range now means overflow
+    only, whereas stx_auxlib reported underflow below the subnormal range
+    as out_of_range;
+  - formatting reads a subnormal as zero of its sign.
+- In `src/algorithms/random.cpp`, `scale_into` flushes its bounds and its
+  result.
+- The contracts in `numeric_text.hpp` and `random.hpp` state the rule. The
+  tests change with it.
+
+### Batch float_exact: the exact floating-point primitives (STXlib's own)
+
+Owner decisions F3 = 1 and F4 = 1 (2026-11-13). `src/core/float_exact.hpp`
+is new and private: two_sum, fast_two_sum, split, two_product (fused and
+Dekker forms, the same bits), Shewchuk's expansions, Kahan and Neumaier
+sums, and orient2d and incircle in float and double. It is written for
+STXlib from the literature the header cites:
+- Knuth (two_sum);
+- Dekker (fast_two_sum, the split and the product);
+- Shewchuk 1997 (the expansion algorithms, and the stage-A error bounds of
+  orient2d and incircle);
+- Kahan and Neumaier (compensated summation).
+
+No source code is copied. Shewchuk's `predicates.c` was not downloaded,
+and his intermediate adaptive stages are not taken.
+
+The double forms of two_sum, fast_two_sum, split and two_product are
+stx_auxlib's math kernels' operations, moved from
+`src/algorithms/math/kernel_support.hpp`; its forms now forward to the raw
+forms, so the math's bits are unchanged. `src/core/float_discipline.hpp`
+(the compile-time guards for rules 1 and 5) and
+`proofs/esbmc/float_exact_float.cpp` are new.
+
+### Batch reduction order: fixed-order reductions and the bit identity (STXlib's own)
+
+Owner decisions F1 = 1 and F5 = 1 (2026-11-13). New and STXlib's own:
+`src/core/float_reduce.hpp` (the F5 shape, the fixed 4096-term chunks, the
+pool forms), `tests/float_reduce_tests.cpp`, `tests/bit_identity.cpp`,
+`tests/bit_identity_expected.txt` (every item unfrozen) and
+`tools/compare_bit_identity.py`. Changed: `include/stxlib/thread_pool.hpp`
+(the reduction rule in the contract), `CMakeLists.txt` (the floating-point
+options on every target, the configure-time flag check, the new tests),
+`.github/workflows/ci.yml` (each job prints its bit-identity lines). No
+code is copied from anywhere; no STXlib result changes (the math, text and
+random code is untouched; the new options were already on every target
+that computes in floating point).
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)
