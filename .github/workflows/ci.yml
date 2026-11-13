@@ -10,14 +10,17 @@
 #   GUI.Forms installs it. It serves only the newest 22.x point release, so
 #   the job runs whatever 22.1.x that is and prints it; it is not pinned to
 #   22.1.8.
-# - linux-musl: the clang22 package of the Alpine release below, whatever
-#   22.x point release Alpine ships. It is not pinned to 22.1.8.
+# - linux-musl: the clang22 package of Alpine 3.24, 22.1.3-r0 (recorded
+#   deviation: not 22.1.8).
 # - windows: MSYS2's CLANG64 repository carries only its current LLVM.
 #   GUI.Forms gets an exact pin by packaging the toolchain once and restoring
 #   that package; STXlib does not have such a package yet. The job installs
 #   MSYS2's current clang, prints the version, and warns when it is not
 #   22.1.8.
 # Every job prints the compiler version before it builds.
+# Actions: actions/checkout v7 (v7.0.1, 2026-07-20) and actions/cache v6
+# (v6.1.0, 2026-06-26), both on node24 (their action.yml), replacing v4 on
+# the deprecated Node 20.
 name: STXlib CI
 on:
   push:
@@ -46,7 +49,7 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install LLVM 22 from apt.llvm.org
         run: |
           curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key -o "$RUNNER_TEMP/llvm-key.asc"
@@ -61,7 +64,7 @@ jobs:
         run: |
           clang++-22 --version | head -1
           clang++-22 --version | head -1 | grep -q ' 22\.1\.8' || echo "::warning::LLVM is not 22.1.8 on linux-glibc: $(clang++-22 --version | head -1)"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-v1-linux-glibc-${{ github.sha }}
@@ -105,28 +108,33 @@ jobs:
         run: ccache --show-stats
 
   linux-musl:
-    # Plain (Release) and Debug in an Alpine container, with libc++.
+    # Plain (Release) and Debug in an Alpine container, with libc++, LLVM's
+    # unwinder and compiler-rt, as Alpine 3.24 packages them (main, all
+    # 22.1.3-r0, pkgs.alpinelinux.org: libc++, libc++-dev, libc++-static,
+    # llvm-libunwind, llvm-libunwind-dev, compiler-rt). The first run linked
+    # with -stdlib=libc++ alone and failed at CMake's compiler check.
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     container: alpine:3.24
     env:
       CC: clang
       CXX: clang++
+      LINK: -stdlib=libc++ -rtlib=compiler-rt -unwindlib=libunwind
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_BASEDIR: ${{ github.workspace }}
     steps:
       - name: Install clang 22 and libc++ from Alpine
         run: |
           apk add --no-cache build-base cmake ninja python3 git ccache tar \
-            clang22 libc++-dev
+            clang22 libc++-dev libc++-static llvm-libunwind-dev compiler-rt
           ln -sf "$(command -v clang-22 || ls /usr/lib/llvm22/bin/clang)" /usr/local/bin/clang
           ln -sf "$(command -v clang++-22 || ls /usr/lib/llvm22/bin/clang++)" /usr/local/bin/clang++
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Compiler
         run: |
           clang++ --version | head -1
           clang++ --version | head -1 | grep -q ' 22\.1\.8' || echo "::warning::LLVM is not 22.1.8 on linux-musl: $(clang++ --version | head -1)"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-v1-linux-musl-${{ github.sha }}
@@ -134,13 +142,13 @@ jobs:
       - name: Plain
         run: |
           cmake -S . -B build-plain -G Ninja -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_EXE_LINKER_FLAGS=-stdlib=libc++ -DCMAKE_SHARED_LINKER_FLAGS=-stdlib=libc++
+            -DCMAKE_CXX_FLAGS=-stdlib=libc++ "-DCMAKE_EXE_LINKER_FLAGS=$LINK" "-DCMAKE_SHARED_LINKER_FLAGS=$LINK"
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
       - name: Debug
         run: |
           cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_EXE_LINKER_FLAGS=-stdlib=libc++ -DCMAKE_SHARED_LINKER_FLAGS=-stdlib=libc++
+            -DCMAKE_CXX_FLAGS=-stdlib=libc++ "-DCMAKE_EXE_LINKER_FLAGS=$LINK" "-DCMAKE_SHARED_LINKER_FLAGS=$LINK"
           cmake --build build-debug --parallel 4
           ctest --test-dir build-debug --output-on-failure --parallel 3 --timeout 1800
       - name: Compiler cache statistics
@@ -158,7 +166,7 @@ jobs:
       run:
         shell: msys2 {0}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: msys2/setup-msys2@v2
         with:
           msystem: CLANG64
@@ -178,7 +186,7 @@ jobs:
         run: |
           echo "CCACHE_DIR=$(cygpath -m "$PWD/.ccache")" >> "$GITHUB_ENV"
           echo "CCACHE_BASEDIR=$(cygpath -m "$PWD")" >> "$GITHUB_ENV"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: .ccache
           key: ccache-v1-windows-${{ github.sha }}
