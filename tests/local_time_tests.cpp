@@ -40,11 +40,18 @@ i64 seconds_of(const CivilTime& civil) {
     return result;
 }
 
-// The reading and its offset name the instant they were made from.
+// The reading and its offset name the instant they were made from. The
+// whole seconds are the floor of the nanoseconds, and the nanosecond field
+// what lies above them, computed without multiplying back (at i64_min the
+// floor times 10^9 is outside i64).
 bool consistent(const LocalTime& local, const WallTime instant) {
-    const bool result = seconds_of(local.civil) - local.offset_seconds == instant.unix_seconds() &&
-                        static_cast<i64>(local.civil.nanosecond) == instant.unix_nanoseconds() -
-                                                                         instant.unix_seconds() * 1000000000;
+    const i64 nanoseconds = instant.unix_nanoseconds();
+    const i64 remainder = nanoseconds % 1000000000;
+    const i64 floor_seconds = nanoseconds / 1000000000 - (remainder < 0 ? 1 : 0);
+    const i64 above = remainder < 0 ? remainder + 1000000000 : remainder;
+    const bool result = instant.unix_seconds() == floor_seconds &&
+                        seconds_of(local.civil) - local.offset_seconds == floor_seconds &&
+                        static_cast<i64>(local.civil.nanosecond) == above;
     return result;
 }
 
