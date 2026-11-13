@@ -696,7 +696,11 @@ if(STXLIB_TESTS)
         "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
         "view_index|stxlib: requirement failed: View: index out of range"
         "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
-        "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\].stxlib: trace: 0x"
+        "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\]"
+        "callback_frame_texts|stxlib: fail fast: stxlib\\.tests\\.event: invalid_argument.*stxlib: frames \\(throw_site\\): 3:button\\.ok:click\\[0,0\\]#12 > stxlib\\.tests\\.inner\\[9,0\\]"
+        "reporter_contract|reporter: console.*reporter: classified 1, message 300, frames 2, kind 3, type (named|none), console ok"
+        "reporter_opens_frame|stxlib: requirement failed: a fail-fast reporter opened a shadow frame"
+        "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
         "foreign_free|ANY"
         "foreign_delete|ANY")
     foreach(death_case IN LISTS stxlib_death_cases)

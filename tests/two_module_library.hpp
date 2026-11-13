@@ -27,6 +27,12 @@ using Callback = void (*)(void* context);
 // through unchanged.
 STXLIB_TEST_LIBRARY_API void run_in_library_frame(Callback callback, void* context);
 
+// Opens, by hand in the library's copy (enter_shadow_frame, then
+// leave_shadow_frame closed only if the callback returned, as GUI.Forms'
+// ShadowFrameCall does), the frame kind 2 "form.main" "key", and calls
+// `callback` inside it. An exception passes through unchanged.
+STXLIB_TEST_LIBRARY_API void run_in_library_dispatch_frame(Callback callback, void* context);
+
 // A gate in the library's copy: call_gate("test.library.gate") around
 // `callback`.
 STXLIB_TEST_LIBRARY_API stxlib::Status run_in_library_gate(Callback callback, void* context);

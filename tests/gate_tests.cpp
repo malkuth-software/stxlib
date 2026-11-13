@@ -198,9 +198,10 @@ void development_builds_keep_type_and_history() {
         CHECK(record.exception_type().empty());
         CHECK(stxlib::recent_failure_count() == 0);
     }
-    // A shadow record in development builds only (shadow_tests.cpp shows
-    // its contents).
-    CHECK(record.shadow().present() == stxlib::shadowing_enabled());
+    // A shadow record in every build since the A2 swap-in (its frames;
+    // the trace only in development builds; shadow_tests.cpp shows its
+    // contents).
+    CHECK(record.shadow().present());
 }
 
 void callbacks_pass_through() {

@@ -1,7 +1,8 @@
 #pragma once
 
 // The capture of a shadow record, shared by the scopes (shadow_frames.cpp)
-// and the gates (exception_shadow.cpp). Development builds only.
+// and the gates (exception_shadow.cpp). Every build; the native trace is
+// taken in development builds only.
 
 #include "stxlib/error.hpp"
 #include "stxlib/shadow.hpp"

@@ -23,7 +23,25 @@ struct CallsBackForGate final {
     }
 };
 
+// GUI.Forms' ShadowFrameCall, in this module's source.
+struct DispatchFrame final {
+    stxlib::ShadowFrameMark mark;
+    bool returned{false};
+
+    explicit DispatchFrame(const stxlib::ShadowFrameText& frame) noexcept : mark(stxlib::enter_shadow_frame(frame)) {}
+    ~DispatchFrame() { stxlib::leave_shadow_frame(mark, returned); }
+    DispatchFrame(const DispatchFrame&) = delete;
+    DispatchFrame& operator=(const DispatchFrame&) = delete;
+};
+
 } // namespace
+
+void run_in_library_dispatch_frame(const Callback callback, void* const context) {
+    const stxlib::ShadowFrameText dispatch{.kind = 2, .subject = "form.main", .name = "key"};
+    DispatchFrame frame(dispatch);
+    callback(context);
+    frame.returned = true;
+}
 
 void run_in_library_frame(const Callback callback, void* const context) {
     CallsBack calls{callback, context};

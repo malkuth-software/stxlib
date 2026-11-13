@@ -21,16 +21,29 @@
 // is a member of the frame's own scope object, written by the wrapper that
 // opened it, so it is right whichever module threw.
 //
-// The capture. In a development build (STXLIB_SHADOW, CMakeLists.txt: on in
-// Debug and sanitizer builds), the innermost unclosed frame an unwind
-// leaves copies the logical stack as it was at the throw (its own frame
-// included) and a native trace of return addresses into a shadow record,
-// before popping. Outer frames of the same unwind see that capture pending
-// and only pop. The gate that catches the exception attaches the shadow
-// record to the error record it makes (ErrorRecord::shadow()). When no
-// frame saw the unwind (possible only when a handler outside every gate
-// parks an exception, park_shadow), the capture is taken at the handler and
-// says so (CapturePoint::gate).
+// The capture (every build since the A2 swap-in; GUI.Forms' C ABI 1.2
+// promises frames in release builds, and S5's reason, "release builds keep
+// today's cost", holds because GUI.Forms records them today): the innermost
+// unclosed frame an unwind leaves copies the logical stack as it was at the
+// throw (its own frame included) into a shadow record, before popping. In
+// a development build (STXLIB_SHADOW, CMakeLists.txt: on in Debug and
+// sanitizer builds) it also takes a native trace of return addresses, and
+// the gate adds the exception's type; release builds carry neither (S5 =
+// 1). Outer frames of the same unwind see that capture pending and only
+// pop. The gate that catches the exception attaches the shadow record to
+// the error record it makes (ErrorRecord::shadow()). When no frame saw the
+// unwind (possible only when a handler outside every gate parks an
+// exception, park_shadow), the capture is taken at the handler and says so
+// (CapturePoint::gate).
+//
+// Frames (the A2 swap-in, decision A2-1 option 1, with GUI.Forms' record
+// form): a frame is a kind, two numbers, a sequence and two short texts, a
+// subject and a name, copied at the push (never pointed to, so two runs'
+// stacks compare). Kind 0, shadow_frame_kind_gate, is a gate's or an
+// operation's own frame, whose name is the operation's name; every other
+// kind is the consumer's (GUI.Forms' gf_shadow_frame_kind values). A text
+// longer than its field is cut at the last whole UTF-8 sequence that fits,
+// and the frame's flags say which text was cut.
 //
 // Modules (the GUI.Forms coordinator's constraint, 2026-11-13): when STXlib
 // is linked into several shared libraries, each has its own copy of
@@ -43,11 +56,11 @@
 // A frame's scope object is inline and lives on its caller's stack, so it
 // needs no shared state of its own.
 //
-// Release builds keep the logical stack (it is cheap and readable for
-// diagnostics) but capture nothing: records carry no frames, no trace and
-// no type (survey S5 = 1).
+// Every function here reads and writes only the calling thread's state; a
+// ShadowReference is read only on the thread that made it.
 
 #include "stxlib/error.hpp"
+#include "stxlib/require.hpp"
 #include "stxlib/result.hpp"
 #include "stxlib/text_view.hpp"
 #include "stxlib/types.hpp"
@@ -62,11 +75,83 @@ inline constexpr usize shadow_record_capacity = 4;
 // Error records from gates each thread keeps (development builds).
 inline constexpr usize recent_failure_capacity = 8;
 
-// One logical frame, as read back.
+// The bytes a frame keeps of its subject and of its name.
+inline constexpr usize shadow_subject_capacity = 48;
+inline constexpr usize shadow_name_capacity = 32;
+
+// Frame kinds are the consumer's, except 0: a gate's own frame (or
+// in_shadow_frame's by operation), whose name is the operation's name and
+// whose subject is empty.
+inline constexpr u32 shadow_frame_kind_gate = 0;
+
+// Bits of ShadowFrameRecord::flags: the text was longer than its field.
+inline constexpr u32 shadow_subject_truncated = 1;
+inline constexpr u32 shadow_name_truncated = 2;
+
+// One logical frame, as the stack holds it and as it is read back (120
+// bytes). The text arrays hold subject_count and name_count bytes of UTF-8,
+// not terminated; the bytes after them are zero.
 struct ShadowFrameRecord final {
-    TextView operation{};
+    u32 kind{shadow_frame_kind_gate};
+    u32 flags{0};
     u64 first{0};
     u64 second{0};
+    u64 sequence{0};
+    u32 subject_count{0};
+    u32 name_count{0};
+    char subject[shadow_subject_capacity]{};
+    char name[shadow_name_capacity]{};
+
+    // Borrowed from this record.
+    [[nodiscard]] TextView subject_text() const& noexcept {
+        const TextView result = detail::TextViewAccess::adopt_validated(subject, subject_count);
+        return result;
+    }
+    TextView subject_text() const&& = delete;
+    [[nodiscard]] TextView name_text() const& noexcept {
+        const TextView result = detail::TextViewAccess::adopt_validated(name, name_count);
+        return result;
+    }
+    TextView name_text() const&& = delete;
+};
+
+static_assert(sizeof(ShadowFrameRecord) == 120, "the frame record is GUI.Forms' 112-byte frame with u64 numbers");
+
+// The frame a gate opens, which is the whole frame (so a consumer's frame
+// that wraps a gated call does not appear twice). Written as
+// GateFrame{"table.slot", table, slot} for a gate's own frame, or with
+// designated initializers for a consumer kind. The operation names the
+// error record either way, and is the frame's name when kind is
+// shadow_frame_kind_gate (subject and name are then ignored). The texts are
+// borrowed only for the push.
+struct GateFrame final {
+    Operation operation;
+    u64 first{0};
+    u64 second{0};
+    u32 kind{shadow_frame_kind_gate};
+    TextView subject{};
+    TextView name{};
+    u64 sequence{0};
+};
+
+// A consumer's frame with texts, for in_shadow_frame (GUI.Forms' input
+// dispatch, layout and paint frames). Requirement: kind is not
+// shadow_frame_kind_gate. The texts are borrowed only for the push.
+struct ShadowFrameText final {
+    u32 kind{0};
+    TextView subject{};
+    TextView name{};
+    u64 first{0};
+    u64 second{0};
+    u64 sequence{0};
+};
+
+// The calling thread's stack beside its frames.
+struct ShadowStackState final {
+    usize depth{0};    // frames open now, recorded or not
+    usize recorded{0}; // min(depth, shadow_frame_capacity)
+    u64 pushes{0};     // every frame opened on the thread
+    u64 dropped{0};    // every frame opened past shadow_frame_capacity
 };
 
 enum class CapturePoint : u8 {
@@ -84,11 +169,48 @@ struct ShadowSummary final {
 
 namespace detail {
 
+// One push: what the frame records. A gate frame's name is its
+// operation's.
+struct FramePush final {
+    u32 kind{shadow_frame_kind_gate};
+    TextView subject{};
+    TextView name{};
+    u64 first{0};
+    u64 second{0};
+    u64 sequence{0};
+};
+
+[[nodiscard]] inline FramePush push_of(const GateFrame& frame) noexcept {
+    FramePush result{.kind = frame.kind,
+                     .subject = frame.subject,
+                     .name = frame.name,
+                     .first = frame.first,
+                     .second = frame.second,
+                     .sequence = frame.sequence};
+    if (frame.kind == shadow_frame_kind_gate) {
+        result.subject = TextView();
+        result.name = frame.operation.name();
+    }
+    return result;
+}
+
+[[nodiscard]] inline FramePush push_of(const ShadowFrameText& frame) noexcept {
+    STXLIB_REQUIRE(frame.kind != shadow_frame_kind_gate, "a ShadowFrameText needs a consumer kind (not 0)");
+    const FramePush result{.kind = frame.kind,
+                           .subject = frame.subject,
+                           .name = frame.name,
+                           .first = frame.first,
+                           .second = frame.second,
+                           .sequence = frame.sequence};
+    return result;
+}
+
 // Defined in src/core/shadow_frames.cpp (each module's copy), over the
-// state in stxlib_state. shadow_frame_enter returns the depth the frame was
-// pushed at; shadow_frame_leave pops it and, when `closed` is false and no
-// capture of this unwind is pending, captures first.
-[[nodiscard]] u32 shadow_frame_enter(TextView operation, u64 first, u64 second) noexcept;
+// state in stxlib_state. shadow_frame_enter copies the frame (texts cut to
+// their fields) and returns the depth it was pushed at; shadow_frame_leave
+// pops it and, when `closed` is false and no capture of this unwind is
+// pending, captures first.
+[[nodiscard]] u32 shadow_frame_enter(const FramePush& push) noexcept;
 void shadow_frame_leave(u32 depth, bool closed) noexcept;
 
 // One frame for its lifetime, used only by the wrappers below and the gates:
@@ -100,8 +222,7 @@ void shadow_frame_leave(u32 depth, bool closed) noexcept;
 // (automatic objects only).
 class ShadowFrameScope final {
 public:
-    ShadowFrameScope(const Operation operation, const u64 first, const u64 second) noexcept
-        : depth_(shadow_frame_enter(operation.name(), first, second)) {}
+    explicit ShadowFrameScope(const FramePush& push) noexcept : depth_(shadow_frame_enter(push)) {}
     ~ShadowFrameScope() { shadow_frame_leave(depth_, closed_); }
 
     ShadowFrameScope(const ShadowFrameScope&) = delete;
@@ -135,17 +256,14 @@ struct ReturnsVoid<void> final {
 
 } // namespace detail
 
-// Calls target(arguments...) inside one shadow frame and returns its result
-// (any type, or nothing). An exception passes through unchanged; if this
-// is the innermost frame it leaves, the frame captures first.
+namespace detail {
+
 template <typename Target, typename... Arguments>
-typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(const Operation operation,
-                                                                               const u64 first, const u64 second,
-                                                                               Target& target,
-                                                                               Arguments&... arguments) {
-    using Return = typename detail::FrameTargetReturn<Target, Arguments...>::Type;
-    detail::ShadowFrameScope frame(operation, first, second);
-    if constexpr (detail::ReturnsVoid<Return>::value) {
+typename FrameTargetReturn<Target, Arguments...>::Type call_in_frame(const FramePush& push, Target& target,
+                                                                     Arguments&... arguments) {
+    using Return = typename FrameTargetReturn<Target, Arguments...>::Type;
+    ShadowFrameScope frame(push);
+    if constexpr (ReturnsVoid<Return>::value) {
         target(arguments...);
         frame.close();
     } else {
@@ -156,18 +274,76 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
     }
 }
 
-// True in a development build of STXlib.
+} // namespace detail
+
+// A frame opened by hand, for a consumer whose own frame types cannot name
+// STXlib's (GUI.Forms' public ShadowFrameCall and ShadowFrameScope keep
+// their declarations before 1.0, S3 = 1; their bodies call these).
+struct ShadowFrameMark final {
+    u32 depth{0};
+};
+
+// Pushes `frame` (texts copied and cut, as every frame's) and returns the
+// mark the matching leave takes. Requirement: frame.kind is not
+// shadow_frame_kind_gate.
+[[nodiscard]] ShadowFrameMark enter_shadow_frame(const ShadowFrameText& frame) noexcept;
+
+// Pops the frame `mark` names. closed: the frame's work returned normally;
+// false: an exception is leaving it, which takes or keeps the throw-site
+// capture exactly as a gate's frame does. Requirement: leaves are strictly
+// nested (the innermost open frame of the calling thread).
+void leave_shadow_frame(ShadowFrameMark mark, bool closed) noexcept;
+
+// Calls target(arguments...) inside one shadow frame and returns its result
+// (any type, or nothing). An exception passes through unchanged; if this
+// is the innermost frame it leaves, the frame captures first. The
+// operation form opens a gate-kind frame named by the operation.
+template <typename Target, typename... Arguments>
+typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(const Operation operation,
+                                                                               const u64 first, const u64 second,
+                                                                               Target& target,
+                                                                               Arguments&... arguments) {
+    const GateFrame frame{operation, first, second};
+    using Return = typename detail::FrameTargetReturn<Target, Arguments...>::Type;
+    if constexpr (detail::ReturnsVoid<Return>::value) {
+        detail::call_in_frame(detail::push_of(frame), target, arguments...);
+    } else {
+        Return result = detail::call_in_frame(detail::push_of(frame), target, arguments...);
+        return result;
+    }
+}
+
+// The same with a consumer's frame and its texts.
+template <typename Target, typename... Arguments>
+typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(const ShadowFrameText& frame,
+                                                                               Target& target,
+                                                                               Arguments&... arguments) {
+    using Return = typename detail::FrameTargetReturn<Target, Arguments...>::Type;
+    if constexpr (detail::ReturnsVoid<Return>::value) {
+        detail::call_in_frame(detail::push_of(frame), target, arguments...);
+    } else {
+        Return result = detail::call_in_frame(detail::push_of(frame), target, arguments...);
+        return result;
+    }
+}
+
+// True in a development build of STXlib: shadow records carry a native
+// trace and gate records the exception's type. Frames are captured in
+// every build.
 [[nodiscard]] bool shadowing_enabled() noexcept;
 
 // The calling thread's current shadow depth (frames pushed and not popped,
 // including any beyond the capacity).
 [[nodiscard]] usize shadow_depth() noexcept;
 
+// Copies the calling thread's open frames, min(recorded, frames.count())
+// of them, outermost first, and returns the stack's state. Never fails.
+[[nodiscard]] ShadowStackState read_shadow_stack(MutableView<ShadowFrameRecord> frames) noexcept;
+
 // Copies the shadow record `reference` names: up to frames.count() frames,
 // outermost first, and up to trace.count() return addresses, innermost
-// first. not_found when it is empty or has been overwritten (each thread
-// keeps shadow_record_capacity). The frames' operation names have static
-// storage.
+// first (none in a release build). not_found when it is empty or has been
+// overwritten (each thread keeps shadow_record_capacity).
 [[nodiscard]] Result<ShadowSummary> read_shadow(ShadowReference reference, MutableView<ShadowFrameRecord> frames,
                                                 MutableView<uptr> trace) noexcept;
 
@@ -178,7 +354,7 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
 // when no scope saw the unwind) and clears the pending capture.
 // restore_shadow, called just before the rethrow, makes it pending again,
 // so the scopes the rethrow unwinds keep it and the outer gate attaches it.
-// Both do nothing in a release build (park_shadow returns no reference).
+// Both work in every build (frames are captured in every build).
 [[nodiscard]] ShadowReference park_shadow() noexcept;
 void restore_shadow(ShadowReference reference) noexcept;
 

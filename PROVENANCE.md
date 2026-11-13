@@ -565,6 +565,31 @@ path at PATH_MAX are not too_long. Tests: `tests/children_tests.cpp`
 (`lossless_arguments`, the `hex` child mode), `tests/path_tests.cpp`
 (`longest_host_names`).
 
+### The A2 swap-in: GUI.Forms' frames, release frames, the reporter contract (STXlib's own change, 2026-11-13)
+
+For GUI.Forms' swap-in onto STXlib's shadowing (notes
+`planning/stages/A2-swap-in.md`, which lists the API and GUI.Forms'
+contract items it answers). `include/stxlib/shadow.hpp`: frames become
+`ShadowFrameRecord` (120 bytes: kind, flags, two u64 numbers, sequence, a
+48-byte subject and a 32-byte name, copied at the push and cut at a whole
+UTF-8 sequence), pushed from a `GateFrame` (now defined here, with kind,
+texts and sequence) or a `ShadowFrameText`; `enter_shadow_frame` and
+`leave_shadow_frame` (GUI.Forms' ShadowFrameCall); `read_shadow_stack`
+with a dropped counter. Frames, the throw-site capture, the records'
+ShadowReference and park_shadow/restore_shadow work in every build; the
+native trace, the exception type and the recent ring stay
+development-only (S5 = 1; the coordinator accepted GUI.Forms' request,
+since release builds of GUI.Forms record frames today).
+`include/stxlib/gate.hpp`: every gate takes a GateFrame;
+`invoke_callback_classified`; the classifier's once-per-exception
+guarantee, which is the message sink (A2-2 = 1). `include/stxlib/fail_fast.hpp`
+and `src/core/fail_fast.cpp`: the reporter contract, checked in
+development builds; the report writes frames with their kinds and texts,
+and leaves out an empty trace. `src/state/state.hpp`: layout 8. Tests in
+`tests/shadow_tests.cpp`, `tests/two_module_tests.cpp` (with
+`two_module_library.*`), `tests/gate_no_exceptions_tests.cpp`,
+`tests/gate_tests.cpp`, `tests/death_tests.cpp` and their CMake cases.
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

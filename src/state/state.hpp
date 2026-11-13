@@ -16,6 +16,10 @@
 // zone's load state (owner decision D12 = a: no host zone rules are read)
 // and adds Windows' ICU module handle. Layout 7 adds the SIMD level
 // selection (stxlib::algorithms), so one choice holds in every module.
+// Layout 8 (the A2 swap-in) stores frames as ShadowFrameRecords (kind,
+// numbers, sequence and copied texts, 120 bytes) in the stack and the
+// shadow records, counts dropped frames, and marks a thread running the
+// fail-fast reporter.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -61,19 +65,10 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 7;
+inline constexpr u32 layout_version = 8;
 
 // ProcessState::simd_selection before any request or selection.
 inline constexpr i32 simd_unset = -1;
-
-// One logical frame on the shadow stack. The name has static storage (an
-// Operation's).
-struct FrameEntry final {
-    const char* name{nullptr};
-    usize name_count{0};
-    u64 first{0};
-    u64 second{0};
-};
 
 // One shadow record: the logical stack and native trace for one exception.
 struct ShadowRecordData final {
@@ -82,7 +77,7 @@ struct ShadowRecordData final {
     usize frame_count{0};
     usize frames_lost{0};
     usize trace_count{0};
-    FrameEntry frames[shadow_frame_capacity];
+    ShadowFrameRecord frames[shadow_frame_capacity];
     uptr trace[shadow_trace_capacity]{};
 };
 
@@ -114,9 +109,11 @@ struct ThreadState final {
     // unpopped frame, also those beyond the capacity, which are not stored.
     // `pushes` counts every push ever, so a capture can tell whether normal
     // execution has resumed since it was taken.
+    // `dropped` counts pushes past the capacity (read_shadow_stack).
     u32 depth{0};
     u64 pushes{0};
-    FrameEntry frames[shadow_frame_capacity];
+    u64 dropped{0};
+    ShadowFrameRecord frames[shadow_frame_capacity];
 
     // The pending capture: the shadow record of the exception unwinding now,
     // valid while `pushes` still equals `pending_pushes`.
@@ -141,6 +138,10 @@ struct ThreadState final {
 
     // Entries into fail_fast (fail_fast.cpp); never reset.
     int fail_fast_depth{0};
+    // True while this thread runs the installed fail-fast reporter; in a
+    // development build a shadow frame opened then fails a requirement
+    // (fail_fast.hpp lists what a reporter may call).
+    bool in_reporter{false};
     // The thread's identity (threads.cpp); 0 until issued. A Thread's host
     // thread takes the identity its owner issued before its entry runs.
     u64 thread_identity{0};

@@ -47,6 +47,15 @@ int main() {
     Squares squares;
     int four = 4;
     CHECK(stxlib::invoke_callback("stxlib.tests.callback", squares, four) == 16);
+    // The A2 forms are direct calls too.
+    const stxlib::GateFrame event{
+        .operation = "stxlib.tests.event", .kind = 3, .subject = "button.ok", .name = "click", .sequence = 1};
+    CHECK(stxlib::invoke_callback(event, squares, four) == 16);
+    const stxlib::ExceptionClassifier classifier{};
+    CHECK(stxlib::invoke_callback_classified(classifier, event, squares, four) == 16);
+    const stxlib::ShadowFrameText dispatch{.kind = 2, .subject = "form.main", .name = "key"};
+    CHECK(stxlib::in_shadow_frame(dispatch, squares, four) == 16);
+    CHECK(stxlib::shadow_depth() == 0);
     const int status = stxlib_tests::finish("stxlib gates without exceptions");
     return status;
 }

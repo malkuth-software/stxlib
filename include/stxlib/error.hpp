@@ -126,9 +126,10 @@ struct ErrorDetail final {
     TextView message{};
 };
 
-// The reference to a shadow record (logical frames and native trace),
-// read with read_shadow (shadow.hpp). Sequence 0 means none: a release
-// build, or a record no gate made from an exception.
+// The reference to a shadow record (logical frames, and in a development
+// build a native trace), read with read_shadow (shadow.hpp). Sequence 0
+// means none: a record no gate made from an exception, a build without
+// exceptions, or a thread whose shadow counter is exhausted.
 struct ShadowReference final {
     u64 sequence{0};
 

@@ -24,9 +24,11 @@
 // record's capacity at a whole UTF-8 sequence and stopped at the first
 // ill-formed byte (message_truncated() then says so).
 //
-// In a development build every gate record also gets the exception's type
-// and its shadow record (survey S1 = 1; shadow.hpp), in finish_record(),
-// the one point every gate passes through.
+// Every gate record gets its shadow record (the frames at the throw, in
+// every build since the A2 swap-in), and in a development build also the
+// exception's type and a place in the recent ring (survey S1 = 1, S5 = 1;
+// shadow.hpp), in finish_record(), the one point every gate passes
+// through. The consumer's classifier runs first, exactly once (gate.hpp).
 
 #include "stxlib/gate.hpp"
 #include "stxlib/shadow.hpp"
@@ -116,11 +118,11 @@ void keep_recent(state::ThreadState& thread, const ErrorRecord& record) noexcept
 // taken here at the catch) and the recent ring.
 void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept {
     detail::ErrorRecordWriter::copy_foreign_message(record, standard.what);
-#if defined(STXLIB_SHADOW)
-    detail::ErrorRecordWriter::copy_exception_type(record, host::current_exception_type_name());
     state::ThreadState& thread = state::current_thread();
     const ShadowReference shadow = shadow_capture::take_for_handler(thread);
     detail::ErrorRecordWriter::set_shadow(record, shadow);
+#if defined(STXLIB_SHADOW)
+    detail::ErrorRecordWriter::copy_exception_type(record, host::current_exception_type_name());
     keep_recent(thread, record);
 #endif
 }

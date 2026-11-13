@@ -66,8 +66,11 @@ Shown show(const char* const title, const stxlib::ErrorRecord& record) {
                 shown.summary.point == stxlib::CapturePoint::throw_site ? "throw site" : "gate");
     for (usize index = 0; index < shown.summary.frame_count; ++index) {
         std::printf("    frame %zu: ", index);
-        print_text(shown.frames[index].operation);
-        std::printf(" [%llu, %llu]\n", static_cast<unsigned long long>(shown.frames[index].first),
+        std::printf("kind %u subject \"", shown.frames[index].kind);
+        print_text(shown.frames[index].subject_text());
+        std::printf("\" name \"");
+        print_text(shown.frames[index].name_text());
+        std::printf("\" [%llu, %llu]\n", static_cast<unsigned long long>(shown.frames[index].first),
                     static_cast<unsigned long long>(shown.frames[index].second));
     }
     std::printf("  trace: %zu return addresses\n", shown.summary.trace_count);
@@ -78,7 +81,8 @@ bool frame_is(const Shown& shown, const usize index, const stxlib::TextView name
               const stxlib::u64 second) {
     if (index >= shown.summary.frame_count) return false;
     const stxlib::ShadowFrameRecord& frame = shown.frames[index];
-    const bool result = frame.operation == name && frame.first == first && frame.second == second;
+    const bool result = frame.kind == stxlib::shadow_frame_kind_gate && frame.name_text() == name &&
+                        frame.first == first && frame.second == second;
     return result;
 }
 
@@ -101,14 +105,16 @@ void an_executable_throw_is_captured_by_the_library_frame() {
     const Shown shown = show("executable throw through a library frame", record);
     CHECK(record.kind() == stxlib::ErrorKind::invalid_argument);
     CHECK(record.message() == stxlib::TextView("thrown in the executable"));
-    CHECK(shown.present == stxlib::shadowing_enabled());
+    // Frames in every build (the A2 swap-in); trace and type in a
+    // development build only.
+    CHECK(shown.present);
     if (shown.present) {
         CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
         CHECK(shown.summary.frame_count == 2);
         CHECK(frame_is(shown, 0, "test.exe.gate", 0, 0));
         CHECK(frame_is(shown, 1, "test.library.frame", 5, 6));
-        CHECK(shown.summary.trace_count > 0);
-        CHECK(!record.exception_type().empty());
+        CHECK((shown.summary.trace_count > 0) == stxlib::shadowing_enabled());
+        CHECK(record.exception_type().empty() != stxlib::shadowing_enabled());
     }
     CHECK(stxlib::shadow_depth() == 0);
     CHECK(two_module::library_shadow_depth() == 0);
@@ -138,7 +144,7 @@ void a_library_gate_catches_an_executable_throw() {
     CHECK(record.kind() == stxlib::ErrorKind::invalid_argument ||
           record.kind() == stxlib::ErrorKind::foreign_exception);
     CHECK(record.operation().name() == stxlib::TextView("test.library.gate"));
-    CHECK(shown.present == stxlib::shadowing_enabled());
+    CHECK(shown.present);
     if (shown.present) {
         CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
         CHECK(shown.summary.frame_count == 2);
@@ -146,6 +152,52 @@ void a_library_gate_catches_an_executable_throw() {
         CHECK(frame_is(shown, 1, "test.exe.frame", 7, 0));
     }
     CHECK(stxlib::shadow_depth() == 0);
+}
+
+// ---- 2b. GUI.Forms' slot: a slot gate here, a hand frame in the library ----
+
+// GUI.Forms' shape across modules: the C ABI slot's gate (kind
+// library_call, GateFrame) in one module, the window's dispatch frame
+// opened by hand (ShadowFrameCall: enter_shadow_frame and
+// leave_shadow_frame) in the other, and the throw back in the first.
+int slot_classifications = 0;
+
+bool classify_counting(void*, stxlib::ExceptionClass&) noexcept {
+    slot_classifications = slot_classifications + 1;
+    return false;
+}
+
+void throws_under_dispatch(void*) { throw std::out_of_range("thrown under the library's dispatch frame"); }
+
+struct SlotThroughLibrary final {
+    stxlib::Result<int> operator()() const {
+        two_module::run_in_library_dispatch_frame(throws_under_dispatch, nullptr);
+        return stxlib::Result<int>::success(0);
+    }
+};
+
+void a_slot_sees_a_library_hand_frame() {
+    slot_classifications = 0;
+    const stxlib::ExceptionClassifier classifier{classify_counting, nullptr};
+    const stxlib::GateFrame slot{.operation = "test.exe.slot", .first = 24, .second = 3, .kind = 1};
+    SlotThroughLibrary body;
+    const stxlib::Result<int> result = stxlib::call_gate_classified(classifier, slot, body);
+    CHECK(result.failed());
+    if (result.succeeded()) return;
+    const stxlib::ErrorRecord record = *result.error();
+    const Shown shown = show("slot gate, library hand frame", record);
+    CHECK(slot_classifications == 1);
+    CHECK(record.kind() == stxlib::ErrorKind::out_of_range);
+    CHECK(shown.present);
+    if (shown.present) {
+        CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
+        CHECK(shown.summary.frame_count == 2);
+        CHECK(shown.frames[0].kind == 1 && shown.frames[0].first == 24 && shown.frames[0].second == 3);
+        CHECK(shown.frames[1].kind == 2 && shown.frames[1].subject_text() == stxlib::TextView("form.main"));
+        CHECK(shown.frames[1].name_text() == stxlib::TextView("key"));
+    }
+    CHECK(stxlib::shadow_depth() == 0);
+    CHECK(two_module::library_shadow_depth() == 0);
 }
 
 // ---- 3. one depth, one sequence -------------------------------------------
@@ -196,6 +248,7 @@ int main() {
     std::printf("shadowing %s\n", stxlib::shadowing_enabled() ? "on (development build)" : "off (release build)");
     an_executable_throw_is_captured_by_the_library_frame();
     a_library_gate_catches_an_executable_throw();
+    a_slot_sees_a_library_hand_frame();
     both_copies_share_the_state();
     one_event_watch_for_both();
     const int status = stxlib_tests::finish("stxlib two modules");

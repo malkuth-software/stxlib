@@ -14,9 +14,30 @@
 //
 // A consumer with its own fail-fast report (GUI.Forms' call_failing_fast)
 // installs a reporter once; fail_fast then calls it instead of writing its
-// own line, and ends the process when it returns. A reporter must not
-// throw, allocate unboundedly or call back into fail_fast; if it fails fast
-// itself, the inner fail_fast writes STXlib's line and ends the process.
+// own line, and ends the process when it returns.
+//
+// The reporter contract (the A2 swap-in, GUI.Forms' contract item 3.2):
+// - It runs on the failing thread, with that thread's state intact: the
+//   record's shadow record is still readable there.
+// - It may call: read_shadow (with record.shadow()), read_shadow_stack,
+//   exception_type_for_display (which allocates and frees one block),
+//   write_console and write_console_line (STXlib never fails fast while a
+//   thread holds the console's output lock, so these cannot deadlock on
+//   their own thread), ErrorRecord's accessors, and plain code of its own
+//   that does not throw.
+// - It must not open a shadow frame (no gate, no in_shadow_frame), install
+//   a reporter, or throw. In a development build (STXLIB_SHADOW) opening a
+//   frame from the reporter fails a requirement, which ends the process
+//   with STXlib's requirement line.
+// - A failure inside the report (a nested fail_fast on the same thread)
+//   writes STXlib's own report and ends the process; the reporter is never
+//   called again on that thread.
+// - Several threads may fail fast at once; each calls the reporter on its
+//   own thread.
+//
+// STXlib's own report, when no reporter is installed, writes the record,
+// its frames (kind, numbers, subject and name) and, in a development
+// build, the native trace.
 
 #include "stxlib/error.hpp"
 #include "stxlib/result.hpp"

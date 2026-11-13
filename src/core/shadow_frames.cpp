@@ -1,4 +1,5 @@
-// The shadow stack and its capture (include/stxlib/shadow.hpp; survey S1 = 1).
+// The shadow stack and its capture (include/stxlib/shadow.hpp; survey S1 = 1;
+// the A2 swap-in's frame records, captured in every build).
 //
 // Each function reaches the thread's state in stxlib_state (state.hpp), so
 // every module's copy of this file works on one stack.
@@ -39,7 +40,11 @@ ShadowReference capture(state::ThreadState& thread, const CapturePoint point) no
     for (usize index = 0; index < stored; ++index) record.frames[index] = thread.frames[index];
     record.frame_count = stored;
     record.frames_lost = depth - stored;
+#if defined(STXLIB_SHADOW)
     record.trace_count = host::capture_return_addresses(record.trace, shadow_trace_capacity);
+#else
+    record.trace_count = 0; // a release build takes no trace (S5 = 1)
+#endif
     thread.shadow_newest = slot;
     if (thread.shadow_count < shadow_record_capacity) thread.shadow_count = thread.shadow_count + 1;
     thread.pending_shadow = record.sequence;
@@ -66,15 +71,57 @@ ShadowReference take_for_handler(state::ThreadState& thread) noexcept {
 
 } // namespace shadow_capture
 
+namespace {
+
+// The bytes of `text` that fit in `capacity`: all of it, or up to the last
+// whole UTF-8 sequence that fits (text is valid UTF-8, so a byte that is
+// not a continuation byte starts a sequence).
+usize fitting_bytes(const TextView text, const usize capacity) noexcept {
+    if (text.count() <= capacity) return text.count();
+    usize result = capacity;
+    while (result > 0 && (static_cast<u8>(text.data()[result]) & 0xc0U) == 0x80U) result = result - 1;
+    return result;
+}
+
+// Copies `text` into a frame's field, zeroing the rest; true when cut.
+bool copy_text(const TextView text, char* const field, const usize capacity, u32& count) noexcept {
+    const usize kept = fitting_bytes(text, capacity);
+    for (usize index = 0; index < capacity; ++index) field[index] = index < kept ? text.data()[index] : '\0';
+    count = static_cast<u32>(kept);
+    const bool result = kept < text.count();
+    return result;
+}
+
+} // namespace
+
 namespace detail {
 
-u32 shadow_frame_enter(const TextView operation, const u64 first, const u64 second) noexcept {
+u32 shadow_frame_enter(const FramePush& push) noexcept {
     state::ThreadState& thread = state::current_thread();
     STXLIB_REQUIRE(thread.depth < u32_max, "the shadow stack depth counter is exhausted");
     STXLIB_REQUIRE(thread.pushes < u64_max, "the shadow push counter is exhausted");
+#if defined(STXLIB_SHADOW)
+    STXLIB_REQUIRE(!thread.in_reporter,
+                   "a fail-fast reporter opened a shadow frame (a gate or in_shadow_frame); fail_fast.hpp lists "
+                   "what a reporter may call");
+#endif
     const u32 depth = thread.depth;
     if (depth < shadow_frame_capacity) {
-        thread.frames[depth] = state::FrameEntry{operation.data(), operation.count(), first, second};
+        ShadowFrameRecord& entry = thread.frames[depth];
+        entry.kind = push.kind;
+        entry.first = push.first;
+        entry.second = push.second;
+        entry.sequence = push.sequence;
+        u32 flags = 0;
+        if (copy_text(push.subject, entry.subject, shadow_subject_capacity, entry.subject_count)) {
+            flags = flags | shadow_subject_truncated;
+        }
+        if (copy_text(push.name, entry.name, shadow_name_capacity, entry.name_count)) {
+            flags = flags | shadow_name_truncated;
+        }
+        entry.flags = flags;
+    } else {
+        thread.dropped = thread.dropped + 1;
     }
     thread.depth = depth + 1;
     thread.pushes = thread.pushes + 1;
@@ -84,7 +131,6 @@ u32 shadow_frame_enter(const TextView operation, const u64 first, const u64 seco
 void shadow_frame_leave(const u32 depth, const bool closed) noexcept {
     state::ThreadState& thread = state::current_thread();
     STXLIB_REQUIRE(thread.depth == depth + 1, "a shadow frame was left out of order");
-#if defined(STXLIB_SHADOW)
     if (closed) {
         // Normal execution has come back through a frame: any capture still
         // pending belongs to an exception an ordinary handler consumed.
@@ -92,13 +138,19 @@ void shadow_frame_leave(const u32 depth, const bool closed) noexcept {
     } else if (!shadow_capture::pending_is_current(thread)) {
         static_cast<void>(shadow_capture::capture(thread, CapturePoint::throw_site));
     }
-#else
-    static_cast<void>(closed);
-#endif
     thread.depth = depth;
 }
 
 } // namespace detail
+
+ShadowFrameMark enter_shadow_frame(const ShadowFrameText& frame) noexcept {
+    const ShadowFrameMark result{detail::shadow_frame_enter(detail::push_of(frame))};
+    return result;
+}
+
+void leave_shadow_frame(const ShadowFrameMark mark, const bool closed) noexcept {
+    detail::shadow_frame_leave(mark.depth, closed);
+}
 
 bool shadowing_enabled() noexcept {
 #if defined(STXLIB_SHADOW)
@@ -111,6 +163,16 @@ bool shadowing_enabled() noexcept {
 usize shadow_depth() noexcept {
     const state::ThreadState& thread = state::current_thread();
     const usize result = static_cast<usize>(thread.depth);
+    return result;
+}
+
+ShadowStackState read_shadow_stack(const MutableView<ShadowFrameRecord> frames) noexcept {
+    const state::ThreadState& thread = state::current_thread();
+    const usize depth = static_cast<usize>(thread.depth);
+    const usize recorded = depth < shadow_frame_capacity ? depth : shadow_frame_capacity;
+    const usize copies = recorded < frames.count() ? recorded : frames.count();
+    for (usize index = 0; index < copies; ++index) frames[index] = thread.frames[index];
+    const ShadowStackState result{.depth = depth, .recorded = recorded, .pushes = thread.pushes, .dropped = thread.dropped};
     return result;
 }
 
@@ -131,11 +193,7 @@ Result<ShadowSummary> read_shadow(const ShadowReference reference, const Mutable
     }
     const state::ShadowRecordData& record = *found;
     const usize frame_copies = record.frame_count < frames.count() ? record.frame_count : frames.count();
-    for (usize index = 0; index < frame_copies; ++index) {
-        const state::FrameEntry& entry = record.frames[index];
-        frames[index] = ShadowFrameRecord{detail::TextViewAccess::adopt_validated(entry.name, entry.name_count),
-                                          entry.first, entry.second};
-    }
+    for (usize index = 0; index < frame_copies; ++index) frames[index] = record.frames[index];
     const usize trace_copies = record.trace_count < trace.count() ? record.trace_count : trace.count();
     for (usize index = 0; index < trace_copies; ++index) trace[index] = record.trace[index];
     const ShadowSummary summary{record.point, record.frame_count, record.frames_lost, record.trace_count};
@@ -143,24 +201,16 @@ Result<ShadowSummary> read_shadow(const ShadowReference reference, const Mutable
 }
 
 ShadowReference park_shadow() noexcept {
-#if defined(STXLIB_SHADOW)
     state::ThreadState& thread = state::current_thread();
     const ShadowReference result = shadow_capture::take_for_handler(thread);
     return result;
-#else
-    return ShadowReference{};
-#endif
 }
 
 void restore_shadow(const ShadowReference reference) noexcept {
-#if defined(STXLIB_SHADOW)
     if (!reference.present()) return;
     state::ThreadState& thread = state::current_thread();
     thread.pending_shadow = reference.sequence;
     thread.pending_pushes = thread.pushes;
-#else
-    static_cast<void>(reference);
-#endif
 }
 
 } // namespace stxlib

@@ -22,8 +22,18 @@
 //   take_failed_value      take_value on a failure is a failed requirement
 //   callback_frames        the fail-fast report of a callback that throws
 //                          inside shadow frames shows the logical stack at
-//                          the throw and a trace (survey S1; development
-//                          builds, else skipped)
+//                          the throw (every build; the trace line in
+//                          development builds; survey S1, A2 swap-in)
+//   callback_frame_texts   a classified callback gate with GUI.Forms' event
+//                          frame (kind, subject, name, sequence): the frame
+//                          appears once, with its texts (S2, A2 swap-in)
+//   reporter_contract      a reporter reads the shadow record, the type and
+//                          writes to the console (fail_fast.hpp's contract),
+//                          and the classifier kept the full message
+//   reporter_opens_frame   a reporter that opens a shadow frame fails a
+//                          requirement (development builds, else skipped)
+//   reporter_nested        a reporter that fails fast gets STXlib's own
+//                          report, and is not called again
 //   foreign_free           free() of a block from memory::allocate ends the
 //                          process (the host allocator's own check; ported
 //                          from stx_auxlib tests/ownership_death_tests.cpp)
@@ -40,8 +50,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <new>
 #include <stdexcept>
+#include <string>
 
 #if defined(_WIN32)
 #ifndef WIN32_LEAN_AND_MEAN
@@ -219,12 +231,121 @@ struct CallsCallback final {
 };
 
 int callback_frames() {
+    CallsCallback calls;
+    stxlib::in_shadow_frame("stxlib.tests.outer", 7, 8, calls);
+    std::puts("survived");
+    return 0;
+}
+
+// ---- the A2 swap-in: GUI.Forms' event frame, the reporter contract ---------
+
+struct ThrowsLongMessage final {
+    void operator()() const { throw std::invalid_argument(std::string(300, 'm')); }
+};
+
+struct InnerThrow final {
+    void operator()() const {
+        ThrowsLongMessage thrower;
+        stxlib::in_shadow_frame("stxlib.tests.inner", 9, 0, thrower);
+    }
+};
+
+// The classifier as GUI.Forms writes it: counts its calls and keeps the
+// full what() (the message sink, A2-2 = 1). Never recognises the type.
+struct SinkState final {
+    int calls{0};
+    stxlib::usize message_count{0};
+};
+
+SinkState sink_state{};
+
+bool classify_keeping_message(void* const context, stxlib::ExceptionClass&) noexcept {
+    SinkState& sink = *static_cast<SinkState*>(context);
+    sink.calls = sink.calls + 1;
+    try {
+        throw;
+    } catch (const std::exception& failure) {
+        sink.message_count = std::strlen(failure.what());
+    } catch (...) {
+    }
+    return false;
+}
+
+void throw_in_event_frame() {
+    const stxlib::ExceptionClassifier classifier{classify_keeping_message, &sink_state};
+    const stxlib::GateFrame event{.operation = "stxlib.tests.event",
+                                  .kind = 3,
+                                  .subject = "button.ok",
+                                  .name = "click",
+                                  .sequence = 12};
+    InnerThrow inner;
+    stxlib::invoke_callback_classified(classifier, event, inner);
+}
+
+int callback_frame_texts() {
+    throw_in_event_frame();
+    std::puts("survived");
+    return 0;
+}
+
+void contract_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
+    stxlib::ShadowFrameRecord frames[stxlib::shadow_frame_capacity]{};
+    stxlib::uptr trace[stxlib::shadow_trace_capacity]{};
+    const stxlib::Result<stxlib::ShadowSummary> read = stxlib::read_shadow(
+        record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>(trace));
+    char type[stxlib::exception_type_display_capacity];
+    const stxlib::TextView shown_type = stxlib::exception_type_for_display(record, stxlib::MutableView<char>(type));
+    const stxlib::Status written = stxlib::write_console_line(stxlib::ConsoleStream::error, "reporter: console");
+    const stxlib::usize frame_count = read.succeeded() ? (*read.value()).frame_count : 0;
+    std::fprintf(stderr, "reporter: classified %d, message %zu, frames %zu, kind %u, type %s, console %s\n",
+                 sink_state.calls, sink_state.message_count, frame_count, frame_count > 0 ? frames[0].kind : 0U,
+                 shown_type.empty() ? "none" : "named", written.succeeded() ? "ok" : "failed");
+}
+
+int reporter_contract() {
+    const stxlib::Status installed =
+        stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{contract_reporter, nullptr});
+    if (installed.failed()) return 2;
+    throw_in_event_frame();
+    std::puts("survived");
+    return 0;
+}
+
+struct Nothing final {
+    void operator()() const {}
+};
+
+void frame_opening_reporter(void*, const stxlib::ErrorRecord&) noexcept {
+    Nothing nothing;
+    stxlib::in_shadow_frame("stxlib.tests.in_reporter", 0, 0, nothing);
+    std::fprintf(stderr, "reporter: opened a frame\n");
+}
+
+int reporter_opens_frame() {
     if (!stxlib::shadowing_enabled()) {
         std::puts("skipped");
         return 0;
     }
-    CallsCallback calls;
-    stxlib::in_shadow_frame("stxlib.tests.outer", 7, 8, calls);
+    const stxlib::Status installed =
+        stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{frame_opening_reporter, nullptr});
+    if (installed.failed()) return 2;
+    ThrowingCallback callback;
+    stxlib::invoke_callback("stxlib.tests.callback", callback);
+    std::puts("survived");
+    return 0;
+}
+
+void nesting_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
+    std::fprintf(stderr, "reporter entered\n");
+    stxlib::fail_fast(record);
+}
+
+int reporter_nested() {
+    const stxlib::Status installed =
+        stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{nesting_reporter, nullptr});
+    if (installed.failed()) return 2;
+    ThrowingCallback callback;
+    stxlib::invoke_callback("stxlib.tests.callback", callback);
     std::puts("survived");
     return 0;
 }
@@ -279,6 +400,10 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
     if (std::strcmp(name, "callback_frames") == 0) return callback_frames();
+    if (std::strcmp(name, "callback_frame_texts") == 0) return callback_frame_texts();
+    if (std::strcmp(name, "reporter_contract") == 0) return reporter_contract();
+    if (std::strcmp(name, "reporter_opens_frame") == 0) return reporter_opens_frame();
+    if (std::strcmp(name, "reporter_nested") == 0) return reporter_nested();
     if (std::strcmp(name, "foreign_free") == 0) return foreign_free();
     if (std::strcmp(name, "foreign_delete") == 0) return foreign_delete();
     std::fprintf(stderr, "unknown case %s\n", name);

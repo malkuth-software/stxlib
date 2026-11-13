@@ -10,11 +10,17 @@
 // addresses, innermost first, for symbolising after the fact:
 //
 //   stxlib: fail fast: <operation>: <kind> [code <n>] [foreign <family> <value>] [type <mangled>]: <message>
-//   stxlib: frames (<throw_site|gate>): <operation>[<first>,<second>] > ... [+<n> deeper]
+//   stxlib: frames (<throw_site|gate>): <frame> > <frame> ... [+<n> deeper]
 //   stxlib: trace: 0x<address> 0x<address> ...
+//
+// A frame is written <name>[<first>,<second>] for a gate's own frame
+// (kind 0), and <kind>:<subject>:<name>[<first>,<second>] for a consumer's,
+// with "#<sequence>" after it when the sequence is not 0. The trace line is
+// left out when the record has no trace (a release build).
 
 #include "stxlib/fail_fast.hpp"
 
+#include "stxlib/require.hpp"
 #include "stxlib/shadow.hpp"
 
 #include "core/report.hpp"
@@ -37,22 +43,37 @@ void write_shadow(const ShadowReference reference) noexcept {
     report::text("stxlib: frames (");
     report::text(summary.point == CapturePoint::throw_site ? TextView("throw_site") : TextView("gate"));
     report::text("):");
-    for (usize index = 0; index < summary.frame_count; ++index) {
+    const usize shown = summary.frame_count < shadow_frame_capacity ? summary.frame_count : shadow_frame_capacity;
+    for (usize index = 0; index < shown; ++index) {
+        const ShadowFrameRecord& frame = frames[index];
         report::text(index == 0 ? TextView(" ") : TextView(" > "));
-        report::text(frames[index].operation);
+        if (frame.kind != shadow_frame_kind_gate) {
+            report::unsigned_number(static_cast<u64>(frame.kind));
+            report::text(":");
+            report::text(frame.subject_text());
+            report::text(":");
+        }
+        report::text(frame.name_text());
         report::text("[");
-        report::unsigned_number(frames[index].first);
+        report::unsigned_number(frame.first);
         report::text(",");
-        report::unsigned_number(frames[index].second);
+        report::unsigned_number(frame.second);
         report::text("]");
+        if (frame.sequence != 0) {
+            report::text("#");
+            report::unsigned_number(frame.sequence);
+        }
     }
     if (summary.frames_lost != 0) {
         report::text(" [+");
         report::unsigned_number(static_cast<u64>(summary.frames_lost));
         report::text(" deeper]");
     }
-    report::text("\nstxlib: trace:");
-    for (usize index = 0; index < summary.trace_count; ++index) {
+    report::text("\n");
+    if (summary.trace_count == 0) return;
+    report::text("stxlib: trace:");
+    const usize traced = summary.trace_count < shadow_trace_capacity ? summary.trace_count : shadow_trace_capacity;
+    for (usize index = 0; index < traced; ++index) {
         report::text(" ");
         report::hexadecimal(static_cast<u64>(trace[index]));
     }
@@ -96,6 +117,10 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
                                                       ErrorDetail{.message = "the reporter has no function"});
         return Status::failure(unbound);
     }
+#if defined(STXLIB_SHADOW)
+    STXLIB_REQUIRE(!state::current_thread().in_reporter,
+                   "a fail-fast reporter installed a reporter; fail_fast.hpp lists what a reporter may call");
+#endif
     state::ProcessState& process = state::current_process();
     int expected = static_cast<int>(state::ReporterPhase::none);
     const bool claimed = process.reporter_phase.compare_exchange_strong(
@@ -120,7 +145,9 @@ void fail_fast(const ErrorRecord& record) noexcept {
         thread.fail_fast_depth == 1 && phase == static_cast<int>(state::ReporterPhase::installed);
     if (use_reporter) {
         const FailFastReporter reporter = process.reporter;
+        thread.in_reporter = true;
         reporter.report(reporter.context, record);
+        thread.in_reporter = false;
     } else {
         write_own_report(record);
     }

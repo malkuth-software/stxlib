@@ -1,9 +1,12 @@
 // Exception shadowing (survey S1 = 1): a planted throw per boundary kind,
 // with the record each produces printed in full and checked. Boundary kinds
 // covered here, in one module: a C ABI slot's gate (call_gate), a gate with
-// a consumer classifier, a trampoline entry, a parked and rethrown
-// exception (GUI.Forms' class tables, A1 design 3.3), a stale capture after
-// an ordinary handler, and a stack deeper than the capacity. The callback
+// a consumer classifier, a slot gate with GUI.Forms' frame kind and the
+// message sink, consumer frames with texts (cut at a whole UTF-8
+// sequence), a frame opened by hand (GUI.Forms' ShadowFrameCall), the live
+// stack read back, a trampoline entry, a parked and rethrown exception
+// (GUI.Forms' class tables, A1 design 3.3), a stale capture after an
+// ordinary handler, and a stack deeper than the capacity. The callback
 // gate's record is shown by the must-end case callback_frames
 // (death_tests.cpp), and the two-module cases by two_module_tests.cpp.
 // Tested, not proved (proofs/REPORT.md).
@@ -15,6 +18,7 @@
 #include <cstdio>
 #include <exception>
 #include <stdexcept>
+#include <string>
 
 namespace {
 
@@ -62,10 +66,13 @@ ShownShadow show(const char* const title, const stxlib::ErrorRecord& record) {
     std::printf("  shadow: %llu, captured at the %s\n", static_cast<unsigned long long>(record.shadow().sequence),
                 shown.summary.point == stxlib::CapturePoint::throw_site ? "throw site" : "gate");
     for (usize index = 0; index < shown.summary.frame_count; ++index) {
-        std::printf("    frame %zu: ", index);
-        print_text(shown.frames[index].operation);
-        std::printf(" [%llu, %llu]\n", static_cast<unsigned long long>(shown.frames[index].first),
-                    static_cast<unsigned long long>(shown.frames[index].second));
+        const stxlib::ShadowFrameRecord& frame = shown.frames[index];
+        std::printf("    frame %zu: kind %u flags %u subject \"", index, frame.kind, frame.flags);
+        print_text(frame.subject_text());
+        std::printf("\" name \"");
+        print_text(frame.name_text());
+        std::printf("\" [%llu, %llu] #%llu\n", static_cast<unsigned long long>(frame.first),
+                    static_cast<unsigned long long>(frame.second), static_cast<unsigned long long>(frame.sequence));
     }
     if (shown.summary.frames_lost != 0) std::printf("    (%zu deeper frames not recorded)\n", shown.summary.frames_lost);
     std::printf("  trace: %zu return addresses:", shown.summary.trace_count);
@@ -80,18 +87,20 @@ bool frame_is(const ShownShadow& shown, const usize index, const stxlib::TextVie
               const stxlib::u64 second) {
     if (index >= shown.summary.frame_count) return false;
     const stxlib::ShadowFrameRecord& frame = shown.frames[index];
-    const bool result = frame.operation == name && frame.first == first && frame.second == second;
+    const bool result = frame.kind == stxlib::shadow_frame_kind_gate && frame.name_text() == name &&
+                        frame.subject_count == 0 && frame.first == first && frame.second == second;
     return result;
 }
 
-// Checks what every development-build gate record carries.
+// Checks what every gate record carries: frames in every build (the A2
+// swap-in); the type and the trace in a development build only (S5 = 1).
 void check_development_record(const ShownShadow& shown, const stxlib::ErrorRecord& record) {
+    CHECK(shown.present);
     if (!stxlib::shadowing_enabled()) {
-        CHECK(!shown.present);
         CHECK(record.exception_type().empty());
+        CHECK(shown.summary.trace_count == 0);
         return;
     }
-    CHECK(shown.present);
     CHECK(!record.exception_type().empty());
     CHECK(shown.summary.trace_count > 0);
 }
@@ -212,6 +221,186 @@ void a_gate_frame_carries_its_numbers() {
         CHECK(frame_is(classified_shown, 1, "test.handler", 11, 0));
     }
 
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
+// ---- the A2 swap-in: GUI.Forms' frames ------------------------------------
+
+// GUI.Forms' frame kinds (gf_shadow_frame_kind), as a consumer's.
+constexpr stxlib::u32 library_call_kind = 1;
+constexpr stxlib::u32 input_dispatch_kind = 2;
+constexpr stxlib::u32 event_callback_kind = 3;
+
+// The message sink (A2-2 = 1): the classifier copies the full what() into
+// the consumer's buffer and counts its calls.
+struct SlotContext final {
+    char message[512]{};
+    usize message_count{0};
+    int classify_calls{0};
+};
+
+bool classify_slot(void* const context, stxlib::ExceptionClass& decided) noexcept {
+    SlotContext& slot = *static_cast<SlotContext*>(context);
+    slot.classify_calls = slot.classify_calls + 1;
+    try {
+        throw;
+    } catch (const std::invalid_argument& failure) {
+        const char* const what = failure.what();
+        usize count = 0;
+        while (count < sizeof(slot.message) && what[count] != '\0') {
+            slot.message[count] = what[count];
+            count = count + 1;
+        }
+        slot.message_count = count;
+        decided.kind = stxlib::ErrorKind::invalid_argument;
+        decided.code = 2; // GF_STATUS_INVALID_ARGUMENT's place
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+struct ThrowsLong final {
+    void operator()() const { throw std::invalid_argument(std::string(300, 'w')); }
+};
+
+struct SlotBody final {
+    stxlib::Result<int> operator()() const {
+        ThrowsLong thrower;
+        const stxlib::ShadowFrameText dispatch{
+            .kind = input_dispatch_kind, .subject = "form.main", .name = "pointer", .sequence = 7};
+        stxlib::in_shadow_frame(dispatch, thrower);
+        return stxlib::Result<int>::success(0);
+    }
+};
+
+void a_slot_frame_is_the_whole_frame() {
+    SlotContext context{};
+    const stxlib::ExceptionClassifier classifier{classify_slot, &context};
+    const stxlib::GateFrame slot{
+        .operation = "test.c_abi", .first = 24, .second = 3, .kind = library_call_kind};
+    SlotBody body;
+    const stxlib::Result<int> result = stxlib::call_gate_classified(classifier, slot, body);
+    CHECK(result.failed());
+    if (result.succeeded()) return;
+    const stxlib::ErrorRecord record = *result.error();
+    const ShownShadow shown = show("slot gate with GUI.Forms' kind", record);
+    CHECK(record.operation().name() == stxlib::TextView("test.c_abi"));
+    CHECK(record.kind() == stxlib::ErrorKind::invalid_argument && record.code() == 2);
+    // Classified once, inside the handler, with the full message kept by
+    // the consumer while the record keeps its 200 bytes.
+    CHECK(context.classify_calls == 1);
+    CHECK(context.message_count == 300);
+    CHECK(record.message().count() == stxlib::error_message_capacity && record.message_truncated());
+    check_development_record(shown, record);
+    CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
+    CHECK(shown.summary.frame_count == 2); // the slot's frame once, not a second gate frame
+    const stxlib::ShadowFrameRecord& outer = shown.frames[0];
+    CHECK(outer.kind == library_call_kind && outer.first == 24 && outer.second == 3);
+    CHECK(outer.subject_count == 0 && outer.name_count == 0 && outer.flags == 0);
+    const stxlib::ShadowFrameRecord& inner = shown.frames[1];
+    CHECK(inner.kind == input_dispatch_kind && inner.sequence == 7);
+    CHECK(inner.subject_text() == stxlib::TextView("form.main") && inner.name_text() == stxlib::TextView("pointer"));
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
+// Texts longer than their fields are cut at the last whole UTF-8 sequence
+// and flagged; the bytes after the count are zero.
+struct ThrowsRange final {
+    void operator()() const { throw std::out_of_range("cut"); }
+};
+
+struct LongTexts final {
+    stxlib::Status operator()() const {
+        // 46 ASCII bytes, then U+00E9 (2 bytes, ending at 48) and U+20AC
+        // (3 bytes, crossing 48): the subject keeps 48 bytes.
+        const char subject[] = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrst\xc3\xa9\xe2\x82\xac";
+        // 31 ASCII bytes, then U+00E9 crossing 32: the name keeps 31.
+        const char name[] = "abcdefghijklmnopqrstuvwxyzabcde\xc3\xa9";
+        const stxlib::ShadowFrameText frame{
+            .kind = event_callback_kind,
+            .subject = stxlib::detail::TextViewAccess::adopt_validated(subject, sizeof(subject) - 1),
+            .name = stxlib::detail::TextViewAccess::adopt_validated(name, sizeof(name) - 1)};
+        ThrowsRange thrower;
+        stxlib::in_shadow_frame(frame, thrower);
+        return stxlib::Status::success();
+    }
+};
+
+void long_texts_are_cut_at_a_whole_sequence() {
+    LongTexts target;
+    const stxlib::Status status = stxlib::call_gate("test.texts", target);
+    const stxlib::ErrorRecord record = *status.error();
+    const ShownShadow shown = show("texts cut to their fields", record);
+    CHECK(shown.present && shown.summary.frame_count == 2);
+    if (!shown.present || shown.summary.frame_count != 2) return;
+    const stxlib::ShadowFrameRecord& frame = shown.frames[1];
+    CHECK(frame.subject_count == 48);
+    CHECK(static_cast<unsigned char>(frame.subject[46]) == 0xc3 && static_cast<unsigned char>(frame.subject[47]) == 0xa9);
+    CHECK(frame.name_count == 31);
+    CHECK(frame.name[31] == '\0');
+    CHECK(frame.flags == (stxlib::shadow_subject_truncated | stxlib::shadow_name_truncated));
+}
+
+// A frame opened by hand, as GUI.Forms' ShadowFrameCall does from its own
+// source file: closed only when its body returned.
+struct HandFrame final {
+    stxlib::ShadowFrameMark mark;
+    bool returned{false};
+
+    explicit HandFrame(const stxlib::ShadowFrameText& frame) noexcept : mark(stxlib::enter_shadow_frame(frame)) {}
+    ~HandFrame() { stxlib::leave_shadow_frame(mark, returned); }
+    HandFrame(const HandFrame&) = delete;
+    HandFrame& operator=(const HandFrame&) = delete;
+};
+
+struct HandFramed final {
+    stxlib::Status operator()() const {
+        const stxlib::ShadowFrameText layout{.kind = 4, .subject = "form.main", .sequence = 41};
+        HandFrame frame(layout);
+        ThrowsInvalid thrower;
+        thrower();
+        frame.returned = true;
+        return stxlib::Status::success();
+    }
+};
+
+struct ReadsTheStack final {
+    stxlib::ShadowStackState* state{nullptr};
+    stxlib::ShadowFrameRecord* frames{nullptr};
+
+    void operator()() const {
+        *state = stxlib::read_shadow_stack(stxlib::MutableView<stxlib::ShadowFrameRecord>(frames, 4));
+    }
+};
+
+void a_hand_frame_and_the_live_stack() {
+    HandFramed target;
+    const stxlib::Status status = stxlib::call_gate("test.hand", target);
+    const stxlib::ErrorRecord record = *status.error();
+    const ShownShadow shown = show("a frame opened by hand", record);
+    CHECK(shown.present && shown.summary.frame_count == 2);
+    if (shown.present && shown.summary.frame_count == 2) {
+        CHECK(frame_is(shown, 0, "test.hand", 0, 0));
+        CHECK(shown.frames[1].kind == 4 && shown.frames[1].sequence == 41);
+        CHECK(shown.frames[1].subject_text() == stxlib::TextView("form.main"));
+    }
+    CHECK(stxlib::shadow_depth() == 0);
+
+    // The live stack, from inside two frames.
+    stxlib::ShadowStackState state{};
+    stxlib::ShadowFrameRecord frames[4]{};
+    ReadsTheStack reads{&state, frames};
+    const stxlib::ShadowStackState before = stxlib::read_shadow_stack(stxlib::MutableView<stxlib::ShadowFrameRecord>());
+    const stxlib::ShadowFrameText outer{.kind = event_callback_kind, .subject = "button.ok", .name = "click"};
+    const stxlib::ShadowFrameMark mark = stxlib::enter_shadow_frame(outer);
+    stxlib::in_shadow_frame("test.reader", 5, 6, reads);
+    stxlib::leave_shadow_frame(mark, true);
+    CHECK(state.depth == 2 && state.recorded == 2);
+    CHECK(state.pushes == before.pushes + 2 && state.dropped == before.dropped);
+    CHECK(frames[0].kind == event_callback_kind && frames[0].name_text() == stxlib::TextView("click"));
+    CHECK(frames[1].kind == stxlib::shadow_frame_kind_gate && frames[1].name_text() == stxlib::TextView("test.reader"));
+    CHECK(frames[1].first == 5 && frames[1].second == 6);
     CHECK(stxlib::shadow_depth() == 0);
 }
 
@@ -357,6 +546,7 @@ struct DeepGate final {
 };
 
 void a_deep_stack_counts_what_it_cannot_keep() {
+    const stxlib::ShadowStackState before = stxlib::read_shadow_stack(stxlib::MutableView<stxlib::ShadowFrameRecord>());
     DeepGate target;
     const stxlib::Status status = stxlib::call_gate("test.deep_gate", target);
     const stxlib::ErrorRecord record = *status.error();
@@ -368,6 +558,9 @@ void a_deep_stack_counts_what_it_cannot_keep() {
         CHECK(frame_is(shown, 0, "test.deep_gate", 0, 0));
         CHECK(frame_is(shown, 1, "test.deep", 70, 0));
     }
+    const stxlib::ShadowStackState after = stxlib::read_shadow_stack(stxlib::MutableView<stxlib::ShadowFrameRecord>());
+    CHECK(after.dropped == before.dropped + (usize{71} - stxlib::shadow_frame_capacity));
+    CHECK(after.pushes == before.pushes + 71);
     CHECK(stxlib::shadow_depth() == 0);
 }
 
@@ -378,6 +571,9 @@ int main() {
     a_slot_gate_records_the_stack_at_the_throw();
     a_classified_gate_records_the_consumer_kind();
     a_gate_frame_carries_its_numbers();
+    a_slot_frame_is_the_whole_frame();
+    long_texts_are_cut_at_a_whole_sequence();
+    a_hand_frame_and_the_live_stack();
     a_trampoline_entry_records_the_target_stack();
     a_parked_exception_keeps_its_throw_site();
     a_consumed_capture_is_not_reused();

@@ -16,11 +16,15 @@
 //   As call_gate, with the consumer's policy for its own exception types
 //   (GUI.Forms' WrongThreadError and DisposedError) tried first.
 //
-// Both also take a GateFrame in place of the operation: the gate's shadow
-// frame then carries the frame's two numbers (a C ABI slot's table and slot
-// index, A2 swap-in) where the operation alone gives (0, 0).
+// Every gate also takes a GateFrame (shadow.hpp) in place of the
+// operation: the gate's shadow frame is then the whole frame, with the
+// consumer's kind, numbers, sequence and texts (a C ABI slot's table and
+// slot index, an event callback's sender and event name; A2 swap-in), so a
+// consumer frame around a gated call does not appear twice. The operation
+// alone means GateFrame{operation, 0, 0}.
 //
 // invoke_callback(operation, target, arguments...)
+// invoke_callback_classified(classifier, frame, target, arguments...)
 // invoke_callback_target(operation, callback, arguments...)
 //   For a call into client code that must not throw (survey S2, owner
 //   2026-11-13: record, fail fast). An exception that leaves the client's
@@ -50,15 +54,6 @@
 
 namespace stxlib {
 
-// The shadow frame a gate opens: its operation and the two numbers the
-// operation defines (shadow.hpp, in_shadow_frame). Written as
-// GateFrame{"table.slot", table, slot}; the operation is a literal.
-struct GateFrame final {
-    Operation operation;
-    u64 first{0};
-    u64 second{0};
-};
-
 // What a consumer's classifier decides for an exception it recognises.
 struct ExceptionClass final {
     ErrorKind kind{ErrorKind::internal_failure};
@@ -66,9 +61,18 @@ struct ExceptionClass final {
 };
 
 // A consumer's exception policy. `classify` runs inside the gate's handler,
-// may rethrow the current exception inside its own try block to test its
-// type, and returns true with `decided` filled when it recognises it; false
-// leaves the standard classification. It must not let an exception escape.
+// on the catching thread, exactly once per caught exception (whatever it
+// returns), before the record is made, with `context` passed through
+// unchanged. It may rethrow the current exception inside its own try block
+// to test its type, and returns true with `decided` filled when it
+// recognises it; false leaves the standard classification. It must not let
+// an exception escape.
+//
+// The message sink (decision A2-2 = 1): ErrorRecord keeps
+// error_message_capacity (200) bytes of message. A consumer that keeps more
+// (GUI.Forms: 512) copies the full what() itself, from classify, into a
+// buffer its context points to; the guarantee above is what makes that
+// copy belong to the record the gate then makes.
 struct ExceptionClassifier final {
     bool (*classify)(void* context, ExceptionClass& decided) noexcept{nullptr};
     void* context{nullptr};
@@ -152,7 +156,7 @@ template <typename Target, typename... Arguments>
     static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
 #if defined(__cpp_exceptions)
     try {
-        detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+        detail::ShadowFrameScope frame(detail::push_of(frame_at));
         Return result = target(arguments...);
         frame.close();
         return result;
@@ -161,7 +165,7 @@ template <typename Target, typename... Arguments>
         return Return::failure(record);
     }
 #else
-    detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+    detail::ShadowFrameScope frame(detail::push_of(frame_at));
     Return result = target(arguments...);
     frame.close();
     return result;
@@ -185,7 +189,7 @@ template <typename Target, typename... Arguments>
     static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
 #if defined(__cpp_exceptions)
     try {
-        detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+        detail::ShadowFrameScope frame(detail::push_of(frame_at));
         Return result = target(arguments...);
         frame.close();
         return result;
@@ -195,7 +199,7 @@ template <typename Target, typename... Arguments>
     }
 #else
     static_cast<void>(classifier);
-    detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+    detail::ShadowFrameScope frame(detail::push_of(frame_at));
     Return result = target(arguments...);
     frame.close();
     return result;
@@ -213,29 +217,75 @@ template <typename Target, typename... Arguments>
 }
 
 template <typename Target, typename... Arguments>
-typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const Operation operation, Target& target,
+typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const GateFrame frame_at, Target& target,
                                                                           Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
 #if defined(__cpp_exceptions)
     try {
         if constexpr (detail::SameType<Return, void>::value) {
-            in_shadow_frame(operation, 0, 0, target, arguments...);
+            detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
             return;
         } else {
             // Not const: a const local is copied, not moved, on return.
-            Return result = in_shadow_frame(operation, 0, 0, target, arguments...);
+            Return result = detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
             return result;
         }
     } catch (...) {
-        const ErrorRecord record = detail::record_current_exception(operation);
+        const ErrorRecord record = detail::record_current_exception(frame_at.operation);
         fail_fast(record);
     }
 #else
     if constexpr (detail::SameType<Return, void>::value) {
-        in_shadow_frame(operation, 0, 0, target, arguments...);
+        detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
     } else {
         // Not const: a const local is copied, not moved, on return.
-        Return result = in_shadow_frame(operation, 0, 0, target, arguments...);
+        Return result = detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
+        return result;
+    }
+#endif
+}
+
+template <typename Target, typename... Arguments>
+typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const Operation operation, Target& target,
+                                                                          Arguments&... arguments) noexcept {
+    const GateFrame frame_at{operation, 0, 0};
+    using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
+    if constexpr (detail::SameType<Return, void>::value) {
+        invoke_callback(frame_at, target, arguments...);
+    } else {
+        // Not const: a const local is copied, not moved, on return.
+        Return result = invoke_callback(frame_at, target, arguments...);
+        return result;
+    }
+}
+
+// As invoke_callback, with the record made by the consumer's classifier
+// (so its message sink keeps the full message for the fail-fast report).
+template <typename Target, typename... Arguments>
+typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback_classified(
+    const ExceptionClassifier& classifier, const GateFrame frame_at, Target& target, Arguments&... arguments) noexcept {
+    using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
+#if defined(__cpp_exceptions)
+    try {
+        if constexpr (detail::SameType<Return, void>::value) {
+            detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
+            return;
+        } else {
+            // Not const: a const local is copied, not moved, on return.
+            Return result = detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
+            return result;
+        }
+    } catch (...) {
+        const ErrorRecord record = detail::record_current_exception_classified(frame_at.operation, classifier);
+        fail_fast(record);
+    }
+#else
+    static_cast<void>(classifier);
+    if constexpr (detail::SameType<Return, void>::value) {
+        detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
+    } else {
+        // Not const: a const local is copied, not moved, on return.
+        Return result = detail::call_in_frame(detail::push_of(frame_at), target, arguments...);
         return result;
     }
 #endif
@@ -246,14 +296,26 @@ typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const 
 // (a reference parameter such as int& would otherwise conflict with the
 // int deduced from an lvalue argument).
 template <typename Return, typename... Arguments>
-Return invoke_callback_target(const Operation operation, const CallbackTarget<Return(Arguments...)>& callback,
+Return invoke_callback_target(const GateFrame frame_at, const CallbackTarget<Return(Arguments...)>& callback,
                               typename detail::NonDeduced<Arguments>::type&... arguments) noexcept {
     STXLIB_REQUIRE(callback.bound(), "invoke_callback_target: unbound callback");
     detail::CallbackCall<Return, Arguments...> call{callback};
     if constexpr (detail::SameType<Return, void>::value) {
-        invoke_callback(operation, call, arguments...);
+        invoke_callback(frame_at, call, arguments...);
     } else {
-        Return result = invoke_callback(operation, call, arguments...);
+        Return result = invoke_callback(frame_at, call, arguments...);
+        return result;
+    }
+}
+
+template <typename Return, typename... Arguments>
+Return invoke_callback_target(const Operation operation, const CallbackTarget<Return(Arguments...)>& callback,
+                              typename detail::NonDeduced<Arguments>::type&... arguments) noexcept {
+    const GateFrame frame_at{operation, 0, 0};
+    if constexpr (detail::SameType<Return, void>::value) {
+        invoke_callback_target(frame_at, callback, arguments...);
+    } else {
+        Return result = invoke_callback_target(frame_at, callback, arguments...);
         return result;
     }
 }
