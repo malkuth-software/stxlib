@@ -99,7 +99,24 @@ void check_invariants(const char* test, std::span<const char> input, const Parse
         return;
     }
     check(config.text_store_used() <= stxconfig::text_store_bytes, test, "text store within its size");
-    check(config.text_store_used() <= input.size() + 1u, test, "text store within input size + 1");
+    check(config.text_store_used() <= 2u * (input.size() + 1u), test, "text store within two copies of the input");
+    check(config.service_count() <= stxconfig::services_max, test, "services within limit");
+    for (std::size_t index = 0; index < config.service_count(); index += 1) {
+        const stxconfig::ServiceDefinition& service = config.service(index);
+        bool valid = text_ref_valid(config, service.name) && service.argument_count >= 1u &&
+                     service.argument_count <= stxconfig::run_arguments_max;
+        for (std::uint32_t argument = 0; valid && argument < service.argument_count; argument += 1) {
+            valid = text_ref_valid(config, service.arguments[argument]);
+        }
+        valid = valid && config.text(service.arguments[0])[0] == '/';
+        valid = valid && (!service.directory.has_value() || text_ref_valid(config, *service.directory));
+        check(valid, test, "service well-formed");
+    }
+    for (std::size_t index = 0; index < config.init_command_count(); index += 1) {
+        const stxconfig::StartCommand* const start = config.init_command(index).action.as_start();
+        check(start == nullptr || config.find_service(config.text((*start).service)).has_value(), test,
+              "every start names a service");
+    }
     check(config.section_count() <= stxconfig::sections_max && config.setting_count() <= stxconfig::settings_max &&
               config.init_command_count() <= stxconfig::init_commands_max,
           test, "counts within limits");
@@ -141,14 +158,41 @@ void test_full_example() {
         "set LANG C.UTF-8\n"
         "start web\n"
         "run /sbin/thing \"an \\\"argument\\\"\" second \"\"\n"
-        "mount msdosfs /dev/msdosfs/BOOT /boot/efi ro\n";
+        "mount msdosfs /dev/msdosfs/BOOT /boot/efi ro\n"
+        "[service-web]\n"
+        "command = /usr/local/sbin/webd --port 8443 \"a b\"\n"
+        "directory = /user/web\n"
+        "restart = always\n"
+        "[service-logger]\n"
+        "command = /sbin/logger\n";
     const ParseOutcome outcome = parse_checked(test, text_of(text));
     check(outcome.is_success(), test, "parses");
     if (!outcome.is_success()) {
         return;
     }
-    check(config.section_count() == 2 && config.setting_count() == 2 && config.init_command_count() == 7, test,
-          "counts");
+    check(config.section_count() == 4 && config.setting_count() == 6 && config.init_command_count() == 7 &&
+              config.service_count() == 2,
+          test, "counts");
+    const std::optional<std::size_t> web_index = config.find_service("web");
+    check(web_index.has_value() && *web_index == 0 && !config.find_service("absent").has_value(), test,
+          "find_service");
+    if (web_index.has_value()) {
+        const stxconfig::ServiceDefinition& web = config.service(*web_index);
+        check(web.argument_count == 4 && same_text(config.text(web.arguments[0]), "/usr/local/sbin/webd") &&
+                  same_text(config.text(web.arguments[2]), "8443") && same_text(config.text(web.arguments[3]), "a b") &&
+                  web.directory.has_value() && same_text(config.text(*web.directory), "/user/web") &&
+                  web.restart == stxconfig::RestartPolicy::always && web.line == 14,
+              test, "service web");
+        const std::optional<TextRef> literal = config.find_setting("service-web", "command");
+        check(literal.has_value() && same_text(config.text(*literal), "/usr/local/sbin/webd --port 8443 \"a b\""), test,
+              "the command also kept as a setting, literally");
+    }
+    if (config.service_count() == 2) {
+        const stxconfig::ServiceDefinition& logger = config.service(1);
+        check(same_text(config.text(logger.name), "logger") && logger.argument_count == 1 &&
+                  !logger.directory.has_value() && logger.restart == stxconfig::RestartPolicy::on_failure,
+              test, "service defaults");
+    }
     check(config.has_init_section(), test, "init section present");
     const std::optional<TextRef> hostname = config.find_setting("system", "hostname");
     check(hostname.has_value() && same_text(config.text(*hostname), "stx-vm"), test, "hostname, trailing blanks dropped");
@@ -210,7 +254,7 @@ void test_line_ends_and_empty() {
     check(parse_checked(test, text_of("")).is_success() && config.section_count() == 0, test, "empty file");
     check(parse_checked(test, text_of("\n\n   \n\t\n# x\n")).is_success() && config.section_count() == 0, test,
           "blank and comment lines");
-    const ParseOutcome crlf = parse_checked(test, text_of("[a]\r\nk = v\r\n[init]\r\nstart s\r"));
+    const ParseOutcome crlf = parse_checked(test, text_of("[a]\r\nk = v\r\n[init]\r\nrun /s\r"));
     check(crlf.is_success(), test, "CR LF and a final CR");
     if (crlf.is_success()) {
         const std::optional<TextRef> value = config.find_setting("a", "k");
@@ -225,8 +269,8 @@ void test_line_ends_and_empty() {
 
 void test_failure_empties_previous() {
     const char* const test = "failure empties";
-    check(parse_checked(test, text_of("[a]\nk=v\n[init]\nstart s\n")).is_success(), test, "first parse");
-    const ParseOutcome second = parse_checked(test, text_of("[a]\nk=v\n[init]\nstart S\n"));
+    check(parse_checked(test, text_of("[a]\nk=v\n[init]\nrun /s\n")).is_success(), test, "first parse");
+    const ParseOutcome second = parse_checked(test, text_of("[a]\nk=v\n[init]\nrun s\n"));
     check(!second.is_success() && config.section_count() == 0 && config.init_command_count() == 0, test,
           "second parse refused and configuration empty");
 }
@@ -278,6 +322,19 @@ const Refusal refusals[] = {
     {"[init]\nrun\n", 2, 1, ParseError::command_arguments_wrong},
     {"[init]\nstart Web\n", 2, 7, ParseError::name_malformed},
     {"[init]\nstart\n", 2, 1, ParseError::command_arguments_wrong},
+    {"[init]\nrun /a\n  start web\n", 3, 3, ParseError::start_unknown_service},
+    {"[service-web]\ncommand = /w\n[init]\nstart other\n", 4, 1, ParseError::start_unknown_service},
+    {"[service-web]\ndirectory = /w\n", 1, 2, ParseError::service_command_missing},
+    {"[service-web]\n[init]\n", 1, 2, ParseError::service_command_missing},
+    {"[service-web]\ncommand = /w\nuser = x\n", 3, 1, ParseError::service_setting_unknown},
+    {"[service-web]\ncommand = w\n", 2, 11, ParseError::program_not_absolute},
+    {"[service-web]\ncommand =\n", 2, 10, ParseError::program_not_absolute},
+    {"[service-web]\ncommand = /w \"x\n", 2, 14, ParseError::quote_unterminated},
+    {"[service-web]\ncommand = /w\ncommand = /v\n", 3, 1, ParseError::setting_repeated},
+    {"[service-web]\ncommand = /w\ndirectory = w\n", 3, 13, ParseError::directory_not_absolute},
+    {"[service-web]\ncommand = /w\nrestart = sometimes\n", 3, 11, ParseError::service_restart_unknown},
+    {"[service-]\n", 1, 2, ParseError::name_malformed},
+    {"[service-9]\n", 1, 2, ParseError::name_malformed},
     {"[init]\nif-present file /a if-present file /b run /c\n", 2, 20, ParseError::guard_nested},
     {"[init]\nif-present file /a\n", 2, 1, ParseError::command_arguments_wrong},
     {"[init]\nif-present dir /a run /b\n", 2, 12, ParseError::presence_kind_unknown},
@@ -402,13 +459,49 @@ void test_limits() {
 
     // Commands.
     build_reset();
-    build_append("[init]\n");
+    build_append("[service-s]\ncommand = /s\n[init]\n");
     for (std::size_t index = 0; index < stxconfig::init_commands_max; index += 1) {
         build_append("start s\n");
     }
     check(parse_checked("commands at limit", built_text()).is_success(), "commands at limit", "accepted");
     build_append("start s\n");
-    expect_refusal("commands past limit", 66, 1, ParseError::too_many_commands);
+    expect_refusal("commands past limit", 68, 1, ParseError::too_many_commands);
+
+    // Services: 16 accepted (with no other section), 17 refused.
+    build_reset();
+    for (std::size_t index = 0; index < stxconfig::services_max; index += 1) {
+        build_append("[service-");
+        build_two_letters(index);
+        build_append("]\ncommand = /s\n");
+    }
+    check(parse_checked("services at limit", built_text()).is_success() && config.service_count() == 16,
+          "services at limit", "accepted");
+    build_reset();
+    for (std::size_t index = 0; index < stxconfig::services_max - 1u; index += 1) {
+        build_append("[service-");
+        build_two_letters(index);
+        build_append("]\ncommand = /s\n");
+    }
+    build_append("[service-zz]\ncommand = /s\n");
+    check(parse_checked("services at limit, last named zz", built_text()).is_success(), "services at limit",
+          "zz accepted");
+
+    // A service command of 16 words is accepted; 17 refused at the 17th.
+    build_reset();
+    build_append("[service-s]\ncommand = /p");
+    for (std::size_t index = 1; index < stxconfig::run_arguments_max; index += 1) {
+        build_append(" a");
+    }
+    build_append("\n");
+    check(parse_checked("service command at limit", built_text()).is_success(), "service command at limit",
+          "accepted");
+    build_reset();
+    build_append("[service-s]\ncommand = /p");
+    for (std::size_t index = 0; index < stxconfig::run_arguments_max; index += 1) {
+        build_append(" a");
+    }
+    build_append("\n");
+    expect_refusal("service command past limit", 2, 44, ParseError::too_many_run_arguments);
 
     // Run arguments: 16 accepted, 17 refused; a guarded run of 16 is 20 words.
     build_reset();

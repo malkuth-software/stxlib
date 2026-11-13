@@ -2,10 +2,11 @@
 # run_host_tests.sh -- build and run the boot configuration's host tests on
 # the M4 with the host's C++ compiler (${CXX:-c++}, version printed), under
 # address and undefined-behaviour sanitizers with no recovery: a finding
-# fails the run. Only the pure files (boot_config, init_executor) take part;
+# fails the run. Only the pure files (boot_config, init_executor,
+# service_registry) take part;
 # system_actions.cpp is FreeBSD's and builds in build_programs.sh.
-# Output in <storage>/appliance/host_tests/. Exit status 0 only when both
-# suites pass.
+# Output in <storage>/appliance/host_tests/. Exit status 0 only when every
+# suite passes.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 config=$(cd "$here/.." && pwd)
@@ -21,8 +22,12 @@ flags="-std=c++20 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -f
 # shellcheck disable=SC2086
 "$compiler" $flags -o "$out/test_init_executor" "$here/test_init_executor.cpp" "$config/boot_config.cpp" \
     "$config/init_executor.cpp"
+# shellcheck disable=SC2086
+"$compiler" $flags -o "$out/test_service_registry" "$here/test_service_registry.cpp" "$config/boot_config.cpp" \
+    "$config/service_registry.cpp"
 status=0
 "$out/test_boot_config" || status=1
 "$out/test_init_executor" || status=1
+"$out/test_service_registry" || status=1
 echo "run_host_tests: status=$status"
 exit $status

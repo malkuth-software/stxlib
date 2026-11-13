@@ -67,9 +67,14 @@ public:
         append(timeout_ms == 2000u ? " 2000\n" : " other\n");
         return StepOutcome::timed_out();
     }
-    [[nodiscard]] StepOutcome start_service(const char* service) noexcept override {
+    [[nodiscard]] StepOutcome start_service(const char* service, const char* const* environment) noexcept override {
         append("start ");
         append(service);
+        append(" env");
+        for (std::size_t index = 0; environment[index] != nullptr; index += 1) {
+            append(" ");
+            append(environment[index]);
+        }
         append("\n");
         return StepOutcome::unavailable();
     }
@@ -139,7 +144,9 @@ void test_order_and_outcomes() {
         "set LANG C\n"
         "run /bin/a \"b c\"\n"
         "set LANG POSIX\n"
-        "run /bin/d\n");
+        "run /bin/d\n"
+        "[service-web]\n"
+        "command = /bin/web\n");
     check(parsed, test, "parses");
     if (!parsed) {
         return;
@@ -156,7 +163,7 @@ void test_order_and_outcomes() {
         "present? file /absent\n"
         "report 4 run skipped\n"
         "present? device /dev/here\n"
-        "start web\n"
+        "start web env PATH=/sbin:/bin:/usr/sbin:/usr/bin HOME=/\n"
         "report 5 start unavailable\n"
         "report 6 set ok\n"
         "run [/bin/a] [b c] env PATH=/sbin:/bin:/usr/sbin:/usr/bin HOME=/ LANG=C\n"

@@ -1,4 +1,4 @@
-// stxsupervisor: the appliance supervisor, first form (C1, steps S1-S2).
+// stxsupervisor: the appliance supervisor, first form (C1, steps S1-S3).
 //
 // It writes one marker; on the boot's first start (restart count 0) it
 // reads the boot configuration and runs its init section once
@@ -7,9 +7,16 @@
 // stays up reaping children and stops cleanly on SIGTERM, which is how
 // stxinit's shutdown ends it. A restarted supervisor does not run the init
 // section again: its mounts and programs belong to the boot, not to the
-// supervisor's life. The services registry comes in S3; in C2 the
-// supervisor moves to STXlib's own runtime and then becomes a GUI.Forms
-// application.
+// supervisor's life. Services the configuration defines are held by the
+// registry (config/service_registry.h): started by the init section's start
+// commands, restarted by their policy, stopped on SIGTERM before the
+// supervisor stops. In C2 the supervisor moves to STXlib's own runtime and
+// then becomes a GUI.Forms application.
+//
+// Known limit of the first form: a restarted supervisor does not adopt the
+// services its predecessor started. They run on (each leads its own
+// session), reparented to stxinit, which reaps them; nothing restarts them.
+// Adoption, or their termination by the shim, is C2 work.
 //
 // stxinit starts it in its own session with the console as standard input,
 // output and error, and passes "--restart-count=<n>".
@@ -23,7 +30,8 @@
 //   STXSUPERVISOR init line=<n> <keyword> <outcome> ... ms=<n>   (one per command)
 //   STXSUPERVISOR init done commands=<n> skipped=<n> failed=<n> ms=<n>
 //   STXSUPERVISOR init not-run restart_count=<n|unknown>
-//   STXSUPERVISOR stop
+//   STXSUPERVISOR service <name> started | exited | ...   (system_actions.h)
+//   STXSUPERVISOR stop services=<stopped|left-running>
 //
 // Signals stay blocked and are taken with sigwaitinfo, as in stxinit.
 // SIGCHLD has a do-nothing handler so that it is not discarded while
@@ -32,6 +40,7 @@
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <span>
 
 #include <signal.h>
@@ -42,6 +51,7 @@
 #include "../common/console_line.h"
 #include "config/boot_config.h"
 #include "config/init_executor.h"
+#include "config/service_registry.h"
 #include "config/system_actions.h"
 #include "restart_argument.h"
 
@@ -53,19 +63,6 @@ extern "C" void note_signal(int signal_number) noexcept {
     (void)signal_number;
 }
 
-void reap_children() noexcept {
-    for (;;) {
-        int status = 0;
-        const pid_t child = waitpid(-1, &status, WNOHANG);
-        if (child > 0) {
-            continue;
-        }
-        if (child < 0 && errno == EINTR) {
-            continue;
-        }
-        return;
-    }
-}
 
 // ---------------------------------------------------------------------------
 // The boot configuration and its init section. The storage is static: the
@@ -76,6 +73,9 @@ void reap_children() noexcept {
 char config_text[stxconfig::config_size_max];
 stxconfig::BootConfig boot_config;
 stxconfig::InitWorkspace init_workspace;
+// Borrows boot_config, which is static too.
+stxconfig::ServiceRegistry service_registry;
+stxconfig::SystemServiceActions service_actions(STDOUT_FILENO);
 
 void begin_config_line(LineText& line) noexcept {
     stxruntime::append_text(line, "STXSUPERVISOR config path=");
@@ -133,7 +133,7 @@ void begin_config_line(LineText& line) noexcept {
 
 void run_init(int console) noexcept {
     const std::uint64_t started_ms = stxconfig::monotonic_milliseconds();
-    stxconfig::SystemActions actions(console);
+    stxconfig::SystemActions actions(console, service_registry, service_actions);
     const stxconfig::InitSummary summary = stxconfig::run_init_section(boot_config, actions, init_workspace);
     const std::uint64_t ended_ms = stxconfig::monotonic_milliseconds();
     LineText line = stxruntime::empty_line();
@@ -164,12 +164,70 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
         return;
     }
     if (load_config(console)) {
+        service_registry.load(boot_config);
         run_init(console);
     }
 }
 
 // ---------------------------------------------------------------------------
 // Staying up.
+
+// Reaps every exited child and tells the registry; a child no service owns
+// (an init program the executor gave up on, an orphan) is simply reaped.
+void reap_children() noexcept {
+    // Each successful waitpid removes one zombie; the children are finite,
+    // and EINTR retries are bounded.
+    int interrupted = 0;
+    for (;;) {
+        int status = 0;
+        const pid_t child = waitpid(-1, &status, WNOHANG);
+        if (child > 0) {
+            const bool owned = service_registry.child_exited(static_cast<int>(child), status,
+                                                             stxconfig::monotonic_milliseconds(), service_actions);
+            (void)owned;
+            continue;
+        }
+        if (child < 0 && errno == EINTR && interrupted < 16) {
+            interrupted += 1;
+            continue;
+        }
+        return;
+    }
+}
+
+[[nodiscard]] timespec timeout_of(std::uint64_t milliseconds) noexcept {
+    struct timespec timeout{};
+    timeout.tv_sec = static_cast<time_t>(milliseconds / 1000u);
+    timeout.tv_nsec = static_cast<long>((milliseconds % 1000u) * stxruntime::nanoseconds_per_millisecond);
+    return timeout;
+}
+
+// When nothing is due the loop still wakes hourly, harmlessly.
+constexpr std::uint64_t idle_wait_ms = 3600000;
+// Stopping: how often to look, and for how long at most (the registry's
+// SIGTERM grace, its SIGKILL, and time to reap). Inside stxinit's own 1 s
+// grace at shutdown.
+constexpr std::uint64_t stop_poll_ms = 10;
+constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
+
+// SIGTERM: stop every service, wait for them within stop_wait_ms, then
+// stop. A service still running then is left to stxinit's SIGKILL.
+[[noreturn]] void stop(const sigset_t& blocked) noexcept {
+    service_registry.stop_all(stxconfig::monotonic_milliseconds(), service_actions);
+    const std::uint64_t polls_max = stop_wait_ms / stop_poll_ms;
+    for (std::uint64_t poll = 0; poll < polls_max && !service_registry.all_stopped(); poll += 1) {
+        const timespec timeout = timeout_of(stop_poll_ms);
+        siginfo_t information{};
+        (void)sigtimedwait(&blocked, &information, &timeout);
+        reap_children();
+        service_registry.tick(stxconfig::monotonic_milliseconds(), service_actions);
+    }
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR stop services=");
+    stxruntime::append_text(line, service_registry.all_stopped() ? "stopped\n" : "left-running\n");
+    stxruntime::write_line(STDOUT_FILENO, line);
+    _exit(EXIT_SUCCESS);
+}
 
 [[noreturn]] void run() noexcept {
     sigset_t blocked{};
@@ -185,17 +243,26 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
     on_child.sa_flags = 0;
     (void)sigaction(SIGCHLD, &on_child, nullptr);
 
+    // Children that exited before signals were blocked (during the init
+    // section) sent no SIGCHLD that is still pending: reap them now.
+    reap_children();
+
     for (;;) {
+        const std::uint64_t now_ms = stxconfig::monotonic_milliseconds();
+        service_registry.tick(now_ms, service_actions);
+        std::uint64_t wait_ms = idle_wait_ms;
+        const std::optional<std::uint64_t> due_ms = service_registry.next_due_ms();
+        if (due_ms.has_value()) {
+            wait_ms = *due_ms > now_ms ? *due_ms - now_ms : 0u;
+        }
+        const timespec timeout = timeout_of(wait_ms);
         siginfo_t information{};
-        const int signal_number = sigwaitinfo(&blocked, &information);
+        const int signal_number = sigtimedwait(&blocked, &information, &timeout);
         if (signal_number == SIGTERM) {
-            LineText line = stxruntime::empty_line();
-            stxruntime::append_text(line, "STXSUPERVISOR stop\n");
-            stxruntime::write_line(STDOUT_FILENO, line);
-            _exit(EXIT_SUCCESS);
+            stop(blocked);
         }
         // SIGCHLD: reap. SIGINT, SIGHUP: nothing to do in the first form.
-        // A failed wait (EINTR): go round.
+        // A time-out (EAGAIN) or EINTR: go round; tick does what is due.
         reap_children();
     }
 }

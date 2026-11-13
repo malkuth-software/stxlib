@@ -146,6 +146,12 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::guard_nested: return "guard_nested";
     case ParseError::too_many_commands: return "too_many_commands";
     case ParseError::text_store_full: return "text_store_full";
+    case ParseError::service_setting_unknown: return "service_setting_unknown";
+    case ParseError::service_command_missing: return "service_command_missing";
+    case ParseError::service_restart_unknown: return "service_restart_unknown";
+    case ParseError::directory_not_absolute: return "directory_not_absolute";
+    case ParseError::too_many_services: return "too_many_services";
+    case ParseError::start_unknown_service: return "start_unknown_service";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -157,7 +163,7 @@ const char* parse_error_name(ParseError error) noexcept {
 
 BootConfig::BootConfig() noexcept
     : text_store_{}, text_store_used_(0), sections_{}, section_count_(0), settings_{}, setting_count_(0),
-      init_command_storage_{}, init_command_count_(0), has_init_section_(false) {}
+      init_command_storage_{}, init_command_count_(0), has_init_section_(false), services_{}, service_count_(0) {}
 
 void BootConfig::clear() noexcept {
     // InitCommand is trivially destructible (asserted above): resetting the
@@ -167,6 +173,7 @@ void BootConfig::clear() noexcept {
     setting_count_ = 0;
     init_command_count_ = 0;
     has_init_section_ = false;
+    service_count_ = 0;
 }
 
 std::size_t BootConfig::section_count() const noexcept {
@@ -199,6 +206,15 @@ const InitCommand& BootConfig::init_command(std::size_t index) const noexcept {
     assert(index < init_command_count_);
     const unsigned char* const slot = &init_command_storage_[index * sizeof(InitCommand)];
     return *std::launder(reinterpret_cast<const InitCommand*>(slot));
+}
+
+std::size_t BootConfig::service_count() const noexcept {
+    return service_count_;
+}
+
+const ServiceDefinition& BootConfig::service(std::size_t index) const noexcept {
+    assert(index < service_count_);
+    return services_[index];
 }
 
 const char* BootConfig::text(const TextRef& reference) const noexcept {
@@ -236,6 +252,16 @@ std::optional<TextRef> BootConfig::find_setting(const char* section_name, const 
             }
         }
         return std::nullopt;
+    }
+    return std::nullopt;
+}
+
+std::optional<std::size_t> BootConfig::find_service(const char* name) const noexcept {
+    for (std::size_t index = 0; index < service_count_; index += 1) {
+        if (c_strings_equal(text(services_[index].name), name)) {
+            const std::optional<std::size_t> found = index;
+            return found;
+        }
     }
     return std::nullopt;
 }
@@ -327,6 +353,20 @@ public:
         return config_.init_command_count_ >= init_commands_max;
     }
 
+    [[nodiscard]] bool services_full() const noexcept {
+        return config_.service_count_ >= services_max;
+    }
+
+    void add_service(const ServiceDefinition& service) noexcept {
+        assert(!services_full());
+        config_.services_[config_.service_count_] = service;
+        config_.service_count_ += 1;
+    }
+
+    [[nodiscard]] const BootConfig& config() const noexcept {
+        return config_;
+    }
+
     void add_command(const InitCommand& command) noexcept {
         assert(!commands_full());
         unsigned char* const slot = &config_.init_command_storage_[config_.init_command_count_ * sizeof(InitCommand)];
@@ -351,6 +391,14 @@ struct LineView {
     std::size_t length;
     std::uint32_t number;
 };
+
+[[nodiscard]] std::size_t c_string_length(const char* text) noexcept {
+    std::size_t length = 0;
+    while (text[length] != '\0') {
+        length += 1;
+    }
+    return length;
+}
 
 [[nodiscard]] bool is_blank(char byte) noexcept {
     return byte == ' ' || byte == '\t';
@@ -386,23 +434,82 @@ struct LineView {
     return static_cast<std::uint32_t>(index + 1u);
 }
 
+// A service command's words, as read from its setting.
+struct ServiceCommandWords {
+    std::uint32_t count;
+    TextRef arguments[run_arguments_max];
+};
+
+// The service section being read; it becomes a ServiceDefinition when the
+// next header or the end of the text closes it.
+struct ServiceDraft {
+    TextRef name;
+    std::uint32_t line;
+    std::uint32_t name_column;
+    std::optional<ServiceCommandWords> command;
+    std::optional<TextRef> directory;
+    std::optional<RestartPolicy> restart;
+};
+
 // The parse's state between lines.
 struct ParseState {
     // Index of the current section, or nothing before the first header.
     std::optional<std::uint32_t> section_index;
     bool in_init_section;
+    // Present while the current section is a service section.
+    std::optional<ServiceDraft> service;
 };
 
 // A line's outcome: nothing (the line was accepted) or the refusal.
 using LineResult = std::optional<ParseFailed>;
 
-[[nodiscard]] LineResult refuse(const LineView& line, std::size_t index, ParseError error) noexcept {
+[[nodiscard]] LineResult refuse_at(std::uint32_t line_number, std::uint32_t column, ParseError error) noexcept {
     ParseFailed failure{};
-    failure.line = line.number;
-    failure.column = column_of(index);
+    failure.line = line_number;
+    failure.column = column;
     failure.error = error;
     const LineResult result = failure;
     return result;
+}
+
+[[nodiscard]] LineResult refuse(const LineView& line, std::size_t index, ParseError error) noexcept {
+    return refuse_at(line.number, column_of(index), error);
+}
+
+// Closes the current service section, if any: a service needs a command.
+[[nodiscard]] LineResult finish_service(ConfigBuilder& builder, ParseState& state) noexcept {
+    if (!state.service.has_value()) {
+        return std::nullopt;
+    }
+    const ServiceDraft draft = *state.service;
+    state.service.reset();
+    if (!draft.command.has_value()) {
+        return refuse_at(draft.line, draft.name_column, ParseError::service_command_missing);
+    }
+    ServiceDefinition service{};
+    service.name = draft.name;
+    service.argument_count = (*draft.command).count;
+    for (std::uint32_t index = 0; index < (*draft.command).count; index += 1) {
+        service.arguments[index] = (*draft.command).arguments[index];
+    }
+    service.directory = draft.directory;
+    service.restart = draft.restart.has_value() ? *draft.restart : RestartPolicy::on_failure;
+    service.line = draft.line;
+    // Room was checked when the section began.
+    builder.add_service(service);
+    return std::nullopt;
+}
+
+// Whether the stored section name starts with the service prefix.
+[[nodiscard]] bool has_service_prefix(const char* name) noexcept {
+    std::size_t index = 0;
+    while (service_section_prefix[index] != '\0') {
+        if (name[index] != service_section_prefix[index]) {
+            return false;
+        }
+        index += 1;
+    }
+    return true;
 }
 
 // Stores bytes [begin, end) of the line as one text.
@@ -471,12 +578,38 @@ using LineResult = std::optional<ParseFailed>;
     if (builder.section_exists(builder.text(*name))) {
         return refuse(line, name_begin, ParseError::section_repeated);
     }
+    const LineResult finished = finish_service(builder, state);
+    if (finished.has_value()) {
+        return finished;
+    }
+    std::optional<ServiceDraft> service;
+    if (has_service_prefix(builder.text(*name))) {
+        const std::size_t service_begin = name_begin + c_string_length(service_section_prefix);
+        // The name after the prefix is itself a name: at least one byte, a
+        // lower-case letter first (the rest are name bytes already).
+        if (service_begin >= end_of_name || !is_lower_letter(line.bytes[service_begin])) {
+            return refuse(line, name_begin, ParseError::name_malformed);
+        }
+        if (builder.services_full()) {
+            return refuse(line, begin, ParseError::too_many_services);
+        }
+        const std::optional<TextRef> service_name = store_bytes(builder, line, service_begin, end_of_name);
+        if (!service_name.has_value()) {
+            return refuse(line, service_begin, ParseError::text_store_full);
+        }
+        ServiceDraft draft{};
+        draft.name = *service_name;
+        draft.line = line.number;
+        draft.name_column = column_of(name_begin);
+        service = draft;
+    }
     Section section{};
     section.name = *name;
     section.line = line.number;
     const std::uint32_t index = builder.add_section(section);
     state.section_index = index;
     state.in_init_section = c_strings_equal(builder.text(*name), "init");
+    state.service = service;
     if (state.in_init_section) {
         builder.mark_init_section();
     }
@@ -906,8 +1039,105 @@ private:
         // Fallback: an ActionResult is always one of its two states.
         return refuse(line, begin, ParseError::command_unknown);
     }
-    const InitCommand command{guard, *action, line.number};
+    const InitCommand command{guard, *action, line.number, column_of(begin)};
     builder.add_command(command);
+    return std::nullopt;
+}
+
+// ---------------------------------------------------------------------------
+// Service settings. The line has already been accepted and stored as an
+// ordinary setting (parse_setting); this reads its meaning for the service.
+
+// Whether bytes [begin, end) of the line are exactly literal.
+[[nodiscard]] bool bytes_are(const LineView& line, std::size_t begin, std::size_t end, const char* literal) noexcept {
+    const std::size_t length = c_string_length(literal);
+    if (end - begin != length) {
+        return false;
+    }
+    for (std::size_t index = 0; index < length; index += 1) {
+        if (line.bytes[begin + index] != literal[index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] LineResult read_service_command(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
+                                              std::size_t value_begin, std::size_t value_end) noexcept {
+    // The words of the value only: a view of the line that ends where the
+    // value ends, so columns stay the line's.
+    LineView value_line = line;
+    value_line.length = value_end;
+    CommandWords words{};
+    const LineResult split = split_words(builder, value_line, value_begin, words);
+    if (split.has_value()) {
+        return split;
+    }
+    if (words.count == 0u) {
+        return refuse(line, value_begin, ParseError::program_not_absolute);
+    }
+    if (words.count > run_arguments_max) {
+        return refuse(line, words.words[run_arguments_max].index, ParseError::too_many_run_arguments);
+    }
+    if (words.words[0].text.length == 0u || builder.text(words.words[0].text)[0] != '/') {
+        return refuse(line, words.words[0].index, ParseError::program_not_absolute);
+    }
+    ServiceCommandWords command{};
+    command.count = static_cast<std::uint32_t>(words.count);
+    for (std::size_t index = 0; index < words.count; index += 1) {
+        command.arguments[index] = words.words[index].text;
+    }
+    draft.command = command;
+    return std::nullopt;
+}
+
+[[nodiscard]] LineResult parse_service_setting(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
+                                               std::size_t begin) noexcept {
+    // parse_setting accepted the line, so this layout holds: name, blanks,
+    // '=', blanks, value, trailing blanks.
+    const std::size_t end_of_name = name_end(line, begin);
+    const std::size_t equals = skip_blanks(line, end_of_name);
+    const std::size_t value_begin = skip_blanks(line, equals + 1u);
+    std::size_t value_end = line.length;
+    while (value_end > value_begin && is_blank(line.bytes[value_end - 1u])) {
+        value_end -= 1;
+    }
+    if (bytes_are(line, begin, end_of_name, "command")) {
+        return read_service_command(builder, draft, line, value_begin, value_end);
+    }
+    if (bytes_are(line, begin, end_of_name, "directory")) {
+        if (value_begin >= value_end || line.bytes[value_begin] != '/') {
+            return refuse(line, value_begin, ParseError::directory_not_absolute);
+        }
+        // The value parse_setting has just stored.
+        const BootConfig& config = builder.config();
+        draft.directory = config.setting(config.setting_count() - 1u).value;
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "restart")) {
+        if (bytes_are(line, value_begin, value_end, "never")) {
+            draft.restart = RestartPolicy::never;
+        } else if (bytes_are(line, value_begin, value_end, "on-failure")) {
+            draft.restart = RestartPolicy::on_failure;
+        } else if (bytes_are(line, value_begin, value_end, "always")) {
+            draft.restart = RestartPolicy::always;
+        } else {
+            return refuse(line, value_begin, ParseError::service_restart_unknown);
+        }
+        return std::nullopt;
+    }
+    return refuse(line, begin, ParseError::service_setting_unknown);
+}
+
+// After the last line: every start names a defined service.
+[[nodiscard]] LineResult check_starts(const BootConfig& config) noexcept {
+    for (std::size_t index = 0; index < config.init_command_count(); index += 1) {
+        const InitCommand& command = config.init_command(index);
+        const StartCommand* const start = command.action.as_start();
+        if (start != nullptr && !config.find_service(config.text((*start).service)).has_value()) {
+            return refuse_at(command.line, command.column, ParseError::start_unknown_service);
+        }
+    }
     return std::nullopt;
 }
 
@@ -933,7 +1163,11 @@ private:
     if (state.in_init_section) {
         return parse_command(builder, line, first);
     }
-    return parse_setting(builder, state, line, first);
+    const LineResult setting = parse_setting(builder, state, line, first);
+    if (setting.has_value() || !state.service.has_value()) {
+        return setting;
+    }
+    return parse_service_setting(builder, *state.service, line, first);
 }
 
 }  // namespace
@@ -980,6 +1214,14 @@ ParseOutcome parse_boot_config(std::span<const char> text, BootConfig& config) n
         }
         line_begin = line_end + 1u;
         line_number += 1;
+    }
+    LineResult closing = finish_service(builder, state);
+    if (!closing.has_value()) {
+        closing = check_starts(config);
+    }
+    if (closing.has_value()) {
+        config.clear();
+        return ParseOutcome::failed((*closing).line, (*closing).column, (*closing).error);
     }
     return ParseOutcome::succeeded();
 }

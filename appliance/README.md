@@ -16,8 +16,8 @@ The appliance's first programs live under `runtime/` at the repository root,
 since they issue system calls (AGENTS.md: only `src/hosted/`, `runtime/` and
 `appliance/shim/` may): PID 1 (`stxinit`) in `runtime/init/`, the supervisor
 (`stxsupervisor`, first form) in `runtime/supervisor/`, the boot
-configuration's format, parser and init-section executor in
-`runtime/supervisor/config/` (host tests in its `test/`), what both programs
+configuration's format, parser, init-section executor and services
+registry in `runtime/supervisor/config/` (host tests in its `test/`), what both programs
 share in `runtime/common/`. `runtime/build_programs.sh` builds them against the
 sysroot.
 

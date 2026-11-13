@@ -33,6 +33,9 @@
   `-s1`), and restarts a crashing supervisor with back-off (VM `-s1crash`).
   `c1_s2.sh KERNCONF` (S2): the supervisor reads `configs/s2-appliance.conf`
   (installed as `/etc/stx/appliance.conf`) and runs its init section once.
+  `c1_s3.sh KERNCONF` (S3): the init section starts two services from
+  `configs/s3-appliance.conf`; one is restarted with back-off, both are
+  stopped by the supervisor at power-off.
 - `c1_sysroot.sh`: a cross sysroot (headers, static libraries) taken from
   the pinned image's own userland, for building `runtime/`.
 

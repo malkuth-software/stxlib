@@ -51,7 +51,7 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
 python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label init \
     --step 'expect:30:STXINIT uptime_ns=\d+' \
     --step 'expect:10:STXSUPERVISOR start restart_count=0 ' \
-    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=2 settings=1 commands=8' \
+    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=3 settings=3 commands=8' \
     --step 'expect:5:STXSUPERVISOR init line=8 wait-for ok ' \
     --step 'expect:5:STXSUPERVISOR init line=9 mount (ok|skipped) ' \
     --step 'expect:5:STXSUPERVISOR init line=10 set ok ' \
@@ -59,9 +59,9 @@ python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label init \
     --step 'expect:5:STXSUPERVISOR init line=11 run exited status=0 ' \
     --step 'expect:5:STXSUPERVISOR init line=12 run skipped ' \
     --step 'expect:5:STXSUPERVISOR init line=13 run exited status=256 ' \
-    --step 'expect:5:STXSUPERVISOR init line=14 start unavailable ' \
+    --step 'expect:5:STXSUPERVISOR init line=14 start ok ' \
     --step 'expect:5:STXSUPERVISOR init line=15 wait-for timed-out ' \
-    --step 'expect:5:STXSUPERVISOR init done commands=8 skipped=[01] failed=3 ' \
+    --step 'expect:5:STXSUPERVISOR init done commands=8 skipped=[01] failed=2 ' \
     --step 'monitor:system_powerdown' \
     --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \

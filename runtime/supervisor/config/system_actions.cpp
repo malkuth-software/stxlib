@@ -173,7 +173,9 @@ FileOutcome read_config_file(const char* path, std::span<char> buffer) noexcept 
 // ---------------------------------------------------------------------------
 // SystemActions.
 
-SystemActions::SystemActions(int console) noexcept : console_(console), step_started_ms_(monotonic_milliseconds()) {}
+SystemActions::SystemActions(int console, ServiceRegistry& registry, ServiceActions& service_actions) noexcept
+    : console_(console), registry_(registry), service_actions_(service_actions),
+      step_started_ms_(monotonic_milliseconds()) {}
 
 bool SystemActions::is_present(PresenceKind kind, const char* path) noexcept {
     struct stat status{};
@@ -260,24 +262,50 @@ StepOutcome SystemActions::mount(FileSystemKind file_system, const char* device,
 }
 
 StepOutcome SystemActions::wait_for(PresenceKind kind, const char* path, std::uint32_t timeout_ms) noexcept {
-    // Bounded by a count of polls, so a stopped or failing clock cannot
-    // make the wait endless.
+    // Ends at the time-out by the clock (sleeps overshoot: S2's VM run took
+    // 144 ms for a 100 ms wait counted in polls alone), and in any case
+    // after a count of polls, so a stopped or failing clock cannot make the
+    // wait endless.
+    const std::uint64_t started_ms = monotonic_milliseconds();
     const std::uint32_t polls_max = timeout_ms / poll_interval_ms + 1u;
     for (std::uint32_t poll = 0; poll <= polls_max; poll += 1) {
         if (is_present(kind, path)) {
             return StepOutcome::done();
         }
-        if (poll < polls_max) {
-            sleep_milliseconds(poll_interval_ms);
+        const std::uint64_t now_ms = monotonic_milliseconds();
+        const std::uint64_t elapsed_ms = now_ms >= started_ms ? now_ms - started_ms : 0;
+        if (poll == polls_max || elapsed_ms >= timeout_ms) {
+            break;
         }
+        const std::uint64_t remaining_ms = timeout_ms - elapsed_ms;
+        sleep_milliseconds(remaining_ms < poll_interval_ms ? static_cast<std::uint32_t>(remaining_ms)
+                                                           : poll_interval_ms);
     }
     return StepOutcome::timed_out();
 }
 
-StepOutcome SystemActions::start_service(const char* service) noexcept {
-    (void)service;
-    // The services registry is step S3.
-    return StepOutcome::unavailable();
+StepOutcome SystemActions::start_service(const char* service, const char* const* environment) noexcept {
+    // Services started later (restarts, the console) keep the environment
+    // the init section had at this start; the workspace is static, so the
+    // vector stays valid.
+    registry_.set_environment(environment);
+    const StartResult result = registry_.start(service, monotonic_milliseconds(), service_actions_);
+    switch (result) {
+    case StartResult::started:
+    case StartResult::already_running:
+        return StepOutcome::done();
+    case StartResult::unknown_service:
+        // The parser refuses a start naming no service; reached only if the
+        // registry was loaded from another configuration.
+        return StepOutcome::failed(ESRCH);
+    case StartResult::spawn_failed:
+        // The registry has reported the errno on its own line.
+        return StepOutcome::failed(ECHILD);
+    default:
+        break;
+    }
+    // Fallback: an unknown result counts as a failure.
+    return StepOutcome::failed(EINVAL);
 }
 
 namespace {
@@ -352,6 +380,127 @@ StepOutcome SystemActions::run_program(const char* const* arguments, const char*
     (void)killed;
     return StepOutcome::timed_out();
 }
+
+// ---------------------------------------------------------------------------
+// SystemServiceActions.
+
+SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console) {}
+
+namespace {
+
+// In the child between fork and execve: only async-signal-safe calls.
+[[noreturn]] void become_service(const char* const* arguments, const char* const* environment,
+                                 const char* directory) noexcept {
+    (void)setsid();
+    sigset_t none{};
+    sigemptyset(&none);
+    (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    if (chdir(directory) != 0) {
+        _exit(126);
+    }
+    (void)execve(arguments[0], const_cast<char* const*>(arguments), const_cast<char* const*>(environment));
+    _exit(127);
+}
+
+}  // namespace
+
+SpawnOutcome SystemServiceActions::spawn(const char* const* arguments, const char* const* environment,
+                                         const char* directory) noexcept {
+    // Checked before forking, so the common failures carry their errno
+    // rather than exit status 126 (directory) or 127 (program).
+    if (access(arguments[0], X_OK) != 0) {
+        return SpawnOutcome::spawn_failed(errno);
+    }
+    struct stat status{};
+    if (stat(directory, &status) != 0) {
+        return SpawnOutcome::spawn_failed(errno);
+    }
+    if (!S_ISDIR(status.st_mode)) {
+        return SpawnOutcome::spawn_failed(ENOTDIR);
+    }
+    const pid_t child = fork();
+    if (child < 0) {
+        return SpawnOutcome::spawn_failed(errno);
+    }
+    if (child == 0) {
+        become_service(arguments, environment, directory);
+    }
+    return SpawnOutcome::spawned(static_cast<int>(child));
+}
+
+void SystemServiceActions::signal(int pid, ServiceSignal which) noexcept {
+    const int number = which == ServiceSignal::kill ? SIGKILL : SIGTERM;
+    // The service leads its own session and process group (setsid), so the
+    // signal goes to the group: children it started stop with it.
+    if (kill(-static_cast<pid_t>(pid), number) != 0) {
+        (void)kill(static_cast<pid_t>(pid), number);
+    }
+}
+
+namespace {
+
+[[nodiscard]] const char* service_event_name(ServiceEventKind kind) noexcept {
+    switch (kind) {
+    case ServiceEventKind::started: return "started";
+    case ServiceEventKind::spawn_failed: return "spawn-failed";
+    case ServiceEventKind::exited: return "exited";
+    case ServiceEventKind::stopping: return "stopping";
+    case ServiceEventKind::killed: return "killed";
+    default: break;
+    }
+    // Fallback: an unknown kind is printed as such.
+    return "unknown";
+}
+
+[[nodiscard]] std::uint64_t unsigned_of(int value) noexcept {
+    return static_cast<std::uint64_t>(static_cast<unsigned int>(value));
+}
+
+}  // namespace
+
+void SystemServiceActions::report(const ServiceEvent& event) noexcept {
+    stxruntime::LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR service ");
+    stxruntime::append_text(line, event.name);
+    stxruntime::append_text(line, " ");
+    stxruntime::append_text(line, service_event_name(event.kind));
+    switch (event.kind) {
+    case ServiceEventKind::started:
+        stxruntime::append_text(line, " pid=");
+        stxruntime::append_decimal(line, unsigned_of(event.pid));
+        stxruntime::append_text(line, " restart_count=");
+        stxruntime::append_decimal(line, event.restart_count);
+        break;
+    case ServiceEventKind::spawn_failed:
+        stxruntime::append_text(line, " errno=");
+        stxruntime::append_decimal(line, unsigned_of(event.error_number));
+        break;
+    case ServiceEventKind::exited:
+        stxruntime::append_text(line, " pid=");
+        stxruntime::append_decimal(line, unsigned_of(event.pid));
+        stxruntime::append_text(line, " status=");
+        stxruntime::append_decimal(line, unsigned_of(event.wait_status));
+        stxruntime::append_text(line, " ran_ms=");
+        stxruntime::append_decimal(line, event.ran_ms);
+        break;
+    case ServiceEventKind::stopping:
+    case ServiceEventKind::killed:
+        stxruntime::append_text(line, " pid=");
+        stxruntime::append_decimal(line, unsigned_of(event.pid));
+        break;
+    default:
+        break;
+    }
+    if (event.next_in_ms.has_value()) {
+        stxruntime::append_text(line, " next_in_ms=");
+        stxruntime::append_decimal(line, *event.next_in_ms);
+    }
+    stxruntime::append_text(line, "\n");
+    stxruntime::write_line(console_, line);
+}
+
+// ---------------------------------------------------------------------------
+// SystemActions::report.
 
 void SystemActions::report(const StepReport& step) noexcept {
     const std::uint64_t now_ms = monotonic_milliseconds();

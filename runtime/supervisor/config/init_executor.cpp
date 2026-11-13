@@ -257,7 +257,7 @@ namespace {
     }
     const StartCommand* const start = action.as_start();
     if (start != nullptr) {
-        return actions.start_service(config.text((*start).service));
+        return actions.start_service(config.text((*start).service), workspace.environment());
     }
     const RunCommand* const run = action.as_run();
     if (run != nullptr) {

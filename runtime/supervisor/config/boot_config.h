@@ -33,10 +33,23 @@
 //   mount <ufs|msdosfs> <device> <directory> <ro|rw>
 //   wait-for <device|file> <path> <milliseconds>    at most wait_ms_max
 //   set <NAME> <value>          an environment variable for later runs
-//   start <service>             a service from the registry (S3)
+//   start <service>             a service defined in the file (S3)
 //   run <program> [argument...] an absolute path; waits for it to exit
 //   if-present <device|file> <path> <command>       the command runs only
 //                                                   when the path exists
+//
+// A service is a section named service-<name> (C1 step S3), holding:
+//
+//   [service-web]
+//   command = /usr/local/sbin/webd --port 8443     required; words as in an
+//                                                  init command, the program
+//                                                  an absolute path
+//   directory = /user/services/web                 optional, absolute; "/"
+//   restart = on-failure                           optional: never,
+//                                                  on-failure (default), always
+//
+// Any other setting in a service section is refused, and every start in the
+// init section must name a service the file defines.
 //
 // if-present guards one command, which is not itself an if-present: guards
 // do not nest. There are no loops, jumps or definitions, so an init section
@@ -73,14 +86,19 @@ constexpr std::size_t command_words_max = 20;
 // A run's argument vector: the program and at most 15 arguments.
 constexpr std::size_t run_arguments_max = 16;
 constexpr std::uint32_t wait_ms_max = 60000;
+constexpr std::size_t services_max = 16;
+// The prefix that makes a section a service definition.
+constexpr const char* service_section_prefix = "service-";
 
 // Every stored text (a name, a value, a word) is copied, unescaped and
 // NUL-terminated, into the configuration's text store. A stored text is
 // never longer than the input bytes it came from, and every stored text but
 // the file's last is followed in the input by at least one byte it does not
-// store (a blank, '=', ']' or a line end), so the store needs at most
-// config_size_max + 1 bytes. The parser still checks capacity on every copy.
-constexpr std::size_t text_store_bytes = config_size_max + 1;
+// store (a blank, '=', ']' or a line end), so one copy of the file needs at
+// most config_size_max + 1 bytes. A service's command is stored twice, as
+// its setting's value and as its words, so the store holds two copies. The
+// parser still checks capacity on every copy.
+constexpr std::size_t text_store_bytes = 2u * (config_size_max + 1u);
 
 // ---------------------------------------------------------------------------
 // Stored texts.
@@ -187,6 +205,32 @@ struct InitCommand {
     std::optional<PresenceGuard> guard;
     CommandAction action;
     std::uint32_t line;
+    // Column of the command's first word (for refusals found after the
+    // line was read: a start naming no service).
+    std::uint32_t column;
+};
+
+// ---------------------------------------------------------------------------
+// Services.
+
+enum class RestartPolicy : std::uint8_t {
+    never,
+    on_failure,
+    always,
+};
+
+struct ServiceDefinition {
+    // The name after the section prefix ("web" for [service-web]).
+    TextRef name;
+    // The command's words: argument_count is 1..run_arguments_max and
+    // arguments[0] is the program's absolute path.
+    std::uint32_t argument_count;
+    TextRef arguments[run_arguments_max];
+    // Absent: the service runs in "/".
+    std::optional<TextRef> directory;
+    RestartPolicy restart;
+    // The section header's line.
+    std::uint32_t line;
 };
 
 // ---------------------------------------------------------------------------
@@ -214,6 +258,10 @@ public:
     [[nodiscard]] const Section& section(std::size_t index) const noexcept;
     [[nodiscard]] const Setting& setting(std::size_t index) const noexcept;
     [[nodiscard]] const InitCommand& init_command(std::size_t index) const noexcept;
+    [[nodiscard]] std::size_t service_count() const noexcept;
+    [[nodiscard]] const ServiceDefinition& service(std::size_t index) const noexcept;
+    // The service of that name, or nothing.
+    [[nodiscard]] std::optional<std::size_t> find_service(const char* name) const noexcept;
 
     // The NUL-terminated text a reference names. The pointer is valid
     // while the configuration lives and is not cleared or parsed into again.
@@ -239,6 +287,10 @@ private:
     alignas(InitCommand) unsigned char init_command_storage_[init_commands_max * sizeof(InitCommand)];
     std::size_t init_command_count_;
     bool has_init_section_;
+    // ServiceDefinition has a std::optional member but a trivial default
+    // shape, so a plain array serves.
+    ServiceDefinition services_[services_max];
+    std::size_t service_count_;
 };
 
 // ---------------------------------------------------------------------------
@@ -274,6 +326,12 @@ enum class ParseError : std::uint8_t {
     guard_nested,
     too_many_commands,
     text_store_full,
+    service_setting_unknown,
+    service_command_missing,
+    service_restart_unknown,
+    directory_not_absolute,
+    too_many_services,
+    start_unknown_service,
 };
 
 // The error's name as printed on the console ("line_too_long", ...).

@@ -14,6 +14,7 @@
 
 #include "boot_config.h"
 #include "init_executor.h"
+#include "service_registry.h"
 
 namespace stxconfig {
 
@@ -80,21 +81,48 @@ private:
 //   STXSUPERVISOR init mount errmsg=<text>
 class SystemActions final : public InitActions {
 public:
-    explicit SystemActions(int console) noexcept;
+    // start commands go to registry, which spawns through service_actions;
+    // both are borrowed for the actions' lifetime.
+    SystemActions(int console, ServiceRegistry& registry, ServiceActions& service_actions) noexcept;
 
     [[nodiscard]] bool is_present(PresenceKind kind, const char* path) noexcept override;
     [[nodiscard]] StepOutcome mount(FileSystemKind file_system, const char* device, const char* directory,
                                     MountAccess access) noexcept override;
     [[nodiscard]] StepOutcome wait_for(PresenceKind kind, const char* path, std::uint32_t timeout_ms) noexcept override;
-    [[nodiscard]] StepOutcome start_service(const char* service) noexcept override;
+    [[nodiscard]] StepOutcome start_service(const char* service, const char* const* environment) noexcept override;
     [[nodiscard]] StepOutcome run_program(const char* const* arguments,
                                           const char* const* environment) noexcept override;
     void report(const StepReport& step) noexcept override;
 
 private:
     int console_;
+    ServiceRegistry& registry_;
+    ServiceActions& service_actions_;
     // When the current step began (the previous report, or construction).
     std::uint64_t step_started_ms_;
+};
+
+// Services on FreeBSD. spawn forks; the child starts a new session (so the
+// console's job-control signals do not reach it), clears its signal mask,
+// changes to the service's directory and executes the program. Console
+// lines, one per event:
+//
+//   STXSUPERVISOR service <name> started pid=<n> restart_count=<n>
+//   STXSUPERVISOR service <name> spawn-failed errno=<n>[ next_in_ms=<n>]
+//   STXSUPERVISOR service <name> exited pid=<n> status=<n> ran_ms=<n>[ next_in_ms=<n>]
+//   STXSUPERVISOR service <name> stopping pid=<n>
+//   STXSUPERVISOR service <name> killed pid=<n>
+class SystemServiceActions final : public ServiceActions {
+public:
+    explicit SystemServiceActions(int console) noexcept;
+
+    [[nodiscard]] SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
+                                     const char* directory) noexcept override;
+    void signal(int pid, ServiceSignal which) noexcept override;
+    void report(const ServiceEvent& event) noexcept override;
+
+private:
+    int console_;
 };
 
 // CLOCK_MONOTONIC in milliseconds; 0 if the clock cannot be read.

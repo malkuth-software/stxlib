@@ -20,7 +20,8 @@
 // - set records NAME=VALUE in the workspace's environment, replacing an
 //   earlier value of NAME; each later run gets the whole environment. The
 //   environment starts with PATH and HOME (base_environment below).
-// - start asks the services registry, which comes in step S3.
+// - start asks the services registry (service_registry.h) to start a
+//   service the file defines, with the environment as it is at that line.
 
 #ifndef STXLIB_RUNTIME_SUPERVISOR_CONFIG_INIT_EXECUTOR_H
 #define STXLIB_RUNTIME_SUPERVISOR_CONFIG_INIT_EXECUTOR_H
@@ -49,7 +50,8 @@ struct StepFailed {
 };
 struct StepTimedOut {
 };
-// The action has no implementation yet (start, until S3).
+// The action has no implementation (kept for actions added before their
+// system side; none at present).
 struct StepUnavailable {
 };
 // set found the environment full (environment_entries_max names).
@@ -110,7 +112,11 @@ public:
     [[nodiscard]] virtual StepOutcome mount(FileSystemKind file_system, const char* device, const char* directory,
                                             MountAccess access) noexcept = 0;
     [[nodiscard]] virtual StepOutcome wait_for(PresenceKind kind, const char* path, std::uint32_t timeout_ms) noexcept = 0;
-    [[nodiscard]] virtual StepOutcome start_service(const char* service) noexcept = 0;
+    // Starts the named service with the init section's environment so far
+    // (a null-terminated vector). Returns done (started, or already
+    // running) or failed.
+    [[nodiscard]] virtual StepOutcome start_service(const char* service,
+                                                    const char* const* environment) noexcept = 0;
     // arguments and environment are null-terminated vectors; arguments[0]
     // is the program's absolute path. Returns exited, failed (it could not
     // be started) or timed_out.
