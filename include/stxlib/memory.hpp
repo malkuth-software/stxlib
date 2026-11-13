@@ -13,20 +13,25 @@
 // handed to free, operator delete or a foreign library's release call, and
 // a block from anywhere else is never passed to release.
 //
-// Backend: the host's C library (the interface modules under src/hosted/).
-// stx_auxlib's mimalloc backend moves with the third-party code in a later
-// batch; backend() says which is linked. Each image STXlib is linked into
-// has its own allocator state, so a block is released in the image that
-// allocated it.
+// "Us" is STXlib as a whole, not one module: the allocator lives in
+// stxlib_state (src/state/allocator.cpp), so a block allocated by STXlib's
+// code in one module (a shared library, a DLL, the executable) may be
+// released by STXlib's code in any other (the coordinator's application of
+// the owner's model, 2026-11-13). On Windows that also keeps every block in
+// one heap, where each module linking the static C runtime has its own.
+//
+// Backend (STXLIB_ALLOCATOR, CMakeLists.txt): mimalloc v3.5.3 by default,
+// the host's C library in sanitizer builds; backend() says which is linked.
 //
 // Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: on in Debug and
 // sanitizer builds): release ends the process with a report when given a
-// block that is not from allocate in this image or was already released,
-// and a foreign free of a block from allocate is handed an address no
-// allocation starts at. Release recognises its blocks through a registry of
-// the image's live blocks before it reads any byte of them, so a foreign
-// address is refused without touching the memory at or around it
-// (src/core/memory.cpp). tags_checked() says whether this build checks.
+// block that is not from allocate or was already released, and a foreign
+// free of a block from allocate is handed an address no allocation starts
+// at. Release decides whether an address can be one of its blocks before it
+// reads any byte at or around it, so a foreign address is refused without
+// touching that memory: by mimalloc's page-map query with mimalloc, by a
+// registry of live blocks with the host backend (allocator.cpp states the
+// argument for each). tags_checked() says whether this build checks.
 //
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.

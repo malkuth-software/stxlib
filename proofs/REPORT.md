@@ -60,5 +60,14 @@ evidence, not proof.
 | `src/core/local_time.cpp`, `src/hosted/*/local_time_*.cpp` | the reading and its offset name the instant; a TZ set through set_variable is seen by the next call | not yet proved; tested on three POSIX TZ rules (UTC, US Eastern in winter and summer, +05:30) and on Windows' system zone and its 1601 limit | `tests/local_time_tests.cpp` |
 | `src/hosted/windows/children_windows.cpp` (wait) | timed_out only once MonotonicTime has reached the deadline (CI run 43432600851 saw WaitForSingleObject end a 50 ms wait early) | not yet proved; the wait now loops on MonotonicTime as the POSIX wait does; tested | `tests/children_tests.cpp` |
 
+## stxlib::boundary, batch 3a (one allocator across modules; owner decision D11 b)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/state/allocator.cpp` | a block from memory::allocate in any of STXlib's modules is released by memory::release in any other | not yet proved; tested with a shared library and a program, each with its own copy of the boundary, exchanging raw blocks (0 B to 3 MB), a Path, a Thread and an AtomicPool, in tag-checking builds where a block the allocator did not recognise would end the process | `tests/two_module_tests.cpp` |
+| `src/state/allocator.cpp` (tags, mimalloc) | release reads no byte at or around an address unless mimalloc's page map places the address and the header start in a page in use; the header read is then in committed memory for every address inside or just past a block mimalloc handed out | not yet proved. Argued from mimalloc v3.5.3's source (page-map.c 199-210 and 509-515, heap.c 276-289, page.c 844-866; the file's header); addresses made by arithmetic into an unhanded page tail are outside the argument. Must-end tests `foreign_release`, `double_release`, `foreign_release_page` in Debug builds, which now use mimalloc | `tests/death_tests.cpp` |
+| `src/state/allocator.cpp` (tags, host backend) | as batch 2a's foreign-release fix: the registry, unchanged, now in stxlib_state | as before (sanitizer builds use this backend) | the same |
+| `src/core/threads.cpp` (D11) | the stated stack size, rounded to the page size, with a guard page; recursive locking and foreign unlocks fail fast in check builds; a predicate wait returns satisfied only when the predicate is true and timed_out only once MonotonicTime reached the deadline with it false | not yet proved; tested: 4 MiB and 8 MiB stacks filled to three quarters, refused sizes, must-end cases `recursive_lock` and `foreign_unlock`, timed waits. The wait rule holds by construction (the predicate is checked under the lock before each host wait and the deadline read from MonotonicTime); not checked by a tool | `tests/threads_tests.cpp`, `tests/death_tests.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

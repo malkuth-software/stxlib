@@ -12,18 +12,23 @@
 // host's code; they are not results. Starting a thread can fail for lack of
 // resources, and reports it.
 //
-// Survey D11 (threads) is open; this is stx_auxlib's current behaviour,
-// flagged where D11 would change it:
-// - Threads take the host's default stack size (pthread_create without
-//   attributes; _beginthreadex with 0): 8 MiB from RLIMIT_STACK on glibc,
-//   128 KiB on musl, 512 KiB for macOS's secondary threads, 1 MiB reserved
-//   on Windows (D11's table). D11 a and b would name a size.
-// - Locking a Mutex its thread already holds is a defect that is not
-//   detected: the host's default mutex (PTHREAD_MUTEX_DEFAULT, an SRW lock
-//   on Windows) deadlocks or is undefined. D11 a would trap it in check
-//   builds.
-// - No thread-local storage with a destructor: a thread's identity lives in
-//   stxlib_state's thread state, trivially destructible (as D11 a states).
+// Owner decision D11 = b (decisions/2026-11-13-d11-d12-threads-clocks.md):
+// - Every thread's stack size is STXlib's, the same on every host: the
+//   caller's, or default_thread_stack_bytes (4 MiB) when the caller does
+//   not state one; never the host's default (which is 8 MiB from
+//   RLIMIT_STACK on glibc, 128 KiB on musl, 512 KiB on macOS and 1 MiB on
+//   Windows: the survey's D11 table). Every thread has a guard page below
+//   its stack.
+// - Locking a Mutex the calling thread already holds, or unlocking one it
+//   does not hold, is a defect, trapped in check builds (STXLIB_LOCK_CHECKS,
+//   CMakeLists.txt: Debug and sanitizer builds), where it fails fast; in
+//   other builds it is undefined (the host's mutex deadlocks or worse).
+// - No thread-local storage with a non-trivial destructor in STXlib: a
+//   thread's identity lives in stxlib_state's thread state, trivially
+//   destructible.
+// - Waits take a named predicate (a function, not a lambda), checked under
+//   the lock before every wait, so a wait cannot miss a notification or
+//   return on a spurious wake-up.
 //
 // Changes from stx_auxlib: std::thread, std::mutex and
 // std::condition_variable are not used (STXlib builds without exceptions,
@@ -32,10 +37,9 @@
 // Status. Thread identities and their issuer live in stxlib_state, so every
 // module sees one identity per thread. Times are MonotonicTime and Duration.
 //
-// Modules: a Thread's shared state is a block of STXlib's allocator, so a
-// Thread is destroyed (or joined and destroyed) in the module that started
-// it, as every allocator block is released in the module that made it
-// (memory.hpp).
+// Modules: a Thread's shared state is a block of STXlib's allocator, which
+// every module shares (memory.hpp), so a Thread may be started in one of
+// STXlib's modules and joined or destroyed in another.
 
 #include "stxlib/clocks.hpp"
 #include "stxlib/identity.hpp"
@@ -64,11 +68,22 @@ void yield_thread() noexcept;
 // reports none).
 [[nodiscard]] u32 processor_count() noexcept;
 
+// D11's stack sizes, in bytes. A caller's size is rounded up to the host's
+// page size; a size outside [minimum, maximum] is refused by Thread::start.
+// The minimum is above every phase I host's PTHREAD_STACK_MIN (glibc on
+// arm64 needs 128 KiB, finding 20).
+inline constexpr usize default_thread_stack_bytes = 4194304;  // 4 MiB
+inline constexpr usize minimum_thread_stack_bytes = 262144;   // 256 KiB
+inline constexpr usize maximum_thread_stack_bytes = 1073741824; // 1 GiB
+
+// True when this build traps recursive locking and foreign unlocks.
+[[nodiscard]] bool lock_checks_enabled() noexcept;
+
 class ConditionVariable;
 
 // A non-recursive mutual-exclusion lock. Locking it twice on one thread, or
 // unlocking it from a thread that does not hold it, is a defect (D11,
-// above). Prefer ScopedLock.
+// above), trapped in check builds. Prefer ScopedLock.
 class Mutex final {
 public:
     Mutex() noexcept;
@@ -85,6 +100,9 @@ public:
 private:
     friend class ConditionVariable;
     alignas(16) unsigned char storage_[64];
+    // The holder's ThreadIdentity value, 0 when free; kept in check builds
+    // only (in every build the field exists, so the layout is one).
+    u64 owner_{0};
 };
 
 // Holds a Mutex for its own lifetime. A condition wait releases and
@@ -103,16 +121,23 @@ private:
     Mutex& mutex_;
 };
 
+// A named predicate over the waited-for state: true when the wait is over.
+// It is called with the lock held, so it reads state that lock guards.
+using WaitPredicate = bool (*)(const void* context) noexcept;
+
 enum class WaitResult : u8 {
-    // Woken by a notification or spuriously: recheck the waited-for state.
-    woken = 0,
+    // The predicate returned true.
+    satisfied = 0,
+    // MonotonicTime::now() reached the deadline and the predicate was still
+    // false.
     timed_out = 1,
 };
 
-// Waits are always made under a ScopedLock of the mutex that guards the
-// waited-for state, in a loop that rechecks that state, since a wait may end
-// spuriously. A timed wait reports timed_out only once MonotonicTime::now()
-// has reached the deadline.
+// Waits are made under a ScopedLock of the mutex that guards the waited-for
+// state. Each wait calls the predicate first and returns as soon as it is
+// true; otherwise it releases the lock, sleeps until notified (or until
+// spuriously woken, or until the deadline), reacquires the lock and calls
+// the predicate again. A null predicate is a failed requirement.
 class ConditionVariable final {
 public:
     ConditionVariable() noexcept;
@@ -122,10 +147,13 @@ public:
     ConditionVariable(ConditionVariable&&) = delete;
     ConditionVariable& operator=(ConditionVariable&&) = delete;
 
-    void wait(ScopedLock& lock) noexcept;
-    [[nodiscard]] WaitResult wait_until(ScopedLock& lock, MonotonicTime deadline) noexcept;
+    // Returns once the predicate is true.
+    void wait(ScopedLock& lock, WaitPredicate predicate, const void* context) noexcept;
+    [[nodiscard]] WaitResult wait_until(ScopedLock& lock, WaitPredicate predicate, const void* context,
+                                        MonotonicTime deadline) noexcept;
     // The deadline is now plus `interval`, saturating.
-    [[nodiscard]] WaitResult wait_for(ScopedLock& lock, Duration interval) noexcept;
+    [[nodiscard]] WaitResult wait_for(ScopedLock& lock, WaitPredicate predicate, const void* context,
+                                      Duration interval) noexcept;
     void notify_one() noexcept;
     void notify_all() noexcept;
 
@@ -202,15 +230,24 @@ enum class JoinResult : u8 {
 // thread and leaves the source empty. identity() is known before the thread
 // runs and equals current_thread() inside it.
 //
-// Failures of start: invalid_argument (a null entry); out_of_memory (the
-// shared state); limit_exceeded with the host's code as the foreign code
-// when the host refuses another thread; limit_exceeded when thread
+// Failures of start: invalid_argument with a ThreadFailure code (a null
+// entry; a stack size outside D11's bounds); out_of_memory (the shared
+// state); limit_exceeded with the host's code as the foreign code when the
+// host refuses another thread or its stack; limit_exceeded when thread
 // identities are exhausted.
+enum class ThreadFailure : u32 {
+    no_entry = 1,
+    stack_size_out_of_range = 2,
+};
+
 class Thread final {
 public:
     using Entry = void (*)(const StopSignal& stop, void* context) noexcept;
 
-    [[nodiscard]] static Result<Thread> start(Entry entry, void* context) noexcept;
+    // The thread's stack is `stack_bytes` rounded up to the host's page
+    // size, with a guard page below it (D11).
+    [[nodiscard]] static Result<Thread> start(Entry entry, void* context,
+                                              usize stack_bytes = default_thread_stack_bytes) noexcept;
     Thread() noexcept = default;
     ~Thread();
     Thread(const Thread&) = delete;

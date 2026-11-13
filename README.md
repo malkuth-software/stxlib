@@ -37,18 +37,18 @@ module has not landed yet is reported unsupported.
 |---|---|---|
 | console | `console.hpp` | batch 2a |
 | environment | `environment.hpp` | batch 2a |
-| clocks | `clocks.hpp` | batch 2a (survey D12 open) |
+| clocks | `clocks.hpp` | batch 2a (D12 a: interval and elapsed clocks in batch 3b) |
 | entropy | `entropy.hpp` | batch 2a |
 | exit tasks | `process.hpp` | batch 2a |
 | raw terminal | `terminal.hpp` | batch 2a |
 | process events | `events.hpp` | batch 2a |
 | paths, files | `path.hpp`, `files.hpp` | batch 2b; batch 2b2 (D13 a: lossless names, durability levels, atomic replace) |
 | desktop, child processes | `desktop.hpp`, `children.hpp` | batch 2b |
-| threads, thread pool | `threads.hpp`, `thread_pool.hpp` | batch 2c (survey D11 open) |
-| local time zone | `local_time.hpp` | batch 2c (survey D12 open) |
+| threads, thread pool | `threads.hpp`, `thread_pool.hpp` | batch 2c; batch 3a (D11 b: 4 MiB stacks, guard pages, lock checks, predicate waits) |
+| local time zone | `local_time.hpp` | batch 2c (host zones); D12 a (compiled IANA zones) in batch 3b |
 
 Process-wide state of these modules (locks, the console's read-ahead, the
 exit-task table, the event watch, the raw-terminal flag) lives in
 `stxlib_state`, so a program built from several modules shares it.
 
-Licence: MIT (see `LICENSE`). FreeBSD components keep their BSD licences.
+Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); FreeBSD components keep their BSD licences.

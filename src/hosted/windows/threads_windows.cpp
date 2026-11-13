@@ -7,8 +7,14 @@
 // objects under them, called directly so a failed start is a result in a
 // build without exceptions.
 //
-// Survey D11 is open: threads take the image's default stack size
-// (_beginthreadex with 0), as std::thread did (threads.hpp).
+// Owner decision D11 = b (threads.hpp): _beginthreadex is given the stack
+// size with STACK_SIZE_PARAM_IS_A_RESERVATION, so the size is the stack's
+// reservation (rounded by the system to its allocation granularity) rather
+// than its initial commit. Windows places a guard page below the committed
+// part of every thread stack and moves it as the stack grows; overflowing
+// the reservation raises EXCEPTION_STACK_OVERFLOW (Microsoft's "Thread
+// Stack Size" and CreateThread pages; from the published pages, not re-read
+// in this batch).
 //
 // An SRW lock and a condition variable need no destruction (Microsoft's
 // documentation of InitializeSRWLock and InitializeConditionVariable: there
@@ -123,8 +129,10 @@ void condition_notify_all(unsigned char* const condition) noexcept {
     WakeAllConditionVariable(condition_of(condition));
 }
 
-bool thread_start(void* const argument, u64& handle, ForeignCode& failure) noexcept {
-    const uintptr_t started = _beginthreadex(nullptr, 0, thread_entry, argument, 0, nullptr);
+bool thread_start(void* const argument, const usize stack_bytes, u64& handle, ForeignCode& failure) noexcept {
+    // stack_bytes is at most 1 GiB (threads.hpp), so it fits unsigned.
+    const uintptr_t started = _beginthreadex(nullptr, static_cast<unsigned>(stack_bytes), thread_entry, argument,
+                                             STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr);
     if (started == 0) {
         // _beginthreadex sets errno (EAGAIN, EINVAL, EACCES) and leaves the
         // Win32 error from CreateThread (Microsoft's _beginthreadex page).

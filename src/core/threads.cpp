@@ -2,7 +2,9 @@
 // family's thread module (hosted/thread_backend.hpp). Ported from
 // stx_auxlib's src/hosted/threads.cpp at b6e330a: the same identities,
 // lifetime rules and once algorithm, with the host calls moved to the
-// family modules and the identity state moved to stxlib_state.
+// family modules and the identity state moved to stxlib_state. Owner
+// decision D11 = b on top: STXlib's stack sizes, lock checks in check
+// builds (STXLIB_LOCK_CHECKS), and predicate waits.
 
 #include "stxlib/threads.hpp"
 
@@ -11,6 +13,7 @@
 #include "state/state.hpp"
 #include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
+#include "stxlib/require.hpp"
 
 #include <atomic>
 #include <new>
@@ -81,45 +84,159 @@ u32 processor_count() noexcept {
     return reported;
 }
 
+bool lock_checks_enabled() noexcept {
+#if defined(STXLIB_LOCK_CHECKS)
+    return true;
+#else
+    return false;
+#endif
+}
+
 // ---- Mutex and ConditionVariable ---------------------------------------------
 
-Mutex::Mutex() noexcept { thread_backend::mutex_create(storage_); }
+namespace {
 
-Mutex::~Mutex() { thread_backend::mutex_destroy(storage_); }
+#if defined(STXLIB_LOCK_CHECKS)
 
-void Mutex::lock() noexcept { thread_backend::mutex_lock(storage_); }
+[[noreturn]] void lock_defect(const TextView message) noexcept {
+    const ErrorRecord record =
+        ErrorRecord::make(ErrorKind::internal_failure, "stxlib.threads.lock", ErrorDetail{.message = message});
+    fail_fast(record);
+}
 
-bool Mutex::try_lock() noexcept {
-    const bool result = thread_backend::mutex_try_lock(storage_);
+// owner_ is written by the holder and read by any thread that locks, so it
+// is accessed atomically; a reader compares it with its own identity, which
+// only it ever stores.
+u64 owner_of(u64& owner) noexcept {
+    const u64 result = std::atomic_ref<u64>(owner).load(std::memory_order_relaxed);
     return result;
 }
 
-void Mutex::unlock() noexcept { thread_backend::mutex_unlock(storage_); }
+void set_owner(u64& owner, const u64 value) noexcept {
+    std::atomic_ref<u64>(owner).store(value, std::memory_order_relaxed);
+}
+
+// Before taking the lock: the caller must not hold it already.
+u64 check_not_held(u64& owner) noexcept {
+    const u64 caller = current_thread().value();
+    if (owner_of(owner) == caller) lock_defect("a thread locked a Mutex it already holds");
+    return caller;
+}
+
+// Before releasing the lock: the caller must hold it.
+void check_held(u64& owner) noexcept {
+    if (owner_of(owner) != current_thread().value()) lock_defect("a thread unlocked a Mutex it does not hold");
+}
+
+#endif
+
+void require_predicate(const WaitPredicate predicate) noexcept {
+    STXLIB_REQUIRE(predicate != nullptr, "ConditionVariable: a wait needs a predicate");
+}
+
+} // namespace
+
+Mutex::Mutex() noexcept { thread_backend::mutex_create(storage_); }
+
+Mutex::~Mutex() {
+#if defined(STXLIB_LOCK_CHECKS)
+    if (owner_of(owner_) != 0) lock_defect("a Mutex was destroyed while held");
+#endif
+    thread_backend::mutex_destroy(storage_);
+}
+
+void Mutex::lock() noexcept {
+#if defined(STXLIB_LOCK_CHECKS)
+    const u64 caller = check_not_held(owner_);
+    thread_backend::mutex_lock(storage_);
+    set_owner(owner_, caller);
+#else
+    thread_backend::mutex_lock(storage_);
+#endif
+}
+
+bool Mutex::try_lock() noexcept {
+#if defined(STXLIB_LOCK_CHECKS)
+    // A try on a mutex the caller holds is the same defect (the host's
+    // answer would be EBUSY on one host and EDEADLK or success on another).
+    const u64 caller = check_not_held(owner_);
+    const bool result = thread_backend::mutex_try_lock(storage_);
+    if (result) set_owner(owner_, caller);
+#else
+    const bool result = thread_backend::mutex_try_lock(storage_);
+#endif
+    return result;
+}
+
+void Mutex::unlock() noexcept {
+#if defined(STXLIB_LOCK_CHECKS)
+    check_held(owner_);
+    set_owner(owner_, 0);
+#endif
+    thread_backend::mutex_unlock(storage_);
+}
 
 ConditionVariable::ConditionVariable() noexcept { thread_backend::condition_create(storage_); }
 
 ConditionVariable::~ConditionVariable() { thread_backend::condition_destroy(storage_); }
 
-void ConditionVariable::wait(ScopedLock& lock) noexcept {
-    thread_backend::condition_wait(storage_, lock.mutex_.storage_);
+namespace {
+
+// One host wait, interval or not. The host releases the mutex for the wait,
+// so in check builds the owner is cleared before and restored after. True
+// when the host reports a timeout.
+bool host_wait(unsigned char* const condition, unsigned char* const mutex_storage, u64& owner, const bool timed,
+               const Duration interval) noexcept {
+#if defined(STXLIB_LOCK_CHECKS)
+    check_held(owner);
+    const u64 caller = owner_of(owner);
+    set_owner(owner, 0);
+#else
+    static_cast<void>(owner);
+#endif
+    bool host_timeout = false;
+    if (timed) {
+        host_timeout = thread_backend::condition_wait_for(condition, mutex_storage, interval);
+    } else {
+        thread_backend::condition_wait(condition, mutex_storage);
+    }
+#if defined(STXLIB_LOCK_CHECKS)
+    set_owner(owner, caller);
+#endif
+    return host_timeout;
+}
+
+} // namespace
+
+void ConditionVariable::wait(ScopedLock& lock, const WaitPredicate predicate, const void* const context) noexcept {
+    require_predicate(predicate);
+    Mutex& mutex = lock.mutex_;
+    while (!predicate(context)) {
+        static_cast<void>(host_wait(storage_, mutex.storage_, mutex.owner_, false, Duration()));
+    }
 }
 
 // The host wait takes a relative interval, measured here against
 // MonotonicTime, so the deadline means the same on every host whatever clock
-// the host's wait uses. A host timeout before the deadline (another clock
-// ran faster) is reported as woken, which the caller's loop rechecks.
-WaitResult ConditionVariable::wait_until(ScopedLock& lock, const MonotonicTime deadline) noexcept {
-    const MonotonicTime now = MonotonicTime::now();
-    if (!(now < deadline)) return WaitResult::timed_out;
-    const bool host_timeout = thread_backend::condition_wait_for(storage_, lock.mutex_.storage_, deadline.since(now));
-    if (host_timeout && !(MonotonicTime::now() < deadline)) return WaitResult::timed_out;
-    return WaitResult::woken;
+// the host's wait uses; timed_out is decided by MonotonicTime alone, after
+// the predicate was found false.
+WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
+                                         const MonotonicTime deadline) noexcept {
+    require_predicate(predicate);
+    Mutex& mutex = lock.mutex_;
+    for (;;) {
+        if (predicate(context)) return WaitResult::satisfied;
+        const MonotonicTime now = MonotonicTime::now();
+        if (!(now < deadline)) return WaitResult::timed_out;
+        static_cast<void>(host_wait(storage_, mutex.storage_, mutex.owner_, true, deadline.since(now)));
+    }
 }
 
-WaitResult ConditionVariable::wait_for(ScopedLock& lock, const Duration interval) noexcept {
+WaitResult ConditionVariable::wait_for(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
+                                       const Duration interval) noexcept {
     // MonotonicTime::after saturates (clocks.hpp), as stx_auxlib's
     // deadline_after did.
-    const WaitResult result = wait_until(lock, MonotonicTime::now().after(interval));
+    const WaitResult result = wait_until(lock, predicate, context, MonotonicTime::now().after(interval));
     return result;
 }
 
@@ -198,11 +315,19 @@ Thread& Thread::operator=(Thread&& other) noexcept {
     return *this;
 }
 
-Result<Thread> Thread::start(const Entry entry, void* const context) noexcept {
+Result<Thread> Thread::start(const Entry entry, void* const context, const usize stack_bytes) noexcept {
     const Operation operation = "stxlib.threads.start";
     if (entry == nullptr) {
-        const ErrorRecord refused = ErrorRecord::make(ErrorKind::invalid_argument, operation,
-                                                      ErrorDetail{.message = "a thread needs an entry"});
+        const ErrorRecord refused = ErrorRecord::make(
+            ErrorKind::invalid_argument, operation,
+            ErrorDetail{.code = static_cast<u32>(ThreadFailure::no_entry), .message = "a thread needs an entry"});
+        return Result<Thread>::failure(refused);
+    }
+    if (stack_bytes < minimum_thread_stack_bytes || stack_bytes > maximum_thread_stack_bytes) {
+        const ErrorRecord refused =
+            ErrorRecord::make(ErrorKind::invalid_argument, operation,
+                              ErrorDetail{.code = static_cast<u32>(ThreadFailure::stack_size_out_of_range),
+                                          .message = "a thread's stack size is outside STXlib's bounds"});
         return Result<Thread>::failure(refused);
     }
     const u64 identity = issue_identity();
@@ -218,7 +343,7 @@ Result<Thread> Thread::start(const Entry entry, void* const context) noexcept {
     (*created).context = context;
     (*created).identity = ThreadIdentity::from_value(identity);
     ForeignCode host_failure{};
-    if (!thread_backend::thread_start(created, (*created).host, host_failure)) {
+    if (!thread_backend::thread_start(created, stack_bytes, (*created).host, host_failure)) {
         release_state(created);
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::limit_exceeded, operation,

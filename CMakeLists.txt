@@ -89,6 +89,9 @@ stxlib_switch(STXLIB_SHADOW "Shadow exceptions at the gates")
 # Allocation ownership tags (include/stxlib/memory.hpp): a 16-byte tag below
 # every block, checked by release.
 stxlib_switch(STXLIB_ALLOCATION_TAGS "Tag and check memory::allocate blocks")
+# Lock checks (include/stxlib/threads.hpp, owner decision D11): recursive
+# locking and foreign unlocks of a Mutex fail fast.
+stxlib_switch(STXLIB_LOCK_CHECKS "Trap recursive locking and foreign unlocks")
 
 # The generator expression that turns a switch on for this configuration.
 function(stxlib_switch_condition name out)
@@ -104,6 +107,7 @@ function(stxlib_switch_condition name out)
 endfunction()
 stxlib_switch_condition(STXLIB_SHADOW stxlib_shadow_on)
 stxlib_switch_condition(STXLIB_ALLOCATION_TAGS stxlib_tags_on)
+stxlib_switch_condition(STXLIB_LOCK_CHECKS stxlib_lock_checks_on)
 
 # STXlib's own code is built without exceptions in every build (AGENTS.md:
 # release builds of everything ours use no exceptions; for STXlib from the
@@ -122,12 +126,16 @@ set(stxlib_warnings -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
 # in one shared library and a gate in another work on one stack. Shared by
 # default; OFF only for a consumer that is a single module with no shared
 # library of its own that links STXlib.
+#
+# Since layout 5 it also owns the allocator (src/state/allocator.cpp), so a
+# block from stxlib::memory in one module may be released in another.
 option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)" ON)
+set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
 if(STXLIB_STATE_SHARED)
-    add_library(stxlib_state SHARED src/state/state.cpp)
+    add_library(stxlib_state SHARED ${STXLIB_STATE_SOURCES})
     target_compile_definitions(stxlib_state PUBLIC STXLIB_STATE_SHARED)
 else()
-    add_library(stxlib_state STATIC src/state/state.cpp)
+    add_library(stxlib_state STATIC ${STXLIB_STATE_SOURCES})
 endif()
 add_library(stxlib::state ALIAS stxlib_state)
 target_include_directories(stxlib_state
@@ -137,12 +145,57 @@ target_include_directories(stxlib_state
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(stxlib_state PUBLIC cxx_std_20)
-target_compile_definitions(stxlib_state PRIVATE STXLIB_STATE_BUILDING)
+target_compile_definitions(stxlib_state PRIVATE
+    STXLIB_STATE_BUILDING
+    $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
 target_compile_options(stxlib_state PRIVATE ${stxlib_warnings} -fno-exceptions)
 set_target_properties(stxlib_state PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON)
+
+# The allocator's backend (include/stxlib/memory.hpp). Sanitizers track the
+# host allocator only, so a build with sanitizers (or the integer checks,
+# which would halt on mimalloc's intended wrap-around) defaults to the host
+# backend, and src/state/allocator.cpp refuses mimalloc under address,
+# thread or memory sanitizers.
+if(stxlib_sanitized)
+    set(stxlib_allocator_default host)
+else()
+    set(stxlib_allocator_default mimalloc)
+endif()
+set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: mimalloc or host")
+set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host)
+if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
+    message(FATAL_ERROR "STXLIB_ALLOCATOR must be mimalloc or host")
+endif()
+message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
+if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
+    # mimalloc v3.5.3 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
+    # its one translation unit (src/static.c) into stxlib_state, with the
+    # definitions stx_auxlib b6e330a used (CMakeLists.txt there). It replaces
+    # no C library function (MI_MALLOC_OVERRIDE stays undefined) and its
+    # symbols are hidden, so its heap holds STXlib's blocks only. Compiled as
+    # C++ (mimalloc's MI_USE_CXX): compiled as C it defines a weak fallback
+    # std::get_new_handler that, hidden, would bind in place of the C++
+    # library's (stx_auxlib's finding). Vendored code: its warnings are
+    # upstream's (-w), and the integer checks do not apply to it.
+    set_source_files_properties(third_party/mimalloc/src/static.c PROPERTIES LANGUAGE CXX)
+    add_library(stxlib_mimalloc OBJECT third_party/mimalloc/src/static.c)
+    set_target_properties(stxlib_mimalloc PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    target_include_directories(stxlib_mimalloc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
+    target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1)
+    target_compile_options(stxlib_mimalloc PRIVATE -w -fvisibility=hidden -ftls-model=initial-exec -fno-sanitize=all)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
+    endif()
+    target_sources(stxlib_state PRIVATE $<TARGET_OBJECTS:stxlib_mimalloc>)
+    target_include_directories(stxlib_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
+    target_compile_definitions(stxlib_state PRIVATE STXLIB_ALLOCATOR_MIMALLOC)
+    if(WIN32)
+        target_link_libraries(stxlib_state PRIVATE psapi shell32 user32 advapi32 bcrypt)
+    endif()
+endif()
 
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
@@ -216,7 +269,8 @@ target_include_directories(stxlib_boundary
 target_compile_features(stxlib_boundary PUBLIC cxx_std_20)
 target_compile_definitions(stxlib_boundary PRIVATE
     $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>
-    $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
+    $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>
+    $<$<BOOL:${stxlib_lock_checks_on}>:STXLIB_LOCK_CHECKS>)
 target_compile_options(stxlib_boundary PRIVATE ${stxlib_warnings} -fno-exceptions)
 # Native traces walk the frame-pointer chain (src/hosted/posix/trace_posix.cpp),
 # so every STXlib target keeps frame pointers when shadowing is on.
@@ -259,6 +313,22 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
 
+    if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
+        target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
+    endif()
+
+    # Two modules, each with its own copy of stxlib::boundary, release each
+    # other's blocks through the one allocator in stxlib_state.
+    add_library(stxlib_two_module_library SHARED tests/two_module_library.cpp)
+    target_link_libraries(stxlib_two_module_library PRIVATE stxlib::boundary)
+    target_compile_definitions(stxlib_two_module_library PRIVATE STXLIB_TWO_MODULE_BUILDING)
+    target_compile_options(stxlib_two_module_library PRIVATE ${stxlib_test_warnings})
+    set_target_properties(stxlib_two_module_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    add_executable(stxlib_two_module_tests tests/two_module_tests.cpp)
+    target_link_libraries(stxlib_two_module_tests PRIVATE stxlib::boundary stxlib_two_module_library)
+    target_compile_options(stxlib_two_module_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_two_module_tests COMMAND stxlib_two_module_tests)
+
     # The gates compiled without exceptions: direct calls (A1 design, 6).
     add_executable(stxlib_gate_no_exceptions_tests tests/gate_no_exceptions_tests.cpp)
     target_link_libraries(stxlib_gate_no_exceptions_tests PRIVATE stxlib::boundary)
@@ -276,6 +346,8 @@ if(STXLIB_TESTS)
         "double_release|stxlib::memory::release: the block is not from memory::allocate"
         "foreign_release|stxlib::memory::release: the block is not from memory::allocate"
         "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
+        "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
+        "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
         "view_index|stxlib: requirement failed: View: index out of range"
         "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
         "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\].stxlib: trace: 0x"

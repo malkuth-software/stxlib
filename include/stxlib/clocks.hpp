@@ -7,7 +7,8 @@
 // the wall clock; its epoch is unspecified (typically boot), so its values
 // are meaningful only relative to one another within one run. It replaces
 // std::chrono::steady_clock. Whether it continues during suspend is the
-// host's (survey D12, open: it may become two clocks, interval and elapsed).
+// host's (owner decision D12 = a: two clocks, interval and elapsed, land in
+// batch 3b).
 //
 // WallTime::now() is Coordinated Universal Time as nanoseconds since
 // 1970-01-01T00:00:00Z, ignoring leap seconds (Unix time). It can jump when

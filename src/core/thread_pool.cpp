@@ -9,6 +9,8 @@
 // them too. Where stx_auxlib held std::unique_lock across an unlock and
 // relock inside the worker loop, the worker here takes a ScopedLock for each
 // locked stretch; the locked stretches and what they check are the same.
+// Waits take named predicates (owner decision D11), which state the
+// reference's wait conditions.
 
 #include "stxlib/thread_pool.hpp"
 
@@ -62,6 +64,19 @@ bool valid_ticket(const u64 ticket) noexcept {
     return result;
 }
 
+// Wait predicates, called with sleep_lock held.
+bool work_or_terminate(const void* const address) noexcept {
+    const AtomicPool::State& pool = *static_cast<const AtomicPool::State*>(address);
+    const bool result = pool.terminate || valid_ticket(pool.remaining.load(std::memory_order_relaxed));
+    return result;
+}
+
+bool batch_finished(const void* const address) noexcept {
+    const AtomicPool::State& pool = *static_cast<const AtomicPool::State*>(address);
+    const bool result = pool.pending.load(std::memory_order_acquire) == 0;
+    return result;
+}
+
 ErrorRecord refusal(const PoolFailure failure, const Operation operation) noexcept {
     const ErrorRecord result =
         ErrorRecord::make(ErrorKind::invalid_argument, operation, ErrorDetail{.code = static_cast<u32>(failure)});
@@ -74,9 +89,7 @@ void run_worker(const StopSignal& stop, void* const address) noexcept {
     for (;;) {
         {
             ScopedLock sleep(pool.sleep_lock);
-            while (!pool.terminate && !valid_ticket(pool.remaining.load(std::memory_order_relaxed))) {
-                pool.work_cv.wait(sleep);
-            }
+            pool.work_cv.wait(sleep, work_or_terminate, &pool);
             if (pool.terminate) return;
         }
 
@@ -230,7 +243,7 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
     }
     ScopedLock sleep(pool.sleep_lock);
     publish_batch(pool, tasks.data(), count);
-    while (pool.pending.load(std::memory_order_acquire) != 0) pool.done_cv.wait(sleep);
+    pool.done_cv.wait(sleep, batch_finished, &pool);
     pool.tasks = nullptr;
     return Status::success();
 }
@@ -260,7 +273,7 @@ Status AtomicPool::wait() noexcept {
     State& pool = *state_;
     {
         ScopedLock sleep(pool.sleep_lock);
-        while (pool.pending.load(std::memory_order_acquire) != 0) pool.done_cv.wait(sleep);
+        pool.done_cv.wait(sleep, batch_finished, &pool);
         pool.tasks = nullptr;
     }
     // Releases run_lock after sleep_lock, as the reference does. A wait with

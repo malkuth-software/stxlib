@@ -1,6 +1,8 @@
 // Tests of threads and synchronization (include/stxlib/threads.hpp), ported
-// from stx_auxlib's tests/threads_tests.cpp at b6e330a. Tested, not proved
-// (proofs/REPORT.md): every check here is one schedule the host chose.
+// from stx_auxlib's tests/threads_tests.cpp at b6e330a, with owner decision
+// D11's stack sizes and predicate waits. The trapped lock defects are
+// must-end cases in death_tests.cpp. Tested, not proved (proofs/REPORT.md):
+// every check here is one schedule the host chose.
 
 #include "stxlib/capabilities.hpp"
 #include "stxlib/clocks.hpp"
@@ -107,7 +109,8 @@ void join_self(const StopSignal&, void* const address) noexcept {
 void thread_lifetime() {
     const Result<Thread> rejected = Thread::start(nullptr, nullptr);
     CHECK(rejected.failed());
-    CHECK(rejected.failed() && (*rejected.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    CHECK(rejected.failed() && (*rejected.error()).kind() == stxlib::ErrorKind::invalid_argument &&
+          (*rejected.error()).code() == static_cast<stxlib::u32>(stxlib::ThreadFailure::no_entry));
     Thread empty{};
     CHECK(empty.join() == JoinResult::not_joinable);
     CHECK(!empty.identity().present());
@@ -202,10 +205,30 @@ struct Handshake final {
     int stage{0}; // guarded by mutex
 };
 
+bool at_stage_one(const void* const address) noexcept {
+    const bool result = (*static_cast<const Handshake*>(address)).stage == 1;
+    return result;
+}
+
+bool at_stage_two(const void* const address) noexcept {
+    const bool result = (*static_cast<const Handshake*>(address)).stage == 2;
+    return result;
+}
+
+bool never_true(const void* const address) noexcept {
+    static_cast<void>(address);
+    return false;
+}
+
+bool always_true(const void* const address) noexcept {
+    static_cast<void>(address);
+    return true;
+}
+
 void answer_handshake(const StopSignal&, void* const address) noexcept {
     Handshake& handshake = *static_cast<Handshake*>(address);
     ScopedLock lock(handshake.mutex);
-    while (handshake.stage != 1) handshake.changed.wait(lock);
+    handshake.changed.wait(lock, at_stage_one, &handshake);
     handshake.stage = 2;
     handshake.changed.notify_all();
 }
@@ -218,25 +241,86 @@ void conditions() {
         handshake.stage = 1;
         handshake.changed.notify_all();
         // An effectively unbounded wait: the interval saturates the deadline.
-        while (handshake.stage != 2) {
-            const WaitResult result = handshake.changed.wait_for(lock, Duration::longest());
-            CHECK(result == WaitResult::woken);
-        }
+        const WaitResult result = handshake.changed.wait_for(lock, at_stage_two, &handshake, Duration::longest());
+        CHECK(result == WaitResult::satisfied);
+        CHECK(handshake.stage == 2);
     }
     CHECK(thread.join() == JoinResult::joined);
 
-    // Timeouts with nobody notifying.
+    // Timeouts with nobody notifying: timed_out only once the deadline has
+    // passed on MonotonicTime.
     Mutex mutex{};
     ConditionVariable never{};
     ScopedLock lock(mutex);
     const MonotonicTime before = MonotonicTime::now();
-    WaitResult result = WaitResult::woken;
-    while (result == WaitResult::woken) result = never.wait_for(lock, Duration::milliseconds(20));
+    CHECK(never.wait_for(lock, never_true, nullptr, Duration::milliseconds(20)) == WaitResult::timed_out);
     CHECK(MonotonicTime::now().since(before) >= Duration::milliseconds(20));
     const MonotonicTime past = before.after(Duration::seconds(-1));
-    CHECK(never.wait_until(lock, past) == WaitResult::timed_out);
-    CHECK(never.wait_for(lock, Duration::seconds(-1)) == WaitResult::timed_out);
-    CHECK(never.wait_for(lock, Duration::nanoseconds(stxlib::i64_min)) == WaitResult::timed_out);
+    CHECK(never.wait_until(lock, never_true, nullptr, past) == WaitResult::timed_out);
+    CHECK(never.wait_for(lock, never_true, nullptr, Duration::seconds(-1)) == WaitResult::timed_out);
+    CHECK(never.wait_for(lock, never_true, nullptr, Duration::nanoseconds(stxlib::i64_min)) == WaitResult::timed_out);
+    // A true predicate returns at once, even with a past deadline.
+    CHECK(never.wait_until(lock, always_true, nullptr, past) == WaitResult::satisfied);
+    never.wait(lock, always_true, nullptr);
+}
+
+// ---- Stacks (D11) --------------------------------------------------------------
+
+// Touches most of a stack of `bytes` in one frame chain, so a stack smaller
+// than asked would overflow into the guard page.
+struct StackProbe final {
+    stxlib::usize bytes{0};
+    std::atomic<bool> finished{false};
+};
+
+[[gnu::noinline]] stxlib::u32 use_stack(const stxlib::usize remaining) noexcept {
+    volatile unsigned char frame[16384];
+    for (stxlib::usize index = 0; index < sizeof frame; index += 512) frame[index] = static_cast<unsigned char>(index);
+    if (remaining <= sizeof frame) return frame[0];
+    const stxlib::u32 deeper = use_stack(remaining - sizeof frame);
+    return deeper + static_cast<stxlib::u32>(frame[512]);
+}
+
+void probe_stack(const StopSignal&, void* const address) noexcept {
+    StackProbe& probe = *static_cast<StackProbe*>(address);
+    // Three quarters of the stack: room left for the frames' own overhead.
+    static_cast<void>(use_stack(probe.bytes / 4 * 3));
+    probe.finished.store(true, std::memory_order_release);
+}
+
+void stacks() {
+    CHECK(stxlib::default_thread_stack_bytes == 4194304);
+    // The default stack holds three quarters of 4 MiB of frames on every
+    // host (musl's own default is 128 KiB, macOS's 512 KiB).
+    StackProbe default_probe{};
+    default_probe.bytes = stxlib::default_thread_stack_bytes;
+    {
+        Thread thread = start_or_fail(probe_stack, &default_probe);
+        CHECK(thread.join() == JoinResult::joined);
+    }
+    CHECK(default_probe.finished.load(std::memory_order_acquire));
+
+    // A stated size, not a multiple of any page size, is rounded up.
+    StackProbe stated{};
+    stated.bytes = 8 * 1048576 + 1;
+    {
+        Result<Thread> started = Thread::start(probe_stack, &stated, stated.bytes);
+        CHECK(started.succeeded());
+        if (started.succeeded()) {
+            Thread thread = std::move(started).take_value();
+            CHECK(thread.join() == JoinResult::joined);
+        }
+    }
+    CHECK(stated.finished.load(std::memory_order_acquire));
+
+    // Sizes outside D11's bounds are refused before any thread starts.
+    const stxlib::usize refused_sizes[] = {0, stxlib::minimum_thread_stack_bytes - 1,
+                                           stxlib::maximum_thread_stack_bytes + 1};
+    for (const stxlib::usize size : refused_sizes) {
+        const Result<Thread> refused = Thread::start(probe_stack, &stated, size);
+        CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument &&
+              (*refused.error()).code() == static_cast<stxlib::u32>(stxlib::ThreadFailure::stack_size_out_of_range));
+    }
 }
 
 // ---- Once ----------------------------------------------------------------------
@@ -300,6 +384,7 @@ int main() {
     mutual_exclusion();
     conditions();
     once();
+    stacks();
     sleeping_and_host();
     return stxlib_tests::finish("threads");
 }

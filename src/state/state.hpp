@@ -10,7 +10,9 @@
 // the event watch and the raw-terminal flag. Layout 3 adds write_file's
 // temporary-name serial and the abandoned child processes. Layout 4 adds
 // thread identities (the issuer and each thread's own) and the local time
-// zone's load state.
+// zone's load state. Layout 5 adds the allocator (src/state/allocator.cpp):
+// stxlib::memory's backend, tags and ownership check live here, so a block
+// allocated in one module may be released in another.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -27,8 +29,10 @@
 //
 // Lifetime: the thread state is a thread_local of stxlib_state, trivially
 // destructible and constant-initialised, so it needs no thread-exit
-// handling (survey D11's recommendation). The process state is a static of
-// stxlib_state with constant initialisation. Neither ever allocates.
+// handling (owner decision D11: no thread-local storage with a non-trivial
+// destructor). The process state is a static of stxlib_state with constant
+// initialisation. Neither ever allocates; the allocator is the one part of
+// stxlib_state that calls anything (its backend: mimalloc or malloc).
 
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"
@@ -54,7 +58,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 4;
+inline constexpr u32 layout_version = 5;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -171,9 +175,9 @@ struct ProcessState final {
     // The console (console.cpp). Output calls hold output_lock so no other
     // call's text comes between their pieces. Input calls hold input_lock;
     // `pending` holds bytes read past the last returned line, in a block
-    // from the host's C library (host::allocate_block), which every module
-    // shares, so a line begun in one module's call continues in another's.
-    // Never released: it lives as long as the process.
+    // from STXlib's allocator (memory.hpp), which every module shares
+    // (layout 5), so a line begun in one module's call continues in
+    // another's. Never released: it lives as long as the process.
     SpinLock console_output_lock{};
     SpinLock console_input_lock{};
     char* console_pending{nullptr};
@@ -227,12 +231,30 @@ struct ProcessState final {
     u64 zone_generation{0};
 };
 
-// The calling thread's state and the process's, from stxlib_state.
-// `expected_layout` is the caller's layout_version; on a mismatch they
-// return null, and the caller's copy of STXlib reports it (stxlib_state
-// itself calls nothing, so it links on its own).
+// What memory::release did with an address (allocator.cpp).
+enum class ReleaseOutcome : u8 {
+    released = 0,
+    // Not a live block of STXlib's allocator (tag-checking builds only); the
+    // caller reports it and ends the process.
+    refused = 1,
+};
+
+// STXlib's one allocator (allocator.cpp; memory.hpp states the contract).
+// `backend` is memory::Backend's value; `tags_checked` whether this build
+// tags blocks and checks them on release.
+struct AllocatorCalls final {
+    void* (*allocate)(usize size, usize alignment) noexcept;
+    ReleaseOutcome (*release)(void* address) noexcept;
+    u8 backend;
+    bool tags_checked;
+};
+
+// The calling thread's state, the process's and the allocator, from
+// stxlib_state. `expected_layout` is the caller's layout_version; on a
+// mismatch they return null, and the caller's copy of STXlib reports it.
 STXLIB_STATE_API ThreadState* thread_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API ProcessState* process_state(u32 expected_layout) noexcept;
+STXLIB_STATE_API const AllocatorCalls* allocator(u32 expected_layout) noexcept;
 
 inline ThreadState& current_thread() noexcept {
     ThreadState* const thread = thread_state(layout_version);
@@ -244,6 +266,12 @@ inline ProcessState& current_process() noexcept {
     ProcessState* const process = process_state(layout_version);
     STXLIB_REQUIRE(process != nullptr, "this module and stxlib_state were built with different state layouts");
     return *process;
+}
+
+inline const AllocatorCalls& current_allocator() noexcept {
+    const AllocatorCalls* const calls = allocator(layout_version);
+    STXLIB_REQUIRE(calls != nullptr, "this module and stxlib_state were built with different state layouts");
+    return *calls;
 }
 
 } // namespace stxlib::state

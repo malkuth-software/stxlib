@@ -14,6 +14,10 @@
 //                          whose preceding page is inaccessible, so a check
 //                          that read below the address would fault (the CI
 //                          TSan failure, 2026-11-13)
+//   recursive_lock         locking a Mutex the thread holds fails fast
+//                          (owner decision D11; check builds, else skipped)
+//   foreign_unlock         unlocking a Mutex the thread does not hold fails
+//                          fast (the same)
 //   view_index             an out-of-range index is a failed requirement
 //   take_failed_value      take_value on a failure is a failed requirement
 //   callback_frames        the fail-fast report of a callback that throws
@@ -157,6 +161,29 @@ int foreign_release_page() {
     return 0;
 }
 
+int recursive_lock() {
+    if (!stxlib::lock_checks_enabled()) {
+        std::puts("skipped");
+        return 0;
+    }
+    stxlib::Mutex mutex{};
+    mutex.lock();
+    mutex.lock();
+    std::puts("survived");
+    return 0;
+}
+
+int foreign_unlock() {
+    if (!stxlib::lock_checks_enabled()) {
+        std::puts("skipped");
+        return 0;
+    }
+    stxlib::Mutex mutex{};
+    mutex.unlock();
+    std::puts("survived");
+    return 0;
+}
+
 int view_index() {
     const int numbers[3] = {1, 2, 3};
     const stxlib::View<int> view(numbers);
@@ -247,6 +274,8 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "double_release") == 0) return double_release();
     if (std::strcmp(name, "foreign_release") == 0) return foreign_release();
     if (std::strcmp(name, "foreign_release_page") == 0) return foreign_release_page();
+    if (std::strcmp(name, "recursive_lock") == 0) return recursive_lock();
+    if (std::strcmp(name, "foreign_unlock") == 0) return foreign_unlock();
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
     if (std::strcmp(name, "callback_frames") == 0) return callback_frames();

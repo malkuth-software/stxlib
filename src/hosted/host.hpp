@@ -50,13 +50,6 @@ void flush_c_stream(bool error) noexcept;
 [[noreturn]] void exit_normally(int status) noexcept;
 [[nodiscard]] bool register_at_exit(void (*handler)()) noexcept;
 
-// The host allocator behind stxlib::memory (memory.hpp's "Backend: host").
-// allocate_block returns `size` bytes aligned to `alignment` (a power of
-// two), or null when the size with its bookkeeping is not representable or
-// memory is exhausted; release_block takes only its results, or null.
-[[nodiscard]] void* allocate_block(usize size, usize alignment) noexcept;
-void release_block(void* block) noexcept;
-
 // Writes up to `capacity` return addresses of the calling thread's stack,
 // innermost first, starting at the caller of this function's caller or
 // deeper; returns how many were written. 0 when the host cannot walk the

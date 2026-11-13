@@ -4,9 +4,13 @@
 // src/hosted/threads.cpp at b6e330a used those types), made directly so a
 // failed start is a result in a build without exceptions.
 //
-// Survey D11 is open: threads take the host's default attributes (stack
-// size and guard), and mutexes the default type, as std::thread and
-// std::mutex did (threads.hpp).
+// Owner decision D11 = b (threads.hpp): each thread's attributes name its
+// stack size, rounded up to the page size (macOS refuses a size that is not
+// a multiple of it, pthread_attr_setstacksize(3)), and a guard of one page
+// (pthread_attr_setguardsize, POSIX.1-2008; glibc's default is one page,
+// stated here rather than assumed). Mutexes keep the default type: the
+// recursion check is core's (threads.cpp, check builds). Man-page
+// statements are from the published pages, not re-read in this batch.
 //
 // Timed waits: on Linux the condition uses CLOCK_MONOTONIC
 // (pthread_condattr_setclock, POSIX.1-2008), so a change of the wall clock
@@ -165,9 +169,22 @@ void condition_notify_all(unsigned char* const condition) noexcept {
     if (error != 0) defect("pthread_cond_broadcast failed", error);
 }
 
-bool thread_start(void* const argument, u64& handle, ForeignCode& failure) noexcept {
+bool thread_start(void* const argument, const usize stack_bytes, u64& handle, ForeignCode& failure) noexcept {
+    const long reported_page = ::sysconf(_SC_PAGESIZE);
+    const usize page = reported_page > 0 ? static_cast<usize>(reported_page) : 4096;
+    // stack_bytes is at most 1 GiB (threads.hpp), so the round-up fits.
+    const usize stack = (stack_bytes + page - 1) / page * page;
+    pthread_attr_t attributes{};
+    int error = ::pthread_attr_init(&attributes);
+    if (error != 0) {
+        failure = ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error));
+        return false;
+    }
+    error = ::pthread_attr_setstacksize(&attributes, stack);
+    if (error == 0) error = ::pthread_attr_setguardsize(&attributes, page);
     pthread_t thread{};
-    const int error = ::pthread_create(&thread, nullptr, thread_entry, argument);
+    if (error == 0) error = ::pthread_create(&thread, &attributes, thread_entry, argument);
+    (void)::pthread_attr_destroy(&attributes);
     if (error != 0) {
         failure = ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error));
         return false;

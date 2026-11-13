@@ -50,7 +50,11 @@ void refusals() {
     // would otherwise report the huge request itself).
     CHECK(stxlib::memory::allocate(stxlib::usize_max - 2, 4096) == nullptr);
     stxlib::memory::release(nullptr);
+#if defined(STXLIB_EXPECT_MIMALLOC)
+    CHECK(stxlib::memory::backend() == stxlib::memory::Backend::mimalloc);
+#else
     CHECK(stxlib::memory::backend() == stxlib::memory::Backend::host);
+#endif
 }
 
 } // namespace

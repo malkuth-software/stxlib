@@ -38,9 +38,11 @@ void condition_wait(unsigned char* condition, unsigned char* mutex) noexcept;
 void condition_notify_one(unsigned char* condition) noexcept;
 void condition_notify_all(unsigned char* condition) noexcept;
 
-// Starts a host thread running run_started_thread(argument). On failure,
+// Starts a host thread running run_started_thread(argument), with a stack
+// of `stack_bytes` (within threads.hpp's bounds) rounded up to the host's
+// page size, and a guard page below it (owner decision D11). On failure,
 // `failure` holds the host's code and nothing was started.
-[[nodiscard]] bool thread_start(void* argument, u64& handle, ForeignCode& failure) noexcept;
+[[nodiscard]] bool thread_start(void* argument, usize stack_bytes, u64& handle, ForeignCode& failure) noexcept;
 // The started thread's body, defined by core/threads.cpp.
 void run_started_thread(void* argument) noexcept;
 // Waits for the thread to end and releases the handle.

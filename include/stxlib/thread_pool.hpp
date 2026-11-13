@@ -15,7 +15,7 @@
 // is_worker() false). Destruction stops and joins every worker. It must not
 // overlap another call on the pool, and an asynchronous batch must be
 // finished by wait first. The pool's state is a block of STXlib's
-// allocator, so a pool is destroyed in the module that created it.
+// allocator, which every module shares (memory.hpp).
 //
 // Execution: batches are serialized. run returns after every task of the
 // batch has finished. A batch of at most thread_count() * 64 tasks, and

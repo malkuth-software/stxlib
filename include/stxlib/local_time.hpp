@@ -7,12 +7,13 @@
 // host-free and comes with stxlib::algorithms (batch 3), over the CivilTime
 // defined here.
 //
-// Survey D12 (clocks, time zones and calendars) is open; this is
-// stx_auxlib's current behaviour, D12's option b for zones: the zone and its
-// rules come from the host (TZ or /etc/localtime through tzset and
-// localtime_r on POSIX hosts; the current dynamic time zone through
-// SystemTimeToTzSpecificLocalTimeEx on Windows), so two hosts may disagree
-// on a local time. D12 a would compile an IANA database into the library.
+// Owner decision D12 = a (decisions/2026-11-13-d11-d12-threads-clocks.md):
+// zones will come from an IANA database compiled into STXlib, the host
+// supplying only the zone's name, so a local time is the same on every
+// host. That lands in batch 3b; until then this is stx_auxlib's behaviour,
+// the host's zone rules (TZ or /etc/localtime through tzset and localtime_r
+// on POSIX hosts; the current dynamic time zone through
+// SystemTimeToTzSpecificLocalTimeEx on Windows).
 //
 // Range: every WallTime, which counts signed 64-bit nanoseconds from 1970,
 // so from 1677-09-21T00:12:43Z to 2262-04-11T23:47:16Z (Python's datetime).

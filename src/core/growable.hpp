@@ -4,8 +4,7 @@
 // implementation code (the platform layer's line, name and UTF-16
 // buffers), over memory::allocate. Growth reports failure instead of
 // aborting (survey D8's recommendation a, provisional), which a std::string
-// in a build without exceptions cannot. Private to one call or one object:
-// its block is released in the module that allocated it.
+// in a build without exceptions cannot. Private to one call or one object.
 
 #include "stxlib/memory.hpp"
 #include "stxlib/types.hpp"

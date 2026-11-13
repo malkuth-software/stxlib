@@ -14,6 +14,7 @@
 #include "hosted/console_backend.hpp"
 #include "hosted/host.hpp"
 #include "state/state.hpp"
+#include "stxlib/memory.hpp"
 
 #include <cstring>
 
@@ -39,7 +40,8 @@ Status status_of(const console_backend::Report report, const Operation operation
     return host_failure::failed(ErrorKind::io_failure, operation, HostCode::none, report.foreign);
 }
 
-// The process's read-ahead bytes (state.hpp), grown in host blocks.
+// The process's read-ahead bytes (state.hpp), grown in blocks of STXlib's
+// allocator, which every module shares.
 bool reserve_pending(state::ProcessState& process, const usize wanted) noexcept {
     if (wanted <= process.console_pending_capacity) return true;
     usize next = process.console_pending_capacity < read_chunk_bytes ? read_chunk_bytes
@@ -48,12 +50,12 @@ bool reserve_pending(state::ProcessState& process, const usize wanted) noexcept 
         if (next > usize_max / 2) return false;
         next = next * 2;
     }
-    void* const block = host::allocate_block(next, 16);
+    void* const block = memory::allocate(next, 16);
     if (block == nullptr) return false;
     if (process.console_pending_count != 0) {
         std::memcpy(block, process.console_pending, process.console_pending_count);
     }
-    host::release_block(process.console_pending);
+    memory::release(process.console_pending);
     process.console_pending = static_cast<char*>(block);
     process.console_pending_capacity = next;
     return true;
