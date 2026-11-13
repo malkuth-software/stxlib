@@ -101,5 +101,12 @@ evidence, not proof.
 | `src/algorithms/calendar.cpp` (civil days, weekdays) | civil_from_wall and weekday_of agree with std::chrono's year_month_day and weekday, and wall_from_civil inverts civil_from_wall | exhaustive over the days of WallTime's range (one instant per day, at noon) against std::chrono; the range ends exact; 100,000 sampled instants round-trip | `tests/calendar_tests.cpp` |
 | `src/algorithms/calendar.cpp` (ISO 8601) | format_iso8601 writes the forms the header names; parse_iso8601 accepts exactly those forms and gives the instant | tested, not proved: stx_auxlib's cases plus truncated offsets, the longest text and too-small storage; 10,000 sampled instants written with nine fraction digits parse back exactly; a compiled zone's local time written as text names its instant | `tests/calendar_tests.cpp` |
 
+## stxlib::algorithms, batch 3c3 (the precedence chain)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/precedence.cpp` | the hashes are stx_auxlib's bytes (first key root, first leaf, signature and key path ends) | known answers from `tests/reference/precedence_reference.py`, rerun on 2026-11-13 with the same output; tested, not proved | `tests/precedence_tests.cpp` |
+| `src/algorithms/precedence.cpp` | every certificate a chain issues verifies, in order, across block boundaries; consecutive certificates link; a changed info, count, time, epoch, signature, key path or next root, or another secret's certificate, fails; save and restore continue bit for bit | tested on fixed seeds over 522 epochs (two block boundaries), not proved. WOTS+ and Merkle security is the published constructions' argument, not checked here | `tests/precedence_tests.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

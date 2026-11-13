@@ -64,5 +64,6 @@ vocabulary and services and make no host call of their own.
 | SIMD level (detection, one selection per process) | `simd.hpp` | batch 3c |
 | numeric text (locale-free formatting into caller storage, parsing, scanning) | `numeric_text.hpp` | batch 3c2 |
 | calendar (civil arithmetic, weekdays, ISO 8601 text) | `calendar.hpp` | batch 3c2 |
+| precedence chain (hash-only proof of recording order) | `precedence.hpp` | batch 3c3 |
 
 Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); FreeBSD components keep their BSD licences.

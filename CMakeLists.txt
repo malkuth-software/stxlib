@@ -334,6 +334,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/calendar.cpp
     src/algorithms/hash.cpp
     src/algorithms/numeric_text.cpp
+    src/algorithms/precedence.cpp
     src/algorithms/random.cpp
     src/algorithms/simd.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
@@ -369,7 +370,7 @@ if(STXLIB_TESTS)
     endif()
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS calendar hash numeric_text random simd)
+    foreach(test_name IN ITEMS calendar hash numeric_text precedence random simd)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
         # core/checked.hpp (the modular marker) for the tests' own generators.

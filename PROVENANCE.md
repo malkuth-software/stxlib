@@ -174,6 +174,19 @@ std::optional and WallTime replaces WallClock::time_point.
 | `src/algorithms/calendar.cpp` | `src/calendar.cpp`, `src/calendar_detail.hpp` (`wall_from_seconds`) | `23bf4e3bae84f6a5f77a534223a49ec851135bb0276989ce2f64d571a37f0db2`, `f773b3b812414fe59d0d2c1271b7bebb7a63fe009e40b1762308437cb14d3aa0` |
 | `tests/calendar_tests.cpp` | `tests/calendar_tests.cpp` (without the POSIX TZ rule checks; one compiled-zone check added) | `ee65283c36da731fadfa597722ffeffd1aed4254032380fe7acc19e59f923f9f` |
 
+### Batch 3c3: the precedence chain, from `b6e330a`
+
+As batch 3c. The construction and its bytes are unchanged; the records hold
+fixed arrays with counts, the key trees live in Buffers allocated when the
+chain is made, and the calls that allocate or need entropy return Result
+(precedence.hpp, "Changes from stx_auxlib").
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `include/stxlib/precedence.hpp` | `include/stx_auxlib/precedence.hpp` | `b2a95b3c556c60997bf713f0016be35bc4834b797c44bb9fb0aaacd7a1cbe6ee` |
+| `src/algorithms/precedence.cpp` | `src/precedence.cpp` | `2768e87c48741bc71464b7772dc4cd44bc139834057e332c7e99e7f5bef2a442` |
+| `tests/precedence_tests.cpp` | the precedence part of `tests/precedence_tests.cpp` | `a2740553d2df26cc414b63ce58e607652e69dee3d7fcefcf041336f8c98316f0` |
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)
