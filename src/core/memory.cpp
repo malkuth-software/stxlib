@@ -71,11 +71,6 @@
 #include <cstring>
 #include <limits>
 
-#if defined(STXLIB_TAGS_UNDER_ASAN)
-#include <sanitizer/asan_interface.h>
-#endif
-#endif
-
 namespace stxlib::memory {
 
 namespace {
