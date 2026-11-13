@@ -13,10 +13,7 @@
 // function waits for the desktop to act.
 //
 // Failures: invalid_argument with HostCode::invalid_value for a refused
-// target or a relative path; invalid_argument with HostCode::invalid_text
-// when reveal_in_file_manager is given a Path whose text is not Unicode
-// (path.hpp: a host name carried losslessly), since the file manager is
-// started with Unicode arguments; unsupported when the desktop's helper is
+// target or a relative path; unsupported when the desktop's helper is
 // missing (a POSIX host without xdg-open) or, for current_executable, on a
 // host STXlib cannot ask; Child::start's failures otherwise; io_failure when
 // ShellExecuteW refuses.
@@ -30,8 +27,9 @@ namespace stxlib {
 // Opens a link or an absolute path with the desktop's default handler.
 [[nodiscard]] Status open_with_desktop(TextView target) noexcept;
 // Shows `path` selected in the desktop's file manager (on hosts that cannot
-// select it, its directory opened). `path` must be absolute and its text
-// Unicode (PathText::is_unicode).
+// select it, its directory opened). `path` must be absolute; a host name
+// that is not valid Unicode (path.hpp) reaches the file manager as the host
+// spells it (children.hpp).
 [[nodiscard]] Status reveal_in_file_manager(const Path& path) noexcept;
 // The running program's executable, as an absolute Path (its host name
 // carried losslessly, path.hpp).

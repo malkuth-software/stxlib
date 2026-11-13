@@ -16,7 +16,7 @@ namespace children_detail {
 
 namespace {
 
-bool holds_nul(const TextView text) noexcept {
+bool holds_nul(const PathText text) noexcept {
     for (usize index = 0; index < text.count(); ++index) {
         if (text.data()[index] == '\0') return true;
     }

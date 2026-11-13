@@ -55,17 +55,18 @@ Status open_target(const TextView target, const bool is_link) noexcept {
 
 Status reveal(const Path& path) noexcept {
     const Operation operation = "stxlib.desktop.reveal";
-    const TextView text = path.text().unicode();
+    const PathText text = path.text();
     Growable<char> selection;
     if (!selection.append("/select,", 8)) return exhausted(operation);
     for (usize index = 0; index < text.count(); ++index) {
         const char character = text.data()[index];
         if (!selection.push(character == '/' ? '\\' : character)) return exhausted(operation);
     }
-    // "/select," and the path's own UTF-8 bytes with '\' for '/'.
-    const TextView arguments[] = {detail::TextViewAccess::adopt_validated(selection.data(), selection.count())};
+    // "/select," and the path's own WTF-8 bytes with '\' for '/' (still
+    // well-formed WTF-8: one ASCII byte for another).
+    const PathText arguments[] = {detail::PathTextAccess::adopt_validated(selection.data(), selection.count())};
     const ChildRequest request{.program = "explorer.exe",
-                               .arguments = View<TextView>(arguments),
+                               .arguments = View<PathText>(arguments),
                                .streams = ChildStreams::discard,
                                .detached = true};
     const Result<Child> started = Child::start(request);

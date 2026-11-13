@@ -30,12 +30,19 @@
 // children abandoned before being waited for are listed in stxlib_state, a
 // fixed table of 256 shared by every module (a child abandoned while the
 // table is full and nothing in it has ended is left until the process ends,
-// and counted); a request's strings are TextViews, so they are UTF-8 by
-// construction, and only NUL is refused.
+// and counted); a request's strings are PathText (path.hpp): Unicode text
+// (a TextView converts implicitly) passes as itself, and a surrogate carries
+// a host name that is not valid Unicode losslessly, as a Path carries it
+// (D13 a), so a Path's text reaches the child exactly. On a POSIX host the
+// surrogates of Path's escape (U+DC80..U+DCFF, and U+DC3A and U+DC5C for ':'
+// and '\') each stand for their byte; text with any other surrogate names
+// no POSIX string and is refused. On Windows a surrogate is an unpaired
+// UTF-16 unit, passed as itself. NUL is refused.
 //
 // Failures (stx_auxlib's CapabilityStatus as capabilities.hpp maps it):
 // invalid_argument with HostCode::empty_request (no program) or
-// HostCode::invalid_value (a NUL); not_found; permission_denied;
+// HostCode::invalid_value (a NUL, or on a POSIX host a surrogate that is not
+// a byte's escape); not_found; permission_denied;
 // out_of_memory or limit_exceeded (process or descriptor limits);
 // limit_exceeded with HostCode::timed_out from wait; invalid_argument with
 // HostCode::invalid_state for a Child that is empty, already waited for, or
@@ -44,6 +51,7 @@
 
 #include "stxlib/buffer.hpp"
 #include "stxlib/clocks.hpp"
+#include "stxlib/path.hpp"
 #include "stxlib/result.hpp"
 #include "stxlib/text_view.hpp"
 #include "stxlib/types.hpp"
@@ -58,12 +66,14 @@ enum class ChildStreams : u8 {
 };
 
 // Designated initializers name the parts: ChildRequest{.program = "ls",
-// .arguments = View<TextView>(words)}. The views are read during start only.
+// .arguments = View<PathText>(words)}. The views are read during start only.
 struct ChildRequest final {
-    // An absolute path, or a bare name searched for in PATH.
-    TextView program{};
-    // The arguments after the program name; none may contain NUL.
-    View<TextView> arguments{};
+    // An absolute path, or a bare name searched for in PATH. A Path's text
+    // (Path::text()) is passed as the host names it.
+    PathText program{};
+    // The arguments after the program name; none may contain NUL. Unicode
+    // text, or a Path's text (see above).
+    View<PathText> arguments{};
     ChildStreams streams{ChildStreams::inherit};
     // Starts the child in its own session (POSIX) or process group without a
     // console (Windows), so that terminal signals and the parent's console do

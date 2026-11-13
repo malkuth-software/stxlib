@@ -107,10 +107,10 @@ std::string self_program() {
 // Starts this program with `arguments`; an empty Child when it fails.
 Child start_self(const std::vector<std::string>& arguments, const ChildStreams streams, const bool detached = false) {
     const std::string program = self_program();
-    std::vector<TextView> views;
+    std::vector<stxlib::PathText> views;
     for (const std::string& argument : arguments) views.push_back(view_of(argument));
     const ChildRequest request{.program = view_of(program),
-                               .arguments = stxlib::View<TextView>(views.data(), views.size()),
+                               .arguments = stxlib::View<stxlib::PathText>(views.data(), views.size()),
                                .streams = streams,
                                .detached = detached};
     Result<Child> started = Child::start(request);
@@ -147,8 +147,8 @@ void child_requests() {
     const Result<Child> no_program = Child::start(empty);
     CHECK(kind_of(no_program) == ErrorKind::invalid_argument && code_of(no_program) == HostCode::empty_request);
     const std::string program = self_program();
-    const TextView with_nul[] = {TextView("a\0b")};
-    const ChildRequest nul_request{.program = view_of(program), .arguments = stxlib::View<TextView>(with_nul)};
+    const stxlib::PathText with_nul[] = {TextView("a\0b")};
+    const ChildRequest nul_request{.program = view_of(program), .arguments = stxlib::View<stxlib::PathText>(with_nul)};
     const Result<Child> nul = Child::start(nul_request);
     CHECK(kind_of(nul) == ErrorKind::invalid_argument && code_of(nul) == HostCode::invalid_value);
     const ChildRequest missing{.program = "/nonexistent-stxlib/program"};
@@ -198,6 +198,66 @@ void child_output_and_status() {
     CHECK(!nothing.started());
     CHECK(code_of(nothing.wait(Duration())) == HostCode::invalid_state);
     CHECK(code_of(nothing.kill()) == HostCode::invalid_state);
+}
+
+// A Path's text reaches the child losslessly (D13 a), host names that are
+// not valid Unicode included: on POSIX the escaped bytes (and ':' and '\'),
+// on Windows the unpaired surrogates. The child prints each argument's host
+// units in hex.
+void lossless_arguments() {
+    const std::string program = self_program();
+#if defined(_WIN32)
+    const stxlib::u16 units[] = {stxlib::u16{'a'}, 0xd800, stxlib::u16{'b'}, 0xdc01};
+    Result<stxlib::Path> odd = stxlib::Path::from_windows_name(units, 4);
+    const std::string expected = "0061 d800 0062 dc01\n";
+#else
+    const char bytes[] = {'a', static_cast<char>(0xff), ':', 'b', '\\', static_cast<char>(0xc3)};
+    Result<stxlib::Path> odd = stxlib::Path::from_posix_name(bytes, sizeof(bytes));
+    const std::string expected = "61 ff 3a 62 5c c3\n";
+#endif
+    CHECK(odd.succeeded());
+    if (odd.failed()) return;
+    CHECK(!(*odd.value()).text().is_unicode());
+    const stxlib::PathText arguments[] = {"hex", (*odd.value()).text()};
+    const ChildRequest request{.program = view_of(program),
+                               .arguments = stxlib::View<stxlib::PathText>(arguments),
+                               .streams = ChildStreams::capture};
+    Result<Child> started = Child::start(request);
+    CHECK(started.succeeded());
+    if (started.failed()) return;
+    Child child = static_cast<Result<Child>&&>(started).take_value();
+    const std::string printed = output_text(child, 4096);
+    CHECK(printed == expected);
+    if (printed != expected) std::fprintf(stderr, "hex child printed: %s", printed.c_str());
+    CHECK(exited_with(child.wait(Duration::seconds(30)), 0));
+    // Plain Unicode arguments keep ':' and '\' as themselves.
+    const stxlib::PathText plain[] = {"hex", "a:\\"};
+    const ChildRequest plain_request{.program = view_of(program),
+                                     .arguments = stxlib::View<stxlib::PathText>(plain),
+                                     .streams = ChildStreams::capture};
+    Result<Child> plain_started = Child::start(plain_request);
+    CHECK(plain_started.succeeded());
+    if (plain_started.succeeded()) {
+        Child plain_child = static_cast<Result<Child>&&>(plain_started).take_value();
+#if defined(_WIN32)
+        CHECK(output_text(plain_child, 4096) == "0061 003a 005c\n");
+#else
+        CHECK(output_text(plain_child, 4096) == "61 3a 5c\n");
+#endif
+        CHECK(exited_with(plain_child.wait(Duration::seconds(30)), 0));
+    }
+#if !defined(_WIN32)
+    // A surrogate that is not a byte's escape names no POSIX string.
+    Result<stxlib::Path> foreign = stxlib::Path::parse_wtf8("a\xed\xa0\x80", 4);
+    CHECK(foreign.succeeded());
+    if (foreign.succeeded()) {
+        const stxlib::PathText refused_arguments[] = {"hex", (*foreign.value()).text()};
+        const ChildRequest refused_request{.program = view_of(program),
+                                           .arguments = stxlib::View<stxlib::PathText>(refused_arguments)};
+        const Result<Child> refused = Child::start(refused_request);
+        CHECK(kind_of(refused) == ErrorKind::invalid_argument && code_of(refused) == HostCode::invalid_value);
+    }
+#endif
 }
 
 void timeouts_and_kill() {
@@ -294,9 +354,38 @@ int echo_arguments(const int argument_count, char** const arguments) {
     return 0;
 }
 
+// Prints each argument after the mode as its host units in hex, one line
+// per argument: bytes on POSIX, UTF-16 units on Windows.
+int hex_arguments(const int argument_count, char** const arguments) {
+#if defined(_WIN32)
+    (void)argument_count;
+    (void)arguments;
+    _setmode(_fileno(stdout), _O_BINARY);
+    int count = 0;
+    wchar_t** const wide = CommandLineToArgvW(GetCommandLineW(), &count);
+    if (wide == nullptr) return 3;
+    for (int index = 2; index < count; ++index) {
+        for (const wchar_t* unit = wide[index]; *unit != 0; ++unit) {
+            std::printf("%s%04x", unit == wide[index] ? "" : " ", static_cast<unsigned>(static_cast<stxlib::u16>(*unit)));
+        }
+        std::printf("\n");
+    }
+    LocalFree(wide);
+#else
+    for (int index = 2; index < argument_count; ++index) {
+        for (const char* byte = arguments[index]; *byte != 0; ++byte) {
+            std::printf("%s%02x", byte == arguments[index] ? "" : " ", static_cast<unsigned>(static_cast<unsigned char>(*byte)));
+        }
+        std::printf("\n");
+    }
+#endif
+    return 0;
+}
+
 int child_mode(const int argument_count, char** const arguments) {
     const std::string mode = arguments[1];
     if (mode == "echo") return echo_arguments(argument_count, arguments);
+    if (mode == "hex") return hex_arguments(argument_count, arguments);
     if (mode == "exit" && argument_count == 3) return std::atoi(arguments[2]);
     if (mode == "sleep") {
         std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -320,6 +409,7 @@ int main(const int argument_count, char** const arguments) {
     availability();
     child_requests();
     child_output_and_status();
+    lossless_arguments();
     timeouts_and_kill();
 #if !defined(_WIN32)
     children_reset_signals();

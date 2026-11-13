@@ -66,12 +66,9 @@ Status open_with_desktop(const TextView target) noexcept {
 Status reveal_in_file_manager(const Path& path) noexcept {
     const Operation operation = "stxlib.desktop.reveal";
     if (!acceptable_path(path)) return refused(operation);
-    // The file manager is started as a child process, whose arguments are
-    // Unicode text (children.hpp); a Path carrying a host name that is not
-    // valid Unicode (path.hpp) cannot be passed yet.
-    if (!path.text().is_unicode()) {
-        return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_text);
-    }
+    // The file manager is started as a child process, which takes a Path's
+    // text losslessly (children.hpp), host names that are not valid Unicode
+    // included.
     const Status result = desktop_backend::reveal(path);
     return result;
 }

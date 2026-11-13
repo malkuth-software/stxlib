@@ -544,6 +544,27 @@ via `compare_bit_identity.py --freeze`), on the expectation that the fix
 leaves the fused form's results unchanged. The integrator's freeze from the
 fixed build (`bit_identity_freeze.sh`) must reproduce the file exactly.
 
+### Lossless child arguments and the path bound (STXlib's own change, 2026-11-13)
+
+Two follow-ups of D13 a (`decisions/2026-11-13-d13-files-paths.md`: no
+real file is unreachable because of its name). `ChildRequest`'s program and
+arguments become `PathText` (`include/stxlib/children.hpp`): a Path's text
+is passed as is, and `src/hosted/posix/children_posix.cpp` writes each
+POSIX escape (U+DC80..U+DCFF, U+DC3A, U+DC5C) as its byte and refuses any
+other surrogate (invalid_argument, HostCode::invalid_value);
+`src/hosted/windows/children_windows.cpp` writes the text's UTF-16, lone
+surrogates included. The POSIX conversion is deliberately not
+`wtf8::unescape_posix`: that one's canonical check refuses a raw ':' or
+'\', which plain argument text holds. `reveal_in_file_manager`
+(`src/core/desktop.cpp`, `src/hosted/*/desktop_*.cpp`,
+`include/stxlib/desktop.hpp`) no longer refuses a path that is not valid
+Unicode (stx_auxlib had no such paths). `maximum_path_bytes`
+(`include/stxlib/path.hpp`) rises from stx_auxlib's 4,096 to 98,304 (3 x
+32,768), so that a Windows path of 32,767 units and a fully escaped POSIX
+path at PATH_MAX are not too_long. Tests: `tests/children_tests.cpp`
+(`lossless_arguments`, the `hex` child mode), `tests/path_tests.cpp`
+(`longest_host_names`).
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

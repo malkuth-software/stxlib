@@ -340,6 +340,29 @@ void windows_host_names() {
     CHECK(refused.failed() && failure_of(refused) == PathFailure::reserved_character);
 }
 
+// The longest host names are carried, not refused as too_long: a POSIX name
+// of 4,096 invalid bytes (each escaped to 3 bytes) and a Windows name of
+// 32,767 unpaired surrogates (each 3 bytes of WTF-8). One unit more than
+// the bound holds is too_long.
+void longest_host_names() {
+    const std::string invalid(4096, '\xff');
+    const Path escaped = from_posix(invalid);
+    CHECK(escaped.text().count() == 3 * 4096);
+    CHECK(posix_bytes(escaped) == invalid);
+    const std::vector<stxlib::u16> highs(32767, 0xd800);
+    Result<Path> made = Path::from_windows_name(highs.data(), highs.size());
+    CHECK(made.succeeded());
+    if (made.succeeded()) {
+        CHECK((*made.value()).text().count() == 3 * 32767);
+        CHECK(windows_units(*made.value()) == highs);
+    }
+    const std::vector<stxlib::u16> at_bound(stxlib::maximum_path_bytes / 3, 0xd800);
+    CHECK(Path::from_windows_name(at_bound.data(), at_bound.size()).succeeded());
+    const std::vector<stxlib::u16> over(stxlib::maximum_path_bytes / 3 + 1, 0xd800);
+    const Result<Path> refused = Path::from_windows_name(over.data(), over.size());
+    CHECK(refused.failed() && failure_of(refused) == PathFailure::too_long);
+}
+
 // parse_wtf8 accepts lone surrogates and refuses a high one directly before a
 // low one (that pair is a supplementary character's 4-byte form).
 void wtf8_text() {
@@ -378,6 +401,7 @@ int main() {
     posix_host_names();
     posix_refusals();
     windows_host_names();
+    longest_host_names();
     wtf8_text();
     return stxlib_tests::finish("stxlib path tests");
 }

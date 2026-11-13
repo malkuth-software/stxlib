@@ -58,7 +58,8 @@
 // parent bound only their result (stx_auxlib refused a join whose operands
 // together exceeded the bound, and parent returned the path unchanged when
 // "<path>/.." did); host names that are not valid Unicode are carried, not
-// refused (D13 a, above).
+// refused (D13 a, above), and the bound is 98,304 bytes, not 4,096, so that
+// carrying them never makes a host path too long (maximum_path_bytes).
 //
 // Failures: invalid_argument with the PathFailure as the record's code, or
 // limit_exceeded with PathFailure::too_long; out_of_memory.
@@ -153,8 +154,14 @@ public:
 
 } // namespace detail
 
-// Bounds every Path, before and after normalization, in bytes.
-inline constexpr usize maximum_path_bytes = 4096;
+// Bounds every Path, before and after normalization, in bytes: 3 x 32,768,
+// so that no host path a host's own calls accept is too long once carried
+// (D13 a). The longest is a Windows path of 32,767 UTF-16 units (the \\?\
+// limit), each at most 3 bytes of WTF-8; a POSIX path the host accepts
+// (PATH_MAX: 4,096 bytes on Linux, 1,024 on macOS) grows at most three
+// times when every byte is escaped. stx_auxlib's bound, 4,096, refused
+// such names as too_long.
+inline constexpr usize maximum_path_bytes = 98304;
 
 class Path final {
 public:

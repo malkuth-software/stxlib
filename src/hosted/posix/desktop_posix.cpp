@@ -36,7 +36,7 @@ constexpr TextView desktop_helper = "xdg-open";
 // Runs the helper detached with its output discarded and does not wait; the
 // Child is abandoned and reaped later (children.hpp). A desktop without its
 // helper program lacks the capability.
-Status run_helper(const View<TextView> arguments) noexcept {
+Status run_helper(const View<PathText> arguments) noexcept {
     const ChildRequest request{
         .program = desktop_helper, .arguments = arguments, .streams = ChildStreams::discard, .detached = true};
     const Result<Child> started = Child::start(request);
@@ -65,22 +65,21 @@ Status exhausted() noexcept {
 
 Status open_target(const TextView target, const bool is_link) noexcept {
     (void)is_link;
-    const TextView arguments[] = {target};
-    const Status result = run_helper(View<TextView>(arguments));
+    const PathText arguments[] = {target};
+    const Status result = run_helper(View<PathText>(arguments));
     return result;
 }
 
 Status reveal(const Path& path) noexcept {
 #if defined(__APPLE__)
-    const TextView arguments[] = {"-R", path.text().unicode()};
-    const Status result = run_helper(View<TextView>(arguments));
+    const PathText arguments[] = {"-R", path.text()};
+    const Status result = run_helper(View<PathText>(arguments));
     return result;
 #else
     Result<Path> directory = path.parent();
     if (directory.failed()) return Status::failure(*directory.error());
-    // The parent of a Unicode path is Unicode.
-    const TextView arguments[] = {(*directory.value()).text().unicode()};
-    const Status result = run_helper(View<TextView>(arguments));
+    const PathText arguments[] = {(*directory.value()).text()};
+    const Status result = run_helper(View<PathText>(arguments));
     return result;
 #endif
 }

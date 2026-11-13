@@ -14,6 +14,7 @@
 
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
+#include "core/wtf8.hpp"
 #include "hosted/children_common.hpp"
 #include "hosted/windows/utf16.hpp"
 
@@ -75,10 +76,11 @@ i64 value_of(const HANDLE handle) noexcept {
 // Appends one argument quoted for CommandLineToArgvW: wrapped in quotes when
 // it is empty or holds a space, tab or quote; a quote is escaped with a
 // backslash, and backslashes are doubled only where they precede a quote
-// (stx_auxlib's append_quoted).
-bool append_quoted(Growable<wchar_t>& line, const TextView argument) noexcept {
+// (stx_auxlib's append_quoted). The argument is WTF-8 (children.hpp): an
+// unpaired surrogate becomes that UTF-16 unit, as Path::windows_name makes it.
+bool append_quoted(Growable<wchar_t>& line, const PathText argument) noexcept {
     Growable<wchar_t> wide;
-    if (!utf16::append_wide(argument.data(), argument.count(), wide)) return false;
+    if (!wtf8::to_utf16(argument.data(), argument.count(), wide)) return false;
     bool needs_quotes = wide.empty();
     for (usize index = 0; index < wide.count(); ++index) {
         const wchar_t unit = wide[index];

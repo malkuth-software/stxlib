@@ -21,6 +21,7 @@
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
 #include "core/spin_lock.hpp"
+#include "core/wtf8.hpp"
 #include "hosted/children_common.hpp"
 #include "state/state.hpp"
 
@@ -194,7 +195,38 @@ int prepare(SpawnSetup& setup, const ChildRequest& request, const int output_wri
     return error;
 }
 
-bool contains_slash(const TextView text) noexcept {
+enum class Appended : u8 { ok, unrepresentable, exhausted };
+
+// Appends the host bytes `text` names (children.hpp): its UTF-8 as itself,
+// and each escape (U+DC80..U+DCFF, U+DC3A ':' and U+DC5C '\', the
+// surrogates Path's POSIX escape makes) as its byte. Any other surrogate
+// names no POSIX string. Unlike Path::posix_name, Unicode text may hold ':'
+// and '\' itself (an argument is not a path), so text without a surrogate
+// is copied unchanged.
+Appended append_host_bytes(const PathText text, Growable<char>& strings) noexcept {
+    if (!wtf8::has_surrogate(text.data(), text.count())) {
+        if (!strings.append(text.data(), text.count())) return Appended::exhausted;
+        return Appended::ok;
+    }
+    usize index = 0;
+    while (index < text.count()) {
+        // PathText is well-formed WTF-8, so every sequence has a length.
+        const usize length = wtf8::sequence_length(text.data(), text.count(), index);
+        const u32 code_point = wtf8::decode(text.data(), index, length);
+        if (wtf8::is_surrogate(code_point)) {
+            const bool escape = (code_point >= 0xdc80U && code_point <= 0xdcffU) || code_point == 0xdc3aU ||
+                                code_point == 0xdc5cU;
+            if (!escape) return Appended::unrepresentable;
+            if (!strings.push(static_cast<char>(code_point - 0xdc00U))) return Appended::exhausted;
+        } else if (!strings.append(text.data() + index, length)) {
+            return Appended::exhausted;
+        }
+        index = index + length;
+    }
+    return Appended::ok;
+}
+
+bool contains_slash(const PathText text) noexcept {
     for (usize index = 0; index < text.count(); ++index) {
         if (text.data()[index] == '/') return true;
     }
@@ -237,18 +269,18 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     // The program and arguments as NUL-terminated strings in one buffer,
     // then the argv pointers into it (made after the last append, which may
     // move the buffer).
+    // Each string is its host bytes (append_host_bytes).
     Growable<char> strings;
     Growable<usize> starts;
     const ErrorRecord exhausted = host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none);
-    if (!starts.push(0) || !strings.append(request.program.data(), request.program.count()) || !strings.push('\0')) {
-        return Result<Child>::failure(exhausted);
-    }
-    for (usize index = 0; index < request.arguments.count(); ++index) {
-        const TextView argument = request.arguments[index];
-        if (!starts.push(strings.count()) || !strings.append(argument.data(), argument.count()) ||
-            !strings.push('\0')) {
-            return Result<Child>::failure(exhausted);
-        }
+    const ErrorRecord unrepresentable =
+        host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
+    for (usize index = 0; index <= request.arguments.count(); ++index) {
+        const PathText text = index == 0 ? request.program : request.arguments[index - 1];
+        if (!starts.push(strings.count())) return Result<Child>::failure(exhausted);
+        const Appended appended = append_host_bytes(text, strings);
+        if (appended == Appended::unrepresentable) return Result<Child>::failure(unrepresentable);
+        if (appended != Appended::ok || !strings.push('\0')) return Result<Child>::failure(exhausted);
     }
     Growable<char*> argv;
     for (usize index = 0; index < starts.count(); ++index) {

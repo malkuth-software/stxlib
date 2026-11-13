@@ -11,8 +11,8 @@
 
 namespace stxlib::children_detail {
 
-// A non-empty program, and a program and arguments without NUL (a TextView
-// is UTF-8 already). Fails with invalid_argument and HostCode::empty_request
+// A non-empty program, and a program and arguments without NUL (a PathText
+// is well-formed WTF-8 already). Fails with invalid_argument and HostCode::empty_request
 // or HostCode::invalid_value.
 [[nodiscard]] Status check_request(const ChildRequest& request) noexcept;
 
