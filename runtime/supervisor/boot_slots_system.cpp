@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cerrno>
+#include <cstdio>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
