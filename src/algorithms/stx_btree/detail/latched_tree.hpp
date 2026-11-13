@@ -18,6 +18,16 @@
 // Racing reads of node bytes are validated by versions, as in bbtree and in
 // Leis et al.'s optimistic lock coupling; the language counts them as data
 // races. Header fields, edges, latch words and the root pointer are atomic.
+//
+// STXlib adaptation (from stx_auxlib b6e330a): a page the allocator cannot
+// give (a null page; STXlib builds without exceptions) refuses the
+// insertion where stx_auxlib threw std::bad_alloc. The refusal comes back
+// through the insert policy's refused() as that call's own output, never
+// through a flag on the tree, which threads share. As before, every page a
+// split needs is reserved before anything changes, so a refused insertion
+// leaves the tree, the key and the value as they were. The first insertion's
+// root page is refused the same way, unless another thread's root is
+// published meanwhile.
 
 #include "algorithms/stx_btree/detail/latch.hpp"
 #include "algorithms/stx_btree/detail/node.hpp"
@@ -217,22 +227,8 @@ private:
     std::size_t leaf_count = 0;
 };
 
-// STXlib adaptation, pending (batch 3c7): this tree came with the unsync
-// map because batch.hpp includes it, but its allocation failure is still
-// stx_auxlib's (Operation::reserve_pages and start_tree expect an allocator
-// that throws std::bad_alloc, and MemoryPageAllocator returns null
-// instead). Until the shared map's batch adapts those paths, instantiating
-// the tree is refused at compile time. Its try and catch also need a
-// translation unit with exceptions enabled; nothing in STXlib's library
-// includes this header.
-template <typename Allocator>
-inline constexpr bool latched_tree_adapted = false;
-
 template <typename Shape, typename Allocator>
 class LatchedTree final {
-    static_assert(latched_tree_adapted<Allocator>,
-                  "stx_btree's shared tree is not adapted to STXlib's allocation failure yet");
-
 public:
     using Key = typename Shape::KeyType;
     using Value = typename Shape::ValueType;
@@ -335,22 +331,30 @@ public:
             return Root{root_tagged.page()}.shared_length();
         }
 
-        // Takes the pages first, from the free lists, then the allocator;
-        // on failure gives them back and rethrows, nothing changed.
-        void reserve_pages(std::size_t leaves, std::size_t internals) {
-            try {
-                while (reserve.leaf_count < leaves) {
-                    reserve.leaves[reserve.leaf_count] = tree.take_free_or_new(PageKind::leaf);
-                    reserve.leaf_count += 1;
+        // Takes the pages first, from the free lists, then the allocator.
+        // False when a page cannot be had: the pages taken go back on the
+        // free lists and nothing changed (where stx_auxlib gave them back
+        // and rethrew).
+        [[nodiscard]] bool reserve_pages(std::size_t leaves, std::size_t internals) noexcept {
+            while (reserve.leaf_count < leaves) {
+                std::byte* const page = tree.take_free_or_new(PageKind::leaf);
+                if (page == nullptr) {
+                    give_back_reserve();
+                    return false;
                 }
-                while (reserve.internal_count < internals) {
-                    reserve.internals[reserve.internal_count] = tree.take_free_or_new(PageKind::internal);
-                    reserve.internal_count += 1;
-                }
-            } catch (...) {
-                give_back_reserve();
-                throw;
+                reserve.leaves[reserve.leaf_count] = page;
+                reserve.leaf_count += 1;
             }
+            while (reserve.internal_count < internals) {
+                std::byte* const page = tree.take_free_or_new(PageKind::internal);
+                if (page == nullptr) {
+                    give_back_reserve();
+                    return false;
+                }
+                reserve.internals[reserve.internal_count] = page;
+                reserve.internal_count += 1;
+            }
+            return true;
         }
 
         [[nodiscard]] std::byte* take_page(PageReserve& pages, PageKind kind) noexcept {
@@ -477,7 +481,8 @@ public:
         return kind == PageKind::leaf ? free_leaves : free_internals;
     }
 
-    [[nodiscard]] std::byte* allocate_page(PageKind kind) {
+    // Null when the allocator refuses.
+    [[nodiscard]] std::byte* allocate_page(PageKind kind) noexcept {
         if (kind == PageKind::leaf) {
             void* page = page_allocator.allocate_page(kind, Shape::leaf.page_bytes, Shape::leaf.page_alignment);
             return static_cast<std::byte*>(page);
@@ -500,7 +505,8 @@ public:
         }
     }
 
-    [[nodiscard]] std::byte* take_free_or_new(PageKind kind) {
+    // Null when no page is free and the allocator refuses.
+    [[nodiscard]] std::byte* take_free_or_new(PageKind kind) noexcept {
         std::byte* page = free_list(kind).pop();
         if (page != nullptr) {
             return page;
@@ -509,9 +515,13 @@ public:
     }
 
     // The first insert's root page; a thread that loses the race to publish
-    // its own frees it (bbtree start_tree).
-    void start_tree() {
+    // its own frees it (bbtree start_tree). False when the allocator refuses
+    // the page and no other thread's root has been published.
+    [[nodiscard]] bool start_tree() noexcept {
         std::byte* page = allocate_page(PageKind::root);
+        if (page == nullptr) {
+            return !load_root().is_null();
+        }
         const NodePointer root = Root::initialize_empty(page);
         const NodeLatch latch = NodeLatch::of(page);
         const Version version = latch.lock_exclusive();
@@ -519,9 +529,10 @@ public:
         if (root_word.compare_exchange_strong(expected, root.tagged, std::memory_order_acq_rel, std::memory_order_acquire)) {
             rightmost_leaf_word.store(root.tagged, std::memory_order_release);
             latch.unlock_exclusive(version);
-            return;
+            return true;
         }
         deallocate_page(PageKind::root, page);
+        return true;
     }
 
     // --- Descent (bbtree latched/descent.rs) --------------------------------
@@ -952,14 +963,16 @@ public:
     //
     // A Policy decides what an insert does: occupied(stored key, stored
     // value, key, value) for a key present, vacant(key, value) just before a
-    // new entry goes in; each returns Policy::Output.
+    // new entry goes in, refused() when a page the insertion needs cannot be
+    // had (nothing changed; key and value are left as they were); each
+    // returns Policy::Output.
 
     enum class InsertStep : std::uint8_t { done, full };
 
     template <typename Policy>
     typename Policy::Output insert(Key&& key, Value&& value, Policy& policy) {
-        if (load_root().is_null()) {
-            start_tree();
+        if (load_root().is_null() && !start_tree()) {
+            return policy.refused();
         }
         std::optional<typename Policy::Output> result;
         if (try_append(key, value, policy, result)) {
@@ -1087,7 +1100,8 @@ public:
 
     // Takes the path from the fences' top down to the lowest node with room,
     // reserves the split's pages, and runs the unsync split along it; false
-    // to start over (bbtree split).
+    // to start over (bbtree split). True with the policy's refused() output
+    // when the pages cannot be had.
     template <typename Policy>
     [[nodiscard]] bool split(
         const TreePath& path, HeldLeaf& held, std::size_t edge, Key& key, Value& value, Policy& policy,
@@ -1120,7 +1134,12 @@ public:
                 internals = splits + 1;
             }
         }
-        operation.reserve_pages(leaves, internals);
+        if (!operation.reserve_pages(leaves, internals)) {
+            // Nothing changed: the operation lets go of the path, and the
+            // caller of the leaf.
+            result.emplace(policy.refused());
+            return true;
+        }
         const Leaf leaf = held.leaf;
         result.emplace(policy.vacant(static_cast<const Key&>(key), static_cast<const Value&>(value)));
         const bool was_last_leaf = rightmost_leaf_word.load(std::memory_order_relaxed) == leaf.pointer().tagged;

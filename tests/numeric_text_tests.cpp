@@ -118,8 +118,14 @@ void reals() {
     CHECK(number(text::to_text(1e21)) == "1e+21");
     CHECK(number(text::to_text(123456.0)) == "123456");
     CHECK(number(text::to_text(-0.0)) == "-0");
-    CHECK(number(text::to_text(5e-324)) == "5e-324");
+    // STXlib batch 3c9: a subnormal formats as zero of its sign; the
+    // smallest normal is kept.
+    CHECK(number(text::to_text(5e-324)) == "0");
+    CHECK(number(text::to_text(-5e-324)) == "-0");
+    CHECK(number(text::to_text(-0x1.fffffffffffffp-1023)) == "-0");
+    CHECK(number(text::to_text(0x1p-149f)) == "0");
     CHECK(number(text::to_text(-2.2250738585072014e-308)) == "-2.2250738585072014e-308");
+    CHECK(number(text::to_text(1.17549435e-38f)) == "1.1754944e-38");
     CHECK(number(text::to_text(0.1f)) == "0.1");
     CHECK(number(text::to_text(1.0f / 3.0f)) == "0.33333334");
     CHECK(number(text::to_text(std::numeric_limits<double>::quiet_NaN())) == "nan");
@@ -184,8 +190,22 @@ void caller_storage() {
     CHECK(written(writer.finish()) == "0.250");
 }
 
+// STXlib batch 3c9: the subnormal rule, written here by classification
+// (independently of src/core/subnormal.hpp).
+double flushed(const double value) {
+    if (std::fpclassify(value) == FP_SUBNORMAL) return std::copysign(0.0, value);
+    return value;
+}
+
+float flushed(const float value) {
+    if (std::fpclassify(value) == FP_SUBNORMAL) return std::copysign(0.0f, value);
+    return value;
+}
+
 // Deterministic pseudo-random doubles over every exponent, subnormals
-// included (SplitMix64 over raw bit patterns).
+// included (SplitMix64 over raw bit patterns). STXlib: a subnormal sample
+// formats and parses as its flushed value, zero of its sign, so the round
+// trip and the host's text are taken for that value.
 STXLIB_MODULAR u64 next_bits(u64& state) {
     state += 0x9e3779b97f4a7c15ULL;
     u64 mixed = state;
@@ -201,7 +221,7 @@ void round_trips_and_host_agreement() {
     bool round_trips = true;
     bool host_agrees = true;
     for (int sample = 0; sample < 200000; ++sample) {
-        const double value = std::bit_cast<double>(next_bits(state));
+        const double value = flushed(std::bit_cast<double>(next_bits(state)));
         if (!std::isfinite(value)) continue;
         const text::NumberText shortest = text::to_text(value);
         const text::Parsed<double> back = text::parse_double(shortest.view());
@@ -224,7 +244,7 @@ void round_trips_and_host_agreement() {
         }
     }
     for (int sample = 0; sample < 100000; ++sample) {
-        const float value = std::bit_cast<float>(static_cast<std::uint32_t>(next_bits(state)));
+        const float value = flushed(std::bit_cast<float>(static_cast<std::uint32_t>(next_bits(state))));
         if (!std::isfinite(value)) continue;
         const text::NumberText shortest = text::to_text(value);
         const text::Parsed<float> back = text::parse_float(shortest.view());
@@ -270,14 +290,27 @@ void parsing() {
 
     CHECK(value_of(text::parse_double("1.5e+3")) == 1500.0);
     CHECK(value_of(text::parse_double("+.5")) == 0.5);
-    CHECK(value_of(text::parse_double("1e-310")) > 0.0);
+    // STXlib batch 3c9: a real below the smallest normal parses as zero of
+    // its sign, whether the host's from_chars gives the subnormal, zero, or
+    // out_of_range (stx_auxlib reported 1e-400 and 2e-324 as out_of_range).
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("1e-310"))) == 0);
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("-1e-310"))) == 0x8000000000000000ULL);
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("1e-400"))) == 0);
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("-2e-324"))) == 0x8000000000000000ULL);
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("0.000000001e-320"))) == 0);
+    CHECK(std::bit_cast<u64>(value_of(text::parse_double("2.2250738585072011e-308"))) == 0);
+    CHECK(value_of(text::parse_double("2.2250738585072014e-308")) == 0x1p-1022);
+    CHECK(value_of(text::parse_double("100000e-312")) == 1e-307);
+    CHECK(std::bit_cast<std::uint32_t>(value_of(text::parse_float("1e-40"))) == 0);
+    CHECK(std::bit_cast<std::uint32_t>(value_of(text::parse_float("-1e-50"))) == 0x80000000U);
+    CHECK(value_of(text::parse_float("1.17549435e-38")) == 0x1p-126f);
+    CHECK(fails_with(text::parse_double("1e99999999999999999999"), text::ParseFailure::out_of_range));
+    CHECK(fails_with(text::parse_double("0.0001e313"), text::ParseFailure::out_of_range));
     CHECK(std::isinf(value_of(text::parse_double("inf"))));
     CHECK(std::isinf(value_of(text::parse_double("-Infinity"))));
     CHECK(std::isnan(value_of(text::parse_double("NaN"))));
     CHECK(std::signbit(value_of(text::parse_double("-0"))));
     CHECK(fails_with(text::parse_double("1e309"), text::ParseFailure::out_of_range));
-    CHECK(fails_with(text::parse_double("1e-400"), text::ParseFailure::out_of_range));
-    CHECK(fails_with(text::parse_double("2e-324"), text::ParseFailure::out_of_range));
     CHECK(fails_with(text::parse_float("3.5e38"), text::ParseFailure::out_of_range));
     CHECK(fails_with(text::parse_double("1e"), text::ParseFailure::trailing_text));
     CHECK(fails_with(text::parse_double("0x1p3"), text::ParseFailure::trailing_text));

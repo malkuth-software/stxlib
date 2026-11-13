@@ -11,8 +11,18 @@
 // explicitly), and on out_of_range some libraries write infinity or zero
 // into the result while the standard leaves it unchanged (here the result
 // is always the out_of_range failure, and the library's value is unused).
+//
+// STXlib batch 3c9 (owner decision D1, 2026-11-13, notes
+// decisions/2026-11-13-locals-float-mutability.md): no subnormals. A real
+// that would parse to a subnormal parses as zero of its sign, and so does
+// one too small for any value; hosts differ on whether from_chars reports
+// those as out_of_range, so this file decides by the text's magnitude, and
+// out_of_range remains only for overflow. Formatting reads a subnormal as
+// zero of its sign.
 
 #include "stxlib/numeric_text.hpp"
+
+#include "core/subnormal.hpp"
 
 #include <charconv>
 #include <cmath>
@@ -185,7 +195,9 @@ template <typename Real>
 }
 
 template <typename Real>
-Formatted write_real_value(const MutableView<char> output, const Real value, const RealFormat& format) noexcept {
+Formatted write_real_value(const MutableView<char> output, const Real given, const RealFormat& format) noexcept {
+    // STXlib: a subnormal is formatted as zero of its sign (batch 3c9).
+    const Real value = ::stxlib::detail::flush_subnormal(given);
     const bool negative = std::signbit(value);
     if (std::isnan(value)) {
         const Formatted result = write_padded(output, Piece{}, 0, Piece{"nan", 3}, 3, format.field);
@@ -245,6 +257,63 @@ Prefix<Integer> integer_prefix(const TextView text, const Base base) noexcept {
     return Prefix<Integer>{Parsed<Integer>::success(value), consumed};
 }
 
+// STXlib batch 3c9: whether the decimal real spelled at [first, last) (an
+// optional '-', digits with an optional point, an optional exponent; the
+// span from_chars matched) has magnitude below 1. True for every real too
+// small for its type: the out_of_range from_chars reports for such a text is
+// underflow, never overflow. Decided from the digits: the place value of the
+// first nonzero digit plus the exponent is negative. A text with no nonzero
+// digit is zero, also below 1. Exponents saturate, so no arithmetic wraps.
+bool below_one(const char* first, const char* const last) noexcept {
+    if (first != last && *first == '-') ++first;
+    constexpr i64 saturation = 1000000000;
+    i64 integer_digits = 0;      // digits before the point, from the first nonzero one
+    i64 leading_fraction_zeros = 0;
+    bool nonzero = false;
+    bool in_fraction = false;
+    while (first != last) {
+        const char character = *first;
+        if (character == '.') {
+            in_fraction = true;
+        } else if (character >= '0' && character <= '9') {
+            if (!in_fraction) {
+                if (nonzero || character != '0') {
+                    nonzero = true;
+                    if (integer_digits < saturation) integer_digits += 1;
+                }
+            } else if (!nonzero) {
+                if (character == '0') {
+                    if (leading_fraction_zeros < saturation) leading_fraction_zeros += 1;
+                } else {
+                    nonzero = true;
+                }
+            }
+        } else {
+            break;
+        }
+        ++first;
+    }
+    if (!nonzero) return true;
+    i64 exponent = 0;
+    if (first != last && (*first == 'e' || *first == 'E')) {
+        ++first;
+        bool negative_exponent = false;
+        if (first != last && (*first == '+' || *first == '-')) {
+            negative_exponent = *first == '-';
+            ++first;
+        }
+        while (first != last && *first >= '0' && *first <= '9') {
+            if (exponent < saturation) exponent = exponent * 10 + (*first - '0');
+            ++first;
+        }
+        if (negative_exponent) exponent = -exponent;
+    }
+    // The first nonzero digit's place value is 10^(integer_digits - 1) when
+    // it is before the point, else 10^-(leading_fraction_zeros + 1).
+    const i64 place = integer_digits > 0 ? integer_digits - 1 : -(leading_fraction_zeros + 1);
+    return place + exponent < 0;
+}
+
 template <typename Real>
 Prefix<Real> real_prefix(const TextView text) noexcept {
     if (text.empty()) return Prefix<Real>{Parsed<Real>::failure(ParseFailure::empty), 0};
@@ -253,9 +322,17 @@ Prefix<Real> real_prefix(const TextView text) noexcept {
     const char* const last = text.data() + text.count();
     Real value = 0;
     const std::from_chars_result read = std::from_chars(first, last, value, std::chars_format::general);
+    if (read.ec == std::errc::result_out_of_range && read.ptr != first && below_one(first, read.ptr)) {
+        // STXlib: underflow, reported by some hosts for subnormal or
+        // vanishing results: zero of the text's sign.
+        const Real zero = *first == '-' ? -static_cast<Real>(0) : static_cast<Real>(0);
+        const usize consumed = static_cast<usize>(read.ptr - text.data());
+        return Prefix<Real>{Parsed<Real>::success(zero), consumed};
+    }
     if (read.ec != std::errc()) return Prefix<Real>{Parsed<Real>::failure(failure_from(read.ec)), 0};
     const usize consumed = static_cast<usize>(read.ptr - text.data());
-    return Prefix<Real>{Parsed<Real>::success(value), consumed};
+    // STXlib: a subnormal result is zero of its sign.
+    return Prefix<Real>{Parsed<Real>::success(::stxlib::detail::flush_subnormal(value)), consumed};
 }
 
 template <typename Value>

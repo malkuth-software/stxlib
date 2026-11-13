@@ -185,7 +185,11 @@ template <RandomGenerator Generator>
 
 // A double in [low, high): low + (high - low) * uniform_unit, with a result
 // that rounds up to `high` moved to the largest double below it. Requires
-// finite low < high (otherwise the result is `low`).
+// finite low < high (otherwise the result is `low`). No subnormals (batch
+// 3c9): subnormal bounds are read as zero of their sign (so the test
+// low < high is made on the read bounds, and the result is the read `low`
+// when it fails), and a result that would be subnormal is zero of its sign,
+// or `low` when that zero is not below `high`.
 template <RandomGenerator Generator>
 [[nodiscard]] double uniform_real(Generator& generator, const double low, const double high) noexcept {
     const double unit = uniform_unit(generator);

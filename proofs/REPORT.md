@@ -134,6 +134,35 @@ evidence, not proof.
 | `src/algorithms/math/` (exp, pow and hypot double, subnormal results; log double, subnormal arguments) | the flush is exact: +0 wherever the correctly rounded result is at least one subnormal ulp below 2^-1022 (+0 or 2^-1022 within that ulp); -infinity for subnormal log arguments of either sign | **not yet run;** sampled, not proved, at 20 million inputs per region in `--exhaustive`. This replaces the ulp measurement there, so the 6 of 20 million pow results one ulp off on the subnormal grid (stx_auxlib b6e330a's kernel, found by sbi) are no longer within the contract | `tests/math_tests.cpp` |
 | `src/algorithms/math/sincos_core.hpp` (the certificate) | the 0.51 ulp bound carries to the public sincos and tan | unchanged kernel. For 2^-27 <= abs(x) <= 2^32 the argument is normal, and so is every sine and cosine (none is below 2^-1022), so the flush never acts there. The certificate is still to be rerun on STXlib's build (batch 3c5 row) | `tools/math/sincos_certificate.py` |
 
+## stxlib::algorithms, batch 3c9 (no subnormals in text and random)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/numeric_text.cpp` (parsing) | a real below the smallest normal parses as zero of its sign on every host; out_of_range only on overflow | tested, not proved, at named texts in both types: subnormal results, results below the subnormal range, the boundary on either side of the smallest normal, and saturating exponents. Risk: a host that reports out_of_range for a text rounding up to the smallest normal would give zero for it | `tests/numeric_text_tests.cpp` (`parsing`) |
+| `src/algorithms/numeric_text.cpp` (formatting) | a subnormal formats as zero of its sign; normal values unchanged (round trip and host agreement over 200,000 doubles and 100,000 floats, subnormal samples taken flushed) | tested, not proved | `tests/numeric_text_tests.cpp` (`reals`, `round_trips_and_host_agreement`) |
+| `src/algorithms/random.cpp` (`scale_into`) | never subnormal, within [low, high) of the read bounds, or `low` | tested at named bounds and units, not proved | `tests/random_tests.cpp` |
+
+## Batch float_exact (src/core/float_exact.hpp)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `split` (float) | hi + lo == a exactly; each half at most 12 significant bits; both zero or normal | **not yet run.** Proved by exhaustive enumeration of every float in range (2^32 patterns screened) once `stxlib_float_exact_tests --exhaustive` passes; the ctest run strides. ESBMC harness `harness_split` written, not run | `tests/float_exact_tests.cpp` (`float_split`); `proofs/esbmc/float_exact_float.cpp` |
+| `two_product`, `two_sum`, `fast_two_sum` (float) | exact; the error zero or normal; the fused and Dekker forms agree bit for bit | **not yet run.** `--exhaustive` takes every significand of a binade, both signs, against 512 partners: that is a sample of pairs, not a proof. ESBMC harnesses (bit-precise, over all pairs in range) are written but not run; once they pass, this is proved for float, by ESBMC at the pinned version | `tests/float_exact_tests.cpp`; `proofs/esbmc/float_exact_float.cpp` |
+| `two_sum`, `fast_two_sum`, `two_product`, `split` (double) | as above | sampled against the exact integer reference (20 million in `--exhaustive`), not proved. Literature proofs: Knuth Theorem B, Dekker 1971, the Flocq formalisation (Boldo and Melquiond 2011; Boldo 2006 for Veltkamp and Dekker) | `tests/float_exact_tests.cpp` |
+| expansions | exact sums, scalings and products; nonoverlapping output in increasing magnitude; the sign | sampled against the exact reference, not proved; Shewchuk 1997's theorems | `tests/float_exact_tests.cpp` (`expansions`) |
+| `KahanSum`, `NeumaierSum` | within Higham's bounds (section 4.3) | sampled, not proved | `tests/float_exact_tests.cpp` (`compensated`) |
+| `orient2d`, `incircle` | the exact sign, in float and double | sampled against the exact reference, with exactly collinear and cocircular inputs (scaled to the range bounds) nudged by one ulp, not proved. The filters are Shewchuk's stage-A bounds, plus an absolute slack for incircle's underflowing products, argued in the header | `tests/float_exact_tests.cpp` (`predicates`) |
+| `src/algorithms/math/kernel_support.hpp` | the math's bits are unchanged by the move | the frozen hashes of `tests/math_tests.cpp` at every level and in the Dekker build (to run) | `tests/math_tests.cpp` |
+
+## Batch reduction order (src/core/float_reduce.hpp, the bit identity, the flag check)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/float_reduce.hpp` (shape) | ordered_sum and ordered_dot compute F5's shape: 8 lanes, the fixed tree, the tail in index order, no added zero | tested, not proved: hand-worked cases on which sequential order, another grouping, or a tail in lane 0 give different bits; every length 0..300 against a restatement (sampled terms); signed zeros | `tests/float_reduce_tests.cpp` (`shape_by_hand`, `shape_against_reference`, `signed_zeros`) |
+| `src/core/float_reduce.hpp` (pool) | the pool forms give the serial chunked bits at every thread count | tested at 1, 2, 3 and 8 threads, for batches on the calling thread and on the workers (601 chunks), not proved. The argument: each chunk's value depends only on its terms, and the combine runs on the caller in chunk order after run returns | `tests/float_reduce_tests.cpp` (`chunks`, `pool`) |
+| `tests/bit_identity.cpp` | every host, SIMD level and product form prints the frozen hash per item (math, float_exact, reductions, numeric text, random) | **not frozen yet**: the lines are frozen from the integrator's first M4 run; until then CI prints each host's lines and unfrozen items are warnings. Once frozen, a match is evidence over the fixed inputs only (sampled), not a proof of identity on all inputs | `tools/compare_bit_identity.py`, `tests/bit_identity_expected.txt`, `.github/workflows/ci.yml` |
+| `CMakeLists.txt` (rule 1) | every target defined there has `-ffp-contract=off`, and no target option or global flag undoes the discipline | checked at configure time over every target (`stxlib_check_float_flags`); not yet configured | `CMakeLists.txt` |
+
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
 
 | Module | Property | Status | Evidence |
@@ -151,7 +180,33 @@ evidence, not proof.
 | `src/algorithms/stx_btree/unsync_map.hpp` | the map answers as std::map (insert, try_insert, remove, find, lower_bound, pop, insert_many, iteration), and every structural invariant (depths, fills, heads, order, windows at exact prefixes, padding, hash tags, shared prefix) holds after each phase | tested, not proved: the differential runs carried from stx_auxlib (seven key and value shapes, random and ordered, both page allocators, batches) | `tests/stx_btree/unsync_map_test.cpp`, `tests/stx_btree/tree_invariants.hpp` |
 | `src/algorithms/stx_btree/unsync_map.hpp` (failure) | an insertion the allocator refuses a page leaves the map unchanged and reports `out_of_memory()`; it then succeeds | tested over 20000 insertions of small-leaf entries with every page first refused (first root page, leaf splits and splits that climb), not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_refusals`) |
 | `src/algorithms/stx_btree/pooled_page_allocator.hpp` | maps sharing a pool get every page back and reuse freed pages; the pool ends with its last sharer | tested, not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_shared_pool`) |
-| `src/algorithms/stx_btree/detail/latched_tree.hpp` | none yet | not instantiable (static assertion) until the shared-map batch | none |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` | see batch 3c10 | adapted and instantiated in batch 3c10 | batch 3c10 |
+
+## stxlib::algorithms, batch 3c10 (stx_btree's shared ordered map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/bbtree_map.hpp` | single-thread answers equal std::map's, with every structural invariant; threaded writers, readers, counters, scans and batches see consistent entries (bbtree's map tests) | tested, not proved: stx_auxlib's runs, unchanged; the concurrency rests on bbtree's optimistic lock coupling (DESIGN.md), not on a mechanical proof | `tests/stx_btree/bbtree_map_test.cpp`, `tests/stx_btree/stress_test.cpp` |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` (failure) | an insertion the allocator refuses a page leaves the map, key and value unchanged, says refused in its own result, runs no visitor, and then succeeds | tested single-threaded over 20000 insertions with every page first refused (first root page, leaf splits, climbing splits; four write forms), not proved; refusals racing other threads are not tested | `tests/stx_btree/bbtree_map_test.cpp` (`shared_refusals`) |
+
+## stxlib::algorithms, batch 3c11 (stx_btree's optimal binary search trees)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/optimal_tree.hpp` (knuth, knuth_scattered, garsia_wachs) | the returned tree is a search tree, its cost is the reported cost, and that cost is optimal; both Knuth layouts give the same tree | exhaustive for n <= 8 (every tree enumerated, 8 weight families, 6 trials each), and against the cubic recurrence for 9 <= n < 149 (sampled); larger n against Knuth only, as in stx_auxlib | `tests/stx_btree/optimal_tree_test.cpp` |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (balanced, bottom_up, weight_balanced) | a valid search tree whose cost is at least the optimum; balanced exact on constant weights | tested on the same instances, not proved | `tests/stx_btree/optimal_tree_test.cpp` |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (refusals) | malformed weights, and garsia_wachs on key weights, give invalid_argument | tested | `tests/stx_btree/optimal_tree_test.cpp` (`check_edges`) |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (exhaustion) | storage that cannot be had gives out_of_memory with no tree | not tested: no allocation fault injection reaches memory::allocate here | none |
+
+## stxlib::algorithms, batch 3c12 (stx_btree's tree packing and static optimal map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (pack) | every key in exactly one node, nodes ascending and within capacity; the reported cost equals the walked cost; capacity 1 gives the binary tree's cost; the cost is the least over every way of cutting the tree into nodes | exhaustive over edge subsets for 300 random trees of n <= 12 at capacities 1 to 4 (sampled trees, exhaustive cuts); walked cost also on 6 trees of 2000 to 4999 keys | `tests/stx_btree/optimal_map_test.cpp` (`check_packing`) |
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (relayout) | node shape as above; reported cost equals walked cost; with slack 0 never above the packing | tested on the same instances, not proved | `tests/stx_btree/optimal_map_test.cpp` (`check_packing`) |
+| `src/algorithms/stx_btree/optimal_map.hpp` | every key found with its value, absent keys not found, find_many equal to find, for u64, i64 and string keys and each construction | tested, not proved: stx_auxlib's instances, unchanged | `tests/stx_btree/optimal_map_test.cpp` |
+| `src/algorithms/stx_btree/optimal_map.hpp` (refusals) | unsorted keys, mismatched lengths and malformed weights give invalid_argument, and the caller's keys and values are left unchanged | tested | `tests/stx_btree/optimal_map_test.cpp` (`check_rejections`) |
+| `src/algorithms/stx_btree/optimal_map.hpp`, `detail/tree_packing.hpp` (exhaustion) | storage that cannot be had gives out_of_memory with no map and the keys and values unchanged | not tested: no allocation fault injection reaches memory::allocate here; the ordering (every allocation before the first move) is by reading of `lay_out` | none |
 
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

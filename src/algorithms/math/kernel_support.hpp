@@ -12,6 +12,13 @@
 
 #include "variant.hpp"
 
+// STXlib: the error-free transformations live in src/core/float_exact.hpp
+// (the floating-point discipline's owned primitives, F4 = 1); the forms
+// below forward to its raw (unchecked) forms, which are these same
+// operations in the same order, always inlined so that they take each
+// variant's target.
+#include "core/float_exact.hpp"
+
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -46,18 +53,18 @@ constexpr std::int64_t exponent_bias = 1023;
 // Sum and its exact rounding error (Knuth's two-sum).
 inline void two_sum(const double a, const double b, double& sum,
                                     double& error) noexcept {
-    sum = a + b;
-    const double b_part = sum - a;
-    const double a_part = sum - b_part;
-    error = (a - a_part) + (b - b_part);
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::two_sum(a, b);
+    sum = result.value;
+    error = result.error;
 }
 
 // Sum and its exact rounding error when |a| >= |b| or a == 0 (Dekker's fast
 // two-sum, three operations instead of six). Callers state why the order
 // holds; with a == 0 it returns (b, 0).
 inline void fast_two_sum(const double a, const double b, double& sum, double& error) noexcept {
-    sum = a + b;
-    error = b - (sum - a);
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::fast_two_sum(a, b);
+    sum = result.value;
+    error = result.error;
 }
 
 // a * b + c for certified cheap paths only: a fused multiply-add where the
@@ -83,20 +90,14 @@ inline double multiply_add(const double a, const double b, const double c) noexc
 // (tests compare the two). Requires |a|, |b| <= 2^995 (no split overflow).
 inline void two_product(const double a, const double b, double& product,
                                         double& error) noexcept {
-    product = a * b;
 #if defined(STXLIB_MATH_FMA)
-    error = __builtin_fma(a, b, -product);
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::two_product_fused(a, b);
 #else
     // Veltkamp split into 26-bit halves.
-    constexpr double split = 134217729.0;  // 2^27 + 1
-    const double a_scaled = split * a;
-    const double a_hi = a_scaled - (a_scaled - a);
-    const double a_lo = a - a_hi;
-    const double b_scaled = split * b;
-    const double b_hi = b_scaled - (b_scaled - b);
-    const double b_lo = b - b_hi;
-    error = ((a_hi * b_hi - product) + a_hi * b_lo + a_lo * b_hi) + a_lo * b_lo;
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::two_product_dekker(a, b);
 #endif
+    product = result.value;
+    error = result.error;
 }
 
 // A float widened to double: exact, the value static_cast gives. On x86-64
@@ -154,10 +155,8 @@ struct Split final {
 // Requires |a| <= 2^995. constexpr so that tables of split constants are
 // built at compile time; constant evaluation rounds as the run time does.
 constexpr Split veltkamp_split(const double a) noexcept {
-    constexpr double split = 134217729.0;  // 2^27 + 1
-    const double a_scaled = split * a;
-    const double a_hi = a_scaled - (a_scaled - a);
-    const Split result{a_hi, a - a_hi};
+    const ::stxlib::float_exact::Pair<double> parts = ::stxlib::float_exact::raw::split(a);
+    const Split result{parts.value, parts.error};
     return result;
 }
 
@@ -166,15 +165,15 @@ constexpr Split veltkamp_split(const double a) noexcept {
 // two_product(a, b, ...); the fused form ignores the split.
 inline void two_product_split(const double a, const Split& a_parts, const double b,
                               double& product, double& error) noexcept {
-    product = a * b;
 #if defined(STXLIB_MATH_FMA)
     (void)a_parts;
-    error = __builtin_fma(a, b, -product);
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::two_product_fused(a, b);
 #else
-    const Split b_parts = veltkamp_split(b);
-    error = ((a_parts.hi * b_parts.hi - product) + a_parts.hi * b_parts.lo + a_parts.lo * b_parts.hi) +
-            a_parts.lo * b_parts.lo;
+    const ::stxlib::float_exact::Pair<double> result = ::stxlib::float_exact::raw::two_product_dekker_split(
+        a, ::stxlib::float_exact::Pair<double>{a_parts.hi, a_parts.lo}, b);
 #endif
+    product = result.value;
+    error = result.error;
 }
 
 // two_product for a second factor b of at most 26 significant bits (a
