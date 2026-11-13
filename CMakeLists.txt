@@ -186,6 +186,13 @@ target_compile_definitions(stxlib_boundary PRIVATE
     $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>
     $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
 target_compile_options(stxlib_boundary PRIVATE ${stxlib_warnings} -fno-exceptions)
+# Native traces walk the frame-pointer chain (src/hosted/posix/trace_posix.cpp),
+# so every STXlib target keeps frame pointers when shadowing is on.
+# Consumers that want full traces through their own frames on Linux build
+# their development configurations with the same flag; Apple arm64 keeps
+# frame records always.
+set(stxlib_frame_pointers $<$<BOOL:${stxlib_shadow_on}>:-fno-omit-frame-pointer>)
+target_compile_options(stxlib_boundary PRIVATE ${stxlib_frame_pointers})
 set_source_files_properties(${STXLIB_EXCEPTION_RECORDER} PROPERTIES COMPILE_OPTIONS "-fexceptions")
 # Each module that links the boundary keeps its copy private (hidden
 # symbols) and may be a shared library (position-independent code).
@@ -207,7 +214,7 @@ endif()
 # ---- tests ------------------------------------------------------------------
 if(STXLIB_TESTS)
     enable_testing()
-    set(stxlib_test_warnings ${stxlib_warnings})
+    set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
     foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
