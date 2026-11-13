@@ -59,9 +59,10 @@ struct CollectKeys final {
     }
 };
 
+// The merge sums values modulo 2^64, in the map and in the reference alike.
 struct AddInto final {
     template <typename Key>
-    void operator()(const Key&, std::uint64_t& stored, std::uint64_t&& incoming) const noexcept {
+    STXLIB_MODULAR void operator()(const Key&, std::uint64_t& stored, std::uint64_t&& incoming) const noexcept {
         stored += incoming;
     }
 };
@@ -137,7 +138,7 @@ private:
         }
     }
 
-    static void update_or_insert(Map& map, Reference& reference, const Key& key, std::uint64_t value, const char* label) {
+    STXLIB_MODULAR static void update_or_insert(Map& map, Reference& reference, const Key& key, std::uint64_t value, const char* label) {
         const stx_btree::Insertion outcome = map.update_or_insert(key, value, AddInto{});
         TestFailure::expect(outcome != stx_btree::Insertion::refused, label, "memory sufficed");
         const bool inserted = outcome == stx_btree::Insertion::inserted;

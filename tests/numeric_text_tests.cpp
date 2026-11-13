@@ -122,7 +122,7 @@ void reals() {
     // smallest normal is kept.
     CHECK(number(text::to_text(5e-324)) == "0");
     CHECK(number(text::to_text(-5e-324)) == "-0");
-    CHECK(number(text::to_text(-0x1.fffffffffffffp-1023)) == "-0");
+    CHECK(number(text::to_text(-0x0.fffffffffffffp-1022)) == "-0");
     CHECK(number(text::to_text(0x1p-149f)) == "0");
     CHECK(number(text::to_text(-2.2250738585072014e-308)) == "-2.2250738585072014e-308");
     CHECK(number(text::to_text(1.17549435e-38f)) == "1.1754944e-38");
