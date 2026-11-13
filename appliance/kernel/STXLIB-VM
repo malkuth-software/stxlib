@@ -305,3 +305,6 @@ nodevice cpufreq # no frequency control on QEMU virt
 
 # --- Batch 2, round 13
 nooptions PCI_HP,PCI_IOV # no PCIe hot plug or SR-IOV
+
+# --- Batch 2, round 14
+nooptions LINUX_BOOT_ABI # booted through UEFI, never U-Boot's booti
