@@ -24,11 +24,12 @@
 // check, which is the ownership rule "a block is released in the image that
 // allocated it" made checkable.
 //
-// Change from stx_auxlib: the value is derived from addresses (this image's
-// static data and the first caller's stack, both placed by the host's
-// address-space randomisation), not drawn from host entropy, until the
-// entropy module is ported. It is a check against mistakes, not a defence
-// against an attacker; a forged tag is out of its scope.
+// The value is drawn from host entropy, as in stx_auxlib. Change from
+// stx_auxlib: without entropy it falls back to a mix of addresses (this
+// image's static data and the first caller's stack, both placed by the
+// host's address-space randomisation) instead of the monotonic clock. It is
+// a check against mistakes, not a defence against an attacker; a forged tag
+// is out of its scope.
 //
 // A second release of an address that has since been allocated again is
 // indistinguishable from a release of the new block. Without the tags the
@@ -87,6 +88,15 @@ STXLIB_MODULAR u64 mix(const u64 value) noexcept {
 }
 
 u64 make_image_value() noexcept {
+    u64 drawn = 0;
+    Byte bytes[sizeof(drawn)]{};
+    if (host::fill_entropy(bytes, sizeof(bytes))) {
+        std::memcpy(&drawn, bytes, sizeof(drawn));
+        const u64 result = drawn | tag_low_bits;
+        return result;
+    }
+    // No host entropy: the value then only has to differ between images and
+    // from aligned addresses, which the address mix and the low bits give.
     const unsigned char stack_anchor = 0;
     const u64 image = static_cast<u64>(reinterpret_cast<std::uintptr_t>(&image_anchor));
     const u64 stack = static_cast<u64>(reinterpret_cast<std::uintptr_t>(&stack_anchor));

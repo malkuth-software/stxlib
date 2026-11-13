@@ -45,5 +45,7 @@ inline constexpr usize usize_max = static_cast<usize>(~static_cast<usize>(0));
 inline constexpr u64 u64_max = ~static_cast<u64>(0);
 inline constexpr u32 u32_max = ~static_cast<u32>(0);
 inline constexpr u16 u16_max = static_cast<u16>(~static_cast<u16>(0));
+inline constexpr i64 i64_max = 0x7fffffffffffffffLL;
+inline constexpr i64 i64_min = -i64_max - 1;
 
 } // namespace stxlib

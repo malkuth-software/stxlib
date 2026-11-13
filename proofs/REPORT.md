@@ -20,5 +20,17 @@ evidence, not proof.
 | `src/state/state.hpp`, `src/state/state.cpp` | every module's copy of STXlib reaches one thread state and one process state; a module built from another layout fails at its first access | not yet proved; tested with two modules (a shared library and an executable, each with a hidden copy of the boundary): an executable throw through a library frame, a library gate over an executable throw, one depth, one sequence. Not tested: a layout mismatch (needs two builds) | `tests/two_module_tests.cpp` |
 | `include/stxlib/identity.hpp` | an issuer never issues 0 or the same identity twice and refuses at 2^64 - 1 | not yet proved; tested at the maximum | `tests/vocabulary_tests.cpp` |
 
+## stxlib::boundary, batch 2a (the platform layer's first modules)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/console.cpp` | lines are split at "\n" and "\r\n", an over-limit line is refused and skipped whole, invalid UTF-8 is refused and consumed, a last line without an ending is returned, then the end | not yet proved; tested on one input file | `tests/console_process_tests.cpp`, `tests/console_process_check.cmake` |
+| `src/core/process.cpp` | exit tasks run newest first, a task may register another, the status is kept | not yet proved; tested | the same |
+| `src/core/environment.cpp` | concurrent sets and reads are serialized (no torn value) | not yet proved; tested with four threads, 2,000 rounds each (sampled) | `tests/platform_tests.cpp` |
+| `include/stxlib/clocks.hpp` | arithmetic saturates at the ends of the 64-bit range | proved at compile time for the cases in `static_assert`s; other values not proved | `tests/platform_tests.cpp` |
+| `src/hosted/*/entropy_*.cpp` | fills from the host generator, fails closed | tested: two draws differ (sampled) | `tests/platform_tests.cpp` |
+| `src/hosted/*/events_*.cpp`, `terminal_*.cpp` | a watch records raised signals, defers under EventDeferral, restores the earlier handling; one watch and one raw terminal per process, across modules | not yet proved; tested on POSIX (events) and without a terminal; the Windows paths are not run here | `tests/platform_tests.cpp`, `tests/two_module_tests.cpp` |
+| `src/core/spin_lock.hpp` | mutual exclusion | not yet proved; an exchange-acquire / store-release lock, the textbook argument; a model-checking harness belongs to stage B1 | none yet |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

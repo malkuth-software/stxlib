@@ -3,9 +3,11 @@
 #include "stxlib/error.hpp"
 
 #include "core/error_writer.hpp"
+#include "hosted/host.hpp"
 #include "state/state.hpp"
 
 #include "stxlib/detail/utf8.hpp"
+#include "stxlib/text.hpp"
 
 #include <cstring>
 
@@ -87,6 +89,19 @@ ErrorRecord ErrorRecord::make(const ErrorKind kind, const Operation operation) n
     const ErrorDetail none{};
     const ErrorRecord record = make(kind, operation, none);
     return record;
+}
+
+TextView exception_type_for_display(const ErrorRecord& record, const MutableView<char> output) noexcept {
+    const TextView mangled = record.exception_type();
+    if (mangled.empty() || output.count() == 0) return mangled;
+    char terminated[error_type_capacity + 1]{};
+    std::memcpy(terminated, mangled.data(), mangled.count());
+    const usize written = host::demangle_type_name(terminated, output.data(), output.count());
+    if (written == 0) return mangled;
+    Result<TextView> readable = validate_utf8(output.data(), written);
+    if (readable.failed()) return mangled;
+    const TextView result = *readable.value();
+    return result;
 }
 
 TextView error_kind_name(const ErrorKind kind) noexcept {

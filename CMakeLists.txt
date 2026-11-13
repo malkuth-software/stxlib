@@ -146,16 +146,22 @@ set_target_properties(stxlib_state PROPERTIES
 
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
+    src/core/capabilities.cpp
+    src/core/console.cpp
+    src/core/entropy.cpp
+    src/core/environment.cpp
     src/core/error.cpp
     src/core/exception_shadow.cpp
     src/core/fail_fast.cpp
     src/core/memory.cpp
+    src/core/process.cpp
     src/core/report.cpp
     src/core/require.cpp
     src/core/shadow_frames.cpp
     src/core/text.cpp
     src/core/trampoline.cpp
     src/hosted/c_library/c_library.cpp
+    src/hosted/cxx_runtime/clocks.cpp
     src/hosted/cxx_runtime/current_exception.cpp)
 
 # Interface modules per family. POSIX services shared by macOS, glibc and
@@ -163,10 +169,19 @@ set(STXLIB_BOUNDARY_SOURCES
 # differs (the stx_auxlib hosted port).
 set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/console_posix.cpp
+    src/hosted/posix/entropy_posix.cpp
+    src/hosted/posix/environment_posix.cpp
+    src/hosted/posix/events_posix.cpp
+    src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/trace_posix.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/console_windows.cpp
-    src/hosted/windows/trace_windows.cpp)
+    src/hosted/windows/entropy_windows.cpp
+    src/hosted/windows/environment_windows.cpp
+    src/hosted/windows/events_windows.cpp
+    src/hosted/windows/terminal_windows.cpp
+    src/hosted/windows/trace_windows.cpp
+    src/hosted/windows/utf16.cpp)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_WINDOWS_SOURCES})
 else()
@@ -202,6 +217,10 @@ set_target_properties(stxlib_boundary PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(stxlib_boundary PUBLIC stxlib_state Threads::Threads)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
+    # BCryptGenRandom (entropy_windows.cpp).
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt)
+endif()
+if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
     # 2.3): a shared libc++ DLL binds its own operator new and delete.
     set(_stxlib_link_flags
@@ -216,7 +235,7 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow)
+    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
@@ -256,6 +275,16 @@ if(STXLIB_TESTS)
                 "-DEXPECT=${case_expect}"
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
     endforeach()
+
+    # The console and exit tasks, seen from outside the process.
+    add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
+    target_link_libraries(stxlib_console_process_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_console_process_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_console_process_tests
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:stxlib_console_process_tests>
+            -DWORK=${CMAKE_CURRENT_BINARY_DIR}/console_process_work
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/console_process_check.cmake)
 
     # Two modules, one state (tests/two_module_tests.cpp): a shared library
     # with its own hidden copy of the boundary, and an executable with

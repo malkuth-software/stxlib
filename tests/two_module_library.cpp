@@ -46,4 +46,10 @@ stxlib::ErrorRecord library_record() {
     return result;
 }
 
+stxlib::Result<stxlib::EventWatch> library_watch_interrupts() {
+    stxlib::Result<stxlib::EventWatch> result =
+        stxlib::EventWatch::watch(stxlib::EventSet().with(stxlib::ProcessEvent::interrupt));
+    return result;
+}
+
 } // namespace two_module

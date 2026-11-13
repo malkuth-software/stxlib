@@ -1,0 +1,82 @@
+// The capability table (include/stxlib/capabilities.hpp). stx_auxlib
+// answered capability_available in each desktop backend
+// (src/hosted/desktop_<host>.cpp at b6e330a); the answers are gathered here
+// for every family, with the ones whose modules are not ported yet
+// (children, desktop, files, threads, the local time zone) reported
+// unsupported until their batches land.
+
+#include "stxlib/capabilities.hpp"
+
+namespace stxlib {
+
+bool capability_supported(const Capability capability) noexcept {
+    switch (capability) {
+    case Capability::console:
+    case Capability::environment:
+    case Capability::monotonic_clock:
+    case Capability::wall_clock:
+    case Capability::entropy:
+    case Capability::exit_tasks:
+    case Capability::raw_terminal:
+    case Capability::interrupt_events:
+        return true;
+    case Capability::resize_events:
+    case Capability::suspend_events:
+#if defined(_WIN32)
+        return false; // not console control events (events_windows.cpp)
+#else
+        return true;
+#endif
+    case Capability::child_processes:
+    case Capability::desktop_open:
+    case Capability::file_reveal:
+    case Capability::current_executable:
+    case Capability::files:
+    case Capability::threads:
+    case Capability::local_time_zone:
+        return false; // not ported yet
+    }
+    return false;
+}
+
+TextView capability_name(const Capability capability) noexcept {
+    switch (capability) {
+    case Capability::child_processes:
+        return "child_processes";
+    case Capability::desktop_open:
+        return "desktop_open";
+    case Capability::file_reveal:
+        return "file_reveal";
+    case Capability::current_executable:
+        return "current_executable";
+    case Capability::raw_terminal:
+        return "raw_terminal";
+    case Capability::interrupt_events:
+        return "interrupt_events";
+    case Capability::resize_events:
+        return "resize_events";
+    case Capability::suspend_events:
+        return "suspend_events";
+    case Capability::console:
+        return "console";
+    case Capability::environment:
+        return "environment";
+    case Capability::monotonic_clock:
+        return "monotonic_clock";
+    case Capability::wall_clock:
+        return "wall_clock";
+    case Capability::entropy:
+        return "entropy";
+    case Capability::exit_tasks:
+        return "exit_tasks";
+    case Capability::files:
+        return "files";
+    case Capability::threads:
+        return "threads";
+    case Capability::local_time_zone:
+        return "local_time_zone";
+    }
+    return "unknown";
+}
+
+} // namespace stxlib

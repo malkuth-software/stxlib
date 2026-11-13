@@ -109,6 +109,7 @@ public:
         return &state_.value;
     }
     Value* value() && = delete;
+    const Value* value() const&& = delete;
 
     // The failure's record, or null on success. Borrowed from this result.
     [[nodiscard]] const ErrorRecord* error() const& noexcept {

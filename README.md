@@ -26,4 +26,29 @@ Planned layout:
 | `tests/` | conformance, equivalence and death tests |
 | `tools/` | repository checks (`check_public_headers.py`) |
 
+## Platform layer
+
+stx_auxlib's hosted services, ported module by module from stx_auxlib
+`b6e330a` (PROVENANCE.md). Each is a `Capability` (`capabilities.hpp`);
+`capability_supported` answers per build and host, and a capability whose
+module has not landed yet is reported unsupported.
+
+| Module | Header | State |
+|---|---|---|
+| console | `console.hpp` | batch 2a |
+| environment | `environment.hpp` | batch 2a |
+| clocks | `clocks.hpp` | batch 2a (survey D12 open) |
+| entropy | `entropy.hpp` | batch 2a |
+| exit tasks | `process.hpp` | batch 2a |
+| raw terminal | `terminal.hpp` | batch 2a |
+| process events | `events.hpp` | batch 2a |
+| paths, files | | batch 2b (survey D13 open) |
+| desktop, child processes | | batch 2b |
+| threads, thread pool | | batch 2c (survey D11 open) |
+| local time zone | | batch 2c (survey D12 open) |
+
+Process-wide state of these modules (locks, the console's read-ahead, the
+exit-task table, the event watch, the raw-terminal flag) lives in
+`stxlib_state`, so a program built from several modules shares it.
+
 Licence: MIT (see `LICENSE`). FreeBSD components keep their BSD licences.

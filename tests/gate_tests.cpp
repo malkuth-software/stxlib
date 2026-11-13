@@ -179,6 +179,10 @@ void development_builds_keep_type_and_history() {
     const stxlib::ErrorRecord newer = failure_of(length);
     if (stxlib::shadowing_enabled()) {
         CHECK(!record.exception_type().empty());
+        // Demangled at print time (error.hpp, exception_type_for_display).
+        char readable[stxlib::exception_type_display_capacity];
+        CHECK(stxlib::exception_type_for_display(record, stxlib::MutableView<char>(readable)) ==
+              stxlib::TextView("std::invalid_argument"));
         CHECK(stxlib::recent_failure_count() == 2);
         stxlib::Result<stxlib::ErrorRecord> newest = stxlib::recent_failure(0);
         CHECK(newest.succeeded() && (*newest.value()).sequence() == newer.sequence());

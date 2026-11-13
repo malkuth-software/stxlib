@@ -75,7 +75,8 @@ void write_own_report(const ErrorRecord& record) noexcept {
         report::text(" ");
         report::signed_number(foreign.value());
     }
-    const TextView type = record.exception_type();
+    char readable[exception_type_display_capacity];
+    const TextView type = exception_type_for_display(record, MutableView<char>(readable));
     if (!type.empty()) {
         report::text(" type ");
         report::text(type);

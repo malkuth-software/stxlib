@@ -26,6 +26,7 @@
 #include "stxlib/require.hpp"
 #include "stxlib/text_view.hpp"
 #include "stxlib/types.hpp"
+#include "stxlib/view.hpp"
 
 namespace stxlib {
 
@@ -195,5 +196,19 @@ private:
 
 static_assert(error_message_capacity <= u16_max && error_type_capacity <= u16_max,
               "the counts are stored in 16 bits");
+
+// Room for a demangled exception type (exception_type_for_display).
+inline constexpr usize exception_type_display_capacity = 256;
+
+// The record's exception type for people: demangled into `output` when the
+// C++ runtime can ("std::invalid_argument" for "St16invalid_argument"),
+// else the mangled name; empty when the record has none. The result is
+// borrowed from `output` or from `record`, so both must outlive it.
+// Demangling happens here, at print time, never at capture, so the capture
+// path stays free of allocation. Cost: one abi::__cxa_demangle call, which
+// allocates its result with malloc (Itanium C++ ABI, section 3.4); it is
+// copied into `output` (cut to its capacity) and freed. A mangled name the
+// record cut at its capacity does not demangle and is shown as recorded.
+[[nodiscard]] TextView exception_type_for_display(const ErrorRecord& record, MutableView<char> output) noexcept;
 
 } // namespace stxlib

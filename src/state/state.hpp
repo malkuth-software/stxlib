@@ -4,7 +4,10 @@
 // stxlib_state shared library (CMakeLists.txt). Every copy of STXlib's code
 // (each shared library or executable that links stxlib::boundary
 // statically) reaches the one state through the two exported accessors
-// below, never through a thread_local or static of its own.
+// below, never through a thread_local or static of its own. Since layout 2
+// that includes the platform layer's process-wide state: the console and
+// environment locks, the console's read-ahead bytes, the exit-task table,
+// the event watch and the raw-terminal flag.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -48,7 +51,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 1;
+inline constexpr u32 layout_version = 2;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -127,6 +130,24 @@ struct ThreadState final {
     int fail_fast_depth{0};
 };
 
+// A process-wide lock (core/spin_lock.hpp takes and releases it). Plain
+// data, so it lives here; zero is unlocked.
+struct SpinLock final {
+    std::atomic<u32> held{0};
+};
+
+// One registered exit task (process.cpp).
+struct ExitTaskEntry final {
+    void (*function)(void* context){nullptr};
+    void* context{nullptr};
+};
+
+inline constexpr usize exit_task_capacity = 32;
+// Bytes kept for each signal's earlier handling while an event watch is
+// active (events_posix.cpp checks sizeof(struct sigaction) against it).
+inline constexpr usize saved_signal_action_bytes = 256;
+inline constexpr usize watched_signal_count = 5;
+
 enum class ReporterPhase : int {
     none = 0,
     installing = 1,
@@ -139,6 +160,43 @@ struct ProcessState final {
     // load of installed (fail_fast.cpp).
     std::atomic<int> reporter_phase{static_cast<int>(ReporterPhase::none)};
     FailFastReporter reporter{};
+
+    // The console (console.cpp). Output calls hold output_lock so no other
+    // call's text comes between their pieces. Input calls hold input_lock;
+    // `pending` holds bytes read past the last returned line, in a block
+    // from the host's C library (host::allocate_block), which every module
+    // shares, so a line begun in one module's call continues in another's.
+    // Never released: it lives as long as the process.
+    SpinLock console_output_lock{};
+    SpinLock console_input_lock{};
+    char* console_pending{nullptr};
+    usize console_pending_count{0};
+    usize console_pending_capacity{0};
+    bool console_input_ended{false};
+    // Windows: a high surrogate read at the end of one console read.
+    u16 console_pending_high_surrogate{0};
+
+    // The environment (environment.cpp). `environment_generation` counts
+    // successful changes, read under the same lock by code that caches
+    // what the host derived from the environment.
+    SpinLock environment_lock{};
+    u64 environment_generation{0};
+
+    // Exit tasks (process.cpp), a stack of exit_task_count entries.
+    SpinLock exit_lock{};
+    ExitTaskEntry exit_tasks[exit_task_capacity]{};
+    usize exit_task_count{0};
+    bool exit_handler_registered{false};
+
+    // Process events (events_<family>.cpp). The signal or console handler
+    // sets bits in pending_events only.
+    std::atomic<u8> pending_events{0};
+    std::atomic<u8> watched_events{0};
+    std::atomic<bool> event_watch_active{false};
+    alignas(16) unsigned char saved_signal_actions[watched_signal_count][saved_signal_action_bytes]{};
+
+    // The raw terminal (terminal_<family>.cpp): true while one is held.
+    std::atomic<bool> raw_terminal_active{false};
 };
 
 // The calling thread's state and the process's, from stxlib_state.

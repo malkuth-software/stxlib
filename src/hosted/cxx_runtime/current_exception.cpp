@@ -13,6 +13,8 @@
 #include "hosted/host.hpp"
 
 #include <cxxabi.h>
+#include <cstdlib>
+#include <cstring>
 #include <typeinfo>
 
 namespace stxlib::host {
@@ -22,6 +24,25 @@ const char* current_exception_type_name() noexcept {
     if (type == nullptr) return nullptr;
     const char* const result = (*type).name();
     return result;
+}
+
+usize demangle_type_name(const char* const mangled, char* const output, const usize capacity) noexcept {
+    if (mangled == nullptr || output == nullptr || capacity == 0) return 0;
+    int status = 0;
+    // A null buffer makes the runtime allocate the result with malloc
+    // (Itanium C++ ABI 3.4, __cxa_demangle); a caller's fixed buffer cannot
+    // be passed, since the runtime may realloc it.
+    char* const demangled = abi::__cxa_demangle(mangled, nullptr, nullptr, &status);
+    if (demangled == nullptr) return 0;
+    if (status != 0) {
+        std::free(demangled);
+        return 0;
+    }
+    const usize length = std::strlen(demangled);
+    const usize kept = length < capacity ? length : capacity;
+    std::memcpy(output, demangled, kept);
+    std::free(demangled);
+    return kept;
 }
 
 } // namespace stxlib::host

@@ -1,0 +1,20 @@
+# Advisory immutability check for STXlib's own code (owner, 2026-11-13,
+# notes decisions/2026-11-13-locals-float-mutability.md, option 1):
+# immutability is enforced by type where it is intended (read-only views by
+# default, MutableView to write); this check only reports locals and
+# parameters that are never written but not declared const. It never asks
+# for mutable code to become immutable, and it never fails a build: the
+# integrator runs it at each fold and reports what it finds.
+#
+# Third-party code joins under third_party/ with its own .clang-tidy that
+# disables every check, since it is never edited in place.
+Checks: '-*,misc-const-correctness'
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*/(include/stxlib|src|tests)/.*'
+CheckOptions:
+  - key: misc-const-correctness.AnalyzeValues
+    value: true
+  - key: misc-const-correctness.AnalyzeReferences
+    value: true
+  - key: misc-const-correctness.WarnPointersAsValues
+    value: false

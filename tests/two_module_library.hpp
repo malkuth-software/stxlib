@@ -6,6 +6,7 @@
 // STXlib's state with the executable only through stxlib_state.
 
 #include "stxlib/boundary.hpp"
+#include "stxlib/events.hpp"
 
 #if defined(_WIN32)
 #if defined(STXLIB_TEST_LIBRARY_BUILDING)
@@ -35,5 +36,9 @@ STXLIB_TEST_LIBRARY_API stxlib::usize library_shadow_depth();
 
 // An error record made by the library's copy (for the shared sequence).
 STXLIB_TEST_LIBRARY_API stxlib::ErrorRecord library_record();
+
+// An event watch made by the library's copy (one watch per process, in
+// stxlib_state).
+STXLIB_TEST_LIBRARY_API stxlib::Result<stxlib::EventWatch> library_watch_interrupts();
 
 } // namespace two_module

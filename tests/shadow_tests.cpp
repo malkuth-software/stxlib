@@ -43,7 +43,11 @@ ShownShadow show(const char* const title, const stxlib::ErrorRecord& record) {
     std::printf("\n  code: %u\n  message: ", record.code());
     print_text(record.message());
     std::printf("%s\n  type: ", record.message_truncated() ? " (truncated)" : "");
+    char readable[stxlib::exception_type_display_capacity];
+    print_text(stxlib::exception_type_for_display(record, stxlib::MutableView<char>(readable)));
+    std::printf(" (recorded as ");
     print_text(record.exception_type());
+    std::printf(")");
     std::printf("\n  sequence: %llu\n", static_cast<unsigned long long>(record.sequence()));
     ShownShadow shown{};
     stxlib::Result<stxlib::ShadowSummary> found = stxlib::read_shadow(

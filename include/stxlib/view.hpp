@@ -1,7 +1,9 @@
 #pragma once
 
 // Borrowed contiguous views: View<Element> reads, MutableView<Element>
-// reads and writes. A view owns nothing. It is valid while the storage it
+// reads and writes. Read-only is the default: writing through a view needs
+// the explicitly mutable type, so a signature that takes a View states that
+// the callee does not write (owner, 2026-11-13, immutability by type). A view owns nothing. It is valid while the storage it
 // was made from is alive and not reallocated, replaced or released (house
 // style, section 1); every function that takes or returns a view states
 // that lifetime.
@@ -32,6 +34,10 @@ public:
     // Borrows a whole array.
     template <usize Count>
     constexpr explicit View(const Element (&array)[Count]) noexcept : elements_(array), count_(Count) {}
+    // A temporary array (a braced list) would end before the view: refused
+    // (owner, 2026-11-13: no reference to a local escapes its lifetime).
+    template <usize Count>
+    View(const Element (&&array)[Count]) = delete;
 
     [[nodiscard]] constexpr usize count() const noexcept { return count_; }
     [[nodiscard]] constexpr bool empty() const noexcept { return count_ == 0; }

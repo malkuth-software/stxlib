@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
@@ -50,5 +51,14 @@ void release_block(void* const block) noexcept {
 }
 
 void end_process_abnormally() noexcept { std::abort(); }
+
+void flush_c_stream(const bool error) noexcept { static_cast<void>(std::fflush(error ? stderr : stdout)); }
+
+void exit_normally(const int status) noexcept { std::exit(status); }
+
+bool register_at_exit(void (*const handler)()) noexcept {
+    const bool result = std::atexit(handler) == 0;
+    return result;
+}
 
 } // namespace stxlib::host

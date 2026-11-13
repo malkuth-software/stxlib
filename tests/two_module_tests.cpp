@@ -11,6 +11,8 @@
 //   2. A gate in the library catches an exception thrown in the executable
 //      inside an executable frame.
 //   3. Both copies see one shadow depth and one record sequence.
+//   4. A one-per-process capability (an event watch) taken in the library
+//      is busy for the executable, and released by the executable.
 //
 // Tested, not proved (proofs/REPORT.md).
 
@@ -44,7 +46,11 @@ Shown show(const char* const title, const stxlib::ErrorRecord& record) {
     std::printf("\n  message: ");
     print_text(record.message());
     std::printf("\n  type: ");
+    char readable[stxlib::exception_type_display_capacity];
+    print_text(stxlib::exception_type_for_display(record, stxlib::MutableView<char>(readable)));
+    std::printf(" (recorded as ");
     print_text(record.exception_type());
+    std::printf(")");
     std::printf("\n  sequence: %llu\n", static_cast<unsigned long long>(record.sequence()));
     Shown shown{};
     stxlib::Result<stxlib::ShadowSummary> found = stxlib::read_shadow(
@@ -169,6 +175,21 @@ void both_copies_share_the_state() {
     CHECK(third.sequence() == second.sequence() + 1);
 }
 
+// ---- 4. one event watch per process -----------------------------------------
+
+void one_event_watch_for_both() {
+    const stxlib::EventSet interrupts = stxlib::EventSet().with(stxlib::ProcessEvent::interrupt);
+    {
+        stxlib::Result<stxlib::EventWatch> held = two_module::library_watch_interrupts();
+        CHECK(held.succeeded());
+        const stxlib::Result<stxlib::EventWatch> second = stxlib::EventWatch::watch(interrupts);
+        CHECK(second.failed() && static_cast<stxlib::HostCode>((*second.error()).code()) == stxlib::HostCode::busy);
+    }
+    // The library's watch ended in the executable's copy; the flag is free.
+    const stxlib::Result<stxlib::EventWatch> again = stxlib::EventWatch::watch(interrupts);
+    CHECK(again.succeeded());
+}
+
 } // namespace
 
 int main() {
@@ -176,6 +197,7 @@ int main() {
     an_executable_throw_is_captured_by_the_library_frame();
     a_library_gate_catches_an_executable_throw();
     both_copies_share_the_state();
+    one_event_watch_for_both();
     const int status = stxlib_tests::finish("stxlib two modules");
     return status;
 }
