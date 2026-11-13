@@ -152,6 +152,7 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::directory_not_absolute: return "directory_not_absolute";
     case ParseError::too_many_services: return "too_many_services";
     case ParseError::start_unknown_service: return "start_unknown_service";
+    case ParseError::service_control_unknown: return "service_control_unknown";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -449,6 +450,7 @@ struct ServiceDraft {
     std::optional<ServiceCommandWords> command;
     std::optional<TextRef> directory;
     std::optional<RestartPolicy> restart;
+    std::optional<ControlAccess> control;
 };
 
 // The parse's state between lines.
@@ -494,6 +496,7 @@ using LineResult = std::optional<ParseFailed>;
     }
     service.directory = draft.directory;
     service.restart = draft.restart.has_value() ? *draft.restart : RestartPolicy::on_failure;
+    service.control = draft.control.has_value() ? *draft.control : ControlAccess::none;
     service.line = draft.line;
     // Room was checked when the section began.
     builder.add_service(service);
@@ -1123,6 +1126,18 @@ private:
             draft.restart = RestartPolicy::always;
         } else {
             return refuse(line, value_begin, ParseError::service_restart_unknown);
+        }
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "control")) {
+        if (bytes_are(line, value_begin, value_end, "none")) {
+            draft.control = ControlAccess::none;
+        } else if (bytes_are(line, value_begin, value_end, "read")) {
+            draft.control = ControlAccess::read;
+        } else if (bytes_are(line, value_begin, value_end, "operate")) {
+            draft.control = ControlAccess::operate;
+        } else {
+            return refuse(line, value_begin, ParseError::service_control_unknown);
         }
         return std::nullopt;
     }

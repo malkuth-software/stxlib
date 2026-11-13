@@ -333,6 +333,9 @@ const Refusal refusals[] = {
     {"[service-web]\ncommand = /w\ncommand = /v\n", 3, 1, ParseError::setting_repeated},
     {"[service-web]\ncommand = /w\ndirectory = w\n", 3, 13, ParseError::directory_not_absolute},
     {"[service-web]\ncommand = /w\nrestart = sometimes\n", 3, 11, ParseError::service_restart_unknown},
+    {"[service-web]\ncommand = /w\ncontrol = all\n", 3, 11, ParseError::service_control_unknown},
+    {"[service-web]\ncommand = /w\ncontrol =\n", 3, 10, ParseError::service_control_unknown},
+    {"[service-web]\ncommand = /w\ncontrol = read\ncontrol = read\n", 4, 1, ParseError::setting_repeated},
     {"[service-]\n", 1, 2, ParseError::name_malformed},
     {"[service-9]\n", 1, 2, ParseError::name_malformed},
     {"[init]\nif-present file /a if-present file /b run /c\n", 2, 20, ParseError::guard_nested},
@@ -643,8 +646,31 @@ void test_exhaustive_tokens() {
 
 }  // namespace
 
+// The control setting (C2): each value, and none when it is absent.
+void test_control_access() {
+    const char* const test = "control access";
+    struct Case {
+        const char* text;
+        stxconfig::ControlAccess expected;
+    };
+    const Case cases[] = {
+        {"[service-web]\ncommand = /w\n", stxconfig::ControlAccess::none},
+        {"[service-web]\ncommand = /w\ncontrol = none\n", stxconfig::ControlAccess::none},
+        {"[service-web]\ncommand = /w\ncontrol = read\n", stxconfig::ControlAccess::read},
+        {"[service-web]\ncontrol = operate  \ncommand = /w\n", stxconfig::ControlAccess::operate},
+    };
+    for (const Case& item : cases) {
+        const ParseOutcome outcome = parse_checked(test, text_of(item.text));
+        check(outcome.is_success() && config.service_count() == 1, test, item.text);
+        if (outcome.is_success() && config.service_count() == 1) {
+            check(config.service(0).control == item.expected, test, item.text);
+        }
+    }
+}
+
 int main() {
     test_full_example();
+    test_control_access();
     test_line_ends_and_empty();
     test_failure_empties_previous();
     test_refusals();

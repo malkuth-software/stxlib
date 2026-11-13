@@ -15,15 +15,27 @@
 //   running   --exit, policy restarts-->       waiting (back-off)
 //   running   --exit, policy does not-->       stopped
 //   waiting   --tick at or after the due time-> running (or stopped, spawn failed)
-//   running   --stop_all-->                    stopping (SIGTERM sent)
-//   waiting   --stop_all-->                    stopped
+//   running   --stop_all, stop-->              stopping (SIGTERM sent)
+//   waiting   --stop_all, stop-->              stopped
 //   stopping  --exit-->                        stopped
+//   stopping  --exit, start_after-->           running (or stopped, spawn failed)
 //   stopping  --tick past the deadline-->      stopping (SIGKILL sent once)
+//   running   --restart-->                     stopping, start_after (SIGTERM sent)
+//   stopping  --restart-->                     stopping, start_after
+//   stopping  --stop, stop_all-->              stopping, not start_after
+//   waiting   --restart-->                     running (or waiting again, spawn failed)
+//   stopped   --restart-->                     running (or stopped, spawn failed)
 //
 // Any other pair: start on a running, waiting or stopping service is
 // accepted as "already running" and changes nothing; an exit for a pid no
 // service owns is reported back as not the registry's; stop_all on a
-// stopped or stopping service changes nothing.
+// stopped service changes nothing; stop on a stopped service is reported
+// as "not running" and changes nothing.
+//
+// stop and restart (C2) are the supervisor's control channel's requests
+// (control/control_server.h): a stop by request is never undone by the
+// restart policy, and a restart by request starts the service again as
+// soon as its old process has exited, with a fresh back-off account.
 //
 // Restart policy: never; on-failure (anything but a normal exit with status
 // 0); always. Back-off as stxinit's: 100 ms doubling to 10 s; the count of
@@ -109,9 +121,11 @@ public:
     ServiceActions& operator=(const ServiceActions&) = delete;
 
     // Starts arguments[0] (absolute) with that argument vector and
-    // environment (both null-terminated) in directory.
+    // environment (both null-terminated) in directory. control is the
+    // service's control access (boot_config.h): anything but none gives
+    // the new process a control channel (control/control_channels.h).
     [[nodiscard]] virtual SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
-                                             const char* directory) noexcept = 0;
+                                             const char* directory, ControlAccess control) noexcept = 0;
     virtual void signal(int pid, ServiceSignal which) noexcept = 0;
     virtual void report(const ServiceEvent& event) noexcept = 0;
 
@@ -136,6 +150,8 @@ struct ServiceStopping {
     std::uint64_t started_ms;
     std::uint64_t kill_at_ms;
     bool kill_sent;
+    // A restart by request: start again once the process has exited.
+    bool start_after;
 };
 
 class ServiceState {
@@ -144,7 +160,7 @@ public:
     [[nodiscard]] static ServiceState running(int pid, std::uint64_t started_ms) noexcept;
     [[nodiscard]] static ServiceState waiting(std::uint64_t start_at_ms) noexcept;
     [[nodiscard]] static ServiceState stopping(int pid, std::uint64_t started_ms, std::uint64_t kill_at_ms,
-                                               bool kill_sent) noexcept;
+                                               bool kill_sent, bool start_after) noexcept;
 
     [[nodiscard]] bool is_stopped() const noexcept;
     [[nodiscard]] const ServiceRunning* as_running() const noexcept;
@@ -180,6 +196,20 @@ enum class StartResult : std::uint8_t {
     spawn_failed,
 };
 
+enum class StopResult : std::uint8_t {
+    stopping,        // SIGTERM sent, or already stopping (a pending restart is cancelled)
+    stopped,         // it was waiting to restart; the restart is cancelled
+    not_running,     // already stopped; nothing changed
+    unknown_service,
+};
+
+enum class RestartResult : std::uint8_t {
+    restarting,      // SIGTERM sent (or already stopping); it starts again after its exit
+    started,         // it was stopped or waiting, and runs now
+    spawn_failed,    // it was stopped or waiting, and could not be started
+    unknown_service,
+};
+
 class ServiceRegistry {
 public:
     ServiceRegistry() noexcept;
@@ -201,6 +231,27 @@ public:
     void set_environment(const char* const* environment) noexcept;
 
     [[nodiscard]] StartResult start(const char* name, std::uint64_t now_ms, ServiceActions& actions) noexcept;
+
+    // A stop by request (C2): the service ends and stays stopped.
+    [[nodiscard]] StopResult stop(const char* name, std::uint64_t now_ms, ServiceActions& actions) noexcept;
+
+    // A restart by request (C2): stop, then start again with a fresh
+    // back-off account. restart_count counts the start that replaces a
+    // running or stopping process; a stopped or waiting service is started
+    // as by start() (a waiting one's exit was counted already).
+    [[nodiscard]] RestartResult restart(const char* name, std::uint64_t now_ms, ServiceActions& actions) noexcept;
+
+    // The index of the service of that name, or nothing.
+    [[nodiscard]] std::optional<std::size_t> find(const char* name) const noexcept;
+
+    // The index of the service whose running process is pid, or nothing (no
+    // service runs as pid; a stopping or waiting service does not count).
+    [[nodiscard]] std::optional<std::size_t> find_running_pid(int pid) const noexcept;
+
+    // The definition an entry was loaded from (index below service_count).
+    [[nodiscard]] const ServiceDefinition& definition(std::size_t index) const noexcept;
+    // The service's name, borrowed from the configuration (NUL-terminated).
+    [[nodiscard]] const char* service_name(std::size_t index) const noexcept;
 
     // A child exited. False when no service owns pid (the caller's own
     // child, or an orphan the supervisor reaped).
@@ -227,6 +278,8 @@ private:
     };
 
     void spawn_entry(Entry& item, std::uint64_t now_ms, ServiceActions& actions) noexcept;
+    // SIGTERM to a running entry; it becomes stopping with start_after.
+    void terminate_entry(Entry& item, std::uint64_t now_ms, bool start_after, ServiceActions& actions) noexcept;
     [[nodiscard]] ServiceEvent event_for(const Entry& item, ServiceEventKind kind) const noexcept;
 
     const BootConfig* config_;

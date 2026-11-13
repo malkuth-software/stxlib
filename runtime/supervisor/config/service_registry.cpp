@@ -58,12 +58,13 @@ ServiceState ServiceState::waiting(std::uint64_t start_at_ms) noexcept {
 }
 
 ServiceState ServiceState::stopping(int pid, std::uint64_t started_ms, std::uint64_t kill_at_ms,
-                                    bool kill_sent) noexcept {
+                                    bool kill_sent, bool start_after) noexcept {
     ServiceStopping stopping{};
     stopping.pid = pid;
     stopping.started_ms = started_ms;
     stopping.kill_at_ms = kill_at_ms;
     stopping.kill_sent = kill_sent;
+    stopping.start_after = start_after;
     const ServiceState state(Alternatives(std::in_place_type<ServiceStopping>, stopping));
     return state;
 }
@@ -143,6 +144,17 @@ void account_exit(RestartAccount& account, std::uint64_t ran_ms) noexcept {
 }
 
 const char* const empty_environment[] = {nullptr};
+
+// A stopping state keeps its process and deadlines; only start_after
+// changes. Any other state is left alone.
+void set_start_after(ServiceState& state, bool start_after) noexcept {
+    const ServiceStopping* const stopping = state.as_stopping();
+    if (stopping == nullptr) {
+        return;
+    }
+    const ServiceStopping kept = *stopping;
+    state = ServiceState::stopping(kept.pid, kept.started_ms, kept.kill_at_ms, kept.kill_sent, start_after);
+}
 
 }  // namespace
 
@@ -225,7 +237,7 @@ void ServiceRegistry::spawn_entry(Entry& item, std::uint64_t now_ms, ServiceActi
     arguments[definition.argument_count] = nullptr;
     const char* const directory = definition.directory.has_value() ? (*config_).text(*definition.directory) : "/";
     const bool is_restart = item.state.as_waiting() != nullptr;
-    const SpawnOutcome outcome = actions.spawn(arguments, environment_, directory);
+    const SpawnOutcome outcome = actions.spawn(arguments, environment_, directory, definition.control);
     const Spawned* const spawned = outcome.as_spawned();
     if (spawned != nullptr) {
         item.state = ServiceState::running((*spawned).pid, now_ms);
@@ -297,12 +309,25 @@ bool ServiceRegistry::child_exited(int pid, int wait_status, std::uint64_t now_m
         }
         if (stopping != nullptr && (*stopping).pid == pid) {
             const std::uint64_t ran_ms = now_ms >= (*stopping).started_ms ? now_ms - (*stopping).started_ms : 0;
+            const bool start_after = (*stopping).start_after;
             ServiceEvent event = event_for(candidate, ServiceEventKind::exited);
             event.pid = pid;
             event.wait_status = wait_status;
             event.ran_ms = ran_ms;
+            if (start_after) {
+                event.next_in_ms = 0;
+            }
             candidate.state = ServiceState::stopped();
             actions.report(event);
+            if (start_after) {
+                // A restart by request: a fresh account, started now. From
+                // stopped, a failed spawn leaves it stopped.
+                candidate.account.quick_exits_in_row = 0;
+                if (candidate.account.restart_count < UINT64_MAX) {
+                    candidate.account.restart_count += 1;
+                }
+                spawn_entry(candidate, now_ms, actions);
+            }
             return true;
         }
     }
@@ -321,7 +346,8 @@ void ServiceRegistry::tick(std::uint64_t now_ms, ServiceActions& actions) noexce
         if (stopping != nullptr && !(*stopping).kill_sent && now_ms >= (*stopping).kill_at_ms) {
             const int pid = (*stopping).pid;
             actions.signal(pid, ServiceSignal::kill);
-            candidate.state = ServiceState::stopping(pid, (*stopping).started_ms, (*stopping).kill_at_ms, true);
+            candidate.state = ServiceState::stopping(pid, (*stopping).started_ms, (*stopping).kill_at_ms, true,
+                                                     (*stopping).start_after);
             ServiceEvent event = event_for(candidate, ServiceEventKind::killed);
             event.pid = pid;
             actions.report(event);
@@ -349,6 +375,23 @@ std::optional<std::uint64_t> ServiceRegistry::next_due_ms() const noexcept {
     return earliest;
 }
 
+void ServiceRegistry::terminate_entry(Entry& item, std::uint64_t now_ms, bool start_after,
+                                      ServiceActions& actions) noexcept {
+    const ServiceRunning* const running = item.state.as_running();
+    // Callers pass running entries only.
+    assert(running != nullptr);
+    if (running == nullptr) {
+        return;
+    }
+    const int pid = (*running).pid;
+    const std::uint64_t started_ms = (*running).started_ms;
+    actions.signal(pid, ServiceSignal::terminate);
+    item.state = ServiceState::stopping(pid, started_ms, now_ms + service_stop_grace_ms, false, start_after);
+    ServiceEvent event = event_for(item, ServiceEventKind::stopping);
+    event.pid = pid;
+    actions.report(event);
+}
+
 void ServiceRegistry::stop_all(std::uint64_t now_ms, ServiceActions& actions) noexcept {
     for (std::size_t index = 0; index < entry_count_; index += 1) {
         Entry& candidate = entry(index);
@@ -356,18 +399,95 @@ void ServiceRegistry::stop_all(std::uint64_t now_ms, ServiceActions& actions) no
             candidate.state = ServiceState::stopped();
             continue;
         }
-        const ServiceRunning* const running = candidate.state.as_running();
-        if (running != nullptr) {
-            const int pid = (*running).pid;
-            const std::uint64_t started_ms = (*running).started_ms;
-            actions.signal(pid, ServiceSignal::terminate);
-            candidate.state = ServiceState::stopping(pid, started_ms, now_ms + service_stop_grace_ms, false);
-            ServiceEvent event = event_for(candidate, ServiceEventKind::stopping);
-            event.pid = pid;
-            actions.report(event);
+        if (candidate.state.as_running() != nullptr) {
+            terminate_entry(candidate, now_ms, false, actions);
+            continue;
         }
-        // Stopped or already stopping: nothing to do.
+        if (candidate.state.as_stopping() != nullptr) {
+            // Already stopping: a pending restart is cancelled.
+            set_start_after(candidate.state, false);
+        }
+        // Stopped: nothing to do.
     }
+}
+
+StopResult ServiceRegistry::stop(const char* name, std::uint64_t now_ms, ServiceActions& actions) noexcept {
+    const std::optional<std::size_t> index = find(name);
+    if (!index.has_value()) {
+        return StopResult::unknown_service;
+    }
+    Entry& item = entry(*index);
+    if (item.state.as_running() != nullptr) {
+        terminate_entry(item, now_ms, false, actions);
+        return StopResult::stopping;
+    }
+    if (item.state.as_waiting() != nullptr) {
+        item.state = ServiceState::stopped();
+        return StopResult::stopped;
+    }
+    if (item.state.as_stopping() != nullptr) {
+        set_start_after(item.state, false);
+        return StopResult::stopping;
+    }
+    return StopResult::not_running;
+}
+
+RestartResult ServiceRegistry::restart(const char* name, std::uint64_t now_ms, ServiceActions& actions) noexcept {
+    const std::optional<std::size_t> index = find(name);
+    if (!index.has_value()) {
+        return RestartResult::unknown_service;
+    }
+    Entry& item = entry(*index);
+    if (item.state.as_running() != nullptr) {
+        terminate_entry(item, now_ms, true, actions);
+        return RestartResult::restarting;
+    }
+    if (item.state.as_stopping() != nullptr) {
+        set_start_after(item.state, true);
+        return RestartResult::restarting;
+    }
+    // Stopped or waiting: start now, with a fresh account. restart_count
+    // is unchanged: a waiting entry's exit counted it already, and from
+    // stopped this is a start like start(). From waiting, spawn_entry
+    // treats a failure as a failed restart (waiting again, by the policy);
+    // from stopped, as a failed start (stopped).
+    item.account.quick_exits_in_row = 0;
+    spawn_entry(item, now_ms, actions);
+    return item.state.as_running() != nullptr ? RestartResult::started : RestartResult::spawn_failed;
+}
+
+std::optional<std::size_t> ServiceRegistry::find(const char* name) const noexcept {
+    if (config_ == nullptr) {
+        return std::nullopt;
+    }
+    for (std::size_t index = 0; index < entry_count_; index += 1) {
+        const ServiceDefinition& candidate = (*config_).service(entry(index).definition_index);
+        if (c_strings_equal((*config_).text(candidate.name), name)) {
+            const std::optional<std::size_t> found = index;
+            return found;
+        }
+    }
+    return std::nullopt;
+}
+
+std::optional<std::size_t> ServiceRegistry::find_running_pid(int pid) const noexcept {
+    for (std::size_t index = 0; index < entry_count_; index += 1) {
+        const ServiceRunning* const running = entry(index).state.as_running();
+        if (running != nullptr && (*running).pid == pid) {
+            const std::optional<std::size_t> found = index;
+            return found;
+        }
+    }
+    return std::nullopt;
+}
+
+const ServiceDefinition& ServiceRegistry::definition(std::size_t index) const noexcept {
+    // Entries exist only after load, so config_ is set.
+    return (*config_).service(entry(index).definition_index);
+}
+
+const char* ServiceRegistry::service_name(std::size_t index) const noexcept {
+    return (*config_).text(definition(index).name);
 }
 
 bool ServiceRegistry::all_stopped() const noexcept {

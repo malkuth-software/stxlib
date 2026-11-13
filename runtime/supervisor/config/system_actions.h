@@ -102,10 +102,37 @@ private:
     std::uint64_t step_started_ms_;
 };
 
+// Control channels for services whose definition grants control (C2;
+// ../control_channels.h implements this). SystemServiceActions asks for a
+// channel before it forks and says after the fork whose it is.
+class ChannelGrants {
+public:
+    ChannelGrants() noexcept = default;
+    ChannelGrants(const ChannelGrants&) = delete;
+    ChannelGrants& operator=(const ChannelGrants&) = delete;
+
+    // A new channel: the descriptor the child is to get as its descriptor
+    // control_child_descriptor, or -1 when none can be made (the service
+    // then runs without a channel). Close-on-exec in the supervisor.
+    [[nodiscard]] virtual int prepare_channel() noexcept = 0;
+    // After the fork: the prepared channel belongs to pid.
+    virtual void channel_started(int pid) noexcept = 0;
+    // The fork failed: the prepared channel is closed.
+    virtual void channel_abandoned() noexcept = 0;
+
+protected:
+    ~ChannelGrants() = default;
+};
+
+// The descriptor a service finds its control channel on.
+constexpr int control_child_descriptor = 3;
+
 // Services on FreeBSD. spawn forks; the child starts a new session (so the
 // console's job-control signals do not reach it), clears its signal mask,
-// changes to the service's directory and executes the program. Console
-// lines, one per event:
+// changes to the service's directory and executes the program. A service
+// whose control access is not none gets its control channel as descriptor
+// 3 (control_child_descriptor), or, when no channel could be made, has
+// descriptor 3 closed. Console lines, one per event:
 //
 //   STXSUPERVISOR service <name> started pid=<n> restart_count=<n>
 //   STXSUPERVISOR service <name> spawn-failed errno=<n>[ next_in_ms=<n>]
@@ -117,12 +144,17 @@ public:
     explicit SystemServiceActions(int console) noexcept;
 
     [[nodiscard]] SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
-                                     const char* directory) noexcept override;
+                                     const char* directory, ControlAccess control) noexcept override;
     void signal(int pid, ServiceSignal which) noexcept override;
     void report(const ServiceEvent& event) noexcept override;
 
+    // Where channels come from; borrowed, must outlive these actions or be
+    // reset to null first. Until set, no service gets a channel.
+    void set_channel_grants(ChannelGrants* grants) noexcept;
+
 private:
     int console_;
+    ChannelGrants* grants_;
 };
 
 // CLOCK_MONOTONIC in milliseconds; 0 if the clock cannot be read.

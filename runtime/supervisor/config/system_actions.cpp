@@ -384,17 +384,39 @@ StepOutcome SystemActions::run_program(const char* const* arguments, const char*
 // ---------------------------------------------------------------------------
 // SystemServiceActions.
 
-SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console) {}
+SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console), grants_(nullptr) {}
+
+void SystemServiceActions::set_channel_grants(ChannelGrants* grants) noexcept {
+    grants_ = grants;
+}
 
 namespace {
 
-// In the child between fork and execve: only async-signal-safe calls.
+// In the child between fork and execve: only async-signal-safe calls
+// (setsid, sigprocmask, fcntl, dup2, close, chdir, execve, _exit).
+// channel: the control channel to place as descriptor 3, or -1; with -1
+// and close_control, descriptor 3 is closed so that the service cannot
+// mistake an inherited descriptor for a channel.
 [[noreturn]] void become_service(const char* const* arguments, const char* const* environment,
-                                 const char* directory) noexcept {
+                                 const char* directory, int channel, bool close_control) noexcept {
     (void)setsid();
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    if (channel == control_child_descriptor) {
+        // Already in place: only its close-on-exec flag must go.
+        if (fcntl(channel, F_SETFD, 0) != 0) {
+            _exit(125);
+        }
+    } else if (channel >= 0) {
+        // dup2 clears close-on-exec on the new descriptor; the original
+        // keeps it and closes at execve.
+        if (dup2(channel, control_child_descriptor) != control_child_descriptor) {
+            _exit(125);
+        }
+    } else if (close_control) {
+        (void)close(control_child_descriptor);
+    }
     if (chdir(directory) != 0) {
         _exit(126);
     }
@@ -405,7 +427,7 @@ namespace {
 }  // namespace
 
 SpawnOutcome SystemServiceActions::spawn(const char* const* arguments, const char* const* environment,
-                                         const char* directory) noexcept {
+                                         const char* directory, ControlAccess control) noexcept {
     // Checked before forking, so the common failures carry their errno
     // rather than exit status 126 (directory) or 127 (program).
     if (access(arguments[0], X_OK) != 0) {
@@ -418,12 +440,24 @@ SpawnOutcome SystemServiceActions::spawn(const char* const* arguments, const cha
     if (!S_ISDIR(status.st_mode)) {
         return SpawnOutcome::spawn_failed(ENOTDIR);
     }
+    const bool wants_channel = control != ControlAccess::none;
+    int channel = -1;
+    if (wants_channel && grants_ != nullptr) {
+        channel = (*grants_).prepare_channel();
+    }
     const pid_t child = fork();
     if (child < 0) {
-        return SpawnOutcome::spawn_failed(errno);
+        const int error_number = errno;
+        if (channel >= 0) {
+            (*grants_).channel_abandoned();
+        }
+        return SpawnOutcome::spawn_failed(error_number);
     }
     if (child == 0) {
-        become_service(arguments, environment, directory);
+        become_service(arguments, environment, directory, channel, wants_channel);
+    }
+    if (channel >= 0) {
+        (*grants_).channel_started(static_cast<int>(child));
     }
     return SpawnOutcome::spawned(static_cast<int>(child));
 }

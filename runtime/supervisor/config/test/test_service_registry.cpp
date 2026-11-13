@@ -33,15 +33,20 @@ class FakeServiceActions final : public stxconfig::ServiceActions {
 public:
     FakeServiceActions() noexcept
         : next_pid_(100), fail_spawns_(false), spawns_(0), last_pid_(0), last_directory_{}, last_environment_first_{},
-          signals_(0), last_signal_pid_(0), last_signal_(ServiceSignal::terminate), events_{}, event_count_(0) {}
+          signals_(0), last_signal_pid_(0), last_signal_(ServiceSignal::terminate), events_{}, event_count_(0),
+          last_control_(stxconfig::ControlAccess::none) {}
 
     void set_fail_spawns(bool fail) noexcept {
         fail_spawns_ = fail;
     }
+    [[nodiscard]] bool fail_spawns() const noexcept {
+        return fail_spawns_;
+    }
 
     [[nodiscard]] SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
-                                     const char* directory) noexcept override {
+                                     const char* directory, stxconfig::ControlAccess control) noexcept override {
         (void)arguments;
+        last_control_ = control;
         copy(last_directory_, directory);
         copy(last_environment_first_, environment[0] != nullptr ? environment[0] : "");
         if (fail_spawns_) {
@@ -94,6 +99,9 @@ public:
     [[nodiscard]] const ServiceEvent& last_event() const noexcept {
         return event(event_count_ - 1u);
     }
+    [[nodiscard]] stxconfig::ControlAccess last_control() const noexcept {
+        return last_control_;
+    }
 
 private:
     static void copy(char (&destination)[64], const char* source) noexcept {
@@ -111,6 +119,7 @@ private:
     ServiceSignal last_signal_;
     ServiceEvent events_[events_max];
     std::size_t event_count_;
+    stxconfig::ControlAccess last_control_;
 };
 
 BootConfig config;
@@ -120,6 +129,7 @@ const char* const configuration =
     "command = /bin/web --port 1\n"
     "directory = /srv/web\n"
     "restart = on-failure\n"
+    "control = operate\n"
     "[service-always]\n"
     "command = /bin/always\n"
     "restart = always\n"
@@ -240,6 +250,83 @@ void test_stop_all() {
           test, "exit while stopping: stopped, no restart");
 }
 
+// stop and restart by request (C2).
+void test_stop_and_restart() {
+    const char* const test = "stop and restart";
+    ServiceRegistry registry;
+    FakeServiceActions actions;
+    check(load(registry), test, "loaded");
+    check(registry.stop("absent", 0, actions) == stxconfig::StopResult::unknown_service &&
+              registry.restart("absent", 0, actions) == stxconfig::RestartResult::unknown_service,
+          test, "unknown service");
+    check(registry.stop("web", 0, actions) == stxconfig::StopResult::not_running && actions.signals() == 0, test,
+          "stop of a stopped service changes nothing");
+    check(registry.restart("web", 10, actions) == stxconfig::RestartResult::started &&
+              registry.state(0).as_running() != nullptr && registry.account(0).restart_count == 0,
+          test, "restart of a stopped service starts it, uncounted");
+    check(actions.last_control() == stxconfig::ControlAccess::operate, test, "control access passed to spawn");
+    check(registry.find("web").has_value() && *registry.find("web") == 0 && !registry.find("absent").has_value(), test,
+          "find");
+    const int first_pid = actions.last_pid();
+    check(registry.find_running_pid(first_pid).has_value() && !registry.find_running_pid(4242).has_value(), test,
+          "find_running_pid");
+    check(registry.restart("web", 20, actions) == stxconfig::RestartResult::restarting && actions.signals() == 1 &&
+              actions.last_signal() == ServiceSignal::terminate && actions.last_signal_pid() == first_pid,
+          test, "restart of a running service sends SIGTERM");
+    const stxconfig::ServiceStopping* const stopping = registry.state(0).as_stopping();
+    check(stopping != nullptr && (*stopping).start_after && !registry.find_running_pid(first_pid).has_value(), test,
+          "stopping with start_after; no longer running");
+    check(registry.child_exited(first_pid, exit_status_0, 30, actions), test, "exit owned");
+    check(registry.state(0).as_running() != nullptr && actions.last_pid() == first_pid + 1 &&
+              registry.account(0).restart_count == 1 && registry.account(0).quick_exits_in_row == 0,
+          test, "started again after the exit, counted, fresh account");
+    check(actions.event_count() >= 2 && actions.event(actions.event_count() - 2u).kind == ServiceEventKind::exited &&
+              actions.last_event().kind == ServiceEventKind::started,
+          test, "exited then started");
+    const int second_pid = actions.last_pid();
+    check(registry.restart("web", 40, actions) == stxconfig::RestartResult::restarting, test, "restart again");
+    check(registry.stop("web", 41, actions) == stxconfig::StopResult::stopping && actions.signals() == 2, test,
+          "stop while stopping: no second signal");
+    check(registry.state(0).as_stopping() != nullptr && !(*registry.state(0).as_stopping()).start_after, test,
+          "stop cancels the pending restart");
+    check(registry.child_exited(second_pid, exit_status_0, 50, actions) && registry.state(0).is_stopped() &&
+              actions.spawns() == 2,
+          test, "exit after stop: stopped, no spawn");
+    // A failing service waiting for its back-off: stop cancels the restart.
+    check(registry.start("always", 60, actions) == StartResult::started, test, "always started");
+    check(registry.child_exited(actions.last_pid(), exit_status_1, 61, actions) &&
+              registry.state(1).as_waiting() != nullptr,
+          test, "always waits");
+    check(registry.stop("always", 62, actions) == stxconfig::StopResult::stopped && registry.state(1).is_stopped(),
+          test, "stop of a waiting service: stopped");
+    registry.tick(100000, actions);
+    check(registry.state(1).is_stopped(), test, "and stays stopped");
+    // Waiting, then restart: started at once, the count unchanged.
+    check(registry.start("always", 70, actions) == StartResult::started, test, "always again");
+    check(registry.child_exited(actions.last_pid(), exit_status_1, 71, actions), test, "waits again");
+    const std::uint64_t counted = registry.account(1).restart_count;
+    check(registry.restart("always", 72, actions) == stxconfig::RestartResult::started &&
+              registry.state(1).as_running() != nullptr && registry.account(1).restart_count == counted,
+          test, "restart of a waiting service: started now, not counted twice");
+    // stop_all cancels a pending restart too.
+    const int always_pid = actions.last_pid();
+    check(registry.restart("always", 80, actions) == stxconfig::RestartResult::restarting, test, "restart pending");
+    registry.stop_all(81, actions);
+    check(registry.child_exited(always_pid, exit_status_0, 82, actions) && registry.state(1).is_stopped(), test,
+          "stop_all cancels it");
+    // A failed spawn after the exit leaves the service stopped.
+    check(registry.start("web", 90, actions) == StartResult::started, test, "web again");
+    const int third_pid = actions.last_pid();
+    check(registry.restart("web", 91, actions) == stxconfig::RestartResult::restarting, test, "restart pending");
+    actions.set_fail_spawns(true);
+    check(registry.child_exited(third_pid, exit_status_0, 92, actions) && registry.state(0).is_stopped() &&
+              actions.last_event().kind == ServiceEventKind::spawn_failed,
+          test, "failed start after the exit: stopped");
+    check(registry.restart("web", 93, actions) == stxconfig::RestartResult::spawn_failed &&
+              registry.state(0).is_stopped(),
+          test, "restart of a stopped service that cannot spawn");
+}
+
 void test_spawn_failures() {
     const char* const test = "spawn failure";
     ServiceRegistry registry;
@@ -271,8 +358,10 @@ enum class Event : std::uint8_t {
     tick_later,
     stop_all,
     toggle_spawn_failure,
+    stop,
+    restart,
 };
-constexpr std::size_t event_kinds = 6;
+constexpr std::size_t event_kinds = 8;
 
 [[nodiscard]] bool advance(std::size_t* digits, std::size_t length, std::size_t base) {
     for (std::size_t position = 0; position < length; position += 1) {
@@ -288,7 +377,10 @@ constexpr std::size_t event_kinds = 6;
 // Drives service index `service` (name `name`) through one sequence.
 // Invariants after each event:
 // - a running or stopping service's pid is the last pid spawned for it;
-// - after stop_all, no spawn happens until the next start;
+// - after stop_all or stop, no spawn happens until the next start or
+//   restart;
+// - an own exit while stopping with start_after, spawns succeeding, leaves
+//   the service running;
 // - next_due_ms is present exactly when the service waits or is stopping
 //   without its SIGKILL sent, and equals that due time;
 // - all_stopped holds exactly when the service is stopped;
@@ -305,6 +397,8 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
     for (std::size_t position = 0; position < length; position += 1) {
         const Event event = static_cast<Event>(digits[position]);
         const std::size_t signals_before = actions.signals();
+        const stxconfig::ServiceStopping* const stopping_before = registry.state(service).as_stopping();
+        const bool restart_due = stopping_before != nullptr && (*stopping_before).start_after;
         now += 1;
         switch (event) {
         case Event::start: {
@@ -338,8 +432,25 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
         case Event::toggle_spawn_failure:
             actions.set_fail_spawns(actions.spawns() % 2u == 0u);
             break;
+        case Event::stop: {
+            const stxconfig::StopResult result = registry.stop(name, now, actions);
+            (void)result;
+            stopped_by_request = true;
+            spawns_at_stop = actions.spawns();
+            break;
+        }
+        case Event::restart: {
+            const stxconfig::RestartResult result = registry.restart(name, now, actions);
+            (void)result;
+            stopped_by_request = false;
+            break;
+        }
         default:
             break;
+        }
+        if ((event == Event::exit_clean || event == Event::exit_failed) && restart_due && !actions.fail_spawns()) {
+            check(registry.state(service).as_running() != nullptr, "exhaustive registry",
+                  "restart by request runs after the exit");
         }
         const stxconfig::ServiceState& state = registry.state(service);
         if (state.as_running() != nullptr || state.as_stopping() != nullptr) {
@@ -402,6 +513,7 @@ int main() {
     test_backoff_sequence();
     test_policies();
     test_stop_all();
+    test_stop_and_restart();
     test_spawn_failures();
     test_exhaustive();
     return stxtest::finish("test_service_registry");

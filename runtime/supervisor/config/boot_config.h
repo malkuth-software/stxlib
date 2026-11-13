@@ -47,6 +47,10 @@
 //   directory = /user/services/web                 optional, absolute; "/"
 //   restart = on-failure                           optional: never,
 //                                                  on-failure (default), always
+//   control = operate                              optional: none (default),
+//                                                  read, operate: the
+//                                                  supervisor's control
+//                                                  channel (C2, control/)
 //
 // Any other setting in a service section is refused, and every start in the
 // init section must name a service the file defines.
@@ -219,6 +223,16 @@ enum class RestartPolicy : std::uint8_t {
     always,
 };
 
+// What a service may ask of the supervisor through its control channel
+// (control/control_protocol.h). none: the service gets no channel. read:
+// the supervisor's state, the services, the slots and the boot log.
+// operate: read, and start, stop and restart services.
+enum class ControlAccess : std::uint8_t {
+    none,
+    read,
+    operate,
+};
+
 struct ServiceDefinition {
     // The name after the section prefix ("web" for [service-web]).
     TextRef name;
@@ -229,6 +243,7 @@ struct ServiceDefinition {
     // Absent: the service runs in "/".
     std::optional<TextRef> directory;
     RestartPolicy restart;
+    ControlAccess control;
     // The section header's line.
     std::uint32_t line;
 };
@@ -332,6 +347,7 @@ enum class ParseError : std::uint8_t {
     directory_not_absolute,
     too_many_services,
     start_unknown_service,
+    service_control_unknown,
 };
 
 // The error's name as printed on the console ("line_too_long", ...).
