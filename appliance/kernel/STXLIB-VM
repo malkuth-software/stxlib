@@ -299,3 +299,6 @@ nodevice vlan,tuntap,gif,md,netmap,uinput,firmware # pseudo devices nothing on t
 
 # --- Batch 2, round 11
 nooptions NUMA # one memory node on every reference machine
+
+# --- Batch 2, round 12
+nodevice cpufreq # no frequency control on QEMU virt
