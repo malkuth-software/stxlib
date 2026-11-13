@@ -258,6 +258,7 @@ if(STXLIB_TESTS)
         "reporter|consumer reporter: 17"
         "double_release|stxlib::memory::release: the block is not from memory::allocate"
         "foreign_release|stxlib::memory::release: the block is not from memory::allocate"
+        "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
         "view_index|stxlib: requirement failed: View: index out of range"
         "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
         "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\].stxlib: trace: 0x"
