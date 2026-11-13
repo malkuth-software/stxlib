@@ -180,7 +180,7 @@ void both_copies_share_the_state() {
 void one_event_watch_for_both() {
     const stxlib::EventSet interrupts = stxlib::EventSet().with(stxlib::ProcessEvent::interrupt);
     {
-        stxlib::Result<stxlib::EventWatch> held = two_module::library_watch_interrupts();
+        const stxlib::Result<stxlib::EventWatch> held = two_module::library_watch_interrupts();
         CHECK(held.succeeded());
         const stxlib::Result<stxlib::EventWatch> second = stxlib::EventWatch::watch(interrupts);
         CHECK(second.failed() && static_cast<stxlib::HostCode>((*second.error()).code()) == stxlib::HostCode::busy);

@@ -148,7 +148,7 @@ void standard_exceptions_are_classified() {
     CHECK(integer_record.message().empty());
 
     ThrowsOutOfRange out_of_range;
-    stxlib::Result<int> range = stxlib::call_gate("stxlib.tests.gate", out_of_range);
+    const stxlib::Result<int> range = stxlib::call_gate("stxlib.tests.gate", out_of_range);
     CHECK(range.failed() && (*range.error()).kind() == stxlib::ErrorKind::out_of_range);
 }
 

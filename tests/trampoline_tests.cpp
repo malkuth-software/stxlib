@@ -40,9 +40,9 @@ stxlib::TrampolineHandle attach_or_fail(CounterTrampolines& table, Counter& coun
 }
 
 void capacities_are_checked() {
-    stxlib::Result<stxlib::TrampolineTable> empty = stxlib::TrampolineTable::create(0);
+    const stxlib::Result<stxlib::TrampolineTable> empty = stxlib::TrampolineTable::create(0);
     CHECK(empty.failed() && (*empty.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    stxlib::Result<stxlib::TrampolineTable> too_big =
+    const stxlib::Result<stxlib::TrampolineTable> too_big =
         stxlib::TrampolineTable::create(stxlib::trampoline_capacity_limit + 1);
     CHECK(too_big.failed());
     stxlib::Result<stxlib::TrampolineTable> largest = stxlib::TrampolineTable::create(stxlib::trampoline_capacity_limit);
@@ -62,7 +62,7 @@ void invoke_revoke_and_reissue() {
     CHECK(first.total == 5);
 
     Counter second;
-    stxlib::Result<stxlib::TrampolineHandle> full = table.attach(second);
+    const stxlib::Result<stxlib::TrampolineHandle> full = table.attach(second);
     CHECK(full.failed() && (*full.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 
     stxlib::Result<stxlib::Revocation> revoked = table.revoke(handle);
@@ -70,7 +70,7 @@ void invoke_revoke_and_reissue() {
     const stxlib::Status after = table.invoke(handle, amount);
     CHECK(after.failed());
     CHECK(first.total == 5);
-    stxlib::Result<stxlib::Revocation> again = table.revoke(handle);
+    const stxlib::Result<stxlib::Revocation> again = table.revoke(handle);
     CHECK(again.failed() && (*again.error()).kind() == stxlib::ErrorKind::stale_identity);
 
     const stxlib::TrampolineHandle reissued = attach_or_fail(table, second);
