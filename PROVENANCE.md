@@ -377,6 +377,27 @@ In `tests/math_tests.cpp`:
 - `flush_rule()` and `public_special_values()` are new. They check the
   public functions against the unflushed ones bit for bit.
 
+### Batch 3c9: no subnormals in text and random (STXlib's own change)
+
+Owner decision D1 = 1 (2026-11-13, notes
+`decisions/2026-11-13-locals-float-mutability.md`). Nothing is ported in
+this batch.
+- `src/core/subnormal.hpp` (new) holds the flush on the bits.
+  `src/algorithms/math/flush.cpp` (batch 3c8) now uses it; its behaviour
+  is unchanged.
+- In `src/algorithms/numeric_text.cpp`:
+  - parsing returns zero of the text's sign for every real below the
+    smallest normal;
+  - hosts that report underflow as out_of_range are recognised from the
+    text's magnitude (`below_one`), so out_of_range now means overflow
+    only, whereas stx_auxlib reported underflow below the subnormal range
+    as out_of_range;
+  - formatting reads a subnormal as zero of its sign.
+- In `src/algorithms/random.cpp`, `scale_into` flushes its bounds and its
+  result.
+- The contracts in `numeric_text.hpp` and `random.hpp` state the rule. The
+  tests change with it.
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

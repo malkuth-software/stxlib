@@ -171,7 +171,9 @@ private:
 [[nodiscard]] Formatted format_signed(MutableView<char> output, i64 value, const IntegerFormat& format = {}) noexcept;
 [[nodiscard]] Formatted format_unsigned(MutableView<char> output, u64 value, const IntegerFormat& format = {}) noexcept;
 [[nodiscard]] Formatted format_real(MutableView<char> output, double value, const RealFormat& format = {}) noexcept;
-// Shortest form here is the shortest that round-trips as a float.
+// Shortest form here is the shortest that round-trips as a float. Both read
+// a subnormal value as zero of its sign ("0" or "-0" in shortest form;
+// STXlib's subnormal rule, batch 3c9).
 [[nodiscard]] Formatted format_real(MutableView<char> output, float value, const RealFormat& format = {}) noexcept;
 // Pads `value` to the field. Requirement: `value` does not overlap `output`.
 // Needs value.count() plus at most maximum_width bytes.
@@ -376,7 +378,10 @@ private:
 // digits of the base, with no prefix ("0x" is not accepted). Reals: an
 // optional sign, decimal digits with an optional point and exponent, or
 // "inf", "infinity" or "nan" in any case; hexadecimal floats are not
-// accepted.
+// accepted. A real whose value is below the type's smallest normal in
+// magnitude (after rounding) parses as zero of its sign, on every host;
+// out_of_range is for overflow only (STXlib's subnormal rule, batch 3c9;
+// stx_auxlib reported underflow below the subnormal range as out_of_range).
 [[nodiscard]] Parsed<i64> parse_signed(TextView text, Base base = Base::decimal) noexcept;
 [[nodiscard]] Parsed<u64> parse_unsigned(TextView text, Base base = Base::decimal) noexcept;
 [[nodiscard]] Parsed<double> parse_double(TextView text) noexcept;

@@ -133,6 +133,14 @@ evidence, not proof.
 | `src/algorithms/math/` (exp, pow and hypot double, subnormal results; log double, subnormal arguments) | the flush is exact: +0 wherever the correctly rounded result is at least one subnormal ulp below 2^-1022 (+0 or 2^-1022 within that ulp); -infinity for subnormal log arguments of either sign | **not yet run;** sampled, not proved, at 20 million inputs per region in `--exhaustive`. This replaces the ulp measurement there, so the 6 of 20 million pow results one ulp off on the subnormal grid (stx_auxlib b6e330a's kernel, found by sbi) are no longer within the contract | `tests/math_tests.cpp` |
 | `src/algorithms/math/sincos_core.hpp` (the certificate) | the 0.51 ulp bound carries to the public sincos and tan | unchanged kernel. For 2^-27 <= abs(x) <= 2^32 the argument is normal, and so is every sine and cosine (none is below 2^-1022), so the flush never acts there. The certificate is still to be rerun on STXlib's build (batch 3c5 row) | `tools/math/sincos_certificate.py` |
 
+## stxlib::algorithms, batch 3c9 (no subnormals in text and random)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/numeric_text.cpp` (parsing) | a real below the smallest normal parses as zero of its sign on every host; out_of_range only on overflow | tested, not proved, at named texts in both types: subnormal results, results below the subnormal range, the boundary on either side of the smallest normal, and saturating exponents. Risk: a host that reports out_of_range for a text rounding up to the smallest normal would give zero for it | `tests/numeric_text_tests.cpp` (`parsing`) |
+| `src/algorithms/numeric_text.cpp` (formatting) | a subnormal formats as zero of its sign; normal values unchanged (round trip and host agreement over 200,000 doubles and 100,000 floats, subnormal samples taken flushed) | tested, not proved | `tests/numeric_text_tests.cpp` (`reals`, `round_trips_and_host_agreement`) |
+| `src/algorithms/random.cpp` (`scale_into`) | never subnormal, within [low, high) of the read bounds, or `low` | tested at named bounds and units, not proved | `tests/random_tests.cpp` |
+
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
 
 | Module | Property | Status | Evidence |

@@ -9,6 +9,7 @@
 
 #include "test_support.hpp"
 
+#include <bit>
 #include <cmath>
 #include <limits>
 
@@ -166,6 +167,23 @@ void distributions() {
     CHECK(random::uniform_real(counter_generator, 1.0, 1.0) == 1.0);
     CHECK(!random::chance(counter_generator, 0.0));
     CHECK(random::chance(counter_generator, 1.0));
+
+    // STXlib batch 3c9: no subnormals in or out of scale_into.
+    const double units_to_try[] = {0.0, 0x1p-53, 0.25, 0.5, 0.75, 1.0 - 0x1p-53};
+    bool flushed_ok = true;
+    for (const double unit : units_to_try) {
+        const double bottom = random::detail::scale_into(0.0, 0x1p-1022, unit);
+        flushed_ok = flushed_ok && std::bit_cast<u64>(bottom) == 0;
+        const double straddle = random::detail::scale_into(-0x1p-1020, 0x1p-1020, unit);
+        flushed_ok = flushed_ok && std::fpclassify(straddle) != FP_SUBNORMAL && straddle >= -0x1p-1020 &&
+                     straddle < 0x1p-1020;
+        const double below_zero = random::detail::scale_into(-1.0, -0x1p-1074, unit);
+        flushed_ok = flushed_ok && std::fpclassify(below_zero) != FP_SUBNORMAL && below_zero >= -1.0 &&
+                     below_zero < 0.0;
+    }
+    CHECK(flushed_ok);
+    CHECK(std::bit_cast<u64>(random::detail::scale_into(0x1p-1074, 1.0, 0.0)) == 0);
+    CHECK(std::bit_cast<u64>(random::detail::scale_into(-0x1p-1074, 0x1p-1074, 0.5)) == 0x8000000000000000ULL);
 }
 
 void entropy() {
