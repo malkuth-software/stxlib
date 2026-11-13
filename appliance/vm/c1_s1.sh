@@ -12,7 +12,8 @@
 #                            must restart it with back-off 100, 200, 400, 800,
 #                            1600, 3200 and 6400 ms, then power off as in A.
 #
-# Each boot is capped (scenario steps; at most about 60 s per VM).
+# A failed scenario does not stop the other; the exit status is 1 if either
+# failed. Each boot is capped (scenario steps; at most about 60 s per VM).
 # Environment: STXLIB_STORAGE, STXLIB_IMAGE, STXLIB_CHECKSUMS.
 set -eu
 cd "$(dirname "$0")"
@@ -50,7 +51,11 @@ set_up_vm() {
         --commands sessions/install-programs.txt --serve-dir "$programs" \
         --define "init_sha256=$init_sha" --define "supervisor_file=$supervisor_file" \
         --define "supervisor_sha256=$supervisor_sha"
+    python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
+        --commands sessions/acpi-verbose.txt
 }
+
+failed=0
 
 set_up_vm "k-$label-s1" stxsupervisor
 python3 scenario.py --name "k-$label-s1" --firmware-timeout-ms 0 --label power-off \
@@ -58,9 +63,10 @@ python3 scenario.py --name "k-$label-s1" --firmware-timeout-ms 0 --label power-o
     --step 'expect:10:STXINIT supervisor started pid=\d+ restart_count=0' \
     --step 'expect:10:STXSUPERVISOR start restart_count=0 ' \
     --step 'monitor:system_powerdown' \
+    --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \
     --step 'expect:5:STXSUPERVISOR stop' \
-    --step 'exit:20'
+    --step 'exit:20' || failed=1
 
 set_up_vm "k-$label-s1crash" stxsupervisor-crash
 python3 scenario.py --name "k-$label-s1crash" --firmware-timeout-ms 0 --label respawn \
@@ -80,5 +86,8 @@ python3 scenario.py --name "k-$label-s1crash" --firmware-timeout-ms 0 --label re
     --step 'expect:8:STXSUPERVISOR crash-test restart_count=6' \
     --step 'expect:5:next_in_ms=6400' \
     --step 'monitor:system_powerdown' \
+    --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \
-    --step 'exit:20'
+    --step 'exit:20' || failed=1
+echo "c1_s1: scenarios failed=$failed"
+exit $failed

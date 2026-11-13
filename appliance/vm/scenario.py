@@ -11,8 +11,9 @@ Each --step is one of:
 
 The steps run in order; the first that fails stops the scenario, and QEMU is
 stopped (SIGTERM, then SIGKILL) if it is still running. Every byte of the
-console is kept in serial.raw, timestamped lines in serial.lines, and each
-step's outcome and host time in steps.tsv, under
+console is kept in serial.raw, timestamped lines in serial.lines, QEMU's
+answers to monitor commands in monitor.txt, and each step's outcome and host
+time in steps.tsv, under
 <storage>/appliance/logs/scenarios/<vm>/<session>-<label>/. Standard output:
 one line per step, with the matched text for expect steps. Exit status 0
 when every step passed, 1 otherwise, 2 on a usage error.
@@ -117,12 +118,29 @@ class Console:
         self.lines_log.close()
 
 
+MONITOR_ANSWER_SECONDS: float = 5.0
+MONITOR_PROMPT: bytes = b'(qemu)'
+
+
+def monitor_answer_complete(answer: bytes, command: bytes) -> bool:
+    """True once QEMU has echoed the command and printed its prompt after
+    it: the command has been read and run. The greeting's own prompt, which
+    arrives before the echo, does not count."""
+    echo_at = answer.find(command)
+    if echo_at < 0:
+        return False
+    return answer.find(MONITOR_PROMPT, echo_at + len(command)) >= 0
+
+
 def send_monitor_command(path: str, command: str) -> str:
+    """Send one command and wait for QEMU to have run it (its echo, then the
+    next prompt) before closing: a connection closed early can lose the
+    command. Raises RuntimeError when no such answer comes in time."""
     deadline = time.monotonic() + MONITOR_CONNECT_SECONDS
     while True:
         try:
             client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            client.settimeout(2.0)
+            client.settimeout(0.5)
             client.connect(path)
             break
         except OSError as failure:
@@ -130,23 +148,28 @@ def send_monitor_command(path: str, command: str) -> str:
             if time.monotonic() > deadline:
                 raise RuntimeError(f'monitor: {failure}')
             time.sleep(0.1)
-    client.sendall(command.encode() + b'\n')
+    encoded = command.encode()
     answer = b''
     try:
-        while True:
-            chunk = client.recv(65536)
+        client.sendall(encoded + b'\n')
+        deadline = time.monotonic() + MONITOR_ANSWER_SECONDS
+        while not monitor_answer_complete(answer, encoded) and time.monotonic() < deadline:
+            try:
+                chunk = client.recv(65536)
+            except socket.timeout:
+                continue
             if len(chunk) == 0:
                 break
             answer += chunk
-            if b'(qemu)' in answer.split(command.encode(), 1)[-1]:
-                break
-    except socket.timeout:
-        pass
-    client.close()
-    return answer.decode('utf-8', errors='replace')
+    finally:
+        client.close()
+    text = answer.decode('utf-8', errors='replace')
+    if not monitor_answer_complete(answer, encoded):
+        raise RuntimeError(f'monitor: no answer to {command!r}: {text!r}')
+    return text
 
 
-def run_steps(steps: List[Step], console: Console, monitor_path: str) -> Tuple[bool, List[str]]:
+def run_steps(steps: List[Step], console: Console, monitor_path: str, monitor_log: str) -> Tuple[bool, List[str]]:
     rows: List[str] = []
     search_from = 0
     for index, step in enumerate(steps, start=1):
@@ -169,7 +192,9 @@ def run_steps(steps: List[Step], console: Console, monitor_path: str) -> Tuple[b
             rows.append(f'{index}\texpect\tok\t{console.seconds():.3f}\t{shown}')
             continue
         if step.kind == 'monitor':
-            send_monitor_command(monitor_path, step.argument)
+            answer = send_monitor_command(monitor_path, step.argument)
+            with open(monitor_log, 'a', encoding='utf-8') as stream:
+                stream.write(f'--- {console.seconds():.3f} {step.argument}\n{answer}\n')
             rows.append(f'{index}\tmonitor\tsent\t{console.seconds():.3f}\t{step.argument}')
             continue
         if step.kind == 'exit':
@@ -219,7 +244,7 @@ def main(argv: List[str]) -> int:
     passed = False
     rows: List[str] = []
     try:
-        passed, rows = run_steps(steps, console, arguments.monitor_socket)
+        passed, rows = run_steps(steps, console, arguments.monitor_socket, os.path.join(log_dir, 'monitor.txt'))
     except RuntimeError as failure:
         rows.append(f'-\terror\tfailed\t{console.seconds():.3f}\t{failure}')
     finally:
