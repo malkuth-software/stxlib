@@ -1,0 +1,106 @@
+#
+# STXLIB-VM -- draft minimal kernel for the C1 bring-up VM (QEMU virt, arm64).
+#
+# Draft of 2026-11-13, not yet built: the integrator builds it on a granted
+# run (appliance/kernel/README.md). Written against FreeBSD releng/15.2 at
+# fb9033d2876d (BETA2), the pin of notes planning/stages/A0-freebsd-pin.md.
+# Every line below is taken from sys/arm64/conf/std.arm64, std.dev or
+# std.virt at that commit (cited per block), so the option and device names
+# exist there; what is left out is the point of the file.
+#
+# Aims, in order: boot the stock userland from a virtio disk on QEMU's
+# UEFI firmware; keep everything the appliance's design needs (PID 1 and
+# supervisor protections, Capsicum and jails for services, evdev input and
+# the EFI framebuffer for the GUI.Forms host); time every stage (TSLOG);
+# probe nothing the VM does not have. Things kept only for bring-up are
+# marked "bring-up" and leave before the appliance kernel.
+#
+# Machine, the always-built core (gic, generic timer, psci: standard in
+# sys/conf/files.arm64:15-16, 435) and GEOM_PART_GPT/MBR/BSD, mem, INTRNG,
+# NETLINK come from sys/arm64/conf/DEFAULTS, read by config(8) for every
+# arm64 kernel.
+
+cpu		ARM64
+ident		STXLIB-VM
+
+makeoptions	DEBUG=-g		# bring-up: symbols for the debugger
+
+# --- Scheduling and memory (std.arm64) ------------------------------------
+options 	SCHED_ULE		# ULE scheduler
+options 	PREEMPTION		# Enable kernel thread preemption
+options 	SMP			# Symmetric MultiProcessor Kernel
+options 	VFP			# Floating-point support
+options 	_KPOSIX_PRIORITY_SCHEDULING # POSIX real-time scheduling for the supervisor (design question 3)
+options 	PRINTF_BUFR_SIZE=128	# Prevent printf output being interspersed.
+options 	EFIRT			# EFI Runtime Services support
+options 	PERTHREAD_SSP		# Per-thread SSP canary
+
+# --- Boot timing (sys/conf/NOTES:641-642) ----------------------------------
+options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user
+options 	TSLOGSIZE=262144
+
+# --- Services' confinement (std.arm64) --------------------------------------
+options 	CAPABILITY_MODE		# Capsicum capability mode
+options 	CAPABILITIES		# Capsicum capabilities
+options 	RACCT			# Resource accounting framework
+options 	RACCT_DEFAULT_TO_DISABLED # Set kern.racct.enable=0 by default
+options 	RCTL			# Resource limits (measured before kept, design question 3)
+
+# --- Networking: IPv4 for the web interface and DHCP (std.arm64) ------------
+options 	INET			# InterNETworking
+device		loop			# Network loopback (std.dev)
+device		ether			# Ethernet support (std.dev)
+device		bpf			# Berkeley packet filter; DHCP needs it (std.dev)
+
+# --- File systems (std.arm64): UFS2 for the stock image and service parts,
+#     FAT for the boot and user parts (design question 5), tmpfs for /tmp
+options 	FFS			# Berkeley Fast Filesystem
+options 	SOFTUPDATES		# Enable FFS soft updates support
+options 	UFS_DIRHASH		# Improve performance on big directories
+options 	MSDOSFS			# MSDOS Filesystem
+options 	TMPFS			# Efficient memory filesystem
+options 	GEOM_LABEL		# Provides labelization (the stock image mounts /dev/gpt/rootfs)
+
+# --- Firmware tables and buses (std.virt, std.dev) --------------------------
+options 	FDT
+device		acpi
+device		pci
+device		efidev			# EFI pseudo-device (std.arm64)
+device		efirtc			# EFI RTC (std.arm64)
+
+# --- VM devices (std.virt) ---------------------------------------------------
+device		virtio			# Generic VirtIO bus (required)
+device		virtio_pci		# VirtIO PCI device
+device		virtio_blk		# VirtIO Block device
+device		vtnet			# VirtIO Ethernet device
+device		uart			# Generic UART driver (std.dev)
+device		pl011			# QEMU virt's serial port: the console
+
+# --- Entropy (std.dev) -------------------------------------------------------
+device		armv8_rng		# Armv8.5 rndr RNG, when the host CPU offers it
+
+# --- Display and input for the GUI.Forms host (std.dev); C2, kept so C1 can
+#     check the framebuffer handoff (MODINFOMD_EFI_FB) early
+device		vt
+device		vt_efifb
+device		kbdmux
+device		evdev			# input event device support
+options 	EVDEV_SUPPORT		# evdev support in legacy drivers
+options 	KBD_INSTALL_CDEV	# install a CDEV entry in /dev (std.arm64)
+
+# --- Debugging (std.arm64, sys/conf/NOTES): bring-up only ------------------------------------
+options 	KDB			# Enable kernel debugger support.
+options 	KDB_TRACE		# Print a stack trace for a panic.
+options 	DDB			# the in-kernel debugger (sys/conf/options:49, sys/conf/NOTES:415)
+options 	INCLUDE_CONFIG_FILE	# Include this file in kernel
+
+# --- Left out on purpose, with the reason -----------------------------------
+# USB (xhci, usb, usbhid, hkbd, ukbd): the USB root-mount hold costs boot
+#   time (sys/dev/usb/controller/usb_controller.c:179-181) and C1 has no USB
+#   device; added in C2 for keyboard tests with hw.usb.no_boot_wait=1.
+# INET6, NFS, CD9660, ZFS, GEOM_RAID, audit, DTrace hooks, COMPAT_FREEBSD*:
+#   nothing in C1 or the design uses them.
+# NUMA, VIMAGE: one node, no per-jail network stacks planned yet (jails for
+#   services share the host stack until the design says otherwise).
+# Real hardware drivers (ahci, nvme, em, ix, mmc, sound, gpio, i2c, spi):
+#   the VM has none of them; the Pi and x86 kernels add their own in C3.
