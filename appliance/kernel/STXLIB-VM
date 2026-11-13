@@ -290,3 +290,6 @@ nooptions SYSVSHM,SYSVMSG,SYSVSEM # no System V IPC users
 
 # --- Batch 2, round 8
 nooptions GZIO,ZSTDIO,EKCD,DEBUGNET,NETDUMP # crash-dump compression, encryption and network dumps
+
+# --- Batch 2, round 9
+nodevice virtio_mmio # QEMU virt's virtio-mmio transports are empty; our devices are on PCI
