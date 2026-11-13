@@ -296,3 +296,6 @@ nodevice virtio_mmio # QEMU virt's virtio-mmio transports are empty; our devices
 
 # --- Batch 2, round 10
 nodevice vlan,tuntap,gif,md,netmap,uinput,firmware # pseudo devices nothing on the appliance uses
+
+# --- Batch 2, round 11
+nooptions NUMA # one memory node on every reference machine
