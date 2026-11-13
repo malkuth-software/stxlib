@@ -141,6 +141,18 @@ evidence, not proof.
 | `src/algorithms/numeric_text.cpp` (formatting) | a subnormal formats as zero of its sign; normal values unchanged (round trip and host agreement over 200,000 doubles and 100,000 floats, subnormal samples taken flushed) | tested, not proved | `tests/numeric_text_tests.cpp` (`reals`, `round_trips_and_host_agreement`) |
 | `src/algorithms/random.cpp` (`scale_into`) | never subnormal, within [low, high) of the read bounds, or `low` | tested at named bounds and units, not proved | `tests/random_tests.cpp` |
 
+## Batch float_exact (src/core/float_exact.hpp)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `split` (float) | hi + lo == a exactly; each half at most 12 significant bits; both zero or normal | **not yet run.** Proved by exhaustive enumeration of every float in range (2^32 patterns screened) once `stxlib_float_exact_tests --exhaustive` passes; the ctest run strides. ESBMC harness `harness_split` written, not run | `tests/float_exact_tests.cpp` (`float_split`); `proofs/esbmc/float_exact_float.cpp` |
+| `two_product`, `two_sum`, `fast_two_sum` (float) | exact; the error zero or normal; the fused and Dekker forms agree bit for bit | **not yet run.** `--exhaustive` takes every significand of a binade, both signs, against 512 partners: that is a sample of pairs, not a proof. ESBMC harnesses (bit-precise, over all pairs in range) are written but not run; once they pass, this is proved for float, by ESBMC at the pinned version | `tests/float_exact_tests.cpp`; `proofs/esbmc/float_exact_float.cpp` |
+| `two_sum`, `fast_two_sum`, `two_product`, `split` (double) | as above | sampled against the exact integer reference (20 million in `--exhaustive`), not proved. Literature proofs: Knuth Theorem B, Dekker 1971, the Flocq formalisation (Boldo and Melquiond 2011; Boldo 2006 for Veltkamp and Dekker) | `tests/float_exact_tests.cpp` |
+| expansions | exact sums, scalings and products; nonoverlapping output in increasing magnitude; the sign | sampled against the exact reference, not proved; Shewchuk 1997's theorems | `tests/float_exact_tests.cpp` (`expansions`) |
+| `KahanSum`, `NeumaierSum` | within Higham's bounds (section 4.3) | sampled, not proved | `tests/float_exact_tests.cpp` (`compensated`) |
+| `orient2d`, `incircle` | the exact sign, at every SIMD level and in float and double | sampled against the exact reference, with exactly collinear and cocircular inputs (scaled to the range bounds) nudged by one ulp, not proved. The filters are Shewchuk's stage-A bounds, plus an absolute slack for incircle's underflowing products, argued in the header | `tests/float_exact_tests.cpp` (`predicates`) |
+| `src/algorithms/math/kernel_support.hpp` | the math's bits are unchanged by the move | the frozen hashes of `tests/math_tests.cpp` at every level and in the Dekker build (to run) | `tests/math_tests.cpp` |
+
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
 
 | Module | Property | Status | Evidence |

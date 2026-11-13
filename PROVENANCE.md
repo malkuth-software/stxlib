@@ -398,6 +398,29 @@ this batch.
 - The contracts in `numeric_text.hpp` and `random.hpp` state the rule. The
   tests change with it.
 
+### Batch float_exact: the exact floating-point primitives (STXlib's own)
+
+Owner decisions F3 = 1 and F4 = 1 (2026-11-13). `src/core/float_exact.hpp`
+is new and private: two_sum, fast_two_sum, split, two_product (fused and
+Dekker forms, the same bits), Shewchuk's expansions, Kahan and Neumaier
+sums, and orient2d and incircle in float and double. It is written for
+STXlib from the literature the header cites:
+- Knuth (two_sum);
+- Dekker (fast_two_sum, the split and the product);
+- Shewchuk 1997 (the expansion algorithms, and the stage-A error bounds of
+  orient2d and incircle);
+- Kahan and Neumaier (compensated summation).
+
+No source code is copied. Shewchuk's `predicates.c` was not downloaded,
+and his intermediate adaptive stages are not taken.
+
+The double forms of two_sum, fast_two_sum, split and two_product are
+stx_auxlib's math kernels' operations, moved from
+`src/algorithms/math/kernel_support.hpp`; its forms now forward to the raw
+forms, so the math's bits are unchanged. `src/core/float_discipline.hpp`
+(the compile-time guards for rules 1 and 5) and
+`proofs/esbmc/float_exact_float.cpp` are new.
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

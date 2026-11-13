@@ -116,6 +116,10 @@ stxlib_switch_condition(STXLIB_LOCK_CHECKS stxlib_lock_checks_on)
 set(STXLIB_EXCEPTION_RECORDER src/core/exception_shadow.cpp)
 
 set(stxlib_warnings -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+# The exact floating-point primitives' range checks (src/core/float_exact.hpp)
+# in Debug builds, for every target alike, so no build mixes checked and
+# unchecked copies of those inline functions.
+add_compile_definitions($<$<CONFIG:Debug>:STXLIB_FLOAT_CHECKS>)
 
 # ---- stxlib_state -----------------------------------------------------------
 # The one owner of STXlib's per-thread and per-process state
@@ -503,6 +507,18 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_${sequence_test}_tests COMMAND stxlib_${sequence_test}_tests)
         set_tests_properties(stxlib_${sequence_test}_tests PROPERTIES TIMEOUT 1200)
     endforeach()
+    # The exact floating-point primitives (src/core/float_exact.hpp) against
+    # an exact integer reference, with the range checks on; `--exhaustive`
+    # by hand (every float for the split, a binade against partners for the
+    # float sum and product).
+    add_executable(stxlib_float_exact_tests tests/float_exact_tests.cpp)
+    target_link_libraries(stxlib_float_exact_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_float_exact_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(stxlib_float_exact_tests PRIVATE STXLIB_FLOAT_CHECKS)
+    target_compile_options(stxlib_float_exact_tests PRIVATE ${stxlib_test_warnings} ${stxlib_math_options})
+    add_test(NAME stxlib_float_exact_tests COMMAND stxlib_float_exact_tests)
+    set_tests_properties(stxlib_float_exact_tests PROPERTIES TIMEOUT 600)
+
     # The unsync ordered map (src/algorithms/stx_btree/unsync_map.hpp)
     # against std::map with every structural invariant checked after each
     # phase, on both page allocators, plus refused insertions. From
