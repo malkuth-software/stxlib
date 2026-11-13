@@ -413,6 +413,40 @@ its weights in std::vector and passes views.
 | `src/algorithms/stx_btree/optimal_tree.hpp` (adapted, as its header says) | `btree/include/stx_btree/optimal_tree.hpp` | `fa58184ab4873f6586b50e559f5bdcf949ecee0f7c7800ec5621733ceca8d068` |
 | `tests/stx_btree/optimal_tree_test.cpp` | `btree/tests/optimal_tree_test.cpp` | `35c28e3e98a36ac90898244d6c2cd57e1d0a55fbc5b37e227d86eb668038104e` |
 
+### Batch 3c12: stx_btree's tree packing and static optimal map, from `b6e330a`
+
+The fourth part of the rest of stx_btree, on batch 3c11's storage and
+Results (coordinator's option 1). Same licence, namespace and privacy as
+batch 3c6. Changes:
+- `std::vector` becomes `detail::Array` in the packing and the map's nodes;
+  the map's entries live in one block from memory::allocate holding
+  constructed entries (`detail::OwnedEntries`), so Key and Value must move
+  without throwing;
+- `TreePacker::pack` and `ColdSubtreeLayout::relayout` return false on
+  exhaustion, with the output passed by reference;
+- `OptimalMap::build` returns `Result<OptimalMap>`: invalid_argument where
+  stx_auxlib threw std::invalid_argument, the tree construction's own
+  failure passed on, out_of_memory where std::vector would have thrown
+  std::bad_alloc. Nothing fails fast (survey D8 is open);
+- build takes the keys and values as caller storage (MutableView) and
+  moves them only after every allocation has succeeded, so a refused or
+  failed build leaves them unchanged; stx_auxlib took std::vector by value;
+- find_many and node_order_entries use View and MutableView in place of
+  std::span;
+- the assertions become STXLIB_REQUIRE.
+
+The packing, the layout, the node format and the searches are stx_auxlib's.
+The test's references and instances are unchanged; each build moves from a
+fresh copy of the keys and values, and the rejection check also checks that
+a refused build leaves std::string keys untouched. `docs/OPTIMAL_TREES.md`
+is not carried.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (adapted, as its header says) | `btree/include/stx_btree/detail/tree_packing.hpp` | `472b4f323235324a99e71bf2510f24153c7ab1684b995d5625e597c25a067582` |
+| `src/algorithms/stx_btree/optimal_map.hpp` (adapted, as its header says) | `btree/include/stx_btree/optimal_map.hpp` | `e0d43916c27e4623aa7a1a3ecc2cf15e55913f578e3a602565b1ed4f6a224140` |
+| `tests/stx_btree/optimal_map_test.cpp` | `btree/tests/optimal_map_test.cpp` | `1bcc43d7e6a0be86b4cbccf3d814d9511fe6fdd8c7a5d034e967d079e029b033` |
+
 ### Batch 3c8: no subnormals in the math (STXlib's own change)
 
 Owner decision 2026-11-13 (notes `decisions/2026-11-13-locals-float-mutability.md`,

@@ -197,5 +197,15 @@ evidence, not proof.
 | `src/algorithms/stx_btree/optimal_tree.hpp` (refusals) | malformed weights, and garsia_wachs on key weights, give invalid_argument | tested | `tests/stx_btree/optimal_tree_test.cpp` (`check_edges`) |
 | `src/algorithms/stx_btree/optimal_tree.hpp` (exhaustion) | storage that cannot be had gives out_of_memory with no tree | not tested: no allocation fault injection reaches memory::allocate here | none |
 
+## stxlib::algorithms, batch 3c12 (stx_btree's tree packing and static optimal map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (pack) | every key in exactly one node, nodes ascending and within capacity; the reported cost equals the walked cost; capacity 1 gives the binary tree's cost; the cost is the least over every way of cutting the tree into nodes | exhaustive over edge subsets for 300 random trees of n <= 12 at capacities 1 to 4 (sampled trees, exhaustive cuts); walked cost also on 6 trees of 2000 to 4999 keys | `tests/stx_btree/optimal_map_test.cpp` (`check_packing`) |
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (relayout) | node shape as above; reported cost equals walked cost; with slack 0 never above the packing | tested on the same instances, not proved | `tests/stx_btree/optimal_map_test.cpp` (`check_packing`) |
+| `src/algorithms/stx_btree/optimal_map.hpp` | every key found with its value, absent keys not found, find_many equal to find, for u64, i64 and string keys and each construction | tested, not proved: stx_auxlib's instances, unchanged | `tests/stx_btree/optimal_map_test.cpp` |
+| `src/algorithms/stx_btree/optimal_map.hpp` (refusals) | unsorted keys, mismatched lengths and malformed weights give invalid_argument, and the caller's keys and values are left unchanged | tested | `tests/stx_btree/optimal_map_test.cpp` (`check_rejections`) |
+| `src/algorithms/stx_btree/optimal_map.hpp`, `detail/tree_packing.hpp` (exhaustion) | storage that cannot be had gives out_of_memory with no map and the keys and values unchanged | not tested: no allocation fault injection reaches memory::allocate here; the ordering (every allocation before the first move) is by reading of `lay_out` | none |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

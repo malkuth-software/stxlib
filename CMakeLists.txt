@@ -593,7 +593,7 @@ if(STXLIB_TESTS)
     # tree enumerated; their maps onto multiway nodes (optimal_map.hpp). From
     # stx_auxlib b6e330a. Exact costs are signed __int128 arithmetic, so
     # GCC or Clang only, as STXlib is built.
-    foreach(optimal_test IN ITEMS optimal_tree)
+    foreach(optimal_test IN ITEMS optimal_tree optimal_map)
         add_executable(stxlib_btree_${optimal_test}_tests tests/stx_btree/${optimal_test}_test.cpp)
         target_link_libraries(stxlib_btree_${optimal_test}_tests PRIVATE stxlib::algorithms)
         target_include_directories(stxlib_btree_${optimal_test}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
