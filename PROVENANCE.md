@@ -357,6 +357,36 @@ Still in stx_auxlib, for the next batch: the synchronized map and the
 latched tree's adaptation, the optimal search trees, their weights and
 packing, and their tests.
 
+### Batch 3c10: stx_btree's shared ordered map, from `b6e330a`
+
+The second part of the rest of stx_btree (the coordinator's direction on
+the owner's M1). Same licence, namespace and privacy as batch 3c6.
+`bbtree_map.hpp` is new here, and the latched tree carried in batch 3c7 is
+adapted, so its static assertion goes. A page the allocator refuses makes
+the insertion refuse with nothing changed (the split's pages are reserved
+first, as before; the first root page is refused unless another thread's
+root is published meanwhile). stx_auxlib threw std::bad_alloc instead. The
+refusal comes back in the call's own result, because threads share the
+map and a flag on it would race:
+- the insert policies gain `refused()`;
+- try_insert, update_or_insert and get_or_insert return `Insertion`
+  (inserted, present, refused) where stx_auxlib returned bool or nothing;
+- insert and insert_many return `Replacement` (outcome and old value)
+  where stx_auxlib returned the optional old value.
+
+The tests run as before, with each write's result checked against
+refusal. `shared_refusals` is new: it covers refused first pages and
+splits through try_insert, insert, get_or_insert and insert_many. The
+ThreadSanitizer suppressions and the no-inlining rule are stx_auxlib's.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/bbtree_map.hpp` (adapted, as its header says) | `btree/include/stx_btree/bbtree_map.hpp` | `0c6185f9bff7bd6bf85ca53e2be5ace7f56b645991e026f934287fd8c2735ff3` |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` (adapted in this batch, as its header says) | `btree/include/stx_btree/detail/latched_tree.hpp` | `2598aeea11a5a5d6dea4b5ddbbc7000043584b0b42c506e568ccb0963d53e67e` |
+| `tests/stx_btree/bbtree_map_test.cpp` | `btree/tests/bbtree_map_test.cpp` | `e2be42021152b7fe1a3234a1a380bd0023382b839c4e247f967940c33d463e8b` |
+| `tests/stx_btree/stress_test.cpp` | `btree/tests/stress_test.cpp` | `e601bdf4b892f2a918630e52b14958107c778e1f0408fe8e98c0ed85342d1e05` |
+| `tests/stx_btree/tsan_btree_suppressions.txt` | `tests/tsan_btree_suppressions.txt` | `d455959551bf51d966d8cb359b1a196db274d767ce52507bcbb7d075c86bf1d8` |
+
 ### Batch 3c8: no subnormals in the math (STXlib's own change)
 
 Owner decision 2026-11-13 (notes `decisions/2026-11-13-locals-float-mutability.md`,

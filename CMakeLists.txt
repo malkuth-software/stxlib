@@ -565,6 +565,29 @@ if(STXLIB_TESTS)
     target_compile_options(stxlib_unsync_map_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_unsync_map_tests COMMAND stxlib_unsync_map_tests)
     set_tests_properties(stxlib_unsync_map_tests PROPERTIES TIMEOUT 600)
+    # The shared ordered map (src/algorithms/stx_btree/bbtree_map.hpp): the
+    # single-thread differential with the structural check, the threaded
+    # runs, refused insertions, and the timed stress run (2 seconds a
+    # shape, as stx_btree's own build passes it). From stx_auxlib b6e330a,
+    # with its ThreadSanitizer handling: no inlining under TSan, so an
+    # optimistic reader keeps its frame, and the suppressions name those
+    # readers only (tests/stx_btree/tsan_btree_suppressions.txt).
+    foreach(shared_test IN ITEMS bbtree_map stress)
+        add_executable(stxlib_btree_${shared_test}_tests tests/stx_btree/${shared_test}_test.cpp)
+        target_link_libraries(stxlib_btree_${shared_test}_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_btree_${shared_test}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_btree_${shared_test}_tests PRIVATE ${stxlib_test_warnings})
+        if("${CMAKE_CXX_FLAGS}" MATCHES "-fsanitize=[^ ]*thread")
+            target_compile_options(stxlib_btree_${shared_test}_tests PRIVATE -fno-inline)
+        endif()
+        set(shared_arguments)
+        if(shared_test STREQUAL "stress")
+            set(shared_arguments 2)
+        endif()
+        add_test(NAME stxlib_btree_${shared_test}_tests COMMAND stxlib_btree_${shared_test}_tests ${shared_arguments})
+        set_tests_properties(stxlib_btree_${shared_test}_tests PROPERTIES TIMEOUT 600 ENVIRONMENT
+            "TSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/tests/stx_btree/tsan_btree_suppressions.txt:halt_on_error=1")
+    endforeach()
     # The facade against the template it wraps (offset to row, row to
     # offset, set_heights), for the integrator to run by hand; not a ctest.
     add_executable(stxlib_row_height_bench tests/stx_btree/row_height_bench.cpp)

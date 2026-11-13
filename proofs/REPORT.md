@@ -179,7 +179,14 @@ evidence, not proof.
 | `src/algorithms/stx_btree/unsync_map.hpp` | the map answers as std::map (insert, try_insert, remove, find, lower_bound, pop, insert_many, iteration), and every structural invariant (depths, fills, heads, order, windows at exact prefixes, padding, hash tags, shared prefix) holds after each phase | tested, not proved: the differential runs carried from stx_auxlib (seven key and value shapes, random and ordered, both page allocators, batches) | `tests/stx_btree/unsync_map_test.cpp`, `tests/stx_btree/tree_invariants.hpp` |
 | `src/algorithms/stx_btree/unsync_map.hpp` (failure) | an insertion the allocator refuses a page leaves the map unchanged and reports `out_of_memory()`; it then succeeds | tested over 20000 insertions of small-leaf entries with every page first refused (first root page, leaf splits and splits that climb), not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_refusals`) |
 | `src/algorithms/stx_btree/pooled_page_allocator.hpp` | maps sharing a pool get every page back and reuse freed pages; the pool ends with its last sharer | tested, not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_shared_pool`) |
-| `src/algorithms/stx_btree/detail/latched_tree.hpp` | none yet | not instantiable (static assertion) until the shared-map batch | none |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` | see batch 3c10 | adapted and instantiated in batch 3c10 | batch 3c10 |
+
+## stxlib::algorithms, batch 3c10 (stx_btree's shared ordered map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/bbtree_map.hpp` | single-thread answers equal std::map's, with every structural invariant; threaded writers, readers, counters, scans and batches see consistent entries (bbtree's map tests) | tested, not proved: stx_auxlib's runs, unchanged; the concurrency rests on bbtree's optimistic lock coupling (DESIGN.md), not on a mechanical proof | `tests/stx_btree/bbtree_map_test.cpp`, `tests/stx_btree/stress_test.cpp` |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` (failure) | an insertion the allocator refuses a page leaves the map, key and value unchanged, says refused in its own result, runs no visitor, and then succeeds | tested single-threaded over 20000 insertions with every page first refused (first root page, leaf splits, climbing splits; four write forms), not proved; refusals racing other threads are not tested | `tests/stx_btree/bbtree_map_test.cpp` (`shared_refusals`) |
 
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.
