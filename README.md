@@ -51,4 +51,16 @@ Process-wide state of these modules (locks, the console's read-ahead, the
 exit-task table, the event watch, the raw-terminal flag) lives in
 `stxlib_state`, so a program built from several modules shares it.
 
+## Algorithms
+
+stxlib::algorithms (`stxlib::algorithms` in CMake) holds the host-free
+algorithms, ported from stx_auxlib `b6e330a`: they use the boundary's
+vocabulary and services and make no host call of their own.
+
+| Module | Header | State |
+|---|---|---|
+| BLAKE2s-256 | `hash.hpp` | batch 3c |
+| random (ChaCha12, xoshiro256++, distributions, shuffle) | `random.hpp` | batch 3c |
+| SIMD level (detection, one selection per process) | `simd.hpp` | batch 3c |
+
 Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); FreeBSD components keep their BSD licences.

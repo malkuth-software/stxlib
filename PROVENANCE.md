@@ -122,6 +122,39 @@ stx_btree with the sequence tree and RowHeightIndex) is copied from
 `b6e330a` in later batches, each file with its source path, commit and
 SHA-256 (decision M2, `decisions/2026-11-13-survey-round-4.md`).
 
+### Batch 3c: stxlib::algorithms (first part) and the pool conformance test, from `b6e330a`
+
+The first modules of the second target, stxlib::algorithms (decision
+M1 = 1; A0 migration note 3.1): host-free code over the boundary's
+vocabulary. Each port keeps stx_auxlib's algorithm and outputs and restates
+its interface in STXlib's vocabulary (fixed C arrays, View, MutableView,
+Result) in place of std::array, std::span, std::byte and std::expected; the
+differences are stated in each file's header comment. The SIMD selection
+word moves into `stxlib_state` (layout 7), so every module of a program
+shares one choice. SHA-256 of each source file at `b6e330a`, read from a
+`git archive` of the reference clone:
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `include/stxlib/hash.hpp` | `include/stx_auxlib/hash.hpp` | `1c11c55a13334b0dfd5b97f1ac14301765cad2e84b1d9bf12d3e6b21d8521a33` |
+| `src/algorithms/hash.cpp` | `src/hash.cpp` | `129f35d7dd51afa53c656d4bdd13ee686420d081cf22c15fec3e06f8450464b1` |
+| `include/stxlib/random.hpp` | `include/stx_auxlib/random.hpp` | `07cfb2c525d851ffb85e7770b31148342dd9ba629c4aaa044e67de3a019450bd` |
+| `src/algorithms/random.cpp` | `src/random.cpp` | `dd11242f38fe2893d404b91a3857ac32f8ca33d9bba242d9c07332ad7b1be768` |
+| `include/stxlib/simd.hpp` | `include/stx_auxlib/simd.hpp` | `5fddbe7b261342e4ef1c35c1441fdf50bae0407750936649f9ec8c30024169f0` |
+| `src/algorithms/simd.cpp` | `src/simd.cpp` | `d735259f8249101aa17d7d9293df82ff7b12c3029844fce3abb3ba36b6f47a22` |
+| `tests/hash_tests.cpp` | the BLAKE2s part of `tests/precedence_tests.cpp` | `a2740553d2df26cc414b63ce58e607652e69dee3d7fcefcf041336f8c98316f0` |
+| `tests/random_tests.cpp` | `tests/random_tests.cpp` | `d3e7330a794592534db3e266e861216781c8cb972b3bf4b4b1d7228336cc64dd` |
+| `tests/simd_tests.cpp` | `tests/simd_tests.cpp` | `a28a7708f918b4eea39ca311cb6305c046a9d93b8290e899846b54cdd6b4286a` |
+| `tests/thread_pool_conformance.cpp` | `tests/thread_pool_conformance.cpp` (names, header comment and the modular marker's header only) | `7be497fe9eafe04e4d59785ec5e3143e7d0dfc328b7b8d93af0711fb825ec469` |
+| `tests/reference/atomic_pool_adapter.cpp` | `tests/reference/atomic_pool_adapter.cpp` (rewritten for STXlib's Status and noexcept tasks) | `2c3beff9cd576f159763ae5b8d5660bf5addd4377560f5a70a590cfb01423ed3` |
+
+Copied unchanged (the file's SHA-256 here equals the source's):
+
+| File | SHA-256 |
+|---|---|
+| `tests/reference/random_reference.py` | `78764ba0feea222f7635e4aa72e51085f40bb87930af1da8b582cd30e08623b1` |
+| `tests/reference/precedence_reference.py` | `cfb5c9604f61e51409278d0476bb99acae09f20dda32ae9f77c2d312eeb7fb2e` |
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)
@@ -190,6 +223,25 @@ unit, `src/static.c`, with stx_auxlib's definitions (CMakeLists.txt), plus
 | `src/subproc.c` | `f42d4a11c5208b9620e456a412c0cdafa9dec2c9` | `41c147e8eb6e960687b79a201dd4498fb80f58923a0a4d73e04e80ef315b8eb6` |
 | `src/theap.c` | `1731830a7aa416b07bc82554779a622ef318830d` | `91271bc76502c743d109f32201c02271f63a9f6ec51ef207f8b533f6de39df27` |
 | `src/threadlocal.c` | `6f280d09353c918b28ec414ae5ab10e745797229` | `01dbaacd5ac6685dc59c40d82a3f8932e5290d4d05f9a441424e4ea53e1ba973` |
+
+### threadpool_atomic_fast, the pool's C reference (batch 3c)
+
+`src/core/thread_pool.cpp` ports, through stx_auxlib, the owner's
+`threadpool_atomic_fast` (MIT, Joshuah Rainstar;
+`tests/reference/LICENSE-threadpool_atomic_fast.txt`). Its C original is
+kept unchanged as the conformance test's reference, copied from stx_auxlib
+`b6e330a` `tests/reference/`; each SHA-256 below equals both the copied
+file's and the one stx_auxlib's PROVENANCE.md records. GUI.Forms took the
+files from `falseywinchnet/backend`
+(`orchestrator/third_party/threadpool_atomic_fast`, revision
+`6eb51f84260984b4b293156ed7fefb057267bce5`) and renamed the symbols to the
+`gui_forms_atomic_pool_` prefix; the reference keeps those names.
+
+| File | SHA-256 |
+|---|---|
+| `tests/reference/atomic_pool.c` | `b1282195e93177305d7cfd7f1bdd14586ee325fe02c186128cc0a5b5def5d91d` |
+| `tests/reference/atomic_pool.h` | `0dc5257334c940cf6080e26321cbb995fb562031f2d81aec92ac8b0892190fc4` |
+| `tests/reference/LICENSE-threadpool_atomic_fast.txt` | `7ffa68e2ff116c26c79f75985354b28cb59148efacaff60ceaa5da8795333ad1` |
 
 ### IANA tzdata 2026f (batch 3b)
 

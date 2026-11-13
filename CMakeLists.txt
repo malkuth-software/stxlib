@@ -332,6 +332,31 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     endif()
 endif()
 
+# ---- stxlib::algorithms -----------------------------------------------------
+# Host-free algorithms (decision M1 = 1; A0 migration note 3.1): they use
+# stxlib::boundary's vocabulary and services (the environment, entropy,
+# stxlib_state) and make no host call of their own. Ported from stx_auxlib
+# b6e330a (PROVENANCE.md, batch 3c and later).
+set(STXLIB_ALGORITHMS_SOURCES
+    src/algorithms/hash.cpp
+    src/algorithms/random.cpp
+    src/algorithms/simd.cpp)
+add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
+add_library(stxlib::algorithms ALIAS stxlib_algorithms)
+target_include_directories(stxlib_algorithms
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_features(stxlib_algorithms PUBLIC cxx_std_20)
+target_compile_options(stxlib_algorithms PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
+set_target_properties(stxlib_algorithms PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(stxlib_algorithms PUBLIC stxlib_boundary)
+
 # ---- tests ------------------------------------------------------------------
 if(STXLIB_TESTS)
     enable_testing()
@@ -347,6 +372,44 @@ if(STXLIB_TESTS)
     if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
     endif()
+
+    # stxlib::algorithms.
+    foreach(test_name IN ITEMS hash random simd)
+        add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
+        target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
+        target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
+    endforeach()
+
+    # The thread pool against the C original it ports (tests/reference/,
+    # PROVENANCE.md): one conformance source, written against the
+    # reference's C interface, checks STXlib's AtomicPool (through
+    # tests/reference/atomic_pool_adapter.cpp) and the reference itself; both
+    # must pass. From stx_auxlib b6e330a.
+    enable_language(C)
+    add_executable(stxlib_thread_pool_conformance
+        tests/thread_pool_conformance.cpp tests/reference/atomic_pool_adapter.cpp)
+    target_link_libraries(stxlib_thread_pool_conformance PRIVATE stxlib::boundary)
+    add_executable(stxlib_thread_pool_reference_conformance
+        tests/thread_pool_conformance.cpp tests/reference/atomic_pool.c)
+    foreach(conformance IN ITEMS stxlib_thread_pool_conformance stxlib_thread_pool_reference_conformance)
+        # core/checked.hpp (the modular marker) and the reference's header.
+        target_include_directories(${conformance} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference)
+        target_compile_features(${conformance} PRIVATE cxx_std_20)
+        # The reference calls pthreads directly; CLANG64's libc++ uses native
+        # Windows threads and supplies no implicit pthread dependency.
+        if(MINGW)
+            target_link_libraries(${conformance} PRIVATE winpthread)
+        else()
+            target_link_libraries(${conformance} PRIVATE Threads::Threads)
+        endif()
+        add_test(NAME ${conformance} COMMAND ${conformance})
+        # A hang detector: a broken claim or lock deadlocks rather than
+        # fails. RUN_SERIAL: bound by scheduler latency beside other tests
+        # (stx_auxlib's measurement: 88 ms alone, 15 s contended).
+        set_tests_properties(${conformance} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+    endforeach()
 
     # Two modules, each with its own copy of stxlib::boundary, release each
     # other's blocks through the one allocator in stxlib_state.
