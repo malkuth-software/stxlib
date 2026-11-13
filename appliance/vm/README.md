@@ -26,8 +26,13 @@
   (`runtime/init/`), timed to its marker with `boot_timing --end pid1`; the
   marker also carries the in-guest uptime and generic-timer count
   (`pid1_uptime`, `pid1_counter`). `diag_hang.sh`: symbolise a hung boot.
+- `scenario.py`: boots a VM once and drives it through steps: wait for a
+  console line, send a QEMU monitor command (`system_powerdown` presses the
+  ACPI power button), wait for QEMU to exit. `c1_s1.sh KERNCONF` (C1 step
+  S1): PID 1 starts the supervisor and shuts down on the power button (VM
+  `-s1`), and restarts a crashing supervisor with back-off (VM `-s1crash`).
 - `c1_sysroot.sh`: a cross sysroot (headers, static libraries) taken from
-  the pinned image's own userland, for building `runtime/init/`.
+  the pinned image's own userland, for building `runtime/`.
 
 The appliance boot ends at our PID 1's marker, not at a login prompt
 (owner, 2026-11-13: no login); the login path remains for the stock

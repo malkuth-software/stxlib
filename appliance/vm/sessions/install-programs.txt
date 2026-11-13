@@ -1,0 +1,14 @@
+# Install our PID 1 (runtime/init) and a supervisor ({supervisor_file}: the
+# real stxsupervisor, or stxsupervisor-crash in a respawn test VM) and make
+# the kernel start stxinit instead of /sbin/init (loader variable
+# init_path, sys/kern/init_main.c:759-762). After this the VM boots to our
+# programs and has no login: run it last.
+fetch -q -o /sbin/stxinit {http}/stxinit
+test "$(sha256 -q /sbin/stxinit)" = "{init_sha256}"
+fetch -q -o /sbin/stxsupervisor {http}/{supervisor_file}
+test "$(sha256 -q /sbin/stxsupervisor)" = "{supervisor_sha256}"
+chmod 555 /sbin/stxinit /sbin/stxsupervisor
+sed -i '' '/^init_path=/d' /boot/loader.conf.local
+printf '%s\n' 'init_path="/sbin/stxinit"' >> /boot/loader.conf.local
+cat /boot/loader.conf.local
+sync

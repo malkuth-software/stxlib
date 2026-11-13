@@ -12,9 +12,12 @@ decisions live on the notes branch: `planning/FORWARD_PROGRAMME.md` sections
 | `kernel/` | kernel configurations, starting with the C1 draft `STXLIB-VM` |
 | `shim/` | the kernel shim module (later in C1) |
 
-PID 1 (`stxinit`) lives in `runtime/init/` at the repository root, since it
-issues system calls (AGENTS.md: only `src/hosted/`, `runtime/` and
-`appliance/shim/` may).
+The appliance's first programs live under `runtime/` at the repository root,
+since they issue system calls (AGENTS.md: only `src/hosted/`, `runtime/` and
+`appliance/shim/` may): PID 1 (`stxinit`) in `runtime/init/`, the supervisor
+(`stxsupervisor`, first form) in `runtime/supervisor/`, what both share in
+`runtime/common/`. `runtime/build_programs.sh` builds them against the
+sysroot.
 
 Host scripts here are Python 3, standard library only, and run on the M4
 through `bin/m4sbrun` on a granted run. They are not part of the library and
