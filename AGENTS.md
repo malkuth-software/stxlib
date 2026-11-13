@@ -1,18 +1,18 @@
-# stx_boundary guardrails
+# STXlib guardrails
 
-`stx_boundary` (working name, owner decision D1 open) is the interfacing
-library between GUI.Forms and everything outside it. It is not a standard
-library. Every interface it touches is treated as foreign: the host C
+STXlib, the Standard Trustworthy eXtended library (`stxlib`), is the
+interfacing library between GUI.Forms and everything outside it, and the
+replacement for stx_auxlib. It is not a standard library. Every interface it touches is treated as foreign: the host C
 library, the host C++ library, the operating system, the kernel, and the
 client program on the other side of GUI.Forms. It protects GUI.Forms from
 those interfaces, and protects the client from us.
 
 Plans, decisions, surveys and evidence are not kept here. They live on the
-`stx_boundary` branch of `malkuth-software/notes`, under `planning/`. Read
+`stxlib` branch of `malkuth-software/notes`, under `planning/`. Read
 `planning/FORWARD_PROGRAMME.md` there before starting work, and
 `planning/DECISION_SURVEY.md` for what the owner has and has not decided.
 Coordination state is in the private projects repository,
-`desks/stx_boundary/` and `tracks/stx_boundary/`.
+`desks/stxlib/` and `tracks/stxlib/`.
 
 ## Code style (mandatory)
 
@@ -32,16 +32,19 @@ library's whole purpose:
 ## Hard boundaries
 
 - C++20. No `std::` type, platform type or kernel type in a public header
-  under `include/stx_boundary/`. Public types have a layout we define.
+  under `include/stxlib/`. Public types have a layout we define.
 - Native unwinding never crosses a boundary in either direction. A failure
   crosses as an error record we own (the status-review thread, 2026-11-13).
-- Interface modules live under `src/hosted/<family>/` and
-  `src/freestanding/<environment>/`. Nothing outside those directories
-  issues a system call, includes an operating-system header or names a
-  kernel object. The trust-chain checker enforces this on the compiled
+  Development builds shadow every exception at every ABI boundary so it is
+  fully visible; release builds of everything ours use no exceptions
+  (owner, 2026-11-13).
+- Interface modules live under `src/hosted/<family>/`. The appliance's own
+  runtime lives under `runtime/` and the FreeBSD kernel shim under
+  `appliance/shim/`. Nothing outside those directories issues a system call,
+  includes an operating-system header or names a kernel object. The trust-chain checker enforces this on the compiled
   output.
-- The freestanding runtime (`runtime/`) is linked only in freestanding
-  profiles. It never replaces the host's runtime in a hosted process: no
+- The own runtime (`runtime/`) is linked only into the appliance
+  supervisor and its test bed. It never replaces the host's runtime in a hosted process: no
   global `operator new`, `malloc` or symbol interposition is imposed on
   foreign code.
 - Third-party code is pinned and hashed in `PROVENANCE.md`, updated only by
@@ -70,7 +73,7 @@ library's whole purpose:
 ## Work rules
 
 - Workers commit on local branches and never push. The integrator builds;
-  coders do not (projects `briefs/STX_BOUNDARY_BRIEF.md`).
+  coders do not (projects `briefs/STXLIB_BRIEF.md`).
 - No compiler runs on the Mac laptop (Neo). Builds go to the M4 through
-  `~/Developer/stx_boundary_workers/bin/m4sb`.
+  `~/Developer/stxlib_workers/bin/m4sb`.
 - Preserve negative results. Report exact commands and environments.
