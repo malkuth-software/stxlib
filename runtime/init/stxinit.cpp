@@ -43,8 +43,8 @@
 //
 // Signals: every signal stxinit acts on stays blocked and is taken with
 // sigtimedwait, so none is handled asynchronously and none is lost between
-// two waits. SIGCHLD has a do-nothing handler only so that it is not
-// discarded as an ignored signal while blocked.
+// two waits. Each also has a do-nothing handler, never run, because the
+// kernel discards a SIG_DFL signal sent to PID 1 (see run()).
 //
 // Hosted on FreeBSD's libc for C1; it moves to STXlib's own runtime in C2.
 // Built static, without exceptions or RTTI.
@@ -428,15 +428,23 @@ extern "C" void note_signal(int signal_number) noexcept {
     if (sigprocmask(SIG_BLOCK, &blocked, nullptr) != 0) {
         write_message(console, "sigprocmask failed");
     }
-    // A blocked signal whose action is to ignore it may be discarded; a
-    // handler keeps SIGCHLD pending for sigtimedwait. SIGWINCH is ignored by
-    // default too. The others terminate by default and stay pending anyway.
+    // Every waited signal needs a handler, even though none is ever run (the
+    // signals stay blocked and sigtimedwait takes them). For PID 1 the
+    // kernel discards a signal whose action is SIG_DFL, under sigtimedwait
+    // too: issignal() returns SIGSTATUS_IGNORE for p_pid <= 1
+    // (sys/kern/kern_sig.c:3257-3271, "Don't take default actions on system
+    // processes"). C1 S1 run 3 showed it: the power button reached
+    // acpi_button and shutdown_nice sent SIGUSR2, and stxinit never saw it.
+    // SIGCHLD and SIGWINCH, ignored by default, would be discarded anyway.
     struct sigaction on_signal{};
     on_signal.sa_handler = note_signal;
     sigemptyset(&on_signal.sa_mask);
     on_signal.sa_flags = 0;
-    if (sigaction(SIGCHLD, &on_signal, nullptr) != 0 || sigaction(SIGWINCH, &on_signal, nullptr) != 0) {
-        write_message(console, "sigaction failed");
+    const int waited[] = {SIGCHLD, SIGUSR2, SIGWINCH, SIGUSR1, SIGINT};
+    for (const int signal_number : waited) {
+        if (sigaction(signal_number, &on_signal, nullptr) != 0) {
+            write_message(console, "sigaction failed");
+        }
     }
 
     RestartAccount account{};
