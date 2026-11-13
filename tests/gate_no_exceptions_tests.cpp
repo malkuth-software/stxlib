@@ -41,6 +41,9 @@ int main() {
     int odd = 3;
     const stxlib::Result<int> refused = stxlib::call_gate("stxlib.tests.gate", halves, odd);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    int six = 6;
+    const stxlib::Result<int> framed = stxlib::call_gate(stxlib::GateFrame{"stxlib.tests.gate", 24, 3}, halves, six);
+    CHECK(framed.succeeded() && *framed.value() == 3);
     Squares squares;
     int four = 4;
     CHECK(stxlib::invoke_callback("stxlib.tests.callback", squares, four) == 16);

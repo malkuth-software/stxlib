@@ -178,6 +178,43 @@ void a_classified_gate_records_the_consumer_kind() {
     }
 }
 
+// A gate opened with a GateFrame: its frame carries the slot's numbers (a C
+// ABI slot's table and slot index), for the plain and the classified gate.
+void a_gate_frame_carries_its_numbers() {
+    Layout layout;
+    const stxlib::GateFrame slot{"test.c_abi", 24, 3};
+    const stxlib::Status status = stxlib::call_gate(slot, layout);
+    CHECK(status.failed());
+    const stxlib::ErrorRecord record = *status.error();
+    const ShownShadow shown = show("gate frame", record);
+    CHECK(record.operation().name() == stxlib::TextView("test.c_abi"));
+    CHECK(record.kind() == stxlib::ErrorKind::invalid_argument);
+    check_development_record(shown, record);
+    if (shown.present) {
+        CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
+        CHECK(shown.summary.frame_count == 3);
+        CHECK(frame_is(shown, 0, "test.c_abi", 24, 3));
+        CHECK(frame_is(shown, 1, "test.layout", 1, 2));
+        CHECK(frame_is(shown, 2, "test.measure", 3, 4));
+    }
+
+    const stxlib::ExceptionClassifier classifier{classify_disposed, nullptr};
+    UsesDisposed uses;
+    const stxlib::Status classified =
+        stxlib::call_gate_classified(classifier, stxlib::GateFrame{"test.c_abi", 24, 5}, uses);
+    const stxlib::ErrorRecord classified_record = *classified.error();
+    const ShownShadow classified_shown = show("classified gate frame", classified_record);
+    CHECK(classified_record.kind() == stxlib::ErrorKind::disposed && classified_record.code() == 4);
+    check_development_record(classified_shown, classified_record);
+    if (classified_shown.present) {
+        CHECK(classified_shown.summary.frame_count == 2);
+        CHECK(frame_is(classified_shown, 0, "test.c_abi", 24, 5));
+        CHECK(frame_is(classified_shown, 1, "test.handler", 11, 0));
+    }
+
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
 struct TrampolineTarget final {
     stxlib::Status operator()(int& value) {
         ThrowsInvalid thrower;
@@ -340,6 +377,7 @@ int main() {
     std::printf("shadowing %s\n", stxlib::shadowing_enabled() ? "on (development build)" : "off (release build)");
     a_slot_gate_records_the_stack_at_the_throw();
     a_classified_gate_records_the_consumer_kind();
+    a_gate_frame_carries_its_numbers();
     a_trampoline_entry_records_the_target_stack();
     a_parked_exception_keeps_its_throw_site();
     a_consumed_capture_is_not_reused();

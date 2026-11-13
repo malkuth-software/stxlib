@@ -16,6 +16,10 @@
 //   As call_gate, with the consumer's policy for its own exception types
 //   (GUI.Forms' WrongThreadError and DisposedError) tried first.
 //
+// Both also take a GateFrame in place of the operation: the gate's shadow
+// frame then carries the frame's two numbers (a C ABI slot's table and slot
+// index, A2 swap-in) where the operation alone gives (0, 0).
+//
 // invoke_callback(operation, target, arguments...)
 // invoke_callback_target(operation, callback, arguments...)
 //   For a call into client code that must not throw (survey S2, owner
@@ -45,6 +49,15 @@
 #include "stxlib/types.hpp"
 
 namespace stxlib {
+
+// The shadow frame a gate opens: its operation and the two numbers the
+// operation defines (shadow.hpp, in_shadow_frame). Written as
+// GateFrame{"table.slot", table, slot}; the operation is a literal.
+struct GateFrame final {
+    Operation operation;
+    u64 first{0};
+    u64 second{0};
+};
 
 // What a consumer's classifier decides for an exception it recognises.
 struct ExceptionClass final {
@@ -132,23 +145,57 @@ struct CallbackCall final {
 } // namespace detail
 
 template <typename Target, typename... Arguments>
-[[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate(const Operation operation,
+[[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate(const GateFrame frame_at,
                                                                                   Target& target,
                                                                                   Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
     static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
 #if defined(__cpp_exceptions)
     try {
-        detail::ShadowFrameScope frame(operation, 0, 0);
+        detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
         Return result = target(arguments...);
         frame.close();
         return result;
     } catch (...) {
-        const ErrorRecord record = detail::record_current_exception(operation);
+        const ErrorRecord record = detail::record_current_exception(frame_at.operation);
         return Return::failure(record);
     }
 #else
-    detail::ShadowFrameScope frame(operation, 0, 0);
+    detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+    Return result = target(arguments...);
+    frame.close();
+    return result;
+#endif
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate(const Operation operation,
+                                                                                  Target& target,
+                                                                                  Arguments&... arguments) noexcept {
+    const GateFrame frame_at{operation, 0, 0};
+    // Not const: a const local is copied, not moved, on return.
+    typename detail::TargetReturn<Target, Arguments...>::Type result = call_gate(frame_at, target, arguments...);
+    return result;
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate_classified(
+    const ExceptionClassifier& classifier, const GateFrame frame_at, Target& target, Arguments&... arguments) noexcept {
+    using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
+    static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
+#if defined(__cpp_exceptions)
+    try {
+        detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
+        Return result = target(arguments...);
+        frame.close();
+        return result;
+    } catch (...) {
+        const ErrorRecord record = detail::record_current_exception_classified(frame_at.operation, classifier);
+        return Return::failure(record);
+    }
+#else
+    static_cast<void>(classifier);
+    detail::ShadowFrameScope frame(frame_at.operation, frame_at.first, frame_at.second);
     Return result = target(arguments...);
     frame.close();
     return result;
@@ -158,25 +205,11 @@ template <typename Target, typename... Arguments>
 template <typename Target, typename... Arguments>
 [[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate_classified(
     const ExceptionClassifier& classifier, const Operation operation, Target& target, Arguments&... arguments) noexcept {
-    using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-    static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
-#if defined(__cpp_exceptions)
-    try {
-        detail::ShadowFrameScope frame(operation, 0, 0);
-        Return result = target(arguments...);
-        frame.close();
-        return result;
-    } catch (...) {
-        const ErrorRecord record = detail::record_current_exception_classified(operation, classifier);
-        return Return::failure(record);
-    }
-#else
-    static_cast<void>(classifier);
-    detail::ShadowFrameScope frame(operation, 0, 0);
-    Return result = target(arguments...);
-    frame.close();
+    const GateFrame frame_at{operation, 0, 0};
+    // Not const: a const local is copied, not moved, on return.
+    typename detail::TargetReturn<Target, Arguments...>::Type result =
+        call_gate_classified(classifier, frame_at, target, arguments...);
     return result;
-#endif
 }
 
 template <typename Target, typename... Arguments>
