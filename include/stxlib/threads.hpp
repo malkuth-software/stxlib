@@ -68,6 +68,17 @@ void yield_thread() noexcept;
 // reports none).
 [[nodiscard]] u32 processor_count() noexcept;
 
+// Whether the calling thread is the process's initial thread, the one that
+// entered main (Capability::main_thread; replaces GUI.Forms' direct
+// pthread_main_np, A0 inventory section 2). macOS and FreeBSD answer with
+// pthread_main_np (FreeBSD: lib/libthr/thread/thr_main_np.c:37-50 at the
+// pin); Linux compares the thread's kernel identifier with the process's
+// (the initial thread's identifier is the process identifier, gettid(2);
+// unconfirmed at a pin). Windows has no documented way to name the initial
+// thread, so it fails there with unsupported; a program that needs the
+// answer records its own main thread's ThreadIdentity on entry.
+[[nodiscard]] Result<bool> is_main_thread() noexcept;
+
 // D11's stack sizes, in bytes. A caller's size is rounded up to the host's
 // page size; a size outside [minimum, maximum] is refused by Thread::start.
 // The minimum is above every phase I host's PTHREAD_STACK_MIN (glibc on

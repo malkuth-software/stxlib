@@ -20,6 +20,15 @@
 //     is real time passed: use it for "how long ago" and expiry that must
 //     count a night's sleep. Linux CLOCK_BOOTTIME, macOS CLOCK_MONOTONIC,
 //     Windows QueryInterruptTimePrecise.
+//   - FreeBSD has no clock that counts suspension: CLOCK_BOOTTIME is
+//     defined as CLOCK_MONOTONIC (sys/sys/_clock_id.h:85 at the pin
+//     fb9033d2876d), and CLOCK_MONOTONIC and CLOCK_UPTIME both read
+//     nanouptime (sys/kern/kern_time.c:360-365). There IntervalTime reads
+//     CLOCK_UPTIME, Capability::elapsed_clock is false, and
+//     ElapsedTime::now() reads the same uptime: it still never goes
+//     backwards, but a span of it does not include time suspended. Whether
+//     uptime itself stops in suspension depends on the time counter
+//     hardware (unconfirmed).
 // IntervalTime replaces std::chrono::steady_clock (stx_auxlib's
 // MonotonicTime, whose behaviour in suspension was the host's).
 //

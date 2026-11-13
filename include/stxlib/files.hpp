@@ -266,6 +266,38 @@ private:
 [[nodiscard]] Result<Path> temporary_directory() noexcept;
 // The process's working directory.
 [[nodiscard]] Result<Path> working_directory() noexcept;
+
+// The user's directories (Capability::known_directories; replaces
+// GUI.Forms' HOME, APPDATA and XDG_CONFIG_HOME reading in theme_files.cpp,
+// A0 inventory section 2).
+enum class KnownDirectory : u8 {
+    home = 0,               // the user's home directory
+    user_configuration = 1, // settings the user keeps (and roams, on Windows)
+    user_data = 2,          // data the program keeps for the user
+    user_cache = 3,         // data the program can rebuild; may be removed by the host
+};
+
+// The directory `which` names, as each host's convention defines it. The
+// directory need not exist (a fresh account may lack it); create it with
+// create_directories before writing into it.
+//   - macOS: home is HOME, else the user database's entry (getpwuid_r);
+//     user_configuration and user_data are home/Library/Application Support,
+//     user_cache home/Library/Caches (Apple's File System Programming Guide;
+//     unconfirmed at a pin).
+//   - Linux and FreeBSD (the XDG Base Directory Specification 0.8, as
+//     published; unconfirmed at a pin): home as on macOS;
+//     user_configuration is XDG_CONFIG_HOME, else home/.config; user_data
+//     XDG_DATA_HOME, else home/.local/share; user_cache XDG_CACHE_HOME, else
+//     home/.cache. A variable that is empty or not an absolute path is
+//     ignored, as the specification requires.
+//   - Windows: SHGetKnownFolderPath with FOLDERID_Profile, RoamingAppData,
+//     RoamingAppData and LocalAppData, in order of the enumerators.
+// The variables are read through environment.hpp, under its lock. Failures:
+// not_found with HostCode::no_home when no home can be named; invalid_argument
+// for a value the variable holds that is not a Path; out_of_memory;
+// foreign_failure with the host's code (Windows); unsupported for a value
+// outside the set.
+[[nodiscard]] Result<Path> known_directory(KnownDirectory which) noexcept;
 // `path` made absolute against the working directory, lexically: no
 // symbolic link is followed and the path need not exist.
 [[nodiscard]] Result<Path> absolute(const Path& path) noexcept;
