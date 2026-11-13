@@ -48,7 +48,9 @@ from typing import List, Optional
 # scripts also run under python3 -I (which leaves that directory off the path).
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from bootstages import INTERVALS, StageTracker, default_stage_list
+import re
+
+from bootstages import INTERVALS, Stage, StageTracker, default_stage_list
 from vmlayout import (ApplianceLayout, QEMU_BINARY_DEFAULT, STORAGE_ROOT_DEFAULT,
                       UEFI_CODE_DEFAULT, check_vm_name)
 
@@ -75,7 +77,7 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
     if arguments.accel != 'hvf':
         cpu_model = 'max'
     code_path = firmware_path(layout, arguments.name, arguments.uefi_code)
-    return [
+    command: List[str] = [
         arguments.qemu,
         '-machine', arguments.machine,
         '-accel', arguments.accel,
@@ -94,15 +96,25 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
         '-serial', 'chardev:serial0',
         '-no-reboot',
     ]
+    if arguments.firmware_timeout_ms is not None:
+        # edk2's ArmVirtQemu takes its boot-menu timeout from QEMU when
+        # "-boot menu=on" is given: splash-time N ms, rounded up to whole
+        # seconds, becomes PcdPlatformBootTimeOut and the UEFI "Timeout"
+        # variable (edk2-stable202408 OvmfPkg/Library/QemuBootOrderLib/
+        # QemuBootOrderLib.c:2373-2420, ArmVirtPkg/Library/
+        # PlatformBootManagerLib/PlatformBm.c:505-517). Without it the
+        # platform default applies: 5 s (ArmVirtPkg/ArmVirtQemu.dsc:330).
+        command.extend(['-boot', f'menu=on,splash-time={arguments.firmware_timeout_ms}'])
+    return command
 
 
 class RunRecord:
     """One boot: its tracker, its outcome and where its logs are."""
 
-    def __init__(self, run_id: str, log_dir: str) -> None:
+    def __init__(self, run_id: str, log_dir: str, stages: List[Stage]) -> None:
         self.run_id: str = run_id
         self.log_dir: str = log_dir
-        self.tracker: StageTracker = StageTracker(default_stage_list())
+        self.tracker: StageTracker = StageTracker(stages)
         self.outcome: str = 'not started'
         self.elapsed_seconds: float = 0.0
 
@@ -264,10 +276,22 @@ def vars_store_is_fresh(path: str) -> bool:
 
 def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description='Time the boot stages of a C1 VM.')
-    parser.add_argument('--name', default='stock')
     parser.add_argument('--runs', type=int, default=3)
     parser.add_argument('--timeout', type=float, default=180.0, help='seconds per run')
     parser.add_argument('--skip-countdown', action='store_true')
+    add_vm_arguments(parser)
+    parser.add_argument('--label', default=None, help='run-id label (default: asis or skip)')
+    parser.add_argument('--require', default=None,
+                        help='a regular expression the console must show for a run to count '
+                             '(for example the kernel ident)')
+    parser.add_argument('--dry-run', action='store_true', help='print the QEMU command and stop')
+    return parser.parse_args(argv)
+
+
+def add_vm_arguments(parser: argparse.ArgumentParser) -> None:
+    """The options that shape the VM, shared with guest_session.py so both
+    boot exactly the same machine."""
+    parser.add_argument('--name', default='stock')
     parser.add_argument('--storage-root', default=STORAGE_ROOT_DEFAULT)
     parser.add_argument('--qemu', default=QEMU_BINARY_DEFAULT)
     parser.add_argument('--uefi-code', default=None)
@@ -275,8 +299,8 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser.add_argument('--cpus', type=int, default=2)
     parser.add_argument('--accel', default='hvf')
     parser.add_argument('--machine', default='virt')
-    parser.add_argument('--dry-run', action='store_true', help='print the QEMU command and stop')
-    return parser.parse_args(argv)
+    parser.add_argument('--firmware-timeout-ms', type=int, default=None,
+                        help='pass -boot menu=on,splash-time=N (edk2 boot-menu timeout)')
 
 
 def main(argv: List[str]) -> int:
@@ -301,11 +325,18 @@ def main(argv: List[str]) -> int:
 
     session = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     variant = 'skip' if arguments.skip_countdown else 'asis'
+    if arguments.label is not None:
+        check_vm_name(arguments.label)
+        variant = arguments.label
     records: List[RunRecord] = []
     first_flags: List[bool] = []
     for run_index in range(arguments.runs):
         run_id = f'{session}-{variant}-{run_index + 1}'
-        record = RunRecord(run_id, os.path.join(layout.timing_logs_dir(arguments.name), run_id))
+        stages = default_stage_list()
+        if arguments.require is not None:
+            stages.append(Stage('required_text', re.compile(arguments.require), True, False,
+                                'boot_timing --require'))
+        record = RunRecord(run_id, os.path.join(layout.timing_logs_dir(arguments.name), run_id), stages)
         first_flags.append(vars_store_is_fresh(layout.vm_vars(arguments.name)))
         boot_once(arguments, command, record)
         records.append(record)

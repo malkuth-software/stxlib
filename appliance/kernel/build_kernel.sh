@@ -1,0 +1,84 @@
+#!/bin/sh
+# build_kernel.sh [KERNCONF] -- build an appliance kernel on the M4 (macOS host).
+#
+# Builds appliance/kernel/<KERNCONF> (default STXLIB-VM) for arm64 from the
+# FreeBSD source at the pinned commit with the toolchain named in
+# appliance/toolchain.env (the one toolchain variable, owner P2 = 1), using
+# FreeBSD's tools/build/make.py, which bootstraps bmake and the host tools on
+# a non-FreeBSD host (tools/build/make.py:31-50). The steps are those
+# FreeBSD's own macOS CI runs: kernel-toolchain, then buildkernel with
+# NO_MODULES (.github/workflows/cross-bootstrap-tools.yml:67-70 at the pin).
+#
+# Everything bulky goes under /Volumes/Storage/stxlib_workers/appliance
+# (owner's storage rule): object tree in obj/, the full log in
+# logs/kernel-build/, and on success the kernel, its debug file and a
+# SHA-256 in kernels/<KERNCONF>/. Prints only the outcome and, on failure,
+# the error lines and the log's tail. Exit status is make's.
+#
+# Environment (all optional): STXLIB_FREEBSD_SRC (source tree), STXLIB_STORAGE
+# (storage root), STXLIB_JOBS (parallel jobs; default 4, the M4 is shared).
+set -eu
+
+kernconf=${1:-STXLIB-VM}
+case $kernconf in
+*[!A-Za-z0-9_-]*|'') echo "build_kernel: bad KERNCONF: $kernconf" >&2; exit 2 ;;
+esac
+here=$(cd "$(dirname "$0")" && pwd)
+appliance=$(cd "$here/.." && pwd)
+src=${STXLIB_FREEBSD_SRC:-/Volumes/Storage/stxlib_workers/src/freebsd-src}
+storage=${STXLIB_STORAGE:-/Volumes/Storage/stxlib_workers}
+jobs=${STXLIB_JOBS:-4}
+[ -f "$here/$kernconf" ] || { echo "build_kernel: no configuration $here/$kernconf" >&2; exit 2; }
+[ -x "$src/tools/build/make.py" ] || { echo "build_kernel: no FreeBSD source at $src" >&2; exit 2; }
+
+# The toolchain: read the one file, check the version the tools report.
+. "$appliance/toolchain.env"
+for tool in "$STXLIB_LLVM_BINDIR/clang" "$STXLIB_LLVM_BINDIR/clang++" \
+            "$STXLIB_LLVM_BINDIR/clang-cpp" "$STXLIB_LLD_BINDIR/ld.lld"; do
+    [ -x "$tool" ] || { echo "build_kernel: missing $tool" >&2; exit 2; }
+done
+reported=$("$STXLIB_LLVM_BINDIR/clang" --version | sed -n 's/.*clang version \([0-9.]*\).*/\1/p' | head -1)
+[ "$reported" = "$STXLIB_LLVM_VERSION" ] || {
+    echo "build_kernel: clang reports $reported, toolchain.env pins $STXLIB_LLVM_VERSION" >&2; exit 2; }
+lld_reported=$("$STXLIB_LLD_BINDIR/ld.lld" --version | sed -n 's/.*LLD \([0-9.]*\).*/\1/p' | head -1)
+[ "$lld_reported" = "$STXLIB_LLVM_VERSION" ] || {
+    echo "build_kernel: ld.lld reports $lld_reported, toolchain.env pins $STXLIB_LLVM_VERSION" >&2; exit 2; }
+
+stamp=$(date -u +%Y%m%dT%H%M%SZ)
+logdir="$storage/appliance/logs/kernel-build"
+outdir="$storage/appliance/kernels/$kernconf"
+mkdir -p "$logdir" "$storage/appliance/obj"
+log="$logdir/$stamp-$kernconf.log"
+
+echo "build_kernel: $kernconf, FreeBSD $(git -C "$src" rev-parse --short=12 HEAD 2>/dev/null || echo '?'), clang $reported, ld.lld $lld_reported, -j$jobs"
+echo "build_kernel: log $log"
+start=$(date +%s)
+status=0
+(
+    cd "$src"
+    MAKEOBJDIRPREFIX="$storage/appliance/obj" XLD="$STXLIB_LLD_BINDIR/ld.lld" \
+        python3 tools/build/make.py --cross-bindir="$STXLIB_LLVM_BINDIR" \
+        TARGET=arm64 TARGET_ARCH=aarch64 \
+        KERNCONF="$kernconf" KERNCONFDIR="$here" NO_MODULES=yes \
+        -j"$jobs" kernel-toolchain buildkernel
+) >"$log" 2>&1 || status=$?
+elapsed=$(( $(date +%s) - start ))
+
+if [ "$status" -ne 0 ]; then
+    echo "build_kernel: FAILED (make exit $status) after ${elapsed} s"
+    echo "--- error lines (first 40)"
+    grep -n -E 'error:|Error code|\*\*\* \[|Stop\.|not found|No such file' "$log" | head -40 || true
+    echo "--- last 25 lines"
+    tail -n 25 "$log"
+    exit "$status"
+fi
+
+built=$(find "$storage/appliance/obj" -path "*/arm64.aarch64/sys/$kernconf/kernel" -type f | head -1)
+[ -n "$built" ] || { echo "build_kernel: make succeeded but no kernel found under obj/" >&2; exit 1; }
+mkdir -p "$outdir"
+cp "$built" "$outdir/kernel"
+[ -f "$built.debug" ] && cp "$built.debug" "$outdir/kernel.debug"
+( cd "$outdir" && shasum -a 256 kernel > kernel.sha256 )
+echo "build_kernel: OK after ${elapsed} s: $outdir/kernel ($(wc -c < "$outdir/kernel" | tr -d ' ') bytes)"
+echo "build_kernel: sha256 $(cut -d' ' -f1 "$outdir/kernel.sha256")"
+echo "build_kernel: warnings in log: $(grep -c 'warning:' "$log" || true)"

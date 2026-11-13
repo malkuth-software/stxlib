@@ -1,0 +1,7 @@
+# C1 step 2, loader by configuration only: no menu, no countdown.
+# loader.conf.local is read after loader.conf (stand/defaults/loader.conf:18,
+# stand/lua/config.lua:706-710). autoboot_delay -1 boots at once without
+# polling the keyboard (stand/common/boot.c:185-206, stand/defaults/loader.conf:98-99);
+# beastie_disable skips the menu (stand/lua/core.lua:511-512, stand/lua/loader.lua:52-56).
+printf '%s\n' 'beastie_disable="YES"' 'autoboot_delay="-1"' >> /boot/loader.conf.local
+cat /boot/loader.conf /boot/loader.conf.local

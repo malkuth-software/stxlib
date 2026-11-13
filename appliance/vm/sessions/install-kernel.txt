@@ -1,0 +1,7 @@
+# C1 step 2: install the STXLIB-VM kernel beside the stock one and select it.
+# The stock kernel stays in /boot/kernel; removing the kernel= line returns to it.
+mkdir -p /boot/STXLIB-VM
+fetch -q -o /boot/STXLIB-VM/kernel {http}/kernel
+test "$(sha256 -q /boot/STXLIB-VM/kernel)" = "{kernel_sha256}"
+printf '%s\n' 'kernel="STXLIB-VM"' >> /boot/loader.conf.local
+cat /boot/loader.conf.local
