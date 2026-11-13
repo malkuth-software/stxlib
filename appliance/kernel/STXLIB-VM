@@ -272,3 +272,6 @@ nooptions KDTRACE_HOOKS,KDTRACE_FRAME,DDB_CTF # no DTrace on the appliance
 
 # --- Batch 2, round 2
 nomakeoptions WITH_CTF # CTF type data serves only DTrace and DDB_CTF
+
+# --- Batch 2, round 3
+nooptions COMPAT_FREEBSD32,COMPAT_FREEBSD11,COMPAT_FREEBSD12,COMPAT_FREEBSD13,COMPAT_FREEBSD14 # the appliance runs only binaries built for it
