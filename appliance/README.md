@@ -15,8 +15,10 @@ decisions live on the notes branch: `planning/FORWARD_PROGRAMME.md` sections
 The appliance's first programs live under `runtime/` at the repository root,
 since they issue system calls (AGENTS.md: only `src/hosted/`, `runtime/` and
 `appliance/shim/` may): PID 1 (`stxinit`) in `runtime/init/`, the supervisor
-(`stxsupervisor`, first form) in `runtime/supervisor/`, what both share in
-`runtime/common/`. `runtime/build_programs.sh` builds them against the
+(`stxsupervisor`, first form) in `runtime/supervisor/`, the boot
+configuration's format, parser and init-section executor in
+`runtime/supervisor/config/` (host tests in its `test/`), what both programs
+share in `runtime/common/`. `runtime/build_programs.sh` builds them against the
 sysroot.
 
 Host scripts here are Python 3, standard library only, and run on the M4

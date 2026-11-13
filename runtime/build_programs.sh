@@ -4,7 +4,8 @@
 # versions checked) against the sysroot made by appliance/vm/c1_sysroot.sh:
 #
 #   stxinit                 runtime/init/stxinit.cpp (PID 1)
-#   stxsupervisor           runtime/supervisor/stxsupervisor.cpp
+#   stxsupervisor           runtime/supervisor/stxsupervisor.cpp and
+#                           runtime/supervisor/config/*.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
 #
 # Static (no run-time linker for PID 1), stripped (-s), unused sections
@@ -32,17 +33,22 @@ mkdir -p "$out"
 log=$out/build.log
 : > "$log"
 
+# build NAME SOURCE... (paths relative to the repository)
 build() {
     name=$1
-    source=$2
+    shift
+    sources=
+    for source in "$@"; do
+        sources="$sources $repo/$source"
+    done
     status=0
-    echo "=== $name: $source" >> "$log"
+    echo "=== $name:$sources" >> "$log"
     "$STXLIB_LLVM_BINDIR/clang++" --target=aarch64-unknown-freebsd15.2 --sysroot="$sysroot" \
         -fuse-ld=lld --ld-path="$STXLIB_LLD_BINDIR/ld.lld" \
         -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror \
         -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections \
         -static -s -Wl,--gc-sections \
-        -o "$out/$name.new" "$repo/$source" >>"$log" 2>&1 || status=$?
+        -o "$out/$name.new" $sources >>"$log" 2>&1 || status=$?
     if [ "$status" -ne 0 ]; then
         echo "build_programs: $name FAILED (exit $status)"
         grep -E 'error|warning|undefined' "$log" | head -40
@@ -58,5 +64,6 @@ build() {
 }
 
 build stxinit runtime/init/stxinit.cpp
-build stxsupervisor runtime/supervisor/stxsupervisor.cpp
+build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/config/boot_config.cpp \
+    runtime/supervisor/config/init_executor.cpp runtime/supervisor/config/system_actions.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
