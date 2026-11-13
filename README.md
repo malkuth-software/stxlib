@@ -66,7 +66,7 @@ vocabulary and services and make no host call of their own.
 | calendar (civil arithmetic, weekdays, ISO 8601 text) | `calendar.hpp` | batch 3c2 |
 | precedence chain (hash-only proof of recording order) | `precedence.hpp` | batch 3c3 |
 | Preference Ranked Voting | `voting.hpp` | batch 3c4 |
-| math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic; the same bits on every target) | `math.hpp` | batch 3c5 |
+| math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic; the same bits on every target; no subnormals in or out) | `math.hpp` | batch 3c5; subnormal rule batch 3c8 |
 | row height index (stx_btree's sequence tree behind a compiled facade: offsets, rows at offsets, cursors) | `row_height_index.hpp` | batch 3c6 |
 | ordered map (stx_btree's unsync map and pooled pages; private, no interface yet) | none (`src/algorithms/stx_btree/unsync_map.hpp`) | batch 3c7 |
 

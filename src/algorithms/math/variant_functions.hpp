@@ -2,7 +2,9 @@
 // namespace: the public set of stxlib/math.hpp. Included without a guard,
 // once per variant: by each kernel source for its own variant, and by
 // dispatch.cpp once for every variant it calls, with
-// STXLIB_MATH_DECLARE_VARIANT naming the namespace.
+// STXLIB_MATH_DECLARE_VARIANT naming the namespace. STXlib batch 3c8: also
+// declares the unflushed set (dispatch.cpp defines it, flush.cpp and
+// tests/math_tests.cpp call it) with STXLIB_MATH_DECLARE_VARIANT unflushed.
 
 #if defined(STXLIB_MATH_DECLARE_VARIANT)
 namespace stxlib::math::STXLIB_MATH_DECLARE_VARIANT {
