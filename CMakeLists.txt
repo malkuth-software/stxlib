@@ -319,15 +319,15 @@ if(STXLIB_TESTS)
 
     # Two modules, each with its own copy of stxlib::boundary, release each
     # other's blocks through the one allocator in stxlib_state.
-    add_library(stxlib_two_module_library SHARED tests/two_module_library.cpp)
-    target_link_libraries(stxlib_two_module_library PRIVATE stxlib::boundary)
-    target_compile_definitions(stxlib_two_module_library PRIVATE STXLIB_TWO_MODULE_BUILDING)
-    target_compile_options(stxlib_two_module_library PRIVATE ${stxlib_test_warnings})
-    set_target_properties(stxlib_two_module_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    add_executable(stxlib_two_module_tests tests/two_module_tests.cpp)
-    target_link_libraries(stxlib_two_module_tests PRIVATE stxlib::boundary stxlib_two_module_library)
-    target_compile_options(stxlib_two_module_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_two_module_tests COMMAND stxlib_two_module_tests)
+    add_library(stxlib_allocator_two_module_library SHARED tests/allocator_two_module_library.cpp)
+    target_link_libraries(stxlib_allocator_two_module_library PRIVATE stxlib::boundary)
+    target_compile_definitions(stxlib_allocator_two_module_library PRIVATE STXLIB_ALLOCATOR_TWO_MODULE_BUILDING)
+    target_compile_options(stxlib_allocator_two_module_library PRIVATE ${stxlib_test_warnings})
+    set_target_properties(stxlib_allocator_two_module_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
+    add_executable(stxlib_allocator_two_module_tests tests/allocator_two_module_tests.cpp)
+    target_link_libraries(stxlib_allocator_two_module_tests PRIVATE stxlib::boundary stxlib_allocator_two_module_library)
+    target_compile_options(stxlib_allocator_two_module_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_allocator_two_module_tests COMMAND stxlib_allocator_two_module_tests)
 
     # The gates compiled without exceptions: direct calls (A1 design, 6).
     add_executable(stxlib_gate_no_exceptions_tests tests/gate_no_exceptions_tests.cpp)

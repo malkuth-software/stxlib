@@ -1,51 +1,55 @@
-// The library side of tests/two_module_tests.cpp (tests/two_module.hpp).
+// The library half of the two-module test (two_module_library.hpp).
 
-#include "two_module.hpp"
+#include "two_module_library.hpp"
 
-#include <cstring>
-#include <utility>
-
-namespace stxlib_two_module {
+namespace two_module {
 
 namespace {
 
-void add_one(const stxlib::StopSignal&, void* const address) noexcept {
-    stxlib::u32& counter = *static_cast<stxlib::u32*>(address);
-    counter = counter + 1;
-}
+struct CallsBack final {
+    Callback callback{nullptr};
+    void* context{nullptr};
+
+    void operator()() const { callback(context); }
+};
+
+struct CallsBackForGate final {
+    Callback callback{nullptr};
+    void* context{nullptr};
+
+    stxlib::Status operator()() const {
+        callback(context);
+        return stxlib::Status::success();
+    }
+};
 
 } // namespace
 
-void* library_allocate(const stxlib::usize size, const unsigned char fill) noexcept {
-    void* const block = stxlib::memory::allocate(size, 16);
-    if (block != nullptr) std::memset(block, fill, size);
-    return block;
+void run_in_library_frame(const Callback callback, void* const context) {
+    CallsBack calls{callback, context};
+    stxlib::in_shadow_frame("test.library.frame", 5, 6, calls);
 }
 
-void library_release(void* const block) noexcept { stxlib::memory::release(block); }
-
-stxlib::memory::Backend library_backend() noexcept { return stxlib::memory::backend(); }
-
-bool library_tags_checked() noexcept { return stxlib::memory::tags_checked(); }
-
-stxlib::Result<stxlib::Path> library_path(const stxlib::TextView text) noexcept {
-    stxlib::Result<stxlib::Path> result = stxlib::Path::parse(text);
+stxlib::Status run_in_library_gate(const Callback callback, void* const context) {
+    CallsBackForGate calls{callback, context};
+    const stxlib::Status result = stxlib::call_gate("test.library.gate", calls);
     return result;
 }
 
-stxlib::Result<stxlib::Thread> library_thread(stxlib::u32* const counter) noexcept {
-    stxlib::Result<stxlib::Thread> result = stxlib::Thread::start(add_one, counter);
+stxlib::usize library_shadow_depth() {
+    const stxlib::usize result = stxlib::shadow_depth();
     return result;
 }
 
-stxlib::Result<stxlib::AtomicPool> library_pool(const stxlib::u32 thread_count) noexcept {
-    stxlib::Result<stxlib::AtomicPool> result = stxlib::AtomicPool::create(thread_count);
+stxlib::ErrorRecord library_record() {
+    const stxlib::ErrorRecord result = stxlib::ErrorRecord::make(stxlib::ErrorKind::not_found, "test.library.record");
     return result;
 }
 
-void library_destroy_path(stxlib::Result<stxlib::Path>&& path) noexcept {
-    const stxlib::Result<stxlib::Path> destroyed = std::move(path);
-    static_cast<void>(destroyed);
+stxlib::Result<stxlib::EventWatch> library_watch_interrupts() {
+    stxlib::Result<stxlib::EventWatch> result =
+        stxlib::EventWatch::watch(stxlib::EventSet().with(stxlib::ProcessEvent::interrupt));
+    return result;
 }
 
-} // namespace stxlib_two_module
+} // namespace two_module
