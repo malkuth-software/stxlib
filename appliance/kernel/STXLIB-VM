@@ -302,3 +302,6 @@ nooptions NUMA # one memory node on every reference machine
 
 # --- Batch 2, round 12
 nodevice cpufreq # no frequency control on QEMU virt
+
+# --- Batch 2, round 13
+nooptions PCI_HP,PCI_IOV # no PCIe hot plug or SR-IOV
