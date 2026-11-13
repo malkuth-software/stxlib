@@ -1120,6 +1120,56 @@ void pow_special_values() {
             "pow(double): exact square roots are not exact");
 }
 
+// The kernel's y range (2^-80 <= |y| < 2^64, pow.cpp): outside it the result
+// is decided without the kernel, the same in the fused and Dekker builds
+// (this test runs in both). Before 2026-11-13 pow(1, +-DBL_MAX) was NaN in
+// the Dekker build (the split of y overflowed) and 1 in the fused one.
+void pow_kernel_y_range() {
+    const double infinity = std::numeric_limits<double>::infinity();
+    const double largest = std::numeric_limits<double>::max();
+    const double below_one = 0x1.fffffffffffffp-1;  // 1 - 2^-53
+    const double above_one = 0x1.0000000000001p0;   // 1 + 2^-52
+    const double huge_ys[] = {0x1p64, 0x1.0000000000001p64, 0x1p996, 0x1p997, 0x1p1000, largest, infinity};
+    for (const double huge : huge_ys) {
+        for (const double sign : {1.0, -1.0}) {
+            const double y = sign * huge;
+            require(same_bits(unflushed::pow(1.0, y), 1.0), "pow(double): 1^y is not 1 for huge y");
+            require(same_bits(unflushed::pow(-1.0, y), 1.0), "pow(double): (-1)^y is not 1 for huge (even) y");
+            const double grows = sign > 0.0 ? infinity : 0.0;
+            const double shrinks = sign > 0.0 ? 0.0 : infinity;
+            require(same_bits(unflushed::pow(above_one, y), grows), "pow(double): (1 + 2^-52)^y for huge y");
+            require(same_bits(unflushed::pow(below_one, y), shrinks), "pow(double): (1 - 2^-53)^y for huge y");
+            require(same_bits(unflushed::pow(-2.0, y), grows), "pow(double): (-2)^y for huge (even) y");
+            require(same_bits(unflushed::pow(-0.5, y), shrinks), "pow(double): (-0.5)^y for huge (even) y");
+            require(same_bits(unflushed::pow(0x1p-1074, y), shrinks), "pow(double): subnormal^y for huge y");
+            require(same_bits(unflushed::pow(largest, y), grows), "pow(double): DBL_MAX^y for huge y");
+        }
+    }
+    // Just inside the top of the kernel's range: the kernel's own limits.
+    const double top = 0x1.fffffffffffffp63;
+    require(same_bits(unflushed::pow(above_one, top), infinity), "pow(double): (1 + 2^-52)^(2^64 - ulp)");
+    require(same_bits(unflushed::pow(below_one, top), 0.0), "pow(double): (1 - 2^-53)^(2^64 - ulp)");
+    require(same_bits(unflushed::pow(1.0, top), 1.0), "pow(double): 1^(2^64 - ulp)");
+    // Below the kernel's range x^y rounds to 1; negative x has no real power.
+    const double tiny_ys[] = {0x1.fffffffffffffp-81, 0x1p-100, 1e-300, 0x1p-1022, 0x1p-1074};
+    const double bases[] = {0x1p-1074, 0x1p-1022, 0.5, below_one, above_one, 2.0, 1e300, largest};
+    for (const double tiny : tiny_ys) {
+        for (const double sign : {1.0, -1.0}) {
+            const double y = sign * tiny;
+            for (const double x : bases) {
+                require(same_bits(unflushed::pow(x, y), 1.0), "pow(double): x^y is not 1 for tiny y");
+                require(std::isnan(unflushed::pow(-x, y)), "pow(double): negative x with tiny y is not NaN");
+            }
+        }
+    }
+    // The bottom of the kernel's range: |y log2 x| <= 2^-70, still 1.
+    for (const double x : bases) {
+        require(same_bits(unflushed::pow(x, 0x1p-80), 1.0), "pow(double): x^(2^-80) is not 1");
+        require(same_bits(unflushed::pow(x, -0x1p-80), 1.0), "pow(double): x^(-2^-80) is not 1");
+    }
+    std::printf("pow(double) outside the kernel's y range: decided, in both product forms\n");
+}
+
 // Inputs: x in [0.5, 2] with y in [-100, 100]; any exponent of x with
 // |y log x| < 700; x within 1e-10 of 1 with |y| ~ 1e10; results near
 // overflow; and subnormal results.
@@ -2616,6 +2666,7 @@ int main(const int argument_count, char** const arguments) {
         log_double_accuracy(logs, exhaustive ? 20000000 : 100000);
         log_float_rounding(logs, exhaustive ? 1 : 997);
         pow_special_values();
+        pow_kernel_y_range();
         pow_determinism();
         pow_double_accuracy(exhaustive ? 20000000 : 100000);
         pow_float_rounding(exhaustive ? 100000000 : 200000);

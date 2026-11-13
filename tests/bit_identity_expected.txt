@@ -9,61 +9,61 @@
 #   python3 -I tools/compare_bit_identity.py --freeze OUTPUT... > tests/bit_identity_expected.txt
 # which refuses unless every output agrees; CI's hosts then check the same
 # values.
-math.exp.double unfrozen
-math.log.double unfrozen
-math.log2.double unfrozen
-math.log10.double unfrozen
-math.atan.double unfrozen
-math.asin.double unfrozen
-math.acos.double unfrozen
-math.tan.double unfrozen
-math.cbrt.double unfrozen
-math.sinh.double unfrozen
-math.cosh.double unfrozen
-math.tanh.double unfrozen
-math.asinh.double unfrozen
-math.acosh.double unfrozen
-math.atanh.double unfrozen
-math.sincos.double unfrozen
-math.pow.double unfrozen
-math.hypot.double unfrozen
-math.atan2.double unfrozen
-math.exp.float unfrozen
-math.log.float unfrozen
-math.log2.float unfrozen
-math.log10.float unfrozen
-math.atan.float unfrozen
-math.asin.float unfrozen
-math.acos.float unfrozen
-math.tan.float unfrozen
-math.cbrt.float unfrozen
-math.sinh.float unfrozen
-math.cosh.float unfrozen
-math.tanh.float unfrozen
-math.asinh.float unfrozen
-math.acosh.float unfrozen
-math.atanh.float unfrozen
-math.sincos.float unfrozen
-math.pow.float unfrozen
-math.hypot.float unfrozen
-math.atan2.float unfrozen
-exact.two_sum.double unfrozen
-exact.two_product.double unfrozen
-exact.split.double unfrozen
-exact.two_sum.float unfrozen
-exact.two_product.float unfrozen
-exact.expansions.double unfrozen
-exact.compensated.double unfrozen
-exact.orient2d.double unfrozen
-exact.incircle.double unfrozen
-exact.orient2d.float unfrozen
-exact.incircle.float unfrozen
-reduce.ordered.double unfrozen
-reduce.ordered.float unfrozen
-reduce.pooled unfrozen
-text.shortest.double unfrozen
-text.formatted.double unfrozen
-text.shortest.float unfrozen
-text.parse unfrozen
-random.xoshiro256pp unfrozen
-random.chacha12 unfrozen
+math.exp.double bb5b4e439d30a6ed 5144
+math.log.double 0bbcec9aec7d7a7c 5144
+math.log2.double 3ff23dd097fdcef7 5144
+math.log10.double 835ca6c427ea99c5 5144
+math.atan.double 422741401e9f1514 5144
+math.asin.double 4a1c98df13b75267 5144
+math.acos.double 87839e7da9e744e0 5144
+math.tan.double f1bffad8ae8baab7 5144
+math.cbrt.double b22b51a05117f04e 5144
+math.sinh.double d89220048bf4d939 5144
+math.cosh.double ffa0b6d2fad9ffd8 5144
+math.tanh.double e6cc1a7086725db6 5144
+math.asinh.double 6b148d5e327e9919 5144
+math.acosh.double e9ef774223078ea2 5144
+math.atanh.double 5e5c7c57c8293286 5144
+math.sincos.double 58f8c080766956e2 10288
+math.pow.double 6accc259646c4e79 5720
+math.hypot.double f6c72677348cef19 5720
+math.atan2.double 8e900d18dd5e9038 5720
+math.exp.float 197e43a08e64030a 5140
+math.log.float 25296191862340c9 5140
+math.log2.float 287bd6ec8724ffc3 5140
+math.log10.float 169538bf570403da 5140
+math.atan.float 349a82cb55255a36 5140
+math.asin.float 921d3e58826370fb 5140
+math.acos.float cdc476cfad9a7386 5140
+math.tan.float 79b072eb81c1f3aa 5140
+math.cbrt.float f707d01e2feac37d 5140
+math.sinh.float 533011c40ab4d07a 5140
+math.cosh.float 489c335e809a8d08 5140
+math.tanh.float 2faaf42c3a316fee 5140
+math.asinh.float ff502f64ead520b8 5140
+math.acosh.float 157a0568ac20614a 5140
+math.atanh.float 3b71cb9410ea55c1 5140
+math.sincos.float e0fca2706500ac67 10280
+math.pow.float 87882ea18b450c4f 5540
+math.hypot.float f830f5eb42b177ce 5540
+math.atan2.float bf55a6fe90764891 5540
+exact.two_sum.double 9864bebc24a354c9 80000
+exact.two_product.double ba3e13e37ccb50bb 40000
+exact.split.double 8cd72f215d15dcea 40000
+exact.two_sum.float 02d0844477666b91 40000
+exact.two_product.float 62a584d0c9443e11 40000
+exact.expansions.double 0ee65d10557e2a0c 65722
+exact.compensated.double 273d9da4c9aebc28 100
+exact.orient2d.double 61f304d6133e5b6c 80000
+exact.incircle.double 1b72446687805e85 26000
+exact.orient2d.float b724975e77f6e865 20000
+exact.incircle.float b90902c05b947775 20000
+reduce.ordered.double bfb373b1e62f67c3 204
+reduce.ordered.float dd29c3d4fabe8038 203
+reduce.pooled 07b5b5fce4edbe46 3
+text.shortest.double 43edcd74f5c6bd6f 10288
+text.formatted.double b64d25e2e294af3b 9334
+text.shortest.float 043054c59134d18b 10280
+text.parse fb86e64d45cadf4c 40000
+random.xoshiro256pp 61cd097e9c93871e 140000
+random.chacha12 af7573f443c5df7a 60000

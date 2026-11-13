@@ -4,6 +4,25 @@
 // test (the owner's log2 formulation, adopted 2026-11-02). One formulation
 // on every tier: the exact products are FMA or Dekker's, with the same bits.
 //
+// The same bits need every exact product inside the range where both forms
+// are exact (kernel_support.hpp two_product; float_exact's in_product_range:
+// each factor zero or of magnitude in [2^-969, 2^995], exponents summing to
+// at least -918). The factors are y, k + H_i, s, r, a, t, u and table
+// constants. The kernel therefore takes only 2^-80 <= |y| < 2^64; the
+// other factors are zero or between 2^-600 and 2^11 there: k + H_i is a
+// multiple of 2^-41 below 1077; r is a multiple of 2^-53, so r, a and s are
+// zero or at least 2^-54; t (and u = t ln 2) is zero or at least 2^-600,
+// because t_head and p_lo are sums of products and roundings of values on
+// grids no finer than 2^-600 once |y| >= 2^-80 (a rounded sum of terms on a
+// grid stays on it). Products of zero are exact in both forms. Outside that
+// y range the result is decided
+// without the kernel (pow_y_kernel_low, pow_y_kernel_high). Before
+// 2026-11-13 the kernel took every finite y: for x = 1 and |y| > 2^996,
+// Dekker's split of y overflowed (y * 134217729 = inf, so the split and
+// y (k + H) = 0's error term were NaN) and the Dekker form returned NaN
+// where the fused form returned 1, which made pow(double)'s bits depend on
+// the host's FMA (bit identity, item math.pow.double).
+//
 //   log2 x = (k + H_i) + s + s_lo
 // with x = 2^k z, the log table's bucket i (log_core.hpp: r = z inv_i - 1,
 // |r| <= 2^-8, exact as r + r_lo), H_i = -log2(inv_i) cut to a multiple of
@@ -76,10 +95,25 @@ constexpr double pow2_c3 = 0.05550410866482158;
 // rounds to +0. Between them the exponent e = floor(q / 256) lies in
 // [-1077, 1024], inside scale_wide's range: e = 1024 scales in two steps
 // (an overflow rounds once), and results below 2^-1022 round once on the
-// subnormal grid. p is +-infinity (p_error NaN) when y (k + H) overflows;
-// the limits decide those before p_error is used.
+// subnormal grid. With |y| < 2^64, y (k + H) stays below 2^75 and p is
+// finite.
 constexpr double pow_overflow_limit = 1024.5;
 constexpr double pow_underflow_limit = -1076.0;
+
+// The kernel's y range (bits of |y|): 2^-80 <= |y| < 2^64, where every
+// exact product is in range for both product forms (head of this file).
+// Outside it, for positive finite x != 1 (normal or subnormal):
+// - |y| >= 2^64: |log2 x| >= log2(1 + 2^-52) > 2^-53 for x != 1, so
+//   |y log2 x| > 2^11 > 1076 and the result is +infinity or +0 (overflow
+//   or underflow, rounded to nearest), as for infinite y. Such y is an even
+//   integer (|y| >= 2^53), so negative x and zero or infinite x give the
+//   same results as infinite y too (C99 Annex F);
+// - 0 < |y| < 2^-80: |y log2 x| < 2^-80 * 1075 < 2^-69, so x^y lies within
+//   2^-69 of 1 and rounds to 1 (the neighbours of 1 are 1 - 2^-53 and
+//   1 + 2^-52). Negative finite x has no real power there (0 < |y| < 1 is
+//   not an integer): NaN.
+constexpr std::uint64_t pow_y_kernel_low = 0x3af0000000000000ULL;   // 2^-80
+constexpr std::uint64_t pow_y_kernel_high = 0x43f0000000000000ULL;  // 2^64
 
 // H_i + mid_i = -log2(inv_i) for each log bucket: H_i a multiple of 2^-41,
 // so k + H_i is exact (|k| <= 1075 takes 11 bits above the point, H_i 41
@@ -122,7 +156,8 @@ constexpr Log2Table make_log2_table() noexcept {
 
 alignas(64) constexpr Log2Table log2_table = make_log2_table();
 
-// x^y for positive finite x (normal or subnormal) and finite nonzero y.
+// x^y for positive finite x (normal or subnormal) and 2^-80 <= |y| < 2^64
+// (pow_y_kernel_low, pow_y_kernel_high).
 // Modular by design: the log table's offset arithmetic (see log_core.hpp).
 STXLIB_MODULAR double pow_positive(const double x, const double y) noexcept {
     double scaled = x;
@@ -261,11 +296,12 @@ double pow_zero_or_infinite_base(const double x, const double y) noexcept {
 } // namespace detail
 
 double pow(const double x, const double y) noexcept {
-    // The common case in one test: x positive, normal and finite; y finite
-    // and nonzero.
+    // The common case in one test: x positive, normal and finite; y in the
+    // kernel's range (2^-80 <= |y| < 2^64).
     const std::uint64_t x_bits = std::bit_cast<std::uint64_t>(x);
     const std::uint64_t y_magnitude = std::bit_cast<std::uint64_t>(y) & detail::magnitude_mask;
-    if (detail::log_fast_path(x_bits) && y_magnitude != 0 && y_magnitude < detail::infinity_bits) {
+    if (detail::log_fast_path(x_bits) && y_magnitude >= detail::pow_y_kernel_low &&
+        y_magnitude < detail::pow_y_kernel_high) {
         const double result = detail::pow_positive(x, y);
         return result;
     }
@@ -273,13 +309,21 @@ double pow(const double x, const double y) noexcept {
     if (x == 1.0) return 1.0;
     if (x != x || y != y) return x + y;
     const double infinity = std::numeric_limits<double>::infinity();
-    if (std::isinf(y)) {
+    // Infinite y, and finite |y| >= 2^64 (an even integer whose power of
+    // any |x| != 1 overflows or underflows: pow_y_kernel_high).
+    if (y_magnitude >= detail::pow_y_kernel_high) {
         const double magnitude = std::fabs(x);
         if (magnitude == 1.0) return 1.0;
         if ((magnitude < 1.0) == (y > 0.0)) return 0.0;
         return infinity;
     }
     if (x == 0.0 || std::isinf(x)) return detail::pow_zero_or_infinite_base(x, y);
+    // 0 < |y| < 2^-80: x^y rounds to 1 for positive finite x; negative x
+    // has no real power (pow_y_kernel_low).
+    if (y_magnitude < detail::pow_y_kernel_low) {
+        if (x > 0.0) return 1.0;
+        return std::numeric_limits<double>::quiet_NaN();
+    }
     if (x > 0.0) return detail::pow_positive(x, y);
     // Negative finite x: defined only for integer y, with the parity's sign.
     const detail::IntegerKind kind = detail::integer_kind(y);

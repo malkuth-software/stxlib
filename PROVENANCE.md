@@ -435,6 +435,25 @@ code is copied from anywhere; no STXlib result changes (the math, text and
 random code is untouched; the new options were already on every target
 that computes in floating point).
 
+### pow(double): the kernel's y range, and the first freeze (STXlib's own change, 2026-11-13)
+
+The bit identity's first M4 and CI runs (main `5aaedf7`) found
+math.pow.double differing between the fused and Dekker product forms.
+`src/algorithms/math/pow.cpp` passed every finite y to its kernel, and for
+x = 1 with |y| > 2^996 the Dekker split of y overflowed: the Dekker form
+returned NaN, the fused one 1. Now the kernel takes only
+2^-80 <= |y| < 2^64, where every exact product is in range for both forms
+(pow.cpp's head says why); larger |y| is decided as infinite y is, and
+smaller |y| gives 1 (NaN for negative x). Results change only in the
+Dekker form (and on hosts without FMA), for x = 1 or -1 with
+|y| > 2^996, from NaN to 1; the fused form's results are unchanged.
+`tests/math_tests.cpp` gains `pow_kernel_y_range()`.
+`tests/bit_identity_expected.txt` is frozen from the M4's library-build
+output of `5aaedf7` (`integration/dev/logs/bit-m4-plain-1113-130811.log`,
+via `compare_bit_identity.py --freeze`), on the expectation that the fix
+leaves the fused form's results unchanged. The integrator's freeze from the
+fixed build (`bit_identity_freeze.sh`) must reproduce the file exactly.
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)
