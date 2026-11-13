@@ -4,9 +4,15 @@
 // POSIX calls std::filesystem itself uses (mkdir, rmdir and unlink, rename,
 // opendir and readdir, getcwd, realpath, readlink, symlink).
 //
-// Durability uses F_FULLFSYNC where the host has it (Apple), because plain
-// fsync there does not flush the drive's cache, and fsync elsewhere
-// (stx_auxlib's flush_descriptor; survey D13's table).
+// Durability levels (files.hpp, Durability; owner decision D13 a). macOS
+// fcntl(2) and fsync(2), read on this host: fsync leaves data in the drive,
+// which may reorder it; F_FULLFSYNC makes the drive write everything it
+// holds; F_BARRIERFSYNC is fsync plus a barrier, so I/O issued before it is
+// persisted before I/O issued after. durable uses F_FULLFSYNC (stx_auxlib's
+// flush_descriptor), ordered F_BARRIERFSYNC; elsewhere both use fsync, the
+// only flush POSIX offers.
+//
+// Names are the host's bytes both ways (file_backend.hpp, "Names").
 
 #include "hosted/file_backend.hpp"
 
@@ -113,12 +119,18 @@ int open_retrying(const char* const name, const int flags, const mode_t permissi
     return fd;
 }
 
-// Flushes the descriptor's content to stable storage.
-int flush_descriptor(const int fd) noexcept {
+// Flushes the descriptor's content as `level` says; Durability::none does
+// nothing.
+int flush_descriptor(const int fd, const Durability level) noexcept {
+    if (level == Durability::none) return 0;
 #if defined(F_FULLFSYNC)
     // Some filesystems (network volumes, RAM disks) refuse F_FULLFSYNC;
     // fsync is then the strongest flush they offer.
-    if (::fcntl(fd, F_FULLFSYNC) == 0) return 0;
+    if (level == Durability::durable && ::fcntl(fd, F_FULLFSYNC) == 0) return 0;
+#endif
+#if defined(F_BARRIERFSYNC)
+    // The same fallback when a filesystem refuses the barrier.
+    if (level == Durability::ordered && ::fcntl(fd, F_BARRIERFSYNC) == 0) return 0;
 #endif
     int result = ::fsync(fd);
     while (result != 0 && errno == EINTR) result = ::fsync(fd);
@@ -249,8 +261,8 @@ Outcome seek(const i64 handle, const u64 offset) noexcept {
     return success();
 }
 
-Outcome sync(const i64 handle) noexcept {
-    if (flush_descriptor(descriptor(handle)) != 0) return from_errno(errno);
+Outcome sync(const i64 handle, const Durability level) noexcept {
+    if (flush_descriptor(descriptor(handle), level) != 0) return from_errno(errno);
     return success();
 }
 
@@ -287,8 +299,9 @@ Outcome inspect(const char* const name, const LinkMode links, FileInformation& i
     return success();
 }
 
-Outcome replace_durably(const char* const from, const char* const to) noexcept {
+Outcome replace(const char* const from, const char* const to, const Durability level) noexcept {
     if (::rename(from, to) != 0) return from_errno(errno);
+    if (level != Durability::durable) return success();
     // Make the rename itself durable by flushing the directory that holds
     // `to`. Filesystems that cannot flush a directory report EINVAL or
     // ENOTSUP; the rename has still happened, so those are not failures.
@@ -304,7 +317,7 @@ Outcome replace_durably(const char* const from, const char* const to) noexcept {
     if (!directory.push('\0')) return no_memory();
     Descriptor fd(open_retrying(directory.data(), O_RDONLY | O_DIRECTORY | O_CLOEXEC, 0));
     if (fd.get() < 0) return from_errno(errno);
-    const int flushed = flush_descriptor(fd.get());
+    const int flushed = flush_descriptor(fd.get(), Durability::durable);
     const int error = errno;
     if (flushed != 0 && error != EINVAL && error != ENOTSUP) return from_errno(error);
     return success();
@@ -380,9 +393,7 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     return success();
 }
 
-Outcome list(const char* const name, const usize limit, Growable<char>& names, Growable<RawEntry>& entries,
-             usize& unconvertible) noexcept {
-    unconvertible = 0;
+Outcome list(const char* const name, const usize limit, Growable<char>& names, Growable<RawEntry>& entries) noexcept {
     DirectoryStream stream(::opendir(name));
     if (stream.get() == nullptr) return from_errno(errno);
     usize seen = 0;

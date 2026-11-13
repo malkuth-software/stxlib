@@ -39,6 +39,22 @@ bool capability_supported(const Capability capability) noexcept {
 #else
         return false; // FreeBSD joins in phase II (desktop_posix.cpp)
 #endif
+    case Capability::atomic_replace:
+#if defined(_WIN32)
+        // MoveFileExW with MOVEFILE_REPLACE_EXISTING is not documented as
+        // atomic (Microsoft's MoveFileExW documentation promises no such
+        // thing), so Windows does not claim it.
+        return false;
+#else
+        // POSIX.1-2017 rename(): if `new` names an existing file, "a link
+        // named new shall remain visible to other threads throughout the
+        // renaming operation and refer either to the file referred to by new
+        // or old" (rename's DESCRIPTION; from the published text, not
+        // re-read in this batch). macOS rename(2), read on this host: rename
+        // guarantees an instance of `new` always exists, even if the system
+        // crashes during the operation.
+        return true;
+#endif
     case Capability::threads:
     case Capability::local_time_zone:
         return false; // not ported yet (batch 2c)
@@ -82,6 +98,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "threads";
     case Capability::local_time_zone:
         return "local_time_zone";
+    case Capability::atomic_replace:
+        return "atomic_replace";
     }
     return "unknown";
 }

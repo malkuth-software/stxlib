@@ -9,24 +9,25 @@
 // Settled platform differences (stx_auxlib's):
 // - read_file and list_directory take a caller limit and refuse larger
 //   content before allocating for it.
-// - write_file replaces a file through a uniquely named temporary file in
-//   the same directory: written, flushed to stable storage (F_FULLFSYNC on
-//   Apple hosts, fsync elsewhere on POSIX, write-through on Windows), then
-//   renamed over the target, and on POSIX hosts the directory flushed too.
-// - list_directory returns entries sorted by name bytes (unsigned), so every
-//   host lists a directory in the same order.
+// - list_directory returns entries sorted by their Path text's bytes
+//   (unsigned), so every host lists a directory in the same order.
 // - Times are WallTime (Unix time) on every host.
 //
-// Survey D13 (files and paths) is open, and this is stx_auxlib's current
-// behaviour, flagged where D13 would change it:
-// - Binary I/O only, as D13's options all have.
-// - One durability level (write_file is durable); D13 a would name levels.
-// - Atomic replace: atomic on POSIX hosts (rename); on Windows MoveFileExW
-//   with MOVEFILE_REPLACE_EXISTING, which Windows does not promise to be
-//   atomic. D13 a would report that as a capability.
-// - Host names that are not valid Unicode are refused (invalid_name) or, in
-//   a listing, counted and left out: D13's option b. D13 a would carry them
-//   losslessly.
+// Owner decision D13, option a (notes decisions/2026-11-13-d13-files-paths.md,
+// "Carry losslessly"):
+// - Binary I/O only: files are bytes; text encodings are the caller's.
+// - Named durability levels (Durability, below), for File::sync and
+//   write_file.
+// - Atomic replace is a capability: Capability::atomic_replace reports
+//   whether write_file's final rename is atomic on this host (true on POSIX
+//   hosts, whose rename(2) is specified atomic; false on Windows, which does
+//   not document MoveFileExW as atomic).
+// - Every host name is reachable: Path carries names that are not valid
+//   Unicode losslessly (path.hpp), so listings name every entry and every
+//   name a host returns becomes a Path.
+// write_file replaces a file through a uniquely named temporary file in the
+// same directory: written, flushed as its Durability says, then renamed over
+// the target.
 //
 // Changes from stx_auxlib: std::filesystem is not used (it cannot report
 // exhaustion in a build without exceptions); each operation is the host's
@@ -53,6 +54,8 @@
 //   name_too_long          ->  limit_exceeded, name_too_long
 //   invalid_name           ->  invalid_argument, invalid_name
 //   unsupported            ->  unsupported (a drive path on a POSIX host)
+//   (a Path no POSIX name spells: one holding a surrogate that is not a
+//   POSIX escape, made from a Windows name)  ->  invalid_argument, invalid_name
 //   cross_device           ->  unsupported, cross_device
 //   busy                   ->  limit_exceeded, busy
 //   bad_handle             ->  disposed, closed_handle
@@ -72,6 +75,38 @@
 #include "stxlib/view.hpp"
 
 namespace stxlib {
+
+// How far a flush goes before it returns (D13 a). Host facts relied on:
+// - macOS fsync(2) (man page, read on this host): fsync moves data to the
+//   drive, which may hold and reorder it; F_FULLFSYNC (fcntl(2)) asks the
+//   drive to write everything it holds; F_BARRIERFSYNC (fcntl(2)) is fsync
+//   plus a barrier: I/O issued before it is persisted before I/O issued
+//   after it.
+// - Linux fsync(2): flushes the file's data and metadata to the device and
+//   waits; POSIX fsync is the portable form. A rename is durable once the
+//   directory holding it is flushed (fsync on a directory descriptor).
+// - Windows FlushFileBuffers flushes a file's buffers to the device;
+//   MoveFileExW with MOVEFILE_WRITE_THROUGH returns only after the move is
+//   flushed to disk (Microsoft's MoveFileExW documentation).
+// (The Linux and Windows statements are from those pages as published, not
+// re-read in this batch.)
+enum class Durability : u8 {
+    // No flush: the host writes when it likes. After a crash, a write_file
+    // target may hold the old content, the new, or (on hosts that do not
+    // order data before renames) an empty or partial file.
+    none = 0,
+    // The content reaches stable storage before anything written after it:
+    // F_BARRIERFSYNC on Apple hosts, fsync elsewhere on POSIX,
+    // FlushFileBuffers on Windows. After a crash, a write_file target holds
+    // the old content or the new, whole; the replacement itself may be lost.
+    ordered = 1,
+    // The content is on stable storage when the call returns: F_FULLFSYNC on
+    // Apple hosts (fsync where a filesystem refuses it), fsync elsewhere on
+    // POSIX, FlushFileBuffers on Windows; write_file also makes the rename
+    // durable (the directory flushed on POSIX hosts, MOVEFILE_WRITE_THROUGH
+    // on Windows). After write_file returns, a crash leaves the new content.
+    durable = 2,
+};
 
 enum class FileMode : u8 {
     read = 0,       // read an existing file
@@ -107,8 +142,8 @@ public:
     [[nodiscard]] Result<u64> size() noexcept;
     [[nodiscard]] Result<u64> position() noexcept;
     [[nodiscard]] Status seek(u64 offset) noexcept;
-    // Waits until written content is on stable storage.
-    [[nodiscard]] Status sync() noexcept;
+    // Flushes written content as `level` says (Durability, above).
+    [[nodiscard]] Status sync(Durability level) noexcept;
     [[nodiscard]] Status close() noexcept;
 
 private:
@@ -125,11 +160,12 @@ private:
 // past `limit` while it is read.
 [[nodiscard]] Result<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;
 
-// Atomically (see D13 above) and durably replaces or creates the file with
-// `content`. On failure the old file, if any, is unchanged and the
-// temporary file is removed. A path without a final name ("/", ".") fails
-// with invalid_argument, HostCode::invalid_name.
-[[nodiscard]] Status write_file(const Path& path, View<Byte> content) noexcept;
+// Replaces or creates the file with `content` through a temporary file and a
+// rename, flushed as `level` says (Durability, above). The rename is atomic
+// where Capability::atomic_replace is true. On failure the old file, if any,
+// is unchanged and the temporary file is removed. A path without a final
+// name ("/", ".") fails with invalid_argument, HostCode::invalid_name.
+[[nodiscard]] Status write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class FileKind : u8 {
     regular = 0,
@@ -187,8 +223,8 @@ class DirectoryListingBuilder;
 
 } // namespace detail
 
-// A directory's entries, without "." and "..", sorted by name bytes.
-// Move-only; owns its names.
+// A directory's entries, without "." and "..", sorted by their names' Path
+// text bytes. Move-only; owns its names.
 class DirectoryListing final {
 public:
     DirectoryListing() noexcept = default;
@@ -199,14 +235,19 @@ public:
     ~DirectoryListing() = default;
 
     [[nodiscard]] usize count() const noexcept { return entries_.count(); }
-    // One segment: the entry's name within the directory. Borrowed from this
-    // listing. Requirement: index < count().
-    [[nodiscard]] TextView name(usize index) const& noexcept;
-    TextView name(usize index) const&& = delete;
+    // One segment: the entry's name within the directory, as Path text (a
+    // name that is not valid Unicode is carried, path.hpp). Borrowed from
+    // this listing. Requirement: index < count().
+    [[nodiscard]] PathText name(usize index) const& noexcept;
+    PathText name(usize index) const&& = delete;
     // The entry itself, not what a link names. Requirement: index < count().
     [[nodiscard]] FileKind kind(usize index) const noexcept;
-    // Entries whose host names are not valid Path segments (not Unicode, or
-    // holding a reserved character): counted, not listed (D13, above).
+    // Entries whose names no Path segment can spell, counted and not listed.
+    // Always 0 on POSIX hosts, where every name is carried (path.hpp). On
+    // Windows, an entry whose name holds '/', '\' or ':', which Win32 file
+    // names cannot hold (Microsoft, "Naming Files, Paths, and Namespaces")
+    // and so no Win32 path reaches; such names exist only when made through
+    // the NT namespace below Win32.
     [[nodiscard]] usize unnamed_entries() const noexcept { return unnamed_; }
 
 private:

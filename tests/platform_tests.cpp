@@ -66,10 +66,13 @@ void capabilities_report() {
     CHECK(stxlib::capability_supported(stxlib::Capability::current_executable));
     CHECK(!stxlib::capability_supported(stxlib::Capability::threads));
     CHECK(!stxlib::capability_supported(stxlib::Capability::local_time_zone));
+    CHECK(stxlib::capability_name(stxlib::Capability::atomic_replace) == stxlib::TextView("atomic_replace"));
 #if defined(_WIN32)
     CHECK(!stxlib::capability_supported(stxlib::Capability::resize_events));
     CHECK(!stxlib::capability_supported(stxlib::Capability::suspend_events));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::atomic_replace));
 #else
+    CHECK(stxlib::capability_supported(stxlib::Capability::atomic_replace));
     CHECK(stxlib::capability_supported(stxlib::Capability::resize_events));
     CHECK(stxlib::capability_supported(stxlib::Capability::suspend_events));
 #endif

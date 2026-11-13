@@ -97,7 +97,9 @@ std::string self_program() {
     Result<stxlib::Path> self = stxlib::current_executable();
     CHECK(self.succeeded());
     if (self.failed()) return std::string();
-    const TextView text = (*self.value()).text();
+    // The test's own build directory has a Unicode name.
+    const stxlib::PathText text = (*self.value()).text();
+    CHECK(text.is_unicode());
     std::string result(text.data(), text.count());
     return result;
 }

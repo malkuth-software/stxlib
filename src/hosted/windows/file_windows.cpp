@@ -11,10 +11,15 @@
 // shared for reading, writing and deletion, so that renaming over an open
 // file behaves as it does on POSIX hosts where Windows allows it.
 //
-// Names Windows returns go back through UTF-8 with '/' separators; the
-// "\\?\" prefix is removed, and UNC names ("\\server\share", "\\?\UNC\")
-// are refused as unsupported, since Path does not represent them.
+// Names both ways are WTF-8 (file_backend.hpp, "Names"; owner decision D13
+// a): a Path's text is converted to UTF-16 with core/wtf8.hpp's to_utf16,
+// and names Windows returns come back with from_utf16, so a name with an
+// unpaired surrogate (NTFS keeps a name as 16-bit units and does not check
+// pairing) round-trips exactly. The "\\?\" prefix is removed, and UNC
+// names ("\\server\share", "\\?\UNC\") are refused as unsupported, since
+// Path does not represent them.
 
+#include "core/wtf8.hpp"
 #include "hosted/file_backend.hpp"
 #include "hosted/windows/utf16.hpp"
 
@@ -120,7 +125,7 @@ bool wide_name(const char* const name, Growable<wchar_t>& output) noexcept {
     const bool drive_path = count >= 3 && name[1] == ':' && name[2] == '/';
     if (drive_path && !output.append(L"\\\\?\\", 4)) return false;
     const usize start = output.count();
-    if (!utf16::append_wide(name, count, output)) return false;
+    if (!wtf8::to_utf16(name, count, output)) return false;
     for (usize index = start; index < output.count(); ++index) {
         if (output[index] == L'/') output[index] = L'\\';
     }
@@ -131,7 +136,7 @@ bool wide_name(const char* const name, Growable<wchar_t>& output) noexcept {
 // A Path text as Windows stores it in a link: '\' separators, no prefix.
 bool wide_target(const char* const name, Growable<wchar_t>& output) noexcept {
     output.clear();
-    if (!utf16::append_wide(name, std::strlen(name), output)) return false;
+    if (!wtf8::to_utf16(name, std::strlen(name), output)) return false;
     for (usize index = 0; index < output.count(); ++index) {
         if (output[index] == L'/') output[index] = L'\\';
     }
@@ -148,8 +153,8 @@ bool starts_with(const wchar_t* const units, const usize count, const wchar_t* c
     return true;
 }
 
-// A name Windows returned, as UTF-8 with '/' separators: "\\?\" removed,
-// UNC refused (unsupported), unpaired surrogates refused (invalid_name).
+// A name Windows returned, as WTF-8 with '/' separators: "\\?\" removed,
+// UNC refused (unsupported), unpaired surrogates carried.
 Outcome narrow_name(const wchar_t* units, usize count, Growable<char>& text) noexcept {
     text.clear();
     if (starts_with(units, count, L"\\\\?\\UNC\\")) return failure(FileStatus::unsupported);
@@ -159,9 +164,7 @@ Outcome narrow_name(const wchar_t* units, usize count, Growable<char>& text) noe
     } else if (starts_with(units, count, L"\\\\")) {
         return failure(FileStatus::unsupported);
     }
-    const utf16::Narrowed narrowed = utf16::append_narrow(units, count, text);
-    if (narrowed == utf16::Narrowed::out_of_memory) return no_memory();
-    if (narrowed != utf16::Narrowed::ok) return failure(FileStatus::invalid_name);
+    if (!wtf8::from_utf16(units, count, text)) return no_memory();
     for (usize index = 0; index < text.count(); ++index) {
         if (text[index] == '\\') text[index] = '/';
     }
@@ -329,7 +332,10 @@ Outcome seek(const i64 handle, const u64 offset) noexcept {
     return success();
 }
 
-Outcome sync(const i64 handle) noexcept {
+// ordered and durable both flush: FlushFileBuffers is Win32's only flush
+// (D13 a names FlushFileBuffers for Windows).
+Outcome sync(const i64 handle, const Durability level) noexcept {
+    if (level == Durability::none) return success();
     if (!FlushFileBuffers(native_handle(handle))) return last_error();
     return success();
 }
@@ -364,12 +370,17 @@ Outcome inspect(const char* const name, const LinkMode links, FileInformation& i
     return success();
 }
 
-// Survey D13: MoveFileExW replacing a file is not documented as atomic.
-Outcome replace_durably(const char* const from, const char* const to) noexcept {
+// MoveFileExW replacing a file is not documented as atomic, so
+// Capability::atomic_replace is false here. MOVEFILE_WRITE_THROUGH: the
+// call returns once the move is flushed to disk (MoveFileExW's
+// documentation).
+Outcome replace(const char* const from, const char* const to, const Durability level) noexcept {
     Growable<wchar_t> source;
     Growable<wchar_t> target;
     if (!wide_name(from, source) || !wide_name(to, target)) return no_memory();
-    if (!MoveFileExW(source.data(), target.data(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)) {
+    DWORD flags = MOVEFILE_REPLACE_EXISTING;
+    if (level == Durability::durable) flags = flags | MOVEFILE_WRITE_THROUGH;
+    if (!MoveFileExW(source.data(), target.data(), flags)) {
         return last_error();
     }
     return success();
@@ -419,9 +430,7 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     return success();
 }
 
-Outcome list(const char* const name, const usize limit, Growable<char>& names, Growable<RawEntry>& entries,
-             usize& unconvertible) noexcept {
-    unconvertible = 0;
+Outcome list(const char* const name, const usize limit, Growable<char>& names, Growable<RawEntry>& entries) noexcept {
     Growable<wchar_t> pattern;
     if (!wide_name(name, pattern)) return no_memory();
     pattern.shrink(pattern.count() - 1);
@@ -448,22 +457,17 @@ Outcome list(const char* const name, const usize limit, Growable<char>& names, G
             usize units = 0;
             while (entry_name[units] != L'\0') units = units + 1;
             const usize offset = names.count();
-            const utf16::Narrowed narrowed = utf16::append_narrow(entry_name, units, names);
-            if (narrowed == utf16::Narrowed::out_of_memory) {
+            if (!wtf8::from_utf16(entry_name, units, names)) {
                 outcome = no_memory();
                 break;
             }
-            if (narrowed != utf16::Narrowed::ok) {
-                unconvertible = unconvertible + 1;
-            } else {
-                // dwReserved0 holds the reparse tag when the entry is a
-                // reparse point (WIN32_FIND_DATAW's documentation).
-                const RawEntry raw{offset, names.count() - offset,
-                                   kind_of_attributes(found.dwFileAttributes, found.dwReserved0)};
-                if (!names.push('\0') || !entries.push(raw)) {
-                    outcome = no_memory();
-                    break;
-                }
+            // dwReserved0 holds the reparse tag when the entry is a reparse
+            // point (WIN32_FIND_DATAW's documentation).
+            const RawEntry raw{offset, names.count() - offset,
+                               kind_of_attributes(found.dwFileAttributes, found.dwReserved0)};
+            if (!names.push('\0') || !entries.push(raw)) {
+                outcome = no_memory();
+                break;
             }
         }
         if (!FindNextFileW(search, &found)) {

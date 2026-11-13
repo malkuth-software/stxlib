@@ -323,6 +323,14 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_utf8_exhaustive COMMAND stxlib_utf8_exhaustive)
     set_tests_properties(stxlib_utf8_exhaustive PROPERTIES TIMEOUT 1200)
 
+    # Proof harness: Path's lossless host names (D13 a), exhaustive over the
+    # domains tests/path_names_exhaustive.cpp states (proofs/REPORT.md).
+    add_executable(stxlib_path_names_exhaustive tests/path_names_exhaustive.cpp)
+    target_link_libraries(stxlib_path_names_exhaustive PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_path_names_exhaustive PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_path_names_exhaustive COMMAND stxlib_path_names_exhaustive)
+    set_tests_properties(stxlib_path_names_exhaustive PROPERTIES TIMEOUT 1200)
+
     # The public-header boundary (AGENTS.md): no std:: name, no angle include.
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)

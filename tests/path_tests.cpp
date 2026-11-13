@@ -1,7 +1,10 @@
 // Tests of stxlib::Path (include/stxlib/path.hpp), ported from stx_auxlib's
 // tests/paths_tests.cpp at b6e330a, with the cases for STXlib's changes:
-// copy, a moved-from Path, and join and parent near the bound. Tested, not
-// proved (proofs/REPORT.md).
+// copy, a moved-from Path, and join and parent near the bound; and for the
+// lossless host names of D13 a (owner decision, notes
+// decisions/2026-11-13-d13-files-paths.md): each host's odd names round
+// trip. Tested, not proved here; tests/path_names_exhaustive.cpp proves the
+// round trips over its stated domains (proofs/REPORT.md).
 
 #include "stxlib/path.hpp"
 #include "stxlib/text.hpp"
@@ -9,13 +12,16 @@
 #include "test_support.hpp"
 
 #include <string>
+#include <vector>
 
 namespace {
 
 using stxlib::Path;
 using stxlib::PathFailure;
+using stxlib::PathText;
 using stxlib::Result;
 using stxlib::TextView;
+using stxlib::usize;
 
 TextView view_of(const std::string& text) {
     Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
@@ -24,7 +30,7 @@ TextView view_of(const std::string& text) {
 }
 
 std::string text_of(const Path& path) {
-    const TextView text = path.text();
+    const PathText text = path.text();
     std::string result(text.data(), text.count());
     return result;
 }
@@ -211,6 +217,156 @@ void ownership_and_bounds() {
     CHECK(over.failed() && failure_of(over) == PathFailure::too_long);
 }
 
+// ---- lossless host names (D13 a) --------------------------------------------
+
+std::string posix_bytes(const Path& path) {
+    Result<stxlib::Buffer<char>> name = path.posix_name();
+    CHECK(name.succeeded());
+    if (name.failed()) return std::string("<failed>");
+    const stxlib::View<char> spelled = (*name.value()).view();
+    CHECK(spelled.count() >= 1 && spelled[spelled.count() - 1] == '\0');
+    return std::string(spelled.data(), spelled.count() - 1);
+}
+
+Path from_posix(const std::string& bytes) {
+    Result<Path> made = Path::from_posix_name(bytes.data(), bytes.size());
+    CHECK(made.succeeded());
+    if (made.failed()) return Path();
+    Path result = static_cast<Result<Path>&&>(made).take_value();
+    return result;
+}
+
+// POSIX: names are bytes; invalid UTF-8, ':' and '\' are escaped as U+DC00 +
+// byte and come back exactly.
+void posix_host_names() {
+    struct Row final {
+        std::string host;
+        std::string text;
+    };
+    const Row rows[] = {
+        {"plain", "plain"},
+        {"caf\xc3\xa9", "caf\xc3\xa9"},                         // UTF-8 stays
+        {"\xff", "\xed\xb3\xbf"},                               // U+DCFF
+        {"a\x80" "b", "a\xed\xb2\x80" "b"},                      // lone continuation, U+DC80
+        {"\xc3", "\xed\xb3\x83"},                               // truncated sequence
+        {"\xc0\xaf", "\xed\xb3\x80\xed\xb2\xaf"},             // overlong '/', two escapes
+        {"\xed\xa0\x80", "\xed\xb3\xad\xed\xb2\xa0\xed\xb2\x80"}, // a CESU surrogate's bytes
+        {"c:", "c\xed\xb0\xba"},                                 // ':' is U+DC3A, so no drive
+        {"a\\b", "a\xed\xb1\x9c" "b"},                         // '\' is U+DC5C
+        {"/tmp/\xfe/x", "/tmp/\xed\xb3\xbe/x"},
+    };
+    for (const Row& row : rows) {
+        const Path path = from_posix(row.host);
+        CHECK(text_of(path) == row.text);
+        CHECK(posix_bytes(path) == row.host);
+        const bool unicode = row.text == row.host;
+        CHECK(path.text().is_unicode() == unicode);
+    }
+    CHECK(from_posix("c:").drive() == 0 && !from_posix("c:").is_absolute());
+    // A NUL is never in a POSIX name.
+    const Result<Path> nul = Path::from_posix_name("a\0b", 3);
+    CHECK(nul.failed() && failure_of(nul) == PathFailure::embedded_nul);
+    // Normalization applies to the escaped text, as to any.
+    CHECK(text_of(from_posix("/a/./\xff/../b//")) == "/a/b");
+}
+
+// Text posix_name refuses: it spells no POSIX name, or not the one whose
+// escape it is (so conversion stays injective).
+void posix_refusals() {
+    const std::string refused[] = {
+        "\xed\xa0\x80",               // U+D800: not an escape
+        "\xed\xb4\x80",               // U+DD00: not an escape
+        "\xed\xb0\x81",               // U+DC01: byte 0x01 is never escaped
+        "\xed\xb0\xaf",               // U+DC2F: '/' is never escaped
+        "\xed\xb3\x83\xed\xb2\xa9",  // U+DCC3 U+DCA9: the bytes C3 A9 are UTF-8
+        "C:/x",                        // a drive root's ':' is not an escape
+    };
+    for (const std::string& text : refused) {
+        const Result<Path> parsed = Path::parse_wtf8(text.data(), text.size());
+        CHECK(parsed.succeeded());
+        if (parsed.failed()) continue;
+        const Result<stxlib::Buffer<char>> name = (*parsed.value()).posix_name();
+        CHECK(name.failed());
+        if (name.failed()) {
+            CHECK(static_cast<PathFailure>((*name.error()).code()) == PathFailure::not_representable);
+            CHECK((*name.error()).kind() == stxlib::ErrorKind::invalid_argument);
+        }
+    }
+}
+
+std::vector<stxlib::u16> windows_units(const Path& path) {
+    Result<stxlib::Buffer<stxlib::u16>> name = path.windows_name();
+    CHECK(name.succeeded());
+    std::vector<stxlib::u16> result;
+    if (name.failed()) return result;
+    const stxlib::View<stxlib::u16> units = (*name.value()).view();
+    CHECK(units.count() >= 1 && units[units.count() - 1] == 0);
+    for (usize index = 0; index + 1 < units.count(); ++index) result.push_back(units[index]);
+    return result;
+}
+
+// Windows: names are 16-bit units; unpaired surrogates are carried as
+// themselves (WTF-8) and come back exactly.
+void windows_host_names() {
+    struct Row final {
+        std::vector<stxlib::u16> host;
+        std::string text;
+    };
+    const Row rows[] = {
+        {{'a', 'b'}, "ab"},
+        {{0xd800}, "\xed\xa0\x80"},                      // lone high
+        {{0xdc00}, "\xed\xb0\x80"},                      // lone low
+        {{0xdc00, 0xd800}, "\xed\xb0\x80\xed\xa0\x80"},  // low then high: two
+        {{0xd83d, 0xde00}, "\xf0\x9f\x98\x80"},           // a pair: U+1F600
+        {{'x', 0xdbff, '.', 't'}, "x\xed\xaf\xbf.t"},
+        {{'C', ':', '\\', 0xdfff}, "C:/\xed\xbf\xbf"},    // a drive path, '\' separating
+    };
+    for (const Row& row : rows) {
+        Result<Path> made = Path::from_windows_name(row.host.data(), row.host.size());
+        CHECK(made.succeeded());
+        if (made.failed()) continue;
+        const Path& path = *made.value();
+        CHECK(text_of(path) == row.text);
+        std::vector<stxlib::u16> expected = row.host;
+        CHECK(windows_units(path) == expected);
+    }
+    // '/' separates too, and comes back as '\'.
+    const stxlib::u16 slashed[] = {'a', '/', 0xd800};
+    Result<Path> made = Path::from_windows_name(slashed, 3);
+    CHECK(made.succeeded() && windows_units(*made.value()) == (std::vector<stxlib::u16>{'a', '\\', 0xd800}));
+    // ':' outside a drive root is reserved on Windows too.
+    const stxlib::u16 stream[] = {'a', ':', 'b'};
+    const Result<Path> refused = Path::from_windows_name(stream, 3);
+    CHECK(refused.failed() && failure_of(refused) == PathFailure::reserved_character);
+}
+
+// parse_wtf8 accepts lone surrogates and refuses a high one directly before a
+// low one (that pair is a supplementary character's 4-byte form).
+void wtf8_text() {
+    const std::string lone = "a\xed\xa0\x80";
+    CHECK(Path::parse_wtf8(lone.data(), lone.size()).succeeded());
+    const std::string paired = "\xed\xa0\x80\xed\xb0\x80";
+    const Result<Path> refused = Path::parse_wtf8(paired.data(), paired.size());
+    CHECK(refused.failed() && failure_of(refused) == PathFailure::invalid_utf8);
+    const std::string broken = "\xed\xa0";
+    const Result<Path> truncated = Path::parse_wtf8(broken.data(), broken.size());
+    CHECK(truncated.failed() && failure_of(truncated) == PathFailure::invalid_utf8);
+    // parse_bytes stays UTF-8 only.
+    const Result<Path> strict = Path::parse_bytes(lone.data(), lone.size());
+    CHECK(strict.failed() && failure_of(strict) == PathFailure::invalid_utf8);
+    // PathText: a TextView converts; display shows U+FFFD for each surrogate.
+    const Path path = from_posix("x\xffy");
+    const PathText text = path.text();
+    CHECK(!text.is_unicode());
+    char room[16]{};
+    const TextView shown = text.display(stxlib::MutableView<char>(room));
+    CHECK(std::string(shown.data(), shown.count()) == "x\xef\xbf\xbdy");
+    const Path plain = parse_or_empty("docs/a.txt");
+    CHECK(plain.text().is_unicode() && plain.text().unicode() == TextView("docs/a.txt"));
+    CHECK(plain.file_name() == "a.txt" && plain.extension() == PathText(TextView(".txt")));
+    CHECK(path.file_name() == path.text() && path.extension().empty());
+}
+
 } // namespace
 
 int main() {
@@ -219,5 +375,9 @@ int main() {
     queries();
     joins();
     ownership_and_bounds();
+    posix_host_names();
+    posix_refusals();
+    windows_host_names();
+    wtf8_text();
     return stxlib_tests::finish("stxlib path tests");
 }

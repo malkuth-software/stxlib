@@ -58,12 +58,20 @@ Status open_with_desktop(const TextView target) noexcept {
     }
     const Path& path = *parsed.value();
     if (!acceptable_path(path)) return refused(operation);
-    const Status result = desktop_backend::open_target(path.text(), false);
+    // Parsed from a TextView, so its text is Unicode.
+    const Status result = desktop_backend::open_target(path.text().unicode(), false);
     return result;
 }
 
 Status reveal_in_file_manager(const Path& path) noexcept {
-    if (!acceptable_path(path)) return refused("stxlib.desktop.reveal");
+    const Operation operation = "stxlib.desktop.reveal";
+    if (!acceptable_path(path)) return refused(operation);
+    // The file manager is started as a child process, whose arguments are
+    // Unicode text (children.hpp); a Path carrying a host name that is not
+    // valid Unicode (path.hpp) cannot be passed yet.
+    if (!path.text().is_unicode()) {
+        return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_text);
+    }
     const Status result = desktop_backend::reveal(path);
     return result;
 }
@@ -73,7 +81,9 @@ Result<Path> current_executable() noexcept {
     Growable<char> text;
     const Status found = desktop_backend::executable_name(text);
     if (found.failed()) return Result<Path>::failure(*found.error());
-    Result<Path> parsed = Path::parse_bytes(text.data(), text.count());
+    // The host's name, losslessly (D13 a; desktop_backend.hpp).
+    Result<Path> parsed = desktop_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
+                                                      : Path::parse_wtf8(text.data(), text.count());
     if (parsed.failed()) {
         if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return parsed;
         return Result<Path>::failure(host_failure::record(ErrorKind::io_failure, operation, HostCode::invalid_name));

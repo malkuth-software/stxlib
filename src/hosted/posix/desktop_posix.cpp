@@ -72,13 +72,14 @@ Status open_target(const TextView target, const bool is_link) noexcept {
 
 Status reveal(const Path& path) noexcept {
 #if defined(__APPLE__)
-    const TextView arguments[] = {"-R", path.text()};
+    const TextView arguments[] = {"-R", path.text().unicode()};
     const Status result = run_helper(View<TextView>(arguments));
     return result;
 #else
     Result<Path> directory = path.parent();
     if (directory.failed()) return Status::failure(*directory.error());
-    const TextView arguments[] = {(*directory.value()).text()};
+    // The parent of a Unicode path is Unicode.
+    const TextView arguments[] = {(*directory.value()).text().unicode()};
     const Status result = run_helper(View<TextView>(arguments));
     return result;
 #endif

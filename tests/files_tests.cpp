@@ -3,7 +3,11 @@
 // again. Ported from stx_auxlib's tests/files_tests.cpp at b6e330a, with
 // cases for the operations now written over host calls (copy onto itself,
 // create_directories over a file, remove_tree of a nested tree with a link,
-// a listing of a root). Tested, not proved (proofs/REPORT.md).
+// a listing of a root), and for owner decision D13 a: the durability levels,
+// and each host's odd names (POSIX bytes that are not UTF-8, ':' and '\';
+// Windows' unpaired surrogates) made both through the host's own calls and
+// through STXlib, then listed, read and removed by Path. Tested, not proved
+// (proofs/REPORT.md).
 
 #include "stxlib/capabilities.hpp"
 #include "stxlib/clocks.hpp"
@@ -18,15 +22,32 @@
 #include <string>
 #include <vector>
 
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
+
 namespace {
 
 using stxlib::Buffer;
 using stxlib::Byte;
+using stxlib::Durability;
 using stxlib::ErrorKind;
 using stxlib::File;
 using stxlib::FileMode;
 using stxlib::HostCode;
 using stxlib::Path;
+using stxlib::PathText;
 using stxlib::Result;
 using stxlib::Status;
 using stxlib::TextView;
@@ -38,7 +59,7 @@ TextView view_of(const std::string& text) {
     return result;
 }
 
-std::string text_of(const TextView text) {
+std::string text_of(const PathText text) {
     std::string result(text.data(), text.count());
     return result;
 }
@@ -131,11 +152,11 @@ public:
 void whole_files(const Scratch& scratch) {
     const Path file = under(scratch.root, "data.bin");
     const std::vector<Byte> first = bytes_of("first content");
-    CHECK(stxlib::write_file(file, view_bytes(first)).succeeded());
+    CHECK(stxlib::write_file(file, view_bytes(first), Durability::durable).succeeded());
     CHECK(read_or_empty(file, 1024) == first);
     // Replacement leaves no temporary file behind.
     const std::vector<Byte> second = bytes_of("second, longer content");
-    CHECK(stxlib::write_file(file, view_bytes(second)).succeeded());
+    CHECK(stxlib::write_file(file, view_bytes(second), Durability::ordered).succeeded());
     CHECK(read_or_empty(file, 1024) == second);
     Result<stxlib::DirectoryListing> listing = stxlib::list_directory(scratch.root, 16);
     CHECK(listing.succeeded() && (*listing.value()).count() == 1 &&
@@ -146,20 +167,20 @@ void whole_files(const Scratch& scratch) {
     CHECK(kind_of(over) == ErrorKind::limit_exceeded && code_of(over) == HostCode::too_long);
     // An empty file, and a larger one read in several chunks.
     const Path empty = under(scratch.root, "empty");
-    CHECK(stxlib::write_file(empty, stxlib::View<Byte>()).succeeded());
+    CHECK(stxlib::write_file(empty, stxlib::View<Byte>(), Durability::none).succeeded());
     CHECK(read_or_empty(empty, 0).empty());
     std::vector<Byte> large(3 * 1024 * 1024 + 17);
     for (usize index = 0; index < large.size(); ++index) large[index] = static_cast<Byte>(index * 131 + 7);
     const Path big = under(scratch.root, "big.bin");
-    CHECK(stxlib::write_file(big, view_bytes(large)).succeeded());
+    CHECK(stxlib::write_file(big, view_bytes(large), Durability::durable).succeeded());
     CHECK(read_or_empty(big, large.size()) == large);
     CHECK(kind_of(stxlib::read_file(under(scratch.root, "missing"), 16)) == ErrorKind::not_found);
     const Result<Buffer<Byte>> directory = stxlib::read_file(scratch.root, 16);
     CHECK(kind_of(directory) == ErrorKind::invalid_argument && code_of(directory) == HostCode::is_a_directory);
     // A path without a final name cannot be written as a file.
-    const Status root_write = stxlib::write_file(parse_or_empty("/"), view_bytes(first));
+    const Status root_write = stxlib::write_file(parse_or_empty("/"), view_bytes(first), Durability::durable);
     CHECK(kind_of(root_write) == ErrorKind::invalid_argument && code_of(root_write) == HostCode::invalid_name);
-    const Status dot_write = stxlib::write_file(Path(), view_bytes(first));
+    const Status dot_write = stxlib::write_file(Path(), view_bytes(first), Durability::none);
     CHECK(kind_of(dot_write) == ErrorKind::invalid_argument && code_of(dot_write) == HostCode::invalid_name);
 }
 
@@ -176,12 +197,15 @@ void file_handles(const Scratch& scratch) {
     const Result<stxlib::u64> written = file.size();
     const Result<stxlib::u64> at = file.position();
     CHECK(written.succeeded() && *written.value() == 11 && at.succeeded() && *at.value() == 11);
-    CHECK(file.sync().succeeded());
+    CHECK(file.sync(Durability::none).succeeded());
+    CHECK(file.sync(Durability::ordered).succeeded());
+    CHECK(file.sync(Durability::durable).succeeded());
     CHECK(file.close().succeeded());
     CHECK(!file.is_open());
     const Status again = file.close();
     CHECK(kind_of(again) == ErrorKind::disposed && code_of(again) == HostCode::closed_handle);
     CHECK(kind_of(file.write_all(view_bytes(hello))) == ErrorKind::disposed);
+    CHECK(kind_of(file.sync(Durability::none)) == ErrorKind::disposed);
     CHECK(kind_of(File::open(path, FileMode::create_new)) == ErrorKind::already_exists);
     Result<File> appended = File::open(path, FileMode::append);
     CHECK(appended.succeeded());
@@ -220,7 +244,7 @@ void metadata_and_directories(const Scratch& scratch) {
     const Path file = under(scratch.root, "a/note.txt");
     const stxlib::WallTime before = stxlib::WallTime::from_unix_nanoseconds(
         stxlib::WallTime::now().unix_nanoseconds() - stxlib::Duration::seconds(5).count_nanoseconds());
-    CHECK(stxlib::write_file(file, view_bytes(bytes_of("12345"))).succeeded());
+    CHECK(stxlib::write_file(file, view_bytes(bytes_of("12345")), Durability::durable).succeeded());
     // create_directories over a file: not a directory.
     const Status over_file = stxlib::create_directories(file);
     CHECK(kind_of(over_file) == ErrorKind::invalid_argument && code_of(over_file) == HostCode::not_a_directory);
@@ -237,15 +261,15 @@ void metadata_and_directories(const Scratch& scratch) {
     const Result<stxlib::FileInformation> directory = stxlib::inspect(nested, stxlib::LinkMode::follow);
     CHECK(directory.succeeded() && (*directory.value()).kind == stxlib::FileKind::directory);
     CHECK(kind_of(stxlib::inspect(under(scratch.root, "nothing"), stxlib::LinkMode::follow)) == ErrorKind::not_found);
-    // Listing is sorted by name bytes, whatever order the host returns.
+    // Listing is sorted by Path text bytes, whatever order the host returns.
     const char* const names[] = {"zeta", "Alpha", "beta", "_under", "\xc3\xa9t\xc3\xa9"};
     for (const char* const name : names) {
-        const Status missing = stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)));
+        const Status missing = stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::none);
         CHECK(kind_of(missing) == ErrorKind::not_found);
     }
     CHECK(stxlib::create_directory(under(scratch.root, "list")).succeeded());
     for (const char* const name : names) {
-        CHECK(stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name))).succeeded());
+        CHECK(stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::ordered).succeeded());
     }
     Result<stxlib::DirectoryListing> listing = stxlib::list_directory(under(scratch.root, "list"), 16);
     CHECK(listing.succeeded());
@@ -321,7 +345,7 @@ void link_checks(const Scratch& scratch, const Path& target, const Path& link) {
 
 void links_and_resolution(const Scratch& scratch) {
     const Path target = under(scratch.root, "target.txt");
-    CHECK(stxlib::write_file(target, view_bytes(bytes_of("t"))).succeeded());
+    CHECK(stxlib::write_file(target, view_bytes(bytes_of("t")), Durability::durable).succeeded());
     const Path link = under(scratch.root, "link");
     if (created_link(link)) link_checks(scratch, target, link);
     const Result<Path> working = stxlib::working_directory();
@@ -352,6 +376,197 @@ void roots_and_host_forms() {
 #endif
 }
 
+// ---- odd host names (D13 a) --------------------------------------------------
+
+Path child_of(const Path& directory, const Path& name) {
+    Result<Path> joined = directory.join(name);
+    CHECK(joined.succeeded());
+    if (joined.failed()) return Path();
+    Path result = static_cast<Result<Path>&&>(joined).take_value();
+    return result;
+}
+
+// The listing's entry equal to `name`, as an index, or count().
+usize find_entry(const stxlib::DirectoryListing& listing, const PathText name) {
+    usize index = 0;
+    while (index < listing.count() && listing.name(index) != name) index = index + 1;
+    return index;
+}
+
+// One odd name, made by the host as `host_made` and by STXlib as
+// `stxlib_made`: both are listed under their Path names, read by Path, and
+// the STXlib-made one is found by the host under its exact host name.
+void check_odd_pair(const Path& directory, const Path& host_made, const Path& stxlib_made, const bool host_ok) {
+    const std::vector<Byte> content = bytes_of("odd");
+    CHECK(stxlib::write_file(child_of(directory, stxlib_made), view_bytes(content), Durability::durable).succeeded());
+    Result<stxlib::DirectoryListing> listing = stxlib::list_directory(directory, 64);
+    CHECK(listing.succeeded());
+    if (listing.failed()) return;
+    const stxlib::DirectoryListing& entries = *listing.value();
+    CHECK(entries.unnamed_entries() == 0);
+    CHECK(find_entry(entries, stxlib_made.text()) < entries.count());
+    CHECK(!stxlib_made.text().is_unicode());
+    if (host_ok) {
+        const usize found = find_entry(entries, host_made.text());
+        CHECK(found < entries.count());
+        if (found < entries.count()) {
+            // The listed name is a Path segment that reaches the file.
+            Result<Path> listed = Path::parse_wtf8(entries.name(found).data(), entries.name(found).count());
+            CHECK(listed.succeeded() && *listed.value() == host_made);
+            if (listed.succeeded()) CHECK(read_or_empty(child_of(directory, *listed.value()), 16) == content);
+        }
+        CHECK(stxlib::remove(child_of(directory, host_made)).succeeded());
+    }
+    CHECK(read_or_empty(child_of(directory, stxlib_made), 16) == content);
+}
+
+#if defined(_WIN32)
+
+// Creates `units` in `directory` with CreateFileW, writing "odd". False when
+// the volume refuses the name.
+bool host_create(const Path& directory, const std::vector<stxlib::u16>& units) {
+    Result<Buffer<stxlib::u16>> native = directory.windows_name();
+    CHECK(native.succeeded());
+    if (native.failed()) return false;
+    const stxlib::View<stxlib::u16> base = (*native.value()).view();
+    std::wstring name(reinterpret_cast<const wchar_t*>(base.data()), base.count() - 1);
+    name.push_back(L'\\');
+    for (const stxlib::u16 unit : units) name.push_back(static_cast<wchar_t>(unit));
+    const HANDLE file = CreateFileW(name.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        std::printf("odd names: the volume refused a name (error %lu)\n", static_cast<unsigned long>(GetLastError()));
+        return false;
+    }
+    DWORD written = 0;
+    const bool wrote = WriteFile(file, "odd", 3, &written, nullptr) != 0 && written == 3;
+    CHECK(wrote);
+    CHECK(CloseHandle(file) != 0);
+    return true;
+}
+
+// Whether the host finds `units` in `directory` (GetFileAttributesW).
+bool host_exists(const Path& directory, const std::vector<stxlib::u16>& units) {
+    Result<Buffer<stxlib::u16>> native = directory.windows_name();
+    if (native.failed()) return false;
+    const stxlib::View<stxlib::u16> base = (*native.value()).view();
+    std::wstring name(reinterpret_cast<const wchar_t*>(base.data()), base.count() - 1);
+    name.push_back(L'\\');
+    for (const stxlib::u16 unit : units) name.push_back(static_cast<wchar_t>(unit));
+    return GetFileAttributesW(name.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
+Path windows_path(const std::vector<stxlib::u16>& units) {
+    Result<Path> made = Path::from_windows_name(units.data(), units.size());
+    CHECK(made.succeeded());
+    if (made.failed()) return Path();
+    Path result = static_cast<Result<Path>&&>(made).take_value();
+    return result;
+}
+
+void odd_names(const Scratch& scratch) {
+    const Path directory = under(scratch.root, "odd");
+    CHECK(stxlib::create_directory(directory).succeeded());
+    // NTFS keeps names as 16-bit units without checking that surrogates pair.
+    const std::vector<stxlib::u16> lone_high{'h', 0xd800, '.', 't'};
+    const std::vector<stxlib::u16> lone_low{0xdfff, 'l'};
+    const bool host_ok = host_create(directory, lone_high);
+    check_odd_pair(directory, windows_path(lone_high), windows_path(lone_low), host_ok);
+    CHECK(host_exists(directory, lone_low));
+    const Result<stxlib::u64> removed = stxlib::remove_tree(directory);
+    CHECK(removed.succeeded() && *removed.value() == 2);
+}
+
+#else
+
+std::string host_name(const Path& directory, const std::string& name) {
+    Result<Buffer<char>> native = directory.posix_name();
+    CHECK(native.succeeded());
+    if (native.failed()) return std::string();
+    const stxlib::View<char> base = (*native.value()).view();
+    return std::string(base.data(), base.count() - 1) + "/" + name;
+}
+
+// Creates `name` (bytes) in `directory` with open(2), writing "odd". False
+// when the filesystem refuses the name: APFS refuses a name that is not
+// UTF-8 with EILSEQ (observed on macOS 26 with APFS while writing this
+// batch; Apple's APFS documentation states APFS takes UTF-8 names).
+bool host_create(const Path& directory, const std::string& name) {
+    const std::string full = host_name(directory, name);
+    const int fd = ::open(full.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+    if (fd < 0) {
+        const int error = errno;
+        std::printf("odd names: the filesystem refused a name (errno %d)\n", error);
+        CHECK(error == EILSEQ || error == EINVAL);
+        return false;
+    }
+    CHECK(::write(fd, "odd", 3) == 3);
+    CHECK(::close(fd) == 0);
+    return true;
+}
+
+bool host_exists(const Path& directory, const std::string& name) {
+    struct stat described{};
+    return ::lstat(host_name(directory, name).c_str(), &described) == 0;
+}
+
+Path posix_path(const std::string& name) {
+    Result<Path> made = Path::from_posix_name(name.data(), name.size());
+    CHECK(made.succeeded());
+    if (made.failed()) return Path();
+    Path result = static_cast<Result<Path>&&>(made).take_value();
+    return result;
+}
+
+void odd_names(const Scratch& scratch) {
+    const Path directory = under(scratch.root, "odd");
+    CHECK(stxlib::create_directory(directory).succeeded());
+    // Bytes that are not UTF-8: POSIX names are any bytes but '/' and NUL.
+    const std::string invalid_host = "h\xff.t";
+    const std::string invalid_stxlib = "s\xc3(";
+    const bool invalid_ok = host_create(directory, invalid_host);
+    const Status stxlib_write = stxlib::write_file(child_of(directory, posix_path(invalid_stxlib)),
+                                                   view_bytes(bytes_of("odd")), Durability::none);
+    const bool stxlib_invalid_ok = stxlib_write.succeeded();
+    // Where the host refuses non-UTF-8 names (APFS: EILSEQ), STXlib reports
+    // invalid_name; elsewhere both must work.
+    CHECK(stxlib_invalid_ok == invalid_ok);
+    if (!stxlib_invalid_ok) {
+        CHECK(kind_of(stxlib_write) == ErrorKind::invalid_argument && code_of(stxlib_write) == HostCode::invalid_name);
+    }
+    if (stxlib_invalid_ok) {
+        CHECK(stxlib::remove(child_of(directory, posix_path(invalid_stxlib))).succeeded());
+        check_odd_pair(directory, posix_path(invalid_host), posix_path(invalid_stxlib), invalid_ok);
+        CHECK(host_exists(directory, invalid_stxlib));
+    }
+    // ':' and '\' are ordinary bytes in POSIX names; Path escapes them.
+    const bool reserved_ok = host_create(directory, "c:");
+    CHECK(reserved_ok);
+    check_odd_pair(directory, posix_path("c:"), posix_path("back\\slash"), reserved_ok);
+    CHECK(host_exists(directory, "back\\slash"));
+    // remove_tree reaches every entry whatever its name.
+    const Result<stxlib::u64> removed = stxlib::remove_tree(directory);
+    CHECK(removed.succeeded() && !host_exists(directory, ""));
+}
+
+#endif
+
+// A Path no POSIX name spells (a Windows lone high surrogate) is refused by
+// the file operations on POSIX hosts; Windows takes it.
+void unrepresentable_names(const Scratch& scratch) {
+    const stxlib::u16 units[] = {'w', 0xd800};
+    Result<Path> name = Path::from_windows_name(units, 2);
+    CHECK(name.succeeded());
+    if (name.failed()) return;
+    const Path path = child_of(scratch.root, *name.value());
+    const Status written = stxlib::write_file(path, view_bytes(bytes_of("w")), Durability::none);
+#if defined(_WIN32)
+    CHECK(written.succeeded());
+    CHECK(stxlib::remove(path).succeeded());
+#else
+    CHECK(kind_of(written) == ErrorKind::invalid_argument && code_of(written) == HostCode::invalid_name);
+#endif
+}
+
 } // namespace
 
 int main() {
@@ -361,6 +576,8 @@ int main() {
         file_handles(scratch);
         metadata_and_directories(scratch);
         links_and_resolution(scratch);
+        odd_names(scratch);
+        unrepresentable_names(scratch);
     }
     roots_and_host_forms();
     return stxlib_tests::finish("stxlib files tests");

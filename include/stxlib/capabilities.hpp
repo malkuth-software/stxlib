@@ -50,9 +50,13 @@ enum class Capability : u8 {
     files = 14,
     threads = 15,
     local_time_zone = 16,
+    // write_file's final rename replaces the target atomically: a reader sees
+    // the old file or the new, never neither (files.hpp; owner decision D13
+    // a). A host without it still replaces, without that promise.
+    atomic_replace = 17,
 };
 
-inline constexpr usize capability_count = 17;
+inline constexpr usize capability_count = 18;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.

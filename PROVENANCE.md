@@ -72,6 +72,19 @@ keep their state inline or on STXlib's allocator, with process-wide parts
 | `tests/path_tests.cpp`, `tests/files_tests.cpp` | `tests/paths_tests.cpp`, `tests/files_tests.cpp` |
 | `tests/children_tests.cpp` | the children and desktop parts of `tests/capabilities_tests.cpp` |
 
+### Batch 2b2: owner decision D13 a, on batch 2b
+
+Not a port: stx_auxlib refuses host names that are not valid Unicode and
+has one durability level (its current behaviour, D13's option b). This
+batch replaces both as the owner decided (D13 option a,
+`decisions/2026-11-13-d13-files-paths.md`): Path text becomes WTF-8
+(`src/core/wtf8.hpp`, new), with POSIX bytes that are not UTF-8, ':' and
+'\' carried as U+DC00 + byte (the scheme of Python's PEP 383, extended to
+the two characters Path's syntax refuses); `Durability` names three levels;
+`Capability::atomic_replace` reports whether the final rename is atomic.
+Host facts relied on are cited where used (`files.hpp`, `path.hpp`,
+`capabilities.cpp`, the backends).
+
 The remaining stx_auxlib content (hosted modules, owned algorithms, and
 stx_btree with the sequence tree and RowHeightIndex) is copied from
 `b6e330a` in later batches, each file with its source path, commit and

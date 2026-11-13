@@ -6,6 +6,7 @@
 #include "hosted/desktop_backend.hpp"
 
 #include "core/host_failure.hpp"
+#include "core/wtf8.hpp"
 #include "hosted/windows/utf16.hpp"
 #include "stxlib/children.hpp"
 
@@ -54,7 +55,7 @@ Status open_target(const TextView target, const bool is_link) noexcept {
 
 Status reveal(const Path& path) noexcept {
     const Operation operation = "stxlib.desktop.reveal";
-    const TextView text = path.text();
+    const TextView text = path.text().unicode();
     Growable<char> selection;
     if (!selection.append("/select,", 8)) return exhausted(operation);
     for (usize index = 0; index < text.count(); ++index) {
@@ -97,11 +98,8 @@ Status executable_name(Growable<char>& text) noexcept {
         units = units + 4;
         count = count - 4;
     }
-    const utf16::Narrowed narrowed = utf16::append_narrow(units, count, text);
-    if (narrowed == utf16::Narrowed::out_of_memory) return exhausted(operation);
-    if (narrowed != utf16::Narrowed::ok) {
-        return host_failure::failed(ErrorKind::io_failure, operation, HostCode::invalid_text);
-    }
+    // WTF-8, so an unpaired surrogate in the name is carried (D13 a).
+    if (!wtf8::from_utf16(units, count, text)) return exhausted(operation);
     for (usize index = 0; index < text.count(); ++index) {
         if (text[index] == '\\') text[index] = '/';
     }

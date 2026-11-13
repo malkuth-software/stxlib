@@ -42,7 +42,7 @@ module has not landed yet is reported unsupported.
 | exit tasks | `process.hpp` | batch 2a |
 | raw terminal | `terminal.hpp` | batch 2a |
 | process events | `events.hpp` | batch 2a |
-| paths, files | `path.hpp`, `files.hpp` | batch 2b (survey D13 open) |
+| paths, files | `path.hpp`, `files.hpp` | batch 2b; batch 2b2 (D13 a: lossless names, durability levels, atomic replace) |
 | desktop, child processes | `desktop.hpp`, `children.hpp` | batch 2b |
 | threads, thread pool | | batch 2c (survey D11 open) |
 | local time zone | | batch 2c (survey D12 open) |

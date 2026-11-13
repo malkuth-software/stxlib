@@ -1,16 +1,30 @@
 // stxlib::Path (include/stxlib/path.hpp). Pure computation; nothing here
 // reaches a host. Ported from stx_auxlib's src/paths.cpp at b6e330a: the
-// same rules, restated over Growable buffers so that exhaustion is a result.
+// same rules, restated over Growable buffers so that exhaustion is a result,
+// and over WTF-8 text (core/wtf8.hpp) so that host names are carried
+// losslessly (D13 a).
+//
+// Normalization works on bytes and looks only at '/', '.' and ':', which are
+// ASCII and so never inside a multi-byte sequence (every byte of a UTF-8 or
+// WTF-8 sequence of two or more bytes is 0x80 or above). It keeps whole
+// segments and joins them with '/', so its output is well-formed WTF-8 when
+// its input is: a high and a low surrogate can only meet inside one segment,
+// where the input already had them.
 
 #include "stxlib/path.hpp"
 
 #include "core/growable.hpp"
+#include "core/wtf8.hpp"
+#include "stxlib/require.hpp"
+#include "stxlib/text.hpp"
+
+#include <cstring>
 
 namespace stxlib {
 
 struct Path::Access final {
-    [[nodiscard]] static Path adopt(Utf8String normalized) noexcept {
-        Path result(static_cast<Utf8String&&>(normalized));
+    [[nodiscard]] static Path adopt(Buffer<char> normalized) noexcept {
+        Path result(static_cast<Buffer<char>&&>(normalized));
         return result;
     }
 };
@@ -76,8 +90,8 @@ enum class Normalized : u8 {
     out_of_memory = 4,
 };
 
-// Normalizes bytes[0, count), which is UTF-8 without NUL or '\', into
-// `output` (without a terminator).
+// Normalizes bytes[0, count), which is well-formed WTF-8 without NUL or
+// '\', into `output` (without a terminator).
 Normalized normalize(const char* const bytes, const usize count, Growable<char>& output) noexcept {
     const Root root = find_root(bytes, count);
     for (usize index = root.consumed; index < count; ++index) {
@@ -123,13 +137,20 @@ ErrorRecord exhausted(const Operation operation) noexcept {
     return result;
 }
 
+// An owned copy of bytes[0, count).
+template <typename Element>
+Result<Buffer<Element>> owned_copy(const Element* const elements, const usize count) noexcept {
+    Result<Buffer<Element>> owned = Buffer<Element>::allocate_zeroed(count);
+    if (owned.failed() || count == 0) return owned;
+    std::memcpy((*owned.value()).mutable_view().data(), elements, count * sizeof(Element));
+    return owned;
+}
+
 // The Path for normalized text in `output`.
 Result<Path> adopt(const Growable<char>& output, const Operation operation) noexcept {
-    // normalize copied whole UTF-8 sequences and ASCII separators only.
-    const TextView text = detail::TextViewAccess::adopt_validated(output.data(), output.count());
-    Result<Utf8String> owned = Utf8String::copy_of(text);
+    Result<Buffer<char>> owned = owned_copy(output.data(), output.count());
     if (owned.failed()) return Result<Path>::failure(exhausted(operation));
-    Result<Path> result = Result<Path>::success(Path::Access::adopt(static_cast<Result<Utf8String>&&>(owned).take_value()));
+    Result<Path> result = Result<Path>::success(Path::Access::adopt(static_cast<Result<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
@@ -150,9 +171,17 @@ Result<Path> finish(const Normalized outcome, const Growable<char>& output, cons
     return result;
 }
 
+// What is known of the bytes parse_checked receives.
+enum class Encoding : u8 {
+    utf8 = 0,         // known UTF-8 (a TextView)
+    check_utf8 = 1,   // must be checked as UTF-8
+    check_wtf8 = 2,   // must be checked as WTF-8
+    wtf8 = 3,         // known well-formed WTF-8 (made by core/wtf8.hpp)
+};
+
 // The checks parse makes before normalizing, in stx_auxlib's order: empty,
-// too long, NUL, '\', then (for foreign bytes) UTF-8.
-Result<Path> parse_checked(const char* const bytes, const usize count, const bool known_utf8) noexcept {
+// too long, NUL, '\', then (for foreign bytes) the encoding.
+Result<Path> parse_checked(const char* const bytes, const usize count, const Encoding encoding) noexcept {
     const Operation operation = "stxlib.path.parse";
     if (count == 0) return Result<Path>::failure(refusal(PathFailure::empty, operation));
     if (count > maximum_path_bytes) return Result<Path>::failure(refusal(PathFailure::too_long, operation));
@@ -160,9 +189,11 @@ Result<Path> parse_checked(const char* const bytes, const usize count, const boo
         if (bytes[index] == '\0') return Result<Path>::failure(refusal(PathFailure::embedded_nul, operation));
         if (bytes[index] == '\\') return Result<Path>::failure(refusal(PathFailure::reserved_character, operation));
     }
-    if (!known_utf8) {
+    if (encoding == Encoding::check_utf8) {
         const Result<TextView> valid = validate_utf8(bytes, count);
         if (valid.failed()) return Result<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
+    } else if (encoding == Encoding::check_wtf8 && !wtf8::well_formed(bytes, count)) {
+        return Result<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
     }
     Growable<char> output;
     const Normalized outcome = normalize(bytes, count, output);
@@ -170,35 +201,131 @@ Result<Path> parse_checked(const char* const bytes, const usize count, const boo
     return result;
 }
 
+bool is_surrogate_lead(const char* const bytes, const usize count, const usize index) noexcept {
+    const bool result =
+        index + 1 < count && static_cast<u8>(bytes[index]) == 0xed && static_cast<u8>(bytes[index + 1]) >= 0xa0;
+    return result;
+}
+
 } // namespace
 
+bool PathText::is_unicode() const noexcept {
+    const bool result = !wtf8::has_surrogate(bytes_, count_);
+    return result;
+}
+
+TextView PathText::unicode() const noexcept {
+    STXLIB_REQUIRE(is_unicode(), "PathText::unicode: the text holds a surrogate");
+    const TextView result = detail::TextViewAccess::adopt_validated(bytes_, count_);
+    return result;
+}
+
+TextView PathText::display(const MutableView<char> room) const noexcept {
+    STXLIB_REQUIRE(room.count() >= count_, "PathText::display: the room is smaller than the text");
+    char* const output = room.data();
+    usize index = 0;
+    while (index < count_) {
+        // A surrogate is ED A0..BF xx; U+FFFD is EF BF BD, also three bytes.
+        if (is_surrogate_lead(bytes_, count_, index)) {
+            output[index] = static_cast<char>(0xef);
+            output[index + 1] = static_cast<char>(0xbf);
+            output[index + 2] = static_cast<char>(0xbd);
+            index = index + 3;
+            continue;
+        }
+        output[index] = bytes_[index];
+        index = index + 1;
+    }
+    // Well-formed WTF-8 with every surrogate replaced by a scalar value is
+    // well-formed UTF-8.
+    const TextView result = detail::TextViewAccess::adopt_validated(output, count_);
+    return result;
+}
+
 Result<Path> Path::parse(const TextView text) noexcept {
-    Result<Path> result = parse_checked(text.data(), text.count(), true);
+    Result<Path> result = parse_checked(text.data(), text.count(), Encoding::utf8);
     return result;
 }
 
 Result<Path> Path::parse_bytes(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::parse_bytes: a null pointer with a non-zero count");
-    Result<Path> result = parse_checked(bytes, count, false);
+    Result<Path> result = parse_checked(bytes, count, Encoding::check_utf8);
+    return result;
+}
+
+Result<Path> Path::parse_wtf8(const char* const bytes, const usize count) noexcept {
+    STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::parse_wtf8: a null pointer with a non-zero count");
+    Result<Path> result = parse_checked(bytes, count, Encoding::check_wtf8);
+    return result;
+}
+
+Result<Path> Path::from_posix_name(const char* const bytes, const usize count) noexcept {
+    STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::from_posix_name: a null pointer with a non-zero count");
+    Growable<char> escaped;
+    if (!wtf8::escape_posix(bytes, count, escaped)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
+    // escape_posix writes well-formed WTF-8 (its only surrogates are low
+    // ones) with no '\' or ':' left unescaped.
+    Result<Path> result = parse_checked(escaped.data(), escaped.count(), Encoding::wtf8);
+    return result;
+}
+
+Result<Path> Path::from_windows_name(const u16* const units, const usize count) noexcept {
+    STXLIB_REQUIRE(units != nullptr || count == 0, "Path::from_windows_name: a null pointer with a non-zero count");
+    Growable<char> text;
+    if (!wtf8::from_utf16(units, count, text)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
+    // '\' is ASCII, so it is never part of a multi-byte sequence.
+    for (usize index = 0; index < text.count(); ++index) {
+        if (text[index] == '\\') text[index] = '/';
+    }
+    Result<Path> result = parse_checked(text.data(), text.count(), Encoding::wtf8);
     return result;
 }
 
 Result<Path> Path::copy() const noexcept {
     if (text_.empty()) return Result<Path>::success(Path());
-    Result<Utf8String> owned = Utf8String::copy_of(text_.view());
+    Result<Buffer<char>> owned = owned_copy(text_.view().data(), text_.count());
     if (owned.failed()) return Result<Path>::failure(exhausted("stxlib.path.copy"));
-    Result<Path> result = Result<Path>::success(Path(static_cast<Result<Utf8String>&&>(owned).take_value()));
+    Result<Path> result = Result<Path>::success(Path(static_cast<Result<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
-TextView Path::text() const& noexcept {
-    if (text_.empty()) return TextView(".");
-    const TextView result = text_.view();
+PathText Path::text() const& noexcept {
+    if (text_.empty()) return PathText(".");
+    const PathText result = detail::PathTextAccess::adopt_validated(text_.view().data(), text_.count());
     return result;
+}
+
+Result<Buffer<char>> Path::posix_name() const noexcept {
+    const Operation operation = "stxlib.path.posix_name";
+    const PathText spelled = (*this).text();
+    Growable<char> bytes;
+    const wtf8::Converted converted = wtf8::unescape_posix(spelled.data(), spelled.count(), bytes);
+    if (converted == wtf8::Converted::not_representable) {
+        return Result<Buffer<char>>::failure(refusal(PathFailure::not_representable, operation));
+    }
+    if (converted != wtf8::Converted::ok || !bytes.push('\0')) return Result<Buffer<char>>::failure(exhausted(operation));
+    Result<Buffer<char>> owned = owned_copy(bytes.data(), bytes.count());
+    if (owned.failed()) return Result<Buffer<char>>::failure(exhausted(operation));
+    return owned;
+}
+
+Result<Buffer<u16>> Path::windows_name() const noexcept {
+    const Operation operation = "stxlib.path.windows_name";
+    const PathText spelled = (*this).text();
+    Growable<u16> units;
+    if (!wtf8::to_utf16(spelled.data(), spelled.count(), units) || !units.push(0)) {
+        return Result<Buffer<u16>>::failure(exhausted(operation));
+    }
+    for (usize index = 0; index < units.count(); ++index) {
+        if (units[index] == u16{'/'}) units[index] = u16{'\\'};
+    }
+    Result<Buffer<u16>> owned = owned_copy(units.data(), units.count());
+    if (owned.failed()) return Result<Buffer<u16>>::failure(exhausted(operation));
+    return owned;
 }
 
 usize Path::root_length() const noexcept {
-    const TextView spelled = (*this).text();
+    const PathText spelled = (*this).text();
     const char* const bytes = spelled.data();
     if (bytes[0] == '/') return 1;
     if (spelled.count() >= 3 && bytes[1] == ':') return 3;
@@ -224,8 +351,8 @@ char Path::drive() const noexcept {
 Result<Path> Path::join(const Path& relative) const noexcept {
     const Operation operation = "stxlib.path.join";
     if (relative.is_absolute()) return Result<Path>::failure(refusal(PathFailure::absolute_join, operation));
-    const TextView left = text();
-    const TextView right = relative.text();
+    const PathText left = text();
+    const PathText right = relative.text();
     Growable<char> combined;
     if (!combined.append(left.data(), left.count()) || !combined.push('/') ||
         !combined.append(right.data(), right.count())) {
@@ -243,7 +370,7 @@ Result<Path> Path::parent() const noexcept {
         return same;
     }
     const Operation operation = "stxlib.path.parent";
-    const TextView spelled = (*this).text();
+    const PathText spelled = (*this).text();
     Growable<char> combined;
     if (!combined.append(spelled.data(), spelled.count()) || !combined.append("/..", 3)) {
         return Result<Path>::failure(exhausted(operation));
@@ -254,30 +381,31 @@ Result<Path> Path::parent() const noexcept {
     return result;
 }
 
-TextView Path::file_name() const& noexcept {
-    const TextView spelled = (*this).text();
+PathText Path::file_name() const& noexcept {
+    const PathText spelled = (*this).text();
     const char* const bytes = spelled.data();
     const usize root = root_length();
     usize start = spelled.count();
     while (start > root && bytes[start - 1] != '/') --start;
     const usize count = spelled.count() - start;
     if ((count == 1 && bytes[start] == '.') || (count == 2 && bytes[start] == '.' && bytes[start + 1] == '.')) {
-        return TextView();
+        return PathText();
     }
-    // A whole segment of UTF-8 text: it begins after an ASCII '/' (or at a
+    // A whole segment of WTF-8 text: it begins after an ASCII '/' (or at a
     // root's end) and runs to the end.
-    const TextView result = detail::TextViewAccess::adopt_validated(bytes + start, count);
+    const PathText result = detail::PathTextAccess::adopt_validated(bytes + start, count);
     return result;
 }
 
-TextView Path::extension() const& noexcept {
-    const TextView name = file_name();
+PathText Path::extension() const& noexcept {
+    const PathText name = file_name();
     const char* const bytes = name.data();
     usize dot = name.count();
     while (dot > 0 && bytes[dot - 1] != '.') --dot;
     // dot is one past the last '.', or 0 when there is none.
-    if (dot <= 1) return TextView();
-    const TextView result = detail::TextViewAccess::adopt_validated(bytes + dot - 1, name.count() - dot + 1);
+    if (dot <= 1) return PathText();
+    // From an ASCII '.' to the segment's end: whole sequences.
+    const PathText result = detail::PathTextAccess::adopt_validated(bytes + dot - 1, name.count() - dot + 1);
     return result;
 }
 

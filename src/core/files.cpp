@@ -9,6 +9,7 @@
 
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
+#include "core/wtf8.hpp"
 #include "hosted/file_backend.hpp"
 #include "state/state.hpp"
 
@@ -117,21 +118,31 @@ Status status_of(const Outcome outcome, const Operation operation) noexcept {
     return result;
 }
 
-// The backend's name for `path`: its text and a NUL. POSIX hosts have no
-// drive roots.
+// The backend's name for `path` and a NUL (file_backend.hpp, "Names"):
+// POSIX hosts take the host bytes the path spells (they have no drive
+// roots, and a Path holding a surrogate that is not an escape spells none),
+// Windows takes the WTF-8 text.
 Outcome native_name(const Path& path, Growable<char>& output) noexcept {
     output.clear();
-    if (!file_backend::drive_roots && path.drive() != 0) return file_backend::failure(FileStatus::unsupported);
-    const TextView text = path.text();
-    if (!output.append(text.data(), text.count()) || !output.push('\0')) {
+    const PathText text = path.text();
+    if constexpr (file_backend::byte_names) {
+        if (path.drive() != 0) return file_backend::failure(FileStatus::unsupported);
+        const wtf8::Converted converted = wtf8::unescape_posix(text.data(), text.count(), output);
+        if (converted == wtf8::Converted::not_representable) return file_backend::failure(FileStatus::invalid_name);
+        if (converted != wtf8::Converted::ok) return file_backend::failure(FileStatus::out_of_memory);
+    } else if (!output.append(text.data(), text.count())) {
         return file_backend::failure(FileStatus::out_of_memory);
     }
+    if (!output.push('\0')) return file_backend::failure(FileStatus::out_of_memory);
     return file_backend::success();
 }
 
-// A host name as a Path; invalid_name when it is not one.
+// A host name as a Path, losslessly (D13 a); invalid_name only when the
+// name breaks Path's syntax in a way no escape covers (a ".." above a root
+// in a link target, a ':' in a Windows name outside a drive root).
 Result<Path> from_host(const Growable<char>& text, const Operation operation) noexcept {
-    Result<Path> parsed = Path::parse_bytes(text.data(), text.count());
+    Result<Path> parsed = file_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
+                                                   : Path::parse_wtf8(text.data(), text.count());
     if (parsed.succeeded()) return parsed;
     if ((*parsed.error()).kind() == ErrorKind::out_of_memory) {
         return Result<Path>::failure(record_of(file_backend::failure(FileStatus::out_of_memory), operation));
@@ -217,19 +228,19 @@ void sort_by_name(const char* const names, file_backend::RawEntry* const entries
     }
 }
 
-// True when names[entry] is one valid Path segment (stx_auxlib's is_segment:
-// it parses to itself and is not "." or "..").
-bool is_segment(const char* const names, const file_backend::RawEntry& entry) noexcept {
-    const char* const bytes = names + entry.offset;
-    if (entry.count == 1 && bytes[0] == '.') return false;
-    if (entry.count == 2 && bytes[0] == '.' && bytes[1] == '.') return false;
-    for (usize index = 0; index < entry.count; ++index) {
-        if (bytes[index] == '/') return false;
+// True when WTF-8 bytes[0, count) is one Path segment (stx_auxlib's
+// is_segment): not empty, ".", or "..", and without '/', '\', ':' or NUL.
+// Every POSIX name passes once escaped; a Windows name fails only when it
+// holds what Win32 names cannot (files.hpp, unnamed_entries).
+bool is_segment(const char* const bytes, const usize count) noexcept {
+    if (count == 0) return false;
+    if (count == 1 && bytes[0] == '.') return false;
+    if (count == 2 && bytes[0] == '.' && bytes[1] == '.') return false;
+    for (usize index = 0; index < count; ++index) {
+        const char byte = bytes[index];
+        if (byte == '/' || byte == '\\' || byte == ':' || byte == '\0') return false;
     }
-    Result<Path> parsed = Path::parse_bytes(bytes, entry.count);
-    if (parsed.failed()) return false;
-    const bool result = (*parsed.value()).text() == detail::TextViewAccess::adopt_validated(bytes, entry.count);
-    return result;
+    return true;
 }
 
 // `directory` + '/' + `name` + NUL; a root ("/", "C:/") already ends with
@@ -323,10 +334,10 @@ Status File::seek(const u64 offset) noexcept {
     return result;
 }
 
-Status File::sync() noexcept {
+Status File::sync(const Durability level) noexcept {
     const Operation operation = "stxlib.files.sync";
     if (!is_open()) return bad_handle(operation);
-    const Status result = status_of(file_backend::sync(handle_), operation);
+    const Status result = status_of(file_backend::sync(handle_, level), operation);
     return result;
 }
 
@@ -408,27 +419,27 @@ Result<File> open_temporary(const Path& directory, Growable<char>& temporary, co
     return Result<File>::failure(record_of_status(FileStatus::already_exists, operation));
 }
 
-// Writes, flushes and closes the temporary file, then renames it over the
-// target. The file is closed on every path.
+// Writes, flushes (as `level` says) and closes the temporary file, then
+// renames it over the target. The file is closed on every path.
 Status write_and_replace(File& file, const View<Byte> content, const char* const temporary, const char* const target,
-                         const Operation operation) noexcept {
+                         const Durability level, const Operation operation) noexcept {
     const Status written = file.write_all(content);
     if (written.failed()) {
         (void)file.close();
         return written;
     }
-    const Status synced = file.sync();
+    const Status synced = file.sync(level);
     if (synced.failed()) {
         (void)file.close();
         return synced;
     }
     const Status closed = file.close();
     if (closed.failed()) return closed;
-    const Status result = status_of(file_backend::replace_durably(temporary, target), operation);
+    const Status result = status_of(file_backend::replace(temporary, target, level), operation);
     return result;
 }
 
-Status write_file(const Path& path, const View<Byte> content) noexcept {
+Status write_file(const Path& path, const View<Byte> content, const Durability level) noexcept {
     const Operation operation = "stxlib.files.write_file";
     if (path.file_name().empty()) return failed(file_backend::failure(FileStatus::invalid_name), operation);
     Growable<char> target;
@@ -440,7 +451,7 @@ Status write_file(const Path& path, const View<Byte> content) noexcept {
     Result<File> opened = open_temporary(*directory.value(), temporary, operation);
     if (opened.failed()) return Status::failure(*opened.error());
     const Status result =
-        write_and_replace(*opened.value(), content, temporary.data(), target.data(), operation);
+        write_and_replace(*opened.value(), content, temporary.data(), target.data(), level, operation);
     if (result.failed()) (void)file_backend::remove(temporary.data());
     return result;
 }
@@ -542,13 +553,10 @@ Result<u64> remove_tree(const Path& path) noexcept {
         }
         names.clear();
         entries.clear();
-        usize unconvertible = 0;
-        const Outcome listed = file_backend::list(top.data(), usize_max, names, entries, unconvertible);
+        // Host names throughout: a child's name is the host's own, so every
+        // entry is reachable whatever its name (D13 a).
+        const Outcome listed = file_backend::list(top.data(), usize_max, names, entries);
         if (!listed.ok()) return Result<u64>::failure(record_of(listed, operation));
-        // An entry this host cannot name in UTF-8 cannot be removed by name.
-        if (unconvertible != 0) {
-            return Result<u64>::failure(record_of(file_backend::failure(FileStatus::invalid_name), operation));
-        }
         bool pushed = false;
         for (usize index = 0; index < entries.count(); ++index) {
             const file_backend::RawEntry entry = entries[index];
@@ -599,11 +607,11 @@ Status copy_file(const Path& from, const Path& to, const CopyMode mode) noexcept
     return result;
 }
 
-TextView DirectoryListing::name(const usize index) const& noexcept {
+PathText DirectoryListing::name(const usize index) const& noexcept {
     const detail::DirectoryEntryRecord& entry = entries_[index];
-    // Only valid Path segments are listed (list_directory checks).
-    const TextView result =
-        detail::TextViewAccess::adopt_validated(names_.view().data() + entry.name_offset, entry.name_count);
+    // Only well-formed WTF-8 segments are listed (list_directory makes them).
+    const PathText result =
+        detail::PathTextAccess::adopt_validated(names_.view().data() + entry.name_offset, entry.name_count);
     return result;
 }
 
@@ -618,24 +626,35 @@ Result<DirectoryListing> list_directory(const Path& path, const usize limit) noe
     Growable<char> name;
     const Outcome converted = native_name(path, name);
     if (!converted.ok()) return Result<DirectoryListing>::failure(record_of(converted, operation));
+    Growable<char> host_names;
+    Growable<file_backend::RawEntry> host_entries;
+    const Outcome listed = file_backend::list(name.data(), limit, host_names, host_entries);
+    if (!listed.ok()) return Result<DirectoryListing>::failure(record_of(listed, operation));
+    // Each name as Path text: POSIX bytes escaped, Windows' WTF-8 as it is.
+    // Keep the valid segments.
     Growable<char> names;
     Growable<file_backend::RawEntry> raw;
     usize unnamed = 0;
-    const Outcome listed = file_backend::list(name.data(), limit, names, raw, unnamed);
-    if (!listed.ok()) return Result<DirectoryListing>::failure(record_of(listed, operation));
-    // Keep the valid segments, in place.
-    usize kept = 0;
     usize kept_bytes = 0;
-    for (usize index = 0; index < raw.count(); ++index) {
-        if (is_segment(names.data(), raw[index])) {
-            raw[kept] = raw[index];
-            kept = kept + 1;
-            kept_bytes = kept_bytes + raw[index].count;
-        } else {
+    for (usize index = 0; index < host_entries.count(); ++index) {
+        const file_backend::RawEntry entry = host_entries[index];
+        const usize offset = names.count();
+        const char* const host = host_names.data() + entry.offset;
+        const bool appended = file_backend::byte_names ? wtf8::escape_posix(host, entry.count, names)
+                                                       : names.append(host, entry.count);
+        if (!appended) return Result<DirectoryListing>::failure(record_of(no_memory, operation));
+        const usize count = names.count() - offset;
+        if (!is_segment(names.data() + offset, count)) {
+            names.shrink(offset);
             unnamed = unnamed + 1;
+            continue;
         }
+        if (!raw.push(file_backend::RawEntry{offset, count, entry.kind})) {
+            return Result<DirectoryListing>::failure(record_of(no_memory, operation));
+        }
+        kept_bytes = kept_bytes + count;
     }
-    raw.shrink(kept);
+    const usize kept = raw.count();
     sort_by_name(names.data(), raw.data(), raw.count());
     Result<Buffer<char>> name_bytes = Buffer<char>::allocate_zeroed(kept_bytes);
     Result<Buffer<detail::DirectoryEntryRecord>> records = Buffer<detail::DirectoryEntryRecord>::allocate_zeroed(kept);
