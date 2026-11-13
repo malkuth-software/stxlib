@@ -7,6 +7,12 @@
 // practice, not from a cited specification.
 // Replaces batch 2c's tzset and localtime_r (owner decision D12 = a): no
 // host zone rules are read, so no environment lock or load state is needed.
+//
+// FreeBSD (at fb9033d2876d): tzsetup(8) either copies the zone file to
+// /etc/localtime or links it there (usr.sbin/tzsetup/tzsetup.c:763-770),
+// and in both cases writes the zone's name to /var/db/zoneinfo (_PATH_DB,
+// tzsetup.c:64, written at 804-805), which takes /etc/timezone's place
+// there (A1 platform-rest).
 
 #include "hosted/local_time_backend.hpp"
 
@@ -23,6 +29,12 @@ namespace {
 
 constexpr Operation operation = "stxlib.local_time.host_zone";
 
+#if defined(__FreeBSD__)
+constexpr const char* zone_name_file = "/var/db/zoneinfo";
+#else
+constexpr const char* zone_name_file = "/etc/timezone";
+#endif
+
 Status io_failure_errno(const int error) noexcept {
     const Status result = host_failure::failed(ErrorKind::io_failure, operation, HostCode::none,
                                                ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
@@ -37,13 +49,14 @@ Status write_utc(ZoneText& text) noexcept {
     return Status::success();
 }
 
-// The first line of /etc/timezone, or "UTC" when the file does not exist.
+// The first line of the zone-name file (/etc/timezone, or /var/db/zoneinfo
+// on FreeBSD), or "UTC" when the file does not exist.
 // `localtime_exists` says /etc/localtime exists but is no link: the zone is
-// then a copied file with no name in it, and a missing /etc/timezone leaves
+// then a copied file with no name in it, and a missing zone-name file leaves
 // it unnamed.
 Status read_timezone_file(ZoneText& text, const bool localtime_exists) noexcept {
-    int fd = ::open("/etc/timezone", O_RDONLY | O_CLOEXEC);
-    while (fd < 0 && errno == EINTR) fd = ::open("/etc/timezone", O_RDONLY | O_CLOEXEC);
+    int fd = ::open(zone_name_file, O_RDONLY | O_CLOEXEC);
+    while (fd < 0 && errno == EINTR) fd = ::open(zone_name_file, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
         const int error = errno;
         if (error != ENOENT) return io_failure_errno(error);

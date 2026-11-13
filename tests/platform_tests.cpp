@@ -76,6 +76,28 @@ void capabilities_report() {
     CHECK(stxlib::capability_supported(stxlib::Capability::resize_events));
     CHECK(stxlib::capability_supported(stxlib::Capability::suspend_events));
 #endif
+    // A1 platform-rest.
+    CHECK(stxlib::capability_supported(stxlib::Capability::process_arguments));
+    CHECK(stxlib::capability_supported(stxlib::Capability::memory_report));
+    CHECK(stxlib::capability_supported(stxlib::Capability::dynamic_libraries));
+    CHECK(stxlib::capability_supported(stxlib::Capability::address_lookup));
+    CHECK(stxlib::capability_supported(stxlib::Capability::image_regions));
+    CHECK(stxlib::capability_supported(stxlib::Capability::stack_trace));
+    CHECK(stxlib::capability_supported(stxlib::Capability::page_protection));
+    CHECK(stxlib::capability_supported(stxlib::Capability::wake_channel));
+    CHECK(stxlib::capability_supported(stxlib::Capability::known_directories));
+    CHECK(stxlib::capability_supported(stxlib::Capability::process_identity));
+    CHECK(stxlib::capability_name(stxlib::Capability::process_identity) == stxlib::TextView("process_identity"));
+#if defined(_WIN32)
+    CHECK(!stxlib::capability_supported(stxlib::Capability::main_thread));
+#else
+    CHECK(stxlib::capability_supported(stxlib::Capability::main_thread));
+#endif
+#if defined(__FreeBSD__)
+    CHECK(!stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#else
+    CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#endif
 }
 
 // ---- clocks -----------------------------------------------------------------
@@ -99,7 +121,11 @@ void steady_clocks_never_decrease() {
 // the clocks count from different epochs, so spans are compared, not
 // readings). The wall clock reads as the runtime's system clock does.
 void clocks_agree_with_host() {
+#if !defined(__FreeBSD__)
+    // FreeBSD: unsupported, and ElapsedTime reads uptime, which still
+    // advances alike over the sleep (clocks.hpp).
     CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#endif
     const std::chrono::steady_clock::time_point host_start = std::chrono::steady_clock::now();
     const stxlib::IntervalTime interval_start = stxlib::IntervalTime::now();
     const stxlib::ElapsedTime elapsed_start = stxlib::ElapsedTime::now();

@@ -1,9 +1,7 @@
 // The capability table (include/stxlib/capabilities.hpp). stx_auxlib
 // answered capability_available in each desktop backend
 // (src/hosted/desktop_<host>.cpp at b6e330a); the answers are gathered here
-// for every family, with the ones whose modules are not ported yet
-// (threads, the local time zone) reported unsupported until their batch
-// lands. A desktop capability reported here can still fail at run time
+// for every family, FreeBSD 15.2 among them (A1 platform-rest). A desktop capability reported here can still fail at run time
 // when the desktop's helper program is missing (desktop.hpp).
 
 #include "stxlib/capabilities.hpp"
@@ -15,7 +13,6 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::console:
     case Capability::environment:
     case Capability::interval_clock:
-    case Capability::elapsed_clock:
     case Capability::wall_clock:
     case Capability::entropy:
     case Capability::exit_tasks:
@@ -34,11 +31,19 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::file_reveal:
     case Capability::files:
         return true;
-    case Capability::current_executable:
-#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
-        return true;
+    case Capability::elapsed_clock:
+#if defined(__FreeBSD__)
+        // FreeBSD has no clock that counts suspended time; ElapsedTime
+        // reads uptime there (clocks_posix.cpp, A1 platform-rest).
+        return false;
 #else
-        return false; // FreeBSD joins in phase II (desktop_posix.cpp)
+        return true;
+#endif
+    case Capability::current_executable:
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__) || defined(__FreeBSD__)
+        return true; // FreeBSD: KERN_PROC_PATHNAME (desktop_posix.cpp, A1 platform-rest)
+#else
+        return false;
 #endif
     case Capability::atomic_replace:
 #if defined(_WIN32)
@@ -59,6 +64,25 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::threads:
     case Capability::local_time_zone:
         return true; // batch 2c; D11 b (batch 3a); D12 a (batch 3b): compiled zones, the host names one
+    case Capability::main_thread:
+#if defined(_WIN32)
+        // Windows names no initial thread: a process's first thread is an
+        // ordinary thread once created (process_windows.cpp).
+        return false;
+#else
+        return true;
+#endif
+    case Capability::process_arguments:
+    case Capability::memory_report:
+    case Capability::dynamic_libraries:
+    case Capability::address_lookup:
+    case Capability::image_regions:
+    case Capability::stack_trace:
+    case Capability::page_protection:
+    case Capability::wake_channel:
+    case Capability::known_directories:
+    case Capability::process_identity:
+        return true; // A1 platform-rest, every family
     }
     return false;
 }
@@ -103,6 +127,28 @@ TextView capability_name(const Capability capability) noexcept {
         return "atomic_replace";
     case Capability::elapsed_clock:
         return "elapsed_clock";
+    case Capability::process_arguments:
+        return "process_arguments";
+    case Capability::main_thread:
+        return "main_thread";
+    case Capability::memory_report:
+        return "memory_report";
+    case Capability::dynamic_libraries:
+        return "dynamic_libraries";
+    case Capability::address_lookup:
+        return "address_lookup";
+    case Capability::image_regions:
+        return "image_regions";
+    case Capability::stack_trace:
+        return "stack_trace";
+    case Capability::page_protection:
+        return "page_protection";
+    case Capability::wake_channel:
+        return "wake_channel";
+    case Capability::known_directories:
+        return "known_directories";
+    case Capability::process_identity:
+        return "process_identity";
     }
     return "unknown";
 }
