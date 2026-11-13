@@ -113,7 +113,7 @@ class ApplianceProfile(unittest.TestCase):
         self.assertAlmostEqual(tracker.interval_seconds(None, 'pid1_marker'), 0.21)
 
     def test_marker_values_are_seconds(self) -> None:
-        values = pid1_marker_values('x\nSTXINIT uptime_ns=91234567 cntvct=5400000 cntfrq=24000000\n')
+        values = pid1_marker_values('x\nSTXINIT uptime_ns=1091234567 cntvct=5400000 cntfrq=24000000\n')
         self.assertAlmostEqual(values['pid1_uptime'], 0.091234567)
         self.assertAlmostEqual(values['pid1_counter'], 0.225)
 

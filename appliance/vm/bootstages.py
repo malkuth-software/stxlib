@@ -137,6 +137,9 @@ class StageTracker:
 # runtime/init/stxinit.cpp as soon as it starts.
 PID1_MARKER = re.compile(r'STXINIT uptime_ns=(\d+) cntvct=(\d+) cntfrq=(\d+)')
 
+# FreeBSD's uptime starts at 1 s, not 0 (sys/kern/kern_tc.c:91, th_offset).
+UPTIME_ORIGIN_SECONDS: float = 1.0
+
 APPLIANCE_STAGE_NAMES: List[str] = ['firmware_boot_option', 'loader_banner', 'loader_countdown',
                                     'loader_boot', 'kernel_first', 'root_mount']
 
@@ -161,9 +164,13 @@ def appliance_stage_list() -> List[Stage]:
 
 
 def pid1_marker_values(text: str) -> Optional[Dict[str, float]]:
-    """The in-guest times in the first PID 1 marker of a serial log: the
-    kernel's uptime and the generic timer's count since it started, both in
-    seconds. None when there is no complete marker or the frequency is 0."""
+    """The in-guest times in the first PID 1 marker of a serial log, in
+    seconds: pid1_uptime, the kernel clock's run time when PID 1 began (the
+    marker's CLOCK_UPTIME less the 1 s FreeBSD's time keeping starts from,
+    sys/kern/kern_tc.c:91), and pid1_counter, the generic timer's virtual
+    count over its frequency (QEMU starts it at zero with the VM: assumed,
+    not yet checked). None when there is no complete marker or the
+    frequency is 0."""
     match = PID1_MARKER.search(text)
     if match is None:
         return None
@@ -172,7 +179,7 @@ def pid1_marker_values(text: str) -> Optional[Dict[str, float]]:
     frequency = int(match.group(3))
     if frequency == 0:
         return None
-    return {'pid1_uptime': uptime_ns / 1e9, 'pid1_counter': count / frequency}
+    return {'pid1_uptime': uptime_ns / 1e9 - UPTIME_ORIGIN_SECONDS, 'pid1_counter': count / frequency}
 
 
 def default_stage_list() -> List[Stage]:
