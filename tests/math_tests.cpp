@@ -295,7 +295,7 @@ void sincos_hard_reduction(const int count) {
 // exact remainder, and sin, cos and tan must be within the stated bound of
 // the exact values the certificate computed (not of the reference).
 void sincos_certified_worst_cases() {
-    namespace detail = unflushed::STXLIB_MATH_VARIANT::detail;
+    namespace detail = stxlib::math::STXLIB_MATH_VARIANT::detail;
     int checked = 0;
     for (const sincos_worst_cases::Case& entry : sincos_worst_cases::cases) {
         for (int sign = 0; sign < 2; ++sign) {
