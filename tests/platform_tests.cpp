@@ -59,6 +59,13 @@ void capabilities_report() {
     CHECK(stxlib::capability_supported(stxlib::Capability::exit_tasks));
     CHECK(stxlib::capability_supported(stxlib::Capability::raw_terminal));
     CHECK(stxlib::capability_supported(stxlib::Capability::interrupt_events));
+    CHECK(stxlib::capability_supported(stxlib::Capability::files));
+    CHECK(stxlib::capability_supported(stxlib::Capability::child_processes));
+    CHECK(stxlib::capability_supported(stxlib::Capability::desktop_open));
+    CHECK(stxlib::capability_supported(stxlib::Capability::file_reveal));
+    CHECK(stxlib::capability_supported(stxlib::Capability::current_executable));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::threads));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::local_time_zone));
 #if defined(_WIN32)
     CHECK(!stxlib::capability_supported(stxlib::Capability::resize_events));
     CHECK(!stxlib::capability_supported(stxlib::Capability::suspend_events));

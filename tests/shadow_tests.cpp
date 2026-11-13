@@ -313,7 +313,7 @@ struct Deep final {
 
 struct DeepGate final {
     stxlib::Status operator()() const {
-        Deep deep{70};
+        const Deep deep{70};
         deep();
         return stxlib::Status::success();
     }

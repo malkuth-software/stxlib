@@ -7,7 +7,8 @@
 // below, never through a thread_local or static of its own. Since layout 2
 // that includes the platform layer's process-wide state: the console and
 // environment locks, the console's read-ahead bytes, the exit-task table,
-// the event watch and the raw-terminal flag.
+// the event watch and the raw-terminal flag. Layout 3 adds write_file's
+// temporary-name serial and the abandoned child processes.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -51,7 +52,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 2;
+inline constexpr u32 layout_version = 3;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -147,6 +148,7 @@ inline constexpr usize exit_task_capacity = 32;
 // active (events_posix.cpp checks sizeof(struct sigaction) against it).
 inline constexpr usize saved_signal_action_bytes = 256;
 inline constexpr usize watched_signal_count = 5;
+inline constexpr usize abandoned_child_capacity = 256;
 
 enum class ReporterPhase : int {
     none = 0,
@@ -197,6 +199,20 @@ struct ProcessState final {
 
     // The raw terminal (terminal_<family>.cpp): true while one is held.
     std::atomic<bool> raw_terminal_active{false};
+
+    // Files (files.cpp): the serial in write_file's temporary names, so two
+    // modules never draw the same one.
+    std::atomic<u64> temporary_serial{0};
+
+    // Child processes (children_posix.cpp): children destroyed before being
+    // waited for, reaped without blocking by later starts and waits. A fixed
+    // table (stx_auxlib's list grew on the heap); when it is full and a
+    // reaping pass frees nothing, the child is left to the process's end and
+    // counted in abandoned_children_lost.
+    SpinLock children_lock{};
+    i64 abandoned_children[abandoned_child_capacity]{};
+    usize abandoned_child_count{0};
+    u64 abandoned_children_lost{0};
 };
 
 // The calling thread's state and the process's, from stxlib_state.

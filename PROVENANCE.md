@@ -51,6 +51,27 @@ file's header comment names its changes.
 | `tests/console_process_tests.cpp`, `tests/console_process_check.cmake` | the same paths |
 | `tests/platform_tests.cpp` | `tests/clocks_tests.cpp`, `tests/environment_tests.cpp`, the terminal and events parts of `tests/capabilities_tests.cpp` |
 
+### Batch 2b: paths, files, desktop and child processes, from `b6e330a`
+
+As batch 2a. Two changes run through the batch: std::filesystem is no longer
+used (it cannot report exhaustion in a build without exceptions), so the
+operations stx_auxlib took from it are written over the host calls; and
+owned objects that may cross modules (Path, File, Child, DirectoryListing)
+keep their state inline or on STXlib's allocator, with process-wide parts
+(write_file's serial, the abandoned children) in `stxlib_state` (layout 3).
+
+| STXlib file | stx_auxlib file (at `b6e330a`) |
+|---|---|
+| `include/stxlib/path.hpp`, `src/core/path.cpp` | `include/stx_auxlib/paths.hpp`, `src/paths.cpp` (join and parent bound only their result) |
+| `include/stxlib/files.hpp`, `src/core/files.cpp`, `src/hosted/file_backend.hpp` | `include/stx_auxlib/files.hpp`, `src/hosted/files.cpp`, `src/hosted/file_backend.hpp` |
+| `src/hosted/posix/file_posix.cpp`, `src/hosted/windows/file_windows.cpp` | `src/hosted/file_posix.cpp`, `src/hosted/file_windows.cpp`, and the std::filesystem calls of `files.cpp` restated over host calls |
+| `include/stxlib/children.hpp`, `src/core/children.cpp`, `src/hosted/children_common.hpp` | `include/stx_auxlib/children.hpp`, `src/hosted/children_common.cpp`, `children_common.hpp` |
+| `src/hosted/posix/children_posix.cpp`, `src/hosted/windows/children_windows.cpp` | `src/hosted/children_posix.cpp`, `src/hosted/children_windows.cpp` |
+| `include/stxlib/desktop.hpp`, `src/core/desktop.cpp`, `src/hosted/desktop_backend.hpp` | `include/stx_auxlib/desktop.hpp`; the target checks of `src/hosted/desktop_posix.cpp` and `desktop_windows.cpp` |
+| `src/hosted/posix/desktop_posix.cpp`, `src/hosted/windows/desktop_windows.cpp` | `src/hosted/desktop_posix.cpp`, `src/hosted/desktop_windows.cpp` |
+| `tests/path_tests.cpp`, `tests/files_tests.cpp` | `tests/paths_tests.cpp`, `tests/files_tests.cpp` |
+| `tests/children_tests.cpp` | the children and desktop parts of `tests/capabilities_tests.cpp` |
+
 The remaining stx_auxlib content (hosted modules, owned algorithms, and
 stx_btree with the sequence tree and RowHeightIndex) is copied from
 `b6e330a` in later batches, each file with its source path, commit and

@@ -39,7 +39,7 @@ int main() {
     stxlib::Result<int> half = stxlib::call_gate("stxlib.tests.gate", halves, even);
     CHECK(half.succeeded() && *half.value() == 4);
     int odd = 3;
-    stxlib::Result<int> refused = stxlib::call_gate("stxlib.tests.gate", halves, odd);
+    const stxlib::Result<int> refused = stxlib::call_gate("stxlib.tests.gate", halves, odd);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
     Squares squares;
     int four = 4;

@@ -189,6 +189,7 @@ typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const 
             in_shadow_frame(operation, 0, 0, target, arguments...);
             return;
         } else {
+            // Not const: a const local is copied, not moved, on return.
             Return result = in_shadow_frame(operation, 0, 0, target, arguments...);
             return result;
         }
@@ -200,6 +201,7 @@ typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const 
     if constexpr (detail::SameType<Return, void>::value) {
         in_shadow_frame(operation, 0, 0, target, arguments...);
     } else {
+        // Not const: a const local is copied, not moved, on return.
         Return result = in_shadow_frame(operation, 0, 0, target, arguments...);
         return result;
     }

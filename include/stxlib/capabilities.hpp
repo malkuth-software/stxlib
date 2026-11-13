@@ -73,6 +73,16 @@ enum class HostCode : u32 {
     invalid_value = 7,  // a value the host cannot hold, such as one with NUL (kind invalid_argument)
     table_full = 8,     // a fixed table is full (kind limit_exceeded)
     empty_request = 9,  // a request that names nothing (kind invalid_argument)
+    // Files, children and the desktop (batch 2b; files.hpp has the table).
+    not_a_directory = 10,     // a directory was needed (kind invalid_argument)
+    is_a_directory = 11,      // a file was needed (kind invalid_argument)
+    directory_not_empty = 12, // (kind invalid_argument)
+    no_space = 13,            // the volume is full (kind limit_exceeded)
+    name_too_long = 14,       // the host refused a name's length (kind limit_exceeded)
+    cross_device = 15,        // a rename across volumes, which cannot be atomic (kind unsupported)
+    closed_handle = 16,       // the object is closed or moved from (kind disposed)
+    timed_out = 17,           // the wait's time limit passed (kind limit_exceeded)
+    invalid_state = 18,       // the object is not in a state that allows the call (kind invalid_argument)
 };
 
 } // namespace stxlib

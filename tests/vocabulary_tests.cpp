@@ -88,7 +88,7 @@ void buffers_zero_and_refuse() {
     stxlib::Result<stxlib::Buffer<stxlib::u32>> none = stxlib::Buffer<stxlib::u32>::allocate_zeroed(0);
     CHECK(none.succeeded() && (*none.value()).empty());
 
-    stxlib::Result<stxlib::Buffer<stxlib::u64>> huge =
+    const stxlib::Result<stxlib::Buffer<stxlib::u64>> huge =
         stxlib::Buffer<stxlib::u64>::allocate_zeroed(stxlib::usize_max / 4);
     CHECK(huge.failed() && (*huge.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 }
@@ -106,7 +106,7 @@ void identities_never_wrap() {
     stxlib::IdentityIssuer<WidgetTag> nearly = stxlib::IdentityIssuer<WidgetTag>::resume(stxlib::u64_max - 1);
     stxlib::Result<stxlib::Identity<WidgetTag>> last = nearly.issue();
     CHECK(last.succeeded() && (*last.value()).value() == stxlib::u64_max);
-    stxlib::Result<stxlib::Identity<WidgetTag>> refused = nearly.issue();
+    const stxlib::Result<stxlib::Identity<WidgetTag>> refused = nearly.issue();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(nearly.last_issued() == stxlib::u64_max);
 }
@@ -126,7 +126,7 @@ void handles_release_once() {
     {
         stxlib::UniqueHandle<TestHandleTraits> owner = stxlib::UniqueHandle<TestHandleTraits>::adopt(3);
         CHECK(owner.owns() && owner.get() == 3);
-        stxlib::UniqueHandle<TestHandleTraits> second(static_cast<stxlib::UniqueHandle<TestHandleTraits>&&>(owner));
+        const stxlib::UniqueHandle<TestHandleTraits> second(static_cast<stxlib::UniqueHandle<TestHandleTraits>&&>(owner));
         CHECK(!owner.owns() && second.owns());
     }
     CHECK(released_handles == 1);
@@ -184,7 +184,7 @@ void results_hold_one_alternative() {
     CHECK(number.status().succeeded());
     stxlib::Result<int> failed = stxlib::Result<int>::failure(record);
     CHECK(failed.value() == nullptr && failed.status().failed());
-    stxlib::Result<int> moved(static_cast<stxlib::Result<int>&&>(failed));
+    const stxlib::Result<int> moved(static_cast<stxlib::Result<int>&&>(failed));
     CHECK(moved.failed() && (*moved.error()).kind() == stxlib::ErrorKind::not_found);
 }
 

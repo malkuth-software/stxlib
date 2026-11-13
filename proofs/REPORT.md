@@ -32,5 +32,15 @@ evidence, not proof.
 | `src/hosted/*/events_*.cpp`, `terminal_*.cpp` | a watch records raised signals, defers under EventDeferral, restores the earlier handling; one watch and one raw terminal per process, across modules | not yet proved; tested on POSIX (events) and without a terminal; the Windows paths are not run here | `tests/platform_tests.cpp`, `tests/two_module_tests.cpp` |
 | `src/core/spin_lock.hpp` | mutual exclusion | not yet proved; an exchange-acquire / store-release lock, the textbook argument; a model-checking harness belongs to stage B1 | none yet |
 
+## stxlib::boundary, batch 2b (paths, files, desktop, child processes)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/path.cpp` | parse normalizes as path.hpp states, idempotently, and refuses the listed text; join and parent bound their result | not yet proved; tested on stx_auxlib's table (22 normalizations, 16 refusals) and the bound cases | `tests/path_tests.cpp` |
+| `src/core/files.cpp`, `src/hosted/*/file_*.cpp` | each operation maps host errors as files.hpp's table; write_file leaves the old content or the new, and no temporary file; read_file and list_directory refuse over-limit content | not yet proved; tested on one scratch directory per host. Atomicity of the Windows replace is the host's and is not promised (survey D13) | `tests/files_tests.cpp` |
+| `src/core/files.cpp` (`remove_tree`) | removes the tree without following links and counts what it removed; terminates (each pass removes an entry or fails, absent concurrent writers) | not yet proved; tested on a nested tree and on a link to a file outside it | the same |
+| `src/hosted/*/children_*.cpp` | arguments reach the child unchanged (no shell; Windows quoting for CommandLineToArgvW); start reports a missing program; abandoned children are reaped | not yet proved; tested with seven argument shapes, exit codes, a signal, timeouts and four abandoned children | `tests/children_tests.cpp` |
+| `src/core/desktop.cpp` | only http, https and mailto links and absolute paths without control characters reach the helper | not yet proved; tested on seven refused targets; nothing is opened in tests | the same |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

@@ -158,7 +158,7 @@ int foreign_release_page() {
 }
 
 int view_index() {
-    int numbers[3] = {1, 2, 3};
+    const int numbers[3] = {1, 2, 3};
     const stxlib::View<int> view(numbers);
     const int beyond = view[3];
     std::printf("survived %d\n", beyond);

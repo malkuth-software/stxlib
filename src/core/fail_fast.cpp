@@ -114,7 +114,7 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
 void fail_fast(const ErrorRecord& record) noexcept {
     state::ThreadState& thread = state::current_thread();
     thread.fail_fast_depth = thread.fail_fast_depth + 1;
-    state::ProcessState& process = state::current_process();
+    const state::ProcessState& process = state::current_process();
     const int phase = process.reporter_phase.load(std::memory_order_acquire);
     const bool use_reporter =
         thread.fail_fast_depth == 1 && phase == static_cast<int>(state::ReporterPhase::installed);

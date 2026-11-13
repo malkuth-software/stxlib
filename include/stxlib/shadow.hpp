@@ -149,6 +149,7 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
         target(arguments...);
         frame.close();
     } else {
+        // Not const: a const local is copied, not moved, on return.
         Return result = target(arguments...);
         frame.close();
         return result;
