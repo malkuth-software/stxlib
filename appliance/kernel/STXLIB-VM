@@ -266,3 +266,6 @@ nooptions	INET6		# the appliance is IPv4 only (C design notes)
 nooptions	USB_DEBUG	# debug messages
 nooptions	HID_DEBUG	# debug messages
 nooptions	IEEE80211_DEBUG	# debug messages (no wlan device either)
+
+# --- Batch 2, round 1
+nooptions KDTRACE_HOOKS,KDTRACE_FRAME,DDB_CTF # no DTrace on the appliance
