@@ -123,5 +123,15 @@ evidence, not proof.
 | `src/algorithms/math/sincos_core.hpp` (double sin, cos, tan) | within 0.51 ulp for 2^-27 <= abs(x) <= 2^32 | proved in stx_auxlib by `tools/math/sincos_certificate.py` (interval error analysis over every binade's worst remainders); the certificate reads this tree's constants, and its search tool arrives with stx_btree, so it has not been rerun here | `tools/math/sincos_certificate.py` |
 | `src/algorithms/math/` (double functions other than sin, cos, tan) | within the ulp bounds `math.hpp` states | sampled in stx_auxlib (sample counts as `math.hpp` gives them); not proved | `tests/math_tests.cpp` |
 
+## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/sequence_tree.hpp` | every query, cursor walk and seek equals a flat model, and invariants I1-I6 hold, after every operation sequence | exhaustive within its small scope (depths 2 and 1 from five start states, at the smallest capacities, four configurations; `--scope full` by hand: 3 and 2), as in stx_auxlib; beyond that scope it rests on the study's proof sketches (§8.2), not on a mechanical proof | `tests/stx_btree/sequence_tree_exhaustive_test.cpp`; `src/algorithms/stx_btree/ORDER_STATISTIC_RESEARCH.md` |
+| `src/algorithms/stx_btree/sequence_tree.hpp` (failure) | a page the allocator refuses leaves the tree unchanged and the edit then succeeds; a tree without its first page leaks nothing | tested over every allocation of eight edit kinds at ten positions (null pages from a budget allocator), not proved | `tests/stx_btree/sequence_tree_test.cpp` |
+| `src/algorithms/stx_btree/sequence_tree.hpp` (Lemma S, coarsen, finger) | splitting a run keeps every row's height; coarsen keeps offsets outside its range bit for bit; seek_offset_from equals seek_offset | exhaustive over the stated small domains (every run of up to 16 rows and 80 units; every range of a 40-row sequence; every row of a deep small tree), as in stx_auxlib | `tests/stx_btree/sequence_tree_test.cpp` |
+| `src/algorithms/row_height_index.cpp` (the facade) | the facade answers as the template and the model, and each failure has the kind its cause names | the exhaustive enumeration and the packing cases run through the facade at production capacity ("facade-production"); at that capacity the sequences split no page, so this checks the translation, not the structure | `tests/stx_btree/sequence_tree_exhaustive_test.cpp` |
+| `src/algorithms/row_height_index.cpp` (cost) | the facade's cost over the template on row-to-offset, offset-to-row and set_heights | not measured yet: `stxlib_row_height_bench` is for the integrator | `tests/stx_btree/row_height_bench.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

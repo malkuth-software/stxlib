@@ -373,6 +373,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/random.cpp
+    src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
     src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
@@ -478,6 +479,26 @@ if(STXLIB_TESTS)
             set_tests_properties(stxlib_math_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
         endforeach()
     endif()
+
+    # The sequence tree and RowHeightIndex (src/algorithms/stx_btree/
+    # ORDER_STATISTIC_RESEARCH.md §8): the proved properties as tests, and
+    # the exhaustive small-scope check at its small scope against the
+    # private templates and through the facade (`--scope full` by hand).
+    # From stx_auxlib b6e330a.
+    foreach(sequence_test IN ITEMS sequence_tree sequence_tree_exhaustive)
+        add_executable(stxlib_${sequence_test}_tests tests/stx_btree/${sequence_test}_test.cpp)
+        target_link_libraries(stxlib_${sequence_test}_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_${sequence_test}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_${sequence_test}_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_${sequence_test}_tests COMMAND stxlib_${sequence_test}_tests)
+        set_tests_properties(stxlib_${sequence_test}_tests PROPERTIES TIMEOUT 1200)
+    endforeach()
+    # The facade against the template it wraps (offset to row, row to
+    # offset, set_heights), for the integrator to run by hand; not a ctest.
+    add_executable(stxlib_row_height_bench tests/stx_btree/row_height_bench.cpp)
+    target_link_libraries(stxlib_row_height_bench PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_row_height_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_row_height_bench PRIVATE ${stxlib_test_warnings})
 
     # Preference Ranked Voting against the reference's own outcomes
     # (tests/reference/prv_cases.txt, made by prv_reference.mjs).

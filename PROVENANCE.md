@@ -265,6 +265,46 @@ Copied unchanged (the file's SHA-256 here equals the source's):
 |---|---|
 | `tests/reference/wide.hpp` | `23edbf50cf5bc23674aacfc0e82770fd2a7e9b5d229d601254f089be540bae1f` |
 
+### Batch 3c6: stx_btree's sequence tree and RowHeightIndex, from `b6e330a`
+
+stx_btree is the owner's C++ form of bbtree (Xiangpeng Hao, MIT OR
+Apache-2.0; stx_btree takes MIT): `src/algorithms/stx_btree/LICENSE` and
+`NOTICE` are its own, copied unchanged, and bind these files. Only the
+sequence tree and its RowHeightIndex come, the part GUI.Forms uses; the
+ordered maps, the optimal search trees and their tests stay in stx_auxlib.
+The templates are private (coordinator's option 1, the compiled facade):
+namespace `stxlib::stx_btree`, included only by STXlib's own sources and
+tests. Changed at the adaptation points only, each listed in the file's
+header: pages from memory::allocate (`MemoryPageAllocator` in place of
+`GlobalPageAllocator`); allocation failure refuses the edit (false,
+`out_of_memory()`) where stx_auxlib threw std::bad_alloc, so `erase` and
+`coarsen` return bool, the constructor reports `constructed()`, and the
+reservation arithmetic reports overflow by result; `STXLIB_REQUIRE` where
+stx_auxlib called std::abort; `core/checked.hpp`'s modular marker;
+`set_heights` also takes plain signed 64-bit units (a template over the
+element). The tests change with them (the budget allocator returns null;
+the failure check reads the refusal), and the exhaustive check also runs
+through the facade (`FacadeTree`, new). `include/stxlib/row_height_index.hpp`,
+`src/algorithms/row_height_index.cpp` and `tests/stx_btree/row_height_bench.cpp`
+are new, written for STXlib.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/page_allocator.hpp` | `btree/include/stx_btree/page_allocator.hpp` | `7e2dcdb884beb74f7c99a17fe02304f1650b33e0efad333ae9ade1f45f008b70` |
+| `src/algorithms/stx_btree/sequence_tree.hpp` | `btree/include/stx_btree/sequence_tree.hpp` | `8db3ce9d2d46c8975d67e8bfff6294ce6114584916ae7148abdf67536efd43e5` |
+| `src/algorithms/stx_btree/row_height_index.hpp` | `btree/include/stx_btree/row_height_index.hpp` | `df27bd214a4df1d436c4b9be1ff5635b83b849a2edb5e7415bdd24a124f8cd50` |
+| `tests/stx_btree/sequence_tree_test.cpp` | `btree/tests/sequence_tree_test.cpp` | `03cf1f191d7cd9cd107009e4b3b9ad213d7d1f7e4ee4dc627369b732608149cf` |
+| `tests/stx_btree/sequence_tree_exhaustive_test.cpp` | `btree/tests/sequence_tree_exhaustive_test.cpp` | `54f7b5350eaced04539b064b7388990db0a11ed3f1d21fa8f0b24295725a3bb0` |
+| `tests/stx_btree/btree_test_support.hpp` (TestFailure and SplitMix64 only; SplitMix64 marked modular) | `btree/tests/test_support.hpp` | `f5a8ae4d3704175d7e3b09e4913bc180a22e5da15b351f522e71a0da99ef7bab` |
+
+Copied unchanged (the file's SHA-256 here equals the source's):
+
+| File | stx_auxlib file | SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/LICENSE` | `btree/LICENSE` | `fde6789f4937c8c9741e00f823ef07d199269180950b3db03d2d806909a05a62` |
+| `src/algorithms/stx_btree/NOTICE` | `btree/NOTICE` | `5a87d6e9a4a55880424b78c8518e4a45f3d2a171f200697f9f552cd593ec2381` |
+| `src/algorithms/stx_btree/ORDER_STATISTIC_RESEARCH.md` (the study: design, invariants, proof sketches, measurements) | `btree/docs/ORDER_STATISTIC_RESEARCH.md` | `0bdc4c40dd0cc9fdb8cbab0eee37e6f06c1c0b95d5c2dd222514da4ebfc82f57` |
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)
