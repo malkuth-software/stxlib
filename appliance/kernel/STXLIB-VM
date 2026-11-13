@@ -269,3 +269,6 @@ nooptions	IEEE80211_DEBUG	# debug messages (no wlan device either)
 
 # --- Batch 2, round 1
 nooptions KDTRACE_HOOKS,KDTRACE_FRAME,DDB_CTF # no DTrace on the appliance
+
+# --- Batch 2, round 2
+nomakeoptions WITH_CTF # CTF type data serves only DTrace and DDB_CTF
