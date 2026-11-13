@@ -417,6 +417,38 @@ Outcome rename(const char* const from, const char* const to) noexcept {
     return success();
 }
 
+// Whether two open handles name one file. Microsoft's
+// BY_HANDLE_FILE_INFORMATION documentation: the volume serial number and the
+// file index identify a file, and on ReFS the 64-bit index may not be unique,
+// so FILE_ID_INFO's 128-bit identifier (GetFileInformationByHandleEx,
+// FileIdInfo; Windows 8 and later) is asked first. (From those pages as
+// published, not re-read in this batch.)
+bool same_file(const HANDLE first, const HANDLE second) noexcept {
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
+    FILE_ID_INFO first_id{};
+    FILE_ID_INFO second_id{};
+    if (GetFileInformationByHandleEx(first, FileIdInfo, &first_id, sizeof first_id) &&
+        GetFileInformationByHandleEx(second, FileIdInfo, &second_id, sizeof second_id)) {
+        const bool result = first_id.VolumeSerialNumber == second_id.VolumeSerialNumber &&
+                            std::memcmp(&first_id.FileId, &second_id.FileId, sizeof first_id.FileId) == 0;
+        return result;
+    }
+#endif
+    BY_HANDLE_FILE_INFORMATION first_information{};
+    BY_HANDLE_FILE_INFORMATION second_information{};
+    if (!GetFileInformationByHandle(first, &first_information) ||
+        !GetFileInformationByHandle(second, &second_information)) {
+        return false;
+    }
+    const bool result = first_information.dwVolumeSerialNumber == second_information.dwVolumeSerialNumber &&
+                        first_information.nFileIndexHigh == second_information.nFileIndexHigh &&
+                        first_information.nFileIndexLow == second_information.nFileIndexLow;
+    return result;
+}
+
+// A copy onto the source itself is refused (already_exists), as on POSIX
+// hosts: CopyFileW does not refuse it (CI run 43429568298, Windows Debug,
+// tests/files_tests.cpp's copy onto itself).
 Outcome copy_file(const char* const from, const char* const to, const CopyMode mode) noexcept {
     Growable<wchar_t> source;
     Growable<wchar_t> target;
@@ -424,6 +456,14 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     const DWORD attributes = GetFileAttributesW(source.data());
     if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         return failure(FileStatus::is_a_directory);
+    }
+    {
+        const OwnedHandle source_handle(open_for_attributes(source.data(), false));
+        if (!source_handle.valid()) return last_error();
+        const OwnedHandle target_handle(open_for_attributes(target.data(), false));
+        if (target_handle.valid() && same_file(source_handle.get(), target_handle.get())) {
+            return failure(FileStatus::already_exists);
+        }
     }
     const BOOL fail_if_exists = mode == CopyMode::fail_if_exists ? TRUE : FALSE;
     if (!CopyFileW(source.data(), target.data(), fail_if_exists)) return last_error();
