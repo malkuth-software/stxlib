@@ -57,7 +57,7 @@ bool capability_supported(const Capability capability) noexcept {
 #endif
     case Capability::threads:
     case Capability::local_time_zone:
-        return false; // not ported yet (batch 2c)
+        return true; // batch 2c (survey D11 and D12 open: the host's behaviour)
     }
     return false;
 }

@@ -85,6 +85,26 @@ the two characters Path's syntax refuses); `Durability` names three levels;
 Host facts relied on are cited where used (`files.hpp`, `path.hpp`,
 `capabilities.cpp`, the backends).
 
+### Batch 2c: threads, the thread pool and the local time zone, from `b6e330a`
+
+As batch 2a. std::thread, std::mutex and std::condition_variable are no
+longer used (in a build without exceptions they cannot report a failed
+start), so each family module calls pthreads or Win32 directly; thread
+identities, their issuer and the zone's load state live in `stxlib_state`
+(layout 4). Survey D11 and D12 are open: the behaviour is stx_auxlib's
+current one, flagged in `threads.hpp` and `local_time.hpp`.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) |
+|---|---|
+| `include/stxlib/threads.hpp`, `src/core/threads.cpp`, `src/hosted/thread_backend.hpp` | `include/stx_auxlib/threads.hpp`, `src/hosted/threads.cpp` |
+| `src/hosted/posix/threads_posix.cpp`, `src/hosted/windows/threads_windows.cpp` | the host calls under `src/hosted/threads.cpp`'s std::thread, std::mutex and std::condition_variable, made directly |
+| `include/stxlib/thread_pool.hpp`, `src/core/thread_pool.cpp` | `include/stx_auxlib/thread_pool.hpp`, `src/hosted/thread_pool.cpp` (the algorithm of `tests/reference/atomic_pool.c`) |
+| `include/stxlib/local_time.hpp`, `src/core/local_time.cpp`, `src/core/civil.hpp`, `src/hosted/local_time_backend.hpp` | `CivilTime`, `LocalTime` and `local_time` of `include/stx_auxlib/calendar.hpp`; the civil conversions of `src/calendar_detail.hpp` (Hinnant's algorithms) |
+| `src/hosted/posix/local_time_posix.cpp`, `src/hosted/windows/local_time_windows.cpp` | `src/hosted/calendar_posix.cpp`, `src/hosted/calendar_windows.cpp` |
+| `tests/threads_tests.cpp` | `tests/threads_tests.cpp` |
+| `tests/thread_pool_tests.cpp` | `tests/thread_pool_tests.cpp`, plus checks of the header's scheduling rules (the conformance test against the C reference comes with batch 3) |
+| `tests/local_time_tests.cpp` | `local_time_rules` of `tests/calendar_tests.cpp` |
+
 The remaining stx_auxlib content (hosted modules, owned algorithms, and
 stx_btree with the sequence tree and RowHeightIndex) is copied from
 `b6e330a` in later batches, each file with its source path, commit and

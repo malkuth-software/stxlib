@@ -8,7 +8,9 @@
 // that includes the platform layer's process-wide state: the console and
 // environment locks, the console's read-ahead bytes, the exit-task table,
 // the event watch and the raw-terminal flag. Layout 3 adds write_file's
-// temporary-name serial and the abandoned child processes.
+// temporary-name serial and the abandoned child processes. Layout 4 adds
+// thread identities (the issuer and each thread's own) and the local time
+// zone's load state.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -52,7 +54,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 3;
+inline constexpr u32 layout_version = 4;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -129,6 +131,9 @@ struct ThreadState final {
 
     // Entries into fail_fast (fail_fast.cpp); never reset.
     int fail_fast_depth{0};
+    // The thread's identity (threads.cpp); 0 until issued. A Thread's host
+    // thread takes the identity its owner issued before its entry runs.
+    u64 thread_identity{0};
 };
 
 // A process-wide lock (core/spin_lock.hpp takes and releases it). Plain
@@ -213,6 +218,13 @@ struct ProcessState final {
     i64 abandoned_children[abandoned_child_capacity]{};
     usize abandoned_child_count{0};
     u64 abandoned_children_lost{0};
+    // Threads (threads.cpp): the last thread identity issued; identities are
+    // never reused, and the issuer refuses at 2^64 - 1.
+    std::atomic<u64> last_thread_identity{0};
+    // The local time zone (local_time_posix.cpp): whether tzset has run and
+    // the environment generation it saw; both guarded by environment_lock.
+    bool zone_loaded{false};
+    u64 zone_generation{0};
 };
 
 // The calling thread's state and the process's, from stxlib_state.

@@ -44,8 +44,8 @@ module has not landed yet is reported unsupported.
 | process events | `events.hpp` | batch 2a |
 | paths, files | `path.hpp`, `files.hpp` | batch 2b; batch 2b2 (D13 a: lossless names, durability levels, atomic replace) |
 | desktop, child processes | `desktop.hpp`, `children.hpp` | batch 2b |
-| threads, thread pool | | batch 2c (survey D11 open) |
-| local time zone | | batch 2c (survey D12 open) |
+| threads, thread pool | `threads.hpp`, `thread_pool.hpp` | batch 2c (survey D11 open) |
+| local time zone | `local_time.hpp` | batch 2c (survey D12 open) |
 
 Process-wide state of these modules (locks, the console's read-ahead, the
 exit-task table, the event watch, the raw-terminal flag) lives in

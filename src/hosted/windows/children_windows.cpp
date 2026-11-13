@@ -241,14 +241,31 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
     if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
-    const i64 milliseconds = timeout.count_milliseconds();
-    DWORD wait_milliseconds = 0;
-    if (milliseconds > 0) {
-        wait_milliseconds = milliseconds >= static_cast<i64>(INFINITE) ? INFINITE - 1 : static_cast<DWORD>(milliseconds);
-    }
-    const DWORD outcome = WaitForSingleObject(handle_of(process_), wait_milliseconds);
-    if (outcome == WAIT_TIMEOUT) {
-        return Result<ChildEnd>::failure(host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
+    // timed_out means MonotonicTime::now() has reached the deadline
+    // (children.hpp), as on POSIX hosts. WaitForSingleObject's interval is
+    // whole milliseconds counted on the system timer, whose accuracy
+    // "depends on the resolution of the system clock" (Microsoft's
+    // WaitForSingleObject page; from the published page, not re-read), so
+    // it can end before MonotonicTime (QueryPerformanceCounter) has seen the
+    // interval pass: CI run 43432600851 saw a 50 ms wait end early. The wait
+    // is therefore repeated, rounded up to whole milliseconds, until the
+    // deadline has passed on MonotonicTime.
+    const MonotonicTime deadline = MonotonicTime::now().after(timeout.negative() ? Duration() : timeout);
+    DWORD outcome = WAIT_TIMEOUT;
+    for (;;) {
+        const MonotonicTime now = MonotonicTime::now();
+        const Duration left = now < deadline ? deadline.since(now) : Duration();
+        const i64 nanoseconds = left.count_nanoseconds();
+        const i64 whole = nanoseconds / 1000000;
+        const i64 rounded = nanoseconds % 1000000 == 0 ? whole : whole + 1;
+        constexpr i64 longest = static_cast<i64>(INFINITE) - 1;
+        const DWORD wait_milliseconds = static_cast<DWORD>(rounded > longest ? longest : rounded);
+        outcome = WaitForSingleObject(handle_of(process_), wait_milliseconds);
+        if (outcome != WAIT_TIMEOUT) break;
+        if (!(MonotonicTime::now() < deadline)) {
+            return Result<ChildEnd>::failure(
+                host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
+        }
     }
     if (outcome != WAIT_OBJECT_0) return Result<ChildEnd>::failure(last_error(operation));
     DWORD code = 0;

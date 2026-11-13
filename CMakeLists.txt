@@ -156,6 +156,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/exception_shadow.cpp
     src/core/fail_fast.cpp
     src/core/files.cpp
+    src/core/local_time.cpp
     src/core/memory.cpp
     src/core/path.cpp
     src/core/process.cpp
@@ -163,6 +164,8 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/require.cpp
     src/core/shadow_frames.cpp
     src/core/text.cpp
+    src/core/thread_pool.cpp
+    src/core/threads.cpp
     src/core/trampoline.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
@@ -179,7 +182,9 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/environment_posix.cpp
     src/hosted/posix/events_posix.cpp
     src/hosted/posix/file_posix.cpp
+    src/hosted/posix/local_time_posix.cpp
     src/hosted/posix/terminal_posix.cpp
+    src/hosted/posix/threads_posix.cpp
     src/hosted/posix/trace_posix.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/children_windows.cpp
@@ -189,7 +194,9 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/environment_windows.cpp
     src/hosted/windows/events_windows.cpp
     src/hosted/windows/file_windows.cpp
+    src/hosted/windows/local_time_windows.cpp
     src/hosted/windows/terminal_windows.cpp
+    src/hosted/windows/threads_windows.cpp
     src/hosted/windows/trace_windows.cpp
     src/hosted/windows/utf16.cpp)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
@@ -245,7 +252,7 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children)
+    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})

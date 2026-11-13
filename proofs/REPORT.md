@@ -50,5 +50,15 @@ evidence, not proof.
 | `src/core/path.cpp` (`PathText`) | `display` writes well-formed UTF-8 of the same length; `is_unicode` is true exactly when the text holds no surrogate | not yet proved; tested | `tests/path_tests.cpp` |
 | `src/core/files.cpp`, `src/hosted/*/file_*.cpp` (D13 a) | odd host names are listed, read, written and removed by Path: POSIX bytes that are not UTF-8 (where the filesystem accepts them; APFS refuses them with EILSEQ, observed on macOS 26), `:` and `\`; Windows lone surrogates (where the volume accepts them); a Path no POSIX name spells is refused with invalid_name; the three durability levels flush as files.hpp states | not yet proved; tested on one scratch directory per host. That a level's flush reaches stable storage is the host's promise (fcntl(2), fsync(2), FlushFileBuffers, MoveFileExW) and is not testable without power-loss equipment | `tests/files_tests.cpp`, `tests/platform_tests.cpp` |
 
+## stxlib::boundary, batch 2c (threads, the thread pool, the local time zone)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/threads.cpp`, `src/hosted/*/threads_*.cpp` | identities are distinct and never reused; destruction and move assignment stop and join; a self-join is refused; Mutex excludes; a timed wait reports timed_out only once MonotonicTime has reached the deadline; call_once runs its entry once and publishes its writes; sleeps never end early | not yet proved; tested (64 sequential threads, 8 threads x 20,000 locked increments, 8 racing call_once callers, 15 ms and 20 ms timings). The timeout rule holds by construction (core decides timed_out by MonotonicTime, not the host); that argument is not checked by a tool | `tests/threads_tests.cpp` |
+| `src/core/thread_pool.cpp` | each task of a batch runs exactly once; small batches run on the caller in order, larger ones on the workers only; batches are serialized; refusals run nothing | not yet proved; tested on batch sizes around the caller limit and claim sizes (1 to 100,000 tasks). Serialization is sampled (a 20 ms window). The conformance test against stx_auxlib's C reference arrives in batch 3 | `tests/thread_pool_tests.cpp` |
+| `src/core/civil.hpp` | days_from_civil is Hinnant's algorithm | four values checked at compile time (static_assert), against Python's datetime; not proved for other dates | `src/core/civil.hpp` |
+| `src/core/local_time.cpp`, `src/hosted/*/local_time_*.cpp` | the reading and its offset name the instant; a TZ set through set_variable is seen by the next call | not yet proved; tested on three POSIX TZ rules (UTC, US Eastern in winter and summer, +05:30) and on Windows' system zone and its 1601 limit | `tests/local_time_tests.cpp` |
+| `src/hosted/windows/children_windows.cpp` (wait) | timed_out only once MonotonicTime has reached the deadline (CI run 43432600851 saw WaitForSingleObject end a 50 ms wait early) | not yet proved; the wait now loops on MonotonicTime as the POSIX wait does; tested | `tests/children_tests.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

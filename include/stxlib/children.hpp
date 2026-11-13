@@ -118,7 +118,10 @@ public:
 
     // Waits until the child ends or `timeout` passes (limit_exceeded with
     // HostCode::timed_out; the child keeps running and can be waited for
-    // again). A zero or negative timeout polls once. After a successful
+    // again). timed_out is reported only once MonotonicTime::now() has
+    // reached the wait's start plus `timeout` (saturating), on every host;
+    // the wait may end later than that, never earlier. A zero or negative
+    // timeout polls once. After a successful
     // wait, later calls fail with HostCode::invalid_state.
     [[nodiscard]] Result<ChildEnd> wait(Duration timeout) noexcept;
     // Ends the child forcibly (SIGKILL, TerminateProcess). Still wait for it.
