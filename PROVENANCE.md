@@ -387,6 +387,32 @@ ThreadSanitizer suppressions and the no-inlining rule are stx_auxlib's.
 | `tests/stx_btree/stress_test.cpp` | `btree/tests/stress_test.cpp` | `e601bdf4b892f2a918630e52b14958107c778e1f0408fe8e98c0ed85342d1e05` |
 | `tests/stx_btree/tsan_btree_suppressions.txt` | `tests/tsan_btree_suppressions.txt` | `d455959551bf51d966d8cb359b1a196db274d767ce52507bcbb7d075c86bf1d8` |
 
+### Batch 3c11: stx_btree's optimal binary search trees, from `b6e330a`
+
+The third part of the rest of stx_btree. The coordinator chose option 1:
+a full port onto STXlib storage with Result builders. Same licence,
+namespace and privacy as batch 3c6. Changes:
+- `std::vector` becomes `detail::Array`, a new movable growable array on
+  memory::allocate that reports failure;
+- the weights become borrowed Views;
+- every construction returns `Result<SearchTree>`: invalid_argument where
+  stx_auxlib threw std::invalid_argument, out_of_memory where std::vector
+  would have thrown std::bad_alloc. Nothing fails fast (survey D8 is open);
+- the shape checks (`is_search_tree`, `cost`) return Results, and
+  `from_parents` returns false on exhaustion;
+- the two assertions become STXLIB_REQUIRE.
+
+The algorithms, their order of operations and their results are
+stx_auxlib's. The test's references and instances are unchanged; it keeps
+its weights in std::vector and passes views.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/detail/array.hpp` (new, STXlib's own) | none | none |
+| `src/algorithms/stx_btree/search_weights.hpp` (adapted, as its header says) | `btree/include/stx_btree/search_weights.hpp` | `06845d9f9ad2359b3f2ea17aeaaa6d36b33356e0e75a70b700af4122e5625dc4` |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (adapted, as its header says) | `btree/include/stx_btree/optimal_tree.hpp` | `fa58184ab4873f6586b50e559f5bdcf949ecee0f7c7800ec5621733ceca8d068` |
+| `tests/stx_btree/optimal_tree_test.cpp` | `btree/tests/optimal_tree_test.cpp` | `35c28e3e98a36ac90898244d6c2cd57e1d0a55fbc5b37e227d86eb668038104e` |
+
 ### Batch 3c8: no subnormals in the math (STXlib's own change)
 
 Owner decision 2026-11-13 (notes `decisions/2026-11-13-locals-float-mutability.md`,

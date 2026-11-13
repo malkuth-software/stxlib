@@ -588,6 +588,19 @@ if(STXLIB_TESTS)
         set_tests_properties(stxlib_btree_${shared_test}_tests PROPERTIES TIMEOUT 600 ENVIRONMENT
             "TSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/tests/stx_btree/tsan_btree_suppressions.txt:halt_on_error=1")
     endforeach()
+    # The optimal binary search trees (src/algorithms/stx_btree/
+    # optimal_tree.hpp) against the cubic recurrence and, for n <= 8, every
+    # tree enumerated; their maps onto multiway nodes (optimal_map.hpp). From
+    # stx_auxlib b6e330a. Exact costs are signed __int128 arithmetic, so
+    # GCC or Clang only, as STXlib is built.
+    foreach(optimal_test IN ITEMS optimal_tree)
+        add_executable(stxlib_btree_${optimal_test}_tests tests/stx_btree/${optimal_test}_test.cpp)
+        target_link_libraries(stxlib_btree_${optimal_test}_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_btree_${optimal_test}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_btree_${optimal_test}_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_btree_${optimal_test}_tests COMMAND stxlib_btree_${optimal_test}_tests)
+        set_tests_properties(stxlib_btree_${optimal_test}_tests PROPERTIES TIMEOUT 600)
+    endforeach()
     # The facade against the template it wraps (offset to row, row to
     # offset, set_heights), for the integrator to run by hand; not a ctest.
     add_executable(stxlib_row_height_bench tests/stx_btree/row_height_bench.cpp)
