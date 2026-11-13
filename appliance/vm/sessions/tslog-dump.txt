@@ -1,9 +1,0 @@
-# The running kernel's identity and its boot timestamps (TSLOG).
-# debug.tslog: sys/kern/kern_tslog.c:135-137; debug.tslog_user: 219.
-uname -v
-sysctl kern.timecounter.hardware kern.timecounter.choice
-sysctl -a | grep -E '^kern\.timecounter\.tc\..*\.frequency'
-sysctl -n debug.tslog | wc -l
-sysctl -n debug.tslog
-sysctl -n debug.tslog_user | wc -l
-sysctl -n debug.tslog_user

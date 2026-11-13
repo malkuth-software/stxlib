@@ -7,7 +7,7 @@
 # VM; session 1 writes the loader configuration (sessions/loader-config.txt);
 # session 2 installs the kernel and selects it; three timed boots that must
 # show its ident, stopping after the first failure and saving the vCPU
-# registers if a boot hangs; then the TSLOG dump, if the boots passed.
+# registers if a boot hangs; then the kernel identity and clocks, if the boots passed.
 # Prints the kernel's recorded size first.
 #
 # Environment: STXLIB_STORAGE; STXLIB_IMAGE and STXLIB_CHECKSUMS (default: the
@@ -36,4 +36,4 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
 python3 boot_timing.py --name "$vm" --firmware-timeout-ms 0 --runs 3 --label "$label" \
     --require "[ /]$kernconf arm64" --stop-after-failure --hang-dump
 python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
-    --commands sessions/tslog-dump.txt
+    --commands sessions/kernel-info.txt

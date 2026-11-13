@@ -31,5 +31,5 @@
 - `../vm/c1_step2_kernel.sh [KERNCONF]`: makes a fresh VM `k-<kernconf>`,
   installs the kernel from the stock one, times up to three boots that must
   show its ident (stopping at the first failure, with the vCPU registers
-  saved if it hangs), and dumps TSLOG. `../vm/diag_hang.sh` repeats one
+  saved if it hangs), and records the kernel identity and clocks. `../vm/diag_hang.sh` repeats one
   short boot and maps the saved PC and X30 to functions.
