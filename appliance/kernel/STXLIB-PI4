@@ -1,0 +1,295 @@
+#
+# STXLIB-PI4 -- the appliance kernel for the Raspberry Pi 4 Model B (BCM2711,
+# arm64), booted by the Pi firmware, U-Boot's UEFI and FreeBSD's loader.efi
+# (C1 step S4, Pi image: appliance/disk/build_pi4_image.sh).
+#
+# Method: as STXLIB-VM, FreeBSD's arm64 GENERIC (releng/15.2 at
+# fb9033d2876d) minus what the appliance does not need, each cut with its
+# reason. Kept for the Pi 4: SOC_BRCM_BCM2838 (BCM2711) and its drivers,
+# compiled by that option in sys/conf/files.arm64:569-594: genet Ethernet
+# (if_genet.c, needs mii/miibus), the SD controllers (bcm2835_sdhci.c and
+# bcm2835_sdhost.c, device sdhci, with mmc and mmcsd), the PCIe bridge and
+# the VL805 USB 3 controller (bcm2838_pci.c, bcm2838_xhci.c, device pci and
+# xhci, with usb and the keyboard/HID stack), the firmware mailbox, clocks,
+# GPIO, DMA, watchdog, random and cpufreq. SOC_BRCM_BCM2837 stays as well:
+# mbox_if.m, which bcm2835_mbox.c needs, is compiled only under that option
+# (files.arm64:414). The console is the PL011 on GPIO 14/15 (pl011, from
+# std.arm64), chosen by the device tree's stdout-path; uart_mu (the mini
+# UART) stays for a firmware configuration that uses it.
+#
+# Cuts that are not safe on the Pi and so are not taken from STXLIB-VM:
+# genet's PHY bus (mdio, mii, miibus), mmc and mmcsd, sdhci, gpioled and
+# gpioregulator (the Pi 4's SD I/O voltage regulator is a GPIO regulator in
+# its device tree), cpufreq.
+#
+include 	"GENERIC"
+ident		STXLIB-PI4
+
+# --- 1a. SoC support: every std.<soc> entry not on the Pi 4 (the list is
+# STXLIB-VM's, without std.broadcom, which follows).
+
+# std.al: not on the Raspberry Pi 4
+nodevice	al_ccu	# Alpine Cache Coherency Unit
+nodevice	al_nb_service	# Alpine North Bridge Service
+nodevice	al_iofic	# I/O Fabric Interrupt Controller
+nodevice	al_serdes	# Serializer/Deserializer
+nodevice	al_udma	# Universal DMA
+nodevice	al_pci	# Annapurna Alpine PCI-E
+nodevice	al_eth	# Annapurna Alpine Ethernet NIC
+
+# std.allwinner: not on the Raspberry Pi 4
+nooptions	SOC_ALLWINNER_A64
+nooptions	SOC_ALLWINNER_H5
+nooptions	SOC_ALLWINNER_H6
+nodevice	aw_timer
+nodevice	a31_dmac
+nodevice	aw_gpio	# Allwinner GPIO controller
+nodevice	aw_rsb	# Allwinner Reduced Serial Bus
+nodevice	twsi	# Allwinner I2C controller
+nodevice	sy8106a	# SY8106A Buck Regulator
+nodevice	aw_ccu	# Allwinner clock controller
+nodevice	aw_r_intc	# Allwinner RINTC support
+nodevice	aw_nmi	# Allwinner NMI support
+nodevice	aw_rtc	# Allwinner Real-time Clock
+nodevice	aw_wdog	# Allwinner Watchdog
+nodevice	aw_syscon	# Allwinner System Controller
+nodevice	axp81x	# X-Powers AXP81x PMIC
+nodevice	aw_sid	# Allwinner Secure ID EFUSE
+nodevice	aw_thermal	# Allwinner Thermal Sensor Controller
+nodevice	uart_snps
+nodevice	awg	# Allwinner EMAC Gigabit Ethernet
+nodevice	aw_usbphy	# Allwinner USB PHY
+nodevice	musb	# Mentor Graphics USB OTG controller
+nodevice	dwc3	# Synopsys DWC controller
+nodevice	aw_dwc3	# Allwinner DWC3 controller
+nodevice	a10_codec	# Allwinner A10 codec
+nodevice	aw_i2s	# Allwinner I2S
+nodevice	a33_codec	# Allwinner A33 codec
+nodevice	a64_codec	# Allwinner A64 Analog codec
+nodevice	aw_mmc	# Allwinner SD/MMC controller
+
+# std.altera: not on the Raspberry Pi 4
+nooptions	SOC_INTEL_STRATIX10
+nodevice	dwgpio	# Synopsys DesignWare APB GPIO Controller
+nodevice	dwc	# Synopsys DesignWare GMAC controller
+nodevice	dwc_socfpga	# Altera SOCFPGA Ethernet MAC
+nodevice	dwmmc
+nodevice	dwmmc_altera
+
+# std.amd: not on the Raspberry Pi 4
+nodevice	axa	# AMD Opteron A1100 integrated NIC
+nodevice	msk	# Marvell/SysKonnect Yukon II Gigabit Ethernet
+
+# std.apple: not on the Raspberry Pi 4
+nooptions	SOC_APPLE_T8103
+nodevice	bge
+
+# std.arm: not on the Raspberry Pi 4
+nodevice	pci_n1sdp	# ARM Neoverse N1 SDP PCI
+nodevice	scmi	# System Control Management Interface
+nodevice	arm_doorbell	# ARM Message Handling Unit (MHU)
+
+# std.azure: not on the Raspberry Pi 4
+nodevice	hyperv
+nooptions	COMPAT_LINUXKPI
+nodevice	xz
+nodevice	mlx5
+nodevice	mlxfw
+nodevice	mlx5en
+nooptions	RATELIMIT
+
+# std.cavium: not on the Raspberry Pi 4
+nooptions	SOC_CAVM_THUNDERX
+nodevice	vnic	# Cavium ThunderX NIC
+nooptions	THUNDERX_PASS_1_1_ERRATA
+
+# std.hisilicon: not on the Raspberry Pi 4
+nooptions	SOC_HISI_HI6220
+nodevice	dwmmc_hisi
+
+# std.imx: not on the Raspberry Pi 4
+nooptions	SOC_FREESCALE_IMX8
+nodevice	vf_i2c	# Freescale Vybrid I2C controller
+nodevice	fsliic	# Freescale iMX I2C controller
+nodevice	uart_imx	# iMX8 UART
+nodevice	ffec
+
+# std.marvell: not on the Raspberry Pi 4
+nooptions	SOC_MARVELL_8K
+nodevice	a37x0_gpio	# Marvell Armada 37x0 GPIO controller
+nodevice	mv_gpio	# Marvell GPIO controller
+nodevice	mvebu_pinctrl	# Marvell Pinmux Controller
+nodevice	a37x0_iic	# Armada 37x0 I2C controller
+nodevice	tca64xx	# I2C gpio expander
+nodevice	mv_cp110_icu	# Marvell CP110 ICU
+nodevice	mv_ap806_gicp	# Marvell AP806 GICP
+nodevice	mv_ap806_sei	# Marvell AP806 SEI
+nodevice	mv_rtc	# Marvell Real-time Clock
+nodevice	safexcel	# Inside Secure EIP-97
+nodevice	mv_thermal	# Marvell Thermal Sensor Controller
+nodevice	a37x0_spi	# Marvell Armada 37x0 SPI Controller
+nodevice	uart_mvebu	# Armada 3700 UART driver
+nodevice	neta	# Marvell Armada 370/38x/XP/3700 NIC
+nodevice	etherswitch	# Enable etherswitch support
+nodevice	miiproxy	# Required for etherswitch
+nodevice	ehci_mv	# Marvell EHCI USB interface
+nodevice	sdhci_xenon	# Marvell Xenon SD/MMC controller
+nodevice	a37x0_xtal	# Marvell xtal-clock
+nodevice	a37x0_tbg	# Marvell tbg-clock
+nodevice	a37x0_nb_periph	# Marvell north-bridge peripheral clock
+nodevice	a37x0_sb_periph	# Maravell south-bridge peripheral clock
+
+# std.nvidia: not on the Raspberry Pi 4
+nooptions	SOC_NVIDIA_TEGRA210
+nodevice	re	# RealTek 8139C+/8169/8169S/8110S
+nodevice	tegra210_xusb_fw	# Tegra XUSB firmware
+nodevice	ure
+
+# std.nxp: not on the Raspberry Pi 4
+nooptions	SOC_NXP_LS
+nodevice	pca954x	# NXP I2C bus multiplexer / switches
+nodevice	pcf8563	# NXP Real-time clock/calendar
+nodevice	pcf85063	# NXP Real-time clock
+nodevice	dpaa2	# Data Path Acceleration Architecture (2nd Gen)
+nodevice	enetc	# QorIQ LS1028A NIC
+nodevice	sff	# Small Form Factor Transceivers
+
+# std.qcom: not on the Raspberry Pi 4
+nodevice	qcom_gcc	# Global Clock Controller
+nodevice	qcom_mdio	# MDIO support
+nodevice	uart_msm	# Qualcomm MSM UART driver
+
+# std.rockchip: not on the Raspberry Pi 4
+nooptions	SOC_ROCKCHIP
+nooptions	SOC_ROCKCHIP_RK3328
+nooptions	SOC_ROCKCHIP_RK3399
+nooptions	SOC_ROCKCHIP_RK3568
+nodevice	rk_gpio	# RockChip GPIO Controller
+nodevice	rk_pinctrl	# RockChip Pinmux Controller
+nodevice	rk_combphy	# Naneng Combo PHY
+nodevice	rk_i2c	# RockChip I2C controller
+nodevice	fan53555	# Fairchild Semi FAN53555/SYR82x Regulator
+nodevice	rk8xx	# RockChip RK8XX base support
+nodevice	rk805	# RockChip RK805 PMIC
+nodevice	rk808	# RockChip RK808 PMIC
+nodevice	rk817	# RockChip RK817 PMIC
+nodevice	syr827	# Silergy SYR827 PMIC
+nodevice	tcs4525	# TCS 4525 PMIC
+nodevice	rk_spi	# RockChip SPI controller
+nodevice	rk_pwm
+nodevice	dwc_rk	# Rockchip Designware
+nodevice	eqos	# Synopsys Designware Ethernet QoS controller
+nodevice	rk_iodomain
+nodevice	rk_usb2phy	# Rockchip USB2PHY
+nodevice	rk_typec_phy	# Rockchip TypeC PHY
+nodevice	rk_dwc3	# Rockchip DWC3 controller
+nodevice	rk_dwmmc
+nodevice	rk_emmcphy
+
+# std.xilinx: not on the Raspberry Pi 4
+nooptions	SOC_XILINX_ZYNQ
+nodevice	cgem	# Cadence GEM Gigabit Ethernet device
+nodevice	sdhci_xilinx
+nodevice	cdnc_i2c
+
+# std.broadcom: what the Pi 4 does not use
+nooptions	SOC_BRCM_NS2	# Broadcom Northstar 2 servers, not a Pi
+nodevice	muge	# USB Ethernet of the Pi 3B+; the Pi 4 has genet
+nodevice	smsc	# USB Ethernet of the Pi 3B and earlier
+nodevice	bcm2835_bsc	# I2C on the header: nothing on the appliance uses it
+nodevice	bcm2835_spi	# SPI on the header: nothing on the appliance uses it
+
+# --- 1b. std.virt: hypervisor devices, none on a Pi -----------------------
+nodevice	pvscsi		# VMware PVSCSI: VMware only
+nodevice	vmx		# VMware VMXNET3: VMware only
+nodevice	virtio_gpu	# no virtio on the Pi
+nodevice	virtio_scmi	# no virtio on the Pi; scmi cut in 1a (std.arm)
+nodevice	virtio_scsi	# no virtio on the Pi
+
+# --- 1c. std.dev: hardware classes the Pi 4 does not have ----------------
+nodevice	ahci		# no SATA on the Pi 4
+nodevice	scbus		# CAM: only for ahci, nvme (nda), umass, cd
+nodevice	da		# CAM direct access (needs scbus)
+nodevice	cd		# CAM CD (needs scbus)
+nodevice	pass		# CAM passthrough (needs scbus)
+nodevice	umass		# USB mass storage: the appliance runs from the SD card
+nodevice	nvme		# no NVMe on the Pi 4 (its one PCIe lane is the VL805)
+nodevice	nvd		# NVMe disks (needs nvme)
+nooptions	NVME_USE_NVD	# nvme option
+nodevice	iicbus		# I2C: bcm2835_bsc cut above
+nodevice	iicmux		# I2C
+nodevice	iic		# I2C
+nodevice	icee		# I2C EEPROM
+nodevice	spibus		# SPI: bcm2835_spi cut above
+nodevice	pwm		# PWM (fan or audio overlays): not used by the appliance
+nodevice	em		# Intel PRO/1000: no such NIC on the Pi
+nodevice	ix		# Intel 10Gb: no such NIC on the Pi
+nodevice	iflib		# only for em, ix, vmx, enetc (all cut)
+nodevice	ohci		# USB 1.1/2.0 PCI hosts: the Pi 4's hosts are xhci and dwcotg
+nodevice	uhci
+nodevice	ehci
+nodevice	sound		# no audio on the appliance
+nodevice	mmio_sram	# no on-chip SRAM node
+nodevice	tpm		# no TPM on the Pi 4
+nooptions	RANDOM_ENABLE_TPM # tpm option
+
+# --- 1d. Protocols and debug messages --------------------------------------
+nooptions	INET6		# the appliance is IPv4 only (C design notes)
+nooptions	USB_DEBUG	# debug messages
+nooptions	HID_DEBUG	# debug messages
+nooptions	IEEE80211_DEBUG	# debug messages (no wlan driver for the Pi 4's radio)
+
+# --- Batch 2, round 1
+nooptions KDTRACE_HOOKS,KDTRACE_FRAME,DDB_CTF # no DTrace on the appliance
+
+# --- Batch 2, round 2
+nomakeoptions WITH_CTF # CTF type data serves only DTrace and DDB_CTF
+
+# --- Batch 2, round 3
+nooptions COMPAT_FREEBSD32,COMPAT_FREEBSD11,COMPAT_FREEBSD12,COMPAT_FREEBSD13,COMPAT_FREEBSD14 # the appliance runs only binaries built for it
+
+# --- Batch 2, round 4
+nooptions NFSCL,NFSD,NFSLOCKD,NFS_ROOT # no network file systems; root is local
+
+# --- Batch 2, round 5
+nooptions CD9660,PROCFS,PSEUDOFS,UFS_GJOURNAL,QUOTA,UFS_ACL,GEOM_RAID,MD_ROOT # file system features the appliance does not use
+
+# --- Batch 2, round 6
+nooptions VIMAGE,IPSEC_SUPPORT,IPSEC_OFFLOAD,SCTP_SUPPORT,KERN_TLS,TCP_OFFLOAD,TCP_BLACKBOX,TCP_HHOOK,TCP_RFC7413,ROUTE_MPATH,FIB_ALGO # network features beyond a plain IPv4 host
+
+# --- Batch 2, round 7
+nooptions SYSVSHM,SYSVMSG,SYSVSEM # no System V IPC users
+
+# --- Batch 2, round 8
+nooptions GZIO,ZSTDIO,EKCD,DEBUGNET,NETDUMP # crash-dump compression, encryption and network dumps
+
+# --- Batch 2, round 9
+nodevice virtio_mmio # no virtio on the Pi
+
+# --- Batch 2, round 10
+nodevice vlan,tuntap,gif,md,netmap,uinput,firmware # pseudo devices nothing on the appliance uses
+
+# --- Batch 2, round 11
+nooptions NUMA # one memory node on every reference machine
+
+# --- Batch 2, round 12 (VM only): cpufreq is kept here; the Pi 4 scales its
+# clock through the firmware (bcm2835_cpufreq), and FreeBSD's RPI image
+# runs powerd (release/arm64/RPI.conf: CONFIG_POWERD_ENABLE).
+
+# --- Batch 2, round 13
+nooptions PCI_HP,PCI_IOV # no PCIe hot plug or SR-IOV
+
+# --- Batch 2, round 14
+nooptions LINUX_BOOT_ABI # booted through UEFI, never U-Boot's booti
+
+# --- Batch 2, round 15
+nooptions IEEE80211_SUPPORT_MESH # no wlan device in this kernel
+
+# ==========================================================================
+# The STXlib kernel shim (appliance/shim/, C1 step S5), compiled in. config(8)
+# reads the extra files list named here (usr.sbin/config/config.y:145) from
+# an include directory; build_kernel.sh writes it, naming the shim's source
+# by absolute path as a "local" file, so no FreeBSD file is changed.
+# ==========================================================================
+files		"files.stxlib"
+device		stxshim

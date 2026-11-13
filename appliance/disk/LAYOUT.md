@@ -124,3 +124,54 @@ guest's port 22 and runs one `ssh ... root@127.0.0.1 true` with a
 throwaway ed25519 key made for the run; its public half is the user
 partition's `authorized_keys`, and the private half is deleted when the
 script exits.
+
+## The Raspberry Pi 4 image
+
+`appliance/vm/pi4_image.sh` (host) has a stock VM run
+`appliance/disk/build_pi4_image.sh`, which writes a 384 MiB raw image,
+`/Volumes/Storage/stxlib_workers/appliance/pi4/stxlib-pi4.img`, with its
+SHA-256 beside it (`stxlib-pi4.img.sha256`). Every partition starts on a
+4 MiB boundary:
+
+| Slice | Offset | Size | Contents |
+|---|---|---|---|
+| s1, type 0x0c, active | 4 MiB | 64 MiB | FAT32 `STXESP`: the FAT partition of FreeBSD's RPI image at the pin's release, unchanged (Pi firmware `start4.elf`/`fixup4.dat`, `armstub8-gic.bin`, U-Boot `u-boot.bin`, device trees, overlays, `config.txt`), with the pinned `loader.efi` as `EFI/BOOT/BOOTAA64.EFI`, `efi/freebsd/loader.env` (`appliance/boot/loader.env.pi4`) and `stx/slots.conf` (`good=A`, `try=A`) |
+| s2, FreeBSD, BSD label | 68 MiB | 136 MiB | `a` boot control (4 MiB), `d` root A, `e` root B (64 MiB each) |
+| s3, type 0x0c | 204 MiB | 180 MiB | FAT32 `STXUSER`, with an empty `stx/ssh/` |
+
+The boot runs: Pi firmware, U-Boot (UEFI), `loader.efi`, `local.lua`, the
+slot's kernel `STXLIB-PI4` (`appliance/kernel/STXLIB-PI4`: GENERIC with the
+Pi 4's drivers and the VM's cuts that are safe on the Pi). Both roots carry
+`appliance/disk/pi4-appliance.conf`: DHCP and the base system's sshd, key
+login only, keys on the user partition. The console is the Pi's PL011
+UART on GPIO 14/15, 115200 baud, 8N1: `config.txt` keeps the RPI image's
+`dtoverlay=disable-bt` (the build stops without it) and states
+`enable_uart=1`.
+
+Not yet proven: the image is written and checked in the VM, but no Pi has
+booted it. Known gaps: the loader names the SD card `disk0` (another USB
+disk attached at power-on could take that name); the user partition is
+180 MiB and is not grown to the card; there is no clock (no RTC, no NTP).
+
+What the owner does by hand:
+1. Check the image: its SHA-256 must equal the one in `stxlib-pi4.img.sha256`
+   (`shasum -a 256 stxlib-pi4.img`).
+2. Write it to a microSD card of at least 512 MB, whole card, as a raw
+   image: Raspberry Pi Imager ("Use custom"), balenaEtcher, or on macOS
+   `diskutil unmountDisk /dev/diskN` then
+   `sudo dd if=stxlib-pi4.img of=/dev/rdiskN bs=4m`, where `diskN` is the
+   card per `diskutil list`, never the Mac's own disk.
+3. Before the first boot, with the card still in the Mac: the `STXUSER`
+   volume mounts; copy your SSH public key into it as
+   `stx/ssh/authorized_keys`. Eject the card.
+4. Serial console: a 3.3 V USB-to-serial adapter (never 5 V) on the
+   40-pin header: adapter GND to pin 6, adapter RX to pin 8 (GPIO 14, the
+   Pi's TXD), adapter TX to pin 10 (GPIO 15, the Pi's RXD); leave the
+   adapter's VCC unconnected. Open it at 115200 baud, 8N1, no flow control
+   (on macOS, for example, `screen /dev/tty.usbserial-XXXX 115200`).
+5. Ethernet: a cable to a network with a DHCP server.
+6. Power: insert the card, then connect the official 5 V 3 A USB-C supply.
+   The console shows U-Boot, `STXLOADER slot=A tries=0 fallback=0
+   reason=good`, the kernel, the host key fingerprint `(ED25519)` and,
+   about 6 s after start, the addresses from DHCP. Then
+   `ssh root@<address>`, checking the fingerprint against the console.

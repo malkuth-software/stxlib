@@ -1,0 +1,6 @@
+# Build the Raspberry Pi 4 SD image (appliance/disk/build_pi4_image.sh) on
+# the second disk, vtbd1, which is the image file itself, from the host's
+# payload directory.
+fetch -q -o /tmp/build_pi4_image.sh {http}/build_pi4_image.sh
+test "$(sha256 -q /tmp/build_pi4_image.sh)" = "{build_sha256}"
+sh /tmp/build_pi4_image.sh {http} vtbd1
