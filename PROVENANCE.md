@@ -187,6 +187,32 @@ chain is made, and the calls that allocate or need entropy return Result
 | `src/algorithms/precedence.cpp` | `src/precedence.cpp` | `2768e87c48741bc71464b7772dc4cd44bc139834057e332c7e99e7f5bef2a442` |
 | `tests/precedence_tests.cpp` | the precedence part of `tests/precedence_tests.cpp` | `a2740553d2df26cc414b63ce58e607652e69dee3d7fcefcf041336f8c98316f0` |
 
+### Batch 3c4: Preference Ranked Voting, from `b6e330a`
+
+As batch 3c. The rule and its order of operations are stx_auxlib's; the
+working storage moves off std::vector onto STXlib Buffers in one workspace
+allocated at the start of a count (voting.hpp, "Storage"; voting.cpp's
+header lists the two restructured computations). Ballots stores its
+rankings in Buffers and reports a failed growth.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `include/stxlib/voting.hpp` | `include/stx_auxlib/voting.hpp` | `13f46296dc8aeae92485b0af25aeba16fdc9bd34ad1abbd4e18a0017a1409634` |
+| `src/algorithms/voting.cpp` | `src/voting.cpp` | `ee1b79996755bd751c9b3a937ea58866b4c061c968b67a0bd91390e6bec345a2` |
+| `tests/voting_tests.cpp` | `tests/voting_tests.cpp` | `03375548a39749ba11fa5d15b943739504a58ed247c8cf78977394e6d818e375` |
+
+Copied unchanged (the file's SHA-256 here equals the source's). `prv-core.mjs`
+is the owner's reference count, which stx_auxlib copied unchanged from the
+owner's site (paymenottowork, ideas/preference-ranked-voting);
+`prv_cases.txt` is the output of `node prv_reference.mjs`, regenerated on
+2026-11-13 and byte for byte the same:
+
+| File | SHA-256 |
+|---|---|
+| `tests/reference/prv-core.mjs` | `d57a163e5aefa721e3b09ff3b861ca69d6d75703ec7891c10f8b20b4e68e3166` |
+| `tests/reference/prv_reference.mjs` | `249b29702a0942537a6110856ba212b2159d16c0fc1cec86c405984b74d0c8a9` |
+| `tests/reference/prv_cases.txt` | `0be6f2625e0ef2b0c00586df02b072981373f7c9c57699868c597ada6fa115d6` |
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

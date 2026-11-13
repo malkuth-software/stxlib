@@ -336,7 +336,8 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/random.cpp
-    src/algorithms/simd.cpp)
+    src/algorithms/simd.cpp
+    src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)
 target_include_directories(stxlib_algorithms
@@ -378,6 +379,14 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+
+    # Preference Ranked Voting against the reference's own outcomes
+    # (tests/reference/prv_cases.txt, made by prv_reference.mjs).
+    add_executable(stxlib_voting_tests tests/voting_tests.cpp)
+    target_link_libraries(stxlib_voting_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_voting_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_voting_tests
+             COMMAND stxlib_voting_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference/prv_cases.txt)
 
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the

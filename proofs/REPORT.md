@@ -108,5 +108,11 @@ evidence, not proof.
 | `src/algorithms/precedence.cpp` | the hashes are stx_auxlib's bytes (first key root, first leaf, signature and key path ends) | known answers from `tests/reference/precedence_reference.py`, rerun on 2026-11-13 with the same output; tested, not proved | `tests/precedence_tests.cpp` |
 | `src/algorithms/precedence.cpp` | every certificate a chain issues verifies, in order, across block boundaries; consecutive certificates link; a changed info, count, time, epoch, signature, key path or next root, or another secret's certificate, fails; save and restore continue bit for bit | tested on fixed seeds over 522 epochs (two block boundaries), not proved. WOTS+ and Merkle security is the published constructions' argument, not checked here | `tests/precedence_tests.cpp` |
 
+## stxlib::algorithms, batch 3c4 (Preference Ranked Voting)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/voting.cpp` | the outcome (winner or named failure) is the reference prv-core.mjs's for every election | tested, not proved: 420 generated elections (full, partial and messy ballots; mini counts and brackets) against the reference's outcomes, `tests/reference/prv_cases.txt`, regenerated with node on 2026-11-13; weighted copies against single ballots. The port off std::vector is checked only by these tests | `tests/voting_tests.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.
