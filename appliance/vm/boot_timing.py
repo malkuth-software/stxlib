@@ -36,6 +36,7 @@ import argparse
 import datetime
 import os
 import selectors
+import socket
 import signal
 import statistics
 import subprocess
@@ -77,6 +78,10 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
     if arguments.accel != 'hvf':
         cpu_model = 'max'
     code_path = firmware_path(layout, arguments.name, arguments.uefi_code)
+    monitor = 'none'
+    if getattr(arguments, 'hang_dump', False):
+        # A monitor socket, used only when a boot times out (hang_dump()).
+        monitor = f'unix:{monitor_socket(layout, arguments.name)},server=on,wait=off'
     command: List[str] = [
         arguments.qemu,
         '-machine', arguments.machine,
@@ -91,7 +96,7 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
         '-netdev', 'user,id=net0',
         '-device', 'virtio-net-pci,netdev=net0',
         '-display', 'none',
-        '-monitor', 'none',
+        '-monitor', monitor,
         '-chardev', 'stdio,id=serial0,signal=off',
         '-serial', 'chardev:serial0',
         '-no-reboot',
@@ -106,6 +111,35 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
         # platform default applies: 5 s (ArmVirtPkg/ArmVirtQemu.dsc:330).
         command.extend(['-boot', f'menu=on,splash-time={arguments.firmware_timeout_ms}'])
     return command
+
+
+def monitor_socket(layout: ApplianceLayout, vm_name: str) -> str:
+    return os.path.join(layout.vm_dir(vm_name), 'monitor.sock')
+
+
+def hang_dump(path: str, log_dir: str) -> None:
+    """Ask a hung guest's QEMU monitor for the CPU registers (every vCPU)
+    and save the answer as hang-registers.txt, for locating the PC."""
+    answer = b''
+    try:
+        client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        client.settimeout(3.0)
+        client.connect(path)
+        client.sendall(b'info registers -a\n')
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            try:
+                chunk = client.recv(65536)
+            except socket.timeout:
+                break
+            if len(chunk) == 0:
+                break
+            answer += chunk
+        client.close()
+    except OSError as failure:
+        answer += f'\nboot_timing: monitor failed: {failure}\n'.encode()
+    with open(os.path.join(log_dir, 'hang-registers.txt'), 'wb') as stream:
+        stream.write(answer)
 
 
 class RunRecord:
@@ -209,6 +243,8 @@ def boot_once(arguments: argparse.Namespace, command: List[str], record: RunReco
     finally:
         record.elapsed_seconds = time.monotonic() - started
         selector.close()
+        if record.outcome == 'timed out' and getattr(arguments, 'hang_dump', False):
+            hang_dump(arguments.monitor_socket, record.log_dir)
         stop_process(process)
         if len(line_buffer) > 0:
             lines_log.write(f'{record.elapsed_seconds:10.3f} {line_buffer}\n')
@@ -284,6 +320,8 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser.add_argument('--require', default=None,
                         help='a regular expression the console must show for a run to count '
                              '(for example the kernel ident)')
+    parser.add_argument('--hang-dump', action='store_true',
+                        help='on a timed-out boot, save every vCPU register (QEMU monitor) first')
     parser.add_argument('--dry-run', action='store_true', help='print the QEMU command and stop')
     return parser.parse_args(argv)
 
@@ -314,6 +352,7 @@ def main(argv: List[str]) -> int:
         print('boot_timing: --runs must be 1 to 50 and --timeout positive', file=sys.stderr)
         return 2
     layout = ApplianceLayout(arguments.storage_root)
+    arguments.monitor_socket = monitor_socket(layout, arguments.name)
     command = qemu_command(arguments, layout)
     if arguments.dry_run:
         print(' '.join(command))
