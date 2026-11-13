@@ -83,6 +83,12 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
     if getattr(arguments, 'hang_dump', False):
         # A monitor socket, used only when a boot times out (hang_dump()).
         monitor = f'unix:{monitor_socket(layout, arguments.name)},server=on,wait=off'
+    # A host-only port forward to the guest's SSH (C1 S4's login check):
+    # bound to 127.0.0.1, so nothing outside the M4 reaches the guest.
+    netdev = 'user,id=net0'
+    ssh_port = getattr(arguments, 'ssh_forward_port', None)
+    if ssh_port is not None:
+        netdev += f',hostfwd=tcp:127.0.0.1:{int(ssh_port)}-:22'
     command: List[str] = [
         arguments.qemu,
         '-machine', arguments.machine,
@@ -107,7 +113,7 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
             command += ['-drive', f'if=none,id=disk1,format=raw,file={appliance_disk}',
                         '-device', 'virtio-blk-pci,drive=disk1']
     command += [
-        '-netdev', 'user,id=net0',
+        '-netdev', netdev,
         '-device', 'virtio-net-pci,netdev=net0',
         '-display', 'none',
         '-monitor', monitor,
@@ -395,6 +401,8 @@ def add_vm_arguments(parser: argparse.ArgumentParser) -> None:
                         help='raw appliance disk image: a second disk, or the only one with --appliance-only')
     parser.add_argument('--appliance-only', action='store_true',
                         help='boot the appliance disk alone (C1 S4)')
+    parser.add_argument('--ssh-forward-port', type=int, default=None,
+                        help='forward 127.0.0.1:PORT on the host to the guest port 22')
 
 
 def main(argv: List[str]) -> int:

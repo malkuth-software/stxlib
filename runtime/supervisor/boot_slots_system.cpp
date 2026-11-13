@@ -315,4 +315,67 @@ void append_boot_log(int console, const BootFacts& facts, const char* event, std
     stxruntime::write_line(console, line);
 }
 
+void append_fallback_log(int console, const BootFacts& facts, std::uint64_t uptime_ms) noexcept {
+    std::array<char, 32> reason{};
+    std::array<char, 16> tried{};
+    const char* const reason_value = kenv_value("stx.boot.reason", std::span<char>(reason.data(), reason.size()));
+    const char* const tried_value = kenv_value("stx.boot.tried", std::span<char>(tried.data(), tried.size()));
+    std::optional<Slot> tried_slot;
+    if (tried_value != nullptr && tried_value[0] != '\0' && tried_value[1] == '\0') {
+        tried_slot = slot_from_letter(tried_value[0]);
+    }
+    // The log's tail, from its first whole line; append_boot_log reports a
+    // mount failure itself, and an unreadable log reads as no entry.
+    std::array<char, boot_log_tail_bytes> tail{};
+    std::span<const char> lines;
+    const int mounted = mount_read_write("msdosfs", user_device, user_directory);
+    if (tried_slot.has_value() && (mounted == 0 || mounted == EBUSY)) {
+        const int file = open(boot_log_path, O_RDONLY | O_CLOEXEC);
+        if (file >= 0) {
+            const off_t size = lseek(file, 0, SEEK_END);
+            if (size > 0) {
+                const off_t start = size > static_cast<off_t>(tail.size()) ? size - static_cast<off_t>(tail.size()) : 0;
+                const ssize_t got = pread(file, tail.data(), static_cast<std::size_t>(size - start), start);
+                if (got > 0) {
+                    std::size_t first = 0;
+                    if (start > 0) {
+                        while (first < static_cast<std::size_t>(got) && tail[first] != '\n') {
+                            first += 1;
+                        }
+                        first += 1;
+                    }
+                    if (first < static_cast<std::size_t>(got)) {
+                        lines = std::span<const char>(tail.data() + first, static_cast<std::size_t>(got) - first);
+                    }
+                }
+            }
+            (void)close(file);
+        }
+    }
+    std::optional<std::span<const char>> last_event;
+    if (tried_slot.has_value()) {
+        last_event = last_event_of_slot(lines, *tried_slot);
+    }
+    LineText event = stxruntime::empty_line();
+    stxruntime::append_text(event, "fallback tried=");
+    append_slot(event, tried_slot);
+    stxruntime::append_text(event, " loader-reason=");
+    stxruntime::append_text(event, reason_value != nullptr ? reason_value : "none");
+    stxruntime::append_text(event, " tried-last-event=");
+    if (last_event.has_value()) {
+        // At most last_event_bytes_max of it, so the log entry fits a line
+        // (the longest of ours, failsafe-config-unreadable, has 27).
+        constexpr std::size_t last_event_bytes_max = 40;
+        for (std::size_t index = 0; index < (*last_event).size() && index < last_event_bytes_max; index += 1) {
+            const char letter[2] = {(*last_event)[index], '\0'};
+            stxruntime::append_text(event, letter);
+        }
+    } else {
+        stxruntime::append_text(event, "none");
+    }
+    char event_text[stxruntime::line_capacity_bytes + 1];
+    stxruntime::copy_line_to_c_string(event, event_text);
+    append_boot_log(console, facts, event_text, uptime_ms);
+}
+
 }  // namespace stxboot

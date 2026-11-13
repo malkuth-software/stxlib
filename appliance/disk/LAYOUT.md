@@ -56,8 +56,10 @@ Root sizes are measured (`appliance/disk/root_manifest.txt`,
   (`stand/lua/core.lua:595-607`): set `vfs.root.mountfrom` and `currdev`,
   reload the configuration (the slot's own `/boot/loader.conf`), then load
   the slot's kernel. `local.lua` then sets `stx.boot.slot`,
-  `stx.boot.tries` and `stx.boot.fallback`, which the kernel passes to
-  userspace as kernel environment (kenv(2)).
+  `stx.boot.tries`, `stx.boot.fallback`, `stx.boot.reason` (its reason,
+  blanks as hyphens) and, on a fallback from a slot under trial,
+  `stx.boot.tried`, which the kernel passes to userspace as kernel
+  environment (kenv(2)).
 - Any error in `local.lua` (missing or malformed file, failed write) boots
   `good`, or `A` when even `good` is unreadable, and says why on the console.
 
@@ -77,7 +79,12 @@ set to the running slot (ESP mounted read-write only for that write). When
 written into `try` during this boot is kept. A fallback boot runs the
 appliance from the last good slot as usual (it is not a failsafe reason);
 its failed update is logged to `/user/stx/boot.log` and, once the boot
-proves good, cancelled by setting `try` back to the running slot.
+proves good, cancelled by setting `try` back to the running slot. The log
+line says why the update failed, in both ways it can:
+`event=fallback tried=B loader-reason=tries-exhausted tried-last-event=failsafe-config-refused`,
+where `tried-last-event` is the last event the tried slot itself wrote to the
+log (its failsafe entry, read from the log's last 4 KiB), or `none` when it
+wrote none: it failed before its supervisor ran (kernel or mount failure).
 
 ## Updates (the updater, later in C2)
 
@@ -110,3 +117,10 @@ executor's 10 s limit). It:
 
 Nothing is downloaded: dhclient, ifconfig, sshd, ssh-keygen and their
 libraries are in the root (`root_manifest.txt`).
+
+The VM test (`appliance/vm/c1_s4.sh`) checks the login once: on the first
+failsafe boot the host forwards `127.0.0.1:52224` (host-only) to the
+guest's port 22 and runs one `ssh ... root@127.0.0.1 true` with a
+throwaway ed25519 key made for the run; its public half is the user
+partition's `authorized_keys`, and the private half is deleted when the
+script exits.

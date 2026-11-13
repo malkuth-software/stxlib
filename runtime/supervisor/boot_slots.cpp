@@ -133,6 +133,43 @@ BootFacts boot_facts(const char* slot, const char* tries, const char* fallback) 
     return facts;
 }
 
+std::optional<std::span<const char>> last_event_of_slot(std::span<const char> text, Slot slot) noexcept {
+    const char slot_word[8] = {' ', 's', 'l', 'o', 't', '=', slot_letter(slot), ' '};
+    std::optional<std::span<const char>> found;
+    std::size_t begin = 0;
+    // Each pass consumes one line.
+    while (begin < text.size()) {
+        std::size_t end = begin;
+        while (end < text.size() && text[end] != '\n') {
+            end += 1;
+        }
+        bool slot_match = false;
+        for (std::size_t index = begin; index + 8u <= end && !slot_match; index += 1) {
+            bool same_word = true;
+            for (std::size_t offset = 0; offset < 8u && same_word; offset += 1) {
+                same_word = text[index + offset] == slot_word[offset];
+            }
+            slot_match = same_word;
+        }
+        if (slot_match) {
+            for (std::size_t index = begin; index + 7u <= end; index += 1) {
+                if (equals(text, index, index + 7u, " event=")) {
+                    std::size_t value_end = index + 7u;
+                    while (value_end < end && text[value_end] != ' ') {
+                        value_end += 1;
+                    }
+                    if (value_end > index + 7u) {
+                        found = text.subspan(index + 7u, value_end - (index + 7u));
+                    }
+                    break;
+                }
+            }
+        }
+        begin = end + 1;
+    }
+    return found;
+}
+
 FailsafeReason failsafe_reason(ConfigState config, std::optional<std::uint64_t> restart_count) noexcept {
     if (restart_count.has_value() && *restart_count == failsafe_restart_limit) {
         return FailsafeReason::restart_limit;

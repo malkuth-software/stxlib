@@ -9,7 +9,7 @@
 //   STXSUPERVISOR boot slot=<A|B|none> tries=<n> fallback=<0|1>
 //   STXSUPERVISOR boot good slot=<A|B> tries=<reset|kept> slot-file=<written|kept>
 //   STXSUPERVISOR boot mark-failed step=<name> errno=<n>
-//   STXSUPERVISOR boot-log written | failed step=<name> errno=<n>
+//   STXSUPERVISOR boot-log written event=<event> | failed step=<name> errno=<n>
 
 #ifndef STXLIB_RUNTIME_SUPERVISOR_BOOT_SLOTS_SYSTEM_H
 #define STXLIB_RUNTIME_SUPERVISOR_BOOT_SLOTS_SYSTEM_H
@@ -46,6 +46,15 @@ void mark_boot_good(int console, const BootFacts& facts) noexcept;
 // to the boot log, mounting the user partition first when it is not yet
 // mounted. Prints one line.
 void append_boot_log(int console, const BootFacts& facts, const char* event, std::uint64_t uptime_ms) noexcept;
+
+// On a fallback boot: appends the event
+//   "fallback tried=<A|B|none> loader-reason=<r> tried-last-event=<e|none>"
+// where tried and loader-reason are the loader's stx.boot.tried and
+// stx.boot.reason, and tried-last-event is the last event the tried slot
+// wrote to the boot log (its failsafe entry), read from the log's last
+// boot_log_tail_bytes; none when it wrote none (it failed before userspace).
+constexpr std::size_t boot_log_tail_bytes = 4096;
+void append_fallback_log(int console, const BootFacts& facts, std::uint64_t uptime_ms) noexcept;
 
 }  // namespace stxboot
 

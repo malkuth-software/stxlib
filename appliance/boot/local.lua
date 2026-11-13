@@ -9,7 +9,8 @@
 -- overwrite and never extend, stand/libsa/ufs.c:797-823, as nextboot does,
 -- stand/lua/config.lua:486-499); switches to the slot as the stock
 -- boot-environment switch does (stand/lua/core.lua:595-607); sets
--- stx.boot.slot, stx.boot.tries and stx.boot.fallback for the kernel
+-- stx.boot.slot, stx.boot.tries, stx.boot.fallback, stx.boot.reason and,
+-- on a fallback from a tried slot, stx.boot.tried, for the kernel
 -- environment. Every error ends in a boot of a known slot, never a stop.
 --
 
@@ -95,29 +96,30 @@ local function write_tries(count)
 	return written == tries_size
 end
 
--- The choice: slot to boot, tries to report, fallback flag, reason.
+-- The choice: slot to boot, tries to report, fallback flag, reason, and
+-- the slot that was to be tried when falling back from it (or nil).
 local function choose()
 	local good, try = read_slot_file()
 	if good == nil then
-		return "A", 0, true, "slot file unreadable"
+		return "A", 0, true, "slot file unreadable", nil
 	end
 	if try == nil or try == good then
-		return good, 0, false, "good"
+		return good, 0, false, "good", nil
 	end
 	local tries = read_tries()
 	if tries == nil then
-		return good, 0, true, "try count unreadable"
+		return good, 0, true, "try count unreadable", try
 	end
 	if tries >= tries_max then
-		return good, tries, true, "tries exhausted"
+		return good, tries, true, "tries exhausted", try
 	end
 	if not write_tries(tries + 1) then
-		return good, tries, true, "try count not writable"
+		return good, tries, true, "try count not writable", try
 	end
-	return try, tries + 1, false, "trying"
+	return try, tries + 1, false, "trying", nil
 end
 
-local slot, tries, fallback, reason = choose()
+local slot, tries, fallback, reason, tried = choose()
 local device = slot_devices[slot]
 if device == nil then
 	say("no device for slot " .. slot .. "; staying on the current device")
@@ -129,5 +131,9 @@ end
 loader.setenv("stx.boot.slot", slot)
 loader.setenv("stx.boot.tries", tostring(tries))
 loader.setenv("stx.boot.fallback", fallback and "1" or "0")
+loader.setenv("stx.boot.reason", (reason:gsub(" ", "-")))
+if tried ~= nil then
+	loader.setenv("stx.boot.tried", tried)
+end
 say("slot=" .. slot .. " tries=" .. tostring(tries) ..
     " fallback=" .. (fallback and "1" or "0") .. " reason=" .. reason)

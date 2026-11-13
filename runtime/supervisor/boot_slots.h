@@ -48,6 +48,13 @@ struct BootFacts {
 };
 [[nodiscard]] BootFacts boot_facts(const char* slot, const char* tries, const char* fallback) noexcept;
 
+// The boot log (/user/stx/boot.log): lines "... slot=<X> ... event=<e>".
+// The event of the last line whose slot is the given one, as a span into
+// text (up to the next blank or newline); nullopt when there is none. Used
+// to say, on a fallback, why the tried slot failed: its own last failsafe
+// entry, or none when it failed before its supervisor could write one.
+[[nodiscard]] std::optional<std::span<const char>> last_event_of_slot(std::span<const char> text, Slot slot) noexcept;
+
 // The failsafe decision.
 enum class ConfigState : std::uint8_t { loaded, absent, refused, unreadable, not_read };
 enum class FailsafeReason : std::uint8_t { none, config_absent, config_refused, config_unreadable,

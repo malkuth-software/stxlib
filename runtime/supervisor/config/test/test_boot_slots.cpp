@@ -7,7 +7,8 @@
 //   failsafe reason: every config state x 7 restart counts (x2, repeated);
 //   good-boot rule: every combination of 5 flags and 6 time pairs;
 //   services: every list of 0-4 services out of 8 kinds;
-//   mark-good plan: every slot x fallback x 5 tries x 5 slot files.
+//   mark-good plan: every slot x fallback x 5 tries x 5 slot files;
+//   last event of a slot: every sequence of 0-6 tokens out of 9, both slots.
 
 #include <array>
 #include <cstdint>
@@ -333,6 +334,71 @@ std::size_t test_mark_good() {
     return inputs;
 }
 
+// --- last event of a slot ------------------------------------------------
+
+const std::array<const char*, 9> log_tokens = {"uptime_ms=1", " slot=A ", " slot=B ", " event=", "x",
+                                               "fail",        " ",        "\n",       "slot=B "};
+
+// Reference: split on '\n'; a line counts when it contains " slot=<X> " and
+// its first " event=" is followed by a non-empty word (up to a blank or the
+// line's end); the last counting line's word.
+std::optional<std::string> reference_last_event(const std::string& text, char letter) {
+    const std::string slot_word = std::string(" slot=") + letter + " ";
+    std::optional<std::string> found;
+    std::size_t begin = 0;
+    while (begin < text.size()) {
+        std::size_t end = text.find('\n', begin);
+        if (end == std::string::npos) {
+            end = text.size();
+        }
+        const std::string line = text.substr(begin, end - begin);
+        const std::size_t event_at = line.find(" event=");
+        if (line.find(slot_word) != std::string::npos && event_at != std::string::npos) {
+            const std::size_t value_begin = event_at + 7;
+            std::size_t value_end = line.find(' ', value_begin);
+            if (value_end == std::string::npos) {
+                value_end = line.size();
+            }
+            if (value_end > value_begin) {
+                found = line.substr(value_begin, value_end - value_begin);
+            }
+        }
+        begin = end + 1;
+    }
+    return found;
+}
+
+std::size_t test_last_event() {
+    std::size_t inputs = 0;
+    for (std::size_t length = 0; length <= 6; length += 1) {
+        std::size_t total = 1;
+        for (std::size_t index = 0; index < length; index += 1) {
+            total *= log_tokens.size();
+        }
+        for (std::size_t code = 0; code < total; code += 1) {
+            std::string text;
+            std::size_t rest = code;
+            for (std::size_t index = 0; index < length; index += 1) {
+                text += log_tokens[rest % log_tokens.size()];
+                rest /= log_tokens.size();
+            }
+            const std::span<const char> view(text.data(), text.size());
+            for (const Slot slot : {Slot::a, Slot::b}) {
+                inputs += 1;
+                const std::optional<std::span<const char>> got = stxboot::last_event_of_slot(view, slot);
+                const std::optional<std::string> want = reference_last_event(text, stxboot::slot_letter(slot));
+                check(got.has_value() == want.has_value(), "last event", "found = reference");
+                if (got.has_value() && want.has_value()) {
+                    check(std::string((*got).data(), (*got).size()) == *want, "last event", "word = reference");
+                    check((*got).data() >= text.data() && (*got).data() + (*got).size() <= text.data() + text.size(),
+                          "last event", "span inside the text");
+                }
+            }
+        }
+    }
+    return inputs;
+}
+
 }  // namespace
 
 int main() {
@@ -343,9 +409,11 @@ int main() {
     const std::size_t good_inputs = test_good_boot();
     const std::size_t service_inputs = test_services();
     const std::size_t mark_inputs = test_mark_good();
+    const std::size_t event_inputs = test_last_event();
     std::printf("exhaustive boot slots: slot file %zu, tries %zu, facts %zu, failsafe %zu, good boot %zu, "
-                "services %zu, mark good %zu inputs\n",
-                slot_inputs, tries_inputs, facts_inputs, failsafe_inputs, good_inputs, service_inputs, mark_inputs);
+                "services %zu, mark good %zu, last event %zu inputs\n",
+                slot_inputs, tries_inputs, facts_inputs, failsafe_inputs, good_inputs, service_inputs, mark_inputs,
+                event_inputs);
     std::printf("test_boot_slots: %zu checks, %zu failed\n", stxtest::tally.checks, stxtest::tally.failures);
     return stxtest::tally.failures == 0 ? 0 : 1;
 }

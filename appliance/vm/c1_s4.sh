@@ -6,9 +6,12 @@
 #   boots 1-3: the slot file says good=A try=B; the loader tries B (tries
 #     1, 2, 3); B's configuration is refused, so the supervisor takes the
 #     failsafe path (user partition, host key, DHCP, sshd) and logs it;
-#     B never proves good;
+#     B never proves good; on boot 1 the host logs in once over SSH
+#     (127.0.0.1:$ssh_port forwarded to the guest's port 22, a throwaway
+#     ed25519 key made for this run and deleted at exit) and runs true;
 #   boot 4: tries exhausted: the loader falls back to A; A runs normally,
-#     logs the fallback, and after 60 s marks itself good, resetting the
+#     logs the fallback with B's failure (the loader's reason and B's own
+#     last log entry), and after 60 s marks itself good, resetting the
 #     count and cancelling the try of B;
 #   boot 5: A boots as the good slot and proves good again, writing nothing.
 # Each boot ends with the power button.
@@ -35,14 +38,23 @@ vm=k-$label-s4
 python3 prepare_vm.py --image "$image" --checksums "$checksums" --name "$vm" --reset
 vmdir=$storage/appliance/vm/$vm
 payload=$vmdir/payload
+ssh_port=52224
+test_key=$vmdir/s4_test_key
+known_hosts=$vmdir/s4_known_hosts
+# The test key never outlives the run, however it ends.
+trap 'rm -f "$test_key" "$test_key.pub" "$known_hosts" "$payload/authorized_keys"' EXIT
 rm -rf "$payload"; mkdir -p "$payload"
+rm -f "$test_key" "$test_key.pub" "$known_hosts"
+ssh-keygen -q -t ed25519 -N '' -C stxlib-s4-test -f "$test_key"
+cp "$test_key.pub" "$payload/authorized_keys"
 cp "$kernels/kernel" "$programs/stxinit" "$programs/stxsupervisor" "$payload/"
 cp "$disk_dir/root_manifest.txt" "$disk_dir/slot_loader.conf" "$disk_dir/failsafe.conf" \
    "$disk_dir/sshd_failsafe.conf" "$disk_dir/build_disk.sh" "$payload/"
 cp "$boot_dir/local.lua" "$boot_dir/loader.conf" "$boot_dir/loader.env.vm" "$payload/"
 cp configs/s4-root-a.conf configs/s4-root-b.conf "$payload/"
 ( cd "$payload" && shasum -a 256 kernel stxinit stxsupervisor root_manifest.txt local.lua loader.conf \
-    loader.env.vm slot_loader.conf failsafe.conf sshd_failsafe.conf s4-root-a.conf s4-root-b.conf > SHA256 )
+    loader.env.vm slot_loader.conf failsafe.conf sshd_failsafe.conf s4-root-a.conf s4-root-b.conf \
+    authorized_keys > SHA256 )
 build_sha=$(shasum -a 256 "$payload/build_disk.sh" | cut -d' ' -f1)
 disk=$vmdir/appliance.raw
 rm -f "$disk"
@@ -62,8 +74,18 @@ boot() {
         --appliance-disk "$disk" --appliance-only "$@"
 }
 
+# The login check (boot 1 only): one ssh, key only, no configuration file.
+login_step="host:40:ssh -F /dev/null -i $test_key -o IdentitiesOnly=yes -o BatchMode=yes \
+-o PasswordAuthentication=no -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$known_hosts \
+-o ConnectTimeout=10 -o ConnectionAttempts=3 -p $ssh_port root@127.0.0.1 true"
+
 status=0
 for tries in 1 2 3; do
+    if [ "$tries" -eq 1 ]; then
+        set -- --ssh-forward-port "$ssh_port" --step "$login_step"
+    else
+        set --
+    fi
     boot "$tries" \
         --step "expect:30:STXLOADER slot=B tries=$tries fallback=0 reason=trying" \
         --step 'expect:30:STXINIT uptime_ns=\d+' \
@@ -73,6 +95,7 @@ for tries in 1 2 3; do
         --step 'expect:30:\(ED25519\)' \
         --step 'expect:30:STXSUPERVISOR init done commands=8 skipped=0 failed=0 ' \
         --step 'expect:5:STXSUPERVISOR boot-log written event=failsafe-config-refused' \
+        "$@" \
         --step 'monitor:system_powerdown' \
         --step 'expect:15:STXINIT shutdown power-off' \
         --step 'exit:30' || status=1
@@ -84,7 +107,7 @@ boot 4 \
     --step 'expect:10:STXSUPERVISOR boot slot=A tries=3 fallback=1' \
     --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=2 settings=2 commands=5' \
     --step 'expect:30:STXSUPERVISOR init done commands=5 skipped=0 failed=0 ' \
-    --step 'expect:5:STXSUPERVISOR boot-log written event=fallback' \
+    --step 'expect:5:STXSUPERVISOR boot-log written event=fallback tried=B loader-reason=tries-exhausted tried-last-event=failsafe-config-refused' \
     --step 'expect:75:STXSUPERVISOR boot good slot=A tries=reset slot-file=written' \
     --step 'monitor:system_powerdown' \
     --step 'expect:15:STXINIT shutdown power-off' \

@@ -252,7 +252,7 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
             good_check_due_ms = init_done_ms + stxboot::good_boot_settle_ms;
         }
         if (boot_facts_now.fallback) {
-            stxboot::append_boot_log(console, boot_facts_now, "fallback", uptime_milliseconds());
+            stxboot::append_fallback_log(console, boot_facts_now, uptime_milliseconds());
         }
     }
 }

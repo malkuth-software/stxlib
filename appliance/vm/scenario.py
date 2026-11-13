@@ -26,6 +26,7 @@ import datetime
 import os
 import re
 import selectors
+import shlex
 import socket
 import subprocess
 import sys
@@ -70,6 +71,11 @@ def parse_step(text: str) -> Step:
         return Step('monitor', 0.0, rest)
     if kind == 'exit':
         return Step('exit', float(rest), '')
+    if kind == 'host':
+        seconds_text, separator, command = rest.partition(':')
+        if separator != ':' or len(shlex.split(command)) == 0:
+            raise ValueError(f'host takes <seconds>:<command>: {text!r}')
+        return Step('host', float(seconds_text), command)
     raise ValueError(f'unknown step kind {kind!r}')
 
 
@@ -196,6 +202,25 @@ def run_steps(steps: List[Step], console: Console, monitor_path: str, monitor_lo
             with open(monitor_log, 'a', encoding='utf-8') as stream:
                 stream.write(f'--- {console.seconds():.3f} {step.argument}\n{answer}\n')
             rows.append(f'{index}\tmonitor\tsent\t{console.seconds():.3f}\t{step.argument}')
+            continue
+        if step.kind == 'host':
+            # A command on the host (no shell), passing on exit status 0
+            # within its time; the console keeps being read meanwhile.
+            deadline = console.seconds() + step.seconds
+            process = subprocess.Popen(shlex.split(step.argument), stdin=subprocess.DEVNULL,
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            while process.poll() is None and console.seconds() <= deadline:
+                console.pump()
+            if process.poll() is None:
+                process.kill()
+                process.wait()
+                rows.append(f'{index}\thost\tfailed\t{console.seconds():.3f}\ttimed out: {step.argument}')
+                return False, rows
+            output = process.stdout.read().decode('utf-8', 'replace').strip().replace('\n', ' | ')[:200]
+            outcome = 'ok' if process.returncode == 0 else 'failed'
+            rows.append(f'{index}\thost\t{outcome}\t{console.seconds():.3f}\tstatus {process.returncode} {output}')
+            if process.returncode != 0:
+                return False, rows
             continue
         if step.kind == 'exit':
             deadline = console.seconds() + step.seconds
