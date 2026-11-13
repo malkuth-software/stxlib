@@ -292,7 +292,8 @@ constexpr std::size_t event_kinds = 6;
 // - next_due_ms is present exactly when the service waits or is stopping
 //   without its SIGKILL sent, and equals that due time;
 // - all_stopped holds exactly when the service is stopped;
-// - signals go only to the service's own pid.
+// - a signal sent by this event went to the service's own pid, which is
+//   then stopping.
 void run_sequence(const char* name, std::size_t service, const std::size_t* digits, std::size_t length,
                   ServiceRegistry& registry) {
     FakeServiceActions actions;
@@ -303,6 +304,7 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
     int own_pid = 0;
     for (std::size_t position = 0; position < length; position += 1) {
         const Event event = static_cast<Event>(digits[position]);
+        const std::size_t signals_before = actions.signals();
         now += 1;
         switch (event) {
         case Event::start: {
@@ -359,8 +361,10 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
             check(!due.has_value(), "exhaustive registry", "nothing due otherwise");
         }
         check(registry.all_stopped() == state.is_stopped(), "exhaustive registry", "all_stopped matches");
-        if (actions.signals() > 0) {
-            check(actions.last_signal_pid() == own_pid, "exhaustive registry", "signals only to the own pid");
+        if (actions.signals() != signals_before) {
+            check(actions.signals() == signals_before + 1u && stopping != nullptr &&
+                      (*stopping).pid == actions.last_signal_pid() && (*stopping).pid == own_pid,
+                  "exhaustive registry", "one signal, to the own pid, now stopping");
         }
     }
 }
