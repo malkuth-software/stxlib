@@ -62,7 +62,7 @@ python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label init \
     --step 'expect:5:STXSUPERVISOR init line=19 start ok ' \
     --step 'expect:5:STXSUPERVISOR init line=20 wait-for timed-out ' \
     --step 'expect:5:STXSUPERVISOR init line=21 run exited status=0 ' \
-    --step 'expect:5:STXSUPERVISOR init done commands=9 skipped=[01] failed=2 ' \
+    --step 'expect:5:STXSUPERVISOR init done commands=9 skipped=2 failed=2 ' \
     --step 'monitor:system_powerdown' \
     --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \
