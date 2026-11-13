@@ -1,0 +1,163 @@
+#pragma once
+
+// STXlib's per-thread and per-process state, owned by one module: the
+// stxlib_state shared library (CMakeLists.txt). Every copy of STXlib's code
+// (each shared library or executable that links stxlib::boundary
+// statically) reaches the one state through the two exported accessors
+// below, never through a thread_local or static of its own.
+//
+// Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
+// module that links the static C++ runtime and STXlib statically has its
+// own copy of every thread_local, static and non-inline function body; on
+// ELF and Mach-O the same holds once modules hide their symbols (GUI.Forms'
+// export lists). A shadow stack, a sequence counter or an open-invocation
+// list duplicated per module would split: a scope in one module would push
+// where a gate in another never looks.
+//
+// The structures are plain data with layouts this header defines. Every
+// module is built from the same STXlib commit (one pin, decision M3), and
+// the accessors check `layout_version` so a module built from a different
+// layout fails at its first access instead of reading misplaced fields.
+//
+// Lifetime: the thread state is a thread_local of stxlib_state, trivially
+// destructible and constant-initialised, so it needs no thread-exit
+// handling (survey D11's recommendation). The process state is a static of
+// stxlib_state with constant initialisation. Neither ever allocates.
+
+#include "stxlib/error.hpp"
+#include "stxlib/fail_fast.hpp"
+#include "stxlib/require.hpp"
+#include "stxlib/shadow.hpp"
+#include "stxlib/trampoline.hpp"
+#include "stxlib/types.hpp"
+
+#include <atomic>
+
+#if defined(_WIN32)
+#if defined(STXLIB_STATE_BUILDING)
+#define STXLIB_STATE_API __declspec(dllexport)
+#elif defined(STXLIB_STATE_SHARED)
+#define STXLIB_STATE_API __declspec(dllimport)
+#else
+#define STXLIB_STATE_API
+#endif
+#else
+#define STXLIB_STATE_API __attribute__((visibility("default")))
+#endif
+
+namespace stxlib::state {
+
+// Raised whenever a structure below changes shape.
+inline constexpr u32 layout_version = 1;
+
+// One logical frame on the shadow stack. The name has static storage (an
+// Operation's).
+struct FrameEntry final {
+    const char* name{nullptr};
+    usize name_count{0};
+    u64 first{0};
+    u64 second{0};
+};
+
+// One shadow record: the logical stack and native trace for one exception.
+struct ShadowRecordData final {
+    u64 sequence{0}; // 0: empty
+    CapturePoint point{CapturePoint::gate};
+    usize frame_count{0};
+    usize frames_lost{0};
+    usize trace_count{0};
+    FrameEntry frames[shadow_frame_capacity];
+    uptr trace[shadow_trace_capacity]{};
+};
+
+// A kept error record. A union, so the array needs no ErrorRecord default
+// (a record always holds a failure); assigning a record to the inactive
+// member begins its lifetime (ErrorRecord's copy assignment is trivial,
+// [class.union]).
+union RecentSlot {
+    struct Empty final {
+    } empty;
+    ErrorRecord record;
+
+    constexpr RecentSlot() noexcept : empty() {}
+};
+
+// One open trampoline invocation of the thread.
+struct OpenInvocation final {
+    const void* table{nullptr};
+    u64 handle{0};
+};
+
+struct ThreadState final {
+    u32 layout{layout_version};
+
+    // Error record sequence numbers (error.cpp).
+    u64 last_record_sequence{0};
+
+    // The shadow stack (shadow_frames.cpp). `depth` counts every pushed and
+    // unpopped frame, also those beyond the capacity, which are not stored.
+    // `pushes` counts every push ever, so a capture can tell whether normal
+    // execution has resumed since it was taken.
+    u32 depth{0};
+    u64 pushes{0};
+    FrameEntry frames[shadow_frame_capacity];
+
+    // The pending capture: the shadow record of the exception unwinding now,
+    // valid while `pushes` still equals `pending_pushes`.
+    u64 pending_shadow{0};
+    u64 pending_pushes{0};
+
+    // Shadow records, a ring of shadow_record_capacity, newest at
+    // `shadow_newest`; `last_shadow_sequence` issues their numbers.
+    u64 last_shadow_sequence{0};
+    usize shadow_count{0};
+    usize shadow_newest{0};
+    ShadowRecordData shadows[shadow_record_capacity];
+
+    // Recent gate records (exception_shadow.cpp), a ring.
+    usize recent_count{0};
+    usize recent_newest{0};
+    RecentSlot recent[recent_failure_capacity];
+
+    // Open trampoline invocations (trampoline.cpp), a stack.
+    usize open_depth{0};
+    OpenInvocation open[trampoline_nesting_limit];
+
+    // Entries into fail_fast (fail_fast.cpp); never reset.
+    int fail_fast_depth{0};
+};
+
+enum class ReporterPhase : int {
+    none = 0,
+    installing = 1,
+    installed = 2,
+};
+
+struct ProcessState final {
+    u32 layout{layout_version};
+    // Publishes `reporter`: written while installing, read after an acquire
+    // load of installed (fail_fast.cpp).
+    std::atomic<int> reporter_phase{static_cast<int>(ReporterPhase::none)};
+    FailFastReporter reporter{};
+};
+
+// The calling thread's state and the process's, from stxlib_state.
+// `expected_layout` is the caller's layout_version; on a mismatch they
+// return null, and the caller's copy of STXlib reports it (stxlib_state
+// itself calls nothing, so it links on its own).
+STXLIB_STATE_API ThreadState* thread_state(u32 expected_layout) noexcept;
+STXLIB_STATE_API ProcessState* process_state(u32 expected_layout) noexcept;
+
+inline ThreadState& current_thread() noexcept {
+    ThreadState* const thread = thread_state(layout_version);
+    STXLIB_REQUIRE(thread != nullptr, "this module and stxlib_state were built with different state layouts");
+    return *thread;
+}
+
+inline ProcessState& current_process() noexcept {
+    ProcessState* const process = process_state(layout_version);
+    STXLIB_REQUIRE(process != nullptr, "this module and stxlib_state were built with different state layouts");
+    return *process;
+}
+
+} // namespace stxlib::state
