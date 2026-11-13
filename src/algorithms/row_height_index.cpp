@@ -288,7 +288,7 @@ TextView RowHeightIndex::invariant_failure() const noexcept {
     const stx_btree::detail::InvariantReport report = index_of(tree_).check_invariants();
     if (report.ok) return TextView{};
     // The tree's failures are ASCII string literals.
-    return TextView::adopt_validated(report.failure, std::strlen(report.failure));
+    return detail::TextViewAccess::adopt_validated(report.failure, std::strlen(report.failure));
 }
 
 } // namespace stxlib
