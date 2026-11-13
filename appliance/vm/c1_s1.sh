@@ -44,6 +44,9 @@ set_up_vm() {
     python3 prepare_vm.py --image "$image" --checksums "$checksums" --name "$vm" --reset
     python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
         --commands sessions/loader-config.txt
+    # Before install-programs: once init_path names stxinit there is no login.
+    python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
+        --commands sessions/acpi-verbose.txt
     python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
         --commands sessions/install-kernel.txt --serve-dir "$kernels" \
         --define "kernel_sha256=$kernel_sha" --define "kernconf=$kernconf"
@@ -51,8 +54,6 @@ set_up_vm() {
         --commands sessions/install-programs.txt --serve-dir "$programs" \
         --define "init_sha256=$init_sha" --define "supervisor_file=$supervisor_file" \
         --define "supervisor_sha256=$supervisor_sha"
-    python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
-        --commands sessions/acpi-verbose.txt
 }
 
 failed=0
