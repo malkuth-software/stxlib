@@ -337,10 +337,52 @@ endif()
 # stxlib::boundary's vocabulary and services (the environment, entropy,
 # stxlib_state) and make no host call of their own. Ported from stx_auxlib
 # b6e330a (PROVENANCE.md, batch 3c and later).
+# The owned transcendental kernels (include/stxlib/math.hpp), one source and
+# table header per family under src/algorithms/math/, from stx_auxlib
+# b6e330a. Each kernel source compiles once per variant
+# (src/algorithms/math/variant.hpp); dispatch.cpp defines the public
+# functions over them.
+set(STXLIB_MATH_KERNEL_SOURCES
+    src/algorithms/math/atan.cpp
+    src/algorithms/math/cbrt.cpp
+    src/algorithms/math/exp.cpp
+    src/algorithms/math/hyperbolic.cpp
+    src/algorithms/math/hypot.cpp
+    src/algorithms/math/log.cpp
+    src/algorithms/math/pow.cpp
+    src/algorithms/math/sincos.cpp
+    src/algorithms/math/tan.cpp)
+set(STXLIB_MATH_SOURCES
+    ${STXLIB_MATH_KERNEL_SOURCES}
+    src/algorithms/math/constants.cpp
+    src/algorithms/math/dispatch.cpp)
+# x86-64 builds carry two kernel variants, v128 (SSE2) and avx2_fma, and
+# call the one the process's SIMD level selects (include/stxlib/simd.hpp).
+# Every other build has one native variant.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|x86_64|amd64)$")
+    set(STXLIB_MATH_DISPATCH_DEFAULT ON)
+else()
+    set(STXLIB_MATH_DISPATCH_DEFAULT OFF)
+endif()
+option(STXLIB_MATH_DISPATCH "Build the x86-64 v128 and avx2_fma math variants and select at run time"
+    ${STXLIB_MATH_DISPATCH_DEFAULT})
+# The kernels' bit-identical results need floating-point contraction off.
+# It stays private to stxlib::algorithms: consumers keep fused arithmetic.
+# -fno-fast-math turns math-errno back on for GNU and MinGW targets, which
+# leaves a C library call (to set errno) behind std::sqrt; the kernels never
+# read errno, hence -fno-math-errno after it.
+set(stxlib_math_options -ffp-contract=off -fno-fast-math -fno-math-errno)
+
 set(STXLIB_ALGORITHMS_SOURCES
+    ${STXLIB_MATH_SOURCES}
+    src/algorithms/calendar.cpp
     src/algorithms/hash.cpp
+    src/algorithms/numeric_text.cpp
+    src/algorithms/precedence.cpp
     src/algorithms/random.cpp
-    src/algorithms/simd.cpp)
+    src/algorithms/row_height_index.cpp
+    src/algorithms/simd.cpp
+    src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)
 target_include_directories(stxlib_algorithms
@@ -356,6 +398,48 @@ set_target_properties(stxlib_algorithms PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(stxlib_algorithms PUBLIC stxlib_boundary)
+target_compile_options(stxlib_algorithms PRIVATE ${stxlib_math_options})
+if(STXLIB_MATH_DISPATCH)
+    target_compile_definitions(stxlib_algorithms PRIVATE STXLIB_MATH_VARIANT=v128 STXLIB_MATH_DISPATCH_X86=1)
+    # The avx2_fma variant: the same kernel sources and private options, its
+    # own namespace; variant.hpp applies the avx2,fma target to its
+    # definitions only, so no command-line -mavx2 reaches shared inline code.
+    add_library(stxlib_math_avx2_fma OBJECT ${STXLIB_MATH_KERNEL_SOURCES})
+    set_target_properties(stxlib_math_avx2_fma PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        POSITION_INDEPENDENT_CODE ON)
+    target_compile_features(stxlib_math_avx2_fma PRIVATE cxx_std_20)
+    target_include_directories(stxlib_math_avx2_fma PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_definitions(stxlib_math_avx2_fma PRIVATE STXLIB_MATH_VARIANT=avx2_fma STXLIB_MATH_AVX2_FMA=1)
+    target_compile_options(stxlib_math_avx2_fma PRIVATE
+        ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers} ${stxlib_math_options})
+    target_sources(stxlib_algorithms PRIVATE $<TARGET_OBJECTS:stxlib_math_avx2_fma>)
+else()
+    target_compile_definitions(stxlib_algorithms PRIVATE STXLIB_MATH_VARIANT=native)
+endif()
+
+option(STXLIB_BUILD_TOOLS "Build STXlib's table generators" OFF)
+if(STXLIB_BUILD_TOOLS)
+    # Each regenerates its family's table header in src/algorithms/math/ byte
+    # for byte, at the path given as its one argument (from stx_auxlib
+    # b6e330a).
+    foreach(table IN ITEMS atan exp log sincos)
+        add_executable(stxlib_gen_${table}_table tools/math/gen_${table}_table.cpp)
+        target_compile_features(stxlib_gen_${table}_table PRIVATE cxx_std_20)
+        target_compile_options(stxlib_gen_${table}_table PRIVATE -ffp-contract=off -fno-fast-math)
+    endforeach()
+    # The minimum-remainder search of tools/math/sincos_certificate.py (an
+    # ordered index from src/algorithms/stx_btree; unsigned __int128, so Clang
+    # or GCC only).
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+        add_executable(stxlib_sincos_minimum_remainder tools/math/sincos_minimum_remainder.cpp)
+        target_compile_features(stxlib_sincos_minimum_remainder PRIVATE cxx_std_20)
+        target_include_directories(stxlib_sincos_minimum_remainder PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(stxlib_sincos_minimum_remainder PRIVATE stxlib::algorithms)
+    endif()
+endif()
 
 # ---- tests ------------------------------------------------------------------
 if(STXLIB_TESTS)
@@ -374,12 +458,80 @@ if(STXLIB_TESTS)
     endif()
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS hash random simd)
+    foreach(test_name IN ITEMS calendar hash numeric_text precedence random simd)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
+        # core/checked.hpp (the modular marker) for the tests' own generators.
+        target_include_directories(stxlib_${test_name}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+
+    # math_tests checks frozen output hashes, so a flag that changes any bit
+    # fails it. The Dekker build compiles its own copies of the kernels with
+    # the no-FMA exact product forced and must give the same bits: the
+    # cross-architecture determinism evidence on an FMA machine. Its kernel
+    # objects define the library's math symbols, so the linker never pulls
+    # the library's own math objects into it. `--exhaustive` and `--bench`
+    # stay out of ctest. From stx_auxlib b6e330a.
+    add_executable(stxlib_math_tests tests/math_tests.cpp)
+    add_executable(stxlib_math_dekker_tests tests/math_tests.cpp ${STXLIB_MATH_SOURCES})
+    target_compile_definitions(stxlib_math_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
+    foreach(math_test IN ITEMS stxlib_math_tests stxlib_math_dekker_tests)
+        target_link_libraries(${math_test} PRIVATE stxlib::algorithms)
+        target_include_directories(${math_test} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        # The test's inlined double-double reference (tests/reference/wide.hpp)
+        # needs contraction off too: contracted, its own self-check fails.
+        target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
+        add_test(NAME ${math_test} COMMAND ${math_test})
+    endforeach()
+    # Every variant on this machine: the forced levels run the same frozen
+    # hashes through v128 and, where the CPU has it, avx2_fma.
+    if(STXLIB_MATH_DISPATCH)
+        foreach(level IN ITEMS scalar vector128 avx2_fma)
+            add_test(NAME stxlib_math_tests_${level} COMMAND stxlib_math_tests)
+            set_tests_properties(stxlib_math_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+        endforeach()
+    endif()
+
+    # The sequence tree and RowHeightIndex (src/algorithms/stx_btree/
+    # ORDER_STATISTIC_RESEARCH.md §8): the proved properties as tests, and
+    # the exhaustive small-scope check at its small scope against the
+    # private templates and through the facade (`--scope full` by hand).
+    # From stx_auxlib b6e330a.
+    foreach(sequence_test IN ITEMS sequence_tree sequence_tree_exhaustive)
+        add_executable(stxlib_${sequence_test}_tests tests/stx_btree/${sequence_test}_test.cpp)
+        target_link_libraries(stxlib_${sequence_test}_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_${sequence_test}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_${sequence_test}_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_${sequence_test}_tests COMMAND stxlib_${sequence_test}_tests)
+        set_tests_properties(stxlib_${sequence_test}_tests PROPERTIES TIMEOUT 1200)
+    endforeach()
+    # The unsync ordered map (src/algorithms/stx_btree/unsync_map.hpp)
+    # against std::map with every structural invariant checked after each
+    # phase, on both page allocators, plus refused insertions. From
+    # stx_auxlib b6e330a.
+    add_executable(stxlib_unsync_map_tests tests/stx_btree/unsync_map_test.cpp)
+    target_link_libraries(stxlib_unsync_map_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_unsync_map_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_unsync_map_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_unsync_map_tests COMMAND stxlib_unsync_map_tests)
+    set_tests_properties(stxlib_unsync_map_tests PROPERTIES TIMEOUT 600)
+    # The facade against the template it wraps (offset to row, row to
+    # offset, set_heights), for the integrator to run by hand; not a ctest.
+    add_executable(stxlib_row_height_bench tests/stx_btree/row_height_bench.cpp)
+    target_link_libraries(stxlib_row_height_bench PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_row_height_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_row_height_bench PRIVATE ${stxlib_test_warnings})
+
+    # Preference Ranked Voting against the reference's own outcomes
+    # (tests/reference/prv_cases.txt, made by prv_reference.mjs).
+    add_executable(stxlib_voting_tests tests/voting_tests.cpp)
+    target_link_libraries(stxlib_voting_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_voting_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_voting_tests
+             COMMAND stxlib_voting_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference/prv_cases.txt)
 
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the

@@ -92,5 +92,55 @@ evidence, not proof.
 | `src/algorithms/simd.cpp` | the hardware level never exceeds what CPUID and XCR0 report; one selection per process, fixed at the first selected_level call; a request lowers the level only before it | tested, not proved, on each CI machine's CPU (the test prints the detection); the once-only rule rests on one compare-exchange of `ProcessState::simd_selection` (layout 7), argued, not checked by a tool | `tests/simd_tests.cpp` |
 | `src/core/thread_pool.cpp` (against its C original) | every check the C reference passes, STXlib's pool passes: argument and task validation, which thread runs a batch, the caller-path threshold, one-worker order, exactly-once execution, worker-only execution and serialization of concurrent batches | tested, not proved: one conformance source built twice, against `tests/reference/atomic_pool.c` (unchanged, hashed in PROVENANCE.md) and against `tests/reference/atomic_pool_adapter.cpp` over stxlib::AtomicPool; both must pass. Concurrency checks are sampled | `tests/thread_pool_conformance.cpp` |
 
+## stxlib::algorithms, batch 3c2 (numeric text, the calendar)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/numeric_text.cpp` (formatting) | integers, fixed and scientific reals are as the standard's to_chars defines them, padded as the format says; output is whole or nothing, with the size needed; the format bounds cap the size | tested, not proved: stx_auxlib's exact expectations; fixed and scientific output equals the host's snprintf on 50,000 sampled doubles over every exponent (precision 0 to 24); caller-storage cases (too small, empty storage, fields, TextWriter) exact | `tests/numeric_text_tests.cpp` |
+| `src/algorithms/numeric_text.cpp` (shortest form, parsing) | the shortest text parses back to the same value; parse failures are named as the header says | tested, not proved: round trip on 200,000 sampled doubles and 100,000 sampled floats (bit patterns from SplitMix64, so every exponent and subnormals); stx_auxlib's parse and scanner cases exact | `tests/numeric_text_tests.cpp` |
+| `src/algorithms/calendar.cpp` (civil days, weekdays) | civil_from_wall and weekday_of agree with std::chrono's year_month_day and weekday, and wall_from_civil inverts civil_from_wall | exhaustive over the days of WallTime's range (one instant per day, at noon) against std::chrono; the range ends exact; 100,000 sampled instants round-trip | `tests/calendar_tests.cpp` |
+| `src/algorithms/calendar.cpp` (ISO 8601) | format_iso8601 writes the forms the header names; parse_iso8601 accepts exactly those forms and gives the instant | tested, not proved: stx_auxlib's cases plus truncated offsets, the longest text and too-small storage; 10,000 sampled instants written with nine fraction digits parse back exactly; a compiled zone's local time written as text names its instant | `tests/calendar_tests.cpp` |
+
+## stxlib::algorithms, batch 3c3 (the precedence chain)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/precedence.cpp` | the hashes are stx_auxlib's bytes (first key root, first leaf, signature and key path ends) | known answers from `tests/reference/precedence_reference.py`, rerun on 2026-11-13 with the same output; tested, not proved | `tests/precedence_tests.cpp` |
+| `src/algorithms/precedence.cpp` | every certificate a chain issues verifies, in order, across block boundaries; consecutive certificates link; a changed info, count, time, epoch, signature, key path or next root, or another secret's certificate, fails; save and restore continue bit for bit | tested on fixed seeds over 522 epochs (two block boundaries), not proved. WOTS+ and Merkle security is the published constructions' argument, not checked here | `tests/precedence_tests.cpp` |
+
+## stxlib::algorithms, batch 3c4 (Preference Ranked Voting)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/voting.cpp` | the outcome (winner or named failure) is the reference prv-core.mjs's for every election | tested, not proved: 420 generated elections (full, partial and messy ballots; mini counts and brackets) against the reference's outcomes, `tests/reference/prv_cases.txt`, regenerated with node on 2026-11-13; weighted copies against single ballots. The port off std::vector is checked only by these tests | `tests/voting_tests.cpp` |
+
+## stxlib::algorithms, batch 3c5 (the owned math kernels)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/math/` (every function) | the same bits as stx_auxlib's kernels on every input the tests reach, under every variant this machine runs (native or v128 and avx2_fma), and under the Dekker exact product | tested, not proved: the frozen output hashes of `tests/math_tests.cpp`, carried unchanged from stx_auxlib, in ctest as `stxlib_math_tests`, `stxlib_math_dekker_tests` and, with dispatch, one run per forced SIMD level | `tests/math_tests.cpp` |
+| `src/algorithms/math/` (float functions) | correctly rounded over the ranges `math.hpp` states | exhaustive in stx_auxlib (`math_tests --exhaustive`, counts as `math.hpp` gives them); not yet rerun on STXlib's build. The frozen hashes tie STXlib's bits to the build that was checked, so a pass of them carries the result only as far as those hashes sample | `tests/math_tests.cpp --exhaustive` |
+| `src/algorithms/math/sincos_core.hpp` (double sin, cos, tan) | within 0.51 ulp for 2^-27 <= abs(x) <= 2^32 | proved in stx_auxlib by `tools/math/sincos_certificate.py` (interval error analysis over every binade's worst remainders); the certificate reads this tree's constants, and its search tool builds from batch 3c7 (`stxlib_sincos_minimum_remainder`); not yet rerun here | `tools/math/sincos_certificate.py` |
+| `src/algorithms/math/` (double functions other than sin, cos, tan) | within the ulp bounds `math.hpp` states | sampled in stx_auxlib (sample counts as `math.hpp` gives them); not proved | `tests/math_tests.cpp` |
+
+## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/sequence_tree.hpp` | every query, cursor walk and seek equals a flat model, and invariants I1-I6 hold, after every operation sequence | exhaustive within its small scope (depths 2 and 1 from five start states, at the smallest capacities, four configurations; `--scope full` by hand: 3 and 2), as in stx_auxlib; beyond that scope it rests on the study's proof sketches (§8.2), not on a mechanical proof | `tests/stx_btree/sequence_tree_exhaustive_test.cpp`; `src/algorithms/stx_btree/ORDER_STATISTIC_RESEARCH.md` |
+| `src/algorithms/stx_btree/sequence_tree.hpp` (failure) | a page the allocator refuses leaves the tree unchanged and the edit then succeeds; a tree without its first page leaks nothing | tested over every allocation of eight edit kinds at ten positions (null pages from a budget allocator), not proved | `tests/stx_btree/sequence_tree_test.cpp` |
+| `src/algorithms/stx_btree/sequence_tree.hpp` (Lemma S, coarsen, finger) | splitting a run keeps every row's height; coarsen keeps offsets outside its range bit for bit; seek_offset_from equals seek_offset | exhaustive over the stated small domains (every run of up to 16 rows and 80 units; every range of a 40-row sequence; every row of a deep small tree), as in stx_auxlib | `tests/stx_btree/sequence_tree_test.cpp` |
+| `src/algorithms/row_height_index.cpp` (the facade) | the facade answers as the template and the model, and each failure has the kind its cause names | the exhaustive enumeration and the packing cases run through the facade at production capacity ("facade-production"); at that capacity the sequences split no page, so this checks the translation, not the structure | `tests/stx_btree/sequence_tree_exhaustive_test.cpp` |
+| `src/algorithms/row_height_index.cpp` (cost) | the facade's cost over the template on row-to-offset, offset-to-row and set_heights | not measured yet: `stxlib_row_height_bench` is for the integrator | `tests/stx_btree/row_height_bench.cpp` |
+
+## stxlib::algorithms, batch 3c7 (stx_btree's unsync ordered map)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/stx_btree/unsync_map.hpp` | the map answers as std::map (insert, try_insert, remove, find, lower_bound, pop, insert_many, iteration), and every structural invariant (depths, fills, heads, order, windows at exact prefixes, padding, hash tags, shared prefix) holds after each phase | tested, not proved: the differential runs carried from stx_auxlib (seven key and value shapes, random and ordered, both page allocators, batches) | `tests/stx_btree/unsync_map_test.cpp`, `tests/stx_btree/tree_invariants.hpp` |
+| `src/algorithms/stx_btree/unsync_map.hpp` (failure) | an insertion the allocator refuses a page leaves the map unchanged and reports `out_of_memory()`; it then succeeds | tested over 20000 insertions of small-leaf entries with every page first refused (first root page, leaf splits and splits that climb), not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_refusals`) |
+| `src/algorithms/stx_btree/pooled_page_allocator.hpp` | maps sharing a pool get every page back and reuse freed pages; the pool ends with its last sharer | tested, not proved | `tests/stx_btree/unsync_map_test.cpp` (`run_shared_pool`) |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` | none yet | not instantiable (static assertion) until the shared-map batch | none |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.
