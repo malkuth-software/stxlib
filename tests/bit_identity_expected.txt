@@ -1,0 +1,69 @@
+# Frozen output hashes of stxlib_bit_identity (tests/bit_identity.cpp), one
+# per item: `<item> <hash> <values hashed>`, or `<item> unfrozen` until the
+# first run. Every host, SIMD level and product form must print the frozen
+# line (planning/stages/A1-float-discipline.md, section 3). A frozen line
+# changes only with a deliberate change of results, named in PROVENANCE.md.
+#
+# Freezing: the integrator runs the program on the M4 (all levels it has,
+# and the Dekker build) and then
+#   python3 -I tools/compare_bit_identity.py --freeze OUTPUT... > tests/bit_identity_expected.txt
+# which refuses unless every output agrees; CI's hosts then check the same
+# values.
+math.exp.double unfrozen
+math.log.double unfrozen
+math.log2.double unfrozen
+math.log10.double unfrozen
+math.atan.double unfrozen
+math.asin.double unfrozen
+math.acos.double unfrozen
+math.tan.double unfrozen
+math.cbrt.double unfrozen
+math.sinh.double unfrozen
+math.cosh.double unfrozen
+math.tanh.double unfrozen
+math.asinh.double unfrozen
+math.acosh.double unfrozen
+math.atanh.double unfrozen
+math.sincos.double unfrozen
+math.pow.double unfrozen
+math.hypot.double unfrozen
+math.atan2.double unfrozen
+math.exp.float unfrozen
+math.log.float unfrozen
+math.log2.float unfrozen
+math.log10.float unfrozen
+math.atan.float unfrozen
+math.asin.float unfrozen
+math.acos.float unfrozen
+math.tan.float unfrozen
+math.cbrt.float unfrozen
+math.sinh.float unfrozen
+math.cosh.float unfrozen
+math.tanh.float unfrozen
+math.asinh.float unfrozen
+math.acosh.float unfrozen
+math.atanh.float unfrozen
+math.sincos.float unfrozen
+math.pow.float unfrozen
+math.hypot.float unfrozen
+math.atan2.float unfrozen
+exact.two_sum.double unfrozen
+exact.two_product.double unfrozen
+exact.split.double unfrozen
+exact.two_sum.float unfrozen
+exact.two_product.float unfrozen
+exact.expansions.double unfrozen
+exact.compensated.double unfrozen
+exact.orient2d.double unfrozen
+exact.incircle.double unfrozen
+exact.orient2d.float unfrozen
+exact.incircle.float unfrozen
+reduce.ordered.double unfrozen
+reduce.ordered.float unfrozen
+reduce.pooled unfrozen
+text.shortest.double unfrozen
+text.formatted.double unfrozen
+text.shortest.float unfrozen
+text.parse unfrozen
+random.xoshiro256pp unfrozen
+random.chacha12 unfrozen

@@ -116,6 +116,17 @@ stxlib_switch_condition(STXLIB_LOCK_CHECKS stxlib_lock_checks_on)
 set(STXLIB_EXCEPTION_RECORDER src/core/exception_shadow.cpp)
 
 set(stxlib_warnings -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
+# The floating-point discipline (house style "Floating point", rule 1;
+# planning/stages/A1-float-discipline.md, F1 = 1, 2026-11-13): no
+# contraction and no fast-math in any STXlib target, libraries and tests
+# alike. A directory option, so it reaches every target defined here and
+# never a consumer's own code: consumers keep fused arithmetic. -fno-fast-math
+# turns math-errno back on for GNU and MinGW targets, which leaves a C
+# library call (to set errno) behind std::sqrt; nothing of ours reads errno
+# after arithmetic, hence -fno-math-errno after it. The check at the end of
+# this file refuses a target without these, or any flag that undoes them.
+set(stxlib_fp_options -ffp-contract=off -fno-fast-math -fno-math-errno)
+add_compile_options(${stxlib_fp_options})
 # The exact floating-point primitives' range checks (src/core/float_exact.hpp)
 # in Debug builds, for every target alike, so no build mixes checked and
 # unchecked copies of those inline functions.
@@ -366,11 +377,10 @@ endif()
 option(STXLIB_MATH_DISPATCH "Build the x86-64 v128 and avx2_fma math variants and select at run time"
     ${STXLIB_MATH_DISPATCH_DEFAULT})
 # The kernels' bit-identical results need floating-point contraction off.
-# It stays private to stxlib::algorithms: consumers keep fused arithmetic.
-# -fno-fast-math turns math-errno back on for GNU and MinGW targets, which
-# leaves a C library call (to set errno) behind std::sqrt; the kernels never
-# read errno, hence -fno-math-errno after it.
-set(stxlib_math_options -ffp-contract=off -fno-fast-math -fno-math-errno)
+# Every target here has it (stxlib_fp_options above); the math targets name
+# it again so that a change to the directory option cannot reach them
+# unnoticed.
+set(stxlib_math_options ${stxlib_fp_options})
 
 set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
@@ -507,6 +517,32 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_${sequence_test}_tests COMMAND stxlib_${sequence_test}_tests)
         set_tests_properties(stxlib_${sequence_test}_tests PROPERTIES TIMEOUT 1200)
     endforeach()
+    # The fixed-order reductions (src/core/float_reduce.hpp, F5 = 1): the
+    # shape by hand and against a restatement, and the pool forms against
+    # the serial chunked forms at 1, 2, 3 and 8 threads.
+    add_executable(stxlib_float_reduce_tests tests/float_reduce_tests.cpp)
+    target_link_libraries(stxlib_float_reduce_tests PRIVATE stxlib::boundary)
+    target_include_directories(stxlib_float_reduce_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_float_reduce_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_float_reduce_tests COMMAND stxlib_float_reduce_tests)
+    set_tests_properties(stxlib_float_reduce_tests PROPERTIES TIMEOUT 600)
+
+    # The cross-host bit identity (tests/bit_identity.cpp): every module with
+    # promised floating-point results hashes its outputs over fixed inputs.
+    # The Dekker build compiles its own math kernels with the no-FMA product
+    # (as stxlib_math_dekker_tests does) and float_exact's Dekker form, and
+    # must print the same lines. Run through tools/compare_bit_identity.py
+    # against tests/bit_identity_expected.txt below.
+    add_executable(stxlib_bit_identity tests/bit_identity.cpp)
+    add_executable(stxlib_bit_identity_dekker tests/bit_identity.cpp ${STXLIB_MATH_SOURCES})
+    target_compile_definitions(stxlib_bit_identity_dekker PRIVATE
+        STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native STXLIB_FLOAT_EXACT_DEKKER)
+    foreach(identity IN ITEMS stxlib_bit_identity stxlib_bit_identity_dekker)
+        target_link_libraries(${identity} PRIVATE stxlib::algorithms)
+        target_include_directories(${identity} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(${identity} PRIVATE ${stxlib_test_warnings} ${stxlib_math_options})
+    endforeach()
+
     # The exact floating-point primitives (src/core/float_exact.hpp) against
     # an exact integer reference, with the range checks on; `--exhaustive`
     # by hand (every float for the split, a binade against partners for the
@@ -673,6 +709,21 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_public_headers
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_public_headers.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # The cross-host bit identity: each run must print the frozen lines
+        # (unfrozen items are reported, not failed, until the first freeze).
+        set(stxlib_bit_identity_compare ${Python3_EXECUTABLE} -I
+            ${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_bit_identity.py
+            --expected ${CMAKE_CURRENT_SOURCE_DIR}/tests/bit_identity_expected.txt --run)
+        add_test(NAME stxlib_bit_identity COMMAND ${stxlib_bit_identity_compare} $<TARGET_FILE:stxlib_bit_identity>)
+        add_test(NAME stxlib_bit_identity_dekker
+            COMMAND ${stxlib_bit_identity_compare} $<TARGET_FILE:stxlib_bit_identity_dekker>)
+        if(STXLIB_MATH_DISPATCH)
+            foreach(level IN ITEMS scalar vector128 avx2_fma)
+                add_test(NAME stxlib_bit_identity_${level}
+                    COMMAND ${stxlib_bit_identity_compare} $<TARGET_FILE:stxlib_bit_identity>)
+                set_tests_properties(stxlib_bit_identity_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+            endforeach()
+        endif()
         # The compiled zones (D12 a): the tables' reading agrees with the
         # tzdata source's full expansion at every change point, for every
         # name (tools/tzvectors.py; proofs/REPORT.md, batch 3b).
@@ -682,3 +733,55 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/zones/zone_data.inc)
     endif()
 endif()
+
+# ---- the floating-point flag check ---------------------------------------------
+# Rule 1 of the floating-point discipline, checked at configure time:
+# -ffp-contract has no predefined macro, so this is the one guard against
+# contraction (core/float_discipline.hpp stops a fast-math build itself).
+# Every target defined in this file must carry -ffp-contract=off, and no
+# target's options and no global flags may hold a flag that undoes the
+# discipline (contraction, reassociation, fast-math, or a flush of
+# subnormals, which STXlib does in software).
+function(stxlib_check_float_flags)
+    set(forbidden -ffast-math -Ofast -funsafe-math-optimizations -fassociative-math -freciprocal-math
+        -ffinite-math-only -fno-signed-zeros -ffp-contract=fast -ffp-contract=on
+        -ffp-contract=fast-honor-pragmas -ffp-model=fast -ffp-model=aggressive -fdenormal-fp-math
+        -fdenormal-fp-math-f32 -mdaz-ftz -fcx-limited-range)
+    set(global_flags "${CMAKE_C_FLAGS} ${CMAKE_CXX_FLAGS}")
+    foreach(config IN ITEMS DEBUG RELEASE RELWITHDEBINFO MINSIZEREL)
+        string(APPEND global_flags " ${CMAKE_C_FLAGS_${config}} ${CMAKE_CXX_FLAGS_${config}}")
+    endforeach()
+    separate_arguments(global_list UNIX_COMMAND "${global_flags}")
+    foreach(flag IN LISTS global_list)
+        foreach(bad IN LISTS forbidden)
+            if(flag STREQUAL bad OR flag MATCHES "^${bad}=")
+                message(FATAL_ERROR "STXlib floating-point discipline: the global flags hold ${flag} (rule 1)")
+            endif()
+        endforeach()
+    endforeach()
+    get_property(targets DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+    set(checked 0)
+    foreach(target IN LISTS targets)
+        get_target_property(type ${target} TYPE)
+        if(type STREQUAL "INTERFACE_LIBRARY" OR type STREQUAL "UTILITY")
+            continue()
+        endif()
+        get_target_property(options ${target} COMPILE_OPTIONS)
+        if(NOT options)
+            set(options "")
+        endif()
+        if(NOT "-ffp-contract=off" IN_LIST options)
+            message(FATAL_ERROR "STXlib floating-point discipline: ${target} lacks -ffp-contract=off (rule 1)")
+        endif()
+        foreach(flag IN LISTS options)
+            foreach(bad IN LISTS forbidden)
+                if(flag STREQUAL bad OR flag MATCHES "^${bad}=")
+                    message(FATAL_ERROR "STXlib floating-point discipline: ${target} has ${flag} (rule 1)")
+                endif()
+            endforeach()
+        endforeach()
+        math(EXPR checked "${checked} + 1")
+    endforeach()
+    message(STATUS "STXlib floating-point flags: ${checked} targets checked")
+endfunction()
+stxlib_check_float_flags()

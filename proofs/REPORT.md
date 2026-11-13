@@ -153,6 +153,15 @@ evidence, not proof.
 | `orient2d`, `incircle` | the exact sign, in float and double | sampled against the exact reference, with exactly collinear and cocircular inputs (scaled to the range bounds) nudged by one ulp, not proved. The filters are Shewchuk's stage-A bounds, plus an absolute slack for incircle's underflowing products, argued in the header | `tests/float_exact_tests.cpp` (`predicates`) |
 | `src/algorithms/math/kernel_support.hpp` | the math's bits are unchanged by the move | the frozen hashes of `tests/math_tests.cpp` at every level and in the Dekker build (to run) | `tests/math_tests.cpp` |
 
+## Batch reduction order (src/core/float_reduce.hpp, the bit identity, the flag check)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/float_reduce.hpp` (shape) | ordered_sum and ordered_dot compute F5's shape: 8 lanes, the fixed tree, the tail in index order, no added zero | tested, not proved: hand-worked cases on which sequential order, another grouping, or a tail in lane 0 give different bits; every length 0..300 against a restatement (sampled terms); signed zeros | `tests/float_reduce_tests.cpp` (`shape_by_hand`, `shape_against_reference`, `signed_zeros`) |
+| `src/core/float_reduce.hpp` (pool) | the pool forms give the serial chunked bits at every thread count | tested at 1, 2, 3 and 8 threads, for batches on the calling thread and on the workers (601 chunks), not proved. The argument: each chunk's value depends only on its terms, and the combine runs on the caller in chunk order after run returns | `tests/float_reduce_tests.cpp` (`chunks`, `pool`) |
+| `tests/bit_identity.cpp` | every host, SIMD level and product form prints the frozen hash per item (math, float_exact, reductions, numeric text, random) | **not frozen yet**: the lines are frozen from the integrator's first M4 run; until then CI prints each host's lines and unfrozen items are warnings. Once frozen, a match is evidence over the fixed inputs only (sampled), not a proof of identity on all inputs | `tools/compare_bit_identity.py`, `tests/bit_identity_expected.txt`, `.github/workflows/ci.yml` |
+| `CMakeLists.txt` (rule 1) | every target defined there has `-ffp-contract=off`, and no target option or global flag undoes the discipline | checked at configure time over every target (`stxlib_check_float_flags`); not yet configured | `CMakeLists.txt` |
+
 ## stxlib::algorithms, batch 3c6 (stx_btree's sequence tree, RowHeightIndex)
 
 | Module | Property | Status | Evidence |

@@ -421,6 +421,20 @@ forms, so the math's bits are unchanged. `src/core/float_discipline.hpp`
 (the compile-time guards for rules 1 and 5) and
 `proofs/esbmc/float_exact_float.cpp` are new.
 
+### Batch reduction order: fixed-order reductions and the bit identity (STXlib's own)
+
+Owner decisions F1 = 1 and F5 = 1 (2026-11-13). New and STXlib's own:
+`src/core/float_reduce.hpp` (the F5 shape, the fixed 4096-term chunks, the
+pool forms), `tests/float_reduce_tests.cpp`, `tests/bit_identity.cpp`,
+`tests/bit_identity_expected.txt` (every item unfrozen) and
+`tools/compare_bit_identity.py`. Changed: `include/stxlib/thread_pool.hpp`
+(the reduction rule in the contract), `CMakeLists.txt` (the floating-point
+options on every target, the configure-time flag check, the new tests),
+`.github/workflows/ci.yml` (each job prints its bit-identity lines). No
+code is copied from anywhere; no STXlib result changes (the math, text and
+random code is untouched; the new options were already on every target
+that computes in floating point).
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

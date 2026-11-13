@@ -18,6 +18,12 @@
 #   MSYS2's current clang, prints the version, and warns when it is not
 #   22.1.8.
 # Every job prints the compiler version before it builds.
+# Cross-host bit identity (planning/stages/A1-float-discipline.md, section
+# 3): each job's ctest runs stxlib_bit_identity at every SIMD level and in
+# the Dekker build against tests/bit_identity_expected.txt, so a host whose
+# floating-point results differ from the frozen lines fails. The M4 covers
+# macOS arm64 and freezes the lines; until then the step below prints each
+# host's lines for comparison, and unfrozen items are warnings.
 # Actions: actions/checkout v7 (v7.0.1, 2026-07-20) and actions/cache v6
 # (v6.1.0, 2026-06-26), both on node24 (their action.yml), replacing v4 on
 # the deprecated Node 20.
@@ -79,6 +85,9 @@ jobs:
             -DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_EXE_LINKER_FLAGS=-stdlib=libc++ -DCMAKE_SHARED_LINKER_FLAGS=-stdlib=libc++
           cmake --build build-debug --parallel 4
           ctest --test-dir build-debug --output-on-failure --parallel 3 --timeout 1800
+      - name: Bit identity (this host's lines)
+        if: always()
+        run: ctest --test-dir build-debug -R '^stxlib_bit_identity' -V --timeout 600
       - name: ASan+UBSan
         run: |
           flags="-stdlib=libc++ -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g"
@@ -145,6 +154,9 @@ jobs:
             -DCMAKE_CXX_FLAGS=-stdlib=libc++ "-DCMAKE_EXE_LINKER_FLAGS=$LINK" "-DCMAKE_SHARED_LINKER_FLAGS=$LINK"
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
+      - name: Bit identity (this host's lines)
+        if: always()
+        run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Debug
         run: |
           cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug \
@@ -206,6 +218,9 @@ jobs:
             -DCMAKE_EXE_LINKER_FLAGS=-static -DCMAKE_SHARED_LINKER_FLAGS=-static
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
+      - name: Bit identity (this host's lines)
+        if: always()
+        run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
