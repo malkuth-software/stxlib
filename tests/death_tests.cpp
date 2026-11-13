@@ -10,6 +10,10 @@
 //   reporter               an installed reporter is called instead
 //   double_release         a second release of one block is refused
 //   foreign_release        release of a block not from allocate is refused
+//   foreign_release_page   the same for an address at the start of a page
+//                          whose preceding page is inaccessible, so a check
+//                          that read below the address would fault (the CI
+//                          TSan failure, 2026-11-13)
 //   view_index             an out-of-range index is a failed requirement
 //   take_failed_value      take_value on a failure is a failed requirement
 //   callback_frames        the fail-fast report of a callback that throws
@@ -34,6 +38,19 @@
 #include <cstring>
 #include <new>
 #include <stdexcept>
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/mman.h>
+#include <unistd.h>
+#endif
 
 #if defined(__SANITIZE_THREAD__)
 #define STXLIB_TESTS_UNDER_TSAN 1
@@ -102,6 +119,40 @@ int foreign_release() {
     void* const block = std::malloc(64);
     if (block == nullptr) return 2;
     stxlib::memory::release(block);
+    std::puts("survived");
+    return 0;
+}
+
+// Two pages, the first made inaccessible; the second's first byte.
+unsigned char* page_after_guard() {
+#if defined(_WIN32)
+    SYSTEM_INFO information{};
+    GetSystemInfo(&information);
+    const std::size_t page = information.dwPageSize;
+    void* const pages = VirtualAlloc(nullptr, 2 * page, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    if (pages == nullptr) return nullptr;
+    DWORD previous = 0;
+    if (!VirtualProtect(pages, page, PAGE_NOACCESS, &previous)) return nullptr;
+#else
+    const long reported = sysconf(_SC_PAGESIZE);
+    if (reported <= 0) return nullptr;
+    const std::size_t page = static_cast<std::size_t>(reported);
+    void* const pages = mmap(nullptr, 2 * page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (pages == MAP_FAILED) return nullptr;
+    if (mprotect(pages, page, PROT_NONE) != 0) return nullptr;
+#endif
+    unsigned char* const result = static_cast<unsigned char*>(pages) + page;
+    return result;
+}
+
+int foreign_release_page() {
+    if (!stxlib::memory::tags_checked()) {
+        std::puts("skipped");
+        return 0;
+    }
+    unsigned char* const address = page_after_guard();
+    if (address == nullptr) return 2;
+    stxlib::memory::release(address);
     std::puts("survived");
     return 0;
 }
@@ -195,6 +246,7 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "reporter") == 0) return reporter();
     if (std::strcmp(name, "double_release") == 0) return double_release();
     if (std::strcmp(name, "foreign_release") == 0) return foreign_release();
+    if (std::strcmp(name, "foreign_release_page") == 0) return foreign_release_page();
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
     if (std::strcmp(name, "callback_frames") == 0) return callback_frames();

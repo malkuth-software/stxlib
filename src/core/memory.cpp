@@ -12,12 +12,36 @@
 // power of two, at least 16 and at least the alignment, so the address keeps
 // the requested alignment). tag is the address XOR a per-image value whose
 // low four bits are set, so a tag never equals an aligned address. release
-// checks the tag, clears it and releases the backend block, so the release
-// of a block from anywhere else, or a second release, finds no tag and ends
-// the process with a report instead of corrupting a heap. A foreign free of
-// a tagged block hands that allocator an address none of its allocations
-// starts at.
+// looks the address up in this image's registry of live blocks first (below),
+// and only for a registered address reads the header, checks the tag, clears
+// it and releases the backend block. The release of a block from anywhere
+// else, or a second release, is not in the registry and ends the process with
+// a report, having read no byte of the block or of the memory around it. A
+// foreign free of a tagged block hands that allocator an address none of its
+// allocations starts at.
 //
+// The registry (change from stx_auxlib, whose check read the tag of any
+// address it was given): reading the 16 bytes below a foreign address is not
+// safe on every backend. An allocator may place a block at the very start of
+// a mapping, so the header's bytes are unmapped and the read faults before
+// any check runs: ThreadSanitizer's allocator does (CI, linux-glibc TSan,
+// stxlib_death_foreign_release: "SEGV on unknown address 0x720ffffffff8" for
+// a block at 0x721000000000), and nothing in the C standard or POSIX rules it
+// out for malloc. So release touches only memory it knows to be its own: the
+// registry, then, for a registered address, the header allocate_tagged wrote
+// inside the backend block it was given. The tag stays as a second check
+// against a header overwritten in place.
+//
+// The registry is an open-addressing hash set of addresses (linear probing,
+// tombstones, power-of-two capacity, at most three quarters full counting
+// tombstones), in a block from the host's C library, under one spin lock. It
+// is per image, like the tag value, because the ownership rule it checks is
+// per image. It grows by rehashing into a block twice the size; if that block
+// cannot be had, the allocation fails (allocate returns null) rather than
+// handing out a block release could not recognise. Its storage lives as long
+// as the process. Cost: one lock and one probe sequence per allocate and per
+// release, in the tag-checking builds only (Debug and sanitizers).
+
 // The per-image value differs between images, because each image linking
 // STXlib has its own copy of the static it is derived from: a block
 // released in an image other than the one that allocated it fails the tag
@@ -39,20 +63,14 @@
 
 #include "core/checked.hpp"
 #include "core/report.hpp"
+#include "core/spin_lock.hpp"
 #include "hosted/host.hpp"
+#include "state/state.hpp"
 
 #include <cstdint>
 #include <cstring>
 #include <limits>
 
-#if defined(STXLIB_ALLOCATION_TAGS)
-#if defined(__SANITIZE_ADDRESS__)
-#define STXLIB_TAGS_UNDER_ASAN 1
-#elif defined(__has_feature)
-#if __has_feature(address_sanitizer)
-#define STXLIB_TAGS_UNDER_ASAN 1
-#endif
-#endif
 #if defined(STXLIB_TAGS_UNDER_ASAN)
 #include <sanitizer/asan_interface.h>
 #endif
@@ -116,6 +134,93 @@ u64 tag_for(const unsigned char* const address) noexcept {
     return result;
 }
 
+// ---- the registry of live blocks ---------------------------------------------
+
+constexpr uptr empty_slot = 0;
+constexpr uptr removed_slot = 1; // addresses are 16-aligned, so never 0 or 1
+constexpr usize first_capacity = 1024;
+
+struct Registry final {
+    state::SpinLock lock{};
+    uptr* slots{nullptr};
+    usize capacity{0}; // 0 or a power of two
+    usize live{0};
+    usize removed{0};
+};
+
+// Constant-initialised, so it is ready before any static constructor runs.
+constinit Registry registry{};
+
+usize home_slot(const uptr address, const usize capacity) noexcept {
+    const usize result = static_cast<usize>(mix(static_cast<u64>(address))) & (capacity - 1);
+    return result;
+}
+
+// Inserts into `slots` (capacity a power of two, at least one empty slot).
+void place(uptr* const slots, const usize capacity, const uptr address) noexcept {
+    usize index = home_slot(address, capacity);
+    while (slots[index] != empty_slot && slots[index] != removed_slot) index = (index + 1) & (capacity - 1);
+    slots[index] = address;
+}
+
+// Makes room for one more address. Holds registry.lock.
+bool make_room() noexcept {
+    const usize used = registry.live + registry.removed + 1;
+    if (registry.capacity != 0 && used <= registry.capacity / 4 * 3) return true;
+    usize capacity = registry.capacity == 0 ? first_capacity : registry.capacity;
+    // Grow when live addresses alone would pass half; otherwise rehashing at
+    // the same size clears the tombstones.
+    if (registry.live + 1 > capacity / 2) {
+        if (capacity > std::numeric_limits<usize>::max() / 2 / sizeof(uptr)) return false;
+        capacity = capacity * 2;
+    }
+    void* const block = host::allocate_block(capacity * sizeof(uptr), alignof(uptr));
+    if (block == nullptr) return false;
+    uptr* const slots = static_cast<uptr*>(block);
+    std::memset(slots, 0, capacity * sizeof(uptr));
+    for (usize index = 0; index < registry.capacity; ++index) {
+        const uptr address = registry.slots[index];
+        if (address != empty_slot && address != removed_slot) place(slots, capacity, address);
+    }
+    host::release_block(registry.slots);
+    registry.slots = slots;
+    registry.capacity = capacity;
+    registry.removed = 0;
+    return true;
+}
+
+bool register_block(const unsigned char* const address) noexcept {
+    const spin::Guard lock(registry.lock);
+    if (!make_room()) return false;
+    place(registry.slots, registry.capacity, reinterpret_cast<uptr>(address));
+    registry.live = registry.live + 1;
+    return true;
+}
+
+// Removes `address`; false when it is not registered. Reads registry storage
+// only.
+bool unregister_block(const unsigned char* const address) noexcept {
+    const uptr wanted = reinterpret_cast<uptr>(address);
+    if (wanted == empty_slot || wanted == removed_slot) return false;
+    const spin::Guard lock(registry.lock);
+    if (registry.capacity == 0) return false;
+    usize index = home_slot(wanted, registry.capacity);
+    // At most capacity probes; make_room keeps an empty slot, so the loop
+    // ends at one before that.
+    for (usize probes = 0; probes < registry.capacity; ++probes) {
+        const uptr found = registry.slots[index];
+        if (found == empty_slot) return false;
+        if (found == wanted) {
+            registry.slots[index] = removed_slot;
+            registry.live = registry.live - 1;
+            registry.removed = registry.removed + 1;
+            return true;
+        }
+        index = (index + 1) & (registry.capacity - 1);
+    }
+    return false;
+}
+
 [[noreturn]] void reject_release() noexcept {
     report::text("stxlib: requirement failed: stxlib::memory::release: the block is not from memory::allocate "
                  "in this image, or was already released\n");
@@ -132,17 +237,17 @@ void* allocate_tagged(const usize size, const usize alignment) noexcept {
     const u64 tag = tag_for(address);
     std::memcpy(address - offset_slot, &offset_value, sizeof(offset_value));
     std::memcpy(address - tag_slot, &tag, sizeof(tag));
+    if (!register_block(address)) {
+        host::release_block(block);
+        return nullptr;
+    }
     return address;
 }
 
 void release_tagged(void* const block) noexcept {
     unsigned char* const address = static_cast<unsigned char*>(block);
-#if defined(STXLIB_TAGS_UNDER_ASAN)
-    // The header of a foreign block is its allocator's red zone, and the
-    // header of a released block is quarantined: both are poisoned, and
-    // reading them would end in the sanitizer's report instead of ours.
-    if (__asan_region_is_poisoned(address - header_bytes, header_bytes) != nullptr) reject_release();
-#endif
+    // Nothing of the block or around it is read unless it is ours.
+    if (!unregister_block(address)) reject_release();
     u64 tag = 0;
     std::memcpy(&tag, address - tag_slot, sizeof(tag));
     if (tag != tag_for(address)) reject_release();

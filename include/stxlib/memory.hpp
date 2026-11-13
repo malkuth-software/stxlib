@@ -23,7 +23,10 @@
 // sanitizer builds): release ends the process with a report when given a
 // block that is not from allocate in this image or was already released,
 // and a foreign free of a block from allocate is handed an address no
-// allocation starts at. tags_checked() says whether this build checks.
+// allocation starts at. Release recognises its blocks through a registry of
+// the image's live blocks before it reads any byte of them, so a foreign
+// address is refused without touching the memory at or around it
+// (src/core/memory.cpp). tags_checked() says whether this build checks.
 //
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.
