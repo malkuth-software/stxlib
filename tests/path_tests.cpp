@@ -147,12 +147,20 @@ void queries() {
     const Path drive = parse_or_empty("e:/");
     CHECK(drive.is_root() && drive.drive() == 'E');
     CHECK(parent_text(parse_or_empty("E:/a")) == "E:/");
-    CHECK(parse_or_empty(".profile").extension().empty());
-    CHECK(parse_or_empty("a.").extension() == TextView("."));
-    CHECK(parse_or_empty("noext").extension().empty());
-    CHECK(parse_or_empty("..x").extension() == TextView(".x"));
-    CHECK(parse_or_empty(".").file_name().empty());
-    CHECK(parse_or_empty("../..").file_name().empty());
+    // Named paths: file_name() and extension() of a temporary are deleted
+    // (the views would outlive it).
+    const Path dot_profile = parse_or_empty(".profile");
+    CHECK(dot_profile.extension().empty());
+    const Path trailing_dot = parse_or_empty("a.");
+    CHECK(trailing_dot.extension() == TextView("."));
+    const Path no_extension = parse_or_empty("noext");
+    CHECK(no_extension.extension().empty());
+    const Path dot_dot_x = parse_or_empty("..x");
+    CHECK(dot_dot_x.extension() == TextView(".x"));
+    const Path current = parse_or_empty(".");
+    CHECK(current.file_name().empty());
+    const Path up_two = parse_or_empty("../..");
+    CHECK(up_two.file_name().empty());
     CHECK(parent_text(parse_or_empty(".")) == "..");
     CHECK(parent_text(parse_or_empty("..")) == "../..");
     CHECK(parent_text(parse_or_empty("a")) == ".");
