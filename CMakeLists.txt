@@ -29,7 +29,10 @@ find_package(Threads REQUIRED)
 
 # ---- host family ------------------------------------------------------------
 # One family per build (README: macOS, glibc, musl and Windows in phase I;
-# FreeBSD in phase II). Linux is glibc or musl by the C library's own macro.
+# FreeBSD 15.2 joins with A1 platform-rest). Linux is glibc or musl by the C
+# library's own macro. FreeBSD is named by CMAKE_SYSTEM_NAME, which CMake
+# sets on a FreeBSD host and a cross toolchain file sets for a cross-build
+# (the integrator's aarch64-freebsd.cmake).
 include(CheckCXXSourceCompiles)
 if(WIN32)
     set(STXLIB_HOST_FAMILY windows)
@@ -47,8 +50,10 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     else()
         set(STXLIB_HOST_FAMILY musl)
     endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(STXLIB_HOST_FAMILY freebsd)
 else()
-    message(FATAL_ERROR "STXlib phase I supports macOS, Linux (glibc, musl) and Windows; ${CMAKE_SYSTEM_NAME} is not one")
+    message(FATAL_ERROR "STXlib supports macOS, Linux (glibc, musl), FreeBSD and Windows; ${CMAKE_SYSTEM_NAME} is not one")
 endif()
 message(STATUS "STXlib host family: ${STXLIB_HOST_FAMILY}")
 
@@ -247,13 +252,18 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/exception_shadow.cpp
     src/core/fail_fast.cpp
     src/core/files.cpp
+    src/core/images.cpp
+    src/core/known_directories.cpp
+    src/core/library.cpp
     src/core/local_time.cpp
     src/core/memory.cpp
     src/core/path.cpp
     src/core/process.cpp
+    src/core/process_info.cpp
     src/core/report.cpp
     src/core/require.cpp
     src/core/shadow_frames.cpp
+    src/core/stack_trace.cpp
     src/core/text.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
@@ -263,9 +273,11 @@ set(STXLIB_BOUNDARY_SOURCES
     src/hosted/cxx_runtime/clocks.cpp
     src/hosted/cxx_runtime/current_exception.cpp)
 
-# Interface modules per family. POSIX services shared by macOS, glibc and
-# musl live in src/hosted/posix/; a family directory joins when a service
-# differs (the stx_auxlib hosted port).
+# Interface modules per family. POSIX services shared by macOS, glibc, musl
+# and FreeBSD live in src/hosted/posix/, with small host differences as
+# #elif branches; a service that differs whole has a family directory
+# (src/hosted/host.hpp): macos/, linux/ (glibc and musl), freebsd/, and
+# elf/ (glibc, musl and FreeBSD).
 set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/children_posix.cpp
     src/hosted/posix/clocks_posix.cpp
@@ -275,10 +287,23 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/environment_posix.cpp
     src/hosted/posix/events_posix.cpp
     src/hosted/posix/file_posix.cpp
+    src/hosted/posix/home_posix.cpp
+    src/hosted/posix/library_posix.cpp
     src/hosted/posix/local_time_posix.cpp
+    src/hosted/posix/pages_posix.cpp
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp
-    src/hosted/posix/trace_posix.cpp)
+    src/hosted/posix/trace_posix.cpp
+    src/hosted/posix/wake_posix.cpp)
+set(STXLIB_HOSTED_MACOS_SOURCES
+    src/hosted/macos/image_regions_macos.cpp
+    src/hosted/macos/process_macos.cpp)
+set(STXLIB_HOSTED_LINUX_SOURCES
+    src/hosted/elf/image_regions_elf.cpp
+    src/hosted/linux/process_linux.cpp)
+set(STXLIB_HOSTED_FREEBSD_SOURCES
+    src/hosted/elf/image_regions_elf.cpp
+    src/hosted/freebsd/process_freebsd.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/children_windows.cpp
     src/hosted/windows/clocks_windows.cpp
@@ -288,15 +313,24 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/environment_windows.cpp
     src/hosted/windows/events_windows.cpp
     src/hosted/windows/file_windows.cpp
+    src/hosted/windows/images_windows.cpp
+    src/hosted/windows/known_folders_windows.cpp
     src/hosted/windows/local_time_windows.cpp
+    src/hosted/windows/pages_windows.cpp
+    src/hosted/windows/process_windows.cpp
     src/hosted/windows/terminal_windows.cpp
     src/hosted/windows/threads_windows.cpp
     src/hosted/windows/trace_windows.cpp
-    src/hosted/windows/utf16.cpp)
+    src/hosted/windows/utf16.cpp
+    src/hosted/windows/wake_windows.cpp)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_WINDOWS_SOURCES})
+elseif(STXLIB_HOST_FAMILY STREQUAL "macos")
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_MACOS_SOURCES})
+elseif(STXLIB_HOST_FAMILY STREQUAL "freebsd")
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_FREEBSD_SOURCES})
 else()
-    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES})
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_LINUX_SOURCES})
 endif()
 
 add_library(stxlib_boundary STATIC ${STXLIB_BOUNDARY_SOURCES})
@@ -337,8 +371,20 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # libmincore.a (crt Makefile.am: mincore.mri), so mincore is linked, after
     # kernel32 so that kernel32 still provides every function it exports and
     # mincore only these two.
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 kernel32 mincore)
+    # SHGetKnownFolderPath (known_folders_windows.cpp) is shell32's;
+    # CoTaskMemFree, which frees its result, is ole32's. K32EnumProcessModules,
+    # K32GetModuleInformation and K32GetProcessMemoryInfo (images_windows.cpp,
+    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's.
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore)
+elseif(STXLIB_HOST_FAMILY STREQUAL "glibc")
+    # dlopen, dlsym, dladdr and dl_iterate_phdr (library_posix.cpp,
+    # image_regions_elf.cpp): libc itself from glibc 2.34; CMAKE_DL_LIBS
+    # names libdl for older glibc and is empty where none is needed.
+    target_link_libraries(stxlib_boundary PUBLIC ${CMAKE_DL_LIBS})
 endif()
+# musl and FreeBSD carry the dl* functions in libc (FreeBSD: lib/libc/gen/
+# dlfcn.c:65-149 at fb9033d2876d, the stubs rtld-elf replaces), and macOS in
+# libSystem, so nothing more is linked there.
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
     # 2.3): a shared libc++ DLL binds its own operator new and delete.
@@ -464,12 +510,24 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time)
+    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time
+                                images pages_wake)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+
+    # The process's own arguments, compared with argv: the test is started
+    # with spaces, quotes, a trailing backslash, an empty argument and one
+    # that is not ASCII; the test starts itself again as a child with an
+    # argument that is not UTF-8 (POSIX) or holds a lone surrogate (Windows)
+    # (tests/process_tests.cpp).
+    add_executable(stxlib_process_tests tests/process_tests.cpp)
+    target_link_libraries(stxlib_process_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_process_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_process_tests
+        COMMAND stxlib_process_tests "plain" "two words" "" "quote\"inside" "trailing\\" "café")
 
     if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
@@ -718,6 +776,26 @@ if(STXLIB_TESTS)
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
     endforeach()
 
+    # Sealed pages, one process each (tests/platform_rest_death_tests.cpp).
+    add_executable(stxlib_platform_rest_death_tests tests/platform_rest_death_tests.cpp)
+    target_link_libraries(stxlib_platform_rest_death_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_platform_rest_death_tests PRIVATE ${stxlib_test_warnings})
+    set(stxlib_platform_rest_death_cases
+        "sealed_writable|stxlib: requirement failed: PageBlock::writable: the pages are sealed"
+        "sealed_store|ANY")
+    foreach(death_case IN LISTS stxlib_platform_rest_death_cases)
+        string(FIND "${death_case}" "|" separator)
+        string(SUBSTRING "${death_case}" 0 ${separator} case_name)
+        math(EXPR expect_start "${separator} + 1")
+        string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
+        add_test(NAME stxlib_platform_rest_death_${case_name}
+            COMMAND ${CMAKE_COMMAND}
+                -DPROGRAM=$<TARGET_FILE:stxlib_platform_rest_death_tests>
+                -DCASE=${case_name}
+                "-DEXPECT=${case_expect}"
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
+    endforeach()
+
     # The console and exit tasks, seen from outside the process.
     add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
     target_link_libraries(stxlib_console_process_tests PRIVATE stxlib::boundary)
@@ -761,6 +839,17 @@ if(STXLIB_TESTS)
     target_compile_options(stxlib_path_names_exhaustive PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_path_names_exhaustive COMMAND stxlib_path_names_exhaustive)
     set_tests_properties(stxlib_path_names_exhaustive PROPERTIES TIMEOUT 1200)
+
+    # Proof harness: the platform layer's pure cores (A1 platform-rest):
+    # Windows command-line splitting and quoting, the stack line's bounds and
+    # the PE reader on damaged headers, exhaustive over the domains
+    # tests/platform_rest_exhaustive.cpp states (proofs/REPORT.md).
+    add_executable(stxlib_platform_rest_exhaustive tests/platform_rest_exhaustive.cpp)
+    target_link_libraries(stxlib_platform_rest_exhaustive PRIVATE stxlib::boundary)
+    target_include_directories(stxlib_platform_rest_exhaustive PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_platform_rest_exhaustive PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_platform_rest_exhaustive COMMAND stxlib_platform_rest_exhaustive)
+    set_tests_properties(stxlib_platform_rest_exhaustive PROPERTIES TIMEOUT 1200)
 
     # The public-header boundary (AGENTS.md): no std:: name, no angle include.
     find_package(Python3 COMPONENTS Interpreter)
