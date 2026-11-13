@@ -404,9 +404,12 @@ struct Counter final {
     }
 };
 
+// Sums modulo 2^64: counters() sums counts, which cannot wrap, but
+// batch_writers_and_readers() sums KeyedValue::of(key), values spread over
+// all 64 bits, and only walks for_each_mut with it (the sum is not checked).
 struct SumValues final {
     std::uint64_t* total = nullptr;
-    void operator()(const std::uint64_t&, std::uint64_t& value) const noexcept {
+    STXLIB_MODULAR void operator()(const std::uint64_t&, std::uint64_t& value) const noexcept {
         *total += value;
     }
 };
