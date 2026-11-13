@@ -468,11 +468,13 @@ if(STXLIB_TESTS)
     endforeach()
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
-    # (__chrono/year_month_day.h, LLVM 22.1.8: -9 converted to unsigned). The
-    # sign-change check is off for the test's translation unit only;
-    # calendar.cpp in the library keeps every integer check.
+    # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
+    # then 10 + 4294967287 wrapping to 1). The sign-change and unsigned-wrap
+    # checks are off for the test's translation unit only; calendar.cpp in
+    # the library keeps every integer check.
     if(STXLIB_INTEGER_CHECKS)
-        target_compile_options(stxlib_calendar_tests PRIVATE -fno-sanitize=implicit-integer-sign-change)
+        target_compile_options(stxlib_calendar_tests PRIVATE
+            -fno-sanitize=implicit-integer-sign-change,unsigned-integer-overflow)
     endif()
 
     # math_tests checks frozen output hashes, so a flag that changes any bit
