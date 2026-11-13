@@ -1,0 +1,76 @@
+# stx_boundary guardrails
+
+`stx_boundary` (working name, owner decision D1 open) is the interfacing
+library between GUI.Forms and everything outside it. It is not a standard
+library. Every interface it touches is treated as foreign: the host C
+library, the host C++ library, the operating system, the kernel, and the
+client program on the other side of GUI.Forms. It protects GUI.Forms from
+those interfaces, and protects the client from us.
+
+Plans, decisions, surveys and evidence are not kept here. They live on the
+`stx_boundary` branch of `malkuth-software/notes`, under `planning/`. Read
+`planning/FORWARD_PROGRAMME.md` there before starting work, and
+`planning/DECISION_SURVEY.md` for what the owner has and has not decided.
+Coordination state is in the private projects repository,
+`desks/stx_boundary/` and `tracks/stx_boundary/`.
+
+## Code style (mandatory)
+
+All first-party C++ follows the house style: `HOUSE_STYLE.md` on `main` of
+`malkuth-software/notes`. Read it in full before writing code. Its eleven
+sections apply here without exception, tests included. Two of them are this
+library's whole purpose:
+
+- **Section 1, memory:** every datum has an owner and a lifetime. Memory we
+  allocate is released only by us, and we never release foreign memory
+  (owner, 2026-11-02, the ownership-boundary model).
+- **Section 2, failure and foreign interfaces:** say what a failure leaves
+  behind; validate before mutating; explicit results for expected
+  alternatives; foreign interfaces state types, counts, ownership and errors,
+  and take entry-point types from their declarations.
+
+## Hard boundaries
+
+- C++20. No `std::` type, platform type or kernel type in a public header
+  under `include/stx_boundary/`. Public types have a layout we define.
+- Native unwinding never crosses a boundary in either direction. A failure
+  crosses as an error record we own (the status-review thread, 2026-11-13).
+- Interface modules live under `src/hosted/<family>/` and
+  `src/freestanding/<environment>/`. Nothing outside those directories
+  issues a system call, includes an operating-system header or names a
+  kernel object. The trust-chain checker enforces this on the compiled
+  output.
+- The freestanding runtime (`runtime/`) is linked only in freestanding
+  profiles. It never replaces the host's runtime in a hosted process: no
+  global `operator new`, `malloc` or symbol interposition is imposed on
+  foreign code.
+- Third-party code is pinned and hashed in `PROVENANCE.md`, updated only by
+  replacing it with another pinned, hashed release, never edited in place.
+  Every download is the owner's approval first: file, source and size.
+- This repository depends on nothing outside itself except its declared,
+  pinned dependencies. It may be built on its own.
+
+## Verification
+
+- Correctness is proved, not sampled (owner, 2026-11-02). Random runs,
+  fuzzing and sanitizers are evidence of likely defects only, and are
+  reported as such.
+- Each module in scope carries its proof harnesses and a proof report entry:
+  proved, assumed (with the assumption), or not yet proved. A claim of
+  "verified" names the tool, its version, the bound and the property.
+- Each replaced implementation keeps its reference (glibc, musl, UCRT,
+  libc++ or libstdc++ behaviour, cited at a pin) and a conformance or
+  equivalence check against it (house style section 8).
+- Sanitizer and integer-check builds still run on every change: they are
+  cheap and catch what a proof's assumptions missed.
+- Nothing may be more than twice as slow as its platform equivalent
+  (stx_auxlib's ceiling, owner 2026-10-31) unless the owner accepts the
+  ratio.
+
+## Work rules
+
+- Workers commit on local branches and never push. The integrator builds;
+  coders do not (projects `briefs/STX_BOUNDARY_BRIEF.md`).
+- No compiler runs on the Mac laptop (Neo). Builds go to the M4 through
+  `~/Developer/stx_boundary_workers/bin/m4sb`.
+- Preserve negative results. Report exact commands and environments.
