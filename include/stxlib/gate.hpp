@@ -95,6 +95,13 @@ struct SameType<Type, Type> final {
     static constexpr bool value = true;
 };
 
+// Names Type in a non-deduced context, so that a parameter pack is deduced
+// from one parameter only.
+template <typename Type>
+struct NonDeduced final {
+    using type = Type;
+};
+
 // Called only inside a catch handler. Classifies the current exception
 // (standard types; then foreign_exception), copies its what() text when it
 // is a standard exception, adds its type in a development build, keeps the
@@ -200,10 +207,12 @@ typename detail::TargetReturn<Target, Arguments...>::Type invoke_callback(const 
 }
 
 // Requirement: callback.bound(). The arguments are lvalues of the
-// callback's parameter types.
+// callback's parameter types; Arguments is deduced from the callback alone
+// (a reference parameter such as int& would otherwise conflict with the
+// int deduced from an lvalue argument).
 template <typename Return, typename... Arguments>
 Return invoke_callback_target(const Operation operation, const CallbackTarget<Return(Arguments...)>& callback,
-                              Arguments&... arguments) noexcept {
+                              typename detail::NonDeduced<Arguments>::type&... arguments) noexcept {
     STXLIB_REQUIRE(callback.bound(), "invoke_callback_target: unbound callback");
     detail::CallbackCall<Return, Arguments...> call{callback};
     if constexpr (detail::SameType<Return, void>::value) {
