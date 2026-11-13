@@ -312,8 +312,12 @@ set_target_properties(stxlib_boundary PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(stxlib_boundary PUBLIC stxlib_state Threads::Threads)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
-    # BCryptGenRandom (entropy_windows.cpp); ShellExecuteW (desktop_windows.cpp).
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32)
+    # BCryptGenRandom (entropy_windows.cpp); ShellExecuteW (desktop_windows.cpp);
+    # QueryInterruptTimePrecise and QueryUnbiasedInterruptTimePrecise
+    # (clocks_windows.cpp), which kernel32's import library does not carry:
+    # Microsoft documents them in api-ms-win-core-realtime-l1-1-1.dll, and
+    # mingw-w64 has that import library (lib-common's .def of that name).
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 api-ms-win-core-realtime-l1-1-1)
 endif()
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
