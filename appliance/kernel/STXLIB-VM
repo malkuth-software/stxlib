@@ -281,3 +281,6 @@ nooptions NFSCL,NFSD,NFSLOCKD,NFS_ROOT # no network file systems; root is local
 
 # --- Batch 2, round 5
 nooptions CD9660,PROCFS,PSEUDOFS,UFS_GJOURNAL,QUOTA,UFS_ACL,GEOM_RAID,MD_ROOT # file system features the appliance does not use
+
+# --- Batch 2, round 6
+nooptions VIMAGE,IPSEC_SUPPORT,IPSEC_OFFLOAD,SCTP_SUPPORT,KERN_TLS,TCP_OFFLOAD,TCP_BLACKBOX,TCP_HHOOK,TCP_RFC7413,ROUTE_MPATH,FIB_ALGO # network features beyond a plain IPv4 host
