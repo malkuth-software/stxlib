@@ -30,11 +30,14 @@ gpart add -t freebsd-ufs -s 4m -l stxbootctl "$disk" >/dev/null
 gpart add -t freebsd-ufs -s 64m -l stxroota "$disk" >/dev/null
 gpart add -t freebsd-ufs -s 64m -l stxrootb "$disk" >/dev/null
 gpart add -t ms-basic-data -l stxuser "$disk" >/dev/null
-newfs_msdos -F 32 -L STXESP "/dev/${disk}p1" >/dev/null
+# FAT32 with one sector per cluster, as the pinned installer formats its ESP
+# (usr.sbin/bsdinstall/scripts/zfsboot:219); the default 4 KiB clusters
+# leave a 64 MB partition below FAT32's 65525-cluster minimum.
+newfs_msdos -F 32 -c 1 -L STXESP "/dev/${disk}p1" >/dev/null
 newfs -L STXBOOTCTL "/dev/${disk}p2" >/dev/null
 newfs -L STXROOTA "/dev/${disk}p3" >/dev/null
 newfs -L STXROOTB "/dev/${disk}p4" >/dev/null
-newfs_msdos -F 32 -L STXUSER "/dev/${disk}p5" >/dev/null
+newfs_msdos -F 32 -c 1 -L STXUSER "/dev/${disk}p5" >/dev/null
 
 mnt=/tmp/stxmnt
 mkdir -p "$mnt/esp" "$mnt/bootctl" "$mnt/a" "$mnt/b" "$mnt/user"
