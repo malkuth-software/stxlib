@@ -155,6 +155,25 @@ Copied unchanged (the file's SHA-256 here equals the source's):
 | `tests/reference/random_reference.py` | `78764ba0feea222f7635e4aa72e51085f40bb87930af1da8b582cd30e08623b1` |
 | `tests/reference/precedence_reference.py` | `cfb5c9604f61e51409278d0476bb99acae09f20dda32ae9f77c2d312eeb7fb2e` |
 
+### Batch 3c2: numeric text and the calendar, from `b6e330a`
+
+As batch 3c. Numeric text writes into storage the caller supplies (house
+style section 6), whole or not at all, with the size needed reported
+(`text::Formatted`, `TextWriter`, `NumberText`) in place of appending to a
+std::string; the formats, digits and parse rules are unchanged. The
+calendar keeps stx_auxlib's arithmetic, validity rules and ISO 8601 forms
+over the boundary's CivilTime and `src/core/civil.hpp`; Result replaces
+std::optional and WallTime replaces WallClock::time_point.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `include/stxlib/numeric_text.hpp` | `include/stx_auxlib/text.hpp` | `5356cee096afb9642d733039274c328b0baac0da13af89a77836f66a84801bc8` |
+| `src/algorithms/numeric_text.cpp` | `src/text.cpp` | `01a107df5a7d2fd9726b041fad32ca2602a79d9e8d7f555e03000dc2090ae271` |
+| `tests/numeric_text_tests.cpp` | `tests/text_tests.cpp` (without `--bench`) | `97ca940476cc3e530e832c146e4ce68b54c775887df03f78da9549fea51e1743` |
+| `include/stxlib/calendar.hpp` | `include/stx_auxlib/calendar.hpp` (less CivilTime, LocalTime and local_time, which batch 2c moved to `local_time.hpp`) | `0c7d9e3535434b49407456503515390be55e976ecca7f261cafee0a341b13297` |
+| `src/algorithms/calendar.cpp` | `src/calendar.cpp`, `src/calendar_detail.hpp` (`wall_from_seconds`) | `23bf4e3bae84f6a5f77a534223a49ec851135bb0276989ce2f64d571a37f0db2`, `f773b3b812414fe59d0d2c1271b7bebb7a63fe009e40b1762308437cb14d3aa0` |
+| `tests/calendar_tests.cpp` | `tests/calendar_tests.cpp` (without the POSIX TZ rule checks; one compiled-zone check added) | `ee65283c36da731fadfa597722ffeffd1aed4254032380fe7acc19e59f923f9f` |
+
 ## Third party
 
 ### mimalloc v3.5.3 (batch 3a)

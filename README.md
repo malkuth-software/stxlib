@@ -62,5 +62,7 @@ vocabulary and services and make no host call of their own.
 | BLAKE2s-256 | `hash.hpp` | batch 3c |
 | random (ChaCha12, xoshiro256++, distributions, shuffle) | `random.hpp` | batch 3c |
 | SIMD level (detection, one selection per process) | `simd.hpp` | batch 3c |
+| numeric text (locale-free formatting into caller storage, parsing, scanning) | `numeric_text.hpp` | batch 3c2 |
+| calendar (civil arithmetic, weekdays, ISO 8601 text) | `calendar.hpp` | batch 3c2 |
 
 Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); FreeBSD components keep their BSD licences.

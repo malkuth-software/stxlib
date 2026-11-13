@@ -331,7 +331,9 @@ endif()
 # stxlib_state) and make no host call of their own. Ported from stx_auxlib
 # b6e330a (PROVENANCE.md, batch 3c and later).
 set(STXLIB_ALGORITHMS_SOURCES
+    src/algorithms/calendar.cpp
     src/algorithms/hash.cpp
+    src/algorithms/numeric_text.cpp
     src/algorithms/random.cpp
     src/algorithms/simd.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
@@ -367,9 +369,11 @@ if(STXLIB_TESTS)
     endif()
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS hash random simd)
+    foreach(test_name IN ITEMS calendar hash numeric_text random simd)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
+        # core/checked.hpp (the modular marker) for the tests' own generators.
+        target_include_directories(stxlib_${test_name}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()

@@ -2,9 +2,10 @@
 
 STXlib compiles its time zones from IANA's tzdata (owner decision D12 = a;
 `include/stxlib/local_time.hpp`). The release in use is pinned in
-`third_party/tzdata/version` and `PROVENANCE.md`. This is the proposed
-procedure for replacing it; it is not an owner decision until the owner
-adopts it.
+`third_party/tzdata/version` and `PROVENANCE.md`. This is the procedure
+for replacing it. Adopted by the owner, 2026-11-13 (notes,
+`decisions/2026-11-13-d11-d12-threads-clocks.md`, "The tzdata update
+policy").
 
 ## When
 
