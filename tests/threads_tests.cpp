@@ -19,7 +19,7 @@ namespace {
 using stxlib::ConditionVariable;
 using stxlib::Duration;
 using stxlib::JoinResult;
-using stxlib::MonotonicTime;
+using stxlib::IntervalTime;
 using stxlib::Mutex;
 using stxlib::OnceFlag;
 using stxlib::Result;
@@ -248,14 +248,14 @@ void conditions() {
     CHECK(thread.join() == JoinResult::joined);
 
     // Timeouts with nobody notifying: timed_out only once the deadline has
-    // passed on MonotonicTime.
+    // passed on IntervalTime.
     Mutex mutex{};
     ConditionVariable never{};
     ScopedLock lock(mutex);
-    const MonotonicTime before = MonotonicTime::now();
+    const IntervalTime before = IntervalTime::now();
     CHECK(never.wait_for(lock, never_true, nullptr, Duration::milliseconds(20)) == WaitResult::timed_out);
-    CHECK(MonotonicTime::now().since(before) >= Duration::milliseconds(20));
-    const MonotonicTime past = before.after(Duration::seconds(-1));
+    CHECK(IntervalTime::now().since(before) >= Duration::milliseconds(20));
+    const IntervalTime past = before.after(Duration::seconds(-1));
     CHECK(never.wait_until(lock, never_true, nullptr, past) == WaitResult::timed_out);
     CHECK(never.wait_for(lock, never_true, nullptr, Duration::seconds(-1)) == WaitResult::timed_out);
     CHECK(never.wait_for(lock, never_true, nullptr, Duration::nanoseconds(stxlib::i64_min)) == WaitResult::timed_out);
@@ -361,17 +361,17 @@ void once() {
 // ---- Sleeping and the host -----------------------------------------------------
 
 void sleeping_and_host() {
-    const MonotonicTime before = MonotonicTime::now();
+    const IntervalTime before = IntervalTime::now();
     stxlib::sleep_for(Duration::milliseconds(15));
-    const MonotonicTime after = MonotonicTime::now();
+    const IntervalTime after = IntervalTime::now();
     CHECK(after.since(before) >= Duration::milliseconds(15));
     stxlib::sleep_until(after.after(Duration::milliseconds(10)));
-    CHECK(MonotonicTime::now().since(after) >= Duration::milliseconds(10));
-    const MonotonicTime quick = MonotonicTime::now();
+    CHECK(IntervalTime::now().since(after) >= Duration::milliseconds(10));
+    const IntervalTime quick = IntervalTime::now();
     stxlib::sleep_for(Duration::seconds(-5));
     stxlib::sleep_for(Duration::nanoseconds(stxlib::i64_min));
     stxlib::sleep_until(quick.after(Duration::seconds(-5)));
-    CHECK(MonotonicTime::now().since(quick) < Duration::seconds(1));
+    CHECK(IntervalTime::now().since(quick) < Duration::seconds(1));
     CHECK(stxlib::processor_count() >= 1);
     CHECK(stxlib::capability_supported(stxlib::Capability::threads));
 }

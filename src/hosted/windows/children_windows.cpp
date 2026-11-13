@@ -241,19 +241,19 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
     if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
-    // timed_out means MonotonicTime::now() has reached the deadline
+    // timed_out means IntervalTime::now() has reached the deadline
     // (children.hpp), as on POSIX hosts. WaitForSingleObject's interval is
     // whole milliseconds counted on the system timer, whose accuracy
     // "depends on the resolution of the system clock" (Microsoft's
     // WaitForSingleObject page; from the published page, not re-read), so
-    // it can end before MonotonicTime (QueryPerformanceCounter) has seen the
+    // it can end before IntervalTime (QueryPerformanceCounter) has seen the
     // interval pass: CI run 43432600851 saw a 50 ms wait end early. The wait
     // is therefore repeated, rounded up to whole milliseconds, until the
-    // deadline has passed on MonotonicTime.
-    const MonotonicTime deadline = MonotonicTime::now().after(timeout.negative() ? Duration() : timeout);
+    // deadline has passed on IntervalTime.
+    const IntervalTime deadline = IntervalTime::now().after(timeout.negative() ? Duration() : timeout);
     DWORD outcome = WAIT_TIMEOUT;
     for (;;) {
-        const MonotonicTime now = MonotonicTime::now();
+        const IntervalTime now = IntervalTime::now();
         const Duration left = now < deadline ? deadline.since(now) : Duration();
         const i64 nanoseconds = left.count_nanoseconds();
         const i64 whole = nanoseconds / 1000000;
@@ -262,7 +262,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
         const DWORD wait_milliseconds = static_cast<DWORD>(rounded > longest ? longest : rounded);
         outcome = WaitForSingleObject(handle_of(process_), wait_milliseconds);
         if (outcome != WAIT_TIMEOUT) break;
-        if (!(MonotonicTime::now() < deadline)) {
+        if (!(IntervalTime::now() < deadline)) {
             return Result<ChildEnd>::failure(
                 host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
         }

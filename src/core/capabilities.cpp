@@ -14,7 +14,8 @@ bool capability_supported(const Capability capability) noexcept {
     switch (capability) {
     case Capability::console:
     case Capability::environment:
-    case Capability::monotonic_clock:
+    case Capability::interval_clock:
+    case Capability::elapsed_clock:
     case Capability::wall_clock:
     case Capability::entropy:
     case Capability::exit_tasks:
@@ -57,7 +58,7 @@ bool capability_supported(const Capability capability) noexcept {
 #endif
     case Capability::threads:
     case Capability::local_time_zone:
-        return true; // batch 2c; D11 b (batch 3a); D12 a zones in batch 3b
+        return true; // batch 2c; D11 b (batch 3a); D12 a (batch 3b): compiled zones, the host names one
     }
     return false;
 }
@@ -84,8 +85,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "console";
     case Capability::environment:
         return "environment";
-    case Capability::monotonic_clock:
-        return "monotonic_clock";
+    case Capability::interval_clock:
+        return "interval_clock";
     case Capability::wall_clock:
         return "wall_clock";
     case Capability::entropy:
@@ -100,6 +101,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "local_time_zone";
     case Capability::atomic_replace:
         return "atomic_replace";
+    case Capability::elapsed_clock:
+        return "elapsed_clock";
     }
     return "unknown";
 }

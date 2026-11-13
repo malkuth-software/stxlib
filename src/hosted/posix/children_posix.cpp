@@ -296,7 +296,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
     if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
     reap_abandoned();
-    const MonotonicTime deadline = MonotonicTime::now().after(timeout.negative() ? Duration() : timeout);
+    const IntervalTime deadline = IntervalTime::now().after(timeout.negative() ? Duration() : timeout);
     Duration pause = Duration::microseconds(200);
     for (;;) {
         int status = 0;
@@ -312,7 +312,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
             }
             return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(WEXITSTATUS(status))));
         }
-        const MonotonicTime now = MonotonicTime::now();
+        const IntervalTime now = IntervalTime::now();
         if (deadline <= now) {
             return Result<ChildEnd>::failure(
                 host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));

@@ -105,6 +105,18 @@ current one, flagged in `threads.hpp` and `local_time.hpp`.
 | `tests/thread_pool_tests.cpp` | `tests/thread_pool_tests.cpp`, plus checks of the header's scheduling rules (the conformance test against the C reference comes with batch 3) |
 | `tests/local_time_tests.cpp` | `local_time_rules` of `tests/calendar_tests.cpp` |
 
+### Batch 3b: owner decision D12 a, on batch 3a
+
+The local time zone no longer reads the host's zone rules: the two
+`local_time_<host>.cpp` modules now find only the host's zone name, and
+`local_time` reads the compiled IANA zones (`src/core/zones.cpp`, new);
+`CivilTime`, `LocalTime` (now with the daylight flag and abbreviation) and
+`local_time` keep stx_auxlib's shape. `src/core/civil.hpp` adds Hinnant's
+`civil_from_days` (the same paper as `days_from_civil`). stx_auxlib's
+`MonotonicTime` is renamed `IntervalTime` and read from each family's own
+clock (`src/hosted/<family>/clocks_<family>.cpp`, new) instead of
+std::chrono::steady_clock, beside the new `ElapsedTime`.
+
 The remaining stx_auxlib content (hosted modules, owned algorithms, and
 stx_btree with the sequence tree and RowHeightIndex) is copied from
 `b6e330a` in later batches, each file with its source path, commit and
@@ -178,3 +190,42 @@ unit, `src/static.c`, with stx_auxlib's definitions (CMakeLists.txt), plus
 | `src/subproc.c` | `f42d4a11c5208b9620e456a412c0cdafa9dec2c9` | `41c147e8eb6e960687b79a201dd4498fb80f58923a0a4d73e04e80ef315b8eb6` |
 | `src/theap.c` | `1731830a7aa416b07bc82554779a622ef318830d` | `91271bc76502c743d109f32201c02271f63a9f6ec51ef207f8b533f6de39df27` |
 | `src/threadlocal.c` | `6f280d09353c918b28ec414ae5ab10e745797229` | `01dbaacd5ac6685dc59c40d82a3f8932e5290d4d05f9a441424e4ea53e1ba973` |
+
+### IANA tzdata 2026f (batch 3b)
+
+`third_party/tzdata/` holds the files of IANA's time zone database release
+2026f that STXlib compiles (owner decision D12 = a): the ten data files zic
+reads by default (tzdata's Makefile: `africa antarctica asia australasia
+europe northamerica southamerica etcetera factory backward`; `backzone` and
+the leap-second files are not used), `version` and `LICENSE`. Public
+domain (`LICENSE`: "all files in the tz code and data ... are in the
+public domain", the BSD exceptions naming code files not copied here).
+The archive `tzdata2026f.tar.gz` (483,310 bytes, SHA-256
+`01b4a91cec5167ed48c11e8ab78f2048cead78ce94b0cafcad0ae8c5a3044d3d`) and its
+signature `tzdata2026f.tar.gz.asc` were downloaded by the coordinator from
+IANA with the owner's approval on 2026-11-13, into the workspace's
+read-only `research/tzdata-2026f/`; the signature has not been checked (no
+gpg on the machine). Copied unmodified on 2026-11-13: each file's SHA-256
+below equals that of the same member extracted from the archive
+(`tar -xOzf`, compared with `shasum -a 256`).
+
+| File (under `third_party/tzdata/`) | SHA-256 |
+|---|---|
+| `LICENSE` | `0613408568889f5739e5ae252b722a2659c02002839ad970a63dc5e9174b27cf` |
+| `africa` | `f2851d4be4a4925cbdc9d56e10d780bccadb89d6ffb9aed78c3e35f97c200aed` |
+| `antarctica` | `e410ad71c9450828c592d21419301d41ac79ce50159fd0ac2d6c5031cb6bdfe6` |
+| `asia` | `02b69728085f6b0c999da70de2f1f9a2d8952b533a450d53bb41e03eb7d0e92e` |
+| `australasia` | `846ba455578e3e0f9eb850f05be3cc06d02ff51bbe4b726f755be9dc765f16c9` |
+| `backward` | `b8296b9ef1ece72d813878132c0f17e2c52b26af6004eeb9c37d049b64cd9401` |
+| `etcetera` | `7281f095b42c13c4ae36b8bcba884e81dbb38127221fc1d9805c4dbf852487db` |
+| `europe` | `fec11bf6c6bd0619a8777bbdaa2ecd184fde291cb4b97efa87d334c7145ba3c2` |
+| `factory` | `ae2ec1d36dabf79a69cb7dd4fb6fd9168d05fc8cfd31aee2dd19e4f18beb9885` |
+| `northamerica` | `da7366f6e0862ed15cb787dd056dca3a255df2ec50d19ff0a9f54eeb1562083a` |
+| `southamerica` | `df4f2ae71a6980a76038f51bfc4cdaaca9af5ba8799df0b5bc73283db68c8cd6` |
+| `version` | `9f9a9e6bfd18cd6a0a4d65764931072577edcbb731981a068ef52bba6615b1de` |
+
+Generated from it (first party, not third-party code):
+`src/zones/zone_data.inc` by `tools/tzcompile.py` and
+`tests/zone_vectors.inc` by `tools/tzvectors.py`, both written for STXlib
+in batch 3b from the tzdata source format as zic(8) documents it; no zic
+or tzcode source is copied. Taking a later release: `tools/TZDATA_POLICY.md`.

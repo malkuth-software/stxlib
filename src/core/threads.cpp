@@ -61,16 +61,16 @@ ThreadIdentity current_thread() noexcept {
     return result;
 }
 
-// Both sleeps end only once MonotonicTime has reached the deadline: a host
+// Both sleeps end only once IntervalTime has reached the deadline: a host
 // sleep may end early (a Windows sleep is capped below 49.7 days).
 void sleep_for(const Duration interval) noexcept {
     if (interval <= Duration::nanoseconds(0)) return;
-    sleep_until(MonotonicTime::now().after(interval));
+    sleep_until(IntervalTime::now().after(interval));
 }
 
-void sleep_until(const MonotonicTime deadline) noexcept {
+void sleep_until(const IntervalTime deadline) noexcept {
     for (;;) {
-        const MonotonicTime now = MonotonicTime::now();
+        const IntervalTime now = IntervalTime::now();
         if (!(now < deadline)) return;
         thread_backend::sleep_for(deadline.since(now));
     }
@@ -217,16 +217,16 @@ void ConditionVariable::wait(ScopedLock& lock, const WaitPredicate predicate, co
 }
 
 // The host wait takes a relative interval, measured here against
-// MonotonicTime, so the deadline means the same on every host whatever clock
-// the host's wait uses; timed_out is decided by MonotonicTime alone, after
+// IntervalTime, so the deadline means the same on every host whatever clock
+// the host's wait uses; timed_out is decided by IntervalTime alone, after
 // the predicate was found false.
 WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
-                                         const MonotonicTime deadline) noexcept {
+                                         const IntervalTime deadline) noexcept {
     require_predicate(predicate);
     Mutex& mutex = lock.mutex_;
     for (;;) {
         if (predicate(context)) return WaitResult::satisfied;
-        const MonotonicTime now = MonotonicTime::now();
+        const IntervalTime now = IntervalTime::now();
         if (!(now < deadline)) return WaitResult::timed_out;
         static_cast<void>(host_wait(storage_, mutex.storage_, mutex.owner_, true, deadline.since(now)));
     }
@@ -234,9 +234,9 @@ WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate p
 
 WaitResult ConditionVariable::wait_for(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
                                        const Duration interval) noexcept {
-    // MonotonicTime::after saturates (clocks.hpp), as stx_auxlib's
+    // IntervalTime::after saturates (clocks.hpp), as stx_auxlib's
     // deadline_after did.
-    const WaitResult result = wait_until(lock, predicate, context, MonotonicTime::now().after(interval));
+    const WaitResult result = wait_until(lock, predicate, context, IntervalTime::now().after(interval));
     return result;
 }
 

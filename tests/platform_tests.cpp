@@ -53,7 +53,7 @@ void capabilities_report() {
     CHECK(!stxlib::capability_supported(static_cast<stxlib::Capability>(200)));
     CHECK(stxlib::capability_supported(stxlib::Capability::console));
     CHECK(stxlib::capability_supported(stxlib::Capability::environment));
-    CHECK(stxlib::capability_supported(stxlib::Capability::monotonic_clock));
+    CHECK(stxlib::capability_supported(stxlib::Capability::interval_clock));
     CHECK(stxlib::capability_supported(stxlib::Capability::wall_clock));
     CHECK(stxlib::capability_supported(stxlib::Capability::entropy));
     CHECK(stxlib::capability_supported(stxlib::Capability::exit_tasks));
@@ -80,25 +80,41 @@ void capabilities_report() {
 
 // ---- clocks -----------------------------------------------------------------
 
-void monotonic_never_decreases() {
-    stxlib::MonotonicTime previous = stxlib::MonotonicTime::now();
+void steady_clocks_never_decrease() {
+    stxlib::IntervalTime previous_interval = stxlib::IntervalTime::now();
+    stxlib::ElapsedTime previous_elapsed = stxlib::ElapsedTime::now();
     bool backwards = false;
     for (int read = 0; read < 100000; ++read) {
-        const stxlib::MonotonicTime next = stxlib::MonotonicTime::now();
-        if (next < previous) backwards = true;
-        previous = next;
+        const stxlib::IntervalTime next_interval = stxlib::IntervalTime::now();
+        const stxlib::ElapsedTime next_elapsed = stxlib::ElapsedTime::now();
+        if (next_interval < previous_interval || next_elapsed < previous_elapsed) backwards = true;
+        previous_interval = next_interval;
+        previous_elapsed = next_elapsed;
     }
     CHECK(!backwards);
 }
 
-// The clocks read the standard clocks; they must agree closely.
+// Over a 50 ms sleep, the interval and elapsed clocks and the C++ runtime's
+// steady clock advance alike (no suspension is expected during the test;
+// the clocks count from different epochs, so spans are compared, not
+// readings). The wall clock reads as the runtime's system clock does.
 void clocks_agree_with_host() {
-    const std::chrono::steady_clock::time_point host_steady = std::chrono::steady_clock::now();
-    const stxlib::MonotonicTime steady = stxlib::MonotonicTime::now();
-    const long long host_steady_ns = static_cast<long long>(
-        std::chrono::duration_cast<std::chrono::nanoseconds>(host_steady.time_since_epoch()).count());
-    const long long steady_gap = steady.count_nanoseconds() - host_steady_ns;
-    CHECK(steady_gap >= 0 && steady_gap < 1000000000LL);
+    CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+    const std::chrono::steady_clock::time_point host_start = std::chrono::steady_clock::now();
+    const stxlib::IntervalTime interval_start = stxlib::IntervalTime::now();
+    const stxlib::ElapsedTime elapsed_start = stxlib::ElapsedTime::now();
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    const stxlib::ElapsedTime elapsed_end = stxlib::ElapsedTime::now();
+    const stxlib::IntervalTime interval_end = stxlib::IntervalTime::now();
+    const std::chrono::steady_clock::time_point host_end = std::chrono::steady_clock::now();
+    const long long host_span = static_cast<long long>(
+        std::chrono::duration_cast<std::chrono::nanoseconds>(host_end - host_start).count());
+    const long long interval_span = interval_end.since(interval_start).count_nanoseconds();
+    const long long elapsed_span = elapsed_end.since(elapsed_start).count_nanoseconds();
+    // Windows' interrupt time counts 100 ns units and the reads are
+    // nested, so each span lies within the host's, less a tick of slack.
+    CHECK(interval_span >= 49000000LL && interval_span <= host_span + 1000000LL);
+    CHECK(elapsed_span >= 49000000LL && elapsed_span <= host_span + 1000000LL);
     const std::chrono::system_clock::time_point host_wall = std::chrono::system_clock::now();
     const stxlib::WallTime wall = stxlib::WallTime::now();
     const long long host_wall_ns = static_cast<long long>(
@@ -122,14 +138,18 @@ void time_arithmetic_saturates() {
                   "negative scale saturates");
     static_assert(stxlib::Duration::longest().plus(stxlib::Duration::nanoseconds(1)) == stxlib::Duration::longest(),
                   "plus saturates");
-    static_assert(stxlib::MonotonicTime::from_nanoseconds(stxlib::i64_max)
+    static_assert(stxlib::IntervalTime::from_nanoseconds(stxlib::i64_max)
                           .after(stxlib::Duration::seconds(1))
                           .count_nanoseconds() == stxlib::i64_max,
                   "a far deadline stays in the future");
+    static_assert(stxlib::ElapsedTime::from_nanoseconds(stxlib::i64_min)
+                          .since(stxlib::ElapsedTime::from_nanoseconds(1))
+                          .count_nanoseconds() == stxlib::i64_min,
+                  "elapsed spans saturate");
     static_assert(stxlib::WallTime::from_unix_nanoseconds(-1).unix_seconds() == -1, "seconds round down");
     static_assert(stxlib::WallTime::from_unix_nanoseconds(1999999999).unix_seconds() == 1, "seconds round down");
-    const stxlib::MonotonicTime start = stxlib::MonotonicTime::now();
-    const stxlib::MonotonicTime later = start.after(stxlib::Duration::milliseconds(5));
+    const stxlib::IntervalTime start = stxlib::IntervalTime::now();
+    const stxlib::IntervalTime later = start.after(stxlib::Duration::milliseconds(5));
     CHECK(later.since(start) == stxlib::Duration::milliseconds(5));
 }
 
@@ -273,7 +293,7 @@ void events() {
 
 int main() {
     capabilities_report();
-    monotonic_never_decreases();
+    steady_clocks_never_decrease();
     clocks_agree_with_host();
     wall_clock_is_unix_time();
     time_arithmetic_saturates();

@@ -175,7 +175,7 @@ void append_hexadecimal(char* const output, const u64 value) noexcept {
 
 // A name for write_file's temporary file (".stx-write-<stamp>-<serial>",
 // stx_auxlib's), unique within this process and unlikely to collide with
-// another's: the monotonic clock and a serial in stxlib_state. The serial
+// another's: the interval clock and a serial in stxlib_state. The serial
 // wraps after 2^64 writes, which only risks a collision create_new detects.
 struct TemporaryName final {
     char text[11 + 16 + 1 + 16]{};
@@ -184,7 +184,7 @@ struct TemporaryName final {
 TemporaryName temporary_name() noexcept {
     state::ProcessState& process = state::current_process();
     const u64 serial = process.temporary_serial.fetch_add(1, std::memory_order_relaxed);
-    const u64 stamp = static_cast<u64>(MonotonicTime::now().count_nanoseconds());
+    const u64 stamp = static_cast<u64>(IntervalTime::now().count_nanoseconds());
     TemporaryName result{};
     std::memcpy(result.text, ".stx-write-", 11);
     append_hexadecimal(result.text + 11, stamp);

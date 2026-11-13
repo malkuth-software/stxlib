@@ -1,25 +1,39 @@
 #pragma once
 
-// The program's two clocks and its time values (ported from stx_auxlib's
-// include/stx_auxlib/clocks.hpp at b6e330a, restated without std::chrono).
+// The program's clocks and its time values (ported from stx_auxlib's
+// include/stx_auxlib/clocks.hpp at b6e330a, restated without std::chrono;
+// the two steady clocks are owner decision D12 = a,
+// decisions/2026-11-13-d11-d12-threads-clocks.md).
 //
-// MonotonicTime::now() never goes backwards and is unaffected by changes to
-// the wall clock; its epoch is unspecified (typically boot), so its values
-// are meaningful only relative to one another within one run. It replaces
-// std::chrono::steady_clock. Whether it continues during suspend is the
-// host's (owner decision D12 = a: two clocks, interval and elapsed, land in
-// batch 3b).
+// IntervalTime::now() (Capability::interval_clock) and ElapsedTime::now()
+// (Capability::elapsed_clock) never go backwards and are unaffected by
+// changes to the wall clock. Their epochs are unspecified (typically boot),
+// so their values are meaningful only relative to one another within one
+// run, and the two are distinct types so that they cannot be mixed. They
+// differ in suspension (sleep, hibernation):
+//   - IntervalTime stops while the machine is suspended, so a span of it is
+//     time the program could have run: use it for timeouts, waits, frame
+//     pacing and measurement. Every timed wait in STXlib uses it. Linux
+//     CLOCK_MONOTONIC, macOS CLOCK_UPTIME_RAW, Windows
+//     QueryUnbiasedInterruptTimePrecise.
+//   - ElapsedTime continues while the machine is suspended, so a span of it
+//     is real time passed: use it for "how long ago" and expiry that must
+//     count a night's sleep. Linux CLOCK_BOOTTIME, macOS CLOCK_MONOTONIC,
+//     Windows QueryInterruptTimePrecise.
+// IntervalTime replaces std::chrono::steady_clock (stx_auxlib's
+// MonotonicTime, whose behaviour in suspension was the host's).
 //
 // WallTime::now() is Coordinated Universal Time as nanoseconds since
 // 1970-01-01T00:00:00Z, ignoring leap seconds (Unix time). It can jump when
-// the system time is set, so measure intervals with MonotonicTime. It
-// replaces std::chrono::system_clock.
+// the system time is set, so measure spans with IntervalTime or
+// ElapsedTime. It replaces std::chrono::system_clock.
 //
-// All three types count signed 64-bit nanoseconds, about 292 years either
+// All four types count signed 64-bit nanoseconds, about 292 years either
 // side of the epoch. Arithmetic saturates at the ends of that range instead
 // of wrapping, so a deadline far in the future stays in the future. The
-// host's clocks may tick more coarsely; now() reports what the host
-// provides, converted without rounding.
+// host's clocks may tick more coarsely (Windows' interrupt time counts
+// 100 ns units); now() reports what the host provides, converted without
+// rounding.
 
 #include "stxlib/types.hpp"
 
@@ -102,40 +116,78 @@ private:
     i64 nanoseconds_{0};
 };
 
-// A reading of the monotonic clock.
-class MonotonicTime final {
+// A reading of the interval clock (stops during suspension).
+class IntervalTime final {
 public:
-    constexpr MonotonicTime() noexcept = default;
+    constexpr IntervalTime() noexcept = default;
 
-    [[nodiscard]] static MonotonicTime now() noexcept;
-    [[nodiscard]] static constexpr MonotonicTime from_nanoseconds(const i64 count) noexcept {
-        return MonotonicTime(count);
+    [[nodiscard]] static IntervalTime now() noexcept;
+    [[nodiscard]] static constexpr IntervalTime from_nanoseconds(const i64 count) noexcept {
+        return IntervalTime(count);
     }
 
     [[nodiscard]] constexpr i64 count_nanoseconds() const noexcept { return nanoseconds_; }
     // This time minus `earlier`.
-    [[nodiscard]] constexpr Duration since(const MonotonicTime earlier) const noexcept {
+    [[nodiscard]] constexpr Duration since(const IntervalTime earlier) const noexcept {
         return Duration::nanoseconds(detail::saturating_subtract(nanoseconds_, earlier.nanoseconds_));
     }
-    [[nodiscard]] constexpr MonotonicTime after(const Duration interval) const noexcept {
-        return MonotonicTime(detail::saturating_add(nanoseconds_, interval.count_nanoseconds()));
+    [[nodiscard]] constexpr IntervalTime after(const Duration interval) const noexcept {
+        return IntervalTime(detail::saturating_add(nanoseconds_, interval.count_nanoseconds()));
     }
 
-    [[nodiscard]] constexpr bool operator==(const MonotonicTime other) const noexcept {
+    [[nodiscard]] constexpr bool operator==(const IntervalTime other) const noexcept {
         return nanoseconds_ == other.nanoseconds_;
     }
-    [[nodiscard]] constexpr bool operator!=(const MonotonicTime other) const noexcept {
+    [[nodiscard]] constexpr bool operator!=(const IntervalTime other) const noexcept {
         return nanoseconds_ != other.nanoseconds_;
     }
-    [[nodiscard]] constexpr bool operator<(const MonotonicTime other) const noexcept {
+    [[nodiscard]] constexpr bool operator<(const IntervalTime other) const noexcept {
         return nanoseconds_ < other.nanoseconds_;
     }
-    [[nodiscard]] constexpr bool operator<=(const MonotonicTime other) const noexcept {
+    [[nodiscard]] constexpr bool operator<=(const IntervalTime other) const noexcept {
         return nanoseconds_ <= other.nanoseconds_;
     }
 
 private:
-    constexpr explicit MonotonicTime(const i64 count) noexcept : nanoseconds_(count) {}
+    constexpr explicit IntervalTime(const i64 count) noexcept : nanoseconds_(count) {}
+
+    i64 nanoseconds_{0};
+};
+
+// A reading of the elapsed clock (continues during suspension).
+class ElapsedTime final {
+public:
+    constexpr ElapsedTime() noexcept = default;
+
+    [[nodiscard]] static ElapsedTime now() noexcept;
+    [[nodiscard]] static constexpr ElapsedTime from_nanoseconds(const i64 count) noexcept {
+        return ElapsedTime(count);
+    }
+
+    [[nodiscard]] constexpr i64 count_nanoseconds() const noexcept { return nanoseconds_; }
+    // This time minus `earlier`.
+    [[nodiscard]] constexpr Duration since(const ElapsedTime earlier) const noexcept {
+        return Duration::nanoseconds(detail::saturating_subtract(nanoseconds_, earlier.nanoseconds_));
+    }
+    [[nodiscard]] constexpr ElapsedTime after(const Duration interval) const noexcept {
+        return ElapsedTime(detail::saturating_add(nanoseconds_, interval.count_nanoseconds()));
+    }
+
+    [[nodiscard]] constexpr bool operator==(const ElapsedTime other) const noexcept {
+        return nanoseconds_ == other.nanoseconds_;
+    }
+    [[nodiscard]] constexpr bool operator!=(const ElapsedTime other) const noexcept {
+        return nanoseconds_ != other.nanoseconds_;
+    }
+    [[nodiscard]] constexpr bool operator<(const ElapsedTime other) const noexcept {
+        return nanoseconds_ < other.nanoseconds_;
+    }
+    [[nodiscard]] constexpr bool operator<=(const ElapsedTime other) const noexcept {
+        return nanoseconds_ <= other.nanoseconds_;
+    }
+
+private:
+    constexpr explicit ElapsedTime(const i64 count) noexcept : nanoseconds_(count) {}
 
     i64 nanoseconds_{0};
 };

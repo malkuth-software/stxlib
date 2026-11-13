@@ -17,7 +17,7 @@
 // does not move the deadline; macOS has no pthread_condattr_setclock and
 // waits with pthread_cond_timedwait_relative_np, a relative interval (the
 // call libc++ makes there). Either way core passes a relative interval
-// measured on MonotonicTime and decides the timeout by that clock.
+// measured on IntervalTime and decides the timeout by that clock.
 //
 // processor_count is libc++'s std::thread::hardware_concurrency: sysctl
 // hw.ncpu on Apple hosts, sysconf(_SC_NPROCESSORS_ONLN) elsewhere (libc++

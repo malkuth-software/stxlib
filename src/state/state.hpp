@@ -12,7 +12,9 @@
 // thread identities (the issuer and each thread's own) and the local time
 // zone's load state. Layout 5 adds the allocator (src/state/allocator.cpp):
 // stxlib::memory's backend, tags and ownership check live here, so a block
-// allocated in one module may be released in another.
+// allocated in one module may be released in another. Layout 6 drops the
+// zone's load state (owner decision D12 = a: no host zone rules are read)
+// and adds Windows' ICU module handle.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -58,7 +60,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 5;
+inline constexpr u32 layout_version = 6;
 
 // One logical frame on the shadow stack. The name has static storage (an
 // Operation's).
@@ -225,10 +227,9 @@ struct ProcessState final {
     // Threads (threads.cpp): the last thread identity issued; identities are
     // never reused, and the issuer refuses at 2^64 - 1.
     std::atomic<u64> last_thread_identity{0};
-    // The local time zone (local_time_posix.cpp): whether tzset has run and
-    // the environment generation it saw; both guarded by environment_lock.
-    bool zone_loaded{false};
-    u64 zone_generation{0};
+    // Windows' ICU (local_time_windows.cpp), loaded on first use and kept
+    // for the process's life: its module handle, published once.
+    std::atomic<void*> zone_mapping_module{nullptr};
 };
 
 // What memory::release did with an address (allocator.cpp).

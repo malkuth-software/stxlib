@@ -35,7 +35,7 @@
 // so they could not report a failed start); each family module calls the
 // host (src/hosted/<family>/threads_<family>.cpp). Results are Result and
 // Status. Thread identities and their issuer live in stxlib_state, so every
-// module sees one identity per thread. Times are MonotonicTime and Duration.
+// module sees one identity per thread. Times are IntervalTime and Duration.
 //
 // Modules: a Thread's shared state is a block of STXlib's allocator, which
 // every module shares (memory.hpp), so a Thread may be started in one of
@@ -61,7 +61,7 @@ using ThreadIdentity = Identity<ThreadTag>;
 // Blocks the calling thread for at least `interval`, or until `deadline`; a
 // past deadline or a non-positive interval returns at once.
 void sleep_for(Duration interval) noexcept;
-void sleep_until(MonotonicTime deadline) noexcept;
+void sleep_until(IntervalTime deadline) noexcept;
 // Offers the rest of the calling thread's time slice to other threads.
 void yield_thread() noexcept;
 // The number of threads the host can run at once; at least 1 (when the host
@@ -128,7 +128,7 @@ using WaitPredicate = bool (*)(const void* context) noexcept;
 enum class WaitResult : u8 {
     // The predicate returned true.
     satisfied = 0,
-    // MonotonicTime::now() reached the deadline and the predicate was still
+    // IntervalTime::now() reached the deadline and the predicate was still
     // false.
     timed_out = 1,
 };
@@ -150,7 +150,7 @@ public:
     // Returns once the predicate is true.
     void wait(ScopedLock& lock, WaitPredicate predicate, const void* context) noexcept;
     [[nodiscard]] WaitResult wait_until(ScopedLock& lock, WaitPredicate predicate, const void* context,
-                                        MonotonicTime deadline) noexcept;
+                                        IntervalTime deadline) noexcept;
     // The deadline is now plus `interval`, saturating.
     [[nodiscard]] WaitResult wait_for(ScopedLock& lock, WaitPredicate predicate, const void* context,
                                       Duration interval) noexcept;

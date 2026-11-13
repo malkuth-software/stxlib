@@ -241,6 +241,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/trampoline.cpp
+    src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
     src/hosted/cxx_runtime/current_exception.cpp)
@@ -250,6 +251,7 @@ set(STXLIB_BOUNDARY_SOURCES
 # differs (the stx_auxlib hosted port).
 set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/children_posix.cpp
+    src/hosted/posix/clocks_posix.cpp
     src/hosted/posix/console_posix.cpp
     src/hosted/posix/desktop_posix.cpp
     src/hosted/posix/entropy_posix.cpp
@@ -262,6 +264,7 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/trace_posix.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/children_windows.cpp
+    src/hosted/windows/clocks_windows.cpp
     src/hosted/windows/console_windows.cpp
     src/hosted/windows/desktop_windows.cpp
     src/hosted/windows/entropy_windows.cpp
@@ -437,5 +440,12 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_public_headers
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_public_headers.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # The compiled zones (D12 a): the tables' reading agrees with the
+        # tzdata source's full expansion at every change point, for every
+        # name (tools/tzvectors.py; proofs/REPORT.md, batch 3b).
+        add_test(NAME stxlib_zone_tables
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/tzvectors.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tzdata
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/zones/zone_data.inc)
     endif()
 endif()

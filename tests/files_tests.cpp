@@ -138,7 +138,7 @@ public:
         Result<Path> temporary = stxlib::temporary_directory();
         CHECK(temporary.succeeded());
         if (temporary.failed()) return;
-        const long long stamp = stxlib::MonotonicTime::now().count_nanoseconds();
+        const long long stamp = stxlib::IntervalTime::now().count_nanoseconds();
         root = under(*temporary.value(), "stxlib-files-" + std::to_string(stamp));
         CHECK(stxlib::create_directory(root).succeeded());
     }

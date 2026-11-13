@@ -43,7 +43,7 @@ enum class Capability : u8 {
     // service reports.
     console = 8,
     environment = 9,
-    monotonic_clock = 10,
+    interval_clock = 10,
     wall_clock = 11,
     entropy = 12,
     exit_tasks = 13,
@@ -54,9 +54,13 @@ enum class Capability : u8 {
     // the old file or the new, never neither (files.hpp; owner decision D13
     // a). A host without it still replaces, without that promise.
     atomic_replace = 17,
+    // The two clocks of owner decision D12 = a (clocks.hpp): interval_clock
+    // (value 10, stx_auxlib's monotonic clock) stops while the machine is
+    // suspended; elapsed_clock continues through suspension.
+    elapsed_clock = 18,
 };
 
-inline constexpr usize capability_count = 18;
+inline constexpr usize capability_count = 19;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.

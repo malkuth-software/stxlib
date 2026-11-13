@@ -1,9 +1,11 @@
-// Tests of the local time zone (include/stxlib/local_time.hpp). The POSIX
-// part ports local_time_rules from stx_auxlib's tests/calendar_tests.cpp at
-// b6e330a: TZ rules fix the zone without the host's zone files. Windows has
-// no TZ rule here (the system zone is used), so it is checked for agreement
-// between the civil reading and its offset, at the ends of WallTime too.
-// Tested, not proved (proofs/REPORT.md).
+// Tests of time zones and the local time zone (include/stxlib/local_time.hpp,
+// owner decision D12 = a). The compiled zones are checked against vectors
+// that tools/tzvectors.py takes from tools/tzcompile.py's full expansion of
+// the tzdata source (tests/zone_vectors.inc); the host's zone is checked by
+// naming zones through TZ, which every host honours. The civil conversion
+// is checked at every day of WallTime's range. The vectors and the TZ cases
+// are tested, not proved (proofs/REPORT.md); the civil check is exhaustive
+// over its domain.
 
 #include "stxlib/capabilities.hpp"
 #include "stxlib/clocks.hpp"
@@ -12,6 +14,8 @@
 #include "stxlib/text.hpp"
 
 #include "test_support.hpp"
+
+#include <cstdio>
 
 namespace {
 
@@ -105,61 +109,190 @@ void range_ends() {
     }
 }
 
-#if !defined(_WIN32)
-void posix_rules() {
-    // 2026-01-15T12:00:00.25Z and 2026-07-15T12:00:00Z (Python's datetime).
+// The failure's kind, or 0 (no kind) on success.
+template <typename Value>
+stxlib::ErrorKind kind_of(const Result<Value>& result) {
+    if (result.succeeded()) return static_cast<stxlib::ErrorKind>(0);
+    const stxlib::ErrorKind kind = (*result.error()).kind();
+    return kind;
+}
+
+struct ZoneVector final {
+    const char* name;
+    i64 seconds;
+    stxlib::i32 offset;
+    int daylight;
+    const char* abbreviation;
+};
+
+#include "zone_vectors.inc"
+
+stxlib::TextView view_of_ascii(const char* const text) {
+    stxlib::usize count = 0;
+    while (text[count] != '\0') ++count;
+    // The vectors are ASCII, so the bytes are valid UTF-8.
+    const stxlib::TextView result = stxlib::detail::TextViewAccess::adopt_validated(text, count);
+    return result;
+}
+
+// The WallTime of a whole Unix second; the earliest second of the range
+// (-9223372037) is below i64_min nanoseconds, so it is read at i64_min,
+// which lies inside that second.
+WallTime wall_of_seconds(const i64 seconds) {
+    i64 nanoseconds = 0;
+    if (__builtin_mul_overflow(seconds, nanoseconds_per_second, &nanoseconds)) nanoseconds = stxlib::i64_min;
+    const WallTime result = WallTime::from_unix_nanoseconds(nanoseconds);
+    return result;
+}
+
+void compiled_vectors() {
+    stxlib::usize failures = 0;
+    for (const ZoneVector& vector : zone_vectors) {
+        const Result<stxlib::Zone> zone = stxlib::Zone::named(view_of_ascii(vector.name));
+        if (zone.failed()) {
+            ++failures;
+            continue;
+        }
+        const stxlib::ZoneReading reading = (*zone.value()).at(wall_of_seconds(vector.seconds));
+        const bool agrees = reading.offset_seconds == vector.offset && reading.daylight == (vector.daylight != 0) &&
+                            reading.abbreviation == view_of_ascii(vector.abbreviation);
+        if (!agrees) {
+            if (failures < 10) {
+                std::printf("zone vector differs: %s at %lld\n", vector.name, static_cast<long long>(vector.seconds));
+            }
+            ++failures;
+        }
+    }
+    CHECK(failures == 0);
+}
+
+void names() {
+    CHECK(stxlib::tzdata_version() == stxlib::TextView("2026f"));
+    CHECK(stxlib::Zone::utc().name() == stxlib::TextView("Etc/UTC"));
+    const stxlib::Zone default_zone;
+    CHECK(default_zone.name() == stxlib::TextView("Etc/UTC"));
+    const stxlib::ZoneReading utc = default_zone.at(WallTime::now());
+    CHECK(utc.offset_seconds == 0 && !utc.daylight && utc.abbreviation == stxlib::TextView("UTC"));
+    // A link keeps its own name and reads as its zone.
+    const Result<stxlib::Zone> link = stxlib::Zone::named("US/Eastern");
+    const Result<stxlib::Zone> target = stxlib::Zone::named("America/New_York");
+    CHECK(link.succeeded() && target.succeeded());
+    if (link.succeeded() && target.succeeded()) {
+        CHECK((*link.value()).name() == stxlib::TextView("US/Eastern"));
+        const WallTime instant = wall_of_seconds(1793512800);
+        CHECK((*link.value()).at(instant).offset_seconds == (*target.value()).at(instant).offset_seconds);
+    }
+    CHECK(kind_of(stxlib::Zone::named("america/new_york")) == stxlib::ErrorKind::not_found);
+    CHECK(kind_of(stxlib::Zone::named("")) == stxlib::ErrorKind::not_found);
+    CHECK(kind_of(stxlib::Zone::named("America/New_York ")) == stxlib::ErrorKind::not_found);
+    CHECK(kind_of(stxlib::Zone::named("Mars/Olympus_Mons")) == stxlib::ErrorKind::not_found);
+}
+
+// Readings with their civil time, from tzcompile.py --dump.
+void zone_readings() {
+    // 2026-11-01T06:00:00Z: New York's return to EST; one second earlier it
+    // is still 01:59:59 EDT.
+    const Result<stxlib::Zone> new_york = stxlib::Zone::named("America/New_York");
+    CHECK(new_york.succeeded());
+    if (new_york.succeeded()) {
+        const LocalTime after = stxlib::local_time_in(*new_york.value(), wall_of_seconds(1793512800));
+        CHECK(after.offset_seconds == -18000 && !after.daylight && after.abbreviation == stxlib::TextView("EST"));
+        CHECK(after.civil.year == 2026 && after.civil.month == 11 && after.civil.day == 1 && after.civil.hour == 1);
+        CHECK(after.civil.minute == 0 && after.civil.second == 0);
+        const LocalTime before = stxlib::local_time_in(*new_york.value(), wall_of_seconds(1793512799));
+        CHECK(before.offset_seconds == -14400 && before.daylight && before.abbreviation == stxlib::TextView("EDT"));
+        CHECK(before.civil.hour == 1 && before.civil.minute == 59 && before.civil.second == 59);
+        // Before its first transition a zone keeps local mean time.
+        const LocalTime early = stxlib::local_time_in(*new_york.value(), wall_of_seconds(-3000000000));
+        CHECK(early.offset_seconds == -17762 && early.abbreviation == stxlib::TextView("LMT"));
+    }
+    // Europe/Dublin observes a negative save in winter (tzdata's main form):
+    // GMT is its daylight type there.
+    const Result<stxlib::Zone> dublin = stxlib::Zone::named("Europe/Dublin");
+    CHECK(dublin.succeeded());
+    if (dublin.succeeded()) {
+        const LocalTime winter = stxlib::local_time_in(*dublin.value(), wall_of_seconds(9208947600));
+        CHECK(winter.offset_seconds == 0 && winter.daylight && winter.abbreviation == stxlib::TextView("GMT"));
+        CHECK(winter.civil.year == 2261);
+    }
+    const Result<stxlib::Zone> kolkata = stxlib::Zone::named("Asia/Kolkata");
+    CHECK(kolkata.succeeded());
+    if (kolkata.succeeded()) {
+        constexpr WallTime winter = WallTime::from_unix_nanoseconds(1768478400 * nanoseconds_per_second + 250000000);
+        const LocalTime reading = stxlib::local_time_in(*kolkata.value(), winter);
+        CHECK(reading.offset_seconds == 19800 && reading.abbreviation == stxlib::TextView("IST"));
+        CHECK(reading.civil.hour == 17 && reading.civil.minute == 30 && reading.civil.nanosecond == 250000000);
+        CHECK(consistent(reading, winter));
+    }
+}
+
+// Every day of WallTime's range, at a time of day that varies with the
+// day, converts in UTC to the civil time that names it, with a valid month
+// and day. Exhaustive over the days of the range (civil_from_days's domain
+// here).
+void civil_every_day() {
+    const i64 first_day = -106752;
+    const i64 last_day = 106751;
+    stxlib::usize failures = 0;
+    const stxlib::Zone utc = stxlib::Zone::utc();
+    for (i64 day = first_day; day <= last_day; ++day) {
+        const i64 seconds = day * 86400 + ((day * 7919) % 86400 + 86400) % 86400;
+        if (seconds < -9223372036 || seconds > 9223372036) continue;
+        const WallTime instant = wall_of_seconds(seconds);
+        const LocalTime local = stxlib::local_time_in(utc, instant);
+        const bool valid = local.civil.month >= 1 && local.civil.month <= 12 && local.civil.day >= 1 &&
+                           local.civil.day <= 31 && seconds_of(local.civil) == seconds;
+        if (!valid) ++failures;
+    }
+    CHECK(failures == 0);
+}
+
+// The host's zone through TZ, which every host honours.
+void host_zone_by_tz() {
     constexpr WallTime winter = WallTime::from_unix_nanoseconds(1768478400 * nanoseconds_per_second + 250000000);
-    constexpr WallTime summer = WallTime::from_unix_nanoseconds(1784116800 * nanoseconds_per_second);
-    const Result<stxlib::Utf8String> saved = stxlib::read_variable("TZ", 256);
+    const Result<stxlib::Utf8String> saved = stxlib::read_variable("TZ", 4096);
     const bool had_zone = saved.succeeded();
-
-    CHECK(stxlib::set_variable("TZ", "UTC0").succeeded());
-    const Result<LocalTime> utc = stxlib::local_time(winter);
-    CHECK(utc.succeeded());
-    if (utc.succeeded()) {
-        const LocalTime& reading = *utc.value();
-        CHECK(reading.offset_seconds == 0);
-        CHECK(reading.civil.year == 2026 && reading.civil.month == 1 && reading.civil.day == 15);
-        CHECK(reading.civil.hour == 12 && reading.civil.minute == 0 && reading.civil.second == 0);
-        CHECK(reading.civil.nanosecond == 250000000);
+    const struct Case {
+        stxlib::TextView tz;
+        stxlib::i32 offset;
+        stxlib::TextView name;
+    } cases[] = {
+        {"America/New_York", -18000, "America/New_York"},
+        {":Europe/Berlin", 3600, "Europe/Berlin"},
+        {"/usr/share/zoneinfo/Asia/Kolkata", 19800, "Asia/Kolkata"},
+        {"/usr/share/zoneinfo/posix/Asia/Tokyo", 32400, "Asia/Tokyo"},
+        {"/var/db/timezone/zoneinfo/right/Australia/Adelaide", 37800, "Australia/Adelaide"},
+        {"", 0, "Etc/UTC"},
+        {":", 0, "Etc/UTC"},
+        {"UTC", 0, "UTC"},
+    };
+    for (const Case& item : cases) {
+        CHECK(stxlib::set_variable("TZ", item.tz).succeeded());
+        const Result<stxlib::Zone> zone = stxlib::host_zone();
+        CHECK(zone.succeeded());
+        if (zone.succeeded()) CHECK((*zone.value()).name() == item.name);
+        const Result<LocalTime> local = stxlib::local_time(winter);
+        CHECK(local.succeeded());
+        if (local.succeeded()) {
+            CHECK((*local.value()).offset_seconds == item.offset);
+            CHECK(consistent(*local.value(), winter));
+        }
     }
-
-    // A changed TZ is seen by the next call (environment generation).
-    CHECK(stxlib::set_variable("TZ", "EST5EDT,M3.2.0,M11.1.0").succeeded());
-    const Result<LocalTime> eastern_winter = stxlib::local_time(winter);
-    CHECK(eastern_winter.succeeded());
-    if (eastern_winter.succeeded()) {
-        const LocalTime& reading = *eastern_winter.value();
-        CHECK(reading.offset_seconds == -18000);
-        CHECK(reading.civil.hour == 7 && reading.civil.nanosecond == 250000000);
-        CHECK(consistent(reading, winter));
+    // POSIX rule strings and unknown names are no database names.
+    const stxlib::TextView refused[] = {"EST5EDT,M3.2.0,M11.1.0", "UTC0", "<+0530>-5:30", "Nowhere/Special",
+                                        "/etc/localtime"};
+    for (const stxlib::TextView text : refused) {
+        CHECK(stxlib::set_variable("TZ", text).succeeded());
+        CHECK(kind_of(stxlib::host_zone()) == stxlib::ErrorKind::not_found);
+        CHECK(kind_of(stxlib::local_time(winter)) == stxlib::ErrorKind::not_found);
     }
-    const Result<LocalTime> eastern_summer = stxlib::local_time(summer);
-    CHECK(eastern_summer.succeeded());
-    if (eastern_summer.succeeded()) {
-        const LocalTime& reading = *eastern_summer.value();
-        CHECK(reading.offset_seconds == -14400);
-        CHECK(reading.civil.hour == 8);
-        CHECK(consistent(reading, summer));
-    }
-
-    CHECK(stxlib::set_variable("TZ", "<+0530>-5:30").succeeded());
-    const Result<LocalTime> india = stxlib::local_time(winter);
-    CHECK(india.succeeded());
-    if (india.succeeded()) {
-        const LocalTime& reading = *india.value();
-        CHECK(reading.offset_seconds == 19800);
-        CHECK(reading.civil.hour == 17 && reading.civil.minute == 30);
-        CHECK(consistent(reading, winter));
-    }
-
     if (had_zone) {
         CHECK(stxlib::set_variable("TZ", (*saved.value()).view()).succeeded());
     } else {
         CHECK(stxlib::remove_variable("TZ").succeeded());
     }
 }
-#endif
+
 
 } // namespace
 
@@ -167,8 +300,10 @@ int main() {
     reference_values();
     any_zone();
     range_ends();
-#if !defined(_WIN32)
-    posix_rules();
-#endif
+    compiled_vectors();
+    names();
+    zone_readings();
+    civil_every_day();
+    host_zone_by_tz();
     return stxlib_tests::finish("local_time");
 }

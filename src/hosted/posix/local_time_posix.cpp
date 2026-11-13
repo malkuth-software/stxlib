@@ -1,55 +1,94 @@
-// The local time zone on POSIX hosts (hosted/local_time_backend.hpp):
-// tzset and localtime_r, under the environment lock because both read TZ.
-// Ported from stx_auxlib's src/hosted/calendar_posix.cpp at b6e330a.
-// localtime_r need not reread TZ (POSIX: localtime_r need not behave as
-// though tzset were called; from the published text, not re-read in this
-// batch), so tzset runs on the first call and after every change made
-// through set_variable or remove_variable, which count in
-// environment_generation (environment.cpp). The load state lives in
-// stxlib_state, so every module shares it.
+// The host's zone name on POSIX hosts (hosted/local_time_backend.hpp): the
+// target of the /etc/localtime link (the usual configuration of Linux
+// distributions and macOS: a link into a zoneinfo directory), else the
+// first line of /etc/timezone (where some Linux distributions keep the
+// name), else "UTC" (POSIX leaves the default zone to the implementation;
+// glibc and musl use UTC). These host conventions are stated from common
+// practice, not from a cited specification.
+// Replaces batch 2c's tzset and localtime_r (owner decision D12 = a): no
+// host zone rules are read, so no environment lock or load state is needed.
 
 #include "hosted/local_time_backend.hpp"
 
 #include "core/host_failure.hpp"
-#include "core/spin_lock.hpp"
-#include "state/state.hpp"
 
 #include <cerrno>
-#include <ctime>
 
-#include <time.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace stxlib::local_time_backend {
 
-static_assert(sizeof(time_t) >= 8, "time_t must hold 64-bit seconds");
+namespace {
 
-Status local_reading(const i64 seconds, CivilTime& local) noexcept {
-    const time_t host_seconds = static_cast<time_t>(seconds);
-    tm reading{};
-    {
-        state::ProcessState& process = state::current_process();
-        const spin::Guard lock(process.environment_lock);
-        if (!process.zone_loaded || process.zone_generation != process.environment_generation) {
-            ::tzset();
-            process.zone_loaded = true;
-            process.zone_generation = process.environment_generation;
-        }
-        errno = 0;
-        if (::localtime_r(&host_seconds, &reading) == nullptr) {
-            const int error = errno;
-            if (error == 0) return host_failure::failed(ErrorKind::io_failure, "stxlib.local_time", HostCode::none);
-            return host_failure::failed(ErrorKind::io_failure, "stxlib.local_time", HostCode::none,
-                                        ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
-        }
-    }
-    local.year = static_cast<i32>(reading.tm_year + 1900);
-    local.month = static_cast<u8>(reading.tm_mon + 1);
-    local.day = static_cast<u8>(reading.tm_mday);
-    local.hour = static_cast<u8>(reading.tm_hour);
-    local.minute = static_cast<u8>(reading.tm_min);
-    // A leap-second-aware zone may report second 60; Unix time has none.
-    local.second = static_cast<u8>(reading.tm_sec > 59 ? 59 : reading.tm_sec);
+constexpr Operation operation = "stxlib.local_time.host_zone";
+
+Status io_failure_errno(const int error) noexcept {
+    const Status result = host_failure::failed(ErrorKind::io_failure, operation, HostCode::none,
+                                               ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
+    return result;
+}
+
+Status write_utc(ZoneText& text) noexcept {
+    text.bytes[0] = 'U';
+    text.bytes[1] = 'T';
+    text.bytes[2] = 'C';
+    text.count = 3;
     return Status::success();
+}
+
+// The first line of /etc/timezone, or "UTC" when the file does not exist.
+// `localtime_exists` says /etc/localtime exists but is no link: the zone is
+// then a copied file with no name in it, and a missing /etc/timezone leaves
+// it unnamed.
+Status read_timezone_file(ZoneText& text, const bool localtime_exists) noexcept {
+    int fd = ::open("/etc/timezone", O_RDONLY | O_CLOEXEC);
+    while (fd < 0 && errno == EINTR) fd = ::open("/etc/timezone", O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        const int error = errno;
+        if (error != ENOENT) return io_failure_errno(error);
+        if (localtime_exists) return host_failure::failed(ErrorKind::not_found, operation, HostCode::none);
+        return write_utc(text);
+    }
+    // One read of up to the capacity: the name is on the first line, far
+    // shorter. A longer first line is refused below.
+    ZoneText line{};
+    ssize_t got = ::read(fd, line.bytes, zone_text_capacity);
+    while (got < 0 && errno == EINTR) got = ::read(fd, line.bytes, zone_text_capacity);
+    const int read_error = errno;
+    static_cast<void>(::close(fd));
+    if (got < 0) return io_failure_errno(read_error);
+    usize count = 0;
+    const usize length = static_cast<usize>(got);
+    while (count < length && line.bytes[count] != '\n' && line.bytes[count] != '\r') ++count;
+    if (count == length && length == zone_text_capacity) {
+        return host_failure::failed(ErrorKind::limit_exceeded, operation, HostCode::too_long);
+    }
+    while (count > 0 && (line.bytes[count - 1] == ' ' || line.bytes[count - 1] == '\t')) --count;
+    for (usize index = 0; index < count; ++index) text.bytes[index] = line.bytes[index];
+    text.count = count;
+    return Status::success();
+}
+
+} // namespace
+
+Status system_zone_text(ZoneText& text) noexcept {
+    ZoneText link{};
+    const ssize_t got = ::readlink("/etc/localtime", link.bytes, zone_text_capacity);
+    if (got >= 0) {
+        const usize length = static_cast<usize>(got);
+        if (length == zone_text_capacity) {
+            return host_failure::failed(ErrorKind::limit_exceeded, operation, HostCode::too_long);
+        }
+        for (usize index = 0; index < length; ++index) text.bytes[index] = link.bytes[index];
+        text.count = length;
+        return Status::success();
+    }
+    const int error = errno;
+    // EINVAL: /etc/localtime exists and is no link (a copied zone file).
+    if (error == EINVAL) return read_timezone_file(text, true);
+    if (error == ENOENT || error == ENOTDIR) return read_timezone_file(text, false);
+    return io_failure_errno(error);
 }
 
 } // namespace stxlib::local_time_backend

@@ -202,10 +202,10 @@ void child_output_and_status() {
 
 void timeouts_and_kill() {
     Child sleeper = start_self({"sleep"}, ChildStreams::discard);
-    const stxlib::MonotonicTime before = stxlib::MonotonicTime::now();
+    const stxlib::IntervalTime before = stxlib::IntervalTime::now();
     const Result<ChildEnd> timed = sleeper.wait(Duration::milliseconds(50));
     CHECK(kind_of(timed) == ErrorKind::limit_exceeded && code_of(timed) == HostCode::timed_out);
-    CHECK(stxlib::MonotonicTime::now().since(before) >= Duration::milliseconds(50));
+    CHECK(stxlib::IntervalTime::now().since(before) >= Duration::milliseconds(50));
     CHECK(code_of(sleeper.wait(Duration())) == HostCode::timed_out);
     CHECK(sleeper.kill().succeeded());
     const Result<ChildEnd> killed = sleeper.wait(Duration::seconds(30));
