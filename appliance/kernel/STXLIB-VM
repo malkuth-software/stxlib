@@ -1,127 +1,262 @@
 #
-# STXLIB-VM -- draft minimal kernel for the C1 bring-up VM (QEMU virt, arm64).
+# STXLIB-VM -- the appliance kernel for the C1 VM (QEMU virt, arm64, HVF).
 #
-# Draft of 2026-11-13, not yet built: the integrator builds it on a granted
-# run (appliance/kernel/README.md). Written against FreeBSD releng/15.2 at
-# fb9033d2876d (BETA2), the pin of notes planning/stages/A0-freebsd-pin.md.
-# Every line below is taken from sys/arm64/conf/std.arm64, std.dev or
-# std.virt at that commit (cited per block), so the option and device names
-# exist there; what is left out is the point of the file.
+# Method (coordinator, 2026-11-13): FreeBSD's arm64 GENERIC (releng/15.2 at
+# fb9033d2876d) minus what the appliance does not need, as nodevice and
+# nooptions lines, each with its reason. GENERIC builds; every cut is then
+# measured (kernel size and boot time, appliance/vm/README.md). The earlier
+# build-up draft (git history to dd95cde) records which std.* entries
+# standard files need: HWPMC_HOOKS (sys/arm/arm/pmu.c), KTRACE
+# (kern/subr_syscall.c needs sys/uio.h only under KTRACE), clk and the
+# other std.dev frameworks (pci_dw_mv.c needs clknode_if.h).
 #
-# Aims, in order: boot the stock userland from a virtio disk on QEMU's
-# UEFI firmware; keep everything the appliance's design needs (PID 1 and
-# supervisor protections, Capsicum and jails for services, evdev input and
-# the EFI framebuffer for the GUI.Forms host); time every stage (TSLOG);
-# probe nothing the VM does not have. Things kept only for bring-up are
-# marked "bring-up" and leave before the appliance kernel.
+# STXLIB-GENERIC is this file's baseline (GENERIC plus TSLOG).
+# check_config.py statically checks a cut for missing generated headers.
 #
-# Machine, the always-built core (gic, generic timer, psci: standard in
-# sys/conf/files.arm64:15-16, 435) and GEOM_PART_GPT/MBR/BSD, mem, INTRNG,
-# NETLINK come from sys/arm64/conf/DEFAULTS, read by config(8) for every
-# arm64 kernel.
-
-cpu		ARM64
+include 	"GENERIC"
 ident		STXLIB-VM
 
-makeoptions	DEBUG=-g		# bring-up: symbols for the debugger
-
-# --- Scheduling and memory (std.arm64) ------------------------------------
-options 	SCHED_ULE		# ULE scheduler
-options 	PREEMPTION		# Enable kernel thread preemption
-options 	SMP			# Symmetric MultiProcessor Kernel
-options 	VFP			# Floating-point support
-options 	_KPOSIX_PRIORITY_SCHEDULING # POSIX real-time scheduling for the supervisor (design question 3)
-options 	PRINTF_BUFR_SIZE=128	# Prevent printf output being interspersed.
-options 	EFIRT			# EFI Runtime Services support
-options 	PERTHREAD_SSP		# Per-thread SSP canary
-options 	HWPMC_HOOKS		# Necessary kernel hooks for hwpmc(4) (std.arm64). Kept because
-				# sys/arm/arm/pmu.c:66-89 (always built on arm64) leaves 'r' set but
-				# unused without it, an error under -Werror: the first build,
-				# 2026-11-13, stopped there (LLVM 22.1.8, -Wunused-but-set-variable).
-
-options 	KTRACE			# ktrace(2) (std.arm64). Kept because sys/kern/subr_syscall.c:46-49
-				# includes <sys/uio.h> only #ifdef KTRACE, yet line 213 calls
-				# exterr_copyout(), declared there (sys/sys/uio.h:87): without
-				# KTRACE, arm64 trap.o fails -Wimplicit-function-declaration.
-				# Second build, 2026-11-13, LLVM 22.1.8. A FreeBSD include bug,
-				# not patched (config-only fixes for now); drop KTRACE once fixed.
-
-# --- Boot timing (sys/conf/NOTES:641-642) ----------------------------------
 options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user
 options 	TSLOGSIZE=262144
 
-# --- Services' confinement (std.arm64) --------------------------------------
-options 	CAPABILITY_MODE		# Capsicum capability mode
-options 	CAPABILITIES		# Capsicum capabilities
-options 	RACCT			# Resource accounting framework
-options 	RACCT_DEFAULT_TO_DISABLED # Set kern.racct.enable=0 by default
-options 	RCTL			# Resource limits (measured before kept, design question 3)
+# ==========================================================================
+# Batch 1 (2026-11-13): device classes absent from QEMU virt, INET6, debug
+# message options. WITNESS, INVARIANTS, INVARIANT_SUPPORT and DIAGNOSTIC are
+# not in releng GENERIC (no std.debug on a release branch), so nothing to
+# cut there. Kept although cuttable later: DDB/KDB, KDTRACE_*, DEBUG=-g
+# (bring-up), virtio_mmio (QEMU virt has empty virtio-mmio transports; we
+# use PCI), USB host xhci + usb + HID/keyboard (kept for C3: the Pi 4's
+# VL805 is xhci on PCIe).
+# ==========================================================================
 
-# --- Networking: IPv4 for the web interface and DHCP (std.arm64) ------------
-options 	INET			# InterNETworking
-device		loop			# Network loopback (std.dev)
-device		ether			# Ethernet support (std.dev)
-device		bpf			# Berkeley packet filter; DHCP needs it (std.dev)
+# --- 1a. SoC support: every std.<soc> entry not also in std.arm64, std.dev,
+# std.virt or DEFAULTS, so GENERIC reduces to FreeBSD's own VIRT set
+# (sys/arm64/conf/VIRT). Generated by sb2 dev/tools/soc_cuts.py, then:
+# kept pl031 (QEMU virt has a PL031 RTC at 0x09010000) and uart_ns8250
+# (dev/uart/uart_bus_pci.c:295, built with uart+pci, references
+# uart_ns8250_class).
 
-# --- File systems (std.arm64): UFS2 for the stock image and service parts,
-#     FAT for the boot and user parts (design question 5), tmpfs for /tmp
-options 	FFS			# Berkeley Fast Filesystem
-options 	SOFTUPDATES		# Enable FFS soft updates support
-options 	UFS_DIRHASH		# Improve performance on big directories
-options 	MSDOSFS			# MSDOS Filesystem
-options 	TMPFS			# Efficient memory filesystem
-options 	GEOM_LABEL		# Provides labelization (the stock image mounts /dev/gpt/rootfs)
+# std.al: absent from QEMU virt
+nodevice	al_ccu	# Alpine Cache Coherency Unit
+nodevice	al_nb_service	# Alpine North Bridge Service
+nodevice	al_iofic	# I/O Fabric Interrupt Controller
+nodevice	al_serdes	# Serializer/Deserializer
+nodevice	al_udma	# Universal DMA
+nodevice	al_pci	# Annapurna Alpine PCI-E
+nodevice	al_eth	# Annapurna Alpine Ethernet NIC
 
-# --- Firmware tables and buses (std.virt, std.dev) --------------------------
-options 	FDT
-device		acpi
-device		pci
-# SoC frameworks from std.dev:64-69. Kept because "pci fdt" always builds
-# sys/dev/pci/pci_dw_mv.c and pci_dw.c (files.arm64:431-432), which include
-# clk.h and need the generated clknode_if.h (files:1363, "optional clk"): the
-# third build, 2026-11-13, stopped there. Prepared, not yet built.
-device		clk
-device		phy
-device		hwreset
-device		nvmem
-device		regulator
-device		syscon
-device		efidev			# EFI pseudo-device (std.arm64)
-device		efirtc			# EFI RTC (std.arm64)
+# std.allwinner: absent from QEMU virt
+nooptions	SOC_ALLWINNER_A64
+nooptions	SOC_ALLWINNER_H5
+nooptions	SOC_ALLWINNER_H6
+nodevice	aw_timer
+nodevice	a31_dmac
+nodevice	aw_gpio	# Allwinner GPIO controller
+nodevice	aw_rsb	# Allwinner Reduced Serial Bus
+nodevice	twsi	# Allwinner I2C controller
+nodevice	sy8106a	# SY8106A Buck Regulator
+nodevice	aw_ccu	# Allwinner clock controller
+nodevice	aw_r_intc	# Allwinner RINTC support
+nodevice	aw_nmi	# Allwinner NMI support
+nodevice	aw_rtc	# Allwinner Real-time Clock
+nodevice	aw_wdog	# Allwinner Watchdog
+nodevice	aw_syscon	# Allwinner System Controller
+nodevice	axp81x	# X-Powers AXP81x PMIC
+nodevice	aw_sid	# Allwinner Secure ID EFUSE
+nodevice	aw_thermal	# Allwinner Thermal Sensor Controller
+nodevice	uart_snps
+nodevice	awg	# Allwinner EMAC Gigabit Ethernet
+nodevice	aw_usbphy	# Allwinner USB PHY
+nodevice	musb	# Mentor Graphics USB OTG controller
+nodevice	dwc3	# Synopsys DWC controller
+nodevice	aw_dwc3	# Allwinner DWC3 controller
+nodevice	a10_codec	# Allwinner A10 codec
+nodevice	aw_i2s	# Allwinner I2S
+nodevice	a33_codec	# Allwinner A33 codec
+nodevice	a64_codec	# Allwinner A64 Analog codec
+nodevice	aw_mmc	# Allwinner SD/MMC controller
 
-# --- VM devices (std.virt) ---------------------------------------------------
-device		virtio			# Generic VirtIO bus (required)
-device		virtio_pci		# VirtIO PCI device
-device		virtio_blk		# VirtIO Block device
-device		vtnet			# VirtIO Ethernet device
-device		uart			# Generic UART driver (std.dev)
-device		pl011			# QEMU virt's serial port: the console
+# std.altera: absent from QEMU virt
+nooptions	SOC_INTEL_STRATIX10
+nodevice	dwgpio	# Synopsys DesignWare APB GPIO Controller
+nodevice	dwc	# Synopsys DesignWare GMAC controller
+nodevice	dwc_socfpga	# Altera SOCFPGA Ethernet MAC
+nodevice	dwmmc
+nodevice	dwmmc_altera
 
-# --- Entropy (std.dev) -------------------------------------------------------
-device		armv8_rng		# Armv8.5 rndr RNG, when the host CPU offers it
+# std.amd: absent from QEMU virt
+nodevice	axa	# AMD Opteron A1100 integrated NIC
+nodevice	msk	# Marvell/SysKonnect Yukon II Gigabit Ethernet
 
-# --- Display and input for the GUI.Forms host (std.dev); C2, kept so C1 can
-#     check the framebuffer handoff (MODINFOMD_EFI_FB) early
-device		vt
-device		vt_efifb
-device		kbdmux
-device		evdev			# input event device support
-options 	EVDEV_SUPPORT		# evdev support in legacy drivers
-options 	KBD_INSTALL_CDEV	# install a CDEV entry in /dev (std.arm64)
+# std.apple: absent from QEMU virt
+nooptions	SOC_APPLE_T8103
+nodevice	bge
 
-# --- Debugging (std.arm64, sys/conf/NOTES): bring-up only ------------------------------------
-options 	KDB			# Enable kernel debugger support.
-options 	KDB_TRACE		# Print a stack trace for a panic.
-options 	DDB			# the in-kernel debugger (sys/conf/options:49, sys/conf/NOTES:415)
-options 	INCLUDE_CONFIG_FILE	# Include this file in kernel
+# std.arm: absent from QEMU virt
+nodevice	pci_n1sdp	# ARM Neoverse N1 SDP PCI
+nodevice	scmi	# System Control Management Interface
+nodevice	arm_doorbell	# ARM Message Handling Unit (MHU)
 
-# --- Left out on purpose, with the reason -----------------------------------
-# USB (xhci, usb, usbhid, hkbd, ukbd): the USB root-mount hold costs boot
-#   time (sys/dev/usb/controller/usb_controller.c:179-181) and C1 has no USB
-#   device; added in C2 for keyboard tests with hw.usb.no_boot_wait=1.
-# INET6, NFS, CD9660, ZFS, GEOM_RAID, audit, DTrace hooks, COMPAT_FREEBSD*:
-#   nothing in C1 or the design uses them.
-# NUMA, VIMAGE: one node, no per-jail network stacks planned yet (jails for
-#   services share the host stack until the design says otherwise).
-# Real hardware drivers (ahci, nvme, em, ix, mmc, sound, gpio, i2c, spi):
-#   the VM has none of them; the Pi and x86 kernels add their own in C3.
+# std.azure: absent from QEMU virt
+nodevice	hyperv
+nooptions	COMPAT_LINUXKPI
+nodevice	xz
+nodevice	mlx5
+nodevice	mlxfw
+nodevice	mlx5en
+nooptions	RATELIMIT
+
+# std.broadcom: absent from QEMU virt
+nooptions	SOC_BRCM_BCM2837
+nooptions	SOC_BRCM_BCM2838
+nooptions	SOC_BRCM_NS2
+nodevice	bcm2835_bsc	# Broadcom BCM283x I2C bus
+nodevice	bcm2835_spi	# Broadcom BCM283x SPI bus
+nodevice	uart_mu	# RPI3 aux port
+nodevice	genet	# Broadcom on RPi4
+nodevice	dwcotg
+nodevice	muge
+nodevice	smsc
+nodevice	sdhci
+
+# std.cavium: absent from QEMU virt
+nooptions	SOC_CAVM_THUNDERX
+nodevice	vnic	# Cavium ThunderX NIC
+nooptions	THUNDERX_PASS_1_1_ERRATA
+
+# std.hisilicon: absent from QEMU virt
+nooptions	SOC_HISI_HI6220
+nodevice	dwmmc_hisi
+
+# std.imx: absent from QEMU virt
+nooptions	SOC_FREESCALE_IMX8
+nodevice	vf_i2c	# Freescale Vybrid I2C controller
+nodevice	fsliic	# Freescale iMX I2C controller
+nodevice	uart_imx	# iMX8 UART
+nodevice	ffec
+
+# std.marvell: absent from QEMU virt
+nooptions	SOC_MARVELL_8K
+nodevice	a37x0_gpio	# Marvell Armada 37x0 GPIO controller
+nodevice	mv_gpio	# Marvell GPIO controller
+nodevice	mvebu_pinctrl	# Marvell Pinmux Controller
+nodevice	a37x0_iic	# Armada 37x0 I2C controller
+nodevice	tca64xx	# I2C gpio expander
+nodevice	mv_cp110_icu	# Marvell CP110 ICU
+nodevice	mv_ap806_gicp	# Marvell AP806 GICP
+nodevice	mv_ap806_sei	# Marvell AP806 SEI
+nodevice	mv_rtc	# Marvell Real-time Clock
+nodevice	safexcel	# Inside Secure EIP-97
+nodevice	mv_thermal	# Marvell Thermal Sensor Controller
+nodevice	a37x0_spi	# Marvell Armada 37x0 SPI Controller
+nodevice	uart_mvebu	# Armada 3700 UART driver
+nodevice	neta	# Marvell Armada 370/38x/XP/3700 NIC
+nodevice	etherswitch	# Enable etherswitch support
+nodevice	miiproxy	# Required for etherswitch
+nodevice	ehci_mv	# Marvell EHCI USB interface
+nodevice	sdhci_xenon	# Marvell Xenon SD/MMC controller
+nodevice	a37x0_xtal	# Marvell xtal-clock
+nodevice	a37x0_tbg	# Marvell tbg-clock
+nodevice	a37x0_nb_periph	# Marvell north-bridge peripheral clock
+nodevice	a37x0_sb_periph	# Maravell south-bridge peripheral clock
+
+# std.nvidia: absent from QEMU virt
+nooptions	SOC_NVIDIA_TEGRA210
+nodevice	re	# RealTek 8139C+/8169/8169S/8110S
+nodevice	tegra210_xusb_fw	# Tegra XUSB firmware
+nodevice	ure
+
+# std.nxp: absent from QEMU virt
+nooptions	SOC_NXP_LS
+nodevice	pca954x	# NXP I2C bus multiplexer / switches
+nodevice	pcf8563	# NXP Real-time clock/calendar
+nodevice	pcf85063	# NXP Real-time clock
+nodevice	dpaa2	# Data Path Acceleration Architecture (2nd Gen)
+nodevice	enetc	# QorIQ LS1028A NIC
+nodevice	sff	# Small Form Factor Transceivers
+
+# std.qcom: absent from QEMU virt
+nodevice	qcom_gcc	# Global Clock Controller
+nodevice	qcom_mdio	# MDIO support
+nodevice	uart_msm	# Qualcomm MSM UART driver
+
+# std.rockchip: absent from QEMU virt
+nooptions	SOC_ROCKCHIP
+nooptions	SOC_ROCKCHIP_RK3328
+nooptions	SOC_ROCKCHIP_RK3399
+nooptions	SOC_ROCKCHIP_RK3568
+nodevice	rk_gpio	# RockChip GPIO Controller
+nodevice	rk_pinctrl	# RockChip Pinmux Controller
+nodevice	rk_combphy	# Naneng Combo PHY
+nodevice	rk_i2c	# RockChip I2C controller
+nodevice	fan53555	# Fairchild Semi FAN53555/SYR82x Regulator
+nodevice	rk8xx	# RockChip RK8XX base support
+nodevice	rk805	# RockChip RK805 PMIC
+nodevice	rk808	# RockChip RK808 PMIC
+nodevice	rk817	# RockChip RK817 PMIC
+nodevice	syr827	# Silergy SYR827 PMIC
+nodevice	tcs4525	# TCS 4525 PMIC
+nodevice	rk_spi	# RockChip SPI controller
+nodevice	rk_pwm
+nodevice	dwc_rk	# Rockchip Designware
+nodevice	eqos	# Synopsys Designware Ethernet QoS controller
+nodevice	rk_iodomain
+nodevice	rk_usb2phy	# Rockchip USB2PHY
+nodevice	rk_typec_phy	# Rockchip TypeC PHY
+nodevice	rk_dwc3	# Rockchip DWC3 controller
+nodevice	rk_dwmmc
+nodevice	rk_emmcphy
+
+# std.xilinx: absent from QEMU virt
+nooptions	SOC_XILINX_ZYNQ
+nodevice	cgem	# Cadence GEM Gigabit Ethernet device
+nodevice	sdhci_xilinx
+nodevice	cdnc_i2c
+
+# --- 1b. std.virt: hypervisor devices not on the QEMU virt machine ------
+nodevice	pvscsi		# VMware PVSCSI: VMware only
+nodevice	vmx		# VMware VMXNET3: VMware only
+nodevice	virtio_gpu	# not attached (-display none; no virtio-gpu-pci)
+nodevice	virtio_scmi	# not attached; scmi itself cut in 1a (std.arm)
+nodevice	virtio_scsi	# not attached; the disk is virtio-blk
+
+# --- 1c. std.dev: hardware classes QEMU virt does not have -----------------
+nodevice	ahci		# no AHCI/SATA controller on virt
+nodevice	scbus		# CAM: only for ahci, nvme (nda), umass, cd
+nodevice	da		# CAM direct access (needs scbus)
+nodevice	cd		# CAM CD (needs scbus)
+nodevice	pass		# CAM passthrough (needs scbus)
+nodevice	umass		# USB mass storage (needs scbus, da)
+nodevice	nvme		# no NVMe on virt
+nodevice	nvd		# NVMe disks (needs nvme)
+nooptions	NVME_USE_NVD	# nvme option
+nodevice	gpioled		# no GPIO LEDs (pl061 and gpio stay: power key)
+nodevice	gpioregulator	# no GPIO regulators
+nodevice	iicbus		# no I2C on virt
+nodevice	iicmux		# I2C
+nodevice	iic		# I2C
+nodevice	icee		# I2C EEPROM
+nodevice	spibus		# no SPI on virt
+nodevice	pwm		# no PWM on virt
+nodevice	vt_simplefb	# no simple-framebuffer node; vt_efifb stays
+nodevice	em		# Intel PRO/1000: not attached (virtio-net)
+nodevice	ix		# Intel 10Gb: not attached
+nodevice	iflib		# only for em, ix, vmx, enetc (all cut)
+nodevice	mdio		# PHY buses: no MII PHYs behind virtio-net
+nodevice	mii
+nodevice	miibus
+nodevice	ohci		# USB 1.1/2.0 host controllers: xhci only (C3)
+nodevice	uhci
+nodevice	ehci
+nodevice	sound		# no audio device attached
+nodevice	mmc		# no SD/MMC on virt
+nodevice	mmcsd
+nodevice	mmio_sram	# no on-chip SRAM
+nodevice	tpm		# no TPM attached
+nooptions	RANDOM_ENABLE_TPM # tpm option
+
+# --- 1d. Protocols and debug messages --------------------------------------
+nooptions	INET6		# the appliance is IPv4 only (C design notes)
+nooptions	USB_DEBUG	# debug messages
+nooptions	HID_DEBUG	# debug messages
+nooptions	IEEE80211_DEBUG	# debug messages (no wlan device either)

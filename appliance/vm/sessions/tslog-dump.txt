@@ -1,4 +1,4 @@
-# C1 step 2: the running kernel's identity and its boot timestamps (TSLOG).
+# The running kernel's identity and its boot timestamps (TSLOG).
 # debug.tslog: sys/kern/kern_tslog.c:135-137; debug.tslog_user: 219.
 uname -v
 sysctl kern.timecounter.hardware kern.timecounter.choice

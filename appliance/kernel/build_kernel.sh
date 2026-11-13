@@ -13,7 +13,9 @@
 # (owner's storage rule): object tree in obj/, the full log in
 # logs/kernel-build/, and on success the kernel, its debug file and a
 # SHA-256 in kernels/<KERNCONF>/. Prints only the outcome and, on failure,
-# the error lines and the log's tail. Exit status is make's.
+# the error lines and the log's tail. Exit status is make's. On success it
+# also writes kernels/<KERNCONF>/kernel.size: the file size, llvm-size's
+# text/data/bss, and the PT_LOAD segments (what the loader loads).
 #
 # Environment (all optional): STXLIB_FREEBSD_SRC (source tree), STXLIB_STORAGE
 # (storage root), STXLIB_JOBS (parallel jobs; default 4, the M4 is shared).
@@ -82,3 +84,17 @@ cp "$built" "$outdir/kernel"
 echo "build_kernel: OK after ${elapsed} s: $outdir/kernel ($(wc -c < "$outdir/kernel" | tr -d ' ') bytes)"
 echo "build_kernel: sha256 $(cut -d' ' -f1 "$outdir/kernel.sha256")"
 echo "build_kernel: warnings in log: $(grep -c 'warning:' "$log" || true)"
+
+# Kernel size, recorded beside its boot times (owner, 2026-11-13).
+{
+    echo "file_bytes $(wc -c < "$outdir/kernel" | tr -d ' ')"
+    "$STXLIB_LLVM_BINDIR/llvm-size" -A "$outdir/kernel" 2>&1 | grep -E '^(\.text|\.rodata|\.data|\.bss|Total)' || true
+    "$STXLIB_LLVM_BINDIR/llvm-size" "$outdir/kernel" 2>&1 || true
+    "$STXLIB_LLVM_BINDIR/llvm-readelf" -lW "$outdir/kernel" 2>&1 | grep -E '^ *LOAD' || true
+    "$STXLIB_LLVM_BINDIR/llvm-readelf" -lW "$outdir/kernel" 2>/dev/null | python3 -c '
+import sys
+rows = [l.split() for l in sys.stdin if l.split()[:1] == ["LOAD"]]
+print("load_filesz", sum(int(r[4], 16) for r in rows))
+print("load_memsz", sum(int(r[5], 16) for r in rows))' || true
+} > "$outdir/kernel.size"
+sed 's/^/build_kernel: size: /' "$outdir/kernel.size"

@@ -1,0 +1,12 @@
+#
+# STXLIB-GENERIC -- the known-good baseline for STXLIB-VM: FreeBSD's arm64
+# GENERIC (releng/15.2 at fb9033d2876d) unchanged, plus TSLOG so its boot can
+# be timed the same way. Built with our toolchain (toolchain.env), not
+# FreeBSD's. Its own ident keeps it apart from the stock GENERIC kernel in
+# the guest's uname and boot banner.
+#
+include 	"GENERIC"
+ident		STXLIB-GENERIC
+
+options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user
+options 	TSLOGSIZE=262144

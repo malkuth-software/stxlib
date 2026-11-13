@@ -1,32 +1,32 @@
 # Kernel configurations
 
-`STXLIB-VM` is the C1 draft: the smallest arm64 kernel that should boot the
-stock 15.2 userland in QEMU's virt machine, keeping what the appliance's
-design needs and timing every stage with `TSLOG`. Each line is taken from
-`sys/arm64/conf/std.*` at the pin, cited in the file; the file also lists
-what is left out and why. It has not been built.
+- `STXLIB-GENERIC`: FreeBSD's arm64 `GENERIC` at the pin plus `TSLOG`, built
+  with our toolchain. The known-good baseline every cut is measured against.
+- `STXLIB-VM`: the appliance kernel for the C1 VM, written as
+  `include "GENERIC"` followed by `nodevice` and `nooptions` lines, in
+  numbered batches, each line with its reason (coordinator, 2026-11-13).
+  The earlier build-up draft (history up to `dd95cde`) records which
+  `std.*` entries standard files need.
 
-## Building it (later in C1, on a granted run; not part of step 1)
+## Tools
 
-On the M4, outside the repository, with the FreeBSD source at the pinned
-commit (the integrator's shallow clone under `/Volumes/Storage`) and the
-toolchain from `appliance/toolchain.env`:
-
-```
-. <repo>/appliance/toolchain.env
-cd <freebsd-src at fb9033d2876d>
-MAKEOBJDIRPREFIX=/Volumes/Storage/stxlib_workers/appliance/obj \
-  tools/build/make.py --cross-bindir="$STXLIB_LLVM_BINDIR" \
-  TARGET=arm64 TARGET_ARCH=aarch64 \
-  KERNCONF=STXLIB-VM KERNCONFDIR=<repo>/appliance/kernel \
-  XLD="$STXLIB_LLD_BINDIR/ld.lld" \
-  buildkernel
-```
-
-`make.py` builds FreeBSD on macOS given a cross toolchain
-(`tools/build/make.py:31-42`); `KERNCONFDIR` lets the configuration live
-outside the source tree (`Makefile.inc1:1731`). Whether `XLD` is honoured
-alongside `--cross-bindir`, and whether `buildkernel` needs a prior
-`kernel-toolchain` step on a macOS host, are unconfirmed: the first granted
-build answers both. The kernel is then copied into the VM's overlay (a
-procedure for a later step) and booted with the same timing script.
+- `build_kernel.sh [KERNCONF]`: builds one configuration on the M4 with
+  FreeBSD's `tools/build/make.py`, the cross toolchain from
+  `../toolchain.env` (version checked) and `XLD` set to lld, running
+  `kernel-toolchain buildkernel` with `NO_MODULES`, as FreeBSD's macOS CI
+  does (`.github/workflows/cross-bootstrap-tools.yml:67-70`). `KERNCONFDIR`
+  is this directory (`Makefile.inc1:1731`); config(8) also searches
+  `sys/arm64/conf`, so `include "GENERIC"` resolves there
+  (`Makefile.inc1:1809-1813`). Objects, logs and outputs go under
+  `/Volumes/Storage/stxlib_workers/appliance/`. On success it writes
+  `kernels/<KERNCONF>/` with `kernel`, `kernel.debug`, `kernel.sha256` and
+  `kernel.size` (file size, `llvm-size` sections, PT_LOAD sums).
+- `check_config.py <sys> <config>`: a static check before a build. It
+  evaluates the configuration as config(8) does, selects the files
+  `conf/files*` would compile, and lists those that reach a generated
+  `*_if.h` whose `.m` is not selected (the `clknode_if.h` failure). It
+  follows includes under `#if` too, so compare a cut with `STXLIB-GENERIC`
+  and read only the lines the cut adds. It does not find undeclared
+  functions or missing link symbols. It finds the `ce5fa24` failure.
+- `../vm/c1_step2_kernel.sh [KERNCONF]`: installs a built kernel in the
+  `tuned` VM, times three boots that must show its ident, and dumps TSLOG.
