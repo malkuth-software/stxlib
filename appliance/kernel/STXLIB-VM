@@ -16,8 +16,14 @@
 include 	"GENERIC"
 ident		STXLIB-VM
 
-options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user
-options 	TSLOGSIZE=262144
+# No TSLOG: on arm64 it hangs the boot before the console. locore does not
+# set x18 (the pcpu pointer) on the boot CPU before initarm
+# (sys/arm64/arm64/locore.S:126-186), and initarm calls link_elf_ireloc()
+# (machdep.c:802) before setting it (:806-813); link_elf_ireloc's TSENTER()
+# (kern/link_elf.c:2085) reads curthread through x18 (arm64/include/pcpu.h).
+# Shown 2026-11-13: STXLIB-GENERIC hung there (register dump), GENERIC
+# without TSLOG booted. Candidate upstream report; boot stages are timed on
+# the host from the serial line instead.
 
 # ==========================================================================
 # Batch 1 (2026-11-13): device classes absent from QEMU virt, INET6, debug

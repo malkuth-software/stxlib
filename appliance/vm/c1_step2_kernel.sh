@@ -34,6 +34,6 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
     --commands sessions/install-kernel.txt --serve-dir "$kernels" \
     --define "kernel_sha256=$sha" --define "kernconf=$kernconf"
 python3 boot_timing.py --name "$vm" --firmware-timeout-ms 0 --runs 3 --label "$label" \
-    --require "/sys/$kernconf arm64" --stop-after-failure --hang-dump
+    --require "[ /]$kernconf arm64" --stop-after-failure --hang-dump
 python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
     --commands sessions/tslog-dump.txt

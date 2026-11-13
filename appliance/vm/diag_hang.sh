@@ -22,7 +22,7 @@ if [ "$seconds" = last ]; then
     dump=$(ls -t "$logs"/*/hang-registers.txt 2>/dev/null | head -1)
 else
     python3 boot_timing.py --name "$vm" --firmware-timeout-ms 0 --runs 1 --timeout "$seconds" \
-        --label "$label" --hang-dump --require "/sys/$kernconf arm64" || true
+        --label "$label" --hang-dump --require "[ /]$kernconf arm64" || true
     dump=$(ls -td "$logs"/*-"$label"-1 | head -1)/hang-registers.txt
 fi
 [ -n "$dump" ] && [ -f "$dump" ] || { echo "diag_hang: no register dump (the boot did not time out)"; exit 0; }
