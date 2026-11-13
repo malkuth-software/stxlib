@@ -315,9 +315,12 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # BCryptGenRandom (entropy_windows.cpp); ShellExecuteW (desktop_windows.cpp);
     # QueryInterruptTimePrecise and QueryUnbiasedInterruptTimePrecise
     # (clocks_windows.cpp), which kernel32's import library does not carry:
-    # Microsoft documents them in api-ms-win-core-realtime-l1-1-1.dll, and
-    # mingw-w64 has that import library (lib-common's .def of that name).
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 api-ms-win-core-realtime-l1-1-1)
+    # Microsoft documents them in api-ms-win-core-realtime-l1-1-1.dll
+    # (library mincore). mingw-w64 installs that API set only inside
+    # libmincore.a (crt Makefile.am: mincore.mri), so mincore is linked, after
+    # kernel32 so that kernel32 still provides every function it exports and
+    # mincore only these two.
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 kernel32 mincore)
 endif()
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
