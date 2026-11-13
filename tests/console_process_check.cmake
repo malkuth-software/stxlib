@@ -7,9 +7,14 @@ if(NOT PROGRAM OR NOT WORK)
 endif()
 file(MAKE_DIRECTORY "${WORK}")
 
+# On a mismatch both texts are also shown as hexadecimal bytes, so a
+# carriage return or another invisible byte can be told apart in a CI log.
 function(expect_equal actual expected what)
     if(NOT "${actual}" STREQUAL "${expected}")
-        message(FATAL_ERROR "${what}:\n--- got ---\n${actual}\n--- expected ---\n${expected}")
+        string(HEX "${actual}" actual_hex)
+        string(HEX "${expected}" expected_hex)
+        message(FATAL_ERROR "${what}:\n--- got ---\n${actual}\n--- expected ---\n${expected}\n"
+                            "--- got (hex) ---\n${actual_hex}\n--- expected (hex) ---\n${expected_hex}")
     endif()
 endfunction()
 

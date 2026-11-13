@@ -167,7 +167,14 @@ void child_output_and_status() {
     Child echo = start_self(arguments, ChildStreams::capture);
     std::string expected;
     for (const std::string& word : words) expected += word + "\n";
-    CHECK(output_text(echo, 4096) == expected);
+    const std::string echoed = output_text(echo, 4096);
+    CHECK(echoed == expected);
+    if (echoed != expected) {
+        // The bytes, so an invisible difference shows in a CI log.
+        std::fprintf(stderr, "echo output (%lu bytes):", static_cast<unsigned long>(echoed.size()));
+        for (const char byte : echoed) std::fprintf(stderr, " %02x", static_cast<unsigned>(static_cast<unsigned char>(byte)));
+        std::fprintf(stderr, "\nexpected (%lu bytes)\n", static_cast<unsigned long>(expected.size()));
+    }
     const Result<ChildEnd> echo_end = echo.wait(Duration::seconds(30));
     CHECK(exited_with(echo_end, 0));
     const Result<ChildEnd> twice = echo.wait(Duration::seconds(1));
