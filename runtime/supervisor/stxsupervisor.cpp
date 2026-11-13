@@ -33,6 +33,13 @@
 // would need it reset before execve(2); locked memory makes fork(2) copy
 // the wired pages at once. Both are measured before they are adopted.
 //
+// A/B root slots and the failsafe path (S4, appliance/disk/LAYOUT.md): the
+// supervisor reads which slot the loader booted, takes the failsafe path
+// (/etc/stx/failsafe.conf, then the reason in /user/stx/boot.log) when the
+// configuration is absent, unreadable or refused or at the third restart,
+// and marks the slot good once the good-boot rule holds (60 s after the
+// init section, registered, services healthy, network up).
+//
 // stxinit starts it in its own session with the console as standard input,
 // output and error, and passes "--restart-count=<n>".
 //
@@ -40,6 +47,8 @@
 //
 //   STXSUPERVISOR start restart_count=<n|unknown> uptime_ns=<n> cntvct=<n> cntfrq=<n>
 //   STXSUPERVISOR shim registered | absent | refused errno=<n>
+//   STXSUPERVISOR boot slot=... | good ... | not-yet-good ... (boot_slots_system.h)
+//   STXSUPERVISOR failsafe reason=<config-absent|config-refused|config-unreadable|restart-limit>
 //   STXSUPERVISOR config path=<p> sections=<n> settings=<n> commands=<n>
 //   STXSUPERVISOR config path=<p> absent | too-large | errno=<n>
 //   STXSUPERVISOR config path=<p> refused line=<n> column=<n> error=<name>
@@ -54,6 +63,7 @@
 // SIGCHLD has a do-nothing handler so that it is not discarded while
 // blocked.
 
+#include <array>
 #include <cerrno>
 #include <cstdint>
 #include <cstdlib>
@@ -66,6 +76,8 @@
 #include <unistd.h>
 
 #include "../common/console_line.h"
+#include "boot_slots.h"
+#include "boot_slots_system.h"
 #include "config/boot_config.h"
 #include "config/init_executor.h"
 #include "config/service_registry.h"
@@ -95,17 +107,30 @@ stxconfig::InitWorkspace init_workspace;
 stxconfig::ServiceRegistry service_registry;
 stxconfig::SystemServiceActions service_actions(STDOUT_FILENO);
 
-void begin_config_line(LineText& line) noexcept {
+// This boot, as the loader and the supervisor's own start saw it (S4).
+stxboot::BootFacts boot_facts_now{};
+bool shim_registered = false;
+bool init_done = false;
+std::uint64_t init_done_ms = 0;
+bool failsafe_taken = false;
+bool boot_marked_good = false;
+bool boot_not_good_reported = false;
+// When the good-boot rule is next evaluated; none when it is not pending.
+std::optional<std::uint64_t> good_check_due_ms;
+// After the first check at 60 s, how often to look again.
+constexpr std::uint64_t good_recheck_ms = 10000;
+
+void begin_config_line(LineText& line, const char* path) noexcept {
     stxruntime::append_text(line, "STXSUPERVISOR config path=");
-    stxruntime::append_text(line, stxconfig::config_path);
+    stxruntime::append_text(line, path);
 }
 
-// Reads and parses the configuration. True when boot_config holds it.
-[[nodiscard]] bool load_config(int console) noexcept {
+// Reads and parses a configuration into boot_config.
+[[nodiscard]] stxboot::ConfigState load_config(int console, const char* path) noexcept {
     const std::span<char> buffer(config_text, sizeof(config_text));
-    const stxconfig::FileOutcome file = stxconfig::read_config_file(stxconfig::config_path, buffer);
+    const stxconfig::FileOutcome file = stxconfig::read_config_file(path, buffer);
     LineText line = stxruntime::empty_line();
-    begin_config_line(line);
+    begin_config_line(line, path);
     const stxconfig::FileRead* const read = file.as_read();
     if (read == nullptr) {
         const stxconfig::FileReadFailed* const failed = file.as_read_failed();
@@ -122,7 +147,7 @@ void begin_config_line(LineText& line) noexcept {
             stxruntime::append_text(line, " unreadable\n");
         }
         stxruntime::write_line(console, line);
-        return false;
+        return file.is_absent() ? stxboot::ConfigState::absent : stxboot::ConfigState::unreadable;
     }
     const std::span<const char> text(config_text, (*read).size);
     const stxconfig::ParseOutcome parsed = stxconfig::parse_boot_config(text, boot_config);
@@ -136,7 +161,7 @@ void begin_config_line(LineText& line) noexcept {
         stxruntime::append_text(line, stxconfig::parse_error_name((*refusal).error));
         stxruntime::append_text(line, "\n");
         stxruntime::write_line(console, line);
-        return false;
+        return stxboot::ConfigState::refused;
     }
     stxruntime::append_text(line, " sections=");
     stxruntime::append_decimal(line, boot_config.section_count());
@@ -146,7 +171,7 @@ void begin_config_line(LineText& line) noexcept {
     stxruntime::append_decimal(line, boot_config.init_command_count());
     stxruntime::append_text(line, "\n");
     stxruntime::write_line(console, line);
-    return true;
+    return stxboot::ConfigState::loaded;
 }
 
 void run_init(int console) noexcept {
@@ -167,8 +192,45 @@ void run_init(int console) noexcept {
     stxruntime::write_line(console, line);
 }
 
-// The init section runs on the boot's first supervisor start only.
+[[nodiscard]] std::uint64_t uptime_milliseconds() noexcept {
+    const stxruntime::ClockNanoseconds uptime = stxruntime::read_clock(CLOCK_UPTIME);
+    return uptime.has_value() ? *uptime / stxruntime::nanoseconds_per_millisecond : 0u;
+}
+
+// The failsafe path (appliance/disk/LAYOUT.md): its own init section, then
+// the reason in the boot log.
+void take_failsafe(int console, stxboot::FailsafeReason reason) noexcept {
+    failsafe_taken = true;
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR failsafe reason=");
+    stxruntime::append_text(line, stxboot::failsafe_reason_name(reason));
+    stxruntime::append_text(line, "\n");
+    stxruntime::write_line(console, line);
+    if (load_config(console, stxboot::failsafe_config_path) == stxboot::ConfigState::loaded) {
+        run_init(console);
+    }
+    LineText event = stxruntime::empty_line();
+    stxruntime::append_text(event, "failsafe-");
+    stxruntime::append_text(event, stxboot::failsafe_reason_name(reason));
+    // NUL-terminated for append_boot_log; the event is far shorter than a line.
+    const std::size_t end = event.length < stxruntime::line_capacity_bytes ? event.length
+                                                                          : stxruntime::line_capacity_bytes - 1u;
+    event.bytes[end] = '\0';
+    stxboot::append_boot_log(console, boot_facts_now, event.bytes, uptime_milliseconds());
+}
+
+// The init section runs on the boot's first supervisor start only; the
+// failsafe path instead when the appliance cannot come up.
 void boot_once(int console, const RestartCount& restart_count) noexcept {
+    stxboot::ConfigState config = stxboot::ConfigState::not_read;
+    if (restart_count.has_value() && *restart_count == 0u) {
+        config = load_config(console, stxconfig::config_path);
+    }
+    const stxboot::FailsafeReason reason = stxboot::failsafe_reason(config, restart_count);
+    if (reason != stxboot::FailsafeReason::none) {
+        take_failsafe(console, reason);
+        return;
+    }
     if (!restart_count.has_value() || *restart_count != 0u) {
         LineText line = stxruntime::empty_line();
         stxruntime::append_text(line, "STXSUPERVISOR init not-run restart_count=");
@@ -181,10 +243,67 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
         stxruntime::write_line(console, line);
         return;
     }
-    if (load_config(console)) {
+    if (config == stxboot::ConfigState::loaded) {
         service_registry.load(boot_config);
         run_init(console);
+        init_done = true;
+        init_done_ms = stxconfig::monotonic_milliseconds();
+        if (boot_facts_now.slot.has_value()) {
+            good_check_due_ms = init_done_ms + stxboot::good_boot_settle_ms;
+        }
+        if (boot_facts_now.fallback) {
+            stxboot::append_boot_log(console, boot_facts_now, "fallback", uptime_milliseconds());
+        }
     }
+}
+
+// The good-boot rule, when due (appliance/disk/LAYOUT.md).
+void check_good_boot(int console, std::uint64_t now_ms) noexcept {
+    if (!good_check_due_ms.has_value() || now_ms < *good_check_due_ms || boot_marked_good) {
+        return;
+    }
+    std::array<stxboot::ServiceHealth, stxconfig::services_max> health{};
+    const std::size_t count = service_registry.service_count();
+    for (std::size_t index = 0; index < count && index < health.size(); index += 1) {
+        const stxconfig::ServiceState& state = service_registry.state(index);
+        stxboot::ServiceHealth item{};
+        if (state.as_running() != nullptr) {
+            item.state = stxboot::ServiceStateKind::running;
+        } else if (state.as_waiting() != nullptr) {
+            item.state = stxboot::ServiceStateKind::waiting;
+        } else if (state.as_stopping() != nullptr) {
+            item.state = stxboot::ServiceStateKind::stopping;
+        } else {
+            item.state = stxboot::ServiceStateKind::stopped;
+        }
+        item.restart_never = boot_config.service(index).restart == stxconfig::RestartPolicy::never;
+        health[index] = item;
+    }
+    stxboot::GoodBootInputs inputs{};
+    inputs.registered = shim_registered;
+    inputs.init_done = init_done;
+    inputs.failsafe_taken = failsafe_taken;
+    inputs.services_healthy = stxboot::services_healthy(
+        std::span<const stxboot::ServiceHealth>(health.data(), count < health.size() ? count : health.size()));
+    inputs.network_up = stxboot::network_up();
+    inputs.init_done_ms = init_done_ms;
+    inputs.now_ms = now_ms;
+    if (stxboot::boot_is_good(inputs)) {
+        stxboot::mark_boot_good(console, boot_facts_now);
+        boot_marked_good = true;
+        good_check_due_ms = std::nullopt;
+        return;
+    }
+    if (!boot_not_good_reported) {
+        boot_not_good_reported = true;
+        LineText line = stxruntime::empty_line();
+        stxruntime::append_text(line, "STXSUPERVISOR boot not-yet-good registered=");
+        stxruntime::append_text(line, inputs.registered ? "1" : "0");
+        stxruntime::append_text(line, inputs.services_healthy ? " services=1" : " services=0");
+        stxruntime::append_text(line, inputs.network_up ? " network=1\n" : " network=0\n");
+        stxruntime::write_line(console, line);
+    }
+    good_check_due_ms = now_ms + good_recheck_ms;
 }
 
 // ---------------------------------------------------------------------------
@@ -281,10 +400,15 @@ void terminate(const ShimRegistration& shim) noexcept {
     for (;;) {
         const std::uint64_t now_ms = stxconfig::monotonic_milliseconds();
         service_registry.tick(now_ms, service_actions);
+        check_good_boot(STDOUT_FILENO, now_ms);
         std::uint64_t wait_ms = idle_wait_ms;
         const std::optional<std::uint64_t> due_ms = service_registry.next_due_ms();
         if (due_ms.has_value()) {
             wait_ms = *due_ms > now_ms ? *due_ms - now_ms : 0u;
+        }
+        if (good_check_due_ms.has_value()) {
+            const std::uint64_t good_wait_ms = *good_check_due_ms > now_ms ? *good_check_due_ms - now_ms : 0u;
+            wait_ms = good_wait_ms < wait_ms ? good_wait_ms : wait_ms;
         }
         const timespec timeout = timeout_of(wait_ms);
         siginfo_t information{};
@@ -331,6 +455,8 @@ int main(int argument_count, char** argument_vector) {
 
     const stxsupervisor::ShimRegistration shim = stxsupervisor::register_with_shim();
     stxsupervisor::report_registration(STDOUT_FILENO, shim);
+    stxsupervisor::shim_registered = shim.as_registered() != nullptr;
+    stxsupervisor::boot_facts_now = stxboot::read_boot_facts(STDOUT_FILENO);
 
     // The init section runs before run() blocks signals: the executor waits
     // for each program itself (SIGCHLD keeps its default, which discards the

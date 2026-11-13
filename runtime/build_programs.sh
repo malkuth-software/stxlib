@@ -67,5 +67,6 @@ build() {
 build stxinit runtime/init/stxinit.cpp
 build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/config/boot_config.cpp \
     runtime/supervisor/config/init_executor.cpp runtime/supervisor/config/service_registry.cpp \
-    runtime/supervisor/config/system_actions.cpp runtime/supervisor/shim_client.cpp
+    runtime/supervisor/config/system_actions.cpp runtime/supervisor/shim_client.cpp \
+    runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
