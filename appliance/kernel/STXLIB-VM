@@ -287,3 +287,6 @@ nooptions VIMAGE,IPSEC_SUPPORT,IPSEC_OFFLOAD,SCTP_SUPPORT,KERN_TLS,TCP_OFFLOAD,T
 
 # --- Batch 2, round 7
 nooptions SYSVSHM,SYSVMSG,SYSVSEM # no System V IPC users
+
+# --- Batch 2, round 8
+nooptions GZIO,ZSTDIO,EKCD,DEBUGNET,NETDUMP # crash-dump compression, encryption and network dumps
