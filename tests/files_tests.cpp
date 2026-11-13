@@ -60,7 +60,12 @@ Path under(const Path& base, const std::string& relative) {
 }
 
 std::vector<Byte> bytes_of(const std::string& text) {
-    std::vector<Byte> result(text.begin(), text.end());
+    // Each char converted explicitly: the range constructor's implicit
+    // char -> unsigned char conversion halts the integer-checks build on a
+    // byte above 0x7f.
+    std::vector<Byte> result;
+    result.reserve(text.size());
+    for (const char unit : text) result.push_back(static_cast<Byte>(unit));
     return result;
 }
 
