@@ -671,7 +671,7 @@ void random_items() {
     }
 }
 
-const char* level_name(const stxlib::simd::Level level) {
+const char* level_text(const stxlib::simd::Level level) {
     if (level == stxlib::simd::Level::avx2_fma) return "avx2_fma";
     if (level == stxlib::simd::Level::vector128) return "vector128";
     return "scalar";
@@ -681,7 +681,7 @@ const char* level_name(const stxlib::simd::Level level) {
 
 int main() {
     std::printf("# stxlib bit identity\n");
-    std::printf("# simd level: %s\n", level_name(stxlib::simd::selected_level()));
+    std::printf("# simd level: %s\n", level_text(stxlib::simd::selected_level()));
 #if defined(STXLIB_FLOAT_EXACT_FUSED)
     std::printf("# float_exact product: fused\n");
 #else
