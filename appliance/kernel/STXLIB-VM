@@ -278,3 +278,6 @@ nooptions COMPAT_FREEBSD32,COMPAT_FREEBSD11,COMPAT_FREEBSD12,COMPAT_FREEBSD13,CO
 
 # --- Batch 2, round 4
 nooptions NFSCL,NFSD,NFSLOCKD,NFS_ROOT # no network file systems; root is local
+
+# --- Batch 2, round 5
+nooptions CD9660,PROCFS,PSEUDOFS,UFS_GJOURNAL,QUOTA,UFS_ACL,GEOM_RAID,MD_ROOT # file system features the appliance does not use
