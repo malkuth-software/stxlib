@@ -63,13 +63,16 @@ jobs:
           echo 'deb [signed-by=/usr/share/keyrings/apt-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
             | sudo tee /etc/apt/sources.list.d/llvm-22.list
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends clang-22 clang-tidy-22 lld-22 \
+          # llvm-22 for llvm-symbolizer: TSan's suppressions match function
+          # names, and unsymbolized stacks match none (CI 43504193172).
+          sudo apt-get install -y --no-install-recommends clang-22 clang-tidy-22 lld-22 llvm-22 \
             libc++-22-dev libc++abi-22-dev libclang-rt-22-dev ninja-build ccache
           echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
       - name: Compiler
         run: |
           clang++-22 --version | head -1
           clang++-22 --version | head -1 | grep -q ' 22\.1\.8' || echo "::warning::LLVM is not 22.1.8 on linux-glibc: $(clang++-22 --version | head -1)"
+          command -v llvm-symbolizer
       - uses: actions/cache@v6
         with:
           path: .ccache
