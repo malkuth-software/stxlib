@@ -40,6 +40,11 @@
   supervisor registers, a terminate of userspace kills the services (one
   only by SIGKILL) and they restart by their policy; the supervisor is
   killed, the shim reports it, PID 1 respawns it and it registers again.
+  `c1_s4.sh KERNCONF` (S4): a stock VM builds the appliance disk
+  (`appliance/disk/build_disk.sh`) on a second, raw disk; that disk then
+  boots alone five times: three tries of slot B (failsafe path), the
+  fallback to A, A proving good. `--appliance-disk` and `--appliance-only`
+  (all VM tools) attach that disk.
 - `c1_sysroot.sh`: a cross sysroot (headers, static libraries) taken from
   the pinned image's own userland, for building `runtime/`.
 

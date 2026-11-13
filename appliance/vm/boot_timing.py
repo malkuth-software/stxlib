@@ -92,8 +92,21 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
         '-smp', str(arguments.cpus),
         '-drive', f'if=pflash,format=raw,unit=0,readonly=on,file={code_path}',
         '-drive', f'if=pflash,format=raw,unit=1,file={layout.vm_vars(arguments.name)}',
-        '-drive', f'if=none,id=disk0,format=qcow2,file={layout.vm_disk(arguments.name)}',
-        '-device', 'virtio-blk-pci,drive=disk0',
+    ]
+    # The appliance disk (C1 S4): a raw image built inside the VM. Attached
+    # as a second disk while it is built; alone, so that the firmware boots
+    # it and the loader sees it as disk0, when the appliance runs.
+    appliance_disk = getattr(arguments, 'appliance_disk', None)
+    if appliance_disk is not None and getattr(arguments, 'appliance_only', False):
+        command += ['-drive', f'if=none,id=disk0,format=raw,file={appliance_disk}',
+                    '-device', 'virtio-blk-pci,drive=disk0']
+    else:
+        command += ['-drive', f'if=none,id=disk0,format=qcow2,file={layout.vm_disk(arguments.name)}',
+                    '-device', 'virtio-blk-pci,drive=disk0']
+        if appliance_disk is not None:
+            command += ['-drive', f'if=none,id=disk1,format=raw,file={appliance_disk}',
+                        '-device', 'virtio-blk-pci,drive=disk1']
+    command += [
         '-netdev', 'user,id=net0',
         '-device', 'virtio-net-pci,netdev=net0',
         '-display', 'none',
@@ -378,6 +391,10 @@ def add_vm_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--machine', default='virt')
     parser.add_argument('--firmware-timeout-ms', type=int, default=None,
                         help='pass -boot menu=on,splash-time=N (edk2 boot-menu timeout)')
+    parser.add_argument('--appliance-disk', default=None,
+                        help='raw appliance disk image: a second disk, or the only one with --appliance-only')
+    parser.add_argument('--appliance-only', action='store_true',
+                        help='boot the appliance disk alone (C1 S4)')
 
 
 def main(argv: List[str]) -> int:
