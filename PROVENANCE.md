@@ -357,6 +357,96 @@ Still in stx_auxlib, for the next batch: the synchronized map and the
 latched tree's adaptation, the optimal search trees, their weights and
 packing, and their tests.
 
+### Batch 3c10: stx_btree's shared ordered map, from `b6e330a`
+
+The second part of the rest of stx_btree (the coordinator's direction on
+the owner's M1). Same licence, namespace and privacy as batch 3c6.
+`bbtree_map.hpp` is new here, and the latched tree carried in batch 3c7 is
+adapted, so its static assertion goes. A page the allocator refuses makes
+the insertion refuse with nothing changed (the split's pages are reserved
+first, as before; the first root page is refused unless another thread's
+root is published meanwhile). stx_auxlib threw std::bad_alloc instead. The
+refusal comes back in the call's own result, because threads share the
+map and a flag on it would race:
+- the insert policies gain `refused()`;
+- try_insert, update_or_insert and get_or_insert return `Insertion`
+  (inserted, present, refused) where stx_auxlib returned bool or nothing;
+- insert and insert_many return `Replacement` (outcome and old value)
+  where stx_auxlib returned the optional old value.
+
+The tests run as before, with each write's result checked against
+refusal. `shared_refusals` is new: it covers refused first pages and
+splits through try_insert, insert, get_or_insert and insert_many. The
+ThreadSanitizer suppressions and the no-inlining rule are stx_auxlib's.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/bbtree_map.hpp` (adapted, as its header says) | `btree/include/stx_btree/bbtree_map.hpp` | `0c6185f9bff7bd6bf85ca53e2be5ace7f56b645991e026f934287fd8c2735ff3` |
+| `src/algorithms/stx_btree/detail/latched_tree.hpp` (adapted in this batch, as its header says) | `btree/include/stx_btree/detail/latched_tree.hpp` | `2598aeea11a5a5d6dea4b5ddbbc7000043584b0b42c506e568ccb0963d53e67e` |
+| `tests/stx_btree/bbtree_map_test.cpp` | `btree/tests/bbtree_map_test.cpp` | `e2be42021152b7fe1a3234a1a380bd0023382b839c4e247f967940c33d463e8b` |
+| `tests/stx_btree/stress_test.cpp` | `btree/tests/stress_test.cpp` | `e601bdf4b892f2a918630e52b14958107c778e1f0408fe8e98c0ed85342d1e05` |
+| `tests/stx_btree/tsan_btree_suppressions.txt` | `tests/tsan_btree_suppressions.txt` | `d455959551bf51d966d8cb359b1a196db274d767ce52507bcbb7d075c86bf1d8` |
+
+### Batch 3c11: stx_btree's optimal binary search trees, from `b6e330a`
+
+The third part of the rest of stx_btree. The coordinator chose option 1:
+a full port onto STXlib storage with Result builders. Same licence,
+namespace and privacy as batch 3c6. Changes:
+- `std::vector` becomes `detail::Array`, a new movable growable array on
+  memory::allocate that reports failure;
+- the weights become borrowed Views;
+- every construction returns `Result<SearchTree>`: invalid_argument where
+  stx_auxlib threw std::invalid_argument, out_of_memory where std::vector
+  would have thrown std::bad_alloc. Nothing fails fast (survey D8 is open);
+- the shape checks (`is_search_tree`, `cost`) return Results, and
+  `from_parents` returns false on exhaustion;
+- the two assertions become STXLIB_REQUIRE.
+
+The algorithms, their order of operations and their results are
+stx_auxlib's. The test's references and instances are unchanged; it keeps
+its weights in std::vector and passes views.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/detail/array.hpp` (new, STXlib's own) | none | none |
+| `src/algorithms/stx_btree/search_weights.hpp` (adapted, as its header says) | `btree/include/stx_btree/search_weights.hpp` | `06845d9f9ad2359b3f2ea17aeaaa6d36b33356e0e75a70b700af4122e5625dc4` |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (adapted, as its header says) | `btree/include/stx_btree/optimal_tree.hpp` | `fa58184ab4873f6586b50e559f5bdcf949ecee0f7c7800ec5621733ceca8d068` |
+| `tests/stx_btree/optimal_tree_test.cpp` | `btree/tests/optimal_tree_test.cpp` | `35c28e3e98a36ac90898244d6c2cd57e1d0a55fbc5b37e227d86eb668038104e` |
+
+### Batch 3c12: stx_btree's tree packing and static optimal map, from `b6e330a`
+
+The fourth part of the rest of stx_btree, on batch 3c11's storage and
+Results (coordinator's option 1). Same licence, namespace and privacy as
+batch 3c6. Changes:
+- `std::vector` becomes `detail::Array` in the packing and the map's nodes;
+  the map's entries live in one block from memory::allocate holding
+  constructed entries (`detail::OwnedEntries`), so Key and Value must move
+  without throwing;
+- `TreePacker::pack` and `ColdSubtreeLayout::relayout` return false on
+  exhaustion, with the output passed by reference;
+- `OptimalMap::build` returns `Result<OptimalMap>`: invalid_argument where
+  stx_auxlib threw std::invalid_argument, the tree construction's own
+  failure passed on, out_of_memory where std::vector would have thrown
+  std::bad_alloc. Nothing fails fast (survey D8 is open);
+- build takes the keys and values as caller storage (MutableView) and
+  moves them only after every allocation has succeeded, so a refused or
+  failed build leaves them unchanged; stx_auxlib took std::vector by value;
+- find_many and node_order_entries use View and MutableView in place of
+  std::span;
+- the assertions become STXLIB_REQUIRE.
+
+The packing, the layout, the node format and the searches are stx_auxlib's.
+The test's references and instances are unchanged; each build moves from a
+fresh copy of the keys and values, and the rejection check also checks that
+a refused build leaves std::string keys untouched. `docs/OPTIMAL_TREES.md`
+is not carried.
+
+| STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (adapted, as its header says) | `btree/include/stx_btree/detail/tree_packing.hpp` | `472b4f323235324a99e71bf2510f24153c7ab1684b995d5625e597c25a067582` |
+| `src/algorithms/stx_btree/optimal_map.hpp` (adapted, as its header says) | `btree/include/stx_btree/optimal_map.hpp` | `e0d43916c27e4623aa7a1a3ecc2cf15e55913f578e3a602565b1ed4f6a224140` |
+| `tests/stx_btree/optimal_map_test.cpp` | `btree/tests/optimal_map_test.cpp` | `1bcc43d7e6a0be86b4cbccf3d814d9511fe6fdd8c7a5d034e967d079e029b033` |
+
 ### Batch 3c8: no subnormals in the math (STXlib's own change)
 
 Owner decision 2026-11-13 (notes `decisions/2026-11-13-locals-float-mutability.md`,
