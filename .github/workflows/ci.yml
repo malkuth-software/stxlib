@@ -91,6 +91,16 @@ jobs:
       - name: Bit identity (this host's lines)
         if: always()
         run: ctest --test-dir build-debug -R '^stxlib_bit_identity' -V --timeout 600
+      # STXlib for a process with no exceptions anywhere (STXLIB_EXCEPTIONS
+      # OFF; notes planning/stages/A3-no-exceptions.md): every target built
+      # with -fno-exceptions, checked at configure time and on the objects
+      # (stxlib_no_exception_symbols); tests that throw are left out.
+      - name: No exceptions (Release)
+        run: |
+          cmake -S . -B build-no-exceptions -G Ninja -DCMAKE_BUILD_TYPE=Release -DSTXLIB_EXCEPTIONS=OFF \
+            -DCMAKE_CXX_FLAGS=-stdlib=libc++ -DCMAKE_EXE_LINKER_FLAGS=-stdlib=libc++ -DCMAKE_SHARED_LINKER_FLAGS=-stdlib=libc++
+          cmake --build build-no-exceptions --parallel 4
+          ctest --test-dir build-no-exceptions --output-on-failure --parallel 3 --timeout 1800
       - name: ASan+UBSan
         run: |
           flags="-stdlib=libc++ -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g"

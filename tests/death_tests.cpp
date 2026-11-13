@@ -20,6 +20,10 @@
 //                          fast (the same)
 //   view_index             an out-of-range index is a failed requirement
 //   take_failed_value      take_value on a failure is a failed requirement
+//   take_or_fail_fast      take_or_fail_fast on a failure fails fast with
+//                          the result's record (A3 prep)
+//   check_or_fail_fast     check_or_fail_fast on a failed status fails fast
+//                          with its record (A3 prep)
 //   callback_frames        the fail-fast report of a callback that throws
 //                          inside shadow frames shows the logical stack at
 //                          the throw (every build; the trace line in
@@ -212,6 +216,27 @@ int take_failed_value() {
     return 0;
 }
 
+int take_or_fail_fast() {
+    // A success passes its value on first.
+    const int kept = stxlib::take_or_fail_fast(stxlib::Result<int>::success(7));
+    std::printf("kept %d\n", kept);
+    const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(
+        stxlib::ErrorKind::not_found, "stxlib.tests.take", stxlib::ErrorDetail{.message = "no such row"});
+    const int value = stxlib::take_or_fail_fast(stxlib::Result<int>::failure(record));
+    std::printf("survived %d\n", value);
+    return 0;
+}
+
+int check_or_fail_fast() {
+    stxlib::check_or_fail_fast(stxlib::Status::success());
+    std::printf("passed a success\n");
+    const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(
+        stxlib::ErrorKind::limit_exceeded, "stxlib.tests.check", stxlib::ErrorDetail{.message = "too many rows"});
+    stxlib::check_or_fail_fast(stxlib::Status::failure(record));
+    std::printf("survived\n");
+    return 0;
+}
+
 struct ThrowsInside final {
     void operator()() const { throw std::invalid_argument("inner failure"); }
 };
@@ -399,6 +424,8 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "foreign_unlock") == 0) return foreign_unlock();
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
+    if (std::strcmp(name, "take_or_fail_fast") == 0) return take_or_fail_fast();
+    if (std::strcmp(name, "check_or_fail_fast") == 0) return check_or_fail_fast();
     if (std::strcmp(name, "callback_frames") == 0) return callback_frames();
     if (std::strcmp(name, "callback_frame_texts") == 0) return callback_frame_texts();
     if (std::strcmp(name, "reporter_contract") == 0) return reporter_contract();

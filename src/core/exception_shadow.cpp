@@ -1,10 +1,15 @@
 // Recording a caught exception (include/stxlib/gate.hpp, shadow.hpp).
 //
-// This file is compiled with exceptions in every build (CMakeLists.txt),
-// even when the rest of STXlib is not: the gates are templates instantiated
-// in the consumer, and a consumer built with exceptions calls in here from
-// its catch handlers. Nothing here throws out: each rethrow below is caught
-// by the try block around it.
+// This file is compiled with exceptions (CMakeLists.txt) whenever
+// STXLIB_EXCEPTIONS is ON, the default, even though the rest of STXlib is
+// not: the gates are templates instantiated in the consumer, and a consumer
+// built with exceptions calls in here from its catch handlers. Nothing here
+// throws out: each rethrow below is caught by the try block around it.
+//
+// With STXLIB_EXCEPTIONS OFF it is compiled without exceptions, like the
+// rest: the recorder is left out (no gate in such a build has a handler to
+// call it, and gate.hpp refuses a consumer built with exceptions), and only
+// the recent-failure accessors at the end remain.
 //
 // Classification of standard exceptions, in the order tested (more derived
 // first):
@@ -33,18 +38,22 @@
 #include "stxlib/gate.hpp"
 #include "stxlib/shadow.hpp"
 
+#include "state/state.hpp"
+
+#if defined(__cpp_exceptions)
 #include "core/error_writer.hpp"
 #include "core/shadow_capture.hpp"
 #include "hosted/host.hpp"
-#include "state/state.hpp"
 
 #include <exception>
 #include <new>
 #include <stdexcept>
 #include <system_error>
+#endif
 
 namespace stxlib {
 
+#if defined(__cpp_exceptions)
 namespace {
 
 // What the standard classification found.
@@ -157,6 +166,7 @@ ErrorRecord record_current_exception_classified(const Operation operation,
 }
 
 } // namespace detail
+#endif
 
 usize recent_failure_count() noexcept {
     const state::ThreadState& thread = state::current_thread();

@@ -16,6 +16,15 @@
 //   As call_gate, with the consumer's policy for its own exception types
 //   (GUI.Forms' WrongThreadError and DisposedError) tried first.
 //
+// call_as_result(operation, target, arguments...)
+// call_as_result_classified(classifier, operation, target, arguments...)
+//   As the two above, for a target that returns a plain value or nothing:
+//   the value comes back as Result<Value>'s success (nothing as Status's),
+//   and an exception as the failure. For code that offers a result-returning
+//   form of an operation whose implementation still throws (notes
+//   planning/stages/A3-no-exceptions.md, stage G4); built without
+//   exceptions, it is the target's call wrapped as a success.
+//
 // Every gate also takes a GateFrame (shadow.hpp) in place of the
 // operation: the gate's shadow frame is then the whole frame, with the
 // consumer's kind, numbers, sequence and texts (a C ABI slot's table and
@@ -43,6 +52,10 @@
 // threw it, and the innermost captures the stack at the throw (survey S1 =
 // 1). A caught exception is recorded by one internal function
 // (src/core/exception_shadow.cpp), which attaches that capture.
+//
+// An STXlib built with STXLIB_EXCEPTIONS=OFF (CMakeLists.txt) has no such
+// function: it serves processes with no exceptions anywhere, and this
+// header refuses a translation unit that has them.
 
 #include "stxlib/callback.hpp"
 #include "stxlib/error.hpp"
@@ -51,6 +64,10 @@
 #include "stxlib/result.hpp"
 #include "stxlib/shadow.hpp"
 #include "stxlib/types.hpp"
+
+#if defined(__cpp_exceptions) && defined(STXLIB_NO_EXCEPTION_RECORDER)
+#error "STXlib was built with STXLIB_EXCEPTIONS=OFF and records no exceptions: build this translation unit with -fno-exceptions, or STXlib with STXLIB_EXCEPTIONS=ON"
+#endif
 
 namespace stxlib {
 
@@ -117,6 +134,70 @@ struct SameType<Type, Type> final {
 template <typename Type>
 struct NonDeduced final {
     using type = Type;
+};
+
+template <typename Type>
+struct IsReference final {
+    static constexpr bool value = false;
+};
+template <typename Type>
+struct IsReference<Type&> final {
+    static constexpr bool value = true;
+};
+template <typename Type>
+struct IsReference<Type&&> final {
+    static constexpr bool value = true;
+};
+
+template <typename Value>
+struct WithoutConst final {
+    using Type = Value;
+};
+template <typename Value>
+struct WithoutConst<const Value> final {
+    using Type = Value;
+};
+
+// What call_as_result returns for a target returning Return: Status for
+// void, Result<Return> (without const) otherwise.
+template <typename Return>
+struct AsResult final {
+    using Type = Result<typename WithoutConst<Return>::Type>;
+};
+template <>
+struct AsResult<void> final {
+    using Type = Status;
+};
+
+// A gate target that calls `target` and returns what it returns as a
+// success, so that call_gate's handler supplies the failure.
+template <typename Target>
+struct ReturnsAsResult final {
+    Target& target;
+
+    template <typename... Arguments>
+    typename AsResult<typename TargetReturn<Target, Arguments...>::Type>::Type operator()(
+        Arguments&... arguments) const {
+        using Return = typename TargetReturn<Target, Arguments...>::Type;
+        if constexpr (SameType<Return, void>::value) {
+            target(arguments...);
+            return Status::success();
+        } else {
+            using Value = typename WithoutConst<Return>::Type;
+            Value value = target(arguments...);
+            return Result<Value>::success(static_cast<Value&&>(value));
+        }
+    }
+};
+
+// The checks every call_as_result form makes on its target's return type.
+template <typename Return>
+struct AsResultTarget final {
+    static_assert(!IsGateResult<typename WithoutConst<Return>::Type>::value,
+                  "the target returns Status or Result already: use call_gate");
+    static_assert(!IsReference<Return>::value,
+                  "call_as_result does not carry a reference: return a value or a pointer");
+    using Type = typename AsResult<Return>::Type;
 };
 
 // Called only inside a catch handler. Classifies the current exception
@@ -213,6 +294,45 @@ template <typename Target, typename... Arguments>
     // Not const: a const local is copied, not moved, on return.
     typename detail::TargetReturn<Target, Arguments...>::Type result =
         call_gate_classified(classifier, frame_at, target, arguments...);
+    return result;
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type
+call_as_result(const GateFrame frame_at, Target& target, Arguments&... arguments) noexcept {
+    using Wrapped = typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type;
+    detail::ReturnsAsResult<Target> wrapped{target};
+    // Not const: a const local is copied, not moved, on return.
+    Wrapped result = call_gate(frame_at, wrapped, arguments...);
+    return result;
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type
+call_as_result(const Operation operation, Target& target, Arguments&... arguments) noexcept {
+    using Wrapped = typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type;
+    const GateFrame frame_at{operation, 0, 0};
+    Wrapped result = call_as_result(frame_at, target, arguments...);
+    return result;
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type
+call_as_result_classified(const ExceptionClassifier& classifier, const GateFrame frame_at, Target& target,
+                          Arguments&... arguments) noexcept {
+    using Wrapped = typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type;
+    detail::ReturnsAsResult<Target> wrapped{target};
+    Wrapped result = call_gate_classified(classifier, frame_at, wrapped, arguments...);
+    return result;
+}
+
+template <typename Target, typename... Arguments>
+[[nodiscard]] typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type
+call_as_result_classified(const ExceptionClassifier& classifier, const Operation operation, Target& target,
+                          Arguments&... arguments) noexcept {
+    using Wrapped = typename detail::AsResultTarget<typename detail::TargetReturn<Target, Arguments...>::Type>::Type;
+    const GateFrame frame_at{operation, 0, 0};
+    Wrapped result = call_as_result_classified(classifier, frame_at, target, arguments...);
     return result;
 }
 

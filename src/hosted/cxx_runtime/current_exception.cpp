@@ -19,12 +19,17 @@
 
 namespace stxlib::host {
 
+// Left out of a build without the exception recorder (STXLIB_EXCEPTIONS
+// OFF, CMakeLists.txt), whose objects refer to no part of the exception
+// runtime (tools/check_no_exceptions.py).
+#if !defined(STXLIB_NO_EXCEPTION_RECORDER)
 const char* current_exception_type_name() noexcept {
     const std::type_info* const type = abi::__cxa_current_exception_type();
     if (type == nullptr) return nullptr;
     const char* const result = (*type).name();
     return result;
 }
+#endif
 
 usize demangle_type_name(const char* const mangled, char* const output, const usize capacity) noexcept {
     if (mangled == nullptr || output == nullptr || capacity == 0) return 0;

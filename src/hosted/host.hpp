@@ -58,8 +58,11 @@ void flush_c_stream(bool error) noexcept;
 
 // The C++ runtime's mangled name of the exception being handled, or null
 // when there is none or the runtime cannot say. Called only inside a catch
-// handler. The text has static storage (the type's type_info).
+// handler. The text has static storage (the type's type_info). Absent from
+// a build without the exception recorder (STXLIB_EXCEPTIONS OFF).
+#if !defined(STXLIB_NO_EXCEPTION_RECORDER)
 [[nodiscard]] const char* current_exception_type_name() noexcept;
+#endif
 
 // Demangles the NUL-terminated `mangled` into `output` (cut to `capacity`
 // bytes, no terminator) and returns the bytes written; 0 when the runtime

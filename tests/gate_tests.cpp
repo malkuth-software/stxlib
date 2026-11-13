@@ -1,6 +1,7 @@
 // Tests of the gates (include/stxlib/gate.hpp) and the recent-failure list
 // (shadow.hpp): each standard exception's classification, the consumer's
-// classifier, foreign text, and the pass-through of results. Tested, not
+// classifier, foreign text, the pass-through of results, and the
+// result-returning gates for plain targets (call_as_result). Tested, not
 // proved (proofs/REPORT.md).
 
 #include "stxlib/boundary.hpp"
@@ -92,6 +93,35 @@ struct CountsCalls final {
     void operator()() { calls = calls + 1; }
 };
 
+// Plain targets for call_as_result: a value, nothing, and the same throwing.
+struct MeasuresWidth final {
+    int operator()(const int& columns) const {
+        if (columns < 0) throw std::invalid_argument("negative columns");
+        const int width = columns * 8;
+        return width;
+    }
+};
+
+struct CountsOrThrows final {
+    int calls{0};
+    void operator()(const bool& fail) {
+        calls = calls + 1;
+        if (fail) throw WrongThreadError();
+    }
+};
+
+// A const-qualified class result: Result holds it without the const.
+struct Extent final {
+    int width{0};
+    int height{0};
+};
+struct ReturnsConstExtent final {
+    const Extent operator()() const {
+        const Extent extent{3, 4};
+        return extent;
+    }
+};
+
 int doubled(void* const context, int& value) {
     const int scale = *static_cast<int*>(context);
     const int result = value * scale;
@@ -99,6 +129,12 @@ int doubled(void* const context, int& value) {
 }
 
 // ---- tests ----------------------------------------------------------------
+
+template <typename Value>
+bool record_present(const stxlib::Result<Value>& result) {
+    const bool present = result.failed() && (*result.error()).shadow().present();
+    return present;
+}
 
 template <typename Target>
 stxlib::ErrorRecord failure_of(Target& target) {
@@ -204,6 +240,40 @@ void development_builds_keep_type_and_history() {
     CHECK(record.shadow().present());
 }
 
+void plain_targets_become_results() {
+    MeasuresWidth measures;
+    const int columns = 10;
+    stxlib::Result<int> width = stxlib::call_as_result("stxlib.tests.measure", measures, columns);
+    CHECK(width.succeeded() && *width.value() == 80);
+    const int negative = -1;
+    const stxlib::Result<int> refused = stxlib::call_as_result("stxlib.tests.measure", measures, negative);
+    CHECK(refused.failed());
+    CHECK((*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    CHECK((*refused.error()).message() == stxlib::TextView("negative columns"));
+    CHECK((*refused.error()).operation().name() == stxlib::TextView("stxlib.tests.measure"));
+    // The frame form: the record names the frame's operation.
+    const stxlib::GateFrame frame{"stxlib.tests.measure_framed", 5, 6};
+    const stxlib::Result<int> framed = stxlib::call_as_result(frame, measures, negative);
+    CHECK(framed.failed() && (*framed.error()).operation().name() == stxlib::TextView("stxlib.tests.measure_framed"));
+    CHECK(record_present(framed));
+    // Nothing comes back as Status; the classifier decides its own types.
+    CountsOrThrows counts;
+    const bool succeed = false;
+    CHECK(stxlib::call_as_result("stxlib.tests.count", counts, succeed).succeeded());
+    const stxlib::ExceptionClassifier classifier{classify_wrong_thread, nullptr};
+    const bool fail = true;
+    const stxlib::Status classified = stxlib::call_as_result_classified(classifier, "stxlib.tests.count", counts, fail);
+    CHECK(classified.failed() && (*classified.error()).kind() == stxlib::ErrorKind::wrong_thread);
+    CHECK((*classified.error()).code() == 77);
+    const stxlib::Status unclassified = stxlib::call_as_result("stxlib.tests.count", counts, fail);
+    CHECK(unclassified.failed() && (*unclassified.error()).kind() == stxlib::ErrorKind::foreign_exception);
+    CHECK(counts.calls == 3);
+    ReturnsConstExtent extent_target;
+    stxlib::Result<Extent> extent = stxlib::call_as_result("stxlib.tests.extent", extent_target);
+    CHECK(extent.succeeded() && (*extent.value()).width == 3 && (*extent.value()).height == 4);
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
 void callbacks_pass_through() {
     ReturnsNumber returns_number;
     int value = 21;
@@ -228,6 +298,7 @@ int main() {
     the_classifier_comes_first();
     development_builds_keep_type_and_history();
     callbacks_pass_through();
+    plain_targets_become_results();
     const int status = stxlib_tests::finish("stxlib gates");
     return status;
 }
