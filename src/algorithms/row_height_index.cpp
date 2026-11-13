@@ -45,7 +45,7 @@ static_assert(static_cast<u8>(stx_btree::RowState::estimated) == static_cast<u8>
     return *static_cast<Index*>(tree);
 }
 
-[[nodiscard]] const Index& index_of(const void* const tree) noexcept {
+[[nodiscard]] const Index& const_index_of(const void* const tree) noexcept {
     STXLIB_REQUIRE(tree != nullptr, "stxlib::RowHeightIndex used after a move");
     return *static_cast<const Index*>(tree);
 }
@@ -139,31 +139,31 @@ RowHeightIndex::~RowHeightIndex() {
 // ---- queries ----------------------------------------------------------------
 
 u64 RowHeightIndex::count() const noexcept {
-    return static_cast<u64>(index_of(tree_).count());
+    return static_cast<u64>(const_index_of(tree_).count());
 }
 
 u64 RowHeightIndex::measured_count() const noexcept {
-    return static_cast<u64>(index_of(tree_).measured_count());
+    return static_cast<u64>(const_index_of(tree_).measured_count());
 }
 
 i64 RowHeightIndex::total() const noexcept {
-    return static_cast<i64>(index_of(tree_).total().value);
+    return static_cast<i64>(const_index_of(tree_).total().value);
 }
 
 i64 RowHeightIndex::estimate() const noexcept {
-    return static_cast<i64>(index_of(tree_).estimate().value);
+    return static_cast<i64>(const_index_of(tree_).estimate().value);
 }
 
 i64 RowHeightIndex::offset_of(const u64 row) const noexcept {
-    return static_cast<i64>(index_of(tree_).offset_of(row_index(row)).value);
+    return static_cast<i64>(const_index_of(tree_).offset_of(row_index(row)).value);
 }
 
 u64 RowHeightIndex::row_at(const i64 offset) const noexcept {
-    return static_cast<u64>(index_of(tree_).row_at(units(offset)).value);
+    return static_cast<u64>(const_index_of(tree_).row_at(units(offset)).value);
 }
 
 RowExtent RowHeightIndex::extent_of(const u64 row) const noexcept {
-    const stx_btree::RowExtent found = index_of(tree_).extent_of(row_index(row));
+    const stx_btree::RowExtent found = const_index_of(tree_).extent_of(row_index(row));
     const RowExtent extent{static_cast<i64>(found.top.value), static_cast<i64>(found.height.value),
                            state_of(found.state)};
     return extent;
@@ -244,48 +244,48 @@ Status RowHeightIndex::coarsen(const u64 row, const u64 rows) noexcept {
 
 void RowHeightIndex::seek_row(Cursor& cursor, const u64 row) const noexcept {
     TreeCursor& path = *std::launder(reinterpret_cast<TreeCursor*>(cursor.path_));
-    index_of(tree_).seek_row(path, row_index(row));
+    const_index_of(tree_).seek_row(path, row_index(row));
     settle(cursor);
 }
 
 void RowHeightIndex::seek_offset(Cursor& cursor, const i64 offset) const noexcept {
     TreeCursor& path = *std::launder(reinterpret_cast<TreeCursor*>(cursor.path_));
-    index_of(tree_).seek_offset(path, units(offset));
+    const_index_of(tree_).seek_offset(path, units(offset));
     settle(cursor);
 }
 
 void RowHeightIndex::seek_offset_from(Cursor& cursor, const i64 offset) const noexcept {
     TreeCursor& path = *std::launder(reinterpret_cast<TreeCursor*>(cursor.path_));
-    index_of(tree_).seek_offset_from(path, units(offset));
+    const_index_of(tree_).seek_offset_from(path, units(offset));
     settle(cursor);
 }
 
 void RowHeightIndex::advance(Cursor& cursor) const noexcept {
     TreeCursor& path = *std::launder(reinterpret_cast<TreeCursor*>(cursor.path_));
-    index_of(tree_).advance(path);
+    const_index_of(tree_).advance(path);
     settle(cursor);
 }
 
 // ---- storage ----------------------------------------------------------------
 
 usize RowHeightIndex::node_count() const noexcept {
-    return static_cast<usize>(index_of(tree_).node_count());
+    return static_cast<usize>(const_index_of(tree_).node_count());
 }
 
 usize RowHeightIndex::run_count() const noexcept {
-    return static_cast<usize>(index_of(tree_).run_count());
+    return static_cast<usize>(const_index_of(tree_).run_count());
 }
 
 usize RowHeightIndex::depth() const noexcept {
-    return static_cast<usize>(index_of(tree_).depth());
+    return static_cast<usize>(const_index_of(tree_).depth());
 }
 
 usize RowHeightIndex::storage_bytes() const noexcept {
-    return static_cast<usize>(sizeof(Index) + index_of(tree_).page_bytes());
+    return static_cast<usize>(sizeof(Index) + const_index_of(tree_).page_bytes());
 }
 
 TextView RowHeightIndex::invariant_failure() const noexcept {
-    const stx_btree::detail::InvariantReport report = index_of(tree_).check_invariants();
+    const stx_btree::detail::InvariantReport report = const_index_of(tree_).check_invariants();
     if (report.ok) return TextView{};
     // The tree's failures are ASCII string literals.
     return detail::TextViewAccess::adopt_validated(report.failure, std::strlen(report.failure));

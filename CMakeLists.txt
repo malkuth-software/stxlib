@@ -466,6 +466,14 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # calendar_tests' reference is std::chrono's year_month_day, whose libc++
+    # civil-from-days adds a negative int to an unsigned month by design
+    # (__chrono/year_month_day.h, LLVM 22.1.8: -9 converted to unsigned). The
+    # sign-change check is off for the test's translation unit only;
+    # calendar.cpp in the library keeps every integer check.
+    if(STXLIB_INTEGER_CHECKS)
+        target_compile_options(stxlib_calendar_tests PRIVATE -fno-sanitize=implicit-integer-sign-change)
+    endif()
 
     # math_tests checks frozen output hashes, so a flag that changes any bit
     # fails it. The Dekker build compiles its own copies of the kernels with
