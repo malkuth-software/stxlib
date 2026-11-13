@@ -48,14 +48,15 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
 python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label services \
     --step 'expect:30:STXINIT uptime_ns=\d+' \
     --step 'expect:10:STXSUPERVISOR start restart_count=0 ' \
-    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=3 settings=5 commands=3' \
+    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=3 settings=5 commands=4' \
     --step 'expect:5:STXSUPERVISOR service flaky started pid=\d+ restart_count=0' \
-    --step 'expect:5:STXSUPERVISOR init line=6 start ok ' \
+    --step 'expect:5:STXSUPERVISOR init line=11 start ok ' \
     --step 'expect:5:STXSUPERVISOR service sleeper started pid=\d+ restart_count=0' \
-    --step 'expect:5:STXSUPERVISOR init line=7 start ok ' \
+    --step 'expect:5:STXSUPERVISOR init line=12 start ok ' \
     --step 'expect:5:INITRUN services started' \
-    --step 'expect:5:STXSUPERVISOR init line=8 run exited status=0 ' \
-    --step 'expect:5:STXSUPERVISOR init done commands=3 skipped=0 failed=0 ' \
+    --step 'expect:5:STXSUPERVISOR init line=13 run exited status=0 ' \
+    --step 'expect:5:STXSUPERVISOR init line=14 run exited status=0 ' \
+    --step 'expect:5:STXSUPERVISOR init done commands=4 skipped=0 failed=0 ' \
     --step 'expect:5:STXSUPERVISOR service flaky exited pid=\d+ status=768 ran_ms=\d+ next_in_ms=100' \
     --step 'expect:5:STXSUPERVISOR service flaky started pid=\d+ restart_count=1' \
     --step 'expect:5:service flaky exited pid=\d+ status=768 ran_ms=\d+ next_in_ms=200' \

@@ -46,22 +46,23 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
     --define "init_sha256=$init_sha" --define "supervisor_file=stxsupervisor" \
     --define "supervisor_sha256=$supervisor_sha"
 
-# The mount on line 9 is guarded: ok if the image has /dev/gpt/efiesp and
+# The mount on line 14 is guarded: ok if the image has /dev/gpt/efiesp and
 # /boot/efi, skipped if it has no such device; either is accepted.
 python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label init \
     --step 'expect:30:STXINIT uptime_ns=\d+' \
     --step 'expect:10:STXSUPERVISOR start restart_count=0 ' \
-    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=3 settings=3 commands=8' \
-    --step 'expect:5:STXSUPERVISOR init line=8 wait-for ok ' \
-    --step 'expect:5:STXSUPERVISOR init line=9 mount (ok|skipped) ' \
-    --step 'expect:5:STXSUPERVISOR init line=10 set ok ' \
+    --step 'expect:5:STXSUPERVISOR config path=/etc/stx/appliance.conf sections=3 settings=3 commands=9' \
+    --step 'expect:5:STXSUPERVISOR init line=13 wait-for ok ' \
+    --step 'expect:5:STXSUPERVISOR init line=14 mount (ok|skipped) ' \
+    --step 'expect:5:STXSUPERVISOR init line=15 set ok ' \
     --step 'expect:5:INITRUN hello from init' \
-    --step 'expect:5:STXSUPERVISOR init line=11 run exited status=0 ' \
-    --step 'expect:5:STXSUPERVISOR init line=12 run skipped ' \
-    --step 'expect:5:STXSUPERVISOR init line=13 run exited status=256 ' \
-    --step 'expect:5:STXSUPERVISOR init line=14 start ok ' \
-    --step 'expect:5:STXSUPERVISOR init line=15 wait-for timed-out ' \
-    --step 'expect:5:STXSUPERVISOR init done commands=8 skipped=[01] failed=2 ' \
+    --step 'expect:5:STXSUPERVISOR init line=16 run exited status=0 ' \
+    --step 'expect:5:STXSUPERVISOR init line=17 run skipped ' \
+    --step 'expect:5:STXSUPERVISOR init line=18 run exited status=256 ' \
+    --step 'expect:5:STXSUPERVISOR init line=19 start ok ' \
+    --step 'expect:5:STXSUPERVISOR init line=20 wait-for timed-out ' \
+    --step 'expect:5:STXSUPERVISOR init line=21 run exited status=0 ' \
+    --step 'expect:5:STXSUPERVISOR init done commands=9 skipped=[01] failed=2 ' \
     --step 'monitor:system_powerdown' \
     --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \
