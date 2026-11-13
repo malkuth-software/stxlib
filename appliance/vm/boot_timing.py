@@ -320,6 +320,8 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser.add_argument('--require', default=None,
                         help='a regular expression the console must show for a run to count '
                              '(for example the kernel ident)')
+    parser.add_argument('--stop-after-failure', action='store_true',
+                        help='stop after the first run that misses a required stage')
     parser.add_argument('--hang-dump', action='store_true',
                         help='on a timed-out boot, save every vCPU register (QEMU monitor) first')
     parser.add_argument('--dry-run', action='store_true', help='print the QEMU command and stop')
@@ -380,6 +382,9 @@ def main(argv: List[str]) -> int:
         boot_once(arguments, command, record)
         records.append(record)
         print(summary_line(record, first_flags[-1]))
+        if arguments.stop_after_failure and not record.complete():
+            print(f'boot_timing: run {run_index + 1} failed; --stop-after-failure: no further runs')
+            break
 
     later_records: List[RunRecord] = []
     for index in range(len(records)):

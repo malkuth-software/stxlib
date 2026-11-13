@@ -28,5 +28,8 @@
   follows includes under `#if` too, so compare a cut with `STXLIB-GENERIC`
   and read only the lines the cut adds. It does not find undeclared
   functions or missing link symbols. It finds the `ce5fa24` failure.
-- `../vm/c1_step2_kernel.sh [KERNCONF]`: installs a built kernel in the
-  `tuned` VM, times three boots that must show its ident, and dumps TSLOG.
+- `../vm/c1_step2_kernel.sh [KERNCONF]`: makes a fresh VM `k-<kernconf>`,
+  installs the kernel from the stock one, times up to three boots that must
+  show its ident (stopping at the first failure, with the vCPU registers
+  saved if it hangs), and dumps TSLOG. `../vm/diag_hang.sh` repeats one
+  short boot and maps the saved PC and X30 to functions.

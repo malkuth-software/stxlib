@@ -1,8 +1,8 @@
 #!/bin/sh
 # diag_hang.sh [KERNCONF] [SECONDS] -- one diagnostic boot of the kernel
-# already installed in the "tuned" VM: if it has not reached the login prompt
-# after SECONDS (default 30), save every vCPU's registers from the QEMU
-# monitor, then map each PC and X30 (the link register: the caller's
+# already installed in its VM (k-<kernconf>, made by c1_step2_kernel.sh):
+# if it has not reached the login prompt after SECONDS (default 30), save
+# every vCPU's registers from the QEMU monitor, then map each PC and X30 (the link register: the caller's
 # return address) to a function with llvm-symbolizer on kernel.debug.
 set -eu
 cd "$(dirname "$0")"
@@ -14,9 +14,9 @@ esac
 storage=${STXLIB_STORAGE:-/Volumes/Storage/stxlib_workers}
 debug=$storage/appliance/kernels/$kernconf/kernel.debug
 label=hang-$(printf '%s' "$kernconf" | tr 'A-Z' 'a-z')
-python3 boot_timing.py --name tuned --firmware-timeout-ms 0 --runs 1 --timeout "$seconds" \
+python3 boot_timing.py --name "k-$(printf %s "$kernconf" | tr A-Z a-z)" --firmware-timeout-ms 0 --runs 1 --timeout "$seconds" \
     --label "$label" --hang-dump --require "/sys/$kernconf arm64" || true
-dump=$(ls -td "$storage"/appliance/logs/boot-timing/tuned/*-"$label"-1 | head -1)/hang-registers.txt
+dump=$(ls -td "$storage"/appliance/logs/boot-timing/k-$(printf %s "$kernconf" | tr A-Z a-z)/*-"$label"-1 | head -1)/hang-registers.txt
 [ -f "$dump" ] || { echo "diag_hang: no register dump (the boot did not time out)"; exit 0; }
 . ../toolchain.env
 grep -a -o -E '(PC|X30)=[0-9a-fA-F]+' "$dump" | sort -u | while IFS== read -r name value; do
