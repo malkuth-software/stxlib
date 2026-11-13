@@ -12,6 +12,10 @@ decisions live on the notes branch: `planning/FORWARD_PROGRAMME.md` sections
 | `kernel/` | kernel configurations, starting with the C1 draft `STXLIB-VM` |
 | `shim/` | the kernel shim module (later in C1) |
 
+PID 1 (`stxinit`) lives in `runtime/init/` at the repository root, since it
+issues system calls (AGENTS.md: only `src/hosted/`, `runtime/` and
+`appliance/shim/` may).
+
 Host scripts here are Python 3, standard library only, and run on the M4
 through `bin/m4sbrun` on a granted run. They are not part of the library and
 issue no system calls on the appliance. Bulky files go under

@@ -132,6 +132,49 @@ class StageTracker:
         return self.seen_seconds[end_stage] - start
 
 
+# The appliance's boot ends at our PID 1's marker, not at a login prompt
+# (owner, 2026-11-13: no login). The marker is one line written by
+# runtime/init/stxinit.cpp as soon as it starts.
+PID1_MARKER = re.compile(r'STXINIT uptime_ns=(\d+) cntvct=(\d+) cntfrq=(\d+)')
+
+APPLIANCE_STAGE_NAMES: List[str] = ['firmware_boot_option', 'loader_banner', 'loader_countdown',
+                                    'loader_boot', 'kernel_first', 'root_mount']
+
+APPLIANCE_INTERVALS: List[tuple] = [
+    ('firmware', None, 'loader_banner'),
+    ('loader', 'loader_banner', 'kernel_first'),
+    ('kernel_to_root', 'kernel_first', 'root_mount'),
+    ('root_to_pid1', 'root_mount', 'pid1_marker'),
+    ('total', None, 'pid1_marker'),
+]
+
+
+def appliance_stage_list() -> List[Stage]:
+    """The stock stages up to the root mount, then our PID 1's marker."""
+    copied: List[Stage] = []
+    for stage in STAGES:
+        if stage.name in APPLIANCE_STAGE_NAMES:
+            copied.append(stage)
+    copied.append(Stage('pid1_marker', PID1_MARKER, True, False,
+                        'runtime/init/stxinit.cpp boot marker (our PID 1)'))
+    return copied
+
+
+def pid1_marker_values(text: str) -> Optional[Dict[str, float]]:
+    """The in-guest times in the first PID 1 marker of a serial log: the
+    kernel's uptime and the generic timer's count since it started, both in
+    seconds. None when there is no complete marker or the frequency is 0."""
+    match = PID1_MARKER.search(text)
+    if match is None:
+        return None
+    uptime_ns = int(match.group(1))
+    count = int(match.group(2))
+    frequency = int(match.group(3))
+    if frequency == 0:
+        return None
+    return {'pid1_uptime': uptime_ns / 1e9, 'pid1_counter': count / frequency}
+
+
 def default_stage_list() -> List[Stage]:
     """A fresh list of the stages above, for one tracker."""
     copied: List[Stage] = []

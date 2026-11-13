@@ -42,7 +42,7 @@ import statistics
 import subprocess
 import sys
 import time
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 
 # The sibling modules are imported from this script's own directory, so the
@@ -51,7 +51,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import re
 
-from bootstages import INTERVALS, Stage, StageTracker, default_stage_list
+from bootstages import (APPLIANCE_INTERVALS, INTERVALS, Stage, StageTracker, appliance_stage_list,
+                        default_stage_list, pid1_marker_values)
 from vmlayout import (ApplianceLayout, QEMU_BINARY_DEFAULT, STORAGE_ROOT_DEFAULT,
                       UEFI_CODE_DEFAULT, check_vm_name)
 
@@ -145,10 +146,15 @@ def hang_dump(path: str, log_dir: str) -> None:
 class RunRecord:
     """One boot: its tracker, its outcome and where its logs are."""
 
-    def __init__(self, run_id: str, log_dir: str, stages: List[Stage]) -> None:
+    def __init__(self, run_id: str, log_dir: str, stages: List[Stage], intervals: List[tuple],
+                 final_stage: str) -> None:
         self.run_id: str = run_id
         self.log_dir: str = log_dir
         self.tracker: StageTracker = StageTracker(stages)
+        self.intervals: List[tuple] = intervals
+        self.final_stage: str = final_stage
+        # In-guest times read from our PID 1's marker, when the run printed one.
+        self.guest_values: Dict[str, float] = {}
         self.outcome: str = 'not started'
         self.elapsed_seconds: float = 0.0
 
@@ -177,10 +183,12 @@ def write_stages(record: RunRecord) -> None:
             shown = 'not seen' if seconds is None else f'{seconds:.3f}'
             stream.write(f'{stage.name}\t{shown}\t{stage.source}\n')
         stream.write('\ninterval\tseconds\n')
-        for interval_name, start_stage, end_stage in INTERVALS:
+        for interval_name, start_stage, end_stage in record.intervals:
             value = record.tracker.interval_seconds(start_stage, end_stage)
             shown = 'n/a' if value is None else f'{value:.3f}'
             stream.write(f'{interval_name}\t{shown}\n')
+        for name, value in sorted(record.guest_values.items()):
+            stream.write(f'{name}\t{value:.6f}\n')
         stream.write(f'\noutcome\t{record.outcome}\nelapsed\t{record.elapsed_seconds:.3f}\n')
 
 
@@ -237,7 +245,7 @@ def boot_once(arguments: argparse.Namespace, command: List[str], record: RunReco
                 process.stdin.flush()
                 countdown_answered = True
                 lines_log.write(f'{seconds:10.3f} [boot_timing: sent Enter to skip the countdown]\n')
-            if FINAL_STAGE in record.tracker.seen_seconds:
+            if record.final_stage in record.tracker.seen_seconds:
                 record.outcome = 'reached final stage'
                 break
     finally:
@@ -268,12 +276,29 @@ def flush_lines(buffer: str, seconds: float, lines_log) -> str:
     return buffer[line_start:]
 
 
+def read_guest_values(record: RunRecord) -> None:
+    """Adopt the in-guest times of our PID 1's marker from serial.raw, and
+    add them to stages.tsv."""
+    path = os.path.join(record.log_dir, 'serial.raw')
+    if not os.path.isfile(path):
+        return
+    with open(path, 'rb') as stream:
+        text = stream.read().decode('utf-8', errors='replace')
+    values = pid1_marker_values(text)
+    if values is None:
+        return
+    record.guest_values = values
+    write_stages(record)
+
+
 def summary_line(record: RunRecord, first_after_prepare: bool) -> str:
     parts: List[str] = [record.run_id]
-    for interval_name, start_stage, end_stage in INTERVALS:
+    for interval_name, start_stage, end_stage in record.intervals:
         value = record.tracker.interval_seconds(start_stage, end_stage)
         shown = 'n/a' if value is None else f'{value:.3f}'
         parts.append(f'{interval_name}={shown}')
+    for name, value in sorted(record.guest_values.items()):
+        parts.append(f'{name}={value:.4f}')
     parts.append(record.outcome)
     missing = record.tracker.missing_required()
     if len(missing) > 0:
@@ -285,12 +310,22 @@ def summary_line(record: RunRecord, first_after_prepare: bool) -> str:
 
 def interval_statistics(records: List[RunRecord]) -> List[str]:
     lines: List[str] = []
-    for interval_name, start_stage, end_stage in INTERVALS:
+    rows: List[tuple] = list(records[0].intervals) if len(records) > 0 else []
+    for name in ('pid1_uptime', 'pid1_counter'):
+        rows.append((name, None, None))
+    for interval_name, start_stage, end_stage in rows:
         values: List[float] = []
         for record in records:
+            if end_stage is None and start_stage is None and interval_name in record.guest_values:
+                values.append(record.guest_values[interval_name])
+                continue
+            if end_stage is None:
+                continue
             value = record.tracker.interval_seconds(start_stage, end_stage)
             if value is not None:
                 values.append(value)
+        if len(values) == 0 and interval_name in ('pid1_uptime', 'pid1_counter'):
+            continue
         if len(values) == 0:
             lines.append(f'{interval_name}: no values')
             continue
@@ -320,6 +355,8 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser.add_argument('--require', default=None,
                         help='a regular expression the console must show for a run to count '
                              '(for example the kernel ident)')
+    parser.add_argument('--end', choices=('login', 'pid1'), default='login',
+                        help='last stage: the stock login prompt, or our PID 1 marker (appliance)')
     parser.add_argument('--stop-after-failure', action='store_true',
                         help='stop after the first run that misses a required stage')
     parser.add_argument('--hang-dump', action='store_true',
@@ -373,13 +410,22 @@ def main(argv: List[str]) -> int:
     first_flags: List[bool] = []
     for run_index in range(arguments.runs):
         run_id = f'{session}-{variant}-{run_index + 1}'
-        stages = default_stage_list()
+        if arguments.end == 'pid1':
+            stages = appliance_stage_list()
+            intervals = APPLIANCE_INTERVALS
+            final_stage = 'pid1_marker'
+        else:
+            stages = default_stage_list()
+            intervals = INTERVALS
+            final_stage = FINAL_STAGE
         if arguments.require is not None:
             stages.append(Stage('required_text', re.compile(arguments.require), True, False,
                                 'boot_timing --require'))
-        record = RunRecord(run_id, os.path.join(layout.timing_logs_dir(arguments.name), run_id), stages)
+        record = RunRecord(run_id, os.path.join(layout.timing_logs_dir(arguments.name), run_id), stages,
+                           intervals, final_stage)
         first_flags.append(vars_store_is_fresh(layout.vm_vars(arguments.name)))
         boot_once(arguments, command, record)
+        read_guest_values(record)
         records.append(record)
         print(summary_line(record, first_flags[-1]))
         if arguments.stop_after_failure and not record.complete():

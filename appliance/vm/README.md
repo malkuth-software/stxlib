@@ -18,6 +18,20 @@
   stages, stops QEMU at the login prompt or a time-out, writes logs and a
   summary.
 - `test_bootstages.py`: tests of stage recognition on assembled transcripts.
+- `guest_session.py` and `sessions/*.txt`: log in on the stock kernel and run
+  commands; `{http}` serves a host directory, `{recv}` takes one stream back
+  (`--receive-file`).
+- `c1_step2_kernel.sh KERNCONF`: a built kernel in a fresh VM, timed to
+  login. `c1_pid1.sh KERNCONF`: a built kernel plus our PID 1
+  (`runtime/init/`), timed to its marker with `boot_timing --end pid1`; the
+  marker also carries the in-guest uptime and generic-timer count
+  (`pid1_uptime`, `pid1_counter`). `diag_hang.sh`: symbolise a hung boot.
+- `c1_sysroot.sh`: a cross sysroot (headers, static libraries) taken from
+  the pinned image's own userland, for building `runtime/init/`.
+
+The appliance boot ends at our PID 1's marker, not at a login prompt
+(owner, 2026-11-13: no login); the login path remains for the stock
+baseline.
 
 ## What a run measures
 

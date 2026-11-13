@@ -9,7 +9,8 @@ Run: python3 -I -m unittest discover -s appliance/vm -p 'test_*.py'
 
 import unittest
 
-from bootstages import StageTracker, default_stage_list, strip_escapes
+from bootstages import (StageTracker, appliance_stage_list, default_stage_list, pid1_marker_values,
+                        strip_escapes)
 
 FIRMWARE = b'BdsDxe: loading Boot0001 "UEFI Misc Device" from PciRoot(0x0)\r\n'
 LOADER = (b'Consoles: EFI console  \r\n'
@@ -90,6 +91,38 @@ class StageRecognition(unittest.TestCase):
         tracker = StageTracker(default_stage_list())
         tracker.feed(b'\xff\xfe garbage\r\n---<<BOOT>>---\r\n', 1.0)
         self.assertEqual(tracker.seen_seconds['kernel_first'], 1.0)
+
+
+
+APPLIANCE_BOOT = [
+    (0.10, 'FreeBSD/arm64 EFI loader, Revision 3.0\n'),
+    (0.12, '---<<BOOT>>---\n'),
+    (0.16, 'Trying to mount root from ufs:/dev/gpt/rootfs [rw]...\n'),
+    (0.21, 'STXINIT uptime_ns=91234567 cntvct=5400000 cntfrq=24000000\n'),
+]
+
+
+class ApplianceProfile(unittest.TestCase):
+
+    def test_boot_ends_at_the_pid1_marker(self) -> None:
+        tracker = StageTracker(appliance_stage_list())
+        for seconds, text in APPLIANCE_BOOT:
+            tracker.feed(text.encode(), seconds)
+        self.assertEqual(tracker.missing_required(), [])
+        self.assertAlmostEqual(tracker.interval_seconds('root_mount', 'pid1_marker'), 0.05)
+        self.assertAlmostEqual(tracker.interval_seconds(None, 'pid1_marker'), 0.21)
+
+    def test_marker_values_are_seconds(self) -> None:
+        values = pid1_marker_values('x\nSTXINIT uptime_ns=91234567 cntvct=5400000 cntfrq=24000000\n')
+        self.assertAlmostEqual(values['pid1_uptime'], 0.091234567)
+        self.assertAlmostEqual(values['pid1_counter'], 0.225)
+
+    def test_failed_uptime_is_no_marker(self) -> None:
+        tracker = StageTracker(appliance_stage_list())
+        tracker.feed(b'STXINIT uptime_ns=failed cntvct=1 cntfrq=1\n', 0.2)
+        self.assertIn('pid1_marker', tracker.missing_required())
+        self.assertIsNone(pid1_marker_values('STXINIT uptime_ns=failed cntvct=1 cntfrq=1'))
+        self.assertIsNone(pid1_marker_values('STXINIT uptime_ns=1 cntvct=1 cntfrq=0'))
 
 
 if __name__ == '__main__':

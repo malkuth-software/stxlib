@@ -18,7 +18,9 @@ FILE: one command per line; blank lines and lines starting with '#' are
 skipped. "{http}" is replaced by the address at which the guest reaches
 --serve-dir (served read-only on the host's 127.0.0.1 for the session's
 length; QEMU's user network shows the host as 10.0.2.2), and "{NAME}" by
-each --define NAME=VALUE.
+each --define NAME=VALUE. With --receive-file PATH, "{recv}" is replaced by
+"10.0.2.2 <port>", where the host takes one TCP stream from the guest (for
+example `tar -cf - ... | nc -N {recv}`) and saves it to PATH.
 
 Output under <storage>/appliance/logs/sessions/<name>/<session-id>/:
 serial.raw (every byte), commandNN.txt (each command and its output) and
@@ -33,6 +35,7 @@ import functools
 import http.server
 import os
 import re
+import socket
 import selectors
 import subprocess
 import sys
@@ -136,8 +139,8 @@ def parse_defines(defines: Optional[List[str]]) -> Dict[str, str]:
         return replacements
     for item in defines:
         name, separator, value = item.partition('=')
-        if separator != '=' or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) or name == 'http':
-            raise SessionError(f'--define takes NAME=VALUE with a plain name other than http: {item!r}')
+        if separator != '=' or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', name) or name in ('http', 'recv'):
+            raise SessionError(f'--define takes NAME=VALUE with a plain name other than http and recv: {item!r}')
         replacements[name] = value
     return replacements
 
@@ -219,14 +222,67 @@ def parse_arguments(argv: List[str]) -> argparse.Namespace:
     parser.add_argument('--commands', required=True)
     parser.add_argument('--serve-dir', default=None)
     parser.add_argument('--define', action='append', default=None)
+    parser.add_argument('--receive-file', default=None,
+                        help='save one TCP stream from the guest here; {recv} is its "address port"')
     parser.add_argument('--timeout', type=float, default=240.0, help='seconds for the whole session')
     add_vm_arguments(parser)
     return parser.parse_args(argv)
 
 
+# The most a guest may send to --receive-file. The stream is input: it is cut
+# off, and the session fails, beyond this.
+RECEIVE_LIMIT_BYTES: int = 1024 * 1024 * 1024
+
+
+class FileReceiver:
+    """Accepts one TCP connection on 127.0.0.1 (the guest reaches it at
+    GUEST_HOST_ADDRESS through QEMU's user network) and saves what arrives,
+    up to RECEIVE_LIMIT_BYTES, to a new file. The file is written as
+    <path>.partial and renamed only when the sender closed the connection
+    within the limit."""
+
+    def __init__(self, path: str) -> None:
+        if os.path.exists(path):
+            raise SessionError(f'--receive-file exists already: {path}')
+        self.path = path
+        self.received_bytes = 0
+        self.failure: Optional[str] = None
+        self.complete = False
+        self.listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.listener.bind(('127.0.0.1', 0))
+        self.listener.listen(1)
+        self.port = self.listener.getsockname()[1]
+        self.thread = threading.Thread(target=self.receive, name='receive-file', daemon=True)
+        self.thread.start()
+
+    def receive(self) -> None:
+        partial = self.path + '.partial'
+        try:
+            connection, _ = self.listener.accept()
+            with connection, open(partial, 'wb') as stream:
+                while True:
+                    chunk = connection.recv(1024 * 1024)
+                    if len(chunk) == 0:
+                        break
+                    if self.received_bytes + len(chunk) > RECEIVE_LIMIT_BYTES:
+                        self.failure = f'more than {RECEIVE_LIMIT_BYTES} bytes'
+                        return
+                    stream.write(chunk)
+                    self.received_bytes += len(chunk)
+            os.rename(partial, self.path)
+            self.complete = True
+        except OSError as failure:
+            self.failure = str(failure)
+
+    def close(self) -> None:
+        self.listener.close()
+        self.thread.join(timeout=5.0)
+
+
 def main(argv: List[str]) -> int:
     arguments = parse_arguments(argv)
     server: Optional[http.server.ThreadingHTTPServer] = None
+    receiver: Optional[FileReceiver] = None
     summary: List[str] = []
     session_dir = ''
     outcome = 'failed'
@@ -242,6 +298,9 @@ def main(argv: List[str]) -> int:
                 raise SessionError(f'not a directory: {arguments.serve_dir}')
             server = start_server(arguments.serve_dir)
             replacements['http'] = f'http://{GUEST_HOST_ADDRESS}:{server.server_address[1]}'
+        if arguments.receive_file is not None:
+            receiver = FileReceiver(arguments.receive_file)
+            replacements['recv'] = f'{GUEST_HOST_ADDRESS} {receiver.port}'
         commands = read_commands(arguments.commands, replacements)
         session_id = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
         label = os.path.splitext(os.path.basename(arguments.commands))[0]
@@ -249,6 +308,12 @@ def main(argv: List[str]) -> int:
                                    f'{session_id}-{label}')
         os.makedirs(session_dir, exist_ok=False)
         run_session(arguments, commands, session_dir, summary)
+        if receiver is not None:
+            receiver.thread.join(timeout=30.0)
+            if not receiver.complete:
+                raise SessionError(f'--receive-file incomplete after {receiver.received_bytes} bytes: '
+                                   f'{receiver.failure or "the guest did not close the connection"}')
+            summary.append(f'received {receiver.received_bytes} bytes: {receiver.path}')
         outcome = 'ok'
     except (SessionError, ValueError, OSError) as failure:
         summary.append(f'guest_session: FAIL: {failure}')
@@ -256,6 +321,8 @@ def main(argv: List[str]) -> int:
         if server is not None:
             server.shutdown()
             server.server_close()
+        if receiver is not None:
+            receiver.close()
     for line in summary:
         print(line)
     if len(session_dir) > 0:
