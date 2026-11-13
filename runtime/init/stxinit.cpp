@@ -39,7 +39,8 @@
 // Shutdown follows design question 3, option 1: SIGTERM to every process
 // but PID 1 (kill(-1, ...) spares PID 1, system processes and the caller,
 // sys/kern/kern_sig.c:1810-1811), up to 1 s grace, SIGKILL to the rest,
-// sync, then reboot(2).
+// sync, a bounded wait for the console's output queue to drain (so the
+// kernel's shutdown messages do not cut into ours), then reboot(2).
 //
 // Signals: every signal stxinit acts on stays blocked and is taken with
 // sigtimedwait, so none is handled asynchronously and none is lost between
@@ -57,6 +58,7 @@
 
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/ioctl.h>
 #include <sys/reboot.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -391,6 +393,31 @@ void reap_until_none(int console, std::uint64_t limit_ms) noexcept {
     }
 }
 
+// Waits until the console's output queue is empty, at most
+// console_drain_polls_max * console_drain_poll_ms. Userland console writes
+// return once queued in the tty; reboot(2)'s own messages are printed by the
+// kernel directly, so without this wait they interleave with the last
+// lines of stxinit and the supervisor (C1 S1 run 4: "STXINIT shutdown
+// power-oWaiting (max 60 seconds) for system process `vnlru' ...").
+constexpr int console_drain_polls_max = 100;
+constexpr long console_drain_poll_ms = 5;
+
+void wait_console_drained(int console) noexcept {
+    if (console < 0) {
+        return;
+    }
+    for (int poll = 0; poll < console_drain_polls_max; poll += 1) {
+        int queued = 0;
+        if (ioctl(console, TIOCOUTQ, &queued) != 0 || queued <= 0) {
+            return;
+        }
+        struct timespec interval{};
+        interval.tv_sec = 0;
+        interval.tv_nsec = console_drain_poll_ms * static_cast<long>(stxruntime::nanoseconds_per_millisecond);
+        (void)nanosleep(&interval, nullptr);
+    }
+}
+
 [[noreturn]] void shut_down(int console, const ShutdownKind& kind, const sigset_t& blocked) noexcept {
     LineText line = stxruntime::empty_line();
     stxruntime::append_text(line, "STXINIT shutdown ");
@@ -403,6 +430,7 @@ void reap_until_none(int console, std::uint64_t limit_ms) noexcept {
     (void)kill(-1, SIGKILL);
     reap_until_none(console, kill_wait_ms);
     sync();
+    wait_console_drained(console);
     (void)reboot(kind.howto);
 
     // reboot(2) returned: it failed. Nothing else is left running; stay up.
