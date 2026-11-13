@@ -76,6 +76,16 @@ options 	GEOM_LABEL		# Provides labelization (the stock image mounts /dev/gpt/ro
 options 	FDT
 device		acpi
 device		pci
+# SoC frameworks from std.dev:64-69. Kept because "pci fdt" always builds
+# sys/dev/pci/pci_dw_mv.c and pci_dw.c (files.arm64:431-432), which include
+# clk.h and need the generated clknode_if.h (files:1363, "optional clk"): the
+# third build, 2026-11-13, stopped there. Prepared, not yet built.
+device		clk
+device		phy
+device		hwreset
+device		nvmem
+device		regulator
+device		syscon
 device		efidev			# EFI pseudo-device (std.arm64)
 device		efirtc			# EFI RTC (std.arm64)
 
