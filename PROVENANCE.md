@@ -128,7 +128,9 @@ SHA-1 equals the upstream tree at that commit (stx_auxlib checked it with
 file's blob SHA-1 was recomputed with `git hash-object` on 2026-11-13 and
 equals stx_auxlib's table for all 44 files, and its SHA-256 is recorded
 below (decision M2). Compiled into `stxlib_state` as its one translation
-unit, `src/static.c`, with stx_auxlib's definitions (CMakeLists.txt).
+unit, `src/static.c`, with stx_auxlib's definitions (CMakeLists.txt), plus
+`MI_MINGW_UCRT64` on MinGW, so that mimalloc initialises once there (batch
+3b; CMakeLists.txt gives the reason).
 
 | File (under `third_party/mimalloc/`) | Git blob SHA-1 | SHA-256 |
 |---|---|---|

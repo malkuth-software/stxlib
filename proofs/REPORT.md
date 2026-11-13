@@ -69,5 +69,11 @@ evidence, not proof.
 | `src/state/allocator.cpp` (tags, host backend) | as batch 2a's foreign-release fix: the registry, unchanged, now in stxlib_state | as before (sanitizer builds use this backend) | the same |
 | `src/core/threads.cpp` (D11) | the stated stack size, rounded to the page size, with a guard page; recursive locking and foreign unlocks fail fast in check builds; a predicate wait returns satisfied only when the predicate is true and timed_out only once MonotonicTime reached the deadline with it false | not yet proved; tested: 4 MiB and 8 MiB stacks filled to three quarters, refused sizes, must-end cases `recursive_lock` and `foreign_unlock`, timed waits. The wait rule holds by construction (the predicate is checked under the lock before each host wait and the deadline read from MonotonicTime); not checked by a tool | `tests/threads_tests.cpp`, `tests/death_tests.cpp` |
 
+## stxlib::boundary, batch 3b (owner decision D12 a: zones and clocks)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| mimalloc on MinGW (CMakeLists.txt) | nothing of mimalloc's reaches a program's error stream at start (CI 43441112933: one extra 0a on Windows, from mimalloc initialising twice) | not yet proved; argued from mimalloc v3.5.3's source (prim/prim.c 33-62, prim/windows/prim.c 785-917, init.c 515-520, options.c 401-453): with `MI_MINGW_UCRT64` only the TLS callback calls `_mi_auto_process_init`, and its one flush of the empty buffer writes nothing. Tested by `children_tests` (echo) and `console_process_tests` (write error stream) on Windows | `CMakeLists.txt` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

@@ -189,6 +189,27 @@ if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
     endif()
+    # On MinGW, mimalloc's Windows layer (src/prim/windows/prim.c, its default
+    # MI_WIN_INIT_USE_CRT_TLS) always registers its loader TLS callbacks, and
+    # unless MI_MINGW_UCRT64 is defined src/prim/prim.c also registers a
+    # constructor. Both call _mi_auto_process_init, and the second call's
+    # mi_add_stderr_output flushed the newline that the first left in
+    # mimalloc's delayed-output buffer (options.c, mi_out_buf_flush): one
+    # extra 0a at the start of every program's error stream (CI 43441112933).
+    # With MI_MINGW_UCRT64 the TLS and C runtime hooks are the only ones.
+    # Those hooks need the Universal C Runtime (MSYS2's CLANG64 and UCRT64);
+    # older MinGW C runtimes take the host backend.
+    if(MINGW)
+        check_cxx_source_compiles("#include <stdio.h>
+#ifndef _UCRT
+#error not the Universal C Runtime
+#endif
+int main() { return 0; }" stxlib_mingw_ucrt)
+        if(NOT stxlib_mingw_ucrt)
+            message(FATAL_ERROR "mimalloc on MinGW needs the Universal C Runtime; configure with -DSTXLIB_ALLOCATOR=host")
+        endif()
+        target_compile_definitions(stxlib_mimalloc PRIVATE MI_MINGW_UCRT64)
+    endif()
     target_sources(stxlib_state PRIVATE $<TARGET_OBJECTS:stxlib_mimalloc>)
     target_include_directories(stxlib_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
     target_compile_definitions(stxlib_state PRIVATE STXLIB_ALLOCATOR_MIMALLOC)
