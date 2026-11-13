@@ -114,5 +114,14 @@ evidence, not proof.
 |---|---|---|---|
 | `src/algorithms/voting.cpp` | the outcome (winner or named failure) is the reference prv-core.mjs's for every election | tested, not proved: 420 generated elections (full, partial and messy ballots; mini counts and brackets) against the reference's outcomes, `tests/reference/prv_cases.txt`, regenerated with node on 2026-11-13; weighted copies against single ballots. The port off std::vector is checked only by these tests | `tests/voting_tests.cpp` |
 
+## stxlib::algorithms, batch 3c5 (the owned math kernels)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/math/` (every function) | the same bits as stx_auxlib's kernels on every input the tests reach, under every variant this machine runs (native or v128 and avx2_fma), and under the Dekker exact product | tested, not proved: the frozen output hashes of `tests/math_tests.cpp`, carried unchanged from stx_auxlib, in ctest as `stxlib_math_tests`, `stxlib_math_dekker_tests` and, with dispatch, one run per forced SIMD level | `tests/math_tests.cpp` |
+| `src/algorithms/math/` (float functions) | correctly rounded over the ranges `math.hpp` states | exhaustive in stx_auxlib (`math_tests --exhaustive`, counts as `math.hpp` gives them); not yet rerun on STXlib's build. The frozen hashes tie STXlib's bits to the build that was checked, so a pass of them carries the result only as far as those hashes sample | `tests/math_tests.cpp --exhaustive` |
+| `src/algorithms/math/sincos_core.hpp` (double sin, cos, tan) | within 0.51 ulp for 2^-27 <= abs(x) <= 2^32 | proved in stx_auxlib by `tools/math/sincos_certificate.py` (interval error analysis over every binade's worst remainders); the certificate reads this tree's constants, and its search tool arrives with stx_btree, so it has not been rerun here | `tools/math/sincos_certificate.py` |
+| `src/algorithms/math/` (double functions other than sin, cos, tan) | within the ulp bounds `math.hpp` states | sampled in stx_auxlib (sample counts as `math.hpp` gives them); not proved | `tests/math_tests.cpp` |
+
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

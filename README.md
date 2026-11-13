@@ -66,5 +66,6 @@ vocabulary and services and make no host call of their own.
 | calendar (civil arithmetic, weekdays, ISO 8601 text) | `calendar.hpp` | batch 3c2 |
 | precedence chain (hash-only proof of recording order) | `precedence.hpp` | batch 3c3 |
 | Preference Ranked Voting | `voting.hpp` | batch 3c4 |
+| math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic; the same bits on every target) | `math.hpp` | batch 3c5 |
 
 Licence: MIT (see `LICENSE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); FreeBSD components keep their BSD licences.
