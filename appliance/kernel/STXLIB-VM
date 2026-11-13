@@ -39,6 +39,13 @@ options 	HWPMC_HOOKS		# Necessary kernel hooks for hwpmc(4) (std.arm64). Kept be
 				# unused without it, an error under -Werror: the first build,
 				# 2026-11-13, stopped there (LLVM 22.1.8, -Wunused-but-set-variable).
 
+options 	KTRACE			# ktrace(2) (std.arm64). Kept because sys/kern/subr_syscall.c:46-49
+				# includes <sys/uio.h> only #ifdef KTRACE, yet line 213 calls
+				# exterr_copyout(), declared there (sys/sys/uio.h:87): without
+				# KTRACE, arm64 trap.o fails -Wimplicit-function-declaration.
+				# Second build, 2026-11-13, LLVM 22.1.8. A FreeBSD include bug,
+				# not patched (config-only fixes for now); drop KTRACE once fixed.
+
 # --- Boot timing (sys/conf/NOTES:641-642) ----------------------------------
 options 	TSLOG			# timestamps: sysctl debug.tslog, debug.tslog_user
 options 	TSLOGSIZE=262144
