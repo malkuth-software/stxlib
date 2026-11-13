@@ -84,7 +84,9 @@ function(stxlib_switch name description)
 endfunction()
 
 # Exception shadowing in development builds (include/stxlib/shadow.hpp):
-# exception types in records and the per-thread recent-failure list.
+# native traces in shadow records, exception types in records and the
+# per-thread recent-failure list. Frames are recorded in every build (the
+# A2 swap-in).
 stxlib_switch(STXLIB_SHADOW "Shadow exceptions at the gates")
 # Allocation ownership tags (include/stxlib/memory.hpp): a 16-byte tag below
 # every block, checked by release.
