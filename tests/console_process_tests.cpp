@@ -15,6 +15,7 @@
 // module is batch 2b); the invalid-text refusal on output is gone (a
 // TextView is UTF-8 by construction); `fail` uses STXLIB_REQUIRE.
 
+#include "stxlib/capabilities.hpp"
 #include "stxlib/console.hpp"
 #include "stxlib/process.hpp"
 #include "stxlib/require.hpp"
