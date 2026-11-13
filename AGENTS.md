@@ -36,8 +36,8 @@ library's whole purpose:
 - Native unwinding never crosses a boundary in either direction. A failure
   crosses as an error record we own (the status-review thread, 2026-11-13).
   Development builds shadow every exception at every ABI boundary so it is
-  fully visible; release builds of everything ours use no exceptions
-  (owner, 2026-11-13).
+  fully visible; release builds of everything ours use no exceptions; for
+  GUI.Forms that comes after its 1.0 (owner, 2026-11-13).
 - Interface modules live under `src/hosted/<family>/`. The appliance's own
   runtime lives under `runtime/` and the FreeBSD kernel shim under
   `appliance/shim/`. Nothing outside those directories issues a system call,
