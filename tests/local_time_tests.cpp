@@ -2,7 +2,7 @@
 // part ports local_time_rules from stx_auxlib's tests/calendar_tests.cpp at
 // b6e330a: TZ rules fix the zone without the host's zone files. Windows has
 // no TZ rule here (the system zone is used), so it is checked for agreement
-// between the civil reading and its offset, and for its refusal before 1601.
+// between the civil reading and its offset, at the ends of WallTime too.
 // Tested, not proved (proofs/REPORT.md).
 
 #include "stxlib/capabilities.hpp"
@@ -77,20 +77,28 @@ void any_zone() {
     if (earlier.succeeded()) CHECK(consistent(*earlier.value(), before_epoch));
 }
 
-#if defined(_WIN32)
-void windows_range() {
-    // FILETIME starts at 1601-01-01; one second earlier is refused.
-    const WallTime first = WallTime::from_unix_nanoseconds(-11644473600 * nanoseconds_per_second);
-    const WallTime too_early = WallTime::from_unix_nanoseconds(-11644473601 * nanoseconds_per_second);
-    const Result<LocalTime> refused = stxlib::local_time(too_early);
-    CHECK(refused.failed());
-    CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    // 1601-01-01T00:00Z itself may fall before 1601 in a zone west of UTC,
-    // where the host may refuse it; it must not be misread.
-    const Result<LocalTime> edge = stxlib::local_time(first);
-    if (edge.succeeded()) CHECK(consistent(*edge.value(), first));
+// The ends of WallTime's range convert in any zone and agree with their
+// offsets (CI run 43435039771: the earlier test of an instant before 1601
+// overflowed i64 nanoseconds and named a time inside the range instead;
+// WallTime cannot express 1601).
+void range_ends() {
+    const WallTime earliest = WallTime::from_unix_nanoseconds(stxlib::i64_min);
+    const WallTime latest = WallTime::from_unix_nanoseconds(stxlib::i64_max);
+    const Result<LocalTime> first = stxlib::local_time(earliest);
+    CHECK(first.succeeded());
+    if (first.succeeded()) {
+        CHECK(consistent(*first.value(), earliest));
+        CHECK((*first.value()).civil.year == 1677 || (*first.value()).civil.year == 1678);
+    }
+    const Result<LocalTime> last = stxlib::local_time(latest);
+    CHECK(last.succeeded());
+    if (last.succeeded()) {
+        CHECK(consistent(*last.value(), latest));
+        CHECK((*last.value()).civil.year == 2262);
+    }
 }
-#else
+
+#if !defined(_WIN32)
 void posix_rules() {
     // 2026-01-15T12:00:00.25Z and 2026-07-15T12:00:00Z (Python's datetime).
     constexpr WallTime winter = WallTime::from_unix_nanoseconds(1768478400 * nanoseconds_per_second + 250000000);
@@ -151,9 +159,8 @@ void posix_rules() {
 int main() {
     reference_values();
     any_zone();
-#if defined(_WIN32)
-    windows_range();
-#else
+    range_ends();
+#if !defined(_WIN32)
     posix_rules();
 #endif
     return stxlib_tests::finish("local_time");

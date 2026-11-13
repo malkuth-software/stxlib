@@ -2,7 +2,9 @@
 // FileTimeToSystemTime for UTC, then SystemTimeToTzSpecificLocalTimeEx with
 // the current dynamic time zone (a null zone argument). Ported from
 // stx_auxlib's src/hosted/calendar_windows.cpp at b6e330a. FILETIME counts
-// 100 ns ticks from 1601-01-01, so earlier instants are refused.
+// 100 ns ticks from 1601-01-01; every WallTime (1677 to 2262) is later, so
+// the range check below never refuses one and is kept against a future
+// wider WallTime.
 
 #include "hosted/local_time_backend.hpp"
 

@@ -14,13 +14,14 @@
 // SystemTimeToTzSpecificLocalTimeEx on Windows), so two hosts may disagree
 // on a local time. D12 a would compile an IANA database into the library.
 //
-// Range: WallTime counts signed 64-bit nanoseconds from 1970; Windows also
-// refuses instants before 1601-01-01 (FILETIME's epoch). Leap seconds do
-// not exist here (Unix time): a host reading of second 60 is shown as 59.
+// Range: every WallTime, which counts signed 64-bit nanoseconds from 1970,
+// so from 1677-09-21T00:12:43Z to 2262-04-11T23:47:16Z (Python's datetime).
+// That range lies wholly after 1601-01-01, the start of Windows' FILETIME,
+// so Windows refuses no WallTime. Leap seconds do not exist here (Unix
+// time): a host reading of second 60 is shown as 59.
 //
-// Failures: invalid_argument with HostCode::invalid_value for an instant the
-// host cannot convert (Windows, before 1601); io_failure with the host's
-// code when the host's conversion fails.
+// Failures: io_failure with the host's code when the host's conversion
+// fails.
 
 #include "stxlib/clocks.hpp"
 #include "stxlib/result.hpp"
