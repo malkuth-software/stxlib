@@ -293,3 +293,6 @@ nooptions GZIO,ZSTDIO,EKCD,DEBUGNET,NETDUMP # crash-dump compression, encryption
 
 # --- Batch 2, round 9
 nodevice virtio_mmio # QEMU virt's virtio-mmio transports are empty; our devices are on PCI
+
+# --- Batch 2, round 10
+nodevice vlan,tuntap,gif,md,netmap,uinput,firmware # pseudo devices nothing on the appliance uses
