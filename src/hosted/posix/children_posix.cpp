@@ -1,0 +1,365 @@
+// Child processes on POSIX hosts (include/stxlib/children.hpp), over
+// posix_spawn. Ported from stx_auxlib's src/hosted/children_posix.cpp at
+// b6e330a.
+//
+// Changes from stx_auxlib:
+// - The abandoned-children list is stxlib_state's fixed table under its
+//   spin lock (state.hpp), shared by every module; stx_auxlib kept a heap
+//   vector behind a mutex in each module.
+// - The child state is inline in Child; there is no allocation after the
+//   spawn, so no child is ever killed for want of memory.
+// - The environment the child receives is read under stxlib_state's
+//   environment lock, so set_variable in another thread cannot change it
+//   mid-spawn.
+// - On Apple hosts the environment comes from _NSGetEnviron(), because a
+//   shared library has no direct access to environ (macOS environ(7):
+//   "Shared libraries and bundles don't have direct access to environ";
+//   read in the man page on macOS 26, not proved).
+
+#include "stxlib/children.hpp"
+
+#include "core/growable.hpp"
+#include "core/host_failure.hpp"
+#include "core/spin_lock.hpp"
+#include "hosted/children_common.hpp"
+#include "state/state.hpp"
+
+#include <cerrno>
+#include <csignal>
+#include <ctime>
+
+#include <fcntl.h>
+#include <signal.h>
+#include <spawn.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+
+#if defined(__APPLE__)
+#include <crt_externs.h>
+#else
+extern char** environ;
+#endif
+
+namespace stxlib {
+
+namespace {
+
+char** environment_block() noexcept {
+#if defined(__APPLE__)
+    char** const result = *_NSGetEnviron();
+#else
+    char** const result = environ;
+#endif
+    return result;
+}
+
+ErrorRecord record_of_errno(const int error, const Operation operation) noexcept {
+    ErrorKind kind = ErrorKind::io_failure;
+    switch (error) {
+    case ENOENT:
+    case ENOTDIR:
+        kind = ErrorKind::not_found;
+        break;
+    case EACCES:
+    case EPERM:
+    case ENOEXEC:
+        kind = ErrorKind::permission_denied;
+        break;
+    case ENOMEM:
+        kind = ErrorKind::out_of_memory;
+        break;
+    case EAGAIN:
+    case EMFILE:
+    case ENFILE:
+        kind = ErrorKind::limit_exceeded;
+        break;
+    default:
+        break;
+    }
+    const ErrorRecord result = host_failure::record(kind, operation, HostCode::none,
+                                                    ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
+    return result;
+}
+
+pid_t process_id(const i64 process) noexcept {
+    const pid_t result = static_cast<pid_t>(process);
+    return result;
+}
+
+// Reaps every abandoned child that has ended, without blocking.
+void reap_abandoned() noexcept {
+    state::ProcessState& process = state::current_process();
+    const spin::Guard lock(process.children_lock);
+    usize kept = 0;
+    for (usize index = 0; index < process.abandoned_child_count; ++index) {
+        const i64 child = process.abandoned_children[index];
+        int status = 0;
+        const pid_t reaped = ::waitpid(process_id(child), &status, WNOHANG);
+        // 0: still running. -1 with ECHILD: reaped elsewhere; drop it.
+        if (reaped == 0 || (reaped < 0 && errno == EINTR)) {
+            process.abandoned_children[kept] = child;
+            kept = kept + 1;
+        }
+    }
+    process.abandoned_child_count = kept;
+}
+
+// Lists a running child for later reaping.
+void abandon(const i64 child) noexcept {
+    reap_abandoned();
+    state::ProcessState& process = state::current_process();
+    const spin::Guard lock(process.children_lock);
+    if (process.abandoned_child_count == state::abandoned_child_capacity) {
+        process.abandoned_children_lost = process.abandoned_children_lost + 1;
+        return;
+    }
+    process.abandoned_children[process.abandoned_child_count] = child;
+    process.abandoned_child_count = process.abandoned_child_count + 1;
+}
+
+// Owns a posix_spawn_file_actions_t and a posix_spawnattr_t for one start.
+class SpawnSetup final {
+public:
+    SpawnSetup() noexcept = default;
+    SpawnSetup(const SpawnSetup&) = delete;
+    SpawnSetup& operator=(const SpawnSetup&) = delete;
+    ~SpawnSetup() {
+        if (actions_ready) (void)posix_spawn_file_actions_destroy(&actions);
+        if (attributes_ready) (void)posix_spawnattr_destroy(&attributes);
+    }
+
+    posix_spawn_file_actions_t actions{};
+    posix_spawnattr_t attributes{};
+    bool actions_ready{false};
+    bool attributes_ready{false};
+};
+
+// Owns a descriptor for one start; -1 holds none.
+class Descriptor final {
+public:
+    Descriptor() noexcept = default;
+    Descriptor(const Descriptor&) = delete;
+    Descriptor& operator=(const Descriptor&) = delete;
+    ~Descriptor() {
+        if (value >= 0) (void)::close(value);
+    }
+
+    [[nodiscard]] int release() noexcept {
+        const int result = value;
+        value = -1;
+        return result;
+    }
+
+    int value{-1};
+};
+
+// Signals whose disposition the child resets to the default.
+constexpr int reset_signals[] = {SIGPIPE, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGWINCH};
+
+int prepare(SpawnSetup& setup, const ChildRequest& request, const int output_writer) noexcept {
+    int error = posix_spawn_file_actions_init(&setup.actions);
+    if (error != 0) return error;
+    setup.actions_ready = true;
+    error = posix_spawnattr_init(&setup.attributes);
+    if (error != 0) return error;
+    setup.attributes_ready = true;
+    error = posix_spawn_file_actions_addopen(&setup.actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+    if (error == 0 && request.streams == ChildStreams::discard) {
+        error = posix_spawn_file_actions_addopen(&setup.actions, STDOUT_FILENO, "/dev/null", O_WRONLY, 0);
+        if (error == 0) error = posix_spawn_file_actions_adddup2(&setup.actions, STDOUT_FILENO, STDERR_FILENO);
+    }
+    if (error == 0 && request.streams == ChildStreams::capture) {
+        error = posix_spawn_file_actions_adddup2(&setup.actions, output_writer, STDOUT_FILENO);
+        if (error == 0) error = posix_spawn_file_actions_adddup2(&setup.actions, output_writer, STDERR_FILENO);
+    }
+    if (error != 0) return error;
+    sigset_t defaults{};
+    (void)sigemptyset(&defaults);
+    for (const int signal_number : reset_signals) (void)sigaddset(&defaults, signal_number);
+    sigset_t empty{};
+    (void)sigemptyset(&empty);
+    error = posix_spawnattr_setsigdefault(&setup.attributes, &defaults);
+    if (error == 0) error = posix_spawnattr_setsigmask(&setup.attributes, &empty);
+    if (error != 0) return error;
+    short flags = POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
+#if defined(POSIX_SPAWN_SETSID)
+    if (request.detached) flags = static_cast<short>(flags | POSIX_SPAWN_SETSID);
+#else
+    // Without POSIX_SPAWN_SETSID, a new process group still keeps terminal
+    // signals from reaching a detached child.
+    if (request.detached) flags = static_cast<short>(flags | POSIX_SPAWN_SETPGROUP);
+#endif
+    error = posix_spawnattr_setflags(&setup.attributes, flags);
+    return error;
+}
+
+bool contains_slash(const TextView text) noexcept {
+    for (usize index = 0; index < text.count(); ++index) {
+        if (text.data()[index] == '/') return true;
+    }
+    return false;
+}
+
+// Sleeps for `interval` (at least 0), retrying interrupted sleeps.
+void sleep_for(const Duration interval) noexcept {
+    const i64 nanoseconds = interval.count_nanoseconds() < 0 ? 0 : interval.count_nanoseconds();
+    struct timespec remaining{};
+    remaining.tv_sec = static_cast<time_t>(nanoseconds / 1000000000);
+    remaining.tv_nsec = static_cast<long>(nanoseconds % 1000000000);
+    while (::nanosleep(&remaining, &remaining) != 0 && errno == EINTR) {
+    }
+}
+
+} // namespace
+
+void Child::release() noexcept {
+    if (output_ != none) (void)::close(static_cast<int>(output_));
+    output_ = none;
+    const i64 process = process_;
+    process_ = none;
+    if (process == none || waited_) {
+        waited_ = false;
+        return;
+    }
+    waited_ = false;
+    // A child that has ended is reaped now; a running one is listed.
+    int status = 0;
+    if (::waitpid(process_id(process), &status, WNOHANG) != 0) return;
+    abandon(process);
+}
+
+Result<Child> Child::start(const ChildRequest& request) noexcept {
+    const Operation operation = "stxlib.children.start";
+    const Status checked = children_detail::check_request(request);
+    if (checked.failed()) return Result<Child>::failure(*checked.error());
+    reap_abandoned();
+    // The program and arguments as NUL-terminated strings in one buffer,
+    // then the argv pointers into it (made after the last append, which may
+    // move the buffer).
+    Growable<char> strings;
+    Growable<usize> starts;
+    const ErrorRecord exhausted = host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none);
+    if (!starts.push(0) || !strings.append(request.program.data(), request.program.count()) || !strings.push('\0')) {
+        return Result<Child>::failure(exhausted);
+    }
+    for (usize index = 0; index < request.arguments.count(); ++index) {
+        const TextView argument = request.arguments[index];
+        if (!starts.push(strings.count()) || !strings.append(argument.data(), argument.count()) ||
+            !strings.push('\0')) {
+            return Result<Child>::failure(exhausted);
+        }
+    }
+    Growable<char*> argv;
+    for (usize index = 0; index < starts.count(); ++index) {
+        if (!argv.push(strings.data() + starts[index])) return Result<Child>::failure(exhausted);
+    }
+    if (!argv.push(nullptr)) return Result<Child>::failure(exhausted);
+
+    Descriptor reader;
+    Descriptor writer;
+    if (request.streams == ChildStreams::capture) {
+        int ends[2] = {-1, -1};
+        if (::pipe(ends) != 0) return Result<Child>::failure(record_of_errno(errno, operation));
+        reader.value = ends[0];
+        writer.value = ends[1];
+        // The parent's ends must not leak into this or any other child; the
+        // child receives the writer through dup2, which clears the flag.
+        (void)::fcntl(reader.value, F_SETFD, FD_CLOEXEC);
+        (void)::fcntl(writer.value, F_SETFD, FD_CLOEXEC);
+    }
+    SpawnSetup setup;
+    const int prepared = prepare(setup, request, writer.value);
+    if (prepared != 0) return Result<Child>::failure(record_of_errno(prepared, operation));
+
+    pid_t pid = -1;
+    int error = 0;
+    {
+        state::ProcessState& process = state::current_process();
+        const spin::Guard lock(process.environment_lock);
+        char* const* const environment = environment_block();
+        if (contains_slash(request.program)) {
+            error = posix_spawn(&pid, argv[0], &setup.actions, &setup.attributes, argv.data(), environment);
+        } else {
+            error = posix_spawnp(&pid, argv[0], &setup.actions, &setup.attributes, argv.data(), environment);
+        }
+    }
+    if (error != 0) return Result<Child>::failure(record_of_errno(error, operation));
+    Child child;
+    child.process_ = static_cast<i64>(pid);
+    child.output_ = request.streams == ChildStreams::capture ? static_cast<i64>(reader.release()) : none;
+    Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
+    return result;
+}
+
+Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
+    const Operation operation = "stxlib.children.wait";
+    if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    reap_abandoned();
+    const MonotonicTime deadline = MonotonicTime::now().after(timeout.negative() ? Duration() : timeout);
+    Duration pause = Duration::microseconds(200);
+    for (;;) {
+        int status = 0;
+        const pid_t reaped = ::waitpid(process_id(process_), &status, WNOHANG);
+        if (reaped < 0) {
+            if (errno == EINTR) continue;
+            return Result<ChildEnd>::failure(record_of_errno(errno, operation));
+        }
+        if (reaped == process_id(process_)) {
+            waited_ = true;
+            if (WIFSIGNALED(status)) {
+                return Result<ChildEnd>::success(ChildEnd::signalled(static_cast<u32>(WTERMSIG(status))));
+            }
+            return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(WEXITSTATUS(status))));
+        }
+        const MonotonicTime now = MonotonicTime::now();
+        if (deadline <= now) {
+            return Result<ChildEnd>::failure(
+                host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
+        }
+        const Duration left = deadline.since(now);
+        sleep_for(left < pause ? left : pause);
+        if (pause < Duration::milliseconds(10)) pause = pause.plus(pause);
+    }
+}
+
+Status Child::kill() noexcept {
+    const Operation operation = "stxlib.children.kill";
+    if (process_ == none || waited_) return Status::failure(children_detail::invalid_state(operation));
+    if (::kill(process_id(process_), SIGKILL) != 0) return Status::failure(record_of_errno(errno, operation));
+    return Status::success();
+}
+
+Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
+    const Operation operation = "stxlib.children.read_output";
+    if (output_ == none) return Result<Buffer<Byte>>::failure(children_detail::invalid_state(operation));
+    const int descriptor = static_cast<int>(output_);
+    Growable<Byte> output;
+    bool over_limit = false;
+    Byte chunk[4096];
+    int failed_errno = 0;
+    bool exhausted = false;
+    for (;;) {
+        const ssize_t count = ::read(descriptor, chunk, sizeof chunk);
+        if (count < 0) {
+            if (errno == EINTR) continue;
+            failed_errno = errno;
+            break;
+        }
+        if (count == 0) break;
+        if (!children_detail::keep_output(chunk, static_cast<usize>(count), limit, output, over_limit)) {
+            exhausted = true;
+            break;
+        }
+    }
+    (void)::close(descriptor);
+    output_ = none;
+    if (failed_errno != 0) return Result<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
+    if (exhausted) {
+        return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+    }
+    Result<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
+    return result;
+}
+
+} // namespace stxlib

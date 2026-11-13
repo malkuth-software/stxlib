@@ -147,13 +147,17 @@ set_target_properties(stxlib_state PROPERTIES
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
     src/core/capabilities.cpp
+    src/core/children.cpp
     src/core/console.cpp
+    src/core/desktop.cpp
     src/core/entropy.cpp
     src/core/environment.cpp
     src/core/error.cpp
     src/core/exception_shadow.cpp
     src/core/fail_fast.cpp
+    src/core/files.cpp
     src/core/memory.cpp
+    src/core/path.cpp
     src/core/process.cpp
     src/core/report.cpp
     src/core/require.cpp
@@ -168,17 +172,23 @@ set(STXLIB_BOUNDARY_SOURCES
 # musl live in src/hosted/posix/; a family directory joins when a service
 # differs (the stx_auxlib hosted port).
 set(STXLIB_HOSTED_POSIX_SOURCES
+    src/hosted/posix/children_posix.cpp
     src/hosted/posix/console_posix.cpp
+    src/hosted/posix/desktop_posix.cpp
     src/hosted/posix/entropy_posix.cpp
     src/hosted/posix/environment_posix.cpp
     src/hosted/posix/events_posix.cpp
+    src/hosted/posix/file_posix.cpp
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/trace_posix.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
+    src/hosted/windows/children_windows.cpp
     src/hosted/windows/console_windows.cpp
+    src/hosted/windows/desktop_windows.cpp
     src/hosted/windows/entropy_windows.cpp
     src/hosted/windows/environment_windows.cpp
     src/hosted/windows/events_windows.cpp
+    src/hosted/windows/file_windows.cpp
     src/hosted/windows/terminal_windows.cpp
     src/hosted/windows/trace_windows.cpp
     src/hosted/windows/utf16.cpp)
@@ -217,8 +227,8 @@ set_target_properties(stxlib_boundary PROPERTIES
     POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(stxlib_boundary PUBLIC stxlib_state Threads::Threads)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
-    # BCryptGenRandom (entropy_windows.cpp).
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt)
+    # BCryptGenRandom (entropy_windows.cpp); ShellExecuteW (desktop_windows.cpp).
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32)
 endif()
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
@@ -235,7 +245,7 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform)
+    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})

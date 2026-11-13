@@ -2,8 +2,9 @@
 // answered capability_available in each desktop backend
 // (src/hosted/desktop_<host>.cpp at b6e330a); the answers are gathered here
 // for every family, with the ones whose modules are not ported yet
-// (children, desktop, files, threads, the local time zone) reported
-// unsupported until their batches land.
+// (threads, the local time zone) reported unsupported until their batch
+// lands. A desktop capability reported here can still fail at run time
+// when the desktop's helper program is missing (desktop.hpp).
 
 #include "stxlib/capabilities.hpp"
 
@@ -30,11 +31,17 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::child_processes:
     case Capability::desktop_open:
     case Capability::file_reveal:
-    case Capability::current_executable:
     case Capability::files:
+        return true;
+    case Capability::current_executable:
+#if defined(_WIN32) || defined(__APPLE__) || defined(__linux__)
+        return true;
+#else
+        return false; // FreeBSD joins in phase II (desktop_posix.cpp)
+#endif
     case Capability::threads:
     case Capability::local_time_zone:
-        return false; // not ported yet
+        return false; // not ported yet (batch 2c)
     }
     return false;
 }

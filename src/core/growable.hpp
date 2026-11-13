@@ -68,6 +68,20 @@ public:
         return result;
     }
 
+    // Exactly `wanted` elements; new ones are zero bytes (house style,
+    // section 1: initialise every region that will be read). False, with
+    // nothing changed, when the room cannot be had.
+    [[nodiscard]] bool resize(const usize wanted) noexcept {
+        if (wanted <= count_) {
+            count_ = wanted;
+            return true;
+        }
+        if (!reserve(wanted)) return false;
+        std::memset(elements_ + count_, 0, (wanted - count_) * sizeof(Element));
+        count_ = wanted;
+        return true;
+    }
+
     // Requirement: smaller <= count().
     void shrink(const usize smaller) noexcept { count_ = smaller; }
     void clear() noexcept { count_ = 0; }
