@@ -53,7 +53,10 @@ python3 guest_session.py --name "$vm" --firmware-timeout-ms 0 --timeout 180 \
 
 # Which service the supervisor reaps first after the terminate is not fixed,
 # so only stubborn's exit and restart are expected (each expect scans
-# forward past other lines).
+# forward past other lines). The supervisor's last line at shutdown is
+# matched without its prefix: the shim's kernel printf of the supervisor's
+# exit can land inside it on the console (run 4: "STXSUPERVISO" + kernel
+# line + "R stop services=stopped"); only the supervisor prints the rest.
 python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label shim \
     --step 'expect:30:stxshim: ready' \
     --step 'expect:30:STXINIT uptime_ns=\d+' \
@@ -72,5 +75,5 @@ python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label shim \
     --step 'monitor:system_powerdown' \
     --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \
-    --step 'expect:5:STXSUPERVISOR stop services=stopped' \
+    --step 'expect:5:stop services=stopped' \
     --step 'exit:20'
