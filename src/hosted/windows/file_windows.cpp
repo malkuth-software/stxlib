@@ -563,6 +563,11 @@ Outcome resolve(const char* const name, Growable<char>& text) noexcept {
         length = GetFinalPathNameByHandleW(opened.get(), buffer.data(), capacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
         if (length == 0) return last_error();
         if (length < capacity) break;
+        // STXlib's own bound, before allocating for the name (audit A, H8):
+        // each UTF-16 unit is at least one byte of WTF-8, so a longer name
+        // cannot become a Path of maximum_path_bytes, even after a "\\?\"
+        // prefix of up to 8 units is removed.
+        if (length > maximum_path_bytes + 8) return failure(FileStatus::too_large);
         capacity = length + 1;
     }
     const Outcome result = narrow_name(buffer.data(), length, text);

@@ -237,7 +237,13 @@ struct Registry final {
 constinit Registry registry{};
 
 // The registry's lock: stxlib_state cannot use the boundary's spin::Guard,
-// so it spins on the flag itself, as spin_lock.hpp does.
+// so it spins on the flag itself. Unlike spin_lock.hpp it neither yields nor
+// sleeps (audit A, S2): the state calls no host interface but the
+// allocator's backend (AGENTS, "Hard boundaries"), so it cannot reach
+// host::yield_thread, and the registry serves only the host backend
+// (sanitizer builds and the malloc fallback), not the default mimalloc one.
+// The cost, a waiter spinning through another thread's rehash, is stated
+// here rather than removed.
 class RegistryGuard final {
 public:
     RegistryGuard() noexcept {
