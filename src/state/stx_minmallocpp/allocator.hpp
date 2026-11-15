@@ -1,0 +1,69 @@
+#pragma once
+
+// stx_minmallocpp: STXlib's own allocator. A conversion of mimalloc v3's
+// design to house-style C++ (the owner, 2026-11-15), for stxlib_state's
+// allocator calls (state.hpp, AllocatorCalls). layout.hpp, page.hpp,
+// region.hpp and heap.hpp state the structure; this is the contract.
+//
+// Ownership. A block from allocate belongs to its caller until it is passed
+// to release, once, from any thread. The allocator owns every byte of
+// address space it reserves and returns it to the host only through its own
+// calls; it never frees memory it did not reserve.
+//
+// Failure. Exhaustion (the host refuses address space or memory, or a fixed
+// table is full) is a null result at the call and changes nothing else: no
+// errno, no output, no waiting, no handler. A release of an address that is
+// not the start of a live block is `refused`, decided without reading or
+// writing the address or anything near it, in every build. Finding the
+// allocator's own state contradicted (a block released twice from two
+// threads, seen only when the two releases meet) stops the process.
+//
+// What it never does: throw, call back into any other code, call a
+// new-handler, read the environment, write to a stream, read the clock,
+// draw entropy, or make a host call that is a cancellation point (os.hpp).
+// It never reads or writes the memory of a block, live or free.
+//
+// Threads. Any thread may call anything here at any time, including during
+// its own exit and after its exit hook has run. A thread's first allocation
+// gives it a heap; its normal exit gives that heap's pages up. Process
+// termination releases nothing. Not async-signal-safe. Not usable in the
+// child of a fork of a multithreaded process.
+//
+// Not yet built, run or proved (proofs/REPORT.md, stx_minmallocpp).
+
+#include "stxlib/types.hpp"
+
+namespace stxlib::stx_minmallocpp {
+
+enum class Release : u8 {
+    released = 0,
+    // The address is not the start of a live block of this allocator.
+    refused = 1,
+};
+
+// `size` bytes aligned to `alignment`. A size of zero yields a unique
+// block. Null when alignment is not a power of two or exceeds 1 GiB, when
+// size exceeds half the address space, or on exhaustion. The contents are
+// indeterminate. Blocks of up to 512 KiB with an alignment of up to 64 KiB
+// cost a fixed number of steps on the fast path.
+[[nodiscard]] void* allocate(usize size, usize alignment) noexcept;
+
+// Releases a block from allocate. Refuses null, an address outside the
+// allocator's address space, an address inside its metadata, an address
+// that is not a block's start, and a block that is already free.
+[[nodiscard]] Release release(void* address) noexcept;
+
+// Merges releases from other threads into the calling thread's pages,
+// frees its empty pages, and returns idle memory to the host. A
+// maintenance call for a quiet moment; proportional to the pages the
+// thread owns and to the number of regions.
+void trim() noexcept;
+
+// Gives up the calling thread's heap now, as its exit would: its pages are
+// abandoned (or freed if empty) and its slot returned. The thread may go on
+// allocating and releasing; it is then served as a thread without a heap.
+// For a thread that wants its memory handed on before it exits, and for
+// STXlib's own thread-exit hook to call once it replaces the allocator's.
+void end_thread() noexcept;
+
+} // namespace stxlib::stx_minmallocpp

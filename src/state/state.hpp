@@ -60,8 +60,9 @@
 // (the hook has run, or the first allocation failed) a thread runs in
 // degraded mode: current_thread_state() is null, the shadow facilities use
 // the anchor's failure reserve (ThreadFlags::reserve) and each other
-// facility says what it does without the block. The process state is a static of stxlib_state with
-// constant initialisation.
+// facility says what it does without the block. The process state is a static
+// of stxlib_state with constant initialisation. The allocator's backend is
+// stx_minmallocpp (the default), mimalloc or malloc.
 
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"

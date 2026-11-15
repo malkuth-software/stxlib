@@ -309,3 +309,47 @@ Mach-O-style and import-prefixed names, not with a real toolchain.
 
 None of these has been compiled or run except the Python checks named:
 the integrator builds and runs them on the M4.
+
+## stx_minmallocpp (STXlib's own allocator; the owner, 2026-11-15)
+
+A conversion of mimalloc v3's design to house-style C++
+(`src/state/stx_minmallocpp/`), chosen with `STXLIB_ALLOCATOR=stx_minmallocpp`.
+Written on Neo. Built and run on the M4 on 2026-11-15 (macOS arm64, Clang;
+the seat's logs `stx_minmallocpp/dev/logs/battery-1`, `round-2`, `round-3`),
+and on no other host yet. "Enumerated" below means a test that covers its
+whole domain, which is a proof once it has run: those ran and passed
+(`stxlib_stx_minmallocpp_tests`, 18 checks). The arithmetic is integer
+arithmetic on 64-bit values, so the result does not depend on the host.
+
+What ran on the M4, all passing:
+- the whole suite with this allocator as `stxlib_state`'s backend, Debug and
+  Release (76 of 76 tests each, no compiler warning), and the default
+  configuration (76 of 76);
+- `stxlib_stx_minmallocpp_direct_tests` (81 checks, entry and exit checks
+  on) in Release, under ThreadSanitizer, and under AddressSanitizer with
+  UndefinedBehaviorSanitizer: 50 runs each, no failure and no report;
+- the same under the integer sanitizers this host's compiler accepts
+  (signed and unsigned overflow, shift, implicit truncation, pointer
+  overflow), halting on any report: none. `STXLIB_INTEGER_CHECKS` itself
+  does not configure on macOS arm64 (`implicit-integer-sign-change` is
+  refused), so the repository's own integer build is still to run on Linux;
+- `stxlib_stx_minmallocpp_surface`: the objects' leaves are exactly `mmap`,
+  `mprotect`, `munmap`, `sched_yield`, `sysconf`, `pthread_key_create`,
+  `pthread_setspecific`, `pthread_getspecific`, `abort` and the thread-local
+  access routine.
+These are evidence over the paths the tests take, not proof.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `layout.hpp` (`class_of`, `class_bytes`) | every size from 1 to 524,288 is held by its class and by no smaller one; sizes increase in multiples of 16 | the table's invariants are `static_assert`ed for all 56 classes; the rest enumerated, not yet run; ESBMC harness written, not run | `tests/stx_minmallocpp_tests.cpp`, `proofs/esbmc/stx_minmallocpp.cpp` (`harness_class_of`) |
+| `layout.hpp` (the alignment rule) | for an alignment from 16 to 65,536, the class of the size rounded up to it has a block size that is a multiple of it, so aligned allocation is ordinary allocation | proved on paper (the header's comment and the seat's DESIGN.md 5.2); enumerated, not yet run; harness written, not run | the same (`harness_alignment_rule`) |
+| `page.hpp` (`block_index`) | the multiply and shift equals the division for every class and every offset of its page | bound argued in the header; enumerated, not yet run; harness written, not run | the same (`harness_block_index`) |
+| `region.hpp` (`run_list_of`, `run_list_floor`) | the lists partition run lengths 1 to 16,383 in increasing order | enumerated, not yet run; harness written, not run | the same (`harness_run_list_floor`) |
+| `region.cpp` (the free-run index) | every free run is maximal, tagged at both ends and in the list of its length; an allocated run's end tags are 0; taking and giving a run are a fixed number of steps | not yet proved; argued in `region.hpp`. No harness yet (a model of the index against a set of intervals is the plan) | `tests/stx_minmallocpp_direct_tests.cpp` exercises it |
+| `heap.cpp` (the ownership protocol) | no released block is lost; a page never has two owners; `free` and `remote` never both name a block unless a client released it twice; the count in a page's state is only ever a hint | not proved in general; argued in the seat's DESIGN.md 4.3. Checked by enumeration within a bound: `tests/stx_minmallocpp_interleave.cpp` runs the allocator's own code (each shared-memory step marked, `STX_MINMALLOCPP_STEP`) under every ordering of the steps with up to N forced switches, a fresh process per ordering, for five scenarios of two threads on one page (a release racing an abandon; two releasers finishing a page; a free and re-make under a late release; thread exit racing releases; two keepers claiming one page). On the M4, 2026-11-15: N = 2, 2,825 orderings; N = 3, 31,507; N = 4, 372,231; all keep the properties (no allocator check fails, no entitled release is refused, no deadlock, every page is given back once its blocks are). The checker is shown to see: three deliberately broken protocols (no announce; abandon ignoring pending; collect resetting the state after its scan) are each caught as a lost release at N = 1 or 2. Limits: two threads, one page's worth of blocks, N forced switches, a sequentially consistent ordering of the steps (one thread runs at a time); nothing is claimed beyond them | ctest `stxlib_stx_minmallocpp_interleave` (N = 2); the direct tests' thread cases; ThreadSanitizer |
+| the whole allocator, as a graph | every entry, every exit with what is written before it, every call that leaves the allocator, every cycle with its bound; no write precedes a refusal of an address that is not a block of ours | read off the source, not run (`proofs/stx_minmallocpp_graph.md`). The leaves are checked on the compiled objects by `tools/check_stx_minmallocpp_surface.py` (ctest `stxlib_stx_minmallocpp_surface`; its parsing tried with a stand-in `nm` only) | the same |
+| entry and exit conditions | each function's stated conditions hold at run time | checked when `STXLIB_STX_MINMALLOCPP_CHECKS` is defined (always in `stxlib_stx_minmallocpp_direct_tests`): `STX_MINMALLOCPP_CHECK`, `page_whole`; evidence over the tests' paths only | `page.hpp`, `region.cpp`, `heap.cpp` |
+| `allocator.cpp` (`release`) | an address that is not the first byte of a live block of this allocator is refused without reading or writing it or anything near it | argued from the code: the directory, `slice_head` and the block index decide before any write; a release that races the freeing of the same page is outside the argument (a client error already) | the direct tests' `refusals` |
+| `allocator.cpp`, `heap.cpp` (early exit) | no path throws, calls back, or calls a cancellation point | argued: the host layer's calls are `mmap`, `mprotect`, `munmap`, `sched_yield` (POSIX.1-2024 XSH 2.9.5.2: in neither list), `pthread_key_create` and `pthread_setspecific` (not looked up: unconfirmed), and on Windows `VirtualAlloc`, `VirtualFree`, `SwitchToThread` | `src/hosted/posix/minmallocpp_os_posix.cpp`, `src/hosted/windows/minmallocpp_os_windows.cpp` |
+| the region tables | zero pages from the host are read as objects of the table types holding zero | assumed (`page.hpp`): `std::atomic<u32>` and `std::atomic<u64>` are checked to have the integer's size and to be lock free; the standard does not name `mmap` as creating objects | `page.hpp` |
+| performance | no slower than mimalloc v3.6.1 on each path; never more than twice the host's allocator | measured on the M4 only (`tests/memory_bench.cpp`, through `stxlib::memory`, best of 7, three runs). Against the host's `malloc`: 0.13 to 0.95 of its time on every workload. Against mimalloc as `main` builds it (no release checking): about 1.3 ns slower per call on blocks up to 1 KiB (4.3 against 3.0 to 3.7) and on the 100,000-block churn (15.0 against 12.5); faster from 8 KiB up, in the 4 KiB batch (5.3 against 17.5), at 1 MiB (16 against 165) and across threads (3.3 against 3.7 to 4.8). Against mimalloc with its own checking on (`MI_SECURE=4`): equal on the smallest pairs (4.3 against 4.1), faster on everything else. Where a small call's time goes (`tests/stx_minmallocpp_floor_bench.cpp`, the allocator linked directly): 3.5 ns per call, against 4.3 through `stxlib::memory` and `stxlib_state`, so about 0.8 ns is the path into the library, which every backend pays; passing the thread's heap in saves nothing measurable on macOS (the thread-local read is not the cost); passing the size class in saves about 0.3 ns at most. A direct path for unaligned requests and a simpler `slice_head` then took the direct call to about 3.15 ns. Not measured on Linux, FreeBSD or Windows, where the thread-local access differs | the seat's DESIGN.md 6 |
