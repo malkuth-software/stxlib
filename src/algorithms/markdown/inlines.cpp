@@ -60,7 +60,6 @@ inline constexpr u32 code_span_longest = 32;
 
 // The opener stacks: 12 for emphasis (character, then "can also close",
 // then length mod 3), 2 for tildes (length 1 and 2), 1 for brackets.
-inline constexpr usize emphasis_stacks = 12;
 inline constexpr usize tilde_stack = 12;
 inline constexpr usize bracket_stack = 14;
 inline constexpr usize stack_count = 15;
@@ -828,6 +827,13 @@ void analyze_tilde(Inline& state, const u32 index) noexcept {
             } else if (mark.ch == '`') {
                 if (!emit_span(ctx, opens, SpanType::code, mark.begin, mark.end)) return false;
                 text_type = opens ? TextType::code : TextType::literal;
+                // A closer at the start of a line begins at the end of the
+                // line before it: the line it ends on is the current one.
+                // (MD4C stays on the earlier line and sends that line's
+                // ending twice.)
+                if (!opens) {
+                    while (mark.end > ctx.lines[line].end) line = line + 1;
+                }
             } else if (mark.ch == '*' || mark.ch == '_') {
                 // A run of n: n / 2 strong spans, and one emphasis if n is
                 // odd, which is the outermost.

@@ -69,7 +69,7 @@ void Document::clear() noexcept {
 }
 
 Status parse(const View<char> source, const Options& options, const Limits& limits, Document& document,
-             const std::atomic<bool>* const stop) noexcept {
+             const StopSignal* const stop) noexcept {
     const Operation operation("stxlib.markdown.parse");
     document.clear();
     if (source.count() > limits.source_bytes || source.count() > largest_source_bytes) {

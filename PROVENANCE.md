@@ -719,3 +719,43 @@ used). The CTest check `stxlib_case_folding_table` regenerates the table
 and compares. Taking a later Unicode version: replace the file, change the
 pin in the generator (hash and counts), here, and the version constants in
 `include/stxlib/case_folding.hpp`, then regenerate.
+
+### stxlib::markdown: MD4C's design, and three reference files
+
+`src/algorithms/markdown/` and `include/stxlib/markdown.hpp` are first
+party: a conversion to house-style C++ of the design of MD4C 0.6.0 (commit
+`7fc1815a5eeba2af7d6120a76202bf59f3b6e6e4`, <https://github.com/mity/md4c>,
+MIT), ordered by the owner on 2026-11-15. MD4C's source was read from the
+stx package's unmodified vendored copy; none of it is in this repository.
+`src/algorithms/markdown/NOTICE` carries MD4C's notice. Where the reader
+departs from MD4C on purpose, the source says so at the place.
+
+Three files were downloaded on 2026-11-15 with the owner's approval of the
+same day, and are here unmodified:
+
+| File | Source | Bytes | SHA-256 |
+|---|---|---|---|
+| `third_party/unicode-18.0.0/UnicodeData.txt` | <https://www.unicode.org/Public/18.0.0/ucd/UnicodeData.txt> | 2,243,593 | `0736451de439ae7baf1425136617da495e09ee5afbe6e394374db7009ea08950` |
+| `third_party/whatwg-entities/entities.json` | <https://html.spec.whatwg.org/entities.json> | 145,897 | `d741d877ac77c4194c4ad526b5b4a19aef8dfe411ab840a466891cdbb9f362e6` |
+| `third_party/commonmark-0.31.2/spec.txt` | <https://spec.commonmark.org/0.31.2/spec.txt> | 204,857 | `bfef4ddc97276b6ab6c2a28ace48478e35b1c50e60cde9f517ab8ab030aa3b82` |
+
+Licences. `UnicodeData.txt`: the Unicode License v3, as `CaseFolding.txt`
+beside it (`third_party/unicode-18.0.0/LICENSE`). `entities.json`: part of
+the WHATWG HTML Standard, Creative Commons Attribution 4.0 (the standard's
+own statement); the table generated from it keeps the names and code
+points, which are facts of the standard. `spec.txt`: the CommonMark
+specification by John MacFarlane, Creative Commons Attribution-ShareAlike
+4.0 (stated in the file); it is test data only, read by
+`tests/markdown_tests.cpp` and built into nothing. A share-alike text in a
+public repository is the coordinator's and the owner's to confirm; the test
+can take the file from outside the tree instead.
+
+Generated (first party) by `tools/gen_markdown_tables.py`, which checks the
+properties the reader relies on before it writes:
+`src/algorithms/markdown/unicode_classes.inc` (general category Zs, 16 code
+points; P and S, 9,588 code points in 355 ranges),
+`case_folding_full.inc` (CaseFolding.txt status C and F, 1,580 code points
+above U+007F, at most three folded code points each) and
+`entities_table.inc` (the 2,125 names written with their semicolon). The
+CTest check `stxlib_markdown_tables` regenerates and compares. Taking a
+later version of an input: replace the file, update this table, regenerate.

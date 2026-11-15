@@ -49,18 +49,18 @@
 // fixed size (the design note, section 5). There is no recursion.
 //
 // Failure. parse returns limit_exceeded (a Limits bound, or a source too
-// large), out_of_memory, or interrupted (the stop flag was set; it is read
-// once per block). On every failure the document is empty. Nothing throws.
+// large), out_of_memory, or interrupted (a stop was requested; the signal
+// is read once per block). On every failure the document is empty. Nothing
+// throws.
 //
 // Lifetime. A Document borrows nothing: its ranges are numbers. They are
 // positions in the source the caller parsed, which the caller keeps.
 
 #include "stxlib/result.hpp"
+#include "stxlib/threads.hpp"
 #include "stxlib/types.hpp"
 #include "stxlib/vector.hpp"
 #include "stxlib/view.hpp"
-
-#include <atomic>
 
 namespace stxlib::markdown {
 
@@ -221,9 +221,9 @@ public:
 
 // Reads `source` into `document`, which is replaced; on failure it is
 // empty. `source` is only read and is not retained. `stop`, when not null,
-// is read once per block (relaxed); if it is set the parse ends with
+// is read once per block; once a stop is requested the parse ends with
 // interrupted. Requirement: `document` is not being read by another thread.
 [[nodiscard]] Status parse(View<char> source, const Options& options, const Limits& limits, Document& document,
-                           const std::atomic<bool>* stop) noexcept;
+                           const StopSignal* stop) noexcept;
 
 } // namespace stxlib::markdown

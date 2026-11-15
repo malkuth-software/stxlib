@@ -122,7 +122,7 @@ struct Context final {
     Options options{};
     Limits limits{};
     Document* document{nullptr};
-    const std::atomic<bool>* stop{nullptr};
+    const StopSignal* stop{nullptr};
 
     // Why the parse failed; ErrorKind::internal_failure stands for "has not".
     bool failed{false};

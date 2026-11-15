@@ -678,6 +678,13 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/calendar.cpp
     src/algorithms/case_folding.cpp
     src/algorithms/hash.cpp
+    src/algorithms/markdown/blocks.cpp
+    src/algorithms/markdown/characters.cpp
+    src/algorithms/markdown/entities.cpp
+    src/algorithms/markdown/inlines.cpp
+    src/algorithms/markdown/lines.cpp
+    src/algorithms/markdown/links.cpp
+    src/algorithms/markdown/parse.cpp
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
@@ -988,6 +995,28 @@ if(STXLIB_TESTS)
     endif()
     add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
+    # stxlib::markdown: the CommonMark specification's examples, the tape's
+    # form, and the generated tables against the Unicode files, each read by
+    # the test's own parser (tests/markdown_tests.cpp); and the committed
+    # tables are the generator's output for the pinned inputs. Not built for
+    # the web tests yet (three data files to embed).
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_markdown_tests tests/markdown_tests.cpp)
+        target_link_libraries(stxlib_markdown_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_markdown_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_markdown_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_markdown_tests
+            COMMAND stxlib_markdown_tests
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/commonmark-0.31.2/spec.txt
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/UnicodeData.txt
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
+        set_tests_properties(stxlib_markdown_tests PROPERTIES TIMEOUT 600)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME stxlib_markdown_tables
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_markdown_tables.py --check)
+        endif()
+    endif()
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,

@@ -529,12 +529,20 @@ i32 take_definition(Context& ctx, const u32 first_line, const u32 line_count) no
         static_cast<void>(fail(ctx, ErrorKind::limit_exceeded));
         return -1;
     }
+    // A title that runs over lines is decoded now: the paragraph's lines
+    // are given up once its definitions are taken, so the line the title
+    // begins on cannot be named later. (One on a single line is a range of
+    // the source and is decoded at the definition's first use.)
+    u32 attribute = none;
+    if (target.title_line != none) {
+        if (!target_attributes(ctx, target, attribute)) return -1;
+    }
     const View<char> form_view(form, form_length);
     const Definition definition{.label_begin = static_cast<u32>(label_begin),
                                 .label_end = static_cast<u32>(label_begin + form_length),
                                 .hash = hash_bytes(form, form_length),
                                 .target = target,
-                                .attribute = none};
+                                .attribute = attribute};
     if (ctx.label_text.append_copies(form_view).failed() || ctx.definitions.push_copy(definition).failed()) {
         static_cast<void>(fail(ctx, ErrorKind::out_of_memory));
         return -1;

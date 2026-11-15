@@ -172,7 +172,7 @@ bool write_blocks(Context& ctx) noexcept {
     put_event(ctx, document);
     const usize count = ctx.blocks.count();
     for (usize index = 0; index < count; ++index) {
-        if (ctx.stop != nullptr && (*ctx.stop).load(std::memory_order_relaxed)) return fail(ctx, ErrorKind::interrupted);
+        if (ctx.stop != nullptr && (*ctx.stop).requested()) return fail(ctx, ErrorKind::interrupted);
         const BlockRecord record = ctx.blocks[index];
         if (record.kind == RecordKind::leaf) {
             if (!write_leaf(ctx, record)) return false;
