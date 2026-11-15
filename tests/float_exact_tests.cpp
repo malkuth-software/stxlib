@@ -561,10 +561,19 @@ void range_edges() {
     bool sums_ok = true;
     for (const float (&pair)[2] : sum_edges) {
         const fe::Pair<float> sum = fe::two_sum(pair[0], pair[1]);
-        const double exact = static_cast<double>(pair[0]) + static_cast<double>(pair[1]);
-        if (!fe::finite(sum.value) || !fe::finite(sum.error) ||
-            static_cast<double>(sum.error) != exact - static_cast<double>(sum.value)) {
-            sums_ok = false;
+        if (!fe::finite(sum.value) || !fe::finite(sum.error)) sums_ok = false;
+        // The check is exact, as in float_sum_product: within an exponent gap
+        // of 28 the float sum and its error are exact in double; beyond it
+        // (here -2^127 and -2^-102, a gap of 229) the sum rounds to the
+        // larger operand and the error is exactly the smaller.
+        const int gap = fe::exponent_of(pair[0]) - fe::exponent_of(pair[1]);
+        if (gap <= 28 && gap >= -28) {
+            const double exact = static_cast<double>(pair[0]) + static_cast<double>(pair[1]);
+            if (static_cast<double>(sum.error) != exact - static_cast<double>(sum.value)) sums_ok = false;
+        } else {
+            const float larger = gap > 0 ? pair[0] : pair[1];
+            const float smaller = gap > 0 ? pair[1] : pair[0];
+            if (sum.value != larger || sum.error != smaller) sums_ok = false;
         }
     }
     CHECK(sums_ok);
