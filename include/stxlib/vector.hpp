@@ -55,13 +55,18 @@
 //   assignable: form 1. Elements shift by move assignment, so every counted
 //   slot stays a live element at every call; in insert the moved-out
 //   argument held in a local is all an early exit can lose (a leak);
-// - insert before the end and erase, when Element has no move assignment:
-//   the shift by construction and destruction leaves one counted slot dead
-//   between two calls, which is not safe to observe. These sites rely on the
-//   noexcept boundary: Element's operations are required noexcept, so an
+// - insert before the end and erase, when Element has no nothrow move
+//   assignment (none, or one that can throw): the shift by construction
+//   and destruction leaves one counted slot dead between two calls, which
+//   is not safe to observe. These sites rely on the noexcept boundary:
+//   Element's move constructor and destructor are required noexcept, so an
 //   exception or forced unwind leaving one ends the process
-//   (std::terminate) before any state can be observed. A longjmp across
-//   these frames is undefined behaviour in C++ and is not defended;
+//   (std::terminate). The owner accepted this on 2026-11-15 (notes
+//   decisions/2026-11-15-thread-local-exit-safety.md, "Vector's in-place
+//   moves"). It fits rule 1 as reworded, "termination frees nothing
+//   twice": termination releases none of our state, the operating system
+//   reclaims it, so the dead slot is never destroyed or freed. A longjmp
+//   across these frames is undefined behaviour in C++ and is not defended;
 // - operator== and the queries: no change of state, form 1;
 // - the allocation path (detail::vocabulary_allocate and _release, then
 //   memory::allocate) is STXlib's and never unwinds; exhaustion is the
