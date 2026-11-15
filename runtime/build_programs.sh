@@ -5,9 +5,14 @@
 #
 #   stxinit                 runtime/init/stxinit.cpp (PID 1)
 #   stxsupervisor           runtime/supervisor/stxsupervisor.cpp,
-#                           runtime/supervisor/shim_client.cpp and
-#                           runtime/supervisor/config/*.cpp
+#                           runtime/supervisor/shim_client.cpp,
+#                           runtime/supervisor/config/*.cpp, the control
+#                           channel (runtime/supervisor/control/*.cpp,
+#                           control_channels.cpp) and runtime/store/*.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
+#   stxweb                  runtime/web/*.cpp with the supervisor's pure
+#                           configuration, protocol and store files, linked
+#                           with the sysroot's base OpenSSL (-lssl -lcrypto)
 #
 # Static (no run-time linker for PID 1), stripped (-s), unused sections
 # dropped (--gc-sections); no exceptions, no RTTI. The C++ library is linked
@@ -35,6 +40,9 @@ log=$out/build.log
 : > "$log"
 
 # build NAME SOURCE... (paths relative to the repository)
+# Libraries for the next build call only (stxweb: OpenSSL), after the
+# sources.
+libraries=
 build() {
     name=$1
     shift
@@ -49,7 +57,8 @@ build() {
         -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror \
         -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections \
         -static -s -Wl,--gc-sections \
-        -o "$out/$name.new" $sources >>"$log" 2>&1 || status=$?
+        -o "$out/$name.new" $sources $libraries >>"$log" 2>&1 || status=$?
+    libraries=
     if [ "$status" -ne 0 ]; then
         echo "build_programs: $name FAILED (exit $status)"
         grep -E 'error|warning|undefined' "$log" | head -40
@@ -67,6 +76,14 @@ build() {
 build stxinit runtime/init/stxinit.cpp
 build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/config/boot_config.cpp \
     runtime/supervisor/config/init_executor.cpp runtime/supervisor/config/service_registry.cpp \
-    runtime/supervisor/config/system_actions.cpp runtime/supervisor/shim_client.cpp \
-    runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp
+    runtime/supervisor/config/system_actions.cpp runtime/supervisor/config/user_config.cpp \
+    runtime/supervisor/shim_client.cpp runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp \
+    runtime/supervisor/control/control_protocol.cpp runtime/supervisor/control/control_server.cpp \
+    runtime/supervisor/control_channels.cpp runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
+libraries="-lssl -lcrypto -lpthread"
+build stxweb runtime/web/stxweb.cpp runtime/web/tls_server.cpp runtime/web/system_backend.cpp \
+    runtime/web/crypto_system.cpp runtime/web/control_client.cpp runtime/web/api.cpp runtime/web/api_pages.cpp \
+    runtime/web/auth.cpp runtime/web/config_edit.cpp runtime/web/http.cpp runtime/web/json.cpp \
+    runtime/supervisor/config/boot_config.cpp runtime/supervisor/config/user_config.cpp \
+    runtime/supervisor/control/control_protocol.cpp runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp
