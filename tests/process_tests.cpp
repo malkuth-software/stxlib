@@ -42,6 +42,14 @@ using stxlib::Result;
 using stxlib::TextView;
 using stxlib::usize;
 
+// Test texts are valid UTF-8; an invalid one becomes the empty view, so the
+// comparison using it fails.
+TextView view_of(const char* const text) {
+    const stxlib::Result<TextView> valid = stxlib::validate_utf8(text, std::strlen(text));
+    const TextView result = valid.succeeded() ? *valid.value() : TextView("");
+    return result;
+}
+
 // What CMakeLists.txt passes after the program name.
 const char* const expected_arguments[] = {"plain", "two words", "", "quote\"inside", "trailing\\", "caf\xc3\xa9"};
 constexpr int expected_count = 6;
@@ -101,7 +109,7 @@ void arguments_agree_with_argv(const int argument_count, char** const arguments)
         const ArgumentText argument = all.argument(static_cast<usize>(index + 1));
         CHECK(same_bytes(argument, expected_arguments[index]));
         CHECK(argument.is_unicode());
-        if (argument.is_unicode()) CHECK(argument.unicode() == TextView(expected_arguments[index]));
+        if (argument.is_unicode()) CHECK(argument.unicode() == view_of(expected_arguments[index]));
     }
 }
 
@@ -270,7 +278,7 @@ void restore(const SavedVariable& saved) {
 bool names(const Result<Path>& found, const char* const text) {
     if (found.failed()) return false;
     const PathText actual = (*found.value()).text();
-    const bool result = actual == PathText(TextView(text, std::strlen(text)));
+    const bool result = actual == PathText(view_of(text));
     return result;
 }
 
