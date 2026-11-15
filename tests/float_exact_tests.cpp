@@ -549,15 +549,23 @@ void predicates(const int count) {
 void range_edges() {
     const float flt_max = std::numeric_limits<float>::max();
     const double dbl_max = std::numeric_limits<double>::max();
-    // two_sum: a = 0x767e0000, b = -FLT_MAX gave a NaN error.
+    // two_sum: a = 0x767e0000, b = -FLT_MAX gave a NaN error; with operands
+    // bounded at 2^127, a = -0x1.fffffep126, b = -0x1p127 (two_sum) and
+    // a = 0x1p127, b = 0x1.fffffep126 (fast_two_sum) overflowed the first
+    // add (the tie above FLT_MAX). The bound is now 2^126 (double 2^1022).
     CHECK(!fe::in_sum_range(-flt_max));
     CHECK(!fe::in_sum_range(std::bit_cast<float>(0x7f000001U)));
-    CHECK(fe::in_sum_range(0x1p127f) && fe::in_sum_range(-0x1p127f));
-    CHECK(!fe::in_sum_range(dbl_max) && fe::in_sum_range(0x1p1023));
-    const float sum_edges[][2] = {{0x1p127f, -0x1.fffffep126f},
-                                  {std::bit_cast<float>(0x767e0000U), -0x1p127f},
-                                  {0x1p127f, 0x1.fffffep125f},
-                                  {-0x1p127f, -0x1p-102f}};
+    CHECK(!fe::in_sum_range(-0x1.fffffep126f) && !fe::in_sum_range(-0x1p127f) && !fe::in_sum_range(0x1p127f));
+    CHECK(fe::in_sum_range(0x1p126f) && fe::in_sum_range(-0x1p126f));
+    CHECK(!fe::in_sum_range(dbl_max) && !fe::in_sum_range(0x1p1023) && fe::in_sum_range(0x1p1022));
+    // The largest admitted operands: the counterexamples' shape one binade
+    // down (the sum a tie, to the even 2^127), and the largest sum, 2^127.
+    const float sum_edges[][2] = {{0x1p126f, -0x1.fffffep125f},
+                                  {std::bit_cast<float>(0x767e0000U), -0x1p126f},
+                                  {0x1p126f, 0x1p126f},
+                                  {-0x1.fffffep125f, -0x1p126f},
+                                  {0x1p126f, 0x1.fffffep125f},
+                                  {-0x1p126f, -0x1p-102f}};
     bool sums_ok = true;
     for (const float (&pair)[2] : sum_edges) {
         const fe::Pair<float> sum = fe::two_sum(pair[0], pair[1]);
@@ -575,7 +583,15 @@ void range_edges() {
             const float smaller = gap > 0 ? pair[1] : pair[0];
             if (sum.value != larger || sum.error != smaller) sums_ok = false;
         }
+        if (gap >= 0) {
+            const fe::Pair<float> fast = fe::fast_two_sum(pair[0], pair[1]);
+            if (fast.value != sum.value || fast.error != sum.error) sums_ok = false;
+        }
     }
+    // The double edge, the same shape: -(2^1023 - 2^969) is a tie, rounded
+    // to the even -2^1023, with error 2^969.
+    const fe::Pair<double> wide_sum = fe::two_sum(-0x1.fffffffffffffp1021, -0x1p1022);
+    if (wide_sum.value != -0x1p1023 || wide_sum.error != 0x1p969) sums_ok = false;
     CHECK(sums_ok);
     // two_product: a = -0, b = -FLT_MAX gave NaN (Dekker's split of b); a =
     // 0x5edbbe36, b = 0x60151e43 (exponents 62 and 65) gave an infinite error.
