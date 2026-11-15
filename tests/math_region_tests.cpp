@@ -36,6 +36,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include "frozen_hash.hpp"
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -861,6 +862,9 @@ std::uint64_t region_output_hash() {
 }
 
 // Not yet frozen (0): the first M4 run of both builds sets it.
+// Frozen by the integrator's freezing run (STXLIB_FREEZE_HASHES=1, fused and
+// Dekker builds agreeing); until then the check fails outside freezing mode
+// (frozen_hash.hpp).
 constexpr std::uint64_t expected_region_output_hash = 0;
 
 void region_determinism() {
@@ -868,6 +872,8 @@ void region_determinism() {
     std::printf("region output hash %016llx\n", static_cast<unsigned long long>(hash));
     if (expected_region_output_hash == 0) {
         std::printf("region output hash not frozen yet\n");
+        require(stxlib_tests::freezing_hashes(),
+                "region: output hash not frozen (set STXLIB_FREEZE_HASHES=1 only to freeze it)");
         return;
     }
     require(hash == expected_region_output_hash, "region: outputs differ from the frozen bits");
