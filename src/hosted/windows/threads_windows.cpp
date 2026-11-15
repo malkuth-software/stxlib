@@ -20,10 +20,29 @@
 // documentation of InitializeSRWLock and InitializeConditionVariable: there
 // is no delete call), and their initialization cannot fail. Waits take
 // milliseconds, rounded up so a wait never ends before its interval.
+// (Microsoft statements here are from the published pages, not re-read in
+// this batch.)
+//
 // processor_count is libc++'s std::thread::hardware_concurrency on Windows:
-// GetNativeSystemInfo's dwNumberOfProcessors (libc++ src/thread.cpp; from
-// memory of that file, not re-read). (Microsoft statements here are from
-// the published pages, not re-read in this batch.)
+// GetActiveProcessorCount(ALL_PROCESSOR_GROUPS) (src/thread.cpp:76-77 at
+// llvmorg-22.1.8), the logical processors of every group. It used
+// GetNativeSystemInfo's dwNumberOfProcessors, which counts "the logical
+// processors in the current group" only (SYSTEM_INFO, Microsoft Learn, docs
+// commit 9267262), so a machine with more than 64 was undercounted (audit C,
+// K-1).
+//
+// sleep_for (audit C, K-3): Sleep's wait is bounded below by the system
+// tick, about 15.6 ms unless some program raised the timer resolution
+// ("Sleep function": "If dwMilliseconds is greater than one tick but less
+// than two, the wait can be anywhere between one and two ticks", docs commit
+// 0bbc807), so a 1 ms sleep could take 16 ms. sleep_for waits instead on a
+// high-resolution waitable timer (CreateWaitableTimerExW with
+// CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, Windows 10 1803 and later; the
+// flag's value 0x2 is restated for headers that predate it), set for the
+// interval in 100 ns units and rounded up, which does not depend on the
+// system tick; where the flag is refused (older systems) it falls back to
+// Sleep with the interval rounded up to milliseconds. Either way the wait
+// never ends early, and core's sleep_for checks IntervalTime besides.
 
 #include "hosted/thread_backend.hpp"
 
@@ -149,12 +168,43 @@ void thread_join(const u64 handle) noexcept {
     if (!CloseHandle(thread)) defect("CloseHandle failed", GetLastError());
 }
 
-void sleep_for(const Duration interval) noexcept { Sleep(milliseconds_of(interval)); }
+namespace {
+
+#ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
+#define CREATE_WAITABLE_TIMER_HIGH_RESOLUTION 0x00000002
+#endif
+
+// Waits `interval` on a high-resolution timer; false when the host refuses
+// one (the caller then sleeps with Sleep).
+bool precise_wait(const Duration interval) noexcept {
+    const HANDLE timer =
+        CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+    if (timer == nullptr) return false;
+    // A negative due time is relative, in 100 ns units; rounded up so the
+    // wait is never shorter than the interval.
+    const i64 nanoseconds = interval.count_nanoseconds();
+    const i64 ticks = nanoseconds / 100 + (nanoseconds % 100 == 0 ? 0 : 1);
+    LARGE_INTEGER due{};
+    due.QuadPart = -(ticks < 1 ? 1 : ticks);
+    bool waited = false;
+    if (SetWaitableTimer(timer, &due, 0, nullptr, nullptr, FALSE)) {
+        waited = WaitForSingleObject(timer, INFINITE) == WAIT_OBJECT_0;
+    }
+    (void)CloseHandle(timer);
+    return waited;
+}
+
+} // namespace
+
+void sleep_for(const Duration interval) noexcept {
+    if (interval.count_nanoseconds() <= 0) return;
+    if (precise_wait(interval)) return;
+    Sleep(milliseconds_of(interval));
+}
 
 u32 processor_count() noexcept {
-    SYSTEM_INFO information{};
-    GetNativeSystemInfo(&information);
-    const u32 result = static_cast<u32>(information.dwNumberOfProcessors);
+    const DWORD count = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    const u32 result = static_cast<u32>(count);
     return result;
 }
 

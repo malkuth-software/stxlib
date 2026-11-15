@@ -138,6 +138,19 @@ add_compile_options(${stxlib_fp_options})
 # in Debug builds, for every target alike, so no build mixes checked and
 # unchecked copies of those inline functions.
 add_compile_definitions($<$<CONFIG:Debug>:STXLIB_FLOAT_CHECKS>)
+# One printf for every translation unit on MinGW (audit C, C-9/C10).
+# mingw-w64's _mingw.h (v14.0.0, mingw-w64-headers/crt/_mingw.h.in:442-454)
+# switches a translation unit to MinGW's own printf family whenever it
+# defines _POSIX, _POSIX_SOURCE, _POSIX_C_SOURCE, _ISOC99_SOURCE,
+# _XOPEN_SOURCE, _GNU_SOURCE or _SVID_SOURCE (and, for C++ alone, against an
+# msvcrt older than the UCRT, :233-234), so the same source could format
+# through two implementations in one program. Defining the macro as 0 keeps
+# every STXlib unit on the UCRT's printf; STXlib's own text never goes
+# through printf (numeric_text), so this governs only test and tool output
+# and the C runtime's own uses. Consumers are advised to do the same.
+if(MINGW)
+    add_compile_definitions(__USE_MINGW_ANSI_STDIO=0)
+endif()
 
 # ---- stxlib_state -----------------------------------------------------------
 # The one owner of STXlib's per-thread and per-process state
