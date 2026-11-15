@@ -524,7 +524,7 @@ if(STXLIB_TESTS)
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
     foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time
-                                images pages_wake)
+                                images pages_wake rounding)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})

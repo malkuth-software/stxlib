@@ -163,6 +163,63 @@ private:
     i64 nanoseconds_{0};
 };
 
+// ---- frame pacing on the interval clock (M2 C1, time for UI) ----
+//
+// Why GUI.Forms should time its frames, animations and polls here rather
+// than on the C++ library's steady clock (audit C, section 5): libc++'s
+// steady_clock reads CLOCK_MONOTONIC_RAW on macOS, which counts sleep
+// (mach_continuous_time), and QueryPerformanceCounter on Windows, which
+// counts sleep too, but CLOCK_MONOTONIC on Linux and FreeBSD, which does not
+// (src/chrono.cpp:173-184, 187-204, 241-245 at llvmorg-22.1.8), so after a
+// laptop wakes an animation jumps on two hosts and not on the others.
+// IntervalTime stops in suspension on every host (above), its timed waits
+// are monotonic (threads.hpp; libc++'s are on the wall clock outside glibc,
+// C-28), and Windows sleeps are no longer held to the system tick (K-3).
+//
+// A program that keeps std::chrono types wraps the clock in its own code
+// (no std:: type crosses this header): a clock type whose rep is i64,
+// period nano, is_steady true, and whose now() makes its time_point from
+// IntervalTime::now().count_nanoseconds(). The values are comparable within
+// one run only, as for every IntervalTime.
+
+// Where a periodic schedule stands at `now`: the next tick strictly after
+// it, and how many whole periods have passed since `origin`. Ticks are
+// origin + k * period, so a late frame does not shift the later ones (no
+// drift), and ticks missed while the program was late are skipped, not
+// replayed; elapsed_periods says how many to account for.
+struct Pacing final {
+    IntervalTime next{};
+    i64 elapsed_periods{0};
+};
+
+// Requirement-free: a non-positive period yields {now, 0}; a `now` before
+// `origin` yields {origin, 0}. Saturates at the ends of the range like the
+// rest of this header. Pure and constant-time (proofs/esbmc/time_for_ui.cpp,
+// tests/platform_tests.cpp).
+[[nodiscard]] constexpr Pacing pace(const IntervalTime origin, const Duration period, const IntervalTime now) noexcept {
+    Pacing result{};
+    const i64 step = period.count_nanoseconds();
+    if (step <= 0) {
+        result.next = now;
+        return result;
+    }
+    if (now < origin) {
+        result.next = origin;
+        return result;
+    }
+    // now >= origin, so the span is not negative; it saturates at i64_max
+    // only when origin and now lie more than 292 years apart.
+    const i64 span = now.since(origin).count_nanoseconds();
+    const i64 periods = span / step;
+    result.elapsed_periods = periods;
+    // (periods + 1) * step > span, so the tick is strictly after now unless
+    // the product saturates, where the far end of the range is returned.
+    const i64 following = periods == i64_max ? i64_max : periods + 1;
+    const i64 offset = detail::saturating_scale(following, step);
+    result.next = origin.after(Duration::nanoseconds(offset));
+    return result;
+}
+
 // A reading of the elapsed clock (continues during suspension).
 class ElapsedTime final {
 public:
