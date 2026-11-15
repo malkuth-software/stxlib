@@ -16,8 +16,10 @@
 // - the C library's malloc, calloc, realloc and free on glibc as well (this
 //   program replaces them, forwarding to glibc's __libc_* entry points, as
 //   glibc allows a program to replace its allocator). That is the case the
-//   check exists for: the frame walk's bounds query, pthread_getattr_np,
-//   reallocs on every call (src/hosted/posix/trace_posix.cpp);
+//   check exists for: the host's stack-bounds query, pthread_getattr_np,
+//   reallocs on every call, so it must not run in the reporter. The walk
+//   uses the bounds stxlib_state recorded for this thread when it loaded
+//   (src/hosted/posix/stack_bounds_posix.cpp, trace_posix.cpp);
 // - nothing under a sanitizer that replaces the allocator itself (address,
 //   thread and memory sanitizers): the calls are still made in the reporter.
 // macOS, Windows, FreeBSD and musl C library allocation is not intercepted

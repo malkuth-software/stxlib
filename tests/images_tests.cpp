@@ -19,6 +19,7 @@
 #include "stxlib/path.hpp"
 #include "stxlib/stack_trace.hpp"
 #include "stxlib/text.hpp"
+#include "stxlib/threads.hpp"
 
 #include "test_support.hpp"
 
@@ -436,6 +437,33 @@ void stack_trace() {
     stxlib::write_stack_trace(stxlib::View<uptr>());
 }
 
+// A Thread records its stack bounds before its entry runs (core/threads.cpp,
+// run_started_thread; state.hpp, note_thread_stack), so a trace taken on it
+// walks as the initial thread's does, whichever C library is loaded.
+struct ThreadTrace final {
+    usize captured{0};
+};
+
+void capture_on_thread(const stxlib::StopSignal& stop, void* const context) noexcept {
+    static_cast<void>(stop);
+    ThreadTrace& trace = *static_cast<ThreadTrace*>(context);
+    uptr addresses[stxlib::maximum_stack_trace_addresses];
+    trace.captured = capture_one_deep(stxlib::MutableView<uptr>(addresses, stxlib::maximum_stack_trace_addresses));
+}
+
+void stack_trace_on_thread() {
+    if (!stxlib::capability_supported(stxlib::Capability::threads)) return;
+    if (!stxlib::capability_supported(stxlib::Capability::stack_trace)) return;
+    ThreadTrace trace{};
+    stxlib::Result<stxlib::Thread> started = stxlib::Thread::start(capture_on_thread, &trace);
+    CHECK(started.succeeded());
+    if (started.failed()) return;
+    stxlib::Thread thread = static_cast<stxlib::Result<stxlib::Thread>&&>(started).take_value();
+    CHECK(thread.join() == stxlib::JoinResult::joined);
+    CHECK(trace.captured >= 2);
+    CHECK(trace.captured <= stxlib::maximum_stack_trace_addresses);
+}
+
 } // namespace
 
 int main() {
@@ -447,6 +475,7 @@ int main() {
     regions_found();
     regions_refused();
     stack_trace();
+    stack_trace_on_thread();
     const int status = stxlib_tests::finish("stxlib_images_tests");
     return status;
 }

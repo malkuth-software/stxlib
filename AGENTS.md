@@ -7,6 +7,13 @@ library, the host C++ library, the operating system, the kernel, and the
 client program on the other side of GUI.Forms. It protects GUI.Forms from
 those interfaces, and protects the client from us.
 
+STXlib sideloads alongside the host C library (glibc, musl, FreeBSD's
+libc, the UCRT); write that, never that it "runs on" one. Whatever the host
+does, STXlib's behaviour inside is the same: own what can be owned, and call
+the host C library only for what STXlib does not provide itself (owner,
+2026-11-15; notes `decisions/2026-11-15-boundary-sideloading.md`). A host
+difference that leaks inside is a boundary defect.
+
 Plans, decisions, surveys and evidence are not kept here. They live on the
 `stxlib` branch of `malkuth-software/notes`, under `planning/`. Read
 `planning/FORWARD_PROGRAMME.md` there before starting work, and

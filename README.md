@@ -5,6 +5,13 @@ stands between GUI.Forms and the outside world (host C and C++ libraries,
 operating systems, kernels, and the client programs GUI.Forms serves), and
 the replacement for stx_auxlib. Not a standard library; a boundary.
 
+STXlib sideloads alongside the host C library (glibc, musl, FreeBSD's
+libc, the UCRT); it does not run on it. Whatever the host does, STXlib's
+behaviour inside is the same: it owns what it can, and calls the host C
+library only for what it does not provide itself, while other code in the
+process may use that library too (notes
+`decisions/2026-11-15-boundary-sideloading.md`).
+
 stxlib::boundary's first batch is written (vocabulary, error record, gates,
 trampolines, ownership tags, the first interface services); the hosted
 modules and stxlib::algorithms follow. The programme, the owner's decisions, the
@@ -18,7 +25,7 @@ Planned layout:
 | `include/stxlib/` | owned vocabulary types, error records, capability declarations; no `std::` or platform type |
 | `src/core/` | the foreign-interface discipline: exception shadowing, call gates, callback trampolines, ownership tags, validation |
 | `src/state/` | `stxlib_state`, the one module that owns STXlib's per-thread and per-process state; every module's copy of STXlib reaches it through exported accessors |
-| `src/hosted/<family>/` | interface modules: POSIX (macOS, glibc, musl, FreeBSD), Windows (UCRT) and Emscripten (browsers and Node, over the POSIX modules that hold there); `c_library/` and `cxx_runtime/` hold the calls every family shares |
+| `src/hosted/<family>/` | interface modules, one per host family STXlib sideloads alongside: POSIX (macOS, Linux with glibc or musl, FreeBSD), Windows (UCRT) and Emscripten (browsers and Node, over the POSIX modules that hold there); `c_library/` and `cxx_runtime/` hold the calls every family shares |
 | `runtime/` | the own runtime over FreeBSD's system calls, for the appliance supervisor |
 | `appliance/` | the FreeBSD appliance: loader changes, kernel configuration, the kernel shim, the supervisor, image tooling |
 | `proofs/` | proof harnesses and the proof report |
