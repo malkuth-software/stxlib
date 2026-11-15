@@ -453,6 +453,13 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
                   "restart by request runs after the exit");
         }
         const stxconfig::ServiceState& state = registry.state(service);
+        // Stopped by request only after a stop or stop_all with no start or
+        // restart since, and only while stopped (the good-boot rule counts
+        // it as healthy: stxsupervisor.cpp, check_good_boot).
+        if (state.is_stopped_by_request()) {
+            check(stopped_by_request && state.is_stopped(), "exhaustive registry",
+                  "stopped by request only after a stop, and only when stopped");
+        }
         if (state.as_running() != nullptr || state.as_stopping() != nullptr) {
             const int pid = state.as_running() != nullptr ? (*state.as_running()).pid : (*state.as_stopping()).pid;
             own_pid = actions.last_pid();
