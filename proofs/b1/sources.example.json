@@ -1,0 +1,6 @@
+{
+  "stx_auxlib": {
+    "root": "/path/to/stx_auxlib",
+    "commit": "08c8132d41a8b210dd8dfda34b13d8da81b09e79"
+  }
+}

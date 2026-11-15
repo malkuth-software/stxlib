@@ -1,0 +1,12 @@
+{
+  "row": "21",
+  "title": "math::sincos (float)",
+  "successor": "stx_auxlib math",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "257",
+     "includes": ["stx_auxlib:include", "stx_auxlib:src/math"],
+     "defines": {"STX_AUXLIB_MATH_VARIANT": "native", "STX_AUXLIB_MATH_DEKKER": "1"},
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}},
+    {"file": "effect.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "257", "includes": ["stx_auxlib:include", "stx_auxlib:src/math"], "defines": {"STX_AUXLIB_MATH_VARIANT": "native", "STX_AUXLIB_MATH_DEKKER": "1"}, "configs": [{"name": "bound-effect", "defines": {}}], "mutants": ["m1"], "properties": ["P0 (table index, conversions)"]}
+  ]
+}

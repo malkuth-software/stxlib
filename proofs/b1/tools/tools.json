@@ -1,0 +1,432 @@
+{
+  "_comment": "Command templates for run_b1.py. Tokens in braces are replaced; a token whose value is a list is spliced. Flags marked to-confirm are set from each tool's documentation as read on 2026-11-13 and are checked by the smoke phase (dev/tedium sequence, phase A) before any measured run.",
+  "esbmc": {
+    "binary": "esbmc",
+    "version": [
+      "{binary}",
+      "--version"
+    ],
+    "help": [
+      "{binary}",
+      "--help"
+    ],
+    "define": "STX_TOOL_ESBMC",
+    "language": {
+      "c++20": [
+        "--std",
+        "c++20"
+      ],
+      "c11": []
+    },
+    "include_flag": [
+      "-I"
+    ],
+    "define_flag": [
+      "-D"
+    ],
+    "bounded": [
+      "{binary}",
+      "{file}",
+      "{language}",
+      "{includes}",
+      "{defines}",
+      "{environment}",
+      "--unwind",
+      "{unwind}",
+      "{configuration}",
+      "--overflow-check",
+      "--ub-shift-check"
+    ],
+    "unbounded": [
+      "{binary}",
+      "{file}",
+      "{language}",
+      "{includes}",
+      "{defines}",
+      "{environment}",
+      "--k-induction",
+      "--max-k-step",
+      "64",
+      "{configuration}",
+      "--overflow-check",
+      "--ub-shift-check"
+    ],
+    "configurations": {
+      "z3": [
+        "--z3"
+      ],
+      "bitwuzla": [
+        "--bitwuzla"
+      ]
+    },
+    "verdicts": [
+      [
+        "VERIFICATION SUCCESSFUL",
+        "success"
+      ],
+      [
+        "VERIFICATION FAILED",
+        "failure"
+      ],
+      [
+        "VERIFICATION UNKNOWN",
+        "unknown"
+      ]
+    ],
+    "bound_markers": [
+      "unwinding assertion"
+    ],
+    "to_confirm": [
+      "--std c++20",
+      "--bitwuzla",
+      "unwinding assertions on by default with --unwind",
+      "--overflow-check and --ub-shift-check spellings (P0: signed overflow, shifts; bounds and pointer checks are on by default)"
+    ],
+    "notes": [
+      "--memlimit dropped after smoke 2 (2026-11-13): all 27 ESBMC runs ended in 0.02 s, consistent with setrlimit failing on macOS before any parsing. The 16 GiB budget is enforced for every tool by the runner instead (run_command: a watchdog sampling the process group's RSS every 0.25 s; a run over the budget is killed and recorded as out-of-memory with memory_watch.over_budget).",
+      "smoke 3/4 and diagnostic run diag-esbmc-01: the macOS release does not carry clang's builtin headers, so the include_next in ESBMC's /esbmc-vfs stdarg.h finds nothing. --idirafter (after the SDK) left the SDK's stddef.h chain without ptrdiff_t/size_t; -I with the builtin-header directory of the LLVM ESBMC links (Homebrew llvm@21 21.1.8, from otool -L; resolved with -print-resource-dir), placed after the harness's own -I, proved row 01 (22 of 22 properties). It puts clang's compiler headers (stddef.h, stdarg.h, limits.h, stdint.h, ...) ahead of ESBMC's /esbmc-vfs copies of them; ESBMC's libc and C++ operational models are not in that directory and still apply. Recorded as an environment model.",
+      "rerun 5 (void, partial): ESBMC's abstract C++ library (/esbmc-vfs/cpp) lacks std::in_place_index and std::as_writable_bytes, among others, which stx_auxlib uses (text.hpp, paths.cpp, hash.cpp): recorded as unsupported by unsupported_patterns. ESBMC's --no-abstracted-cpp-includes (use the real library headers) is an alternative configuration not yet tried."
+    ],
+    "resource_clang": "/opt/homebrew/opt/llvm@21/bin/clang",
+    "environment": [
+      "-I",
+      "{resource_include}"
+    ],
+    "unsupported_patterns": [
+      "error: no member named '[^']+' in namespace 'std'"
+    ]
+  },
+  "cbmc": {
+    "binary": "cbmc",
+    "version": [
+      "{binary}",
+      "--version"
+    ],
+    "help": [
+      "{binary}",
+      "--help"
+    ],
+    "define": "STX_TOOL_CBMC",
+    "language": {
+      "c++20": [
+        "--cpp11"
+      ],
+      "c11": [
+        "--c11"
+      ]
+    },
+    "include_flag": [
+      "-I"
+    ],
+    "define_flag": [
+      "-D"
+    ],
+    "bounded": [
+      "{binary}",
+      "{file}",
+      "{language}",
+      "{includes}",
+      "{defines}",
+      "--unwind",
+      "{unwind}",
+      "--unwinding-assertions",
+      "{configuration}",
+      "--bounds-check",
+      "--pointer-check",
+      "--pointer-overflow-check",
+      "--div-by-zero-check",
+      "--signed-overflow-check",
+      "--undefined-shift-check"
+    ],
+    "unbounded": null,
+    "configurations": {
+      "sat": [],
+      "cvc5": [
+        "--cvc5"
+      ]
+    },
+    "verdicts": [
+      [
+        "VERIFICATION SUCCESSFUL",
+        "success"
+      ],
+      [
+        "VERIFICATION FAILED",
+        "failure"
+      ]
+    ],
+    "bound_markers": [
+      "unwinding assertion"
+    ],
+    "to_confirm": [
+      "--cpp11 is the newest C++ mode CBMC 6.11 offers",
+      "--cvc5",
+      "P0 check flags (some are default in CBMC 6; stating them is harmless)"
+    ],
+    "notes": [
+      "smoke 3 and its diagnostic: CBMC 6.11 parses a trivial C++ file (--cpp98, --cpp11, default), but its C++ parser fails in the SDK's libc++ headers (enable_if.h, integral_constant.h, ...: inline-namespace attributes, constexpr members) for every row, since the lifted code and verify.h include standard C++ headers. Recorded as unsupported (a tool-side gap), matched by unsupported_patterns; a parse error in a harness or stx_auxlib file stays tool-error."
+    ],
+    "unsupported_patterns": [
+      "file \\S*/(?:c\\+\\+/v1|SDKs)/\\S* line \\d+: parse error"
+    ]
+  },
+  "genmc": {
+    "binary": "genmc",
+    "version": [
+      "{binary}",
+      "--version"
+    ],
+    "help": [
+      "{binary}",
+      "--help"
+    ],
+    "define": "STX_TOOL_GENMC",
+    "language": {
+      "c++20": [
+        "-std=c++20"
+      ],
+      "c11": [
+        "-std=c11"
+      ]
+    },
+    "include_flag": [
+      "-I"
+    ],
+    "define_flag": [
+      "-D"
+    ],
+    "bounded": [
+      "{binary}",
+      "{configuration}",
+      "--unroll={unwind}",
+      "--",
+      "{language}",
+      "{environment}",
+      "{includes}",
+      "{defines}",
+      "{file}"
+    ],
+    "unbounded": null,
+    "configurations": {
+      "rc11": [
+        "--rc11",
+        "-disable-mm-detector"
+      ],
+      "imm": [
+        "--imm",
+        "-disable-mm-detector"
+      ]
+    },
+    "verdicts": [
+      [
+        "No errors were detected",
+        "success"
+      ],
+      [
+        "Safety violation",
+        "failure"
+      ],
+      [
+        "Error detected",
+        "failure"
+      ]
+    ],
+    "bound_markers": [],
+    "to_confirm": [
+      "clang flags after --",
+      "-isysroot <SDK> lets libc++ parse under GenMC while GenMC's own pthread.h still wins (its include directory precedes the SDK)",
+      "-disable-mm-detector with --imm"
+    ],
+    "environment": [
+      "-isysroot",
+      "{sdk_path}"
+    ],
+    "notes": [
+      "environment: GenMC drives clang as a library, so Homebrew clang's configuration file (which supplies the macOS SDK sysroot) does not apply, and in smoke 2 llvm@22's libc++ found no EOF. The runner passes -isysroot with `xcrun --show-sdk-path` (resolved once per run, recorded in each record as sdk_path). The earlier -DEOF=(-1) is dropped: redefining a libc macro would be an assumption B1 has to list.",
+      "smoke 3: GenMC runs its clang through sh -c with the arguments unquoted, so -DEOF=(-1) broke the shell; the runner now refuses tokens with shell syntax for GenMC (result harness-error). -isysroot with the SDK path is shell-safe.",
+      "diagnostic run diag-genmc-22: GenMC puts its runtime C library (lli/runtime-include/c: stdio.h with a glibc-shaped struct _IO_FILE and no EOF, pthread.h, errno.h, and an <atomic> copied from an old libc++ with an unscoped memory_order) ahead of libc++ 22 and the macOS SDK. stx_auxlib's headers pull in <memory>, <chrono> and <variant>, whose libc++ 22 internals (__atomic/memory_order.h, char_traits.h's EOF) conflict with it, under -std=c++20 and -std=c++17 alike. Recorded as unsupported on this host by unsupported_patterns (a tool-side gap).",
+      "diagnostic run diag-genmc-sanity: GenMC 0.20 checks a small C pthread program on this host (2 executions, no error; the refuting variant reports 'Error: Safety violation!' with the assertion), so the tool works and the rows' failure is the C++ library conflict. Its failure verdict is 'Safety violation' (not 'Error detected'), and by default it silently moved --rc11 to RA ('Automatically adjusting memory model to RA'); -disable-mm-detector keeps the stated model."
+    ],
+    "joins_through_shell": true,
+    "unsupported_patterns": [
+      "c\\+\\+/v1/__atomic/memory_order\\.h:\\d+:\\d+: error",
+      "c\\+\\+/v1/__string/char_traits\\.h:\\d+:\\d+: error: use of undeclared identifier 'EOF'",
+      "error: typedef redefinition with different types \\('struct __sFILE' vs 'struct _IO_FILE'\\)"
+    ]
+  },
+  "cpp-verify": {
+    "binary": "cpp-verify",
+    "version": [
+      "{binary}",
+      "--version"
+    ],
+    "help": [
+      "{binary}",
+      "--help"
+    ],
+    "define": "STX_TOOL_CPPVERIFY",
+    "language": {
+      "c++20": [
+        "-std=c++20"
+      ]
+    },
+    "include_flag": [
+      "-I"
+    ],
+    "define_flag": [
+      "-D"
+    ],
+    "bounded": [
+      "{binary}",
+      "--backend=bmc",
+      "--unroll={unwind}",
+      "--timeout={timeout_ms}",
+      "{file}",
+      "--",
+      "{language}",
+      "{includes}",
+      "{defines}"
+    ],
+    "unbounded": [
+      "{binary}",
+      "{configuration}",
+      "--timeout={timeout_ms}",
+      "{file}",
+      "--",
+      "{language}",
+      "{includes}",
+      "{defines}"
+    ],
+    "configurations": {
+      "z3": [
+        "--backend=z3"
+      ],
+      "cvc5": [
+        "--backend=cvc5"
+      ]
+    },
+    "verdicts": [
+      [
+        "verification failed",
+        "failure"
+      ],
+      [
+        "Unresolved",
+        "unknown"
+      ],
+      [
+        "BoundedSafe",
+        "success"
+      ],
+      [
+        "Verified",
+        "success"
+      ]
+    ],
+    "bound_markers": [],
+    "to_confirm": [
+      "clang arguments after --",
+      "verdict spellings in the output",
+      "--timeout spelling and unit",
+      "contract placement after noexcept"
+    ]
+  },
+  "genmc-vm": {
+    "binary": "genmc",
+    "version": [
+      "{binary}",
+      "--version"
+    ],
+    "help": [
+      "{binary}",
+      "--help"
+    ],
+    "define": "STX_TOOL_GENMC",
+    "language": {
+      "c++20": [
+        "-std=c++20"
+      ],
+      "c11": [
+        "-std=c11"
+      ]
+    },
+    "include_flag": [
+      "-I"
+    ],
+    "define_flag": [
+      "-D"
+    ],
+    "bounded": [
+      "{binary}",
+      "{configuration}",
+      "--unroll={unwind}",
+      "--",
+      "{language}",
+      "{environment}",
+      "{includes}",
+      "{defines}",
+      "{file}"
+    ],
+    "unbounded": null,
+    "configurations": {
+      "rc11": [
+        "--rc11",
+        "-disable-mm-detector"
+      ],
+      "imm": [
+        "--imm",
+        "-disable-mm-detector"
+      ]
+    },
+    "verdicts": [
+      [
+        "No errors were detected",
+        "success"
+      ],
+      [
+        "Safety violation",
+        "failure"
+      ],
+      [
+        "Error detected",
+        "failure"
+      ]
+    ],
+    "bound_markers": [],
+    "to_confirm": [
+      "-disable-mm-detector with --imm",
+      "libstdc++ headers under GenMC runtime-include on Ubuntu"
+    ],
+    "environment": [],
+    "notes": [
+      "Rows 22 and 23 (decision B1-6): GenMC 0.20.0 in the Ubuntu arm64 VM, built against Ubuntu's LLVM 20.1.2 with its clang 20.1.2 and libstdc++: a recorded deviation from the clang 22.1.8 pin for these rows. The runner lifts on the M4 (pin checked there), copies proofs/b1 and the sources' working trees (without .git) into the guest, and runs the tool over ssh with `timeout -s KILL`. The guest's 6 GiB bounds memory (below the 16 GiB budget elsewhere); peak memory is not measured in the guest. GenMC passes its clang arguments to sh -c unquoted (joins_through_shell).",
+      "VM runs 1-2: GenMC 0.20's runtime C library (lli/runtime-include/c) declares a subset of POSIX threads (no keys, once, condition variables, detach, equal, sched_yield) and of the C library (no strtol family), which libstdc++'s <memory>, <chrono> and <string> require through gthr-posix.h and <cstdlib>. A row that includes them is recorded as unsupported by unsupported_patterns. Row 22 lifts threads.hpp by spans to avoid them; row 23 lifts thread_pool.cpp whole, includes and all."
+    ],
+    "joins_through_shell": true,
+    "remote": {
+      "description": "Ubuntu 24.04 arm64 VM on the M4 (decision B1-6), GenMC 0.20.0 built against Ubuntu's LLVM 20.1.2; 4 vCPUs, 6 GiB",
+      "ssh": [
+        "ssh",
+        "-i",
+        "/Volumes/Storage/stxlib_workers/vm/ubuntu-genmc/id_ed25519",
+        "-o",
+        "BatchMode=yes",
+        "-o",
+        "StrictHostKeyChecking=yes",
+        "-o",
+        "UserKnownHostsFile=/Volumes/Storage/stxlib_workers/vm/ubuntu-genmc/known_hosts",
+        "-o",
+        "ConnectTimeout=10",
+        "-p",
+        "2232",
+        "genmc@127.0.0.1"
+      ],
+      "root": "/home/genmc/b1run",
+      "path": "/home/genmc/genmc-0.20.0/bin"
+    },
+    "unsupported_patterns": [
+      "gthr-default\\.h:\\d+:\\d+: error: unknown type name 'pthread_key_t'",
+      "error: no member named 'strto\\w+' in namespace 'std'"
+    ]
+  }
+}

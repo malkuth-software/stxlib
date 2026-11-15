@@ -1,0 +1,12 @@
+{
+  "row": "13",
+  "title": "calendar_detail::civil_from_days",
+  "successor": "sb1 calendar",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "1",
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}},
+    {"file": "cppverify.cpp", "language": "c++20", "tools": ["cpp-verify"], "unwind": "1",
+     "mutants": ["m1"], "unbounded": {"tools": ["cpp-verify"]}},
+    {"file": "effect.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "1", "configs": [{"name": "bound-effect", "defines": {}}], "mutants": ["m1"], "properties": ["P0", "P1 month 1-12"]}
+  ]
+}

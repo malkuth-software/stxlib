@@ -1,0 +1,18 @@
+{
+  "row": "20",
+  "title": "InlineKeyCount::equal_range",
+  "successor": "container kernel",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "31",
+     "includes": ["stx_auxlib:btree/include"],
+     "configs": [
+       {"name": "u16-c16", "defines": {"STX_SLOT": "std::uint16_t", "STX_CAPACITY": "16"}},
+       {"name": "u16-c30", "defines": {"STX_SLOT": "std::uint16_t", "STX_CAPACITY": "30"}},
+       {"name": "u32-c16", "defines": {"STX_SLOT": "std::uint32_t", "STX_CAPACITY": "16"}},
+       {"name": "u32-c30", "defines": {"STX_SLOT": "std::uint32_t", "STX_CAPACITY": "30"}},
+       {"name": "u64-c16", "defines": {"STX_SLOT": "std::uint64_t", "STX_CAPACITY": "16"}},
+       {"name": "u64-c30", "defines": {"STX_SLOT": "std::uint64_t", "STX_CAPACITY": "30"}}
+     ],
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}
