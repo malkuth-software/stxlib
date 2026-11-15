@@ -1,0 +1,4 @@
+# Vendored files keep their exact bytes on every checkout (no CRLF
+# conversion on Windows): their SHA-256 values are pinned in PROVENANCE.md
+# and checked by tests (CaseFolding.txt by stxlib_case_folding_table).
+third_party/** -text
