@@ -590,6 +590,28 @@ and leaves out an empty trace. `src/state/state.hpp`: layout 8. Tests in
 `two_module_library.*`), `tests/gate_no_exceptions_tests.cpp`,
 `tests/gate_tests.cpp`, `tests/death_tests.cpp` and their CMake cases.
 
+### stx_minmallocpp: STXlib's own allocator, after mimalloc v3's design (2026-11-15)
+
+`src/state/stx_minmallocpp/` and `src/hosted/{posix,windows}/minmallocpp_os_*.cpp`
+are STXlib's own code, written new on the owner's order of 2026-11-15 to
+convert mimalloc to house-style C++. No source line of mimalloc is copied.
+What is taken is design, with its source named:
+- from mimalloc v3 (v3.6.1, <https://github.com/microsoft/mimalloc>, MIT,
+  Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen; vendored
+  under `third_party/mimalloc/`): thread heaps, pages of one block size,
+  the separation of the owner's frees from other threads' frees, the rule
+  that a full page is abandoned and claimed again by a later free, arenas
+  cut into 64 KiB slices, and an address map consulted without touching
+  the address. The seat's design note lists what is kept and what is
+  reformulated;
+- the two-level segregated index of free slice runs is TLSF (Masmano,
+  Ripoll, Crespo and Real, "TLSF: a new dynamic memory allocator for
+  real-time systems", ECRTS 2004), implemented from the paper's
+  description; no TLSF source was read or copied.
+Whether mimalloc's MIT notice is owed for a design conversion with no
+copied text is the owner's call; it is reproduced in
+`third_party/mimalloc/LICENSE` either way.
+
 ## Third party
 
 ### mimalloc v3.6.1 (ported forward from v3.5.3, 2026-11-15)
