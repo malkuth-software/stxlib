@@ -219,20 +219,33 @@ struct Pacing final {
         result.next = origin;
         return result;
     }
-    // now >= origin, so the span is not negative; it saturates at i64_max
-    // only when origin and now lie more than 292 years apart.
-    const i64 span = now.since(origin).count_nanoseconds();
+    // now >= origin. When they lie more than i64_max apart (only when origin
+    // is negative), neither the span nor the period count can be held in an
+    // i64: the schedule is taken to have run off the range, and the far end
+    // is returned with the most periods a span can count (the saturation
+    // the contract states; harness_pace asserts it).
+    if (origin.count_nanoseconds() < 0 && now.count_nanoseconds() > i64_max + origin.count_nanoseconds()) {
+        result.next = IntervalTime::from_nanoseconds(i64_max);
+        result.elapsed_periods = i64_max / step;
+        return result;
+    }
+    // Every quantity below is exact. span <= i64_max; periods * step <=
+    // span; the last tick at or before now, origin + periods * step, lies
+    // in [origin, now]. Only the following tick can pass the end of the
+    // range, and it is compared before it is formed. (Scaling periods + 1
+    // by step and adding it to origin saturated the offset even where the
+    // sum fits, with origin negative: the M5 counterexample in
+    // tests/platform_tests.cpp.)
+    const i64 span = now.count_nanoseconds() - origin.count_nanoseconds();
     const i64 periods = span / step;
     result.elapsed_periods = periods;
-    // (periods + 1) * step > span, so the tick is strictly after now unless
-    // the product saturates, where the far end of the range is returned.
-    const i64 following = periods == i64_max ? i64_max : periods + 1;
-    const i64 offset = detail::saturating_scale(following, step);
-    result.next = origin.after(Duration::nanoseconds(offset));
-    // When the span itself saturated (origin and now more than i64_max
-    // apart), origin + offset can fall at or before now; the true tick then
-    // lies beyond the range, so the far end is returned.
-    if (result.next <= now) result.next = IntervalTime::from_nanoseconds(i64_max);
+    const i64 last_tick = origin.count_nanoseconds() + periods * step;
+    if (last_tick > i64_max - step) {
+        result.next = IntervalTime::from_nanoseconds(i64_max);
+        return result;
+    }
+    // span < (periods + 1) * step, so this tick is strictly after now.
+    result.next = IntervalTime::from_nanoseconds(last_tick + step);
     return result;
 }
 

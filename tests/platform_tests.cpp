@@ -254,6 +254,26 @@ void pacing() {
     static_assert(stxlib::pace(at(stxlib::i64_min), Duration::nanoseconds(1), at(stxlib::i64_max)).next ==
                       at(stxlib::i64_max),
                   "the far end saturates");
+    // The M5 counterexample (ESBMC, harness_pace, 64-bit): the following
+    // tick, origin + 3 * period, fits although 3 * period does not, because
+    // origin is negative. pace once scaled first, saturated the offset at
+    // i64_max and returned 3170534154043490301.
+    static_assert(stxlib::pace(at(-6052837882811285506), Duration::nanoseconds(3458764513820475424),
+                               at(2017612641652015039))
+                          .next == at(4323455658650140766),
+                  "a negative origin: the tick fits though the offset does not");
+    static_assert(stxlib::pace(at(-6052837882811285506), Duration::nanoseconds(3458764513820475424),
+                               at(2017612641652015039))
+                          .elapsed_periods == 2,
+                  "a negative origin: periods counted");
+    // The neighbours of that case: the tick just inside the range, and one
+    // past it.
+    static_assert(stxlib::pace(at(-1), Duration::nanoseconds(stxlib::i64_max / 2 + 1), at(stxlib::i64_max / 2))
+                          .next == at(stxlib::i64_max),
+                  "the tick at the range's last value");
+    static_assert(stxlib::pace(at(0), Duration::nanoseconds(stxlib::i64_max / 2 + 1), at(stxlib::i64_max / 2 + 1))
+                          .next == at(stxlib::i64_max),
+                  "the tick past the range saturates");
     // Exhaustive over a small domain against the definition: the least
     // origin + k * period (k >= 1) strictly after now, and k - 1.
     for (i64 origin = -20; origin <= 20; ++origin) {
@@ -275,6 +295,45 @@ void pacing() {
             }
         }
     }
+#if defined(__SIZEOF_INT128__)
+    // At the ends of the range, against the definition in 128-bit
+    // arithmetic (harness_pace's statement): every combination of origins,
+    // periods and nows near i64_min, zero, i64_max and the halves, where
+    // the M5 counterexample lives.
+    __extension__ typedef __int128 Wide;
+    const i64 edges[] = {stxlib::i64_min,
+                         stxlib::i64_min + 1,
+                         stxlib::i64_min / 2,
+                         -6052837882811285506,
+                         -1,
+                         0,
+                         1,
+                         2017612641652015039,
+                         stxlib::i64_max / 2,
+                         stxlib::i64_max / 2 + 1,
+                         stxlib::i64_max - 1,
+                         stxlib::i64_max};
+    const i64 periods[] = {1, 2, 3, 1000000007, 3458764513820475424, stxlib::i64_max / 2 + 1, stxlib::i64_max};
+    bool all_exact = true;
+    for (const i64 origin : edges) {
+        for (const i64 now : edges) {
+            if (now < origin) continue;
+            for (const i64 period : periods) {
+                const stxlib::Pacing paced = stxlib::pace(at(origin), Duration::nanoseconds(period), at(now));
+                const Wide span = static_cast<Wide>(now) - static_cast<Wide>(origin);
+                if (span > static_cast<Wide>(stxlib::i64_max)) {
+                    if (paced.next != at(stxlib::i64_max)) all_exact = false;
+                    continue;
+                }
+                const Wide k = span / static_cast<Wide>(period);
+                const Wide tick = static_cast<Wide>(origin) + (k + 1) * static_cast<Wide>(period);
+                const i64 expected = tick > static_cast<Wide>(stxlib::i64_max) ? stxlib::i64_max : static_cast<i64>(tick);
+                if (paced.next != at(expected) || static_cast<Wide>(paced.elapsed_periods) != k) all_exact = false;
+            }
+        }
+    }
+    CHECK(all_exact);
+#endif
 }
 
 // ---- environment ------------------------------------------------------------
