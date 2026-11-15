@@ -9,6 +9,9 @@
 
 #include "variant_functions.hpp"
 
+#include "paths.hpp"
+#include "region_functions.hpp"
+
 STXLIB_MATH_TARGET_PUSH
 
 namespace stxlib::math::STXLIB_MATH_VARIANT {
@@ -80,18 +83,8 @@ double log(const double x) noexcept {
     return result;
 }
 
-float log(const float x) noexcept {
-    const float result = detail::log_any<detail::natural>(x);
-    return result;
-}
-
 double log2(const double x) noexcept {
     const double result = detail::log_any<detail::binary>(x);
-    return result;
-}
-
-float log2(const float x) noexcept {
-    const float result = detail::log_any<detail::binary>(x);
     return result;
 }
 
@@ -100,8 +93,50 @@ double log10(const double x) noexcept {
     return result;
 }
 
+namespace today {
+
+float log(const float x) noexcept {
+    const float result = detail::log_any<detail::natural>(x);
+    return result;
+}
+
+float log2(const float x) noexcept {
+    const float result = detail::log_any<detail::binary>(x);
+    return result;
+}
+
 float log10(const float x) noexcept {
     const float result = detail::log_any<detail::decimal>(x);
+    return result;
+}
+
+} // namespace today
+
+// The float variant functions: the path STXLIB_MATH_REGION_LOG_FLOAT
+// chooses (paths.hpp). A subnormal x takes today's kernel, which reads it
+// unflushed; no logarithm result is subnormal. Both paths are correctly
+// rounded for every float, so they agree at every normal x.
+float log(const float x) noexcept {
+#if STXLIB_MATH_REGION_LOG_FLOAT
+    if (paths::not_subnormal(x)) return region::log(x);
+#endif
+    const float result = today::log(x);
+    return result;
+}
+
+float log2(const float x) noexcept {
+#if STXLIB_MATH_REGION_LOG_FLOAT
+    if (paths::not_subnormal(x)) return region::log2(x);
+#endif
+    const float result = today::log2(x);
+    return result;
+}
+
+float log10(const float x) noexcept {
+#if STXLIB_MATH_REGION_LOG_FLOAT
+    if (paths::not_subnormal(x)) return region::log10(x);
+#endif
+    const float result = today::log10(x);
     return result;
 }
 

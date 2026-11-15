@@ -16,6 +16,9 @@
 
 #include "variant_functions.hpp"
 
+#include "paths.hpp"
+#include "region_functions.hpp"
+
 STXLIB_MATH_TARGET_PUSH
 
 namespace stxlib::math::STXLIB_MATH_VARIANT {
@@ -126,6 +129,8 @@ bool tan_float_cheap(const double x, float& result) noexcept {
 } // namespace
 } // namespace detail
 
+namespace today {
+
 double tan(const double x) noexcept {
     if (!detail::sincos_fast_path(x) && !detail::sincos_medium_path(x)) {
         // Below 2^-27 tan x = x (x^3/3 < ulp/2), sign of zero kept; above
@@ -136,6 +141,19 @@ double tan(const double x) noexcept {
     }
     const detail::Wide quotient = detail::tan_wide(x);
     const double result = quotient.hi + quotient.lo;
+    return result;
+}
+
+} // namespace today
+
+// The double variant function: the path STXLIB_MATH_REGION_TRIG_DOUBLE
+// chooses (paths.hpp); a subnormal x takes today's kernel (tan x = x,
+// unflushed).
+double tan(const double x) noexcept {
+#if STXLIB_MATH_REGION_TRIG_DOUBLE
+    if (paths::not_subnormal(x)) return region::tan(x);
+#endif
+    const double result = today::tan(x);
     return result;
 }
 

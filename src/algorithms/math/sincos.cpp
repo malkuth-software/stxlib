@@ -11,6 +11,9 @@
 
 #include "variant_functions.hpp"
 
+#include "paths.hpp"
+#include "region_functions.hpp"
+
 STXLIB_MATH_TARGET_PUSH
 
 namespace stxlib::math::STXLIB_MATH_VARIANT {
@@ -98,7 +101,9 @@ void sincos(const float angle, float& s, float& c) noexcept {
     detail::float_sincos_exception(angle, s, c);
 }
 
-// sin and cos of a double (contract in stxlib/math.hpp).
+// sin and cos of a double (contract in stxlib/math.hpp): today's kernel.
+namespace today {
+
 void sincos(const double x, double& s, double& c) noexcept {
     double sin_head = 0.0;
     double sin_tail = 0.0;
@@ -121,6 +126,22 @@ void sincos(const double x, double& s, double& c) noexcept {
     }
     s = sin_head + sin_tail;
     c = cos_head + cos_tail;
+}
+
+} // namespace today
+
+// The double variant function: the path STXLIB_MATH_REGION_TRIG_DOUBLE
+// chooses (paths.hpp). A subnormal x takes today's kernel (sin = x, cos =
+// 1, unflushed); trig_region.cpp serves every other x with the same proved
+// bound, and the same results below 2^-27 and above 2^32.
+void sincos(const double x, double& s, double& c) noexcept {
+#if STXLIB_MATH_REGION_TRIG_DOUBLE
+    if (paths::not_subnormal(x)) {
+        region::sincos(x, s, c);
+        return;
+    }
+#endif
+    today::sincos(x, s, c);
 }
 
 } // namespace stxlib::math::STXLIB_MATH_VARIANT

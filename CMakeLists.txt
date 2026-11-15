@@ -367,8 +367,27 @@ set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/hypot.cpp
     src/algorithms/math/log.cpp
     src/algorithms/math/pow.cpp
+    src/algorithms/math/region.cpp
     src/algorithms/math/sincos.cpp
-    src/algorithms/math/tan.cpp)
+    src/algorithms/math/tan.cpp
+    src/algorithms/math/trig_region.cpp)
+# Two paths for some kernels (src/algorithms/math/paths.hpp): today's and the
+# region kernels (region.cpp, trig_region.cpp). Every build compiles both;
+# these switches choose the one the public functions take, and every target
+# here sees them (the tests pick their frozen hashes by them). Defaults: the
+# region path where it is proved and not slower by design (paths.hpp says
+# why for each); keep them equal to paths.hpp's.
+option(STXLIB_MATH_REGION_POW_DOUBLE "pow(double) takes the region kernel" OFF)
+option(STXLIB_MATH_REGION_POW_FLOAT "pow(float) takes the region round, test, decide path" OFF)
+option(STXLIB_MATH_REGION_LOG_FLOAT "log, log2, log10 (float) take the region kernels" OFF)
+option(STXLIB_MATH_REGION_HYPOT_FLOAT "hypot(float) takes the region kernel" ON)
+option(STXLIB_MATH_REGION_TRIG_DOUBLE "sincos, sin, cos and tan (double) take the region kernels" ON)
+add_compile_definitions(
+    STXLIB_MATH_REGION_POW_DOUBLE=$<BOOL:${STXLIB_MATH_REGION_POW_DOUBLE}>
+    STXLIB_MATH_REGION_POW_FLOAT=$<BOOL:${STXLIB_MATH_REGION_POW_FLOAT}>
+    STXLIB_MATH_REGION_LOG_FLOAT=$<BOOL:${STXLIB_MATH_REGION_LOG_FLOAT}>
+    STXLIB_MATH_REGION_HYPOT_FLOAT=$<BOOL:${STXLIB_MATH_REGION_HYPOT_FLOAT}>
+    STXLIB_MATH_REGION_TRIG_DOUBLE=$<BOOL:${STXLIB_MATH_REGION_TRIG_DOUBLE}>)
 set(STXLIB_MATH_SOURCES
     ${STXLIB_MATH_KERNEL_SOURCES}
     src/algorithms/math/constants.cpp
@@ -527,17 +546,17 @@ if(STXLIB_TESTS)
         target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
         add_test(NAME ${math_test} COMMAND ${math_test})
     endforeach()
-    # The region kernels (src/algorithms/math/region.cpp), an experiment kept
-    # out of the library: the test compiles region.cpp as its own native
-    # variant, with the fused product where the target has it and, in the
-    # Dekker target, with Dekker's; both must print the same hash.
+    # Both paths of the switched kernels (src/algorithms/math/paths.hpp):
+    # region.cpp and trig_region.cpp are library kernel sources; the test
+    # calls each path by name in the library's variant (v128 where the
+    # build dispatches, native otherwise) and, in the Dekker target, in its
+    # own copies with Dekker's product; both must print the same hash.
     # `--exhaustive` (every float through the float logarithms) and
-    # `--bench` stay out of ctest.
-    add_executable(stxlib_math_region_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp
-        src/algorithms/math/trig_region.cpp)
-    target_compile_definitions(stxlib_math_region_tests PRIVATE STXLIB_MATH_VARIANT=native)
-    add_executable(stxlib_math_region_dekker_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp
-        src/algorithms/math/trig_region.cpp ${STXLIB_MATH_SOURCES})
+    # `--bench` (each path against the other) stay out of ctest.
+    add_executable(stxlib_math_region_tests tests/math_region_tests.cpp)
+    target_compile_definitions(stxlib_math_region_tests PRIVATE
+        STXLIB_MATH_VARIANT=$<IF:$<BOOL:${STXLIB_MATH_DISPATCH}>,v128,native>)
+    add_executable(stxlib_math_region_dekker_tests tests/math_region_tests.cpp ${STXLIB_MATH_SOURCES})
     target_compile_definitions(stxlib_math_region_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
     foreach(math_test IN ITEMS stxlib_math_region_tests stxlib_math_region_dekker_tests)
         target_link_libraries(${math_test} PRIVATE stxlib::algorithms)

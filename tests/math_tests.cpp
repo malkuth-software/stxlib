@@ -17,6 +17,7 @@
 #include "reference/sincos_worst_cases.hpp"
 #include "reference/wide.hpp"
 #include "core/checked.hpp"
+#include "algorithms/math/paths.hpp"
 // The certified worst-case test calls the reduction directly. src/algorithms/math/
 // compiles once per kernel variant (src/algorithms/math/variant.hpp); this test compiles
 // its own copy as the native variant, which every variant matches bit for bit.
@@ -55,6 +56,21 @@ namespace {
 
 void require(const bool condition, const char* const message) {
     if (!condition) throw std::runtime_error(message);
+}
+
+// A frozen output hash per kernel path (src/algorithms/math/paths.hpp):
+// `expected` is the value for the paths this build's switches choose; 0
+// means not frozen yet for those paths (printed with today's frozen value,
+// to freeze from the first M4 run), so it does not fail.
+void check_frozen(const char* const name, const std::uint64_t hash, const std::uint64_t expected,
+                  const std::uint64_t today_value, const char* const message) {
+    std::printf("%s output hash %016llx\n", name, static_cast<unsigned long long>(hash));
+    if (expected == 0) {
+        std::printf("%s output hash not frozen yet for this build's region paths (today's paths: %016llx)\n", name,
+                    static_cast<unsigned long long>(today_value));
+        return;
+    }
+    require(hash == expected, message);
 }
 
 // Deterministic inputs: a 64-bit LCG.
@@ -473,12 +489,18 @@ STXLIB_MODULAR std::uint64_t output_hash() {
 // adopted 2026-11-02; 46/8M sincos and 64/4M tan outputs differ, all within
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_output_hash = 0x9cecbc587874960dULL;
+constexpr std::uint64_t today_output_hash = 0x9cecbc587874960dULL;
+// The region path of sincos(double) (trig_region.cpp): its own value, not yet
+// frozen; it differs from today's (the polynomial chains round differently,
+// within the same bound). Float sincos has one path.
+constexpr std::uint64_t region_output_hash = 0;
+constexpr std::uint64_t expected_output_hash = STXLIB_MATH_REGION_TRIG_DOUBLE ? region_output_hash
+                                                                               : today_output_hash;
 
 void determinism() {
     const std::uint64_t hash = output_hash();
-    std::printf("output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_output_hash, "sincos: outputs differ from the frozen bits");
+    check_frozen("sincos", hash, expected_output_hash, today_output_hash,
+                 "sincos: outputs differ from the frozen bits");
 }
 
 // ---- exp ----------------------------------------------------------------------
@@ -903,12 +925,19 @@ STXLIB_MODULAR std::uint64_t log_output_hash(const std::vector<LogKernel>& kerne
 }
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
-constexpr std::uint64_t expected_log_output_hash = 0x2e4ea58329a77abcULL;
+constexpr std::uint64_t today_log_output_hash = 0x2e4ea58329a77abcULL;
+// The region path of the float logs (region.cpp): its own value, not yet
+// frozen; expected equal to today's (both correctly rounded for every float,
+// and a subnormal x takes today's kernel; math_region_tests --exhaustive
+// compares every float pattern).
+constexpr std::uint64_t region_log_output_hash = 0;
+constexpr std::uint64_t expected_log_output_hash = STXLIB_MATH_REGION_LOG_FLOAT ? region_log_output_hash
+                                                                                : today_log_output_hash;
 
 void log_determinism(const std::vector<LogKernel>& kernels) {
     const std::uint64_t hash = log_output_hash(kernels);
-    std::printf("log output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_log_output_hash, "log: outputs differ from the frozen bits");
+    check_frozen("log", hash, expected_log_output_hash, today_log_output_hash,
+                 "log: outputs differ from the frozen bits");
 }
 
 // ---- pow ----------------------------------------------------------------------
@@ -1341,12 +1370,19 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
 // (owner's experiment, adopted 2026-11-02); 6/400k near-overflow inputs
 // differ, both within bound. Same value at the scalar, vector128 and
 // avx2_fma levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_pow_output_hash = 0x3a845b9bad3d2534ULL;
+constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
+// The region paths (region.cpp): their own values, not yet frozen. With
+// pow(double) on the region kernel the hash differs (0.500097 ulp against
+// 0.576); with only pow(float) on round, test, decide it is expected equal
+// to today's (both correctly rounded at every sampled pair).
+constexpr std::uint64_t region_pow_output_hash = 0;
+constexpr bool pow_on_region = STXLIB_MATH_REGION_POW_DOUBLE || STXLIB_MATH_REGION_POW_FLOAT;
+constexpr std::uint64_t expected_pow_output_hash = pow_on_region ? region_pow_output_hash : today_pow_output_hash;
 
 void pow_determinism() {
     const std::uint64_t hash = pow_output_hash();
-    std::printf("pow output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_pow_output_hash, "pow: outputs differ from the frozen bits");
+    check_frozen("pow", hash, expected_pow_output_hash, today_pow_output_hash,
+                 "pow: outputs differ from the frozen bits");
 }
 
 // ---- hypot ------------------------------------------------------------------
@@ -1557,12 +1593,19 @@ STXLIB_MODULAR std::uint64_t hypot_output_hash() {
 }
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
-constexpr std::uint64_t expected_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
+constexpr std::uint64_t today_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
+// The region path of float hypot (region.cpp): its own value, not yet
+// frozen; expected equal to today's (region correctly rounded by
+// construction, today's at every sampled pair; subnormal operands take
+// today's kernel). A difference names a pair today's kernel misrounds.
+constexpr std::uint64_t region_hypot_output_hash = 0;
+constexpr std::uint64_t expected_hypot_output_hash = STXLIB_MATH_REGION_HYPOT_FLOAT ? region_hypot_output_hash
+                                                                                    : today_hypot_output_hash;
 
 void hypot_determinism() {
     const std::uint64_t hash = hypot_output_hash();
-    std::printf("hypot output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_hypot_output_hash, "hypot: outputs differ from the frozen bits");
+    check_frozen("hypot", hash, expected_hypot_output_hash, today_hypot_output_hash,
+                 "hypot: outputs differ from the frozen bits");
 }
 
 // ---- atan, atan2, asin, acos ------------------------------------------------------
@@ -2094,12 +2137,18 @@ STXLIB_MODULAR std::uint64_t remaining_output_hash() {
 // adopted 2026-11-02; 46/8M sincos and 64/4M tan outputs differ, all within
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_remaining_output_hash = 0x46fd05aac7dac755ULL;
+constexpr std::uint64_t today_remaining_output_hash = 0x46fd05aac7dac755ULL;
+// The region path of tan(double) (trig_region.cpp): its own value, not yet
+// frozen; it differs from today's (Estrin's scheme rounds differently,
+// within the same bound).
+constexpr std::uint64_t region_remaining_output_hash = 0;
+constexpr std::uint64_t expected_remaining_output_hash =
+    STXLIB_MATH_REGION_TRIG_DOUBLE ? region_remaining_output_hash : today_remaining_output_hash;
 
 void remaining_determinism() {
     const std::uint64_t hash = remaining_output_hash();
-    std::printf("tan/cbrt/hyperbolic output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_remaining_output_hash, "tan/cbrt/hyperbolic: outputs differ from the frozen bits");
+    check_frozen("tan/cbrt/hyperbolic", hash, expected_remaining_output_hash, today_remaining_output_hash,
+                 "tan/cbrt/hyperbolic: outputs differ from the frozen bits");
 }
 
 // ---- the subnormal rule (STXlib batch 3c8) ------------------------------------

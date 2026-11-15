@@ -2,9 +2,11 @@
 // sincos and tan of a double, faster than the library's at the library's
 // bound (0.51 ulp, math.hpp), with its subnormal rule. The owner's aim for
 // this work (2026-11-15) is speed at today's accuracy, not tighter bounds.
-// An experiment kept apart from the library until the M4 measurements
-// confirm the cost; tests/math_region_tests.cpp compiles this file as its
-// own native variant. Design and the proof: the seat's
+// A library kernel source (every variant), one of two paths for sincos and
+// tan of a double: the switch STXLIB_MATH_REGION_TRIG_DOUBLE (paths.hpp,
+// on by default) sends sincos.cpp's and tan.cpp's variant functions here;
+// tests/math_region_tests.cpp tests and benches both paths. Design and the
+// proof: the seat's
 // dev/notes/planning/stages/M-trig-region.md and
 // tools/math/trig_region_certificate.py.
 //

@@ -13,14 +13,22 @@ Usage:
       reaches it) and compares its output; the ctest form.
   compare_bit_identity.py --expected FILE OUTPUT...
       compares saved outputs, which must also agree with each other.
-  compare_bit_identity.py --freeze OUTPUT...
+  compare_bit_identity.py --freeze [--keep FILE] OUTPUT...
       prints an expected file built from the outputs, refusing unless they
-      all agree item for item.
+      all agree item for item; with --keep, also keeps FILE's lines for the
+      other kernel path of each printed item (below).
 
 Fails (exit 1) when the program fails, an output line is malformed, two
 outputs disagree, an output differs from a frozen line, or a frozen item is
 missing. An unfrozen item, or one the expected file does not list, is
 reported (as a GitHub Actions warning under CI) and does not fail.
+
+Kernel paths (src/algorithms/math/paths.hpp): a math function with two
+kernels prints as `<item>` on today's path and `<item>@region` on the region
+path, by the build's switches; each path has its own frozen line. A frozen
+line for one path is not missing when the build printed the other path of
+the same item. Freezing one build's path keeps the other path's lines only
+with --keep.
 """
 
 import os
@@ -35,10 +43,18 @@ HEADER = """# Frozen output hashes of stxlib_bit_identity (tests/bit_identity.cp
 #
 # Freezing: the integrator runs the program on the M4 (all levels it has,
 # and the Dekker build) and then
-#   python3 -I tools/compare_bit_identity.py --freeze OUTPUT... > tests/bit_identity_expected.txt
+#   python3 -I tools/compare_bit_identity.py --freeze --keep tests/bit_identity_expected.txt OUTPUT... > new
+#   (then new replaces tests/bit_identity_expected.txt; --keep keeps the
+#   other kernel path's lines, `<item>` or `<item>@region`)
 # which refuses unless every output agrees; CI's hosts then check the same
 # values.
 """
+
+
+def path_base(item):
+    """The item without its kernel path: `math.tan.double@region` and
+    `math.tan.double` are two paths of one item."""
+    return item.split("@", 1)[0]
 
 
 def fail(message):
@@ -128,8 +144,9 @@ def compare(expected, outputs):
                                                                  items[item][1]))
         else:
             matched += 1
+    printed_bases = set(path_base(item) for item in items)
     for item, frozen in sorted(expected.items()):
-        if frozen is not None and item not in items:
+        if frozen is not None and item not in items and path_base(item) not in printed_bases:
             status = fail("%s is frozen but was not printed" % item)
     if unfrozen:
         warn("%d items not frozen yet: %s" % (len(unfrozen), " ".join(unfrozen)))
@@ -142,8 +159,13 @@ def compare(expected, outputs):
 
 def main(arguments):
     if len(arguments) >= 2 and arguments[0] == "--freeze":
+        kept = {}
+        paths = arguments[1:]
+        if len(paths) >= 3 and paths[0] == "--keep":
+            kept = parse_expected(paths[1])
+            paths = paths[2:]
         outputs = []
-        for path in arguments[1:]:
+        for path in paths:
             with open(path, encoding="utf-8") as handle:
                 outputs.append((path, parse_output(path, handle.read())))
         message = agree(outputs)
@@ -154,6 +176,13 @@ def main(arguments):
         sys.stdout.write(HEADER)
         for item in order:
             sys.stdout.write("%s %s %s\n" % (item, items[item][0], items[item][1]))
+            for other in sorted(kept):
+                if other != item and other not in items and path_base(other) == path_base(item):
+                    frozen = kept[other]
+                    if frozen is None:
+                        sys.stdout.write("%s unfrozen\n" % other)
+                    else:
+                        sys.stdout.write("%s %s %s\n" % (other, frozen[0], frozen[1]))
         return 0
     if len(arguments) >= 3 and arguments[0] == "--expected":
         expected = parse_expected(arguments[1])

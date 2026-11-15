@@ -1,19 +1,21 @@
-// Tests of the region kernels (src/algorithms/math/region.cpp and
-// trig_region.cpp), an
-// experiment kept apart from the library's kernels: each is checked against
-// the double-double references of tests/reference/wide.hpp and compared with
-// the library's current function of stxlib/math.hpp, which stays as it is.
+// Tests of the two paths of the switched math kernels
+// (src/algorithms/math/paths.hpp): the region kernels (region.cpp and
+// trig_region.cpp), each checked against the double-double references of
+// tests/reference/wide.hpp, and compared with today's kernel for the same
+// function ("current": today's path by name, with flush.cpp's subnormal rule
+// around it, so the comparison and the bench hold whichever path the build's
+// switches give the public functions).
 //
 //   math_region_tests               sampled checks (the ctest run)
 //   math_region_tests --exhaustive  every float through the float
 //                                   logarithms, 20 million doubles per pow
 //                                   region, 100 million float pow and hypot
 //                                   pairs
-//   math_region_tests --bench       ns per call, region against current
+//   math_region_tests --bench       ns per call, region against today's
 //
-// This file compiles region.cpp as its own native variant (CMakeLists.txt:
-// stxlib_math_region_tests, and stxlib_math_region_dekker_tests with
-// Dekker's product); both must print the same hashes.
+// It calls the library's variant (CMakeLists.txt: stxlib_math_region_tests;
+// v128 where the build dispatches) and, in stxlib_math_region_dekker_tests,
+// its own copies with Dekker's product; both must print the same hashes.
 
 #include "stxlib/math.hpp"
 
@@ -25,6 +27,7 @@
 #define STXLIB_MATH_VARIANT native
 #endif
 #include "algorithms/math/region_functions.hpp"
+#include "core/subnormal.hpp"
 
 #include <algorithm>
 #include <bit>
@@ -39,12 +42,38 @@
 #include <vector>
 
 namespace region = stxlib::math::STXLIB_MATH_VARIANT::region;
+namespace today = stxlib::math::STXLIB_MATH_VARIANT::today;
 
 namespace {
 
 void require(const bool condition, const char* const message) {
     if (!condition) throw std::runtime_error(message);
 }
+
+// Today's kernels by name, with flush.cpp's subnormal rule around them: the
+// public functions on today's path, whichever path this build's switches
+// give the public functions.
+double flushed(const double value) { return ::stxlib::detail::flush_subnormal(value); }
+float flushed_float(const float value) { return ::stxlib::detail::flush_subnormal(value); }
+
+double current_pow(const double x, const double y) { return flushed(today::pow(flushed(x), flushed(y))); }
+float current_pow(const float x, const float y) {
+    return flushed_float(today::pow(flushed_float(x), flushed_float(y)));
+}
+float current_log(const float x) { return flushed_float(today::log(flushed_float(x))); }
+float current_log2(const float x) { return flushed_float(today::log2(flushed_float(x))); }
+float current_log10(const float x) { return flushed_float(today::log10(flushed_float(x))); }
+float current_hypot(const float x, const float y) {
+    return flushed_float(today::hypot(flushed_float(x), flushed_float(y)));
+}
+void current_sincos(const double x, double& s, double& c) {
+    double kernel_s = 0.0;
+    double kernel_c = 0.0;
+    today::sincos(flushed(x), kernel_s, kernel_c);
+    s = flushed(kernel_s);
+    c = flushed(kernel_c);
+}
+double current_tan(const double x) { return flushed(today::tan(flushed(x))); }
 
 // Deterministic inputs: a 64-bit LCG (as tests/math_tests.cpp's).
 struct Lcg final {
@@ -177,7 +206,7 @@ void pow_double_accuracy(const int per_region) {
             double y = 0.0;
             pow_input(region_index, lcg, x, y);
             const double result = region::pow(x, y);
-            const double current = stxlib::math::pow(x, y);
+            const double current = current_pow(x, y);
             const wide::ScaledWide exact = pow_reference(x, y);
             require(result == 0.0 || result >= 0x1p-1022, "region pow(double): a subnormal result");
             if (result == 0.0 || !std::isfinite(result)) {
@@ -233,7 +262,7 @@ void pow_double_special_values() {
     for (const double x : xs) {
         for (const double y : ys) {
             const double result = region::pow(x, y);
-            const double current = stxlib::math::pow(x, y);
+            const double current = current_pow(x, y);
             checked += 1;
             if (same_bits(result, current)) continue;
             // Inexact finite results may differ in their rounding; both
@@ -436,7 +465,7 @@ void pow_float_special_values() {
     for (const float x : xs) {
         for (const float y : ys) {
             const float result = region::pow(x, y);
-            const float current = stxlib::math::pow(x, y);
+            const float current = current_pow(x, y);
             checked += 1;
             if (same_bits(result, current)) continue;
             differ += 1;
@@ -467,9 +496,9 @@ struct LogPair final {
 float region_log_f(const float x) { return region::log(x); }
 float region_log2_f(const float x) { return region::log2(x); }
 float region_log10_f(const float x) { return region::log10(x); }
-float current_log_f(const float x) { return stxlib::math::log(x); }
-float current_log2_f(const float x) { return stxlib::math::log2(x); }
-float current_log10_f(const float x) { return stxlib::math::log10(x); }
+float current_log_f(const float x) { return current_log(x); }
+float current_log2_f(const float x) { return current_log2(x); }
+float current_log10_f(const float x) { return current_log10(x); }
 
 const LogPair log_pairs[] = {
     {"log", region_log_f, current_log_f, 0.0},
@@ -628,7 +657,7 @@ void hypot_float_special_values() {
     for (const float x : values) {
         for (const float y : values) {
             const float result = region::hypot(x, y);
-            const float current = stxlib::math::hypot(x, y);
+            const float current = current_hypot(x, y);
             require(same_bits(result, current), "region hypot(float): a special case differs from the current");
             checked += 1;
         }
@@ -686,8 +715,8 @@ void trig_accuracy(const int per_region) {
             worst_tan = std::max(worst_tan, trig_ulps(t, wide::tan_reference(x)));
             double current_s = 0.0;
             double current_c = 0.0;
-            stxlib::math::sincos(x, current_s, current_c);
-            const double current_t = stxlib::math::tan(x);
+            current_sincos(x, current_s, current_c);
+            const double current_t = current_tan(x);
             if (!same_bits(s, current_s) || !same_bits(c, current_c) || !same_bits(t, current_t)) differ += 1;
         }
         std::printf("sincos/tan(double) %-14s worst sin %.6f cos %.6f tan %.6f ulp; %d of %d differ from current\n",
@@ -739,12 +768,12 @@ void trig_special_values() {
         region::sincos(x, s, c);
         double current_s = 0.0;
         double current_c = 0.0;
-        stxlib::math::sincos(x, current_s, current_c);
+        current_sincos(x, current_s, current_c);
         const bool nan_agrees = (s != s) == (current_s != current_s) && (c != c) == (current_c != current_c);
         const bool bits_agree = (s != s || same_bits(s, current_s)) && (c != c || same_bits(c, current_c));
         require(nan_agrees && bits_agree, "region sincos(double): a special case differs from the current");
         const double t = region::tan(x);
-        const double current_t = stxlib::math::tan(x);
+        const double current_t = current_tan(x);
         require((t != t) == (current_t != current_t) && (t != t || same_bits(t, current_t)),
                 "region tan(double): a special case differs from the current");
         checked += 1;
@@ -856,15 +885,15 @@ void pair_double(BenchBuffers& b) {
 }
 
 void region_sincos_d(const double x, double& s, double& c) { region::sincos(x, s, c); }
-void current_sincos_d(const double x, double& s, double& c) { stxlib::math::sincos(x, s, c); }
+void current_sincos_d(const double x, double& s, double& c) { current_sincos(x, s, c); }
 double region_tan_d(const double x) { return region::tan(x); }
-double current_tan_d(const double x) { return stxlib::math::tan(x); }
+double current_tan_d(const double x) { return current_tan(x); }
 double region_pow_d(const double x, const double y) { return region::pow(x, y); }
-double current_pow_d(const double x, const double y) { return stxlib::math::pow(x, y); }
+double current_pow_d(const double x, const double y) { return current_pow(x, y); }
 float region_pow_f(const float x, const float y) { return region::pow(x, y); }
-float current_pow_f(const float x, const float y) { return stxlib::math::pow(x, y); }
+float current_pow_f(const float x, const float y) { return current_pow(x, y); }
 float region_hypot_f(const float x, const float y) { return region::hypot(x, y); }
-float current_hypot_f(const float x, const float y) { return stxlib::math::hypot(x, y); }
+float current_hypot_f(const float x, const float y) { return current_hypot(x, y); }
 
 double best_ns_per_call(const BenchKernel kernel, BenchBuffers& buffers) {
     double best = std::numeric_limits<double>::infinity();

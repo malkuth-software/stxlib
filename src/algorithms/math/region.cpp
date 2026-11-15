@@ -1,11 +1,12 @@
 // The region kernels (declared in region_functions.hpp): flat single-pass
 // forms of pow (double and float), the float logarithms and float hypot,
 // each with the public contract of stxlib/math.hpp, the subnormal rule
-// included (applied here directly: no flush.cpp wrapper is needed). An
-// experiment kept apart from the library's kernels until the owner adopts
-// it; tests/math_region_tests.cpp compiles this file as its own native
-// variant and compares it with the library's functions. Design and
-// measurements: the seat's dev/notes/planning/stages/M-region-kernels.md.
+// included (applied here directly: no flush.cpp wrapper is needed). A
+// library kernel source (every variant), one of two paths for each of
+// these functions: the switches of paths.hpp send pow.cpp's, log.cpp's and
+// hypot.cpp's variant functions here; tests/math_region_tests.cpp tests and
+// benches both paths. Design and measurements: the seat's
+// dev/notes/planning/stages/M-region-kernels.md.
 //
 // "Flat": one pass per input class, no rounding test with an accurate
 // fallback, no cold path for hard inputs. Float pow is the exception

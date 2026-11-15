@@ -6,7 +6,9 @@
 #
 # Freezing: the integrator runs the program on the M4 (all levels it has,
 # and the Dekker build) and then
-#   python3 -I tools/compare_bit_identity.py --freeze OUTPUT... > tests/bit_identity_expected.txt
+#   python3 -I tools/compare_bit_identity.py --freeze --keep tests/bit_identity_expected.txt OUTPUT... > new
+#   (then new replaces tests/bit_identity_expected.txt; --keep keeps the
+#   other kernel path's lines, `<item>` or `<item>@region`)
 # which refuses unless every output agrees; CI's hosts then check the same
 # values.
 math.exp.double bb5b4e439d30a6ed 5144
@@ -17,6 +19,7 @@ math.atan.double 422741401e9f1514 5144
 math.asin.double 4a1c98df13b75267 5144
 math.acos.double 87839e7da9e744e0 5144
 math.tan.double f1bffad8ae8baab7 5144
+math.tan.double@region unfrozen
 math.cbrt.double b22b51a05117f04e 5144
 math.sinh.double d89220048bf4d939 5144
 math.cosh.double ffa0b6d2fad9ffd8 5144
@@ -25,13 +28,18 @@ math.asinh.double 6b148d5e327e9919 5144
 math.acosh.double e9ef774223078ea2 5144
 math.atanh.double 5e5c7c57c8293286 5144
 math.sincos.double 58f8c080766956e2 10288
+math.sincos.double@region unfrozen
 math.pow.double 6accc259646c4e79 5720
+math.pow.double@region unfrozen
 math.hypot.double f6c72677348cef19 5720
 math.atan2.double 8e900d18dd5e9038 5720
 math.exp.float 197e43a08e64030a 5140
 math.log.float 25296191862340c9 5140
+math.log.float@region unfrozen
 math.log2.float 287bd6ec8724ffc3 5140
+math.log2.float@region unfrozen
 math.log10.float 169538bf570403da 5140
+math.log10.float@region unfrozen
 math.atan.float 349a82cb55255a36 5140
 math.asin.float 921d3e58826370fb 5140
 math.acos.float cdc476cfad9a7386 5140
@@ -45,7 +53,9 @@ math.acosh.float 157a0568ac20614a 5140
 math.atanh.float 3b71cb9410ea55c1 5140
 math.sincos.float e0fca2706500ac67 10280
 math.pow.float 87882ea18b450c4f 5540
+math.pow.float@region unfrozen
 math.hypot.float f830f5eb42b177ce 5540
+math.hypot.float@region unfrozen
 math.atan2.float bf55a6fe90764891 5540
 exact.two_sum.double 9864bebc24a354c9 80000
 exact.two_product.double ba3e13e37ccb50bb 40000
