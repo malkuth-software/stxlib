@@ -191,7 +191,8 @@ inline void two_product_narrow(const double a, const double b, double& product, 
 #endif
 }
 
-// 2^exponent for exponent in [-1022, 1023].
+// 2^exponent for exponent in [-1022, 1023] only: -1023 gives the pattern of
+// +0, and below it the shifted pattern is an infinity or a NaN.
 inline double power_of_two(const std::int64_t exponent) noexcept {
     const std::uint64_t bits = static_cast<std::uint64_t>(exponent + exponent_bias) << 52;
     const double result = std::bit_cast<double>(bits);
@@ -307,9 +308,15 @@ inline double scale_wide(const double head, const double tail, const std::int64_
     two_sum(1.0, p, u, u_error);
     const double w = u + (u_error + q);
     if (w >= 2.0) {
-        // Normal after all (P + Q >= 1): the scaling is exact.
+        // Normal after all (P + Q >= 1). Scaled in two exact steps, since
+        // power_of_two(exponent) is wrong below -1022 (it gave 0 at -1023:
+        // unflushed::hypot(1.5 * 2^-1023, 1.5 * 2^-1023) returned 0; audit
+        // 2026-11-15, A-stxlib-algorithms-01-F1): y * scale is exact (scale =
+        // 2^(exponent + 1022) >= 2^-58, y normal), and the product with
+        // 2^-1022 is exact because the result is normal. At exponent -1022,
+        // scale is 1 and the bits are those of the one-step form.
         const double y = head + tail;
-        const double result = y * power_of_two(exponent);
+        const double result = (y * scale) * smallest_normal;
         return result;
     }
     const double result = (w - 1.0) * smallest_normal;  // both steps exact

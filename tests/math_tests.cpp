@@ -1520,6 +1520,17 @@ void hypot_special_values() {
     }
     require(std::isinf(unflushed::hypot(0x1.fffffffffffffp1023, 0x1.fffffffffffffp1023)),
             "hypot(double): did not overflow");
+    // A subnormal larger operand in [2^-1023, 2^-1022) with a normal result:
+    // scale_wide's normal-after-all branch at exponent -1023 returned 0
+    // (audit 2026-11-15, A-stxlib-algorithms-01-F1). The correctly rounded
+    // value is 0x1.0f876ccdf6cd9p-1022 (sqrt(4.5) rounded, exact scaling,
+    // decided exactly in rationals); the kernel's bound allows a neighbour.
+    {
+        const double expected = 0x1.0f876ccdf6cd9p-1022;
+        const double low_operand = unflushed::hypot(0x1.8p-1023, 0x1.8p-1023);
+        require(low_operand >= std::nextafter(expected, 0.0) && low_operand <= std::nextafter(expected, 1.0),
+                "hypot(double): a normal result from subnormal operands near 2^-1022 is wrong");
+    }
 }
 
 void hypot_input(const int region, Lcg& lcg, double& x, double& y) {

@@ -23,6 +23,7 @@
 #include "stxlib/voting.hpp"
 
 #include <algorithm>
+#include <functional>
 
 namespace stxlib::voting {
 
@@ -780,6 +781,16 @@ Status Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noex
     if (ranking.count() > usize_max - choice_count_ || distinct_ == usize_max) {
         return Status::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.voting.ballots.add"));
     }
+    // A ranking that is a view of these ballots (ranking(k)) points into
+    // choices_, which the growth below may replace and release: it is found
+    // by address first and read from the grown buffer at the same offset
+    // (audit 2026-11-15, A-stxlib-algorithms-02-F5). std::less orders any
+    // two pointers.
+    const Candidate* const stored = choices_.view().data();
+    const std::less<const Candidate*> before{};
+    const bool inside = ranking.count() > 0 && stored != nullptr && !before(ranking.data(), stored) &&
+                        before(ranking.data(), stored + choice_count_);
+    const usize offset = inside ? static_cast<usize>(ranking.data() - stored) : 0;
     // Both growths happen before anything is written, so a failure leaves
     // the ballots unchanged.
     const Status choices = grow(choices_, choice_count_, choice_count_ + ranking.count());
@@ -788,7 +799,8 @@ Status Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noex
     if (ends.failed()) return ends;
     const Status counts = grow(copies_, distinct_, distinct_ + 1);
     if (counts.failed()) return counts;
-    for (usize index = 0; index < ranking.count(); ++index) choices_[choice_count_ + index] = ranking[index];
+    const Candidate* const source = inside ? choices_.view().data() + offset : ranking.data();
+    for (usize index = 0; index < ranking.count(); ++index) choices_[choice_count_ + index] = source[index];
     choice_count_ += ranking.count();
     ends_[distinct_] = choice_count_;
     copies_[distinct_] = copies;
@@ -884,8 +896,15 @@ PrvOutcome count_preference_ranked(const u32 candidate_count, const Ballots& bal
     for (usize index = 0; index < count; ++index) order[index] = static_cast<Candidate>(index);
     std::sort(order, order + count, SeedOrder{table, count});
     // Brackets: segments of `width` seeds, counted from the last segment
-    // (the lowest seeds) to the first.
-    const usize width = options.bracket_interval - 1;
+    // (the lowest seeds) to the first. The width is clamped to count: an
+    // interval of count + 1 or more means one bracket of every candidate,
+    // and an unclamped width near usize_max wrapped count + width - 1 to a
+    // small value, so segments was 0 and candidate 0 won uncounted (audit
+    // 2026-11-15, A-stxlib-algorithms-02-F1). Results for every interval that
+    // did not wrap are unchanged (a width of count or more gives one segment
+    // either way).
+    const usize interval_width = options.bracket_interval - 1;
+    const usize width = interval_width < count ? interval_width : count;
     const usize segments = (count + width - 1) / width;
     Candidate* const bracket = ws.bracket.mutable_view().data();
     bool have_promoted = false;

@@ -229,6 +229,73 @@ void weighted_ballots() {
     CHECK(outcome_text(voting::count_preference_ranked(100000, none)) == "failure WORKING_STORAGE_LIMIT");
 }
 
+// Audit 2026-11-15, A-stxlib-algorithms-02-F1: an interval near usize_max
+// wrapped the segment count to 0, and the count returned candidate 0 as the
+// winner without counting. The width is clamped to the candidate count, so
+// such an interval is one bracket of every candidate: it must give what an
+// interval of count + 1 (one bracket, no wrap) gives. 31 candidates (above
+// the default threshold of 30), a majority ranking candidate 5 first, and
+// 40 shuffled ballots so no two candidates share a seed.
+// F5: a ranking view of the same ballots is added correctly while the
+// storage grows.
+void audit_cases() {
+    const usize count = 31;
+    voting::Ballots ballots{};
+    bool stored = true;
+    u64 state = 0x2545f4914f6cdd1dULL;
+    std::vector<voting::Candidate> ranking(count);
+    for (usize ballot = 0; ballot < 41; ++ballot) {
+        for (usize index = 0; index < count; ++index) ranking[index] = static_cast<voting::Candidate>(index);
+        for (usize index = count - 1; index > 0; --index) {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            const usize other = static_cast<usize>(state % (index + 1));
+            const voting::Candidate held = ranking[index];
+            ranking[index] = ranking[other];
+            ranking[other] = held;
+        }
+        const u64 copies = ballot == 0 ? 100 : 1;
+        if (ballot == 0) {
+            for (usize index = 0; index < count; ++index) {
+                if (ranking[index] == 5) {
+                    ranking[index] = ranking[0];
+                    ranking[0] = 5;
+                }
+            }
+        }
+        stored = add_ballot(ballots, ranking, copies) && stored;
+    }
+    CHECK(stored);
+    voting::PrvOptions one_bracket{};
+    one_bracket.bracket_interval = count + 1;
+    voting::PrvOptions huge{};
+    huge.bracket_interval = stxlib::usize_max;
+    voting::PrvOptions near_huge{};
+    near_huge.bracket_interval = stxlib::usize_max - 20;
+    const std::string reference = outcome_text(voting::count_preference_ranked(static_cast<stxlib::u32>(count), ballots, one_bracket));
+    std::printf("31 candidates, one bracket: %s\n", reference.c_str());
+    CHECK(reference.rfind("winner ", 0) == 0);
+    CHECK(reference != "winner 0");
+    CHECK(outcome_text(voting::count_preference_ranked(static_cast<stxlib::u32>(count), ballots, huge)) == reference);
+    CHECK(outcome_text(voting::count_preference_ranked(static_cast<stxlib::u32>(count), ballots, near_huge)) == reference);
+
+    voting::Ballots aliased{};
+    const std::vector<voting::Candidate> first = {3, 1, 2, 0};
+    CHECK(add_ballot(aliased, first, 1));
+    bool copied = true;
+    for (usize round = 0; round < 40; ++round) {
+        copied = aliased.add(aliased.ranking(round)).succeeded() && copied;
+    }
+    CHECK(copied && aliased.distinct() == 41);
+    bool same = true;
+    for (usize index = 0; index < aliased.distinct(); ++index) {
+        const stxlib::View<voting::Candidate> view = aliased.ranking(index);
+        same = same && view.count() == 4 && view[0] == 3 && view[1] == 1 && view[2] == 2 && view[3] == 0;
+    }
+    CHECK(same);
+}
+
 } // namespace
 
 int main(const int argument_count, char** const arguments) {
@@ -238,5 +305,6 @@ int main(const int argument_count, char** const arguments) {
     }
     reference_cases(arguments[1]);
     weighted_ballots();
+    audit_cases();
     return stxlib_tests::finish("stxlib voting");
 }

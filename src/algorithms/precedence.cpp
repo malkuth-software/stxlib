@@ -455,9 +455,13 @@ PrecedenceStatus Chain::advance(const WallTime now, Certificate& certificate) no
         block_ = static_cast<Buffer<hash::Digest>&&>(next_block_);
         next_block_ = static_cast<Buffer<hash::Digest>&&>(finished);
     }
-    const hash::Digest next_seed = ratchet(seed_);
+    // next_seed is erased too, as the block-end copy above is: after the
+    // next advance it would be a seed the chain says is gone (audit
+    // 2026-11-15, A-stxlib-algorithms-01-F2).
+    hash::Digest next_seed = ratchet(seed_);
     erase_secret();
     seed_ = next_seed;
+    erase(next_seed);
     ++epoch_;
     return PrecedenceStatus::ok;
 }

@@ -77,6 +77,8 @@ public:
     // grow; the ballots are then unchanged.
     [[nodiscard]] Status add(View<Candidate> ranking) noexcept;
     // Adds `copies` identical ballots without storing each. Failures as add.
+    // The ranking may be a view of these same ballots (ranking(k)): it is
+    // copied correctly even when the storage grows.
     [[nodiscard]] Status add_copies(View<Candidate> ranking, u64 copies) noexcept;
     [[nodiscard]] usize distinct() const noexcept { return distinct_; }
     // Borrowed from these ballots: valid until the next add or clear.

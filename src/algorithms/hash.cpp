@@ -53,11 +53,16 @@ STXLIB_MODULAR void mix(u32 (&v)[16], const usize a, const usize b, const usize 
 
 } // namespace
 
+// Every byte is compared, whatever differs first, so a keyed digest (a MAC)
+// checked with == does not leak by its timing how many leading bytes of a
+// forged tag are right (audit 2026-11-15, A-stxlib-algorithms-01-F3).
 bool Digest::operator==(const Digest& other) const noexcept {
+    u32 difference = 0;
     for (usize index = 0; index < digest_bytes; ++index) {
-        if (bytes[index] != other.bytes[index]) return false;
+        difference |= static_cast<u32>(bytes[index] ^ other.bytes[index]);
     }
-    return true;
+    const bool result = difference == 0;
+    return result;
 }
 
 bool Digest::operator!=(const Digest& other) const noexcept {
@@ -118,6 +123,16 @@ void Blake2s::compress(const bool last) noexcept {
         mix(v, 3, 4, 9, 14, message[order[14]], message[order[15]]);
     }
     for (usize word = 0; word < 8; ++word) state_[word] ^= v[word] ^ v[word + 8];
+    // The block and the working state hold the hashed bytes (a precedence
+    // seed, a key): erased so they do not outlive the call in the dead frame
+    // (audit 2026-11-15, A-stxlib-algorithms-01-F2). Word stores through
+    // volatile, as secure_erase does for bytes: 32 stores a block.
+    volatile u32* const message_words = message;
+    volatile u32* const state_words = v;
+    for (usize word = 0; word < 16; ++word) {
+        message_words[word] = 0;
+        state_words[word] = 0;
+    }
 }
 
 // A full buffer is compressed only when more input follows, since the last
