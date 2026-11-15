@@ -2,6 +2,7 @@
 
 // Everything stxlib::boundary offers, for consumers that want one include.
 
+#include "stxlib/ascii.hpp"
 #include "stxlib/buffer.hpp"
 #include "stxlib/callback.hpp"
 #include "stxlib/capabilities.hpp"
@@ -17,6 +18,7 @@
 #include "stxlib/files.hpp"
 #include "stxlib/gate.hpp"
 #include "stxlib/handle.hpp"
+#include "stxlib/heap.hpp"
 #include "stxlib/identity.hpp"
 #include "stxlib/local_time.hpp"
 #include "stxlib/memory.hpp"
@@ -26,6 +28,7 @@
 #include "stxlib/require.hpp"
 #include "stxlib/shared.hpp"
 #include "stxlib/result.hpp"
+#include "stxlib/search.hpp"
 #include "stxlib/shadow.hpp"
 #include "stxlib/text.hpp"
 #include "stxlib/terminal.hpp"
@@ -33,6 +36,7 @@
 #include "stxlib/thread_pool.hpp"
 #include "stxlib/threads.hpp"
 #include "stxlib/trampoline.hpp"
+#include "stxlib/transcode.hpp"
 #include "stxlib/types.hpp"
 #include "stxlib/unique.hpp"
 #include "stxlib/vector.hpp"

@@ -259,6 +259,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/threads.cpp
     src/core/trampoline.cpp
     src/core/vocabulary.cpp
+    src/core/transcode.cpp
     src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
@@ -465,7 +466,7 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary owned_vocabulary owned_text gate memory trampoline shadow platform path files children threads thread_pool local_time)
+    foreach(test_name IN ITEMS vocabulary owned_vocabulary owned_text ascii_search heap transcode gate memory trampoline shadow platform path files children threads thread_pool local_time)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
