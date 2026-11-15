@@ -1257,7 +1257,8 @@ if(STXLIB_TESTS)
             "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
             "foreign_free|ANY"
             "foreign_delete|ANY"
-            "gate_cancelled|stxlib: fail fast: stxlib\\.tests\\.cancel: interrupted.*thread cancellation or pthread_exit")
+            "gate_cancelled|stxlib: fail fast: stxlib\\.tests\\.cancel: interrupted.*thread cancellation or pthread_exit"
+            "pool_caller_reentry|stxlib: fail fast: stxlib\\.thread_pool\\.run: invalid_argument.*holds the pool")
         # Emscripten's malloc is not known to check a foreign free (dlmalloc,
         # src/settings.js MALLOC; its checks were not read at the pin): the
         # two cases that end in the host's own check are not run there.

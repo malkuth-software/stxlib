@@ -24,9 +24,13 @@
 // every batch of a one-thread pool, runs on the calling thread in index
 // order; larger batches run on the workers only, in unspecified order. begin
 // always uses the workers, including for one task; the thread that called
-// begin must call wait. Tasks stay borrowed until run or wait returns. A
-// task must not call into its own pool: run, begin and wait called on one
-// of the pool's workers are refused (PoolFailure::called_from_worker).
+// begin must call wait; wait on another thread while that batch is open is
+// refused (PoolFailure::not_batch_owner) and leaves the batch open. Tasks
+// stay borrowed until run or wait returns. A task must not call into its
+// own pool: run, begin and wait called on one of the pool's workers are
+// refused (PoolFailure::called_from_worker); run, begin or destruction from
+// a task that run is running on the calling thread fails fast
+// (PoolFailure::batch_still_open), since the caller holds the pool.
 // POSIX thread cancellation is held off during run, from begin until wait
 // returns, and on the workers (threads.hpp, "POSIX thread cancellation").
 //
@@ -76,7 +80,9 @@ enum class PoolFailure : u32 {
     task_without_function = 5, // a task whose function is null
     called_from_worker = 6,    // run, begin or wait on one of the pool's workers
     too_many_threads = 7,      // create above maximum_pool_threads
-    batch_still_open = 8,      // (fails fast) destroy, begin or run with this thread's batch open
+    batch_still_open = 8,      // (fails fast) destroy, begin or run with this thread's batch open,
+                               // or from a task run on the caller (its own pool)
+    not_batch_owner = 9,       // wait on a thread other than begin's while that batch is open
 };
 
 // The most worker threads one pool holds. A bound of STXlib's (audit A,
