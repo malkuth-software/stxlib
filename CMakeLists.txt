@@ -487,6 +487,7 @@ set(stxlib_math_options ${stxlib_fp_options})
 set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
+    src/algorithms/case_folding.cpp
     src/algorithms/hash.cpp
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
@@ -589,6 +590,16 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # Simple case folding (C7): every code point against CaseFolding.txt,
+    # read by the test's own parser; and the committed table is the
+    # generator's output for the pinned file.
+    add_executable(stxlib_case_folding_tests tests/case_folding_tests.cpp)
+    target_link_libraries(stxlib_case_folding_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_case_folding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_case_folding_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_case_folding_tests
+        COMMAND stxlib_case_folding_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
+    set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
@@ -910,6 +921,10 @@ if(STXLIB_TESTS)
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_std_rules.py
                     --profile stxlib --root ${CMAKE_CURRENT_SOURCE_DIR}
                     ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        add_test(NAME stxlib_case_folding_table
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_case_folding.py --check
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})

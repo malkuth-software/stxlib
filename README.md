@@ -64,6 +64,7 @@ vocabulary and services and make no host call of their own.
 | SIMD level (detection, one selection per process) | `simd.hpp` | batch 3c |
 | numeric text (locale-free formatting into caller storage, parsing, scanning) | `numeric_text.hpp` | batch 3c2 |
 | calendar (civil arithmetic, weekdays, ISO 8601 text) | `calendar.hpp` | batch 3c2 |
+| simple Unicode case folding (Unicode 18.0.0, C and S mappings; fold, measure, compare) | `case_folding.hpp` | M2 C7 |
 | precedence chain (hash-only proof of recording order) | `precedence.hpp` | batch 3c3 |
 | Preference Ranked Voting | `voting.hpp` | batch 3c4 |
 | math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic; the same bits on every target; no subnormals in or out) | `math.hpp` | batch 3c5; subnormal rule batch 3c8 |
