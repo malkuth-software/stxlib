@@ -50,7 +50,14 @@
 //   can serve from the thread's own cached blocks still succeeds, any other
 //   returns null; a release its common path can finish still frees the
 //   block, any other returns at once and leaves the block in place
-//   (src/state/stx_minmallocpp/allocator.hpp, "Process end");
+//   (src/state/stx_minmallocpp/allocator.hpp, "Process end"). Only blocks
+//   the calling thread already has cached can be served: a thread that
+//   never allocated before (its heap is the unbound sentinel, with nothing
+//   cached) gets null for every size, as does any request whose class the
+//   thread holds no free block of. Detach code usually runs on the thread
+//   that called ExitProcess, which may never have allocated through
+//   STXlib; then every allocation fails there, as on the host backend
+//   (tests/allocator_exit_library.cpp is such a case);
 // - host with the tags turned OFF: no lock of STXlib's is taken, and malloc
 //   and free behave as the C runtime makes them.
 // Either way nothing waits, and nothing more is given back: termination
