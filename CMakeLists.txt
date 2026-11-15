@@ -151,6 +151,39 @@ add_compile_definitions($<$<CONFIG:Debug>:STXLIB_FLOAT_CHECKS>)
 if(MINGW)
     add_compile_definitions(__USE_MINGW_ANSI_STDIO=0)
 endif()
+# Unstable order made visible (R4; audit B, 3.16, the sort rule): with
+# libc++, _LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY shuffles ranges
+# around std::sort, std::nth_element and std::partial_sort, where the
+# standard leaves the order of equivalent elements open
+# (libcxx/include/__debug_utils/randomize_range.h; libc++ 15 and later;
+# the shuffle is skipped in constant evaluation), so code that relies on the order of equal elements
+# fails a test instead of passing on one library and not another. The seed
+# is the address of a static (libcxx/include/__algorithm/shuffle.h), so it
+# varies per run under address randomisation; STXLIB_UNSTABLE_ORDER_SEED
+# fixes it to reproduce a failure. A directory definition, so the library
+# and the tests that link it see the same inline algorithms. Test builds
+# with libc++ only; libstdc++ has no such switch.
+set(stxlib_randomize_default OFF)
+if(STXLIB_TESTS)
+    check_cxx_source_compiles("
+        #include <version>
+        #if !defined(_LIBCPP_VERSION) || _LIBCPP_VERSION < 15000
+        #error not libc++ 15 or later
+        #endif
+        int main() { return 0; }" STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
+    if(STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
+        set(stxlib_randomize_default ON)
+    endif()
+endif()
+option(STXLIB_RANDOMIZE_UNSTABLE_ORDER "Shuffle equal elements in unstable sorts (libc++ test builds)"
+    ${stxlib_randomize_default})
+set(STXLIB_UNSTABLE_ORDER_SEED "" CACHE STRING "A fixed seed for STXLIB_RANDOMIZE_UNSTABLE_ORDER (empty: per run)")
+if(STXLIB_RANDOMIZE_UNSTABLE_ORDER)
+    add_compile_definitions(_LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY)
+    if(NOT STXLIB_UNSTABLE_ORDER_SEED STREQUAL "")
+        add_compile_definitions(_LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY_SEED=${STXLIB_UNSTABLE_ORDER_SEED})
+    endif()
+endif()
 
 # ---- stxlib_state -----------------------------------------------------------
 # The one owner of STXlib's per-thread and per-process state
@@ -255,6 +288,7 @@ endif()
 
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
+    src/core/atomic_rules.cpp
     src/core/capabilities.cpp
     src/core/children.cpp
     src/core/console.cpp
@@ -869,6 +903,15 @@ if(STXLIB_TESTS)
     if(Python3_Interpreter_FOUND)
         add_test(NAME stxlib_public_headers
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_public_headers.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # The governance check (R4; audit B, section 3.16): the standard
+        # library rules over STXlib's own sources, and the check's own tests.
+        add_test(NAME stxlib_std_rules
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_std_rules.py
+                    --profile stxlib --root ${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        add_test(NAME stxlib_std_rules_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).

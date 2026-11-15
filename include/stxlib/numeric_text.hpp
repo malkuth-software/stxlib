@@ -198,6 +198,7 @@ inline constexpr bool integer_value = false;
 template <> inline constexpr bool integer_value<char> = true;
 template <> inline constexpr bool integer_value<signed char> = true;
 template <> inline constexpr bool integer_value<unsigned char> = true;
+// std-rules: allow(wide-text) classifies the type for to_text; no wide text is handled
 template <> inline constexpr bool integer_value<wchar_t> = true;
 template <> inline constexpr bool integer_value<char8_t> = true;
 template <> inline constexpr bool integer_value<char16_t> = true;

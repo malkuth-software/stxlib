@@ -24,7 +24,7 @@ Planned layout:
 | `proofs/` | proof harnesses and the proof report |
 | `trust/` | the trust-chain checker |
 | `tests/` | conformance, equivalence and death tests |
-| `tools/` | repository checks (`check_public_headers.py`) |
+| `tools/` | repository checks (`check_public_headers.py`; `check_std_rules.py`, the governance check over STXlib's sources, which consumers can run over theirs: `python3 -I tools/check_std_rules.py --list-rules`) |
 
 ## Platform layer
 
