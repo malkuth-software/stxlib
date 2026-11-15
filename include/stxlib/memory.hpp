@@ -22,8 +22,8 @@
 //
 // Backend (STXLIB_ALLOCATOR, CMakeLists.txt): STXlib's own allocator,
 // stx_minmallocpp (src/state/stx_minmallocpp), by default; the host's C
-// library in sanitizer builds; or the vendored mimalloc v3.6.1 when chosen
-// by name. backend() says which is linked.
+// library in sanitizer builds and on Emscripten. backend() says which is
+// linked.
 //
 // Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: on in Debug and
 // sanitizer builds): release ends the process with a report when given a
@@ -31,11 +31,10 @@
 // free of a block from allocate is handed an address no allocation starts
 // at. Release decides whether an address can be one of its blocks before it
 // reads any byte at or around it, so a foreign address is refused without
-// touching that memory: by mimalloc's page-map query with mimalloc, by a
-// registry of live blocks with the host backend (allocator.cpp states the
-// argument for each). stx_minmallocpp needs no tag: it refuses anything
-// that is not a live block of its own, in every build. tags_checked() says
-// whether this build checks.
+// touching that memory: by a registry of live blocks with the host backend
+// (allocator.cpp states the argument). stx_minmallocpp needs no tag: it
+// refuses anything that is not a live block of its own, in every build.
+// tags_checked() says whether this build checks.
 //
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.
@@ -47,7 +46,7 @@ namespace stxlib::memory {
 
 enum class Backend : u8 {
     host = 1,
-    mimalloc = 2,
+    // 2 was the C mimalloc, removed (the owner, 2026-11-15); not reused.
     // STXlib's own allocator (src/state/stx_minmallocpp), chosen with
     // STXLIB_ALLOCATOR=stx_minmallocpp. It refuses a release of anything
     // that is not a live block of its own in every build, so tags_checked()
@@ -70,11 +69,6 @@ enum class Backend : u8 {
 // Releases a block from allocate; null is a no-op. A block from anywhere
 // else, or released twice, ends the process in the tag-checking mode and is
 // undefined behaviour otherwise.
-//
-// Both end the process through fail_fast (an internal_failure record,
-// operation stxlib.memory.heap) once the allocator has detected heap
-// corruption, in this call or an earlier one on any thread (mimalloc's
-// EFAULT; the host backend detects none).
 STXLIB_NO_UNWIND void release(void* address) noexcept;
 
 } // namespace stxlib::memory

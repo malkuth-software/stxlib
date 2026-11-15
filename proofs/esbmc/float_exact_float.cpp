@@ -21,8 +21,8 @@
 #include "core/float_exact.hpp"
 
 extern "C" float __VERIFIER_nondet_float(void);
-extern "C" void __ESBMC_assume(_Bool);
-extern "C" void __ESBMC_assert(_Bool, const char*);
+extern "C" void __ESBMC_assume(bool);
+extern "C" void __ESBMC_assert(bool, const char*);
 
 namespace fe = stxlib::float_exact;
 

@@ -97,4 +97,4 @@ vocabulary and services and make no host call of their own.
 | row height index (stx_btree's sequence tree behind a compiled facade: offsets, rows at offsets, cursors) | `row_height_index.hpp` | batch 3c6 |
 | ordered map (stx_btree's unsync map and pooled pages; private, no interface yet) | none (`src/algorithms/stx_btree/unsync_map.hpp`) | batch 3c7 |
 
-Licence: MIT (see `LICENSE`). STXlib's own allocator, stx_minmallocpp, is a conversion of mimalloc's design and carries mimalloc's MIT notice (`src/state/stx_minmallocpp/NOTICE`). Third-party code keeps its own licence: mimalloc is MIT (`third_party/mimalloc/LICENSE`); stx_btree, a C++ form of bbtree, is MIT with its own notice (`src/algorithms/stx_btree/LICENSE`, `NOTICE`); FreeBSD components keep their BSD licences.
+Licence: MIT (see `LICENSE`). STXlib's own allocator, stx_minmallocpp, is a conversion of mimalloc's design and carries mimalloc's MIT notice (`src/state/stx_minmallocpp/NOTICE`). Third-party code keeps its own licence: stx_btree, a C++ form of bbtree, is MIT with its own notice (`src/algorithms/stx_btree/LICENSE`, `NOTICE`); FreeBSD components keep their BSD licences.

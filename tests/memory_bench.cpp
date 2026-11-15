@@ -1,8 +1,8 @@
 // A benchmark of stxlib::memory (include/stxlib/memory.hpp), whatever
 // backend stxlib_state was built with, beside the host's malloc as a
 // reference. Not a test: it checks nothing and is not registered with
-// ctest. Build it in two configurations (STXLIB_ALLOCATOR=mimalloc and
-// stx_minmallocpp) and compare the columns.
+// ctest. Build it with STXLIB_ALLOCATOR=stx_minmallocpp (or host) and
+// compare the columns.
 //
 // Each workload is run `repeats` times and the best time is reported, in
 // nanoseconds per operation (an allocate or a release is one operation).
@@ -219,7 +219,6 @@ int main(const int argument_count, const char* const* const arguments) {
         return 0;
     }
     const char* backend = "host";
-    if (stxlib::memory::backend() == stxlib::memory::Backend::mimalloc) backend = "mimalloc";
     if (stxlib::memory::backend() == stxlib::memory::Backend::stx_minmallocpp) backend = "stx_minmallocpp";
     std::printf("stxlib::memory backend: %s, tags checked: %d\n", backend, stxlib::memory::tags_checked() ? 1 : 0);
     std::printf("%-22s %9s %9s %8s   (ns per operation, best of %d)\n", "workload", "stxlib", "malloc", "ratio", repeats);

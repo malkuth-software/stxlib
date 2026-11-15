@@ -10,7 +10,8 @@
 // DLL_THREAD_DETACH is sent at process termination or for TerminateThread,
 // so termination releases nothing (rule 1 as reworded). A module's TLS
 // callbacks receive the same reasons. The callback sits in .CRT$XLY, as
-// mimalloc's prim/windows/prim.c places its detach callback in this module.
+// mimalloc v3.6.1 (upstream src/prim/windows/prim.c, no longer vendored)
+// places its own detach callback.
 //
 // The hook runs under the loader lock. Microsoft's "Dynamic-Link Library
 // Best Practices" lists what never to do there, among it calling functions

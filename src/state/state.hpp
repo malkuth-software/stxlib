@@ -32,9 +32,12 @@
 // thread-exit hook releases; the only thread_local is a trivially
 // destructible ThreadFlags anchor (identity, fail-fast depth and flag, the
 // hook phase), and consumers register their own per-thread records
-// (include/stxlib/thread_records.hpp). Layout 10 also gives AllocatorCalls
-// `heap_failure`, the allocator's report of detected heap corruption
-// (smi's mimalloc audit, D6).
+// (include/stxlib/thread_records.hpp). Layout 10 also gave AllocatorCalls
+// `heap_failure`, mimalloc's report of detected heap corruption (smi's
+// mimalloc audit, D6). Layout 11 (the owner, 2026-11-15; notes
+// decisions/2026-11-15-gui-forms-priority.md) removes it with the C
+// mimalloc: stx_minmallocpp stops the process itself on a contradiction in
+// its own state, and the host backend detects none.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -62,7 +65,7 @@
 // the anchor's failure reserve (ThreadFlags::reserve) and each other
 // facility says what it does without the block. The process state is a static
 // of stxlib_state with constant initialisation. The allocator's backend is
-// stx_minmallocpp (the default), mimalloc or malloc.
+// stx_minmallocpp (the default) or malloc.
 
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
@@ -89,7 +92,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 10;
+inline constexpr u32 layout_version = 11;
 
 // The build type's part of the layout: development builds (STXLIB_SHADOW)
 // lay ThreadState out differently from release builds, so the key the
@@ -389,18 +392,21 @@ enum class ReleaseOutcome : u8 {
     refused = 1,
 };
 
-// STXlib's one allocator (allocator.cpp; memory.hpp states the contract).
+// STXlib's one allocator (allocator.cpp, or stx_minmallocpp's
+// state_calls.cpp; memory.hpp states the contract). `allocate` returns null
+// for an alignment that is not a power of two: every backend tests it
+// itself (allocator.cpp's allocate_block, with and without tags;
+// stx_minmallocpp's allocate, on its common path and in allocate_general),
+// so memory.cpp does not test it again (the efficiency review's F8).
 // `backend` is memory::Backend's value; `tags_checked` whether this build
-// tags blocks and checks them on release. `heap_failure` is 0 until the
-// backend detects heap corruption, then its error code (mimalloc's EFAULT;
-// allocator.cpp, D6): memory.cpp reads it after every call and fails fast.
-// It is set once and never cleared.
+// tags blocks and checks them on release. One constant-initialised const
+// object per stxlib_state, never changed, so a module may keep its address
+// (memory.cpp).
 struct AllocatorCalls final {
     void* (*allocate)(usize size, usize alignment) noexcept;
     ReleaseOutcome (*release)(void* address) noexcept;
     u8 backend;
     bool tags_checked;
-    const std::atomic<u32>* heap_failure;
 };
 
 // A per-thread record type (thread_records.hpp; E-thread-records.md). The

@@ -1,26 +1,64 @@
 // stxlib::memory (include/stxlib/memory.hpp) over the allocator that
-// stxlib_state owns (src/state/allocator.cpp), so every module STXlib is
-// linked into allocates from and releases to the same allocator. This file
-// keeps what belongs to each module's copy: refusing a bad alignment before
-// the call, the report when the allocator refuses a release, and the
-// fail-fast when the allocator has detected heap corruption.
+// stxlib_state owns (src/state/allocator.cpp, or stx_minmallocpp's
+// state_calls.cpp), so every module STXlib is linked into allocates from and
+// releases to the same allocator. This file keeps what belongs to each
+// module's copy: the module's binding to the allocator's calls and the
+// report when the allocator refuses a release. A bad alignment is refused
+// by the allocator itself (state.hpp, AllocatorCalls; the efficiency
+// review's F8), not tested again here.
 
 #include "stxlib/memory.hpp"
-
-#include "stxlib/error.hpp"
-#include "stxlib/fail_fast.hpp"
 
 #include "core/report.hpp"
 #include "hosted/host.hpp"
 #include "state/state.hpp"
 
+#include <atomic>
+#include <type_traits>
+
 namespace stxlib::memory {
 
 namespace {
 
-[[nodiscard]] bool power_of_two(const usize value) noexcept {
-    const bool result = value != 0 && (value & (value - 1)) == 0;
-    return result;
+// This module's binding to the allocator's calls (the efficiency review's
+// F9): a write-once memo (AGENTS, "Hard boundaries") of the address
+// state::allocator gives, the one AllocatorCalls object of stxlib_state,
+// constant-initialised and never changed (state.hpp). The first call in
+// the module asks stxlib_state through current_allocator, so a layout
+// mismatch still ends the process at the module's first allocator call;
+// every later call reads the memo, one relaxed load in place of a call into
+// stxlib_state. Relaxed is enough: the object behind the address is
+// constant data of stxlib_state's image, initialised before any code of
+// the process runs, so no store has to be made visible with it. Racing
+// first calls compute the same address; the first to store it wins and the
+// others keep what they computed, which is equal.
+//
+// Unload and reload: the memo is part of this module's image (stxlib_boundary
+// is linked statically into each module). Unloading the module discards
+// it; a reload maps it again, constant-initialised to null, and the first
+// call checks the layout again. The address it holds stays valid while the
+// module is loaded: the module depends on stxlib_state, so the dynamic
+// loader keeps stxlib_state loaded at least as long (beyond that, a shared
+// stxlib_state is built -z nodelete on Linux, and pins itself on Windows
+// once it arms a thread block: thread_exit_windows.cpp); in a static build
+// both are the same image.
+constinit std::atomic<const state::AllocatorCalls*> bound_calls{nullptr};
+
+static_assert(std::is_trivially_destructible_v<std::atomic<const state::AllocatorCalls*>>,
+              "rule 2: the memo has no destructor to run at exit");
+
+[[gnu::noinline]] const state::AllocatorCalls& bind_calls() noexcept {
+    const state::AllocatorCalls& calls = state::current_allocator();
+    const state::AllocatorCalls* expected = nullptr;
+    static_cast<void>(bound_calls.compare_exchange_strong(expected, &calls, std::memory_order_relaxed));
+    return calls;
+}
+
+[[nodiscard]] const state::AllocatorCalls& module_calls() noexcept {
+    const state::AllocatorCalls* const known = bound_calls.load(std::memory_order_relaxed);
+    if (known != nullptr) return *known;
+    const state::AllocatorCalls& bound = bind_calls();
+    return bound;
 }
 
 [[noreturn]] void reject_release() noexcept {
@@ -30,53 +68,26 @@ namespace {
     host::end_process_abnormally();
 }
 
-// The allocator detected heap corruption (state.hpp, AllocatorCalls::
-// heap_failure; allocator.cpp, D6). The heap cannot be trusted, so the
-// process ends here, before the block of the call that detected it reaches
-// its caller. fail_fast allocates nothing.
-[[noreturn]] void heap_corrupted(const u32 code) noexcept {
-#if defined(_WIN32)
-    constexpr ForeignFamily family = ForeignFamily::crt_errno;
-#else
-    constexpr ForeignFamily family = ForeignFamily::posix_errno;
-#endif
-    const ErrorRecord record = ErrorRecord::make(
-        ErrorKind::internal_failure, "stxlib.memory.heap",
-        ErrorDetail{.foreign = ForeignCode::of(family, static_cast<i64>(code)),
-                    .message = "the allocator detected heap corruption"});
-    fail_fast(record);
-}
-
-void check_heap(const state::AllocatorCalls& calls) noexcept {
-    const u32 code = (*calls.heap_failure).load(std::memory_order_relaxed);
-    if (code != 0) heap_corrupted(code);
-}
-
 } // namespace
 
 Backend backend() noexcept {
-    const Backend result = static_cast<Backend>(state::current_allocator().backend);
+    const Backend result = static_cast<Backend>(module_calls().backend);
     return result;
 }
 
 bool tags_checked() noexcept {
-    const bool result = state::current_allocator().tags_checked;
+    const bool result = module_calls().tags_checked;
     return result;
 }
 
 void* allocate(const usize size, const usize alignment) noexcept {
-    if (!power_of_two(alignment)) return nullptr;
-    const state::AllocatorCalls& calls = state::current_allocator();
-    void* const result = calls.allocate(size, alignment);
-    check_heap(calls);
+    void* const result = module_calls().allocate(size, alignment);
     return result;
 }
 
 void release(void* const address) noexcept {
     if (address == nullptr) return;
-    const state::AllocatorCalls& calls = state::current_allocator();
-    const state::ReleaseOutcome outcome = calls.release(address);
-    check_heap(calls);
+    const state::ReleaseOutcome outcome = module_calls().release(address);
     if (outcome == state::ReleaseOutcome::refused) reject_release();
 }
 

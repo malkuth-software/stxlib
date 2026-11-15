@@ -33,11 +33,19 @@
 // every thread that returns from its start routine or calls pthread_exit,
 // with the value the thread set. The key is made once, on the first heap.
 // The key's value is the truth about the thread: null (nothing armed), the
-// context it armed, or the ended mark, which the destructor leaves behind
-// so that an allocation later in the thread's exit sees that the hook has
-// run. The host clears a value before it calls the destructor and runs
-// destructors again for values set meanwhile, a fixed number of rounds
-// (PTHREAD_DESTRUCTOR_ITERATIONS); the mark is set again each round.
+// context it armed, or the ended mark, which end_thread sets and which the
+// destructor leaves behind so that an allocation later in the thread's
+// exit sees that the hook has run. The host clears a value before it calls
+// the destructor and runs destructors again for values set meanwhile, a
+// fixed number of rounds (PTHREAD_DESTRUCTOR_ITERATIONS); the destructor
+// sets the mark again each round it is called for, except on glibc. There
+// the thread's thread_local storage outlives every destructor round, so
+// current_heap (heap.cpp), set to ended_heap by thread_ending, says "ended"
+// by itself; and a value set from a destructor would bring this destructor
+// back in the last round, after ThreadSanitizer has finished the thread
+// (src/hosted/posix/thread_exit_posix.cpp gives the sources for both; the
+// SEGV of CI 43726327460). Elsewhere the mark stays (macOS frees thread_local
+// storage before key destructors; musl and FreeBSD are unread).
 
 #include "state/stx_minmallocpp/os.hpp"
 
@@ -76,7 +84,9 @@ constinit char ended_mark{0};
 // the mark.
 void exit_destructor(void* const context) {
     if (context != &ended_mark) thread_ending(context);
+#if !defined(__GLIBC__)
     static_cast<void>(::pthread_setspecific(exit_key, &ended_mark));
+#endif
 }
 
 // The calling thread's value of the key; null before the key exists.

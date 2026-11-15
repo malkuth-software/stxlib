@@ -1,7 +1,0 @@
-# STXlib's patch series for mimalloc (AGENTS.md; PROVENANCE.md, "mimalloc").
-# One patch file name per line, in the order the patches apply to the pinned
-# release. tools/check_mimalloc_patches.py reverse-applies them in reverse.
-0001-freebsd-overcommit-bits.patch
-0002-unix-yield-no-cancellation-point.patch
-0003-page-map-full-span.patch
-0004-no-implicit-reinit-after-thread-done.patch
