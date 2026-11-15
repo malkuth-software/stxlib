@@ -217,6 +217,10 @@ struct Pacing final {
     const i64 following = periods == i64_max ? i64_max : periods + 1;
     const i64 offset = detail::saturating_scale(following, step);
     result.next = origin.after(Duration::nanoseconds(offset));
+    // When the span itself saturated (origin and now more than i64_max
+    // apart), origin + offset can fall at or before now; the true tick then
+    // lies beyond the range, so the far end is returned.
+    if (result.next <= now) result.next = IntervalTime::from_nanoseconds(i64_max);
     return result;
 }
 
