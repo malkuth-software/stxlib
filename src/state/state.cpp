@@ -20,6 +20,19 @@
 // Both callbacks are called with every invariant of this file whole: the
 // record is unpublished (initialize) or already let go (release), and no
 // lock is held.
+//
+// Process end (the security audit's A-stxlib-allocator-state-01-F2). On
+// Windows, ExitProcess stops every other thread where it stands before the
+// modules' DLL_PROCESS_DETACH code runs on the exiting thread, and a
+// stopped thread may hold registry_lock or type_lock for ever. Once
+// thread_exit_backend::process_ending() says so, nothing here takes either:
+// a thread with no block gets none (degraded mode, as after a failed
+// allocation, but not recorded as one), a record type is not registered
+// (disposed), a record is not made (disposed), and the hook releases
+// nothing. Termination releases nothing anyway (rule 1 as reworded); only
+// the exiting thread runs then, so the moment the answer turns true needs
+// no ordering with other threads. The allocator makes the same test before
+// its own locks (allocator.cpp's registry, stx_minmallocpp's allocator.hpp).
 
 #include "state/state.hpp"
 
@@ -48,10 +61,17 @@ struct ThreadBlock final {
 struct Anchor final {
     ThreadFlags flags{};
     ThreadBlock* block{nullptr};
+    // With flags.block_failed: the block was refused because the host gave
+    // no thread-exit hook (RecordStatus::no_hook), not because its
+    // allocation failed (out_of_memory). Here rather than in ThreadFlags,
+    // which is part of the layout.
+    bool hook_refused{false};
 };
 
 static_assert(std::is_trivially_destructible_v<Anchor>, "rule 2: every thread_local is trivially destructible");
-static_assert(sizeof(Anchor) <= 2112, "the anchor (2,072 bytes by state.hpp's arithmetic) is the only TLS stxlib_state adds per thread");
+static_assert(sizeof(Anchor) <= 2112,
+              "the anchor (2,072 bytes by state.hpp's arithmetic, and hook_refused with its padding) is the only TLS "
+              "stxlib_state adds per thread");
 
 constinit thread_local Anchor anchor{};
 constinit ProcessState process_state_instance{};
@@ -68,6 +88,10 @@ constinit std::atomic<bool> type_lock{false};
 // on the loader lock).
 constinit ThreadBlock* registry_head{nullptr};
 constinit std::atomic<bool> registry_lock{false};
+
+// Neither lock is taken from the process's end on (the file comment,
+// "Process end"): block_for_thread, thread_record_register and end_thread
+// test thread_exit_backend::process_ending() before they take one.
 
 class STXLIB_EARLY_EXIT_LOCK FlagLock final {
 public:
@@ -149,12 +173,31 @@ bool note_loading_thread() noexcept {
 #endif
 
 // The calling thread's block, allocated on first use; null in degraded mode
-// (the hook has released it, or its allocation failed once). A thread whose
-// records ended before it touched STXlib still gets a block, in phase
-// ending.
+// (the hook has released it, or its allocation or hook failed once) and,
+// for a thread with no block, from the process's end on (see the file
+// comment). A thread whose records ended before it touched STXlib still
+// gets a block, in phase ending.
 STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
     if (anchor.block != nullptr) return anchor.block;
+    if (anchor.flags.phase != ThreadPhase::ended) {
+        void* const armed = thread_exit_backend::armed();
+        if (armed != nullptr) {
+            // The hook is armed with a block the anchor does not name: the
+            // anchor's storage was freed and made again before the hook ran
+            // (macOS; see end_thread). The block is whole; adopt it rather
+            // than make a second and re-arm, which would leave the first in
+            // the registry with its records for ever (the security audit's
+            // A-stxlib-allocator-state-01-F3). The flags start again as a
+            // fresh thread's, as they do in end_thread.
+            ThreadBlock* const adopted = static_cast<ThreadBlock*>(armed);
+            anchor.block = adopted;
+            if (anchor.flags.phase == ThreadPhase::none) anchor.flags.phase = ThreadPhase::live;
+            return adopted;
+        }
+    }
     if (!create || anchor.flags.phase == ThreadPhase::ended || anchor.flags.block_failed) return nullptr;
+    // link_block takes registry_lock.
+    if (thread_exit_backend::process_ending()) return nullptr;
     if (thread_exit_backend::ended()) {
         // The hook has released this thread's block, and the anchor's
         // storage was made again since (macOS; see end_thread): the thread
@@ -175,6 +218,7 @@ STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
         // No hook: a block nothing would release is never made.
         release_bytes(memory);
         anchor.flags.block_failed = true;
+        anchor.hook_refused = true;
         return nullptr;
     }
     link_block(*block);
@@ -235,6 +279,8 @@ RecordStatus thread_record_register(const u32 expected_layout, const ThreadRecor
     if (entry.size == 0 || entry.size > thread_record_size_limit || !alignment_valid) {
         return RecordStatus::invalid_argument;
     }
+    // type_lock may be held by a thread the process's end has stopped.
+    if (thread_exit_backend::process_ending()) return RecordStatus::disposed;
     const FlagLock lock(type_lock);
     const u32 count = type_count.load(std::memory_order_relaxed);
     if (count == thread_record_type_capacity) return RecordStatus::limit_exceeded;
@@ -253,7 +299,12 @@ RecordStatus thread_record_get(const u32 expected_layout, const u32 slot, void**
     ThreadBlock* const block = block_for_thread(true);
     if (block == nullptr) {
         if (anchor.flags.phase == ThreadPhase::ended) return RecordStatus::disposed;
-        return RecordStatus::out_of_memory;
+        // The security audit's A-stxlib-allocator-state-01-F6: a refused
+        // hook is no_hook, not out_of_memory; either refusal is for the
+        // thread's life (block_failed).
+        if (anchor.hook_refused) return RecordStatus::no_hook;
+        if (anchor.flags.block_failed) return RecordStatus::out_of_memory;
+        return RecordStatus::disposed;
     }
     if ((*block).records[slot] != nullptr) {
         *record = (*block).records[slot];
@@ -304,6 +355,12 @@ void thread_records_end(const u32 expected_layout) noexcept {
     if (anchor.block != nullptr) release_records(*anchor.block);
 }
 
+bool process_ending(const u32 expected_layout) noexcept {
+    if (expected_layout != layout_key) return false;
+    const bool result = thread_exit_backend::process_ending();
+    return result;
+}
+
 void note_thread_stack(const u32 expected_layout) noexcept {
     if (expected_layout != layout_key) return;
     note_stack_here();
@@ -337,6 +394,10 @@ namespace detail {
 // remaining destructor rounds, whatever the anchor's storage holds then.
 void end_thread(void* const armed) noexcept {
     if (armed == nullptr) return;
+    // unlink_block takes registry_lock (see the file comment, "Process
+    // end"). Windows sends no DLL_THREAD_DETACH at the process's end, so
+    // this is a guard, not a path.
+    if (thread_exit_backend::process_ending()) return;
     ThreadBlock* const block = static_cast<ThreadBlock*>(armed);
     const bool kept = anchor.block == block;
     if (!kept) anchor.block = block;

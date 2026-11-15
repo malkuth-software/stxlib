@@ -18,6 +18,31 @@
 // Not reentrant: a thread that takes a lock it holds waits forever. Every
 // holder in STXlib takes one lock and calls nothing that takes it again.
 //
+// Process end (the security audit's A-stxlib-allocator-state-01-F2, its
+// rule carried to the boundary). On Windows, ExitProcess stops every other
+// thread where it stands and then runs the modules' DLL_PROCESS_DETACH code
+// (a DLL's atexit tasks and static destructors among it) on the exiting
+// thread; a stopped thread may hold one of these locks for ever. So a
+// waiter asks state::process_ending before each wait: once it says so, a
+// lock that is held is refused (lock returns false, Guard::held is false)
+// instead of waited for. A lock that is free is still taken, since then no
+// stopped thread was inside it and what it guards is whole. The question
+// is asked only when the lock is found held, so an uncontended take costs
+// nothing more. Only the exiting thread runs then, so the moment the
+// answer turns true needs no ordering. On POSIX hosts and Emscripten the
+// answer is always false and no lock is ever refused; children_posix.cpp,
+// POSIX only, therefore does not test held(). What each other holder does
+// when refused:
+// - environment_lock (environment.cpp): read_variable, set_variable and
+//   remove_variable fail with interrupted; nothing is read or changed.
+// - exit_lock (process.cpp): register_exit_task fails with interrupted;
+//   run_exit_tasks stops, and the tasks still in the table do not run.
+// - console_output_lock (console.cpp): write_console and
+//   write_console_line fail with interrupted; nothing is written or
+//   flushed.
+// - console_input_lock (console.cpp): read_console_line fails with
+//   interrupted; the read-ahead is left as it is.
+//
 // Lock order (house style §5; audit A, X11). No STXlib spin lock is taken
 // under another, so there is no order among them. Where holding the lock is
 // the point, these host locks are taken under one:
@@ -43,10 +68,13 @@
 
 namespace stxlib::spin {
 
-inline void lock(state::SpinLock& target) noexcept {
+// Takes the lock; false only when it is held and the process is ending
+// (see "Process end" above), and then it is not taken.
+[[nodiscard]] inline bool lock(state::SpinLock& target) noexcept {
     u32 attempts = 0;
     while (target.held.exchange(1, std::memory_order_acquire) != 0) {
         while (target.held.load(std::memory_order_relaxed) != 0) {
+            if (state::process_ending(state::layout_key)) return false;
             if (attempts < 64) {
                 attempts = attempts + 1;
                 host::yield_thread();
@@ -55,20 +83,27 @@ inline void lock(state::SpinLock& target) noexcept {
             }
         }
     }
+    return true;
 }
 
 inline void unlock(state::SpinLock& target) noexcept { target.held.store(0, std::memory_order_release); }
 
-// Holds a lock for its own lifetime.
+// Holds a lock for its own lifetime, unless it was refused (held() false:
+// see "Process end" above); every holder on a host that can refuse tests
+// held() before it touches what the lock guards.
 class STXLIB_EARLY_EXIT_LOCK Guard final {
 public:
-    explicit Guard(state::SpinLock& target) noexcept : target_(target) { lock(target_); }
-    ~Guard() { unlock(target_); }
+    explicit Guard(state::SpinLock& target) noexcept : target_(target), held_(lock(target)) {}
+    ~Guard() {
+        if (held_) unlock(target_);
+    }
     Guard(const Guard&) = delete;
     Guard& operator=(const Guard&) = delete;
+    [[nodiscard]] bool held() const noexcept { return held_; }
 
 private:
     state::SpinLock& target_;
+    bool held_;
 };
 
 } // namespace stxlib::spin

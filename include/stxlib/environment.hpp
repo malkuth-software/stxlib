@@ -45,5 +45,9 @@ inline constexpr usize maximum_environment_bytes = 32767;
 [[nodiscard]] Status set_variable(TextView name, TextView value) noexcept;
 // Removes the variable; succeeds when it was not set.
 [[nodiscard]] Status remove_variable(TextView name) noexcept;
+//
+// Each of the three also fails with interrupted, having read or changed
+// nothing, when the process is ending on Windows (ExitProcess has stopped
+// the other threads) and another thread holds the environment lock.
 
 } // namespace stxlib

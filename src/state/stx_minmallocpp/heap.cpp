@@ -565,6 +565,8 @@ bool ensure_started() noexcept {
 }
 
 void* refill(Heap& heap, const usize class_index) noexcept {
+    // Every way on takes a lock (allocator.hpp, "Process end").
+    if (os::process_ending()) return nullptr;
     if (heap.owner == owner_unbound) {
         void* const served = refill_unbound(heap, class_index);
         return served;
@@ -575,6 +577,9 @@ void* refill(Heap& heap, const usize class_index) noexcept {
 
 void* allocate_singleton(const usize bytes, const usize alignment) noexcept {
     STX_MINMALLOCPP_CHECK(bytes >= 1 && bytes <= huge_threshold && alignment <= huge_threshold);
+    // A run of slices is taken under the structure lock (allocator.hpp,
+    // "Process end").
+    if (os::process_ending()) return nullptr;
     if (!ensure_started()) return nullptr;
     const usize slices = round_up(bytes, slice_bytes) >> slice_shift;
     const usize alignment_slices = alignment <= slice_bytes ? 1 : alignment >> slice_shift;

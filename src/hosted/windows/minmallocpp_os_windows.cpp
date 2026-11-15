@@ -1,7 +1,9 @@
 // stx_minmallocpp's host layer on Windows (src/state/stx_minmallocpp/
 // os.hpp). The whole host surface of the allocator is here: VirtualAlloc,
 // VirtualFree, GetSystemInfo, SwitchToThread, abort, and a TLS callback for
-// the thread-exit hook. kernel32 and the C runtime's abort only.
+// the thread-exit hook, and the process-end query (ntdll's
+// RtlDllShutdownInProgress, found with GetModuleHandleW and GetProcAddress).
+// kernel32, that one ntdll export and the C runtime's abort only.
 //
 // Reserving. VirtualAlloc with MEM_RESERVE and PAGE_NOACCESS. Windows
 // cannot trim a reservation, so an aligned one is made by reserving
@@ -24,17 +26,33 @@
 // termination and TerminateThread send no DLL_THREAD_DETACH, which is the
 // owner's rule that termination frees nothing.
 //
-// Open (the logic review's L-05, suspected): when a process ends, Windows
-// stops every other thread where it stands, and one of them may hold an
-// allocator lock; a release or slow-path allocation made after that, during
-// process detach, would then wait for ever. Not handled here; to be
-// settled on a Windows run.
-//
+// Process end (the logic review's L-05; the security audit's
+// A-stxlib-allocator-state-01-F2). ExitProcess stops every other thread
+// where it stands, then calls each module's DLL_PROCESS_DETACH on the
+// exiting thread (DllMain's page: lpReserved is non-null "if the process
+// is terminating"); a stopped thread may hold an allocator lock that is
+// never let go. process_ending() says when that has begun, and the
+// allocator then takes no lock (allocator.hpp, "Process end"). It asks
+// ntdll's RtlDllShutdownInProgress (Microsoft Learn, "RtlDllShutdownInProgress
+// function", devnotes: exported by ntdll.dll, no SDK header, so it is
+// looked up by name; TRUE while the process is shutting down). It is taken
+// to turn true before the first module's DLL_PROCESS_DETACH, so that a
+// module that depends on this one and is detached before it is covered
+// too (unconfirmed: the loader's order is not documented; a Windows run is
+// to show it). The
+// lookup is made once, in this callback's DLL_PROCESS_ATTACH, under the
+// loader lock, with GetModuleHandleW on ntdll (always loaded) and
+// GetProcAddress, neither of which loads a module. Where the lookup finds
+// nothing, this module's own DLL_PROCESS_DETACH with a non-null lpReserved
+// sets a flag that says the same from then on. A FreeLibrary of the module
+// (lpReserved null) leaves the other threads running and sets nothing.
+
 // Not yet built. The MinGW form of the callback (MSYS2 CLANG64) is the one
 // written; no other Windows toolchain is supported.
 
 #include "state/stx_minmallocpp/os.hpp"
 
+#include <atomic>
 #include <cstdlib>
 
 #if !defined(WIN32_LEAN_AND_MEAN)
@@ -51,9 +69,35 @@ namespace {
 
 constexpr u32 reserve_attempts = 8;
 
+// RtlDllShutdownInProgress: BOOLEAN NTAPI (void), declared here because no
+// SDK header does.
+using ShutdownQuery = BOOLEAN(NTAPI*)();
+
+// Set once at process attach; null when ntdll gave nothing.
+constinit std::atomic<ShutdownQuery> shutdown_query{nullptr};
+// Set at this module's DLL_PROCESS_DETACH when the process is ending.
+constinit std::atomic<bool> process_detached{false};
+
+void find_shutdown_query() noexcept {
+    const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+    if (ntdll == nullptr) return;
+    const FARPROC found = ::GetProcAddress(ntdll, "RtlDllShutdownInProgress");
+    if (found == nullptr) return;
+    // Through void*, which Windows' function and data pointers share.
+    const ShutdownQuery query = reinterpret_cast<ShutdownQuery>(reinterpret_cast<void*>(found));
+    shutdown_query.store(query, std::memory_order_release);
+}
+
 void NTAPI thread_callback(PVOID module, const DWORD reason, PVOID reserved) {
     static_cast<void>(module);
-    static_cast<void>(reserved);
+    if (reason == DLL_PROCESS_ATTACH) {
+        find_shutdown_query();
+        return;
+    }
+    if (reason == DLL_PROCESS_DETACH) {
+        if (reserved != nullptr) process_detached.store(true, std::memory_order_release);
+        return;
+    }
     if (reason == DLL_THREAD_DETACH) thread_ending(nullptr);
 }
 
@@ -112,6 +156,13 @@ bool thread_has_ended() noexcept { return false; }
 
 // The callback finds the thread's pointer already at the ended sentinel.
 void mark_thread_ended() noexcept {}
+
+bool process_ending() noexcept {
+    if (process_detached.load(std::memory_order_acquire)) return true;
+    const ShutdownQuery query = shutdown_query.load(std::memory_order_acquire);
+    const bool result = query != nullptr && query() != FALSE;
+    return result;
+}
 
 } // namespace stxlib::stx_minmallocpp::os
 

@@ -29,6 +29,9 @@ void run_exit_tasks() {
         state::ExitTaskEntry next{};
         {
             const spin::Guard lock(process.exit_lock);
+            // Refused at the process's end (spin_lock.hpp): the tasks left
+            // in the table do not run.
+            if (!lock.held()) return;
             if (process.exit_task_count == 0) return;
             process.exit_task_count = process.exit_task_count - 1;
             next = process.exit_tasks[process.exit_task_count];
@@ -46,6 +49,9 @@ Status register_exit_task(const CallbackTarget<void()> task) noexcept {
     }
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.exit_lock);
+    if (!lock.held()) {
+        return host_failure::failed(ErrorKind::interrupted, "stxlib.process.register_exit_task", HostCode::none);
+    }
     if (process.exit_task_count == maximum_exit_tasks) {
         return host_failure::failed(ErrorKind::limit_exceeded, "stxlib.process.register_exit_task",
                                     HostCode::table_full);

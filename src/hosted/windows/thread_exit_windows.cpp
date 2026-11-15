@@ -22,6 +22,24 @@
 //
 // The shared stxlib_state pins itself on its first armed block, so it is
 // never unloaded under a thread whose block it still holds.
+//
+// Process end (the security audit's A-stxlib-allocator-state-01-F2).
+// ExitProcess stops every other thread where it stands and then runs the
+// modules' DLL_PROCESS_DETACH code on the exiting thread; a stopped thread
+// may hold the registry's or the type table's lock, or the host backend's
+// registry lock, for ever. process_ending() says when that has begun, from
+// ntdll's RtlDllShutdownInProgress (Microsoft Learn, devnotes: exported by
+// ntdll.dll, declared by no SDK header; minimum Windows 10), looked up once
+// in this callback's DLL_PROCESS_ATTACH with GetModuleHandleW and
+// GetProcAddress (ntdll is always loaded; neither call loads a module).
+// It is taken to be true before the first module is detached, so a module
+// that depends on stxlib_state and is detached before it is covered
+// (unconfirmed: the loader's order is not documented; a Windows run is to
+// show it). Where the lookup finds nothing, this module's own
+// DLL_PROCESS_DETACH with a non-null lpReserved (DllMain's page: non-null
+// when the process is terminating) sets a flag that says the same from
+// then on. stx_minmallocpp asks the same question for its own locks
+// (minmallocpp_os_windows.cpp).
 
 #include "hosted/thread_exit_backend.hpp"
 
@@ -43,7 +61,34 @@ constinit std::atomic<bool> pinned{false};
 #endif
 constinit thread_local void* armed_block{nullptr};
 
-void NTAPI thread_exit_callback(PVOID, const DWORD reason, PVOID) {
+// RtlDllShutdownInProgress: BOOLEAN NTAPI (void), declared here because no
+// SDK header does.
+using ShutdownQuery = BOOLEAN(NTAPI*)();
+
+// Set once at process attach; null when ntdll gave nothing.
+constinit std::atomic<ShutdownQuery> shutdown_query{nullptr};
+// Set at this module's DLL_PROCESS_DETACH when the process is ending.
+constinit std::atomic<bool> process_detached{false};
+
+void find_shutdown_query() noexcept {
+    const HMODULE ntdll = ::GetModuleHandleW(L"ntdll.dll");
+    if (ntdll == nullptr) return;
+    const FARPROC found = ::GetProcAddress(ntdll, "RtlDllShutdownInProgress");
+    if (found == nullptr) return;
+    // Through void*, which Windows' function and data pointers share.
+    const ShutdownQuery query = reinterpret_cast<ShutdownQuery>(reinterpret_cast<void*>(found));
+    shutdown_query.store(query, std::memory_order_release);
+}
+
+void NTAPI thread_exit_callback(PVOID, const DWORD reason, PVOID reserved) {
+    if (reason == DLL_PROCESS_ATTACH) {
+        find_shutdown_query();
+        return;
+    }
+    if (reason == DLL_PROCESS_DETACH) {
+        if (reserved != nullptr) process_detached.store(true, std::memory_order_release);
+        return;
+    }
     if (reason != DLL_THREAD_DETACH) return;
     void* const block = armed_block;
     if (block == nullptr) return;
@@ -93,6 +138,18 @@ bool arm(void* const block) noexcept {
 // hook the anchor itself says ended; nothing here frees it early, as macOS
 // dyld does (state.cpp, end_thread).
 bool ended() noexcept { return false; }
+
+void* armed() noexcept {
+    void* const result = armed_block;
+    return result;
+}
+
+bool process_ending() noexcept {
+    if (process_detached.load(std::memory_order_acquire)) return true;
+    const ShutdownQuery query = shutdown_query.load(std::memory_order_acquire);
+    const bool result = query != nullptr && query() != FALSE;
+    return result;
+}
 
 } // namespace thread_exit_backend
 

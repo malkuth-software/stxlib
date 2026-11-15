@@ -13,7 +13,8 @@
 // mmap, mprotect, munmap, sched_yield and sysconf, the pthread key calls
 // pthread_key_create, pthread_setspecific and pthread_getspecific, and
 // abort; on Windows, VirtualAlloc, VirtualFree, GetSystemInfo,
-// SwitchToThread and abort; on Emscripten, emscripten_builtin_memalign and
+// SwitchToThread, GetModuleHandleW, GetProcAddress, ntdll's
+// RtlDllShutdownInProgress and abort; on Emscripten, emscripten_builtin_memalign and
 // emscripten_builtin_free in place of mmap, mprotect and munmap
 // (minmallocpp_os_emscripten.cpp gives the reasons). None can unwind.
 // mmap, mprotect, munmap and sched_yield are in neither list of
@@ -91,6 +92,20 @@ void yield() noexcept;
 // Tells the host that the calling thread has given up what it armed, so
 // the hook will not be called with it (end_thread, allocator.hpp).
 void mark_thread_ended() noexcept;
+
+// True once the process has begun to end in a way that stops its other
+// threads where they stand (Windows: ExitProcess, which stops every other
+// thread before it sends DLL_PROCESS_DETACH). A stopped thread may hold an
+// allocator lock for ever, so from then on the allocator takes none: its
+// slow paths refuse instead (allocator.hpp, "Process end"). False for the
+// whole run on POSIX hosts and Emscripten, where exit leaves the other
+// threads running until the process is gone. Takes no lock and calls
+// nothing that can wait or exit early.
+#if defined(_WIN32)
+[[nodiscard]] bool process_ending() noexcept;
+#else
+[[nodiscard]] inline bool process_ending() noexcept { return false; }
+#endif
 
 } // namespace stxlib::stx_minmallocpp::os
 

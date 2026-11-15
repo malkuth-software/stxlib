@@ -262,9 +262,10 @@ struct ThreadFlags final {
     // (fail_fast.hpp lists what a reporter may call).
     bool in_reporter{false};
     ThreadPhase phase{ThreadPhase::none};
-    // True once the block's allocation failed: degraded for the thread's
-    // life (a later block would pair a shadow leave with an unrecorded
-    // enter; E-thread-records.md, section 7).
+    // True once the block's allocation or its hook failed: degraded for the
+    // thread's life (a later block would pair a shadow leave with an
+    // unrecorded enter; E-thread-records.md, section 7). Which of the two is
+    // kept in stxlib_state's anchor (state.cpp), outside the layout.
     bool block_failed{false};
     // The thread's stack, [stack_low, stack_high), as STXlib found it on a
     // path that is not a failure (note_thread_stack;
@@ -444,9 +445,16 @@ enum class RecordStatus : u8 {
     layout_mismatch = 1,
     invalid_argument = 2, // a type out of range, an unknown slot, or a call from inside the slot's initialize
     limit_exceeded = 3,   // the type table is full
-    out_of_memory = 4,    // the record's allocation failed; a later call tries again
-    disposed = 5,         // this thread's records are ending or ended
-    no_hook = 6,          // the host gave no thread-exit hook (POSIX: no key), so nothing could be released
+    // The record's allocation failed, and a later call tries again; or the
+    // thread's block's allocation failed, which holds for the thread's life
+    // (ThreadFlags::block_failed).
+    out_of_memory = 4,
+    // This thread's records are ending or ended; or the process is ending
+    // (Windows: state.cpp, "Process end"), for register and get alike.
+    disposed = 5,
+    // The host gave no thread-exit hook (POSIX: no key), so nothing could be
+    // released; for the thread's life.
+    no_hook = 6,
 };
 
 // The calling thread's state (null in degraded mode or on a layout
@@ -477,6 +485,16 @@ STXLIB_STATE_API void thread_records_end(u32 expected_layout) noexcept;
 // itself at its load and at a thread's block, and core/threads.cpp at a
 // Thread's start. Never unwinds; no callback.
 STXLIB_STATE_API void note_thread_stack(u32 expected_layout) noexcept;
+
+// True once the process has begun to end in a way that stops its other
+// threads where they stand (Windows: ExitProcess, before any module's
+// DLL_PROCESS_DETACH; hosted/thread_exit_backend.hpp, process_ending), so
+// that a lock may be held for ever by a thread that will never run again.
+// False on POSIX hosts and Emscripten, and on a layout mismatch. The
+// boundary's spin locks ask it (core/spin_lock.hpp); stxlib_state's own
+// locks ask the backend directly (state.cpp, "Process end"). Takes no lock;
+// calls nothing that can wait or exit early.
+STXLIB_STATE_API bool process_ending(u32 expected_layout) noexcept;
 
 // Ends the process after a layout mismatch, writing `message` to the host's
 // error stream and aborting. It uses no thread state, so it cannot recurse

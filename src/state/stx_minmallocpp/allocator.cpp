@@ -54,6 +54,9 @@ namespace {
         void* const alone = allocate_singleton(request, alignment);
         return alone;
     }
+    // allocate_huge takes a lock (allocator.hpp, "Process end"); refill and
+    // allocate_singleton make the same test themselves.
+    if (os::process_ending()) return nullptr;
     if (!ensure_started()) return nullptr;
     // A mapping starts on a 1 GiB boundary, which meets every alignment
     // allocate accepts.
@@ -86,6 +89,10 @@ namespace {
 // that is already free. It decides everything again from the address, so
 // the common path hands over nothing but the address.
 [[gnu::noinline]] Release release_general(Heap& heap, void* const address) noexcept {
+    // A huge release, a release into another thread's page and an emptied
+    // page may each take a lock: from the process's end on, the block stays
+    // where it is (allocator.hpp, "Process end").
+    if (os::process_ending()) return Release::released;
     const uptr value = reinterpret_cast<uptr>(address);
     if ((value >> address_bits) != 0) return Release::refused;
     const u32 cell = directory_cell(static_cast<usize>(value >> region_shift));
@@ -138,6 +145,9 @@ namespace {
 
 // The common path released a page's last live block.
 [[gnu::noinline]] Release release_last(Heap& heap, PageMeta& page) noexcept {
+    // The block is free already; only the page's return, which may take a
+    // lock, is left out at the process's end.
+    if (os::process_ending()) return Release::released;
     release_emptied(heap, page);
     return Release::released;
 }
@@ -218,6 +228,7 @@ Release release(void* const address) noexcept {
 }
 
 void trim() noexcept {
+    if (os::process_ending()) return;
     Heap& heap = *current_heap;
     if (heap.owner == owner_unbound) {
         trim_orphan();
@@ -227,10 +238,23 @@ void trim() noexcept {
 }
 
 void end_thread() noexcept {
-    Heap* const heap = current_heap;
+    Heap* heap = current_heap;
+    if (heap == &unbound_heap) {
+        // The pointer reads as a fresh thread's either because the thread
+        // never allocated or because the host freed its thread_local
+        // storage while the thread still has a heap (os.hpp,
+        // armed_context; macOS dyld, from a key destructor of its own).
+        // The host still holds the heap the thread armed: give that up, so
+        // that marking the thread ended below does not lose it (the
+        // security audit's A-stxlib-allocator-state-01-F4).
+        void* const armed = os::armed_context();
+        if (armed != nullptr) heap = static_cast<Heap*>(armed);
+    }
     current_heap = &ended_heap;
     os::mark_thread_ended();
     if ((*heap).owner == owner_unbound) return;
+    // retire_heap takes locks (allocator.hpp, "Process end").
+    if (os::process_ending()) return;
     retire_heap(*heap);
 }
 
@@ -245,6 +269,7 @@ void thread_ending(void* const context) noexcept {
         return;
     }
     current_heap = &ended_heap;
+    if (os::process_ending()) return;
     retire_heap(*heap);
 }
 

@@ -39,7 +39,10 @@ inline constexpr usize maximum_exit_tasks = 32;
 // register further tasks, which run after it. Its context is borrowed until
 // it has run. Failures: invalid_argument for an unbound task;
 // limit_exceeded with HostCode::table_full when all maximum_exit_tasks
-// places are taken, or the C library refuses the handler.
+// places are taken, or the C library refuses the handler; interrupted when
+// the process is ending on Windows (ExitProcess has stopped the other
+// threads) and another thread holds the task table's lock, which also stops
+// the tasks still registered from running.
 [[nodiscard]] Status register_exit_task(CallbackTarget<void()> task) noexcept;
 
 // ---- the process's identity, arguments and memory --------------------------

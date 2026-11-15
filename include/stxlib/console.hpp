@@ -37,7 +37,9 @@ enum class ConsoleStream : u8 {
 };
 
 // Failures: io_failure (HostCode::stream_closed when the stream is closed
-// or absent; otherwise with the host's code).
+// or absent; otherwise with the host's code); interrupted, with nothing
+// written, when the process is ending on Windows (ExitProcess has stopped
+// the other threads) and another thread holds the output lock.
 [[nodiscard]] Status write_console(ConsoleStream stream, TextView text) noexcept;
 // `text` followed by "\n", under the same lock, so no other call's text
 // comes between them.
@@ -83,7 +85,9 @@ private:
 // of more than `limit` bytes (the line is consumed through its ending, so
 // the next call starts at the following line); invalid_argument with
 // HostCode::invalid_text for a line that is not UTF-8 (consumed);
-// out_of_memory; io_failure. Each line is a string of its own, bounded by
+// out_of_memory; io_failure; interrupted, with nothing read, when the
+// process is ending on Windows and another thread holds the input lock.
+// Each line is a string of its own, bounded by
 // `limit` (house style §6, audit A, X10): reading a console line is
 // interactive and never a hot path.
 [[nodiscard]] Result<ConsoleLine> read_console_line(usize limit) noexcept;

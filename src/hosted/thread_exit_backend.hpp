@@ -30,6 +30,30 @@ namespace stxlib::thread_exit_backend {
 // Calls nothing that can exit early.
 [[nodiscard]] bool ended() noexcept;
 
+// The block the calling thread armed whose hook has not yet run, or null.
+// The anchor is a cache of this: where the host frees thread_local storage
+// before the hook (macOS dyld, from a key destructor of its own; state.cpp,
+// end_thread), the anchor reads as a fresh thread's while the thread still
+// has a block, and block_for_thread adopts this one instead of making a
+// second (the security audit's A-stxlib-allocator-state-01-F3). POSIX: the
+// key's value unless it is the ended mark. Windows: the armed block, kept
+// in the same thread-local storage as the anchor. Calls nothing that can
+// exit early.
+[[nodiscard]] void* armed() noexcept;
+
+// True once the process has begun to end in a way that stops its other
+// threads where they stand (Windows: ExitProcess, before any module's
+// DLL_PROCESS_DETACH). A stopped thread may hold one of stxlib_state's
+// locks for ever, so from then on the state takes none (state.cpp,
+// "Process end"). False for the whole run on POSIX hosts and Emscripten,
+// whose exit leaves the other threads running. Takes no lock; calls
+// nothing that can wait or exit early.
+#if defined(_WIN32)
+[[nodiscard]] bool process_ending() noexcept;
+#else
+[[nodiscard]] inline bool process_ending() noexcept { return false; }
+#endif
+
 } // namespace stxlib::thread_exit_backend
 
 namespace stxlib::state::detail {
