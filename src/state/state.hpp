@@ -221,7 +221,9 @@ enum class ThreadPhase : u8 {
 // The calling thread's anchor: stxlib_state's only thread_local (rule 2),
 // trivially destructible and constant-initialised, so it is usable before
 // any allocation, during and after the thread-exit hook, and on the
-// fail-fast path.
+// fail-fast path. On macOS dyld frees its storage before the hook and makes
+// it again, zero, when the hook reads it: the hook rebuilds it from the
+// armed block (state.cpp, end_thread).
 //
 // Size (layout 10, by field arithmetic on a 64-bit host; the static_assert
 // in state.cpp bounds it): the three counters 24 bytes, the depth, flag and

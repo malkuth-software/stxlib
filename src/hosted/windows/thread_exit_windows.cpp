@@ -87,6 +87,12 @@ bool arm(void* const block) noexcept {
     return true;
 }
 
+// The anchor's storage is live through the DLL_THREAD_DETACH callbacks
+// (this file's callback reads armed_block from the same TLS), so after the
+// hook the anchor itself says ended; nothing here frees it early, as macOS
+// dyld does (state.cpp, end_thread).
+bool ended() noexcept { return false; }
+
 } // namespace thread_exit_backend
 
 namespace state {
