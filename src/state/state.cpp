@@ -122,6 +122,13 @@ STXLIB_NO_UNWIND void release_bytes(void* const address) noexcept {
 STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
     if (anchor.block != nullptr) return anchor.block;
     if (!create || anchor.flags.phase == ThreadPhase::ended || anchor.flags.block_failed) return nullptr;
+    if (thread_exit_backend::ended()) {
+        // The hook has released this thread's block, and the anchor's
+        // storage was made again since (macOS; see end_thread): the thread
+        // stays ended.
+        anchor.flags.phase = ThreadPhase::ended;
+        return nullptr;
+    }
     void* const memory = allocate_bytes(sizeof(ThreadBlock), alignof(ThreadBlock));
     if (memory == nullptr) {
         anchor.flags.block_failed = true;
@@ -208,7 +215,10 @@ RecordStatus thread_record_get(const u32 expected_layout, const u32 slot, void**
         return RecordStatus::disposed;
     }
     ThreadBlock* const block = block_for_thread(true);
-    if (block == nullptr) return RecordStatus::out_of_memory;
+    if (block == nullptr) {
+        if (anchor.flags.phase == ThreadPhase::ended) return RecordStatus::disposed;
+        return RecordStatus::out_of_memory;
+    }
     if ((*block).records[slot] != nullptr) {
         *record = (*block).records[slot];
         return RecordStatus::ok;
@@ -261,12 +271,35 @@ void thread_records_end(const u32 expected_layout) noexcept {
 namespace detail {
 
 // The host's thread-exit hook (thread_exit_backend.hpp), on the exiting
-// thread: end the consumer records, then let go of the block (anchor and
-// registry) and release it, ThreadState last.
+// thread, with the block it was armed with: end the consumer records, then
+// let go of the block (anchor and registry) and release it, ThreadState
+// last.
+//
+// The armed block, not the anchor, says what to release, because on macOS
+// the anchor's storage can be gone by now. dyld keeps a module's
+// thread_local storage under a pthread key of its own whose destructor is
+// free (dyld main, libdyld/ThreadLocalVariables.cpp:
+// initializeThunksFromDisk, dyld_thread_key_create(&key, &::free)), created
+// when the image is set up and so at a lower index than this module's key,
+// which is created on the first block; libpthread runs the key destructors
+// in ascending index order (libpthread main, src/pthread_tsd.c:
+// _pthread_tsd_cleanup_new; pthread_key_create takes the lowest free
+// index). So dyld frees the anchor first, and reading it here makes dyld
+// allocate it again, as a fresh thread's (instantiateVariable: malloc, the
+// initial content, dyld_thread_setspecific), which dyld's key frees on the
+// next destructor round. The anchor is set up again from the armed block:
+// the block (its ThreadState, records and registry links) is whole; the
+// flags, its ReserveShadow among them, start again as a fresh thread's.
+// When the anchor is not the original, end_thread_records may have run
+// already: its released slots are null, so releasing them again is a no-op.
+// Afterwards thread_exit_backend::ended keeps the thread ended through the
+// remaining destructor rounds, whatever the anchor's storage holds then.
 void end_thread(void* const armed) noexcept {
-    ThreadBlock* const block = anchor.block;
-    if (block == nullptr || block != armed) return;
-    if (anchor.flags.phase == ThreadPhase::live) {
+    if (armed == nullptr) return;
+    ThreadBlock* const block = static_cast<ThreadBlock*>(armed);
+    const bool kept = anchor.block == block;
+    if (!kept) anchor.block = block;
+    if (!kept || anchor.flags.phase == ThreadPhase::live) {
         anchor.flags.phase = ThreadPhase::ending;
         release_records(*block);
     }

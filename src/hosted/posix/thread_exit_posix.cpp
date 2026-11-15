@@ -15,6 +15,14 @@
 // thread_local destructors on macOS is confirmed by
 // tests/thread_records_tests.cpp. Process exit runs no key destructor, so
 // termination releases nothing (rule 1 as reworded).
+//
+// macOS frees a module's thread_local storage from a key destructor of
+// dyld's own, which runs before this one (state.cpp, end_thread, with the
+// citations). The destructor therefore takes the block from the key's
+// value, not from the anchor, and then sets the value to ended_mark; it is
+// called again on each remaining round (POSIX repeats while a value is not
+// null, up to PTHREAD_DESTRUCTOR_ITERATIONS rounds) and sets the mark
+// again, touching nothing else, so ended() holds until the thread is gone.
 
 #include "hosted/thread_exit_backend.hpp"
 
@@ -35,7 +43,13 @@ namespace {
 constinit std::atomic<int> key_phase{0};
 constinit pthread_key_t key{};
 
-extern "C" void release_thread_block(void* const block) { state::detail::end_thread(block); }
+// The key's value once the thread's block is released.
+constinit char ended_mark = 0;
+
+extern "C" void release_thread_block(void* const value) {
+    if (value != &ended_mark) state::detail::end_thread(value);
+    static_cast<void>(::pthread_setspecific(key, &ended_mark));
+}
 
 bool key_ready() noexcept {
     int phase = key_phase.load(std::memory_order_acquire);
@@ -60,6 +74,12 @@ namespace thread_exit_backend {
 bool arm(void* const block) noexcept {
     if (!key_ready()) return false;
     const bool result = ::pthread_setspecific(key, block) == 0;
+    return result;
+}
+
+bool ended() noexcept {
+    if (key_phase.load(std::memory_order_acquire) != 2) return false;
+    const bool result = ::pthread_getspecific(key) == &ended_mark;
     return result;
 }
 

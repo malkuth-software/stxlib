@@ -237,7 +237,7 @@ std::atomic<int> later_sequence_nonzero{-1};
 void later_destructor(void*) {
     Result<void*> asked = stxlib::thread_record(first_slot);
     later_kind.store(asked.failed() ? static_cast<int>(asked.error()->kind()) : 0);
-    const stxlib::ShadowFrameText text{.kind = 0, .subject = "stxlib.tests", .name = "later"};
+    const stxlib::ShadowFrameText text{.kind = 1, .subject = "stxlib.tests", .name = "later"};
     const stxlib::ShadowFrameMark mark = stxlib::enter_shadow_frame(text);
     later_depth_inside.store(static_cast<int>(stxlib::shadow_depth()));
     stxlib::leave_shadow_frame(mark, true);
