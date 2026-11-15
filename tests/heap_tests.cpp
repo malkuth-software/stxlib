@@ -10,6 +10,7 @@
 // - a refused allocation leaves the queue and the pushed value unchanged.
 // Sampled: move-only values, LargestFirst, a long random run.
 
+#include "core/checked.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/heap.hpp"
 #include "stxlib/unique.hpp"
@@ -55,6 +56,12 @@ struct Model final {
         return true;
     }
 };
+
+// The sampled run's generator (Knuth's MMIX LCG), modulo 2^64 by definition.
+STXLIB_MODULAR u64 lcg_step(const u64 state) {
+    const u64 result = state * 6364136223846793005ULL + 1442695040888963407ULL;
+    return result;
+}
 
 bool heap_valid(const stxlib::HeapEntry<Item>* const entries, const usize count) {
     for (usize index = 1; index < count; ++index) {
@@ -172,7 +179,7 @@ void long_run() {
     u32 tag = 0;
     bool same = true;
     for (int step = 0; step < 20000; ++step) {
-        state = state * 6364136223846793005ULL + 1442695040888963407ULL;
+        state = lcg_step(state);
         const u32 draw = static_cast<u32>(state >> 33);
         if (draw % 3 != 0) {
             const Item item{draw % 17, tag};
