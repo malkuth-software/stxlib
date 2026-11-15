@@ -714,6 +714,26 @@ file's history before this change.
 | `src/util/stats.c` | `33d9a173b80d2c810681f9756428fb3f51e3950a` | `3ec4fdef7a154c1c0511b2f45a12b100e95807547f7cf3dc2a462187840e1070` |
 | `src/util/threadlocal.c` | `208fab4e4db45aaf55fff173da148aebfb7ad297` | `4975ca0f00c185b422eff35af31108f18f02f18d24f723c30ed0993322ddebe4` |
 
+#### STXlib's patch series
+
+STXlib keeps its own patched copy of mimalloc (the owner, 2026-11-15; notes
+`decisions/2026-11-15-mimalloc-audit-answers.md`; AGENTS.md). The table
+above is the pinned release, v3.6.1, file by file. The tree is that release
+with the patches of `third_party/mimalloc-patches/` applied in the order of
+its `series` (its `README.md` gives the form of a patch). The patch table
+gives each patch's SHA-256, the defect it fixes (audit ID) and its upstream
+status. The patched-file table gives the SHA-256, in the tree, of every file
+a patch changes; every other file still has the release table's hashes.
+`tools/check_mimalloc_patches.py` (ctest `stxlib_mimalloc_patches`) checks
+all of this, and that reverse-applying the series gives back the release
+exactly.
+
+| Patch (under `third_party/mimalloc-patches/`) | SHA-256 | Fixes | Upstream |
+|---|---|---|---|
+
+| Patched file (under `third_party/mimalloc/`) | SHA-256 |
+|---|---|
+
 ### threadpool_atomic_fast, the pool's C reference (batch 3c)
 
 `src/core/thread_pool.cpp` ports, through stx_auxlib, the owner's
