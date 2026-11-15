@@ -47,33 +47,46 @@ Ledger ledger{};
 constexpr unsigned alive_mark = 0x5a5a5a5au;
 constexpr int moved_from_value = -1;
 
-// An element that counts its lives and notices use after destruction. It has
-// no assignment operators: the vocabulary must relocate by construction.
-struct Tracked final {
+// An element that counts its lives and notices use after destruction. The
+// plain form has no assignment operators, so the vocabulary must relocate by
+// construction; the assignable form lets Vector shift by move assignment
+// (its form-1 path for insert and erase under the early-exit rule).
+template <bool Assignable>
+struct TrackedElement final {
     int value;
     unsigned mark;
 
-    Tracked() noexcept : value(0), mark(alive_mark) { born(); }
-    explicit Tracked(const int initial) noexcept : value(initial), mark(alive_mark) { born(); }
-    Tracked(const Tracked& other) noexcept : value(other.value), mark(alive_mark) {
+    TrackedElement() noexcept : value(0), mark(alive_mark) { born(); }
+    explicit TrackedElement(const int initial) noexcept : value(initial), mark(alive_mark) { born(); }
+    TrackedElement(const TrackedElement& other) noexcept : value(other.value), mark(alive_mark) {
         if (other.mark != alive_mark) ledger.errors = ledger.errors + 1;
         born();
     }
-    Tracked(Tracked&& other) noexcept : value(other.value), mark(alive_mark) {
+    TrackedElement(TrackedElement&& other) noexcept : value(other.value), mark(alive_mark) {
         if (other.mark != alive_mark) ledger.errors = ledger.errors + 1;
         other.value = moved_from_value;
         born();
     }
-    Tracked& operator=(const Tracked&) = delete;
-    Tracked& operator=(Tracked&&) = delete;
-    ~Tracked() {
+    TrackedElement& operator=(const TrackedElement&) = delete;
+    TrackedElement& operator=(TrackedElement&& other) noexcept
+        requires(Assignable)
+    {
+        if (mark != alive_mark || other.mark != alive_mark) ledger.errors = ledger.errors + 1;
+        value = other.value;
+        other.value = moved_from_value;
+        return *this;
+    }
+    TrackedElement& operator=(TrackedElement&&)
+        requires(!Assignable)
+    = delete;
+    ~TrackedElement() {
         if (mark != alive_mark) ledger.errors = ledger.errors + 1;
         mark = 0;
         ledger.live = ledger.live - 1;
         ledger.destroyed = ledger.destroyed + 1;
     }
 
-    bool operator==(const Tracked& other) const noexcept { return value == other.value; }
+    bool operator==(const TrackedElement& other) const noexcept { return value == other.value; }
 
 private:
     static void born() noexcept {
@@ -81,6 +94,9 @@ private:
         ledger.constructed = ledger.constructed + 1;
     }
 };
+
+using Tracked = TrackedElement<false>;
+using AssignableTracked = TrackedElement<true>;
 
 // ---- grown_capacity ---------------------------------------------------------
 
@@ -195,7 +211,8 @@ struct VectorTally final {
 
 VectorTally vector_tally{};
 
-bool same_as_model(const stxlib::Vector<Tracked>& vector, const std::vector<int>& model) {
+template <typename Element>
+bool same_as_model(const stxlib::Vector<Element>& vector, const std::vector<int>& model) {
     if (vector.count() != model.size()) return false;
     if (vector.capacity() < vector.count()) return false;
     for (usize index = 0; index < model.size(); ++index) {
@@ -206,14 +223,15 @@ bool same_as_model(const stxlib::Vector<Tracked>& vector, const std::vector<int>
 
 // Applies `operation` to the vector and, when it succeeds, to the model.
 // Returns the status (success for the operations that cannot fail).
-stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tracked>& vector, std::vector<int>& model,
+template <typename Element>
+stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Element>& vector, std::vector<int>& model,
                             const int fresh) {
     const usize first = operation.first;
     const usize second = operation.second;
     switch (operation.step) {
     case VectorStep::push: {
-        Tracked argument(fresh);
-        const stxlib::Status status = vector.push(static_cast<Tracked&&>(argument));
+        Element argument(fresh);
+        const stxlib::Status status = vector.push(static_cast<Element&&>(argument));
         if (status.succeeded()) {
             model.push_back(fresh);
             if (argument.value != moved_from_value) vector_tally.mismatches = vector_tally.mismatches + 1;
@@ -223,7 +241,7 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
         return status;
     }
     case VectorStep::push_inside: {
-        const stxlib::Status status = vector.insert(first, static_cast<Tracked&&>(vector[second]));
+        const stxlib::Status status = vector.insert(first, static_cast<Element&&>(vector[second]));
         if (status.succeeded()) {
             const int moved = model[second];
             model[second] = moved_from_value;
@@ -232,7 +250,7 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
         return status;
     }
     case VectorStep::push_copy_outside: {
-        const Tracked argument(fresh);
+        const Element argument(fresh);
         const stxlib::Status status = vector.push_copy(argument);
         if (status.succeeded()) model.push_back(fresh);
         return status;
@@ -251,8 +269,8 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
         return status;
     }
     case VectorStep::insert: {
-        Tracked argument(fresh);
-        const stxlib::Status status = vector.insert(first, static_cast<Tracked&&>(argument));
+        Element argument(fresh);
+        const stxlib::Status status = vector.insert(first, static_cast<Element&&>(argument));
         if (status.succeeded()) {
             model.insert(model.begin() + static_cast<long>(first), fresh);
         } else if (argument.value != fresh) {
@@ -269,7 +287,7 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
         model.erase(model.begin() + static_cast<long>(first), model.begin() + static_cast<long>(first + second));
         return stxlib::Status::success();
     case VectorStep::take_last: {
-        const Tracked taken = vector.take_last();
+        const Element taken = vector.take_last();
         if (taken.value != model.back()) vector_tally.mismatches = vector_tally.mismatches + 1;
         model.pop_back();
         return stxlib::Status::success();
@@ -312,8 +330,8 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
         return status;
     }
     case VectorStep::append_outside: {
-        const Tracked outside[2] = {Tracked(fresh), Tracked(fresh + 1)};
-        const stxlib::View<Tracked> source(outside);
+        const Element outside[2] = {Element(fresh), Element(fresh + 1)};
+        const stxlib::View<Element> source(outside);
         const stxlib::Status status = vector.append_copies(source);
         if (status.succeeded()) {
             model.push_back(fresh);
@@ -326,19 +344,21 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Tra
     return stxlib::Status::success();
 }
 
-void replay(const std::vector<VectorOperation>& path, stxlib::Vector<Tracked>& vector, std::vector<int>& model) {
+template <typename Element>
+void replay(const std::vector<VectorOperation>& path, stxlib::Vector<Element>& vector, std::vector<int>& model) {
     for (usize index = 0; index < path.size(); ++index) {
-        const stxlib::Status status = apply_vector(path[index], vector, model, static_cast<int>(100 + index));
+        const stxlib::Status status = apply_vector<Element>(path[index], vector, model, static_cast<int>(100 + index));
         if (status.failed()) vector_tally.mismatches = vector_tally.mismatches + 1;
     }
 }
 
+template <typename Element>
 void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
     std::vector<int> start_model;
     usize start_count = 0;
     {
-        stxlib::Vector<Tracked> vector;
-        replay(path, vector, start_model);
+        stxlib::Vector<Element> vector;
+        replay<Element>(path, vector, start_model);
         start_count = vector.count();
     }
     const std::vector<VectorOperation> candidates = vector_candidates(start_count);
@@ -347,12 +367,12 @@ void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
         // Refused: the operation's allocation (if it makes one) fails, and
         // the vector must be exactly as before.
         {
-            stxlib::Vector<Tracked> vector;
+            stxlib::Vector<Element> vector;
             std::vector<int> model;
-            replay(path, vector, model);
+            replay<Element>(path, vector, model);
             const usize capacity_before = vector.capacity();
             stxlib::detail::arm_vocabulary_refusals(0);
-            const stxlib::Status status = apply_vector(candidate, vector, model, fresh);
+            const stxlib::Status status = apply_vector<Element>(candidate, vector, model, fresh);
             stxlib::detail::disarm_vocabulary_refusals();
             if (status.failed()) {
                 vector_tally.refusals_checked = vector_tally.refusals_checked + 1;
@@ -364,14 +384,14 @@ void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
         // Granted: the result must equal the model's.
         path.push_back(candidate);
         {
-            stxlib::Vector<Tracked> vector;
+            stxlib::Vector<Element> vector;
             std::vector<int> model;
-            replay(path, vector, model);
+            replay<Element>(path, vector, model);
             vector_tally.operations = vector_tally.operations + static_cast<long long>(path.size());
             if (!same_as_model(vector, model)) vector_tally.mismatches = vector_tally.mismatches + 1;
         }
         vector_tally.sequences = vector_tally.sequences + 1;
-        if (path.size() < depth) explore_vector(path, depth);
+        if (path.size() < depth) explore_vector<Element>(path, depth);
         path.pop_back();
     }
 }
@@ -379,7 +399,8 @@ void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
 void vector_exhaustive(const usize depth) {
     const Ledger before = ledger;
     std::vector<VectorOperation> path;
-    explore_vector(path, depth);
+    explore_vector<Tracked>(path, depth);
+    explore_vector<AssignableTracked>(path, depth);
     CHECK(vector_tally.mismatches == 0);
     CHECK(vector_tally.refusals_checked > 0);
     CHECK(ledger.live == before.live);

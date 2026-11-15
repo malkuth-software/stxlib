@@ -30,6 +30,17 @@
 // compares both forms with a sorted model over every sequence of
 // operations up to a bound (proofs/REPORT.md).
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): Order::before and Value's moves and destructor are the
+// consumer's code. Order::before must be noexcept (checked), so an unwind
+// out of it ends the process. Form 2 at every comparison and move in
+// stable_heap_push and stable_heap_pop: every slot of the caller's storage
+// holds a live entry at every call (moved-from entries are live), so the
+// storage is always safe to destroy; an early exit can lose only the entry
+// held in a local, and leaves the heap order unrestored. PriorityQueue adds
+// form 1 around them: Vector's own calls (vector.hpp) and the count changes
+// only through Vector.
+
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/optional.hpp"
 #include "stxlib/result.hpp"
@@ -71,6 +82,7 @@ inline constexpr bool heap_movable = __is_nothrow_constructible(Value, Value&&) 
 // The combined order: the caller's, then the sequence.
 template <typename Order, typename Value>
 [[nodiscard]] bool heap_before(const HeapEntry<Value>& a, const HeapEntry<Value>& b) noexcept {
+    static_assert(noexcept(Order::before(a.value, b.value)), "a heap Order's before must be noexcept");
     if (Order::before(a.value, b.value)) return true;
     if (Order::before(b.value, a.value)) return false;
     const bool result = a.sequence < b.sequence;

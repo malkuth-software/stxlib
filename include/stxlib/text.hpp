@@ -2,6 +2,14 @@
 
 // Validating foreign bytes as UTF-8, and owned UTF-8 text.
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): Utf8String calls no consumer code. Its calls outside
+// STXlib are the host C library's memcpy and memmove. Growth is form 1 (the
+// new block is filled, then adopted); an in-place edit is form 2: between
+// the moves the bytes may be briefly not well-formed, but the destructor
+// reads only the storage pointer and capacity, which are whole at every
+// call, so the partial state is safe to unwind through.
+
 #include "stxlib/buffer.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/result.hpp"

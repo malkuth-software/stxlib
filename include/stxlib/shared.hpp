@@ -37,6 +37,16 @@
 // both null. Access is through operator* ((*shared).member, house style,
 // section 11) and get(); there is no operator->.
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): the object's constructor and destructor are the
+// consumer's code. Form 1 at every call: make constructs into a block no
+// owner holds yet; reset and both assignments repoint this owner (or
+// observer) before dropping the previous count, and the last owner's
+// count is already zero when the destructor runs, so Weak::lock refuses
+// the object during and after it. An early exit from the destructor leaves
+// the owners' joint observer count held: the block leaks, every count
+// stays truthful.
+
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/error.hpp"

@@ -237,6 +237,28 @@ program passes in CTest, and not beyond it.
 | `include/stxlib/heap.hpp` (R6) | PriorityQueue and stable_heap_push/pop over caller storage remove values in (priority, insertion) order, so equal priorities leave in insertion order; the heap property holds after every step; a refused push leaves the queue and the value unchanged | **not yet run.** Proved for every sequence of up to 9 operations over {push 0, push 1, push 2, pop} once `stxlib_heap_tests` passes (deeper with `--depth N`, up to 16). Uniqueness of the removal order for any operations follows from the combined order being total (the header's argument). The sequence-exhaustion refusal (2^64 - 1 insertions without emptying) is not exercised. Sampled: move-only values, LargestFirst, a 20000-step pseudo-random run | `tests/heap_tests.cpp` |
 | `include/stxlib/transcode.hpp`, `src/core/transcode.cpp` (R15, scalars) | UTF-8 to UTF-16 and UTF-32 and back are exact for every scalar value; `code_point_at`, `code_point_count` and `utf16_count` agree with them | **not yet run.** Proved for every scalar value U+0000..U+10FFFF and every surrogate pair once `stxlib_transcode_tests` passes | `tests/transcode_tests.cpp` (`scalars_exhaustive`, `surrogate_pairs_exhaustive`) |
 | `src/core/transcode.cpp` (16-bit units, WTF-8) | conversion to UTF-8 accepts exactly the unit sequences without an unpaired surrogate and reports the first one's index; WTF-8 carries every sequence and gives it back; `is_wtf8` accepts exactly generalized UTF-8 with no high-low surrogate pair; a failure leaves every output unchanged | **not yet run.** Proved once the test passes for: every single unit; every sequence of up to 4 units from 15 edge units; every byte string of up to 2 bytes and every 3-byte string with a lead E0..EF (against an independent decoder). Longer inputs follow from the same per-code-point loop, which is reported, not proved | `tests/transcode_tests.cpp` (`units_exhaustive`, `wtf8_exhaustive`, `failures_unchanged`) |
+| `include/stxlib/frozen_map.hpp`, `src/algorithms/frozen_map.cpp` (R5, numbers) | find, contains, lower_bound, key_at and value_at equal a sorted model; uniform and weighted builds agree on every answer | **not yet run.** Proved once `stxlib_frozen_map_tests` passes for: every subset of eleven edge keys, at every key and its neighbours; every count 0..300 at five strides (multi-level trees), at and around every key; 5000 keys (bottom-up construction) against every query 0..15002. The template's own layout proofs are its batch 3c12 rows | `tests/frozen_map_tests.cpp` (`number_subsets_exhaustive`, `number_families`) |
+| `src/algorithms/frozen_map.cpp` (R5, text) | the same for text keys in byte order, through the string_view traits generated from the template's heap-string traits | **not yet run.** Proved once the test passes for: every subset of the 13 texts of up to two characters over {a, b, é} against every text of up to three; the 511 texts of up to 8 bytes over {a, b}, bare and behind a 70-byte prefix, against every text of up to 9; the 31 texts over {NUL, a, DEL, é, U+10FFFF}, all and every subset of the first 12 | `tests/frozen_map_tests.cpp` (`text_exhaustive`) |
+| `src/algorithms/frozen_map.cpp` (refusals) | unsorted, repeated and mismatched inputs fail with invalid_argument (code: first index out of order); a refused allocation fails with out_of_memory; a moved-from map is empty | tested | `tests/frozen_map_tests.cpp` (`refusals`) |
+
+### Early exits (owner, 2026-11-15: every foreign call is a possible early exit)
+
+The form at each call into code STXlib does not control (form 1: the
+invariants are whole before the call; form 2: the partial state is safe to
+unwind through). The headers state the same at their call sites.
+
+| Module | Foreign calls | Form |
+|---|---|---|
+| `vector.hpp` | Element constructors, destructor, move assignment, operator== | form 1 for growth (built in the new block, the old one adopted out only when complete), in-capacity appends (count after each construction), removal (count before each destruction), insert and erase when Element is nothrow move assignable (every counted slot live). **Not form 1 or 2:** insert before the end and erase for an Element without move assignment; they rely on the noexcept boundary (an unwind ends the process; a longjmp is undefined behaviour). The exhaustive vector test now runs both element kinds |
+| `optional.hpp` | Value constructors, destructor, operator== | form 1: presence set after construction, cleared before destruction |
+| `unique.hpp`, `shared.hpp` | the object's constructor and destructor | form 1: built in an unowned block; fields repointed and counts final before the destructor runs |
+| `heap.hpp` | Order::before (required noexcept), Value moves and destructor | form 2: every storage slot is a live entry at every call; only a local entry can be lost |
+| `text.hpp` (Utf8String) | host memcpy, memmove | form 1 for growth; form 2 in place (the destructor reads only pointer and capacity) |
+| `transcode.hpp`, `frozen_map.hpp`, `search.hpp`, `ascii.hpp` | none from consumers; host memcpy/memcmp, string_view inline members | form 1: check and count first, publish when complete; search and ascii make no foreign call |
+| the allocation path (`vocabulary_allocate`, `memory::allocate`) | STXlib's own | never unwinds; exhaustion is out_of_memory (D8 = a) |
+
+These forms are argued from the code, not tested: no test injects an early
+exit (longjmp out of consumer code across STXlib frames is undefined in C++).
 
 Nothing in this batch has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.

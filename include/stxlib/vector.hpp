@@ -13,8 +13,9 @@
 //
 // Elements: any type whose move constructor and destructor cannot throw
 // (checked below). Elements are relocated by move construction followed by
-// destruction, never by assignment, so an element type needs no assignment
-// operator. Copying operations (copy, copy_of, push_copy, append_copies)
+// destruction. Insert and erase shift by move assignment when Element has a
+// nothrow one, and otherwise by construction and destruction, so an element
+// type needs no assignment operator. Copying operations (copy, copy_of, push_copy, append_copies)
 // additionally need a non-throwing copy constructor and are named, never
 // implicit (house style, section 1: name large copies).
 //
@@ -32,6 +33,39 @@
 // Comparison: operator== compares counts, then elements with Element's own
 // operator== in order. For floating-point elements that is IEEE equality:
 // a NaN element makes two vectors unequal, and +0 equals -0.
+//
+// Early exits (owner, 2026-11-15, notes decisions/2026-11-15-early-exit-
+// integrity.md): Element's constructors, destructor, assignment and
+// operator== are the consumer's code, so each call to them is a possible
+// early exit. The form used at each call:
+// - growth (reserve, push, push_copy, emplace, insert, append_copies,
+//   resize past the capacity): form 1. New elements and copies are built in
+//   the new block, and the old elements moved into it, while the vector
+//   still owns its old block whole; the vector adopts the new block only
+//   when it is complete, and only then destroys the moved-from old
+//   elements, which are no longer its own. An early exit leaks the
+//   unfinished block, never corrupts the vector;
+// - appending within the capacity (push, push_copy, emplace,
+//   append_copies, resize): form 1. The count rises after each
+//   construction, so a slot is counted only once it is live;
+// - removal (truncate, clear, release, remove_last, take_last): form 1.
+//   The count falls before each destructor call, so a slot is uncounted
+//   before its element ends;
+// - insert before the end and erase, when Element is nothrow move
+//   assignable: form 1. Elements shift by move assignment, so every counted
+//   slot stays a live element at every call; in insert the moved-out
+//   argument held in a local is all an early exit can lose (a leak);
+// - insert before the end and erase, when Element has no move assignment:
+//   the shift by construction and destruction leaves one counted slot dead
+//   between two calls, which is not safe to observe. These sites rely on the
+//   noexcept boundary: Element's operations are required noexcept, so an
+//   exception or forced unwind leaving one ends the process
+//   (std::terminate) before any state can be observed. A longjmp across
+//   these frames is undefined behaviour in C++ and is not defended;
+// - operator== and the queries: no change of state, form 1;
+// - the allocation path (detail::vocabulary_allocate and _release, then
+//   memory::allocate) is STXlib's and never unwinds; exhaustion is the
+//   out_of_memory result.
 
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/detail/growth.hpp"
@@ -49,6 +83,9 @@ class Vector final {
     static_assert(__is_nothrow_constructible(Element, Element&&),
                   "Vector's Element must be nothrow move constructible (relocation has no failure path)");
     static_assert(detail::nothrow_destructible<Element>, "Vector's Element must be nothrow destructible");
+
+    // Whether insert and erase can shift by move assignment (form 1, above).
+    static constexpr bool assignable = __is_nothrow_assignable(Element&, Element&&);
 
 public:
     // The empty vector: no storage.
@@ -170,8 +207,8 @@ public:
         if (next == 0) return Status::failure(not_representable("stxlib.vector.reserve"));
         Element* const block = allocate_block(next);
         if (block == nullptr) return Status::failure(exhausted("stxlib.vector.reserve"));
-        relocate(block, elements_, count_);
-        adopt_block(block, next);
+        move_into(block, elements_, count_);
+        adopt_block(block, next, count_);
         return Status::success();
     }
 
@@ -199,9 +236,8 @@ public:
         // The copy is made before the old storage goes, so `element` may
         // live in it.
         detail::construct<Element>(block + count_, element);
-        relocate(block, elements_, count_);
-        adopt_block(block, next);
-        count_ = count_ + 1;
+        move_into(block, elements_, count_);
+        adopt_block(block, next, count_ + 1);
         return Status::success();
     }
 
@@ -240,9 +276,12 @@ public:
         const usize wanted = count_ + added;
         if (wanted <= capacity_) {
             // The source is live elements or foreign storage, never the
-            // spare capacity being written.
-            construct_copies(elements_ + count_, elements);
-            count_ = wanted;
+            // spare capacity being written. The count rises per copy.
+            const Element* const from = elements.data();
+            for (usize index = 0; index < added; ++index) {
+                detail::construct<Element>(elements_ + count_, from[index]);
+                count_ = count_ + 1;
+            }
             return Status::success();
         }
         const usize next = detail::grown_capacity<usize>(capacity_, wanted, sizeof(Element));
@@ -251,9 +290,8 @@ public:
         if (block == nullptr) return Status::failure(exhausted("stxlib.vector.append_copies"));
         // Copies first, while a source inside the old storage is still live.
         construct_copies(block + count_, elements);
-        relocate(block, elements_, count_);
-        adopt_block(block, next);
-        count_ = wanted;
+        move_into(block, elements_, count_);
+        adopt_block(block, next, wanted);
         return Status::success();
     }
 
@@ -268,10 +306,10 @@ public:
         }
         const Status reserved = reserve(wanted);
         if (reserved.failed()) return reserved;
-        for (usize index = count_; index < wanted; ++index) {
-            detail::construct<Element>(elements_ + index);
+        while (count_ < wanted) {
+            detail::construct<Element>(elements_ + count_);
+            count_ = count_ + 1;
         }
-        count_ = wanted;
         return Status::success();
     }
 
@@ -289,39 +327,50 @@ public:
     void erase_range(const usize first, const usize length) noexcept {
         STXLIB_REQUIRE(first <= count_ && length <= count_ - first, "Vector::erase_range: range out of range");
         if (length == 0) return;
-        for (usize index = first; index < first + length; ++index) {
-            detail::destroy(elements_ + index);
+        if constexpr (assignable) {
+            // Form 1: every counted slot stays live while the tail moves
+            // down; then the moved-from tail is truncated.
+            for (usize index = first; index + length < count_; ++index) {
+                elements_[index] = static_cast<Element&&>(elements_[index + length]);
+            }
+            truncate(count_ - length);
+        } else {
+            // The noexcept boundary (header): slots are dead while counted.
+            for (usize index = first; index < first + length; ++index) {
+                detail::destroy(elements_ + index);
+            }
+            for (usize index = first + length; index < count_; ++index) {
+                detail::construct<Element>(elements_ + index - length, static_cast<Element&&>(elements_[index]));
+                detail::destroy(elements_ + index);
+            }
+            count_ = count_ - length;
         }
-        for (usize index = first + length; index < count_; ++index) {
-            detail::construct<Element>(elements_ + index - length, static_cast<Element&&>(elements_[index]));
-            detail::destroy(elements_ + index);
-        }
-        count_ = count_ - length;
     }
 
     // Moves the last element out and ends its place. Requirement: not empty().
     [[nodiscard]] Element take_last() noexcept {
         STXLIB_REQUIRE(count_ != 0, "Vector::take_last: the vector is empty");
         Element result(static_cast<Element&&>(elements_[count_ - 1]));
-        detail::destroy(elements_ + count_ - 1);
         count_ = count_ - 1;
+        detail::destroy(elements_ + count_);
         return result;
     }
 
     // Destroys the last element. Requirement: not empty().
     void remove_last() noexcept {
         STXLIB_REQUIRE(count_ != 0, "Vector::remove_last: the vector is empty");
-        detail::destroy(elements_ + count_ - 1);
         count_ = count_ - 1;
+        detail::destroy(elements_ + count_);
     }
 
-    // Destroys the elements from `smaller` on. Requirement: smaller <= count().
+    // Destroys the elements from `smaller` on, last first. Requirement:
+    // smaller <= count().
     void truncate(const usize smaller) noexcept {
         STXLIB_REQUIRE(smaller <= count_, "Vector::truncate: count out of range");
-        for (usize index = smaller; index < count_; ++index) {
-            detail::destroy(elements_ + index);
+        while (count_ > smaller) {
+            count_ = count_ - 1;
+            detail::destroy(elements_ + count_);
         }
-        count_ = smaller;
     }
 
     // Destroys every element; the capacity remains.
@@ -370,16 +419,16 @@ private:
         return result;
     }
 
-    // Moves `length` live elements from `source` into uninitialised
-    // `target` (a different block) and ends them at the source.
-    static void relocate(Element* const target, Element* const source, const usize length) noexcept {
+    // Move-constructs `length` live elements from `source` into
+    // uninitialised `target` (a different block). The sources stay live
+    // (moved from) until adopt_block ends them.
+    static void move_into(Element* const target, Element* const source, const usize length) noexcept {
         if (length == 0) return;
         if constexpr (__is_trivially_copyable(Element)) {
             __builtin_memcpy(static_cast<void*>(target), static_cast<const void*>(source), length * sizeof(Element));
         } else {
             for (usize index = 0; index < length; ++index) {
                 detail::construct<Element>(target + index, static_cast<Element&&>(source[index]));
-                detail::destroy(source + index);
             }
         }
     }
@@ -395,11 +444,19 @@ private:
         }
     }
 
-    // Frees the old storage (already emptied by relocate) and adopts `block`.
-    void adopt_block(Element* const block, const usize room) noexcept {
-        detail::vocabulary_release(elements_);
+    // Adopts the completed `block` holding `live` elements, then ends the
+    // old elements (moved from by move_into, no longer the vector's) and
+    // frees the old storage.
+    void adopt_block(Element* const block, const usize room, const usize live) noexcept {
+        Element* const previous = elements_;
+        const usize previous_count = count_;
         elements_ = block;
+        count_ = live;
         capacity_ = room;
+        if constexpr (!__is_trivially_copyable(Element)) {
+            for (usize index = 0; index < previous_count; ++index) detail::destroy(previous + index);
+        }
+        detail::vocabulary_release(previous);
     }
 
     // A new block with room for count() + 1, for a caller that builds into
@@ -419,8 +476,8 @@ private:
         usize next = 0;
         const Status grown = block_for_one_more(operation, block, next);
         if (grown.failed()) return grown;
-        relocate(block, elements_, count_);
-        adopt_block(block, next);
+        move_into(block, elements_, count_);
+        adopt_block(block, next, count_);
         return Status::success();
     }
 
@@ -434,21 +491,38 @@ private:
             // The new element is built first, while `element` (possibly in
             // the old storage) is still live; then the others move around it.
             detail::construct<Element>(block + index, static_cast<Element&&>(element));
-            relocate(block, elements_, index);
-            relocate(block + index + 1, elements_ + index, count_ - index);
-            adopt_block(block, next);
-            count_ = count_ + 1;
+            move_into(block, elements_, index);
+            move_into(block + index + 1, elements_ + index, count_ - index);
+            adopt_block(block, next, count_ + 1);
             return Status::success();
         }
         // Room exists, so nothing can fail now. `element` is moved out first,
         // since the shift below may move or overwrite its place.
         Element held(static_cast<Element&&>(element));
-        for (usize position = count_; position > index; --position) {
-            detail::construct<Element>(elements_ + position, static_cast<Element&&>(elements_[position - 1]));
-            detail::destroy(elements_ + position - 1);
+        if (index == count_) {
+            detail::construct<Element>(elements_ + count_, static_cast<Element&&>(held));
+            count_ = count_ + 1;
+            return Status::success();
         }
-        detail::construct<Element>(elements_ + index, static_cast<Element&&>(held));
-        count_ = count_ + 1;
+        if constexpr (assignable) {
+            // Form 1: the last element is moved into the spare slot and
+            // counted, then the rest shift up by assignment, every counted
+            // slot live throughout.
+            detail::construct<Element>(elements_ + count_, static_cast<Element&&>(elements_[count_ - 1]));
+            count_ = count_ + 1;
+            for (usize position = count_ - 2; position > index; --position) {
+                elements_[position] = static_cast<Element&&>(elements_[position - 1]);
+            }
+            elements_[index] = static_cast<Element&&>(held);
+        } else {
+            // The noexcept boundary (header): a slot is dead while counted.
+            for (usize position = count_; position > index; --position) {
+                detail::construct<Element>(elements_ + position, static_cast<Element&&>(elements_[position - 1]));
+                detail::destroy(elements_ + position - 1);
+            }
+            detail::construct<Element>(elements_ + index, static_cast<Element&&>(held));
+            count_ = count_ + 1;
+        }
         return Status::success();
     }
 

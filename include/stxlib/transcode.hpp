@@ -27,6 +27,11 @@
 // 16-bit units and the round trips over its stated domains
 // (proofs/REPORT.md).
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): no consumer code runs here. Form 1: every conversion
+// checks and counts before it writes, and appends to a Utf8String through
+// its own operations (text.hpp).
+
 #include "stxlib/result.hpp"
 #include "stxlib/text.hpp"
 #include "stxlib/text_view.hpp"

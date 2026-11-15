@@ -21,6 +21,13 @@
 // deleted. Access is through operator* ((*owner).member, house style,
 // section 11) and get(); there is no operator->.
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): the object's constructor and destructor are the
+// consumer's code. Form 1 at every call: make constructs into a block no
+// owner holds yet (an early exit leaks the block); reset and assignment
+// clear this owner's fields before the destructor runs, so the owner is
+// already empty during it.
+
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/error.hpp"

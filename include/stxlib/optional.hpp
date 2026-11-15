@@ -25,6 +25,13 @@
 // equal values by Value's operator== (IEEE equality for floating point: a
 // present NaN is unequal to everything, +0 equals -0).
 
+// Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
+// integrity.md): Value's constructors, destructor and operator== are the
+// consumer's code. Form 1 at every call: presence is set only after a
+// construction completes (copy, move, of, set) and cleared before the
+// destructor runs (reset, take, set, assignment), so the flag never claims
+// a value that is not live; value_or and operator== change nothing.
+
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/types.hpp"
