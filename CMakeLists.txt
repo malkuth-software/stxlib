@@ -1005,10 +1005,18 @@ if(STXLIB_TESTS)
         else()
             set(stxlib_stx_minmallocpp_family posix)
         endif()
+        # Sanitizer and integer-check builds allow the instrumentation's
+        # runtime entries (the tool's --sanitized); every other build is
+        # checked exactly.
+        set(stxlib_stx_minmallocpp_sanitized)
+        if(stxlib_sanitized)
+            set(stxlib_stx_minmallocpp_sanitized --sanitized)
+        endif()
         add_test(NAME stxlib_stx_minmallocpp_surface
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_stx_minmallocpp_surface.py
                     --nm ${CMAKE_NM} --family ${stxlib_stx_minmallocpp_family}
-                    --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_stx_minmallocpp_checked.dir)
+                    --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_stx_minmallocpp_checked.dir
+                    ${stxlib_stx_minmallocpp_sanitized})
     endif()
 
     # stxlib::algorithms.

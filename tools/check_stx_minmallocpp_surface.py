@@ -28,13 +28,20 @@ memcpy, memmove, bzero), the thread-local access routines (__tls_get_addr,
 _tlv_bootstrap, __emutls_get_address and the __emutls_v. control objects),
 the stack protector's symbols, ___chkstk_ms, and the global offset table.
 
+In a sanitizer or integer-check build only (--sanitized, which CMake passes
+when the flags enable -fsanitize= or STXLIB_INTEGER_CHECKS is on), the
+instrumentation's runtime entries are allowed too: symbols starting
+__asan_, __lsan_, __msan_, __tsan_, __ubsan_ or __sanitizer_, and
+__cxa_atexit and __dso_handle, through which AddressSanitizer registers
+each module's globals. Every other build is checked exactly as above.
+
 The scan must be able to see such references: the objects must leave the
 family's reservation call undefined (mmap, or VirtualAlloc), or the tool
 fails.
 
 Usage:
   python3 -I tools/check_stx_minmallocpp_surface.py --nm <nm>
-      --family posix|windows --objects <dir> [--under <prefix>]
+      --family posix|windows --objects <dir> [--under <prefix>] [--sanitized]
 
 --objects is a directory of objects (CMake's CMakeFiles/<target>.dir);
 --under keeps only objects whose path below it starts with that prefix
@@ -72,6 +79,10 @@ TOOLCHAIN_HELPERS = frozenset({
 })
 
 TOOLCHAIN_PREFIXES = ('emutls_v.',)
+
+# Sanitizer and integer-check builds only (--sanitized): the runtime's entries.
+SANITIZER_PREFIXES = ('asan_', 'lsan_', 'msan_', 'tsan_', 'ubsan_', 'sanitizer_')
+SANITIZER_HELPERS = frozenset({'cxa_atexit', 'dso_handle'})
 
 
 def normalised(name: str) -> str:
@@ -111,9 +122,11 @@ def objects_under(directory: pathlib.Path, prefix: str) -> list[pathlib.Path]:
     return found
 
 
-def allowed(name: str, family: str) -> bool:
+def allowed(name: str, family: str, sanitized: bool) -> bool:
     bare: str = normalised(name)
     if bare in HOST_CALLS[family] or bare in TOOLCHAIN_HELPERS:
+        return True
+    if sanitized and (bare in SANITIZER_HELPERS or bare.startswith(SANITIZER_PREFIXES)):
         return True
     result: bool = bare.startswith(TOOLCHAIN_PREFIXES)
     return result
@@ -125,6 +138,7 @@ def main() -> int:
     parser.add_argument('--family', required=True, choices=sorted(HOST_CALLS))
     parser.add_argument('--objects', required=True, type=pathlib.Path)
     parser.add_argument('--under', default='')
+    parser.add_argument('--sanitized', action='store_true')
     arguments = parser.parse_args()
 
     objects: list[pathlib.Path] = objects_under(arguments.objects, arguments.under)
@@ -144,7 +158,7 @@ def main() -> int:
     for path in objects:
         for name in sorted(undefined_by_object[path] - defined_anywhere):
             leaves.add(normalised(name))
-            if not allowed(name, arguments.family):
+            if not allowed(name, arguments.family, arguments.sanitized):
                 print(f'{path}: {name}')
                 failed = True
 
