@@ -681,6 +681,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
+    src/algorithms/glyphs/mask.cpp
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
@@ -957,6 +958,12 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # stxlib::glyphs: the coverage mask against exact areas (tests/
+    # glyph_mask_tests.cpp).
+    add_executable(stxlib_glyph_mask_tests tests/glyph_mask_tests.cpp)
+    target_link_libraries(stxlib_glyph_mask_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_glyph_mask_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_mask_tests COMMAND stxlib_glyph_mask_tests)
     # Simple case folding (C7): every code point against CaseFolding.txt,
     # read by the test's own parser; and the committed table is the
     # generator's output for the pinned file.
