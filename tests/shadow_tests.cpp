@@ -17,9 +17,11 @@
 #include "test_support.hpp"
 
 #include <cstdio>
+#include <cxxabi.h>
 #include <exception>
 #include <stdexcept>
 #include <string>
+#include <typeinfo>
 
 namespace {
 
@@ -566,10 +568,68 @@ void a_deep_stack_counts_what_it_cannot_keep() {
     CHECK(stxlib::shadow_depth() == 0);
 }
 
+// ---- the runtime's exception type, step by step (diagnostic) ----------------
+//
+// Prints what the C++ runtime's __cxa_current_exception_type answers at the
+// points a gate's handler passes through, so a host whose record comes out
+// without a type (FreeBSD 15.2 libcxxrt, Debug, 2026-11-15) shows where the
+// runtime's answer goes missing. Prints only; the checks are the records'.
+
+const char* runtime_type_name() {
+    const std::type_info* const type = abi::__cxa_current_exception_type();
+    const char* const result = type == nullptr ? "(null type)" : (*type).name();
+    return result;
+}
+
+struct OpaqueFailure final {};
+
+struct ThrowsOpaque final {
+    void operator()() const { throw OpaqueFailure(); }
+};
+
+void report_runtime_exception_type() {
+    std::printf("--- the runtime's current exception type\n");
+    try {
+        throw std::invalid_argument("probe");
+    } catch (...) {
+        std::printf("  plain handler: %s\n", runtime_type_name());
+        try {
+            throw;
+        } catch (const std::exception&) {
+            std::printf("  inside a nested rethrow: %s\n", runtime_type_name());
+        }
+        std::printf("  after the nested rethrow: %s\n", runtime_type_name());
+    }
+    try {
+        ThrowsInvalid thrower;
+        stxlib::in_shadow_frame("test.probe_frame", 0, 0, thrower);
+    } catch (...) {
+        std::printf("  through a shadow frame (capture at the throw): %s\n", runtime_type_name());
+    }
+    try {
+        ThrowsOpaque thrower;
+        stxlib::in_shadow_frame("test.probe_opaque", 0, 0, thrower);
+    } catch (...) {
+        std::printf("  a non-standard type through a shadow frame: %s\n", runtime_type_name());
+    }
+    std::exception_ptr carried{};
+    try {
+        throw std::out_of_range("carried");
+    } catch (...) {
+        carried = std::current_exception();
+    }
+    try {
+        std::rethrow_exception(carried);
+    } catch (...) {
+        std::printf("  rethrown from an exception_ptr: %s\n", runtime_type_name());
+    }
+}
+
 } // namespace
 
 int main() {
     std::printf("shadowing %s\n", stxlib::shadowing_enabled() ? "on (development build)" : "off (release build)");
+    report_runtime_exception_type();
     a_slot_gate_records_the_stack_at_the_throw();
     a_classified_gate_records_the_consumer_kind();
     a_gate_frame_carries_its_numbers();

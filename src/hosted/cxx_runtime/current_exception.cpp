@@ -6,7 +6,18 @@
 // <cxxabi.h> and returns the type_info of the exception being handled, or
 // null (libcxxabi/src/cxa_exception.cpp, LLVM llvmorg-22.1.8, lines 602-613,
 // read through a web view; to reconfirm at the toolchain pin, and again if
-// the pin moves to LLVM 23). type_info::name() is the mangled name under
+// the pin moves to LLVM 23). FreeBSD's base runtime is libcxxrt, whose
+// __cxa_current_exception_type returns the exceptionType of the top of the
+// thread's caught list, or null when it is empty, with no check for a
+// foreign exception (contrib/libcxxrt/exception.cc, read at FreeBSD
+// fb9033d2876d and on stable/15 through the GitHub mirror, line numbers not
+// taken). Its __cxa_begin_catch pushes an exception only when its handler
+// count is 0, a rethrow negates the count, and __cxa_end_catch pops only
+// when the count returns to 0, so the type stays available in a gate's
+// handler after a nested `throw;` is caught. FreeBSD 15.2 Debug still
+// recorded no type (2026-11-15); the gates now take a standard exception's
+// type from its own RTTI (exception_shadow.cpp, finish_record), and this
+// function is left for the other exceptions. type_info::name() is the mangled name under
 // the Itanium ABI; it is demangled by the reader, never here, since
 // __cxa_demangle allocates.
 

@@ -60,6 +60,7 @@
 #endif
 #include <stdexcept>
 #include <system_error>
+#include <typeinfo> // typeid of a caught standard exception (finish_record)
 #endif
 
 namespace stxlib {
@@ -67,11 +68,15 @@ namespace stxlib {
 #if defined(__cpp_exceptions)
 namespace {
 
-// What the standard classification found.
+// What the standard classification found. `type` is the caught standard
+// exception's dynamic type, from its own RTTI (typeid of the reference the
+// handler binds), so it does not depend on the C++ runtime's caught-exception
+// stack; null for an exception that is not a standard one.
 struct StandardClass final {
     ErrorKind kind{ErrorKind::foreign_exception};
     ForeignCode foreign{};
     const char* what{nullptr};
+    const char* type{nullptr};
 };
 
 // The family of a generic-category (errno) code on this host.
@@ -92,21 +97,27 @@ StandardClass classify_standard() noexcept {
     try {
         throw;
     } catch (const std::bad_alloc& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::out_of_memory;
         result.what = failure.what();
     } catch (const std::invalid_argument& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::invalid_argument;
         result.what = failure.what();
     } catch (const std::out_of_range& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::out_of_range;
         result.what = failure.what();
     } catch (const std::length_error& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::limit_exceeded;
         result.what = failure.what();
     } catch (const std::logic_error& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::internal_failure;
         result.what = failure.what();
     } catch (const std::system_error& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::foreign_failure;
         result.what = failure.what();
         const std::error_code code = failure.code();
@@ -114,6 +125,7 @@ StandardClass classify_standard() noexcept {
             result.foreign = ForeignCode::of(errno_family(), static_cast<i64>(code.value()));
         }
     } catch (const std::exception& failure) {
+        result.type = typeid(failure).name();
         result.kind = ErrorKind::internal_failure;
         result.what = failure.what();
     } catch (...) {
@@ -141,7 +153,11 @@ void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept 
     const ShadowReference shadow = shadow_capture::take_for_current_handler();
     detail::ErrorRecordWriter::set_shadow(record, shadow);
 #if defined(STXLIB_SHADOW)
-    detail::ErrorRecordWriter::copy_exception_type(record, host::current_exception_type_name());
+    // A standard exception's type comes from its own RTTI; any other from
+    // the runtime's record of the exception being handled
+    // (__cxa_current_exception_type, src/hosted/cxx_runtime).
+    const char* const type = standard.type != nullptr ? standard.type : host::current_exception_type_name();
+    detail::ErrorRecordWriter::copy_exception_type(record, type);
     // The recent ring is the block's only: a thread on the failure reserve
     // keeps none (state.hpp, ThreadFlags).
     state::ThreadState* const thread = state::current_thread_state();
