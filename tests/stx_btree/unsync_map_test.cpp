@@ -396,7 +396,19 @@ void run_refusals() {
 
 int main() {
     run_random<std::uint64_t, std::uint64_t>("u64 random", 1, 200000, 50000);
-    run_random<std::uint64_t, std::uint64_t>("u64 dense", 2, 200000, 3000);
+    // The dense run expects internal levels (more than one internal node),
+    // so it needs more leaves than one root's edges. For u64 keys and
+    // values a leaf holds 55 entries at every pointer width, but an
+    // internal node holds 49 keys with 8-byte edges and 83 with wasm32's
+    // 4-byte ones (node_layout.hpp: a 512-byte page of 2-byte keys and
+    // edges). The mix settles with about 64% of the key space present
+    // (inserts at 50% of steps against removals at 28%): 3,000 keys leave
+    // about 1,900, which in leaves part-filled by splits has passed 50
+    // leaves on every 64-bit run but stays short of 84; on wasm32 the run uses
+    // 9,000 keys, about 5,800 present, so at least 105 leaves even if
+    // every leaf is full.
+    constexpr std::size_t dense_keys = stx_btree::detail::edge_bytes == 8 ? 3000 : 9000;
+    run_random<std::uint64_t, std::uint64_t>("u64 dense", 2, 200000, dense_keys);
     run_random<std::int64_t, std::string>("i64 to string", 3, 120000, 20000);
     run_random<std::array<std::uint8_t, 16>, std::uint64_t>("uuid", 4, 150000, 40000);
     run_random<std::array<std::uint8_t, 32>, std::uint64_t>("hash32", 5, 100000, 30000);

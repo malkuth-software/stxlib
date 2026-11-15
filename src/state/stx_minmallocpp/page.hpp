@@ -3,17 +3,24 @@
 // stx_minmallocpp: a page's metadata, the region tables that hold it, and
 // the operations on one page's blocks.
 //
-// A region's metadata, by slice (each slice is 64 KiB; DESIGN.md 4.1):
+// A region's metadata, by slice (each slice is 64 KiB; DESIGN.md 4.1),
+// with 64-bit addresses and, after the slash, with 32-bit ones (layout.hpp;
+// each table is one entry per slice of the region, so it scales with it):
 //
-//   0         RegionHeader (region.hpp)
-//   1         slice_head: one u32 per slice. 0: the slice is not part of a
-//             page. Otherwise 1 + the index of the page's first slice.
-//   2..4      the free-run tables: length (u16), next and previous (u32)
-//   5..20     PageMeta, 64 bytes per slice; a page's is at its first slice
-//   21..148   free words, 64 per slice
-//   149..276  remote words, 64 per slice
-//   277..287  never committed: a guard between metadata and data
-//   288..     data
+//   0                RegionHeader (region.hpp)
+//   1                slice_head: one u32 per slice. 0: the slice is not part
+//                    of a page. Otherwise 1 + the index of the page's first
+//                    slice.
+//   2..4             the free-run tables: length (u16), next and previous
+//                    (u32)
+//   5..20 / 5        PageMeta, 64 bytes per slice; a page's is at its first
+//                    slice
+//   21..148 / 6..13  free words, 64 per slice
+//   149..276 / 14..21  remote words, 64 per slice
+//   277..287 / 22..31  never committed: a guard between metadata and data
+//                    (with no page protection, as on Emscripten, nothing
+//                    traps there)
+//   288.. / 32..     data
 //
 // The host hands these tables over as zero pages. Zero is the empty value
 // of every table (not a page; no owner; on no list; no run; no free
@@ -236,29 +243,41 @@ static_assert(sizeof(PageMeta) == 64 && alignof(PageMeta) == 64, "stx_minmallocp
 
 // ---- the region's tables -----------------------------------------------------------
 
+// The slices that hold `bytes` of a table.
+[[nodiscard]] constexpr usize table_slices(const usize bytes) noexcept {
+    const usize result = (bytes + slice_bytes - 1) / slice_bytes;
+    return result;
+}
+
 inline constexpr usize header_slice = 0;
 inline constexpr usize slice_head_slice = 1;
 inline constexpr usize run_length_slice = 2;
 inline constexpr usize run_next_slice = 3;
 inline constexpr usize run_previous_slice = 4;
 inline constexpr usize page_meta_slice = 5;
-inline constexpr usize free_words_slice = 21;
-inline constexpr usize remote_words_slice = 149;
-inline constexpr usize guard_slice = 277;
-// The first data slice, on a unit boundary (288 = 18 units).
-inline constexpr usize first_data_slice = 288;
+inline constexpr usize free_words_slice = page_meta_slice + table_slices(region_slices * sizeof(PageMeta));
+inline constexpr usize remote_words_slice = free_words_slice + table_slices(region_slices * page_words * sizeof(u64));
+inline constexpr usize guard_slice = remote_words_slice + table_slices(region_slices * page_words * sizeof(u64));
+// The first data slice, on a unit boundary (288 = 18 units; 32-bit: 32 = 2
+// units).
+inline constexpr usize first_data_slice = round_up(guard_slice + 1, unit_slices);
 // Slices committed when a region is made: 0 up to the free words.
 inline constexpr usize eager_meta_slices = free_words_slice;
 
-static_assert(region_slices * sizeof(u32) == slice_bytes, "slice_head fills one slice");
-static_assert(region_slices * sizeof(PageMeta) == (free_words_slice - page_meta_slice) * slice_bytes, "PageMeta table");
-static_assert(region_slices * page_words * sizeof(u64) == (remote_words_slice - free_words_slice) * slice_bytes,
-              "free words table");
-static_assert(region_slices * page_words * sizeof(u64) == (guard_slice - remote_words_slice) * slice_bytes,
-              "remote words table");
+static_assert(region_slices * sizeof(u32) <= slice_bytes, "slice_head fits one slice");
+static_assert(region_slices * sizeof(u16) <= slice_bytes, "the run length table fits one slice");
 static_assert(guard_slice < first_data_slice && first_data_slice % unit_slices == 0, "data starts on a unit");
+// The 64-bit layout is the one measured and reviewed; it is pinned here so
+// that the 32-bit variant cannot move it.
+static_assert(!wide_addresses || (free_words_slice == 21 && remote_words_slice == 149 && guard_slice == 277 &&
+                                  first_data_slice == 288),
+              "the 64-bit region layout");
+static_assert(wide_addresses || (free_words_slice == 6 && remote_words_slice == 14 && guard_slice == 22 &&
+                                 first_data_slice == 32),
+              "the 32-bit region layout");
 
-// The region that holds `address`, which is inside one: its 1 GiB base.
+// The region that holds `address`, which is inside one: its base (1 GiB
+// aligned; 32-bit: 64 MiB).
 [[nodiscard]] constexpr uptr region_base_of(const uptr address) noexcept {
     const uptr result = address & ~static_cast<uptr>(region_bytes - 1);
     return result;

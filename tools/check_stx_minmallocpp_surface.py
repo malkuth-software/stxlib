@@ -22,6 +22,11 @@ The host lists (os.hpp gives the reason for each call):
   windows  VirtualAlloc VirtualFree GetSystemInfo SwitchToThread abort,
            and _tls_used (the C runtime's TLS directory, named so that the
            thread-exit callback is kept)
+  web      emscripten_builtin_memalign emscripten_builtin_free (the
+           address space, minmallocpp_os_emscripten.cpp) and the POSIX
+           list's sched_yield sysconf pthread_key_create
+           pthread_setspecific pthread_getspecific abort; no mmap,
+           mprotect or munmap
 
 Toolchain helpers allowed on every host: block set and copy (memset,
 memcpy, memmove, bzero), the thread-local access routines (__tls_get_addr,
@@ -29,6 +34,12 @@ _tlv_bootstrap, __emutls_get_address and the __emutls_v. control objects,
 and _tls_index, the PE image's TLS slot that Windows thread-local access
 reads),
 the stack protector's symbols, ___chkstk_ms, and the global offset table.
+
+For the web family only, the wasm ABI's globals and table, which the
+compiler names in every position-independent object and which are no
+calls: __memory_base, __table_base, __stack_pointer, __tls_base and
+__indirect_function_table (WebAssembly tool conventions, DynamicLinking.md,
+read 2026-11-15). They are refused for every other family.
 
 In a sanitizer or integer-check build only (--sanitized, which CMake passes
 when the flags enable -fsanitize= or STXLIB_INTEGER_CHECKS is on), the
@@ -39,12 +50,13 @@ and __stop_asan_globals, through which AddressSanitizer registers each
 module's globals. Every other build is checked exactly as above.
 
 The scan must be able to see such references: the objects must leave the
-family's reservation call undefined (mmap, or VirtualAlloc), or the tool
+family's reservation call undefined (mmap, VirtualAlloc, or
+emscripten_builtin_memalign), or the tool
 fails.
 
 Usage:
   python3 -I tools/check_stx_minmallocpp_surface.py --nm <nm>
-      --family posix|windows --objects <dir> [--under <prefix>] [--sanitized]
+      --family posix|windows|web --objects <dir> [--under <prefix>] [--sanitized]
 
 --objects is a directory of objects (CMake's CMakeFiles/<target>.dir);
 --under keeps only objects whose path below it starts with that prefix
@@ -70,9 +82,16 @@ HOST_CALLS = {
     'windows': frozenset({
         'VirtualAlloc', 'VirtualFree', 'GetSystemInfo', 'SwitchToThread', 'abort', 'tls_used',
     }),
+    'web': frozenset({
+        'emscripten_builtin_memalign', 'emscripten_builtin_free', 'sched_yield', 'sysconf',
+        'pthread_key_create', 'pthread_setspecific', 'pthread_getspecific', 'abort',
+    }),
 }
 
-MUST_SEE = {'posix': 'mmap', 'windows': 'VirtualAlloc'}
+MUST_SEE = {'posix': 'mmap', 'windows': 'VirtualAlloc', 'web': 'emscripten_builtin_memalign'}
+
+# The web family only: the wasm ABI's globals and table (normalised names).
+WASM_ABI_GLOBALS = frozenset({'memory_base', 'table_base', 'stack_pointer', 'tls_base', 'indirect_function_table'})
 
 TOOLCHAIN_HELPERS = frozenset({
     'memset', 'memcpy', 'memmove', 'bzero',
@@ -128,6 +147,8 @@ def objects_under(directory: pathlib.Path, prefix: str) -> list[pathlib.Path]:
 def allowed(name: str, family: str, sanitized: bool) -> bool:
     bare: str = normalised(name)
     if bare in HOST_CALLS[family] or bare in TOOLCHAIN_HELPERS:
+        return True
+    if family == 'web' and bare in WASM_ABI_GLOBALS:
         return True
     if sanitized and (bare in SANITIZER_HELPERS or bare.startswith(SANITIZER_PREFIXES)):
         return True

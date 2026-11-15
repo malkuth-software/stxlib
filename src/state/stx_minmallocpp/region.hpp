@@ -51,13 +51,14 @@ struct Heap;
 
 // ---- the directory ---------------------------------------------------------------
 
-// A cell's value: not ours; a standard region occupying exactly this GiB;
+// A cell's value: not ours; a standard region occupying exactly this cell
+// (1 GiB; 32-bit: 64 MiB);
 // or cell_huge_first + the index of the huge mapping that covers it.
 inline constexpr u32 cell_none = 0;
 inline constexpr u32 cell_region = 1;
 inline constexpr u32 cell_huge_first = 2;
 
-// One cell per GiB below 2^48. Written with release after what it names is
+// One cell per region-sized span below 2^address_bits. Written with release after what it names is
 // ready; read with acquire. The cells are plain integers reached through
 // std::atomic_ref: an array of 262,144 std::atomic objects costs the
 // compiler one constructor evaluation per element, which passes Clang's
@@ -82,7 +83,7 @@ inline void set_directory_cell(const usize index, const u32 value) noexcept {
 
 // ---- regions ---------------------------------------------------------------------
 
-inline constexpr usize region_capacity = 1024; // 1 TiB of regions
+inline constexpr usize region_capacity = 1024; // 1 TiB of regions (32-bit: the directory's 32 cells bound it first)
 inline constexpr u32 idle_unit_limit = 8;
 
 // Slice 0 of a region. It is never constructed: zero pages from the host
@@ -113,7 +114,7 @@ inline constexpr usize run_second_levels = 4;
 // A free run's name in the index: (region index << 14) | first slice. A
 // data slice is never slice 0, so 0 names no run.
 inline constexpr u32 no_run = 0;
-inline constexpr usize run_slice_bits = 14;
+inline constexpr usize run_slice_bits = region_shift - slice_shift; // 14 (32-bit: 10)
 static_assert((static_cast<usize>(1) << run_slice_bits) == region_slices, "a run name holds a slice index");
 
 struct RunList final {
@@ -148,6 +149,32 @@ struct RunList final {
 static_assert(run_list_floor(run_list_of(1)) == 1 && run_list_floor(run_list_of(8)) == 8 &&
                   run_list_floor(run_list_of(64)) == 64,
               "page lengths are a list's smallest length");
+
+// The smallest length of the first list all of whose runs hold `need`
+// slices: where fitting_list (region.cpp) starts looking. Requires
+// 1 <= need < 2^14.
+[[nodiscard]] constexpr usize fitting_floor(const usize need) noexcept {
+    RunList list = run_list_of(need);
+    if (run_list_floor(list) < need) {
+        list.second = list.second + 1;
+        if (list.second == run_second_levels) {
+            list.first = list.first + 1;
+            list.second = 0;
+        }
+    }
+    const usize result = run_list_floor(list);
+    return result;
+}
+
+// A page of one block takes a run of its slices plus its alignment's less
+// one (take_run); at the largest size and alignment a page of one block
+// may have (huge_threshold each), a new region's one free run must be in a
+// list at or above the one fitting_list starts from. 64-bit: 1,023 slices
+// against a run of 16,096; 32-bit: 511 against 992 (it is what sets the
+// 32-bit huge_threshold at 16 MiB: 32 MiB would need 1,023).
+static_assert(fitting_floor(2 * (huge_threshold >> slice_shift) - 1) <=
+                  run_list_floor(run_list_of(region_slices - first_data_slice)),
+              "a page of one block, at any size and alignment it admits, fits a new region");
 
 // A run of slices: `base` is its region, 0 when there is none.
 struct RunPlace final {
@@ -243,8 +270,9 @@ void give_run(uptr base, usize slice, usize count) noexcept;
 // by trim.
 void decommit_idle_units() noexcept;
 
-// A block of `bytes` in a mapping of its own, aligned to 1 GiB; null when
-// the host refuses or the records are all in use. Takes the lock.
+// A block of `bytes` in a mapping of its own, aligned to a region (1 GiB;
+// 32-bit: 64 MiB); null when the host refuses or the records are all in
+// use. Takes the lock.
 [[nodiscard]] void* allocate_huge(usize bytes) noexcept;
 
 // Releases the huge block that directory cell value `cell` names, if

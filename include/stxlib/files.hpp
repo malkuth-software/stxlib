@@ -65,6 +65,9 @@
 //   unsupported            ->  unsupported (a drive path on a POSIX host)
 //   (a Path no POSIX name spells: one holding a surrogate that is not a
 //   POSIX escape, made from a Windows name)  ->  invalid_argument, invalid_name
+//   (on Emscripten's JavaScript file system, MEMFS and IDBFS, a name that
+//   is not UTF-8: that file system would store it under another name)
+//                          ->  invalid_argument, invalid_name
 //   cross_device           ->  unsupported, cross_device
 //   busy                   ->  limit_exceeded, busy
 //   bad_handle             ->  disposed, closed_handle
@@ -190,9 +193,10 @@ public:
     // name has since been renamed or replaced.
     [[nodiscard]] Result<FileInformation> information() noexcept;
     // Sets the last-write time (futimens with the access time left as it
-    // is; SetFileTime). The host keeps it at its own resolution: 1 ns on
-    // APFS, ext4 and UFS2, 100 ns on NTFS (WallTime is cut, toward the
-    // past, to the host's tick). A file opened for reading is refused
+    // is; SetFileTime; on WasmFS, utimensat with an empty name). The host
+    // keeps it at its own resolution: 1 ns on APFS, ext4 and UFS2, 100 ns
+    // on NTFS, 1 ms on both Emscripten file systems (WallTime is cut,
+    // toward the past, to the host's tick). A file opened for reading is refused
     // with invalid_argument, HostCode::invalid_state.
     [[nodiscard]] Status set_modified(WallTime modified) noexcept;
     // Cuts or extends the file to `bytes` (ftruncate; SetFileInformationByHandle

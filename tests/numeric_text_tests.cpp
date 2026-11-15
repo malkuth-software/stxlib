@@ -101,7 +101,11 @@ void integers() {
     // Caps: an enormous width or digit count is bounded.
     CHECK(unsigned_text(1, {.minimum_digits = 1u << 30}).size() == text::maximum_width);
     CHECK(signed_text(-1, {.minimum_digits = 1u << 30}).size() == text::maximum_number_bytes);
-    CHECK(signed_text(1, {.field = {.width = usize{1} << 40}}).size() == text::maximum_width);
+    // Widths far past the cap at every usize width: the top bit, and all
+    // bits. (This was usize{1} << 40, a shift past usize's width on wasm32,
+    // where the run read it as 1 << 8 and gave a field of 256.)
+    CHECK(signed_text(1, {.field = {.width = usize{1} << (sizeof(usize) * 8 - 1)}}).size() == text::maximum_width);
+    CHECK(signed_text(1, {.field = {.width = stxlib::usize_max}}).size() == text::maximum_width);
     // The generic forms pick signedness from the type.
     char both[16]{};
     text::TextWriter writer(stxlib::MutableView<char>{both});

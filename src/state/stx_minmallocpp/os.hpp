@@ -3,7 +3,9 @@
 // stx_minmallocpp's whole view of the host: address space reserved,
 // committed, decommitted and released; a yield; a stop; and the thread-exit
 // hook. Implemented once per host family under src/hosted/
-// (posix/minmallocpp_os_posix.cpp, windows/minmallocpp_os_windows.cpp), the
+// (posix/minmallocpp_os_posix.cpp, windows/minmallocpp_os_windows.cpp; on
+// Emscripten the POSIX file without the address space, which
+// emscripten/minmallocpp_os_emscripten.cpp gives over linear memory), the
 // only places that name a host interface (AGENTS.md, "Hard boundaries").
 //
 // Early exit (AGENTS.md; the owner, 2026-11-15: "allocators must not
@@ -11,13 +13,15 @@
 // mmap, mprotect, munmap, sched_yield and sysconf, the pthread key calls
 // pthread_key_create, pthread_setspecific and pthread_getspecific, and
 // abort; on Windows, VirtualAlloc, VirtualFree, GetSystemInfo,
-// SwitchToThread and abort. None can unwind. mmap, mprotect, munmap and
-// sched_yield are in neither list of cancellation points (POSIX.1-2024,
-// XSH 2.9.5.2, read 2026-11-15); sysconf and the three pthread key calls
-// were not looked up there (unconfirmed). abort is called only by stop,
-// which ends the process; it raises SIGABRT, so a handler the program
-// installed runs first. The allocator makes each call with its tables
-// whole and needs no cancellation guard.
+// SwitchToThread and abort; on Emscripten, emscripten_builtin_memalign and
+// emscripten_builtin_free in place of mmap, mprotect and munmap
+// (minmallocpp_os_emscripten.cpp gives the reasons). None can unwind.
+// mmap, mprotect, munmap and sched_yield are in neither list of
+// cancellation points (POSIX.1-2024, XSH 2.9.5.2, read 2026-11-15); sysconf
+// and the three pthread key calls were not looked up there (unconfirmed).
+// abort is called only by stop, which ends the process; it raises SIGABRT,
+// so a handler the program installed runs first. The allocator makes each
+// call with its tables whole and needs no cancellation guard.
 // tools/check_stx_minmallocpp_surface.py checks this list against the
 // compiled objects.
 //

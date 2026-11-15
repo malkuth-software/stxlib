@@ -42,8 +42,9 @@ enum class Release : u8 {
 };
 
 // `size` bytes aligned to `alignment`. A size of zero yields a unique
-// block. Null when alignment is not a power of two or exceeds 1 GiB, when
-// size exceeds half the address space, or on exhaustion. The contents are
+// block. Null when alignment is not a power of two or exceeds a region
+// (1 GiB; 64 MiB with 32-bit addresses, layout.hpp), when size exceeds
+// half the address space, or on exhaustion. The contents are
 // indeterminate. Blocks of up to 512 KiB with an alignment of up to 64 KiB
 // cost a fixed number of steps on the fast path.
 [[nodiscard]] void* allocate(usize size, usize alignment) noexcept;
