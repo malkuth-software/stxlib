@@ -25,15 +25,18 @@ The host lists (os.hpp gives the reason for each call):
 
 Toolchain helpers allowed on every host: block set and copy (memset,
 memcpy, memmove, bzero), the thread-local access routines (__tls_get_addr,
-_tlv_bootstrap, __emutls_get_address and the __emutls_v. control objects),
+_tlv_bootstrap, __emutls_get_address and the __emutls_v. control objects,
+and _tls_index, the PE image's TLS slot that Windows thread-local access
+reads),
 the stack protector's symbols, ___chkstk_ms, and the global offset table.
 
 In a sanitizer or integer-check build only (--sanitized, which CMake passes
 when the flags enable -fsanitize= or STXLIB_INTEGER_CHECKS is on), the
 instrumentation's runtime entries are allowed too: symbols starting
 __asan_, __lsan_, __msan_, __tsan_, __ubsan_ or __sanitizer_, and
-__cxa_atexit and __dso_handle, through which AddressSanitizer registers
-each module's globals. Every other build is checked exactly as above.
+__cxa_atexit, __dso_handle and the ELF section bounds __start_asan_globals
+and __stop_asan_globals, through which AddressSanitizer registers each
+module's globals. Every other build is checked exactly as above.
 
 The scan must be able to see such references: the objects must leave the
 family's reservation call undefined (mmap, or VirtualAlloc), or the tool
@@ -73,7 +76,7 @@ MUST_SEE = {'posix': 'mmap', 'windows': 'VirtualAlloc'}
 
 TOOLCHAIN_HELPERS = frozenset({
     'memset', 'memcpy', 'memmove', 'bzero',
-    'tls_get_addr', 'tlv_bootstrap', 'emutls_get_address',
+    'tls_get_addr', 'tlv_bootstrap', 'emutls_get_address', 'tls_index',
     'stack_chk_fail', 'stack_chk_guard', 'chkstk_ms',
     'GLOBAL_OFFSET_TABLE_',
 })
@@ -82,7 +85,7 @@ TOOLCHAIN_PREFIXES = ('emutls_v.',)
 
 # Sanitizer and integer-check builds only (--sanitized): the runtime's entries.
 SANITIZER_PREFIXES = ('asan_', 'lsan_', 'msan_', 'tsan_', 'ubsan_', 'sanitizer_')
-SANITIZER_HELPERS = frozenset({'cxa_atexit', 'dso_handle'})
+SANITIZER_HELPERS = frozenset({'cxa_atexit', 'dso_handle', 'start_asan_globals', 'stop_asan_globals'})
 
 
 def normalised(name: str) -> str:
