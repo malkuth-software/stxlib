@@ -437,8 +437,12 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
         switch (event) {
         case Event::start: {
             const StartResult result = registry.start(name, now, actions);
-            (void)result;
-            stopped_by_request = false;
+            // A start refused because the service is not stopped (running,
+            // waiting, or stopping after a stop) changes nothing: a stop by
+            // request stays one.
+            if (result != StartResult::already_running) {
+                stopped_by_request = false;
+            }
             break;
         }
         case Event::exit_clean:

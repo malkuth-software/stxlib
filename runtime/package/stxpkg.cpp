@@ -995,16 +995,16 @@ void url_text(const stxnet::HttpsUrl& url, char (&out)[stxnet::url_length_max + 
         say("refused", "path");
         return exit_run_refused;
     }
-    const std::optional<std::size_t> read =
+    const std::optional<std::size_t> manifest_read =
         read_small_file((*manifest_path).text, std::span<char>(manifest_text, sizeof(manifest_text)));
     char signature_bytes[stxpackage::signature_size + 1u] = {};
     const std::optional<std::size_t> signature_read =
         read_small_file((*signature_path).text, std::span<char>(signature_bytes, sizeof(signature_bytes)));
-    if (!read.has_value() || !signature_read.has_value() || *signature_read != stxpackage::signature_size) {
+    if (!manifest_read.has_value() || !signature_read.has_value() || *signature_read != stxpackage::signature_size) {
         say("refused", "slot-unreadable");
         return exit_run_refused;
     }
-    manifest_length = *read;
+    manifest_length = *manifest_read;
     std::memcpy(signature, signature_bytes, stxpackage::signature_size);
     const std::span<const char> text(manifest_text, manifest_length);
     if (!signature_valid(load_keys(), text, signature)) {
@@ -1149,7 +1149,7 @@ void url_text(const stxnet::HttpsUrl& url, char (&out)[stxnet::url_length_max + 
 [[nodiscard]] bool relabel(int device, Slot slot) noexcept {
     const char* const label = slot == Slot::a ? "STXROOTA" : "STXROOTB";
     struct fs* superblock = nullptr;
-    if (sbget(device, &superblock, STDSB, 0) != 0 || superblock == nullptr) {
+    if (sbget(device, &superblock, UFS_STDSB, 0) != 0 || superblock == nullptr) {
         return false;
     }
     std::memset((*superblock).fs_volname, 0, sizeof((*superblock).fs_volname));
@@ -1158,10 +1158,12 @@ void url_text(const stxnet::HttpsUrl& url, char (&out)[stxnet::url_length_max + 
         return false;
     }
     struct fs* check = nullptr;
-    if (sbget(device, &check, STDSB, 0) != 0 || check == nullptr) {
+    if (sbget(device, &check, UFS_STDSB, 0) != 0 || check == nullptr) {
         return false;
     }
-    return std::strncmp((*check).fs_volname, label, sizeof((*check).fs_volname)) == 0;
+    // fs_volname is uint8_t[MAXVOLLEN] (ufs/ffs/fs.h, FreeBSD 15.2).
+    return std::memcmp((*check).fs_volname, label, text_length(label)) == 0 &&
+           (text_length(label) == sizeof((*check).fs_volname) || (*check).fs_volname[text_length(label)] == 0u);
 }
 
 [[nodiscard]] int install_system(PackageReader& reader, Slot slot, std::uint32_t expected_version) noexcept {

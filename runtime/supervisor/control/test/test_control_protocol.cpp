@@ -118,9 +118,13 @@ void test_requests() {
         }
     }
     // Names: present exactly when the command takes one.
-    const Request unnamed = request_without_name(Command::start, 1);
+    // The builders assert that the name matches the command, so the
+    // mismatched requests are made by changing a well-formed one.
+    Request unnamed = request_for_service(Command::start, 1, name_of("web"));
+    unnamed.name.length = 0;
     check(!encode_request(unnamed, frame).has_value(), "requests", "start without a name refused");
-    const Request named = request_for_service(Command::supervisor_state, 1, name_of("web"));
+    Request named = request_without_name(Command::supervisor_state, 1);
+    named.name = name_of("web");
     check(!encode_request(named, frame).has_value(), "requests", "supervisor_state with a name refused");
     // The largest configuration text fits; one byte more does not.
     static char text[config_text_max + 2];

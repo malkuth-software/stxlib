@@ -402,8 +402,11 @@ const Refusal refusals[] = {
     {"[service-a]\nrole = server\ndirectory = /x\n", 3, 1, ParseError::service_setting_unknown},
     {"[service-a]\ncommand = bin/a\nrestart = always\n", 2, 11, ParseError::program_not_absolute},
     {"[service-a]\ncommand = bin/a\nstart = boot\n", 1, 2, ParseError::target_setting_missing},
-    {"[service-a]\ncommand = /w\nfolder = /data/targets/a\n", 3, 1, ParseError::service_setting_unknown},
-    {"[service-a]\ncommand = /w\nid = 1\n", 3, 1, ParseError::service_setting_unknown},
+    // A target-only key after the command turns the section into a target,
+    // so its absolute command is refused as a package path, where it stands
+    // (the program check precedes the missing-setting check at close).
+    {"[service-a]\ncommand = /w\nfolder = /data/targets/a\n", 2, 11, ParseError::program_path_malformed},
+    {"[service-a]\ncommand = /w\nid = 1\n", 2, 11, ParseError::program_path_malformed},
     {"[target-a]\nfolder = /w\n", 2, 10, ParseError::folder_outside_data},
     {"[target-a]\nfolder = data/targets/x\n", 2, 10, ParseError::folder_malformed},
     {"[target-a]\nfolder = /data/targets\n", 2, 10, ParseError::folder_outside_data},
