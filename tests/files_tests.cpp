@@ -303,6 +303,26 @@ void metadata_and_directories(const Scratch& scratch) {
     CHECK(removed.succeeded() && *removed.value() == 5);
     const Result<stxlib::u64> nothing = stxlib::remove_tree(under(scratch.root, "list"));
     CHECK(nothing.succeeded() && *nothing.value() == 0);
+    // Audit A, C3: remove_tree's limits refuse before the directory's own
+    // entries are touched.
+    CHECK(stxlib::create_directories(under(scratch.root, "bounded/x/y")).succeeded());
+    CHECK(stxlib::write_file(under(scratch.root, "bounded/x/one"), stxlib::View<Byte>(), Durability::none)
+              .succeeded());
+    CHECK(stxlib::write_file(under(scratch.root, "bounded/x/two"), stxlib::View<Byte>(), Durability::none)
+              .succeeded());
+    stxlib::RemoveTreeLimits shallow{};
+    shallow.depth = 1; // bounded is 0, x is 1, y would be 2
+    const Result<stxlib::u64> too_deep = stxlib::remove_tree(under(scratch.root, "bounded"), shallow);
+    CHECK(kind_of(too_deep) == ErrorKind::limit_exceeded && code_of(too_deep) == HostCode::too_long);
+    CHECK(stxlib::inspect(under(scratch.root, "bounded/x/one"), stxlib::LinkMode::no_follow).succeeded());
+    CHECK(stxlib::inspect(under(scratch.root, "bounded/x/y"), stxlib::LinkMode::no_follow).succeeded());
+    stxlib::RemoveTreeLimits narrow{};
+    narrow.entries_per_directory = 2; // x holds y, one and two
+    const Result<stxlib::u64> too_wide = stxlib::remove_tree(under(scratch.root, "bounded"), narrow);
+    CHECK(kind_of(too_wide) == ErrorKind::limit_exceeded && code_of(too_wide) == HostCode::too_long);
+    CHECK(stxlib::inspect(under(scratch.root, "bounded/x/two"), stxlib::LinkMode::no_follow).succeeded());
+    const Result<stxlib::u64> bounded = stxlib::remove_tree(under(scratch.root, "bounded"));
+    CHECK(bounded.succeeded() && *bounded.value() == 5);
     // A nested tree: a/b/c, a/note.txt, and a itself.
     const Result<stxlib::u64> tree = stxlib::remove_tree(under(scratch.root, "a"));
     CHECK(tree.succeeded() && *tree.value() == 4);

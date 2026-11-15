@@ -196,10 +196,25 @@ enum class LinkMode : u8 {
 // Removes a file, a symbolic link or an empty directory; not_found when
 // nothing has that name.
 [[nodiscard]] Status remove(const Path& path) noexcept;
+// remove_tree's bounds (house style §1, audit A, C3). Each directory is
+// listed whole, so `entries_per_directory` bounds one listing's storage;
+// `depth` (the top is depth 0) bounds the pending work, at most `depth`
+// listings' directory names. The defaults hold any tree a desktop
+// application writes.
+struct RemoveTreeLimits final {
+    usize entries_per_directory{static_cast<usize>(1) << 20};
+    usize depth{256};
+};
+
 // Removes a directory tree without following symbolic links. Yields the
 // number of entries removed, the top included; a missing path removes 0.
-// Not atomic: on failure, part of the tree may be gone.
-[[nodiscard]] Result<u64> remove_tree(const Path& path) noexcept;
+// A directory of more than limits.entries_per_directory entries, or one
+// holding a directory deeper than limits.depth, is refused (limit_exceeded,
+// HostCode::too_long) before anything in it is removed.
+// Not atomic: on failure, part of the tree may be gone: the directories
+// finished before the failing one, and none of the failing one's entries
+// when the failure is a refusal by `limits`.
+[[nodiscard]] Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;
 // Renames, replacing an existing file at `to`.
 [[nodiscard]] Status rename(const Path& from, const Path& to) noexcept;
 

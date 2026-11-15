@@ -519,8 +519,11 @@ Status remove(const Path& path) noexcept {
 // Iterative, so depth costs heap, not stack: a stack of directory names;
 // the top is listed, its non-directories removed and its directories
 // pushed; a top with no directories left is removed and popped. A directory
-// is listed again after its subdirectories are gone.
-Result<u64> remove_tree(const Path& path) noexcept {
+// is listed again after its subdirectories are gone. Each stack entry
+// records its depth; a listing past limits.entries_per_directory, or a
+// subdirectory past limits.depth, is refused before the top's entries are
+// touched (files.hpp).
+Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits) noexcept {
     const Operation operation = "stxlib.files.remove_tree";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
@@ -535,9 +538,11 @@ Result<u64> remove_tree(const Path& path) noexcept {
         return Result<u64>::success(1);
     }
     const Outcome no_memory = file_backend::failure(FileStatus::out_of_memory);
+    const Outcome too_many = file_backend::failure(FileStatus::too_large);
     Growable<char> stack_names;
     Growable<usize> stack_starts;
-    if (!stack_starts.push(0) || !stack_names.append(name.data(), name.count())) {
+    Growable<usize> stack_depths;
+    if (!stack_starts.push(0) || !stack_depths.push(0) || !stack_names.append(name.data(), name.count())) {
         return Result<u64>::failure(record_of(no_memory, operation));
     }
     u64 removed = 0;
@@ -547,6 +552,7 @@ Result<u64> remove_tree(const Path& path) noexcept {
     Growable<char> child;
     while (!stack_starts.empty()) {
         const usize start = stack_starts[stack_starts.count() - 1];
+        const usize depth = stack_depths[stack_depths.count() - 1];
         top.clear();
         if (!top.append(stack_names.data() + start, stack_names.count() - start)) {
             return Result<u64>::failure(record_of(no_memory, operation));
@@ -555,8 +561,16 @@ Result<u64> remove_tree(const Path& path) noexcept {
         entries.clear();
         // Host names throughout: a child's name is the host's own, so every
         // entry is reachable whatever its name (D13 a).
-        const Outcome listed = file_backend::list(top.data(), usize_max, names, entries);
+        const Outcome listed = file_backend::list(top.data(), limits.entries_per_directory, names, entries);
         if (!listed.ok()) return Result<u64>::failure(record_of(listed, operation));
+        // The depth bound, checked before any entry of the top is removed.
+        if (depth >= limits.depth) {
+            for (usize index = 0; index < entries.count(); ++index) {
+                if (entries[index].kind == FileKind::directory) {
+                    return Result<u64>::failure(record_of(too_many, operation));
+                }
+            }
+        }
         bool pushed = false;
         for (usize index = 0; index < entries.count(); ++index) {
             const file_backend::RawEntry entry = entries[index];
@@ -564,7 +578,8 @@ Result<u64> remove_tree(const Path& path) noexcept {
                 return Result<u64>::failure(record_of(no_memory, operation));
             }
             if (entry.kind == FileKind::directory) {
-                if (!stack_starts.push(stack_names.count()) || !stack_names.append(child.data(), child.count())) {
+                if (!stack_starts.push(stack_names.count()) || !stack_depths.push(depth + 1) ||
+                    !stack_names.append(child.data(), child.count())) {
                     return Result<u64>::failure(record_of(no_memory, operation));
                 }
                 pushed = true;
@@ -581,6 +596,7 @@ Result<u64> remove_tree(const Path& path) noexcept {
         if (gone.ok()) removed = removed + 1;
         stack_names.shrink(start);
         stack_starts.shrink(stack_starts.count() - 1);
+        stack_depths.shrink(stack_depths.count() - 1);
     }
     return Result<u64>::success(removed);
 }
