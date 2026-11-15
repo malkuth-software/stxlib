@@ -361,6 +361,14 @@ void longest_host_names() {
     const std::vector<stxlib::u16> over(stxlib::maximum_path_bytes / 3 + 1, 0xd800);
     const Result<Path> refused = Path::from_windows_name(over.data(), over.size());
     CHECK(refused.failed() && failure_of(refused) == PathFailure::too_long);
+    // Names longer than the bound before any conversion are refused before
+    // it (audit A, C2): the same failure, without the escaped copy.
+    const std::string long_name(stxlib::maximum_path_bytes + 1, 'a');
+    const Result<Path> long_posix = Path::from_posix_name(long_name.data(), long_name.size());
+    CHECK(long_posix.failed() && failure_of(long_posix) == PathFailure::too_long);
+    const std::vector<stxlib::u16> long_units(stxlib::maximum_path_bytes + 1, 'a');
+    const Result<Path> long_windows = Path::from_windows_name(long_units.data(), long_units.size());
+    CHECK(long_windows.failed() && failure_of(long_windows) == PathFailure::too_long);
 }
 
 // parse_wtf8 accepts lone surrogates and refuses a high one directly before a
