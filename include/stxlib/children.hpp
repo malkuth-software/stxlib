@@ -30,6 +30,13 @@
 //   later; musl's posix_spawn does too).
 // - Every child's standard input is the null device; its output and error
 //   are inherited, discarded or captured together through one pipe.
+// - No other descriptor or handle of the parent's reaches the child where
+//   the host can say so: Windows lists the handles it passes; macOS
+//   (POSIX_SPAWN_CLOEXEC_DEFAULT), glibc 2.34 and later and FreeBSD 13.1
+//   and later (posix_spawn_file_actions_addclosefrom_np) close every
+//   descriptor past 2. Elsewhere (musl, older C libraries) a descriptor
+//   the program opened without close-on-exec is inherited; STXlib's own
+//   are all close-on-exec.
 // - Children start with default handling for SIGPIPE, SIGINT, SIGTERM,
 //   SIGHUP, SIGQUIT, SIGTSTP and SIGWINCH and an empty signal mask, whatever
 //   the parent ignores or blocks.
@@ -144,7 +151,12 @@ public:
     // reached the wait's start plus `timeout` (saturating), on every host;
     // the wait may end later than that, never earlier. A zero or negative
     // timeout polls once. After a successful
-    // wait, later calls fail with HostCode::invalid_state.
+    // wait, later calls fail with HostCode::invalid_state. On POSIX hosts,
+    // a child reaped elsewhere (SIGCHLD ignored, SA_NOCLDWAIT, or another
+    // waitpid) fails the wait with the host's ECHILD, its end unknown, and
+    // the Child counts as waited: wait and kill then fail with
+    // invalid_state, so its process id, which may name another process by
+    // then, is never signalled.
     [[nodiscard]] Result<ChildEnd> wait(Duration timeout) noexcept;
     // Ends the child forcibly (SIGKILL, TerminateProcess). Still wait for it.
     [[nodiscard]] Status kill() noexcept;
