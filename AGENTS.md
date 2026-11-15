@@ -18,7 +18,10 @@ Coordination state is in the private projects repository,
 
 All first-party C++ follows the house style: `HOUSE_STYLE.md` on `main` of
 `malkuth-software/notes`. Read it in full before writing code. Its eleven
-sections apply here without exception, tests included. Two of them are this
+sections apply here without exception, tests included. STXlib adds its own
+rules in `docs/CODE_STYLE_APPENDIX.md` (floating point and subnormals, the
+freedoms of repeated kernels, intended immutability; owner, 2026-11-13):
+read it too; it binds STXlib only. Two house-style sections are this
 library's whole purpose:
 
 - **Section 1, memory:** every datum has an owner and a lifetime. Memory we

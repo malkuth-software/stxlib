@@ -114,7 +114,8 @@ stxlib_switch_condition(STXLIB_LOCK_CHECKS stxlib_lock_checks_on)
 # STXlib's own code is built without exceptions in every build (AGENTS.md:
 # release builds of everything ours use no exceptions; for STXlib from the
 # start). The one exception is src/core/exception_shadow.cpp, which records
-# exceptions for gates instantiated in consumers built with them.
+# exceptions for gates instantiated in consumers built with them, and only
+# while STXLIB_EXCEPTIONS is ON (below).
 set(STXLIB_EXCEPTION_RECORDER src/core/exception_shadow.cpp)
 
 set(stxlib_warnings -Wall -Wextra -Wpedantic -Wconversion -Wshadow)
@@ -133,6 +134,25 @@ add_compile_options(${stxlib_fp_options})
 # in Debug builds, for every target alike, so no build mixes checked and
 # unchecked copies of those inline functions.
 add_compile_definitions($<$<CONFIG:Debug>:STXLIB_FLOAT_CHECKS>)
+
+# ---- exceptions -------------------------------------------------------------
+# STXlib's own code never uses exceptions; STXLIB_EXCEPTIONS says whether its
+# consumers may. ON (the default) builds the exception recorder with
+# exceptions, so a gate instantiated in a consumer built with them records
+# what it catches. OFF is for a process with no exceptions anywhere (the
+# appliance's supervisor and PID 1, an application built without them;
+# shape B of notes planning/stages/A3-no-exceptions.md): every target defined
+# here, tests included, is built with -fno-exceptions; the recorder keeps
+# only the recent-failure accessors; the C++ runtime's exception-type query
+# is left out; and gate.hpp refuses a consumer translation unit that has
+# exceptions (STXLIB_NO_EXCEPTION_RECORDER). Tests that throw are not built.
+# Checked at configure time (stxlib_check_exception_flags, end of file) and
+# on the objects (the ctest stxlib_no_exception_symbols).
+option(STXLIB_EXCEPTIONS "Build the exception recorder, for consumers built with exceptions" ON)
+if(NOT STXLIB_EXCEPTIONS)
+    add_compile_options(-fno-exceptions)
+endif()
+message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 
 # ---- stxlib_state -----------------------------------------------------------
 # The one owner of STXlib's per-thread and per-process state
@@ -213,7 +233,14 @@ if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
     set_target_properties(stxlib_mimalloc PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(stxlib_mimalloc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
     target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1 MI_PROFILE=0)
-    target_compile_options(stxlib_mimalloc PRIVATE -w -fvisibility=hidden -ftls-model=initial-exec -fno-sanitize=all)
+    # -fno-exceptions: mimalloc throws only from its operator new path
+    # (mi_new and its kind, src/alloc/alloc.c, mi_try_new_handler), which STXlib
+    # never calls (src/state/allocator.cpp calls mi_malloc_aligned, mi_free
+    # and mi_is_in_heap_region); built without exceptions that path aborts
+    # instead, and the object refers to no exception runtime
+    # (stxlib_no_exception_symbols).
+    target_compile_options(stxlib_mimalloc PRIVATE
+        -w -fvisibility=hidden -ftls-model=initial-exec -fno-sanitize=all -fno-exceptions)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
     endif()
@@ -331,7 +358,11 @@ target_compile_options(stxlib_boundary PRIVATE ${stxlib_warnings} -fno-exception
 # frame records always.
 set(stxlib_frame_pointers $<$<BOOL:${stxlib_shadow_on}>:-fno-omit-frame-pointer>)
 target_compile_options(stxlib_boundary PRIVATE ${stxlib_frame_pointers})
-set_source_files_properties(${STXLIB_EXCEPTION_RECORDER} PROPERTIES COMPILE_OPTIONS "-fexceptions")
+if(STXLIB_EXCEPTIONS)
+    set_source_files_properties(${STXLIB_EXCEPTION_RECORDER} PROPERTIES COMPILE_OPTIONS "-fexceptions")
+else()
+    target_compile_definitions(stxlib_boundary PUBLIC STXLIB_NO_EXCEPTION_RECORDER)
+endif()
 # Each module that links the boundary keeps its copy private (hidden
 # symbols) and may be a shared library (position-independent code).
 set_target_properties(stxlib_boundary PROPERTIES
@@ -475,7 +506,15 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time)
+    # Tests that throw (the gates, trampolines and shadowing, the math and
+    # thread-pool check harnesses, the death cases, the two-module case)
+    # need exceptions and are left out of a build without them
+    # (STXLIB_EXCEPTIONS above).
+    set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time)
+    if(STXLIB_EXCEPTIONS)
+        list(APPEND stxlib_boundary_tests gate trampoline shadow)
+    endif()
+    foreach(test_name IN LISTS stxlib_boundary_tests)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
@@ -513,25 +552,27 @@ if(STXLIB_TESTS)
     # objects define the library's math symbols, so the linker never pulls
     # the library's own math objects into it. `--exhaustive` and `--bench`
     # stay out of ctest. From stx_auxlib b6e330a.
-    add_executable(stxlib_math_tests tests/math_tests.cpp)
-    add_executable(stxlib_math_dekker_tests tests/math_tests.cpp ${STXLIB_MATH_SOURCES})
-    target_compile_definitions(stxlib_math_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
-    foreach(math_test IN ITEMS stxlib_math_tests stxlib_math_dekker_tests)
-        target_link_libraries(${math_test} PRIVATE stxlib::algorithms)
-        target_include_directories(${math_test} PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
-        # The test's inlined double-double reference (tests/reference/wide.hpp)
-        # needs contraction off too: contracted, its own self-check fails.
-        target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
-        add_test(NAME ${math_test} COMMAND ${math_test})
-    endforeach()
-    # Every variant on this machine: the forced levels run the same frozen
-    # hashes through v128 and, where the CPU has it, avx2_fma.
-    if(STXLIB_MATH_DISPATCH)
-        foreach(level IN ITEMS scalar vector128 avx2_fma)
-            add_test(NAME stxlib_math_tests_${level} COMMAND stxlib_math_tests)
-            set_tests_properties(stxlib_math_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+    if(STXLIB_EXCEPTIONS)
+        add_executable(stxlib_math_tests tests/math_tests.cpp)
+        add_executable(stxlib_math_dekker_tests tests/math_tests.cpp ${STXLIB_MATH_SOURCES})
+        target_compile_definitions(stxlib_math_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
+        foreach(math_test IN ITEMS stxlib_math_tests stxlib_math_dekker_tests)
+            target_link_libraries(${math_test} PRIVATE stxlib::algorithms)
+            target_include_directories(${math_test} PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+            # The test's inlined double-double reference (tests/reference/wide.hpp)
+            # needs contraction off too: contracted, its own self-check fails.
+            target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
+            add_test(NAME ${math_test} COMMAND ${math_test})
         endforeach()
+        # Every variant on this machine: the forced levels run the same frozen
+        # hashes through v128 and, where the CPU has it, avx2_fma.
+        if(STXLIB_MATH_DISPATCH)
+            foreach(level IN ITEMS scalar vector128 avx2_fma)
+                add_test(NAME stxlib_math_tests_${level} COMMAND stxlib_math_tests)
+                set_tests_properties(stxlib_math_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+            endforeach()
+        endif()
     endif()
 
     # The sequence tree and RowHeightIndex (src/algorithms/stx_btree/
@@ -651,30 +692,32 @@ if(STXLIB_TESTS)
     # reference's C interface, checks STXlib's AtomicPool (through
     # tests/reference/atomic_pool_adapter.cpp) and the reference itself; both
     # must pass. From stx_auxlib b6e330a.
-    enable_language(C)
-    add_executable(stxlib_thread_pool_conformance
-        tests/thread_pool_conformance.cpp tests/reference/atomic_pool_adapter.cpp)
-    target_link_libraries(stxlib_thread_pool_conformance PRIVATE stxlib::boundary)
-    add_executable(stxlib_thread_pool_reference_conformance
-        tests/thread_pool_conformance.cpp tests/reference/atomic_pool.c)
-    foreach(conformance IN ITEMS stxlib_thread_pool_conformance stxlib_thread_pool_reference_conformance)
-        # core/checked.hpp (the modular marker) and the reference's header.
-        target_include_directories(${conformance} PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference)
-        target_compile_features(${conformance} PRIVATE cxx_std_20)
-        # The reference calls pthreads directly; CLANG64's libc++ uses native
-        # Windows threads and supplies no implicit pthread dependency.
-        if(MINGW)
-            target_link_libraries(${conformance} PRIVATE winpthread)
-        else()
-            target_link_libraries(${conformance} PRIVATE Threads::Threads)
-        endif()
-        add_test(NAME ${conformance} COMMAND ${conformance})
-        # A hang detector: a broken claim or lock deadlocks rather than
-        # fails. RUN_SERIAL: bound by scheduler latency beside other tests
-        # (stx_auxlib's measurement: 88 ms alone, 15 s contended).
-        set_tests_properties(${conformance} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
-    endforeach()
+    if(STXLIB_EXCEPTIONS)
+        enable_language(C)
+        add_executable(stxlib_thread_pool_conformance
+            tests/thread_pool_conformance.cpp tests/reference/atomic_pool_adapter.cpp)
+        target_link_libraries(stxlib_thread_pool_conformance PRIVATE stxlib::boundary)
+        add_executable(stxlib_thread_pool_reference_conformance
+            tests/thread_pool_conformance.cpp tests/reference/atomic_pool.c)
+        foreach(conformance IN ITEMS stxlib_thread_pool_conformance stxlib_thread_pool_reference_conformance)
+            # core/checked.hpp (the modular marker) and the reference's header.
+            target_include_directories(${conformance} PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference)
+            target_compile_features(${conformance} PRIVATE cxx_std_20)
+            # The reference calls pthreads directly; CLANG64's libc++ uses native
+            # Windows threads and supplies no implicit pthread dependency.
+            if(MINGW)
+                target_link_libraries(${conformance} PRIVATE winpthread)
+            else()
+                target_link_libraries(${conformance} PRIVATE Threads::Threads)
+            endif()
+            add_test(NAME ${conformance} COMMAND ${conformance})
+            # A hang detector: a broken claim or lock deadlocks rather than
+            # fails. RUN_SERIAL: bound by scheduler latency beside other tests
+            # (stx_auxlib's measurement: 88 ms alone, 15 s contended).
+            set_tests_properties(${conformance} PROPERTIES TIMEOUT 60 RUN_SERIAL TRUE)
+        endforeach()
+    endif()
 
     # Two modules, each with its own copy of stxlib::boundary, release each
     # other's blocks through the one allocator in stxlib_state.
@@ -695,39 +738,43 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_gate_no_exceptions_tests COMMAND stxlib_gate_no_exceptions_tests)
 
     # Must-end cases, one process each.
-    add_executable(stxlib_death_tests tests/death_tests.cpp)
-    target_link_libraries(stxlib_death_tests PRIVATE stxlib::boundary)
-    target_compile_options(stxlib_death_tests PRIVATE ${stxlib_test_warnings})
-    set(stxlib_death_cases
-        "callback_throw|stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure.*client callback failed"
-        "callback_target_throw|stxlib: fail fast: stxlib\\.tests\\.callback: invalid_argument.*client function failed"
-        "reporter|consumer reporter: 17"
-        "double_release|stxlib::memory::release: the block is not from memory::allocate"
-        "foreign_release|stxlib::memory::release: the block is not from memory::allocate"
-        "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
-        "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
-        "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
-        "view_index|stxlib: requirement failed: View: index out of range"
-        "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
-        "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\]"
-        "callback_frame_texts|stxlib: fail fast: stxlib\\.tests\\.event: invalid_argument.*stxlib: frames \\(throw_site\\): 3:button\\.ok:click\\[0,0\\]#12 > stxlib\\.tests\\.inner\\[9,0\\]"
-        "reporter_contract|reporter: console.*reporter: classified 1, message 300, frames 2, kind 3, type (named|none), console ok"
-        "reporter_opens_frame|stxlib: requirement failed: a fail-fast reporter opened a shadow frame"
-        "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
-        "foreign_free|ANY"
-        "foreign_delete|ANY")
-    foreach(death_case IN LISTS stxlib_death_cases)
-        string(FIND "${death_case}" "|" separator)
-        string(SUBSTRING "${death_case}" 0 ${separator} case_name)
-        math(EXPR expect_start "${separator} + 1")
-        string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
-        add_test(NAME stxlib_death_${case_name}
-            COMMAND ${CMAKE_COMMAND}
-                -DPROGRAM=$<TARGET_FILE:stxlib_death_tests>
-                -DCASE=${case_name}
-                "-DEXPECT=${case_expect}"
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
-    endforeach()
+    if(STXLIB_EXCEPTIONS)
+        add_executable(stxlib_death_tests tests/death_tests.cpp)
+        target_link_libraries(stxlib_death_tests PRIVATE stxlib::boundary)
+        target_compile_options(stxlib_death_tests PRIVATE ${stxlib_test_warnings})
+        set(stxlib_death_cases
+            "callback_throw|stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure.*client callback failed"
+            "callback_target_throw|stxlib: fail fast: stxlib\\.tests\\.callback: invalid_argument.*client function failed"
+            "reporter|consumer reporter: 17"
+            "double_release|stxlib::memory::release: the block is not from memory::allocate"
+            "foreign_release|stxlib::memory::release: the block is not from memory::allocate"
+            "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
+            "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
+            "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
+            "view_index|stxlib: requirement failed: View: index out of range"
+            "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
+            "take_or_fail_fast|stxlib: fail fast: stxlib\\.tests\\.take: not_found.*no such row"
+            "check_or_fail_fast|stxlib: fail fast: stxlib\\.tests\\.check: limit_exceeded.*too many rows"
+            "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\]"
+            "callback_frame_texts|stxlib: fail fast: stxlib\\.tests\\.event: invalid_argument.*stxlib: frames \\(throw_site\\): 3:button\\.ok:click\\[0,0\\]#12 > stxlib\\.tests\\.inner\\[9,0\\]"
+            "reporter_contract|reporter: console.*reporter: classified 1, message 300, frames 2, kind 3, type (named|none), console ok"
+            "reporter_opens_frame|stxlib: requirement failed: a fail-fast reporter opened a shadow frame"
+            "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
+            "foreign_free|ANY"
+            "foreign_delete|ANY")
+        foreach(death_case IN LISTS stxlib_death_cases)
+            string(FIND "${death_case}" "|" separator)
+            string(SUBSTRING "${death_case}" 0 ${separator} case_name)
+            math(EXPR expect_start "${separator} + 1")
+            string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
+            add_test(NAME stxlib_death_${case_name}
+                COMMAND ${CMAKE_COMMAND}
+                    -DPROGRAM=$<TARGET_FILE:stxlib_death_tests>
+                    -DCASE=${case_name}
+                    "-DEXPECT=${case_expect}"
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
+        endforeach()
+    endif()
 
     # The console and exit tasks, seen from outside the process.
     add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
@@ -743,7 +790,7 @@ if(STXLIB_TESTS)
     # with its own hidden copy of the boundary, and an executable with
     # another; an exception thrown in the executable unwinds a frame opened
     # in the library.
-    if(STXLIB_STATE_SHARED)
+    if(STXLIB_STATE_SHARED AND STXLIB_EXCEPTIONS)
         add_library(stxlib_test_library SHARED tests/two_module_library.cpp)
         target_link_libraries(stxlib_test_library PRIVATE stxlib::boundary)
         target_compile_definitions(stxlib_test_library PRIVATE STXLIB_TEST_LIBRARY_BUILDING)
@@ -773,6 +820,12 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_path_names_exhaustive COMMAND stxlib_path_names_exhaustive)
     set_tests_properties(stxlib_path_names_exhaustive PROPERTIES TIMEOUT 1200)
 
+    # The positive control of stxlib_no_exception_symbols (below): one
+    # object compiled with exceptions on purpose, which must show references
+    # to the exception runtime. Linked into nothing.
+    add_library(stxlib_exception_probe OBJECT tests/exception_probe.cpp)
+    target_compile_options(stxlib_exception_probe PRIVATE -fexceptions)
+
     # The public-header boundary (AGENTS.md): no std:: name, no angle include.
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
@@ -801,6 +854,34 @@ if(STXLIB_TESTS)
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/tzvectors.py
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tzdata
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/zones/zone_data.inc)
+        # No exception machinery in STXlib's objects (notes planning/stages/
+        # A3-no-exceptions.md, section 1.5): every object of the library
+        # targets is listed with the toolchain's nm, and a reference to the
+        # exception runtime fails the test, except in the recorder and the
+        # exception-type query while STXLIB_EXCEPTIONS is ON. The probe must
+        # show such references, so the scan cannot pass by not seeing them.
+        # The object directories are CMake's own (CMakeFiles/<target>.dir), as
+        # the Ninja and Makefile generators lay them out.
+        if(CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+            set(stxlib_exception_free_objects)
+            foreach(library IN ITEMS stxlib_state stxlib_mimalloc stxlib_boundary stxlib_algorithms stxlib_math_avx2_fma)
+                if(TARGET ${library})
+                    list(APPEND stxlib_exception_free_objects
+                        --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${library}.dir)
+                endif()
+            endforeach()
+            set(stxlib_exception_allowed)
+            if(STXLIB_EXCEPTIONS)
+                set(stxlib_exception_allowed --allow exception_shadow.cpp --allow current_exception.cpp)
+            endif()
+            add_test(NAME stxlib_no_exception_symbols
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_no_exceptions.py
+                        --nm ${CMAKE_NM}
+                        --probe ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_exception_probe.dir
+                        ${stxlib_exception_allowed} ${stxlib_exception_free_objects})
+        else()
+            message(STATUS "STXlib: stxlib_no_exception_symbols not registered (it needs nm and a Ninja or Makefile generator)")
+        endif()
     endif()
 endif()
 
@@ -855,3 +936,65 @@ function(stxlib_check_float_flags)
     message(STATUS "STXlib floating-point flags: ${checked} targets checked")
 endfunction()
 stxlib_check_float_flags()
+
+# ---- the exception flag check ---------------------------------------------------
+# STXlib's own code is built without exceptions (AGENTS.md), checked at
+# configure time: every library target must end its options with
+# -fno-exceptions (the last of -fexceptions and -fno-exceptions wins), and
+# the one source of theirs that may add -fexceptions is the recorder, only
+# while STXLIB_EXCEPTIONS is ON. With it OFF, every target defined here must
+# be built without exceptions, except the probe that shows the object check
+# can see them. stxlib_no_exception_symbols checks the objects themselves.
+function(stxlib_check_exception_flags)
+    set(libraries stxlib_state stxlib_boundary stxlib_algorithms)
+    foreach(optional IN ITEMS stxlib_mimalloc stxlib_math_avx2_fma)
+        if(TARGET ${optional})
+            list(APPEND libraries ${optional})
+        endif()
+    endforeach()
+    get_property(targets DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+    set(checked 0)
+    foreach(target IN LISTS targets)
+        get_target_property(type ${target} TYPE)
+        if(type STREQUAL "INTERFACE_LIBRARY" OR type STREQUAL "UTILITY")
+            continue()
+        endif()
+        set(library FALSE)
+        if(target IN_LIST libraries)
+            set(library TRUE)
+        endif()
+        set(required ${library})
+        if(NOT STXLIB_EXCEPTIONS AND NOT target STREQUAL "stxlib_exception_probe")
+            set(required TRUE)
+        endif()
+        if(required)
+            get_target_property(options ${target} COMPILE_OPTIONS)
+            if(NOT options)
+                set(options "")
+            endif()
+            set(last "")
+            foreach(flag IN LISTS options)
+                if(flag STREQUAL "-fexceptions" OR flag STREQUAL "-fno-exceptions")
+                    set(last "${flag}")
+                endif()
+            endforeach()
+            if(NOT last STREQUAL "-fno-exceptions")
+                message(FATAL_ERROR "STXlib exceptions: ${target} is not built with -fno-exceptions")
+            endif()
+            math(EXPR checked "${checked} + 1")
+        endif()
+        if(library)
+            get_target_property(sources ${target} SOURCES)
+            foreach(source IN LISTS sources)
+                get_source_file_property(source_options "${source}" COMPILE_OPTIONS)
+                if(source_options AND "-fexceptions" IN_LIST source_options)
+                    if(NOT STXLIB_EXCEPTIONS OR NOT "${source}" STREQUAL "${STXLIB_EXCEPTION_RECORDER}")
+                        message(FATAL_ERROR "STXlib exceptions: ${source} in ${target} is built with -fexceptions")
+                    endif()
+                endif()
+            endforeach()
+        endif()
+    endforeach()
+    message(STATUS "STXlib exception flags: ${checked} targets checked")
+endfunction()
+stxlib_check_exception_flags()

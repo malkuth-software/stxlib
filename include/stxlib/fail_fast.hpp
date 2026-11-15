@@ -58,4 +58,28 @@ struct FailFastReporter final {
 // Reports `record` and ends the process abnormally. Allocates nothing.
 [[noreturn]] void fail_fast(const ErrorRecord& record) noexcept;
 
+// For a site that states it cannot handle a failure (survey D8's
+// recommendation: "fail-fast only where a site states it cannot handle
+// it"; notes planning/stages/A3-no-exceptions.md, section 1.5): a failure
+// goes to fail_fast with its record unchanged, and success passes on. This
+// is how such a site is written without exceptions, in place of letting an
+// exception escape.
+
+// Ends the process through fail_fast when `status` failed; returns
+// otherwise.
+inline void check_or_fail_fast(const Status& status) noexcept {
+    const ErrorRecord* const failure = status.error();
+    if (failure != nullptr) fail_fast(*failure);
+}
+
+// The value of a successful `result`; ends the process through fail_fast
+// with the record of a failed one.
+template <typename Value>
+[[nodiscard]] Value take_or_fail_fast(Result<Value>&& result) noexcept {
+    const ErrorRecord* const failure = result.error();
+    if (failure != nullptr) fail_fast(*failure);
+    Value value = static_cast<Result<Value>&&>(result).take_value();
+    return value;
+}
+
 } // namespace stxlib

@@ -211,3 +211,17 @@ evidence, not proof.
 
 Nothing in batch 1 has been compiled or run yet: no compiler runs on the
 seat's machine; the integrator builds and runs it on the M4.
+
+## Batch A3 prep (results without exceptions; branch `claude/interfaces-a3-prep`)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| every object of `stxlib_state`, `stxlib_mimalloc`, `stxlib_boundary`, `stxlib_algorithms` (and `stxlib_math_avx2_fma` where built) | no object names a symbol of the exception runtime (throw, rethrow, catch, personality routines, `_Unwind_Resume`, the MSVC handler names; the list in `tools/check_no_exceptions.py`), except the recorder and the exception-type query while `STXLIB_EXCEPTIONS` is ON | **not yet run.** Proved for a build once `stxlib_no_exception_symbols` passes in it: an exhaustive scan of that build's objects with the toolchain's `nm`, made non-vacuous by the probe object, which must show those symbols. It rests on the symbol list being complete for the Itanium C++ ABI on the toolchains in use (macOS, Linux, LLVM MinGW) | `tools/check_no_exceptions.py`, `tests/exception_probe.cpp` |
+| `CMakeLists.txt` | every library target is built with -fno-exceptions; only the recorder adds -fexceptions, and only with `STXLIB_EXCEPTIONS` ON; with it OFF, every target but the probe is built without exceptions | checked at configure time by `stxlib_check_exception_flags` (a configure that passes is the check) | `CMakeLists.txt` |
+| `include/stxlib/gate.hpp` (`call_as_result`, `call_as_result_classified`) | a plain target's value comes back as the success; with exceptions, a thrown exception comes back as the failure, classified as the gate's are (the consumer's classifier first) and with the frame's operation and shadow record; without exceptions, a direct call; a const class result is held without the const; reference results and targets that already return results are refused at compile time | not yet proved; tested with and without exceptions | `tests/gate_tests.cpp` (`plain_targets_become_results`), `tests/gate_no_exceptions_tests.cpp` |
+| `include/stxlib/fail_fast.hpp` (`take_or_fail_fast`, `check_or_fail_fast`) | a success passes on (its value moved out); a failure ends the process through fail_fast with the record unchanged | not yet proved; tested: must-end tests `take_or_fail_fast` and `check_or_fail_fast`, success paths in both gate tests | `tests/death_tests.cpp`, `tests/gate_no_exceptions_tests.cpp` |
+| the `STXLIB_EXCEPTIONS=OFF` build | every library target and every test that does not throw builds and passes with -fno-exceptions in every translation unit, and every public header compiles without exceptions | not yet run; CI step "No exceptions (Release)" on glibc | `.github/workflows/ci.yml`, `tests/gate_no_exceptions_tests.cpp` (includes every public header) |
+
+Written on Neo, not compiled or run (no compiler on the seat's machine).
+The checker's parsing was exercised with a stand-in nm script printing
+Mach-O-style and import-prefixed names, not with a real toolchain.
