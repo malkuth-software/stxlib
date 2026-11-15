@@ -7,10 +7,22 @@
 // module linking the static C runtime has its own malloc heap: every block
 // here comes from the one backend inside stxlib_state.
 //
-// The backend's host calls (malloc and free, or mimalloc's) are made here,
-// in src/state/, not under src/hosted/: the one host interface called from
-// the state, recorded as an exception in AGENTS ("Hard boundaries"; audit
-// A, S1).
+// The backend's host calls (malloc and free, or mimalloc's, with the
+// cancellation guard around mimalloc's) are made here, in src/state/, not
+// under src/hosted/: the one host interface called from the state, recorded
+// as an exception in AGENTS ("Hard boundaries"; audit A, S1).
+//
+// Early exits (AGENTS.md, "Allocators must not unwind"): nothing on this
+// path throws, longjmps or calls a new-handler. The one early exit mimalloc
+// can take is a POSIX thread cancellation: v3.6.1's _mi_prim_thread_yield is
+// sleep(0) (src/prim/unix/prim.c:1147-1149), a cancellation point, inside a
+// busy-wait mi_free can reach (src/arena/bitmap-chunk.c:122-125; smi's
+// mimalloc audit, E1). On POSIX hosts each mimalloc call therefore runs with
+// cancellation disabled (CancellationOff below; the owner's choice for Q3,
+// 2026-11-15): pthread_setcancelstate is not itself a cancellation point,
+// and a cancellation requested meanwhile stays pending until the thread's
+// next cancellation point after the call. A thread that set asynchronous
+// cancellation is outside this (STXlib is not async-cancel-safe).
 //
 // Ported from stx_auxlib b6e330a (src/hosted/memory.cpp, memory_host.cpp,
 // memory_mimalloc.cpp) by way of STXlib's src/core/memory.cpp (batch 2a and
@@ -41,7 +53,7 @@
 // (memory.cpp) ends the process with a report.
 //
 // The ownership check, per backend:
-// - mimalloc: mi_is_in_heap_region(address), mimalloc's own query, which
+// - mimalloc: mi_is_in_heap_region(address - 16), mimalloc's own query, which
 //   looks the address up in mimalloc's page map and returns whether it lies
 //   in a mimalloc page (third_party/mimalloc/src/page-map.c, lines 199-210
 //   for the flat map and 509-515 for the two-level map: `_mi_safe_ptr_page`
@@ -49,18 +61,26 @@
 //   mi_any_heap_contains and mi_check_owned the same test). It reads only
 //   the page map, never the address. The coordinator's choice (registry
 //   option 1, 2026-11-13) replaces the registry with it in mimalloc builds.
-//   Release asks it of the address and of the address minus 16, the start
-//   of the header, and refuses an address that is not 16-aligned. Why the
-//   header read that follows stays inside committed memory, argued from
-//   the source and not proved: pages begin on slice boundaries (64 KiB),
-//   so the 16 header bytes, which start on a 16-byte boundary, lie in one
-//   page, the one the query found in use; a page's memory is committed as
-//   a prefix from its start, extended as its blocks are first handed out
-//   (page.c, lines 844-866: `_mi_os_commit` from `slice_committed` up to
-//   what the page now needs), so the 16 bytes below any address inside or
-//   just past a block mimalloc ever handed out from that page are
-//   committed. An address no block ever contained, made by arithmetic into
-//   the unhanded tail of one of our pages, is outside this argument.
+//   Release asks it of the header's address only (the address minus 16)
+//   and refuses an address that is not 16-aligned or below 16. Asking of
+//   the address itself as well wrongly refused zero-size blocks whose
+//   address is the end of their mimalloc block at a page end (alignments of
+//   128 KiB to 2 MiB, and the last block of a filled small page), and 0- and
+//   1-byte blocks at 32 KiB and 64 KiB alignment, whose address falls in a
+//   slice v3.6.1 leaves unregistered (smi's mimalloc audit, A1 and A2).
+//   Why the header read that follows stays inside committed memory, argued
+//   from the source and sampled, not proved (smi's audit, A10): the 16
+//   header bytes start on a 16-byte boundary, so they lie in one 64 KiB
+//   slice, the slice of the address the query asked about; with mimalloc's
+//   default options every slice registered in the page map belongs to a
+//   live page and is fully committed: regular pages are allocated committed
+//   (page_commit_on_demand is 0: arena-page.c:812-815, 602-613), singleton
+//   pages always are (arena-page.c:844, 513-517), and a page is unregistered
+//   before its slices are freed and purged (arena-page.c:921). An
+//   environment setting that turns on page_commit_on_demand weakens this
+//   (mimalloc reads its options from the environment); a stale address
+//   racing the release and purge of its page (purge_delay, 1000 ms) is a
+//   misuse the check does not cover.
 // - host: a registry of live addresses (an open-addressing hash set under
 //   one spin lock, in malloc storage), as the foreign-release fix made it:
 //   the host allocator gives no query, and reading below a foreign address
@@ -70,9 +90,11 @@
 // cross modules), so the value is drawn once per process inside
 // stxlib_state, from a mix of addresses the host's address-space
 // randomisation places (this module's static data and the first caller's
-// stack), with the low four bits set. stxlib_state calls no host entropy
-// (it links only the backend); the value is a check against mistakes, not a
-// defence against an attacker.
+// stack), with the low four bits set. STXlib's own code here draws no host
+// entropy; mimalloc, linked into stxlib_state, does seed itself from the
+// host when it initialises at load (v3.6.1 process.c:561-569, random.c:
+// 176-200; smi's audit, D7), which this value does not use. The value is a
+// check against mistakes, not a defence against an attacker.
 //
 // A second release of an address that has since been allocated again is
 // indistinguishable from a release of the new block. Without the tags the
@@ -100,7 +122,12 @@
 #endif
 #endif
 #include <mimalloc.h>
+#if !defined(_WIN32)
+#include <pthread.h>
 #endif
+#endif
+
+#include "stxlib/detail/early_exit.hpp"
 
 namespace stxlib::state {
 
@@ -121,13 +148,45 @@ constexpr u8 backend_value = 2; // memory::Backend::mimalloc
 // keeps its error message out of the output.
 constexpr usize largest_request = static_cast<usize>(PTRDIFF_MAX);
 
-void* backend_allocate(const usize size, const usize alignment) noexcept {
-    if (size > largest_request - alignment) return nullptr;
+// Disables POSIX thread cancellation for its lifetime and restores the
+// previous state (see the file comment). Windows has no thread
+// cancellation, so there it does nothing.
+class STXLIB_EARLY_EXIT_NO_CANCEL CancellationOff final {
+public:
+    CancellationOff() noexcept {
+#if !defined(_WIN32)
+        static_cast<void>(::pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &previous_));
+#endif
+    }
+    ~CancellationOff() {
+#if !defined(_WIN32)
+        int ignored = 0;
+        static_cast<void>(::pthread_setcancelstate(previous_, &ignored));
+#endif
+    }
+    CancellationOff(const CancellationOff&) = delete;
+    CancellationOff& operator=(const CancellationOff&) = delete;
+
+private:
+#if !defined(_WIN32)
+    int previous_{0};
+#endif
+};
+
+STXLIB_NO_UNWIND void* backend_allocate(const usize size, const usize alignment) noexcept {
+    // Checked so the subtraction cannot wrap: an alignment above
+    // PTRDIFF_MAX (2^63, a power of two memory::allocate accepts) is refused
+    // here (smi's audit, A6).
+    if (alignment > largest_request || size > largest_request - alignment) return nullptr;
+    const CancellationOff no_cancel;
     void* const result = mi_malloc_aligned(size, alignment);
     return result;
 }
 
-void backend_release(void* const block) noexcept { mi_free(block); }
+STXLIB_NO_UNWIND void backend_release(void* const block) noexcept {
+    const CancellationOff no_cancel;
+    mi_free(block);
+}
 
 #else
 
@@ -137,7 +196,7 @@ constexpr u8 backend_value = 1; // memory::Backend::host
 // STXlib's c_library.cpp: over-allocate from malloc and keep malloc's
 // result in the pointer-sized slot just below the aligned address. total =
 // size + alignment - 1 + sizeof(void*), checked, so malloc(0) never arises.
-void* backend_allocate(const usize size, const usize alignment) noexcept {
+STXLIB_NO_UNWIND void* backend_allocate(const usize size, const usize alignment) noexcept {
     constexpr usize slot = sizeof(void*);
     const usize padding = alignment - 1 + slot;
     if (size > std::numeric_limits<usize>::max() - padding) return nullptr;
@@ -152,7 +211,7 @@ void* backend_allocate(const usize size, const usize alignment) noexcept {
     return aligned;
 }
 
-void backend_release(void* const block) noexcept {
+STXLIB_NO_UNWIND void backend_release(void* const block) noexcept {
     void* base = nullptr;
     const unsigned char* const aligned = static_cast<const unsigned char*>(block);
     std::memcpy(&base, aligned - sizeof(void*), sizeof(void*));
@@ -213,7 +272,8 @@ bool track_block(const unsigned char* const address) noexcept {
 bool forget_block(const unsigned char* const address) noexcept {
     const std::uintptr_t value = reinterpret_cast<std::uintptr_t>(address);
     if ((value & (header_bytes - 1)) != 0 || value < header_bytes) return false;
-    const bool result = mi_is_in_heap_region(address) && mi_is_in_heap_region(address - header_bytes);
+    // The header's slice only (smi's audit, A1 and A2; see the file comment).
+    const bool result = mi_is_in_heap_region(address - header_bytes);
     return result;
 }
 
@@ -244,7 +304,7 @@ constinit Registry registry{};
 // (sanitizer builds and the malloc fallback), not the default mimalloc one.
 // The cost, a waiter spinning through another thread's rehash, is stated
 // here rather than removed.
-class RegistryGuard final {
+class STXLIB_EARLY_EXIT_LOCK RegistryGuard final {
 public:
     RegistryGuard() noexcept {
         while (registry.lock.held.exchange(1, std::memory_order_acquire) != 0) {
@@ -329,7 +389,7 @@ bool forget_block(const unsigned char* const address) noexcept {
 
 #endif
 
-void* allocate_block(const usize size, const usize alignment) noexcept {
+STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) noexcept {
     if (!power_of_two(alignment)) return nullptr;
     const usize offset = alignment < header_bytes ? header_bytes : alignment;
     if (size > std::numeric_limits<usize>::max() - offset) return nullptr;
@@ -347,7 +407,7 @@ void* allocate_block(const usize size, const usize alignment) noexcept {
     return address;
 }
 
-ReleaseOutcome release_block(void* const block) noexcept {
+STXLIB_NO_UNWIND ReleaseOutcome release_block(void* const block) noexcept {
     unsigned char* const address = static_cast<unsigned char*>(block);
     // Nothing of the block or around it is read unless it may be ours.
     if (!forget_block(address)) return ReleaseOutcome::refused;
@@ -368,13 +428,13 @@ constexpr bool tags_value = true;
 
 #else
 
-void* allocate_block(const usize size, const usize alignment) noexcept {
+STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) noexcept {
     if (!power_of_two(alignment)) return nullptr;
     void* const result = backend_allocate(size, alignment);
     return result;
 }
 
-ReleaseOutcome release_block(void* const block) noexcept {
+STXLIB_NO_UNWIND ReleaseOutcome release_block(void* const block) noexcept {
     backend_release(block);
     return ReleaseOutcome::released;
 }
