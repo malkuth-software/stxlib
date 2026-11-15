@@ -356,6 +356,8 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/trampoline.cpp
+    src/core/vocabulary.cpp
+    src/core/transcode.cpp
     src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
@@ -536,6 +538,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/hash.cpp
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
+    src/algorithms/frozen_map.cpp
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
@@ -608,7 +611,8 @@ if(STXLIB_TESTS)
     # need exceptions and are left out of a build without them
     # (STXLIB_EXCEPTIONS above).
     set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time
-                               images pages_wake rounding)
+                               images pages_wake rounding
+                               owned_vocabulary owned_text ascii_search heap transcode)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()
@@ -637,7 +641,7 @@ if(STXLIB_TESTS)
     endif()
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS calendar hash numeric_text precedence random simd)
+    foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
         # core/checked.hpp (the modular marker) for the tests' own generators.
@@ -874,6 +878,9 @@ if(STXLIB_TESTS)
             "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
             "view_index|stxlib: requirement failed: View: index out of range"
             "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
+            "vector_index|stxlib: requirement failed: Vector: index out of range"
+            "optional_take|stxlib: requirement failed: Optional::take on an absent value"
+            "shared_dereference|stxlib: requirement failed: Shared: dereference of an empty owner"
             "take_or_fail_fast|stxlib: fail fast: stxlib\\.tests\\.take: not_found.*no such row"
             "check_or_fail_fast|stxlib: fail fast: stxlib\\.tests\\.check: limit_exceeded.*too many rows"
             "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\]"

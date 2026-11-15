@@ -65,6 +65,7 @@ enum class ForeignFamily : u16 {
     windows_ntstatus = 3,   // an NTSTATUS
     windows_hresult = 4,    // an HRESULT
     crt_errno = 5,          // the Windows C runtime's errno
+    mach = 6,               // a Mach kern_return_t (macOS; kept for diagnosis, D14)
 };
 
 // A foreign failure code. Made only by the two factories, so a code with
