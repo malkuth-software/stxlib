@@ -11,6 +11,12 @@
 // asserts exactness checked in double, where every value involved is
 // exactly representable: a float sum within that gap, a float product (48
 // significant bits), and the pair value + error.
+//
+// Pointer width: run each harness twice, as above (64-bit) and with
+// `--32 -D__wasm32__` added (wasm32's 32-bit usize and uptr; types.hpp
+// admits 32-bit pointers only under __wasm32__, and the cores here have no
+// other __wasm32__ branch). ESBMC's --32 and -D options are as its --help
+// lists them; unconfirmed at the pinned ESBMC (VERIFICATION_PROGRAMME).
 
 #include "core/float_exact.hpp"
 

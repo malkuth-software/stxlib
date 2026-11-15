@@ -16,6 +16,12 @@
 //
 // Scope: harness_fold_scalar covers every u32 (all of the domain);
 // the text harnesses cover well-formed texts of at most 8 bytes.
+//
+// Pointer width: run each harness twice, as above (64-bit) and with
+// `--32 -D__wasm32__` added (wasm32's 32-bit usize and uptr; types.hpp
+// admits 32-bit pointers only under __wasm32__, and the cores here have no
+// other __wasm32__ branch). ESBMC's --32 and -D options are as its --help
+// lists them; unconfirmed at the pinned ESBMC (VERIFICATION_PROGRAMME).
 
 #include "algorithms/case_folding_core.hpp"
 #include "stxlib/detail/utf8.hpp"

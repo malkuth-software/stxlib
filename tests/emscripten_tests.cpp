@@ -19,6 +19,7 @@
 #include "stxlib/files.hpp"
 #include "stxlib/library.hpp"
 #include "stxlib/local_time.hpp"
+#include "stxlib/memory.hpp"
 #include "stxlib/pages.hpp"
 #include "stxlib/path.hpp"
 #include "stxlib/process.hpp"
@@ -26,6 +27,7 @@
 #include "stxlib/stack_trace.hpp"
 #include "stxlib/text.hpp"
 #include "stxlib/threads.hpp"
+#include "stxlib/trampoline.hpp"
 #include "stxlib/wake.hpp"
 #include "stxlib/web.hpp"
 
@@ -111,6 +113,21 @@ std::vector<Byte> read_or_empty(const Path& path) {
 }
 
 // ---- the runtime --------------------------------------------------------------
+
+// The family's target is wasm32 (owner decision 2026-11-15): 32-bit
+// pointers and object sizes, with u64 still 8-aligned and lock-free, which
+// the fixed layouts (the 120-byte shadow frame) and the atomics rely on.
+static_assert(sizeof(void*) == 4 && sizeof(stxlib::usize) == 4 && sizeof(stxlib::uptr) == 4,
+              "the Emscripten family builds for wasm32");
+static_assert(alignof(stxlib::u64) == 8);
+
+void pointer_width() {
+    CHECK(stxlib::usize_max == 0xffffffffU);
+    // A trampoline handle carries 16 bits of generation beside the slot.
+    CHECK(stxlib::trampoline_generation_limit == 65535U);
+    // A memory request the width cannot hold is refused, not wrapped.
+    CHECK(stxlib::memory::allocate(stxlib::usize_max - 8, 16) == nullptr);
+}
 
 void thread_facts() {
     // Node: no fixed pool (it starts workers on demand), and a process.
@@ -374,6 +391,7 @@ void process_and_zone() {
 } // namespace
 
 int main() {
+    pointer_width();
     thread_facts();
     clocks();
     entropy();

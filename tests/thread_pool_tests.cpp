@@ -71,6 +71,15 @@ void creation() {
     const AtomicPool pool = create_or_fail(3);
     CHECK(pool.thread_count() == 3);
     CHECK(!pool.is_worker());
+
+    // wasm32: u32_max threads' array is not representable (a Thread holds at
+    // least a pointer), so creation is refused before any thread starts
+    // instead of wrapping the array's size. On 64-bit targets the product
+    // fits and the same call would try to start the threads, so it is not run.
+    if constexpr (sizeof(void*) == 4) {
+        const Result<AtomicPool> unrepresentable = AtomicPool::create(stxlib::u32_max);
+        CHECK(unrepresentable.failed() && (*unrepresentable.error()).kind() == ErrorKind::out_of_memory);
+    }
 }
 
 void empty_pool() {

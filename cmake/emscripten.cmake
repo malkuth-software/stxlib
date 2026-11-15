@@ -26,18 +26,13 @@
 #                           targets add -fno-exceptions, tests and consumers
 #                           keep them
 #   -sSUPPORT_LONGJMP=wasm  setjmp and longjmp by the same mechanism
-# and, while STXLIB_EMSCRIPTEN_WASM64 is on (the default):
-#   -m64                    wasm64 (Emscripten's MEMORY64 mode, whose
-#                           setting's comment recommends -m64, src/settings.js
-#                           at 6.0.13). STXlib states a 64-bit target
-#                           (include/stxlib/types.hpp: sizeof(void*) == 8)
-#                           and its proofs assume it, so wasm32 is refused
-#                           there at compile time; GUI.Forms' file sets no
-#                           -m64 today, so the two must agree before they
-#                           link (hand-in decision).
+# The target is wasm32, Emscripten's default (owner decision 2026-11-15,
+# notes decisions/2026-11-15-web-and-surface.md): no -m64, as GUI.Forms'
+# cp34 toolchain file sets none. include/stxlib/types.hpp admits 32-bit
+# pointers on __wasm32__ only; the width audit is in proofs/REPORT.md
+# ("Pointer width").
 
 set(STXLIB_EMSDK_VERSION "6.0.13" CACHE INTERNAL "The emsdk release STXlib's Emscripten family is built with")
-option(STXLIB_EMSCRIPTEN_WASM64 "Build for wasm64 (-m64); STXlib's types require a 64-bit target" ON)
 
 set(_stxlib_emsdk "")
 if(DEFINED STXLIB_EMSDK AND NOT STXLIB_EMSDK STREQUAL "")
@@ -67,9 +62,6 @@ endif()
 include("${_stxlib_emscripten}/cmake/Modules/Platform/Emscripten.cmake")
 
 set(_stxlib_web_flags "-pthread -msimd128 -fwasm-exceptions -sSUPPORT_LONGJMP=wasm")
-if(STXLIB_EMSCRIPTEN_WASM64)
-    string(APPEND _stxlib_web_flags " -m64")
-endif()
 set(CMAKE_C_FLAGS_INIT "${_stxlib_web_flags}")
 set(CMAKE_CXX_FLAGS_INIT "${_stxlib_web_flags}")
 set(CMAKE_EXE_LINKER_FLAGS_INIT "${_stxlib_web_flags}")

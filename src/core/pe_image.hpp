@@ -26,22 +26,30 @@
 //     export directory's own range is a forwarder (a name, not code).
 // In a loaded image an RVA is an offset from the image base, so the view
 // is the image's mapping: [base, base + SizeOfImage).
+//
+// Offsets are u64: a header field (u32) plus a displacement is formed in
+// u64, where it cannot wrap, and is checked against the view by the
+// reader. In usize it would wrap on wasm32 (an export RVA of 0xFFFFFFF0
+// plus 20 is 4), and a damaged image would read the wrong bytes
+// in bounds (the pointer-width audit, proofs/REPORT.md).
 
 #include "stxlib/types.hpp"
 #include "stxlib/view.hpp"
 
 namespace stxlib::pe_image {
 
-[[nodiscard]] inline bool read_u16(const View<Byte> image, const usize offset, u16& value) noexcept {
-    if (offset > image.count() || image.count() - offset < 2) return false;
-    const Byte* const at = image.data() + offset;
+[[nodiscard]] inline bool read_u16(const View<Byte> image, const u64 offset, u16& value) noexcept {
+    const u64 count = static_cast<u64>(image.count());
+    if (offset > count || count - offset < 2) return false;
+    const Byte* const at = image.data() + static_cast<usize>(offset);
     value = static_cast<u16>(static_cast<u16>(at[0]) | static_cast<u16>(static_cast<u16>(at[1]) << 8));
     return true;
 }
 
-[[nodiscard]] inline bool read_u32(const View<Byte> image, const usize offset, u32& value) noexcept {
-    if (offset > image.count() || image.count() - offset < 4) return false;
-    const Byte* const at = image.data() + offset;
+[[nodiscard]] inline bool read_u32(const View<Byte> image, const u64 offset, u32& value) noexcept {
+    const u64 count = static_cast<u64>(image.count());
+    if (offset > count || count - offset < 4) return false;
+    const Byte* const at = image.data() + static_cast<usize>(offset);
     value = static_cast<u32>(at[0]) | (static_cast<u32>(at[1]) << 8) | (static_cast<u32>(at[2]) << 16) |
             (static_cast<u32>(at[3]) << 24);
     return true;
@@ -49,8 +57,8 @@ namespace stxlib::pe_image {
 
 // The facts of the headers every lookup needs.
 struct Headers final {
-    usize optional_offset{0};
-    usize section_table_offset{0};
+    u64 optional_offset{0};
+    u64 section_table_offset{0};
     u16 section_count{0};
     u32 size_of_image{0};
     u32 export_rva{0};
@@ -70,12 +78,12 @@ inline constexpr u32 pe32_plus_magic = 0x20B;
     if (!read_u32(image, 0x3C, nt_offset)) return false;
     u32 signature = 0;
     if (!read_u32(image, nt_offset, signature) || signature != 0x00004550) return false;
-    const usize file_header = static_cast<usize>(nt_offset) + 4;
+    const u64 file_header = static_cast<u64>(nt_offset) + 4;
     u16 section_count = 0;
     u16 optional_size = 0;
     if (!read_u16(image, file_header + 2, section_count)) return false;
     if (!read_u16(image, file_header + 16, optional_size)) return false;
-    const usize optional = file_header + 20;
+    const u64 optional = file_header + 20;
     u16 magic = 0;
     if (!read_u16(image, optional, magic) || magic != pe32_plus_magic) return false;
     u32 size_of_image = 0;
@@ -110,9 +118,10 @@ struct Section final {
     const usize length = name.count();
     if (length == 0 || length > 8) return false;
     for (u16 index = 0; index < headers.section_count; ++index) {
-        const usize entry = headers.section_table_offset + static_cast<usize>(index) * 40;
-        if (entry > image.count() || image.count() - entry < 40) return false;
-        const Byte* const header = image.data() + entry;
+        const u64 entry = headers.section_table_offset + static_cast<u64>(index) * 40;
+        const u64 count = static_cast<u64>(image.count());
+        if (entry > count || count - entry < 40) return false;
+        const Byte* const header = image.data() + static_cast<usize>(entry);
         bool matches = true;
         for (usize at = 0; at < length; ++at) {
             if (header[at] != static_cast<Byte>(name.data()[at])) {
@@ -152,7 +161,7 @@ inline constexpr usize maximum_export_name = 4096;
                                          Export& found) noexcept {
     found = Export{};
     if (headers.export_rva == 0 || headers.export_size == 0) return false;
-    const usize directory = headers.export_rva;
+    const u64 directory = headers.export_rva;
     u32 function_count = 0;
     u32 name_count = 0;
     u32 functions = 0;
@@ -169,15 +178,15 @@ inline constexpr usize maximum_export_name = 4096;
     bool any = false;
     for (u32 index = 0; index < name_count; ++index) {
         u16 ordinal = 0;
-        if (!read_u16(image, static_cast<usize>(ordinals) + static_cast<usize>(index) * 2, ordinal)) return false;
+        if (!read_u16(image, static_cast<u64>(ordinals) + static_cast<u64>(index) * 2, ordinal)) return false;
         if (ordinal >= function_count) continue;
         u32 rva = 0;
-        if (!read_u32(image, static_cast<usize>(functions) + static_cast<usize>(ordinal) * 4, rva)) return false;
+        if (!read_u32(image, static_cast<u64>(functions) + static_cast<u64>(ordinal) * 4, rva)) return false;
         if (rva >= forward_begin && rva < forward_end) continue;
         if (rva > target) continue;
         if (any && rva <= found.rva) continue;
         u32 name_rva = 0;
-        if (!read_u32(image, static_cast<usize>(names) + static_cast<usize>(index) * 4, name_rva)) return false;
+        if (!read_u32(image, static_cast<u64>(names) + static_cast<u64>(index) * 4, name_rva)) return false;
         found.rva = rva;
         found.name_rva = name_rva;
         any = true;

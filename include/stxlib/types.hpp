@@ -37,9 +37,23 @@ static_assert(sizeof(u64) == 8 && sizeof(i64) == 8, "64-bit integers");
 static_assert(sizeof(usize) == sizeof(void*), "usize holds an object size of this address width");
 static_assert(sizeof(uptr) == sizeof(void*), "uptr holds an address");
 // Phase I targets are 64-bit (macOS arm64, Linux x86-64 and arm64, Windows
-// x86-64, the Raspberry Pi 4 in arm64 mode). TrampolineHandle packs a slot
-// and a generation into a context pointer and relies on it.
-static_assert(sizeof(void*) == 8, "STXlib phase I targets are 64-bit");
+// x86-64, the Raspberry Pi 4 in arm64 mode), plus one 32-bit target:
+// WebAssembly's wasm32, the Emscripten family's (owner decision 2026-11-15,
+// notes decisions/2026-11-15-web-and-surface.md). The width audit for it is
+// in proofs/REPORT.md ("Pointer width"). Code whose limits follow the width
+// derives them from sizeof (TrampolineHandle's generation bits, for one);
+// a u64 that carries an address or a size only widens it, and a u64 is
+// narrowed to usize only after a check against a usize bound or where it
+// counts objects already in memory. Other
+// 32-bit targets are not audited and stay refused (u64's alignment in
+// structures and 64-bit atomics differ between them; wasm32's match the
+// 64-bit targets', tests/emscripten_tests.cpp). The bounded proofs' 32-bit
+// runs define __wasm32__ for the pure cores (proofs/esbmc/).
+#if defined(__wasm32__)
+static_assert(sizeof(void*) == 4, "wasm32 has 32-bit pointers");
+#else
+static_assert(sizeof(void*) == 8, "STXlib's native targets are 64-bit; wasm32 is the one 32-bit target");
+#endif
 
 inline constexpr usize usize_max = static_cast<usize>(~static_cast<usize>(0));
 inline constexpr u64 u64_max = ~static_cast<u64>(0);

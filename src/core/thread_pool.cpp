@@ -193,6 +193,10 @@ Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     const Operation operation = "stxlib.thread_pool.create";
     if (thread_count == 0) return Result<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
     const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, operation);
+    // The threads' array must be representable: on wasm32 a u32 count times
+    // sizeof(Thread) can pass usize_max, and the product would wrap to a
+    // short block that the loop below overruns.
+    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) return Result<AtomicPool>::failure(exhausted);
     void* const block = memory::allocate(sizeof(State), alignof(State));
     if (block == nullptr) return Result<AtomicPool>::failure(exhausted);
     State* const state = ::new (block) State();

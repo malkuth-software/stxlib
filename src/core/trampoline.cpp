@@ -61,12 +61,16 @@ enum class Phase : u64 {
 
 constexpr u64 phase_mask = 3;
 constexpr unsigned generation_shift = 2;
-constexpr unsigned handle_index_bits = 16;
+constexpr unsigned handle_index_bits = trampoline_index_bits;
 constexpr u64 handle_index_mask = (static_cast<u64>(1) << handle_index_bits) - 1;
-// Handles carry 48 bits of generation.
-constexpr u64 generation_limit = (static_cast<u64>(1) << (64 - handle_index_bits)) - 1;
+// Handles carry the rest of a pointer's bits as the generation (48 on
+// 64-bit targets, 16 on wasm32), so every handle survives as_context().
+constexpr u64 generation_limit = trampoline_generation_limit;
 
 static_assert(trampoline_capacity_limit <= handle_index_mask, "a slot index fits the handle's index bits");
+static_assert(((generation_limit << handle_index_bits) | handle_index_mask) <= static_cast<u64>(~static_cast<uptr>(0)),
+              "the largest handle fits a context pointer");
+static_assert(generation_limit >= 65535, "a slot accepts at least 65535 attachments");
 
 [[nodiscard]] constexpr u64 make_state(const u64 generation, const Phase phase) noexcept {
     const u64 result = (generation << generation_shift) | static_cast<u64>(phase);
@@ -249,7 +253,7 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
     detail::TrampolineSlots& table = *slots_;
     const usize index = static_cast<usize>(handle.value() & detail::handle_index_mask);
     const u64 generation = handle.value() >> detail::handle_index_bits;
-    if (generation == 0 || index >= table.capacity) {
+    if (generation == 0 || generation > detail::generation_limit || index >= table.capacity) {
         return Result<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
     }
     state::ThreadState& thread = state::current_thread();
@@ -297,7 +301,7 @@ Result<Revocation> TrampolineTable::revoke(const TrampolineHandle handle) noexce
     detail::TrampolineSlots& table = *slots_;
     const usize index = static_cast<usize>(handle.value() & detail::handle_index_mask);
     const u64 generation = handle.value() >> detail::handle_index_bits;
-    if (generation == 0 || index >= table.capacity) {
+    if (generation == 0 || generation > detail::generation_limit || index >= table.capacity) {
         return Result<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
     }
     detail::TrampolineSlot& slot = table.slots[index];

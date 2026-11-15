@@ -55,9 +55,11 @@ exit-task table, the event watch, the raw-terminal flag) lives in
 
 The Emscripten family (owner decision 2026-11-15, in 1.0 after M3; for
 GUI.Forms' web host) builds with emsdk 6.0.13 through
-`cmake/emscripten.cmake`, for wasm64 while `include/stxlib/types.hpp`
-requires a 64-bit target. Configure, build and test (Node runs each test;
-the toolchain's platform file names it as the emulator):
+`cmake/emscripten.cmake`, for wasm32 (owner decision 2026-11-15; no
+`-m64`, as GUI.Forms' cp34 sets none). wasm32 is STXlib's one 32-bit
+target; the pointer-width audit is in `proofs/REPORT.md`. Configure, build
+and test (Node runs each test; the toolchain's platform file names it as
+the emulator):
 
 ```sh
 cmake -S . -B build-web -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/emscripten.cmake \
@@ -68,11 +70,11 @@ ctest --test-dir build-web --output-on-failure
 
 Options: `STXLIB_EMSCRIPTEN_FILESYSTEM` (`js`, MEMFS and IDBFS, the
 default; or `wasmfs`, memory and OPFS), `STXLIB_EMSCRIPTEN_POOL_SIZE` (the
-pthread pool, 8), `STXLIB_EMSCRIPTEN_EXIT_RUNTIME` (on in test builds),
-`STXLIB_EMSCRIPTEN_WASM64` (the toolchain file's, on). `stxlib_state` is
-static there and the allocator is the host's. A CI job runs the three
-commands above after installing emsdk 6.0.13 (`emsdk install 6.0.13 &&
-emsdk activate 6.0.13`), once per file system. What a page provides is in
+pthread pool, 8), `STXLIB_EMSCRIPTEN_EXIT_RUNTIME` (on in test builds, off
+for pages). `stxlib_state` is static there and the allocator is the host's.
+CI: a web job is added after the first green web run on the M4; it will
+run the three commands above after installing emsdk 6.0.13 (`emsdk install
+6.0.13 && emsdk activate 6.0.13`), once per file system. What a page provides is in
 `capabilities.hpp`; web storage and its durability per volume in `web.hpp`.
 
 ## Algorithms

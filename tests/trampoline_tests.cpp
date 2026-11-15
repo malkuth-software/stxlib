@@ -86,6 +86,63 @@ void invoke_revoke_and_reissue() {
     CHECK(out_of_table.failed());
 }
 
+// Pointer width: every handle fits the context pointer (16 bits of slot
+// index, the rest generation), and a slot retires after its last
+// generation instead of reissuing an old handle. The exhaustion is run
+// where the limit is small (wasm32: 65535 attachments); on 64-bit targets
+// the limit is 2^48 - 1 and only the largest handle's round trip is run.
+void handles_fit_the_pointer_width() {
+    constexpr unsigned pointer_bits = 8 * sizeof(void*);
+    static_assert(stxlib::trampoline_generation_limit ==
+                  (1ULL << (pointer_bits - stxlib::trampoline_index_bits)) - 1);
+    const stxlib::u64 largest_value =
+        (stxlib::trampoline_generation_limit << stxlib::trampoline_index_bits) | 0xffffULL;
+    const stxlib::TrampolineHandle largest = stxlib::TrampolineHandle::from_value(largest_value);
+    CHECK(stxlib::TrampolineHandle::from_context(largest.as_context()) == largest);
+
+    CounterTrampolines table = make_counters(1);
+    int amount = 1;
+    // A generation past the limit is never a handle of this table.
+    if constexpr (pointer_bits < 64) {
+        const stxlib::TrampolineHandle beyond =
+            stxlib::TrampolineHandle::from_value((stxlib::trampoline_generation_limit + 1) << stxlib::trampoline_index_bits);
+        const stxlib::Status refused = table.invoke(beyond, amount);
+        CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::stale_identity);
+    }
+    if constexpr (stxlib::trampoline_generation_limit > 70000) return;
+
+    Counter counter;
+    stxlib::TrampolineHandle previous{};
+    bool all_attached = true;
+    bool all_round_trips = true;
+    for (stxlib::u64 attachment = 0; attachment < stxlib::trampoline_generation_limit; ++attachment) {
+        stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(counter);
+        if (attached.failed()) {
+            all_attached = false;
+            break;
+        }
+        const stxlib::TrampolineHandle handle = *attached.value();
+        if (stxlib::TrampolineHandle::from_context(handle.as_context()) != handle || handle == previous) {
+            all_round_trips = false;
+        }
+        previous = handle;
+        const stxlib::Result<stxlib::Revocation> revoked = table.revoke(handle);
+        if (revoked.failed()) {
+            all_attached = false;
+            break;
+        }
+    }
+    CHECK(all_attached);
+    CHECK(all_round_trips);
+    CHECK((previous.value() >> stxlib::trampoline_index_bits) == stxlib::trampoline_generation_limit);
+    // The slot is retired: no further attachment, and the old handle stays stale.
+    const stxlib::Result<stxlib::TrampolineHandle> retired = table.attach(counter);
+    CHECK(retired.failed() && (*retired.error()).kind() == stxlib::ErrorKind::limit_exceeded);
+    const stxlib::Status stale = table.invoke(previous, amount);
+    CHECK(stale.failed());
+    CHECK(counter.total == 0);
+}
+
 // A target that revokes its own handle while it runs.
 struct SelfRevoker final {
     stxlib::Trampolines<SelfRevoker>* table{nullptr};
@@ -241,6 +298,7 @@ void revoke_waits_for_a_running_invocation() {
 int main() {
     capacities_are_checked();
     invoke_revoke_and_reissue();
+    handles_fit_the_pointer_width();
     self_revocation_is_deferred();
     nesting_is_bounded();
     a_throwing_target_leaves_its_slot();

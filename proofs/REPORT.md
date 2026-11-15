@@ -261,3 +261,43 @@ show waits for a browser run.
 Nothing in this section has been compiled or run: emsdk is not installed
 on the M4 (a download the owner approves first), and no compiler runs on
 the seat's machine.
+
+## Pointer width (wasm32, owner decision 2026-11-15)
+
+The Emscripten family builds for wasm32, so usize and uptr are 32 bits
+there (clang's WebAssembly target: size_t is unsigned long, 32 bits on
+wasm32; __int128 is available and 64-bit atomics are inline,
+`clang/lib/Basic/Targets/WebAssembly.h` on llvm main, not read at the
+pin). Emscripten's musl keeps time_t and off_t 64-bit on wasm32
+(`system/lib/libc/musl/arch/emscripten/bits/alltypes.h` at 6.0.13:
+`typedef _Int64 time_t;`, `typedef _Int64 off_t;`), so the static_asserts
+on them in `src/hosted/posix/` hold. Every place found that depends on
+the width, and how it is classed: **essential** (kept; wasm32 refused at
+that point), **width-neutral** (correct at either width as written) or
+**fixed** (changed so 32-bit pointers work, with a test). Found by
+reading and `git grep`; the first wasm32 build (`-Wconversion` on) and an
+integer-checks run under Node would find what reading missed.
+
+| Place | Width dependence | Class | Evidence |
+|---|---|---|---|
+| `include/stxlib/types.hpp` | `sizeof(void*) == 8` | **fixed**: 4 admitted under `__wasm32__` only; other 32-bit targets stay refused (not audited) | the static_asserts; `tests/emscripten_tests.cpp` (`pointer_width`) |
+| `include/stxlib/trampoline.hpp`, `src/core/trampoline.cpp` | a handle packed 16 index bits and 48 generation bits into a context pointer | **fixed**: the generation takes the pointer's remaining bits (`trampoline_generation_limit`: 2^48 - 1, or 65535 on wasm32); a slot retires after it, a generation past it is stale | static_asserts in `trampoline.cpp`; `tests/trampoline_tests.cpp` (`handles_fit_the_pointer_width`: exhausts a slot on wasm32) |
+| `src/core/thread_pool.cpp` (create) | `sizeof(Thread) * thread_count` (u32) wraps in 32-bit usize, and the start loop would overrun the short array | **fixed**: refused with out_of_memory before any allocation | `tests/thread_pool_tests.cpp` (`creation`, wasm32 branch) |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (Knuth's triangles) | (n + 1)(n + 2) / 2 cells, the row offsets and column starts formed through products that wrap in 32 bits from n = 92681 | **fixed**: `detail::triangle_number` (checked, even factor halved first), offsets built by addition, column starts by `known_triangle_number` | static_asserts in `tests/stx_btree/optimal_tree_test.cpp` (32-bit arithmetic) |
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (count separators) | the child-capacity growth formed an unchecked product; at capacity 12 it wraps in 32 bits for counts above 815730720 and went on from the wrapped value | **fixed**: `detail::child_capacity_for` stops before an unrepresentable product (which is at least the count) | static_asserts in `tests/stx_btree/optimal_map_test.cpp` (32-bit and 64-bit) |
+| `src/core/pe_image.hpp` (pure core, proof scope) | a header field plus a displacement in usize wraps on wasm32 (export RVA 0xFFFFFFF0 + 20 = 4), so a damaged image read the wrong bytes in bounds | **fixed**: offsets are u64 and the readers check them against the view | `tests/platform_rest_exhaustive.cpp` (`offsets_near_the_u32_end`); `proofs/esbmc/platform_rest.cpp` (32-bit run, below) |
+| `include/stxlib/shadow.hpp` (`ShadowFrameRecord`, 120 bytes) | fixed-width fields only; u64 is 8-aligned on wasm32 as on the 64-bit targets | width-neutral (the size assert holds at both widths) | `static_assert` in `shadow.hpp`; `tests/emscripten_tests.cpp` |
+| `src/state/state.hpp` (layout 8) | usize and uptr fields, so the layout differs by width | width-neutral: the layout is per process, and a process has one width; `layout_version` needs no change | reading |
+| `src/state/allocator.cpp` | the host backend's slot is `sizeof(void*)`; tags are u64 with the address widened; the registry hashes the widened address | width-neutral; one hardening for sb1 (the hand-in): the stored offset is narrowed to usize before it is checked | reading |
+| `src/core/atomic_rules.cpp` | atomics of usize, uptr, u64 | width-neutral: 64-bit atomics are lock-free on wasm32 (the asserts would refuse otherwise) | the static_asserts |
+| `src/core/growable.hpp`, `include/stxlib/buffer.hpp`, `stx_btree/detail/array.hpp`, `optimal_map.hpp`, `src/algorithms/voting.cpp` | element count times element size | width-neutral: each product is checked against the usize maximum first | reading; `tests/vocabulary_tests.cpp`, `tests/memory_tests.cpp` |
+| `src/core/files.cpp` (read_file) | a u64 file size narrowed to usize | width-neutral: narrowed only after `bytes <= limit` (a usize) | reading |
+| `src/algorithms/precedence.cpp`, `src/algorithms/row_height_index.cpp` | u64 block numbers and counts narrowed to usize | width-neutral: a block below `known_blocks()`, counts of objects in memory | reading |
+| `src/algorithms/stx_btree/detail/node_layout.hpp` | edges are `uintptr_t`, so internal pages hold more edges on wasm32 | width-neutral: capacities are derived from sizeof; no test states a capacity | reading |
+| `src/core/stack_line.hpp` | addresses printed to 16 hex digits | width-neutral: the same text, leading zeros on wasm32 | `tests/platform_rest_exhaustive.cpp` |
+| `src/state/allocator.cpp` (mimalloc) | `PTRDIFF_MAX` | not built on the web (the family refuses mimalloc) | `CMakeLists.txt` |
+| the bit-identity digests (`tests/bit_identity.cpp`) | counts and lengths enter the digest | width-neutral: every value is widened to u64 before it is hashed, and no item digests an address, a sizeof or usize_max; no expected line depends on the width | reading; the first wasm run compares against `tests/bit_identity_expected.txt` |
+| the bounded proofs (`proofs/esbmc/`) | proved at 64 bits only | to run twice: as written and with `--32 -D__wasm32__` (each harness's header) | not yet run |
+
+No place was classed essential: nothing in the tree needs 64-bit
+pointers once the rows marked fixed are in.
