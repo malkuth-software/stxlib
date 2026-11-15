@@ -46,6 +46,9 @@ constexpr usize long_scratch_bytes = 1 + 309 + 1 + maximum_precision + 16;
 usize real_length_bound(const Notation notation, const usize precision, const int binary_exponent) noexcept {
     if (notation == Notation::shortest) return 32;
     if (notation == Notation::scientific) return 1 + 1 + 1 + precision + 6;
+    // %g: the scientific form, or a fixed form of at most `precision`
+    // significant digits after at most "0.000" (exponents down to -4).
+    if (notation == Notation::general) return 1 + 1 + 1 + precision + 6 + 5;
     usize integer_digits = 1;
     if (binary_exponent > 0) integer_digits = static_cast<usize>(binary_exponent) * 30103 / 100000 + 2;
     const usize result = 1 + integer_digits + 1 + precision;
@@ -163,6 +166,8 @@ std::to_chars_result convert_real(char* const first, char* const last, const Rea
         return std::to_chars(first, last, value, std::chars_format::fixed, precision);
     case Notation::scientific:
         return std::to_chars(first, last, value, std::chars_format::scientific, precision);
+    case Notation::general:
+        return std::to_chars(first, last, value, std::chars_format::general, precision);
     case Notation::shortest:
         return std::to_chars(first, last, value);
     }

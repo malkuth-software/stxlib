@@ -29,7 +29,10 @@ find_package(Threads REQUIRED)
 
 # ---- host family ------------------------------------------------------------
 # One family per build (README: macOS, glibc, musl and Windows in phase I;
-# FreeBSD in phase II). Linux is glibc or musl by the C library's own macro.
+# FreeBSD 15.2 joins with A1 platform-rest). Linux is glibc or musl by the C
+# library's own macro. FreeBSD is named by CMAKE_SYSTEM_NAME, which CMake
+# sets on a FreeBSD host and a cross toolchain file sets for a cross-build
+# (the integrator's aarch64-freebsd.cmake).
 include(CheckCXXSourceCompiles)
 if(WIN32)
     set(STXLIB_HOST_FAMILY windows)
@@ -47,8 +50,10 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     else()
         set(STXLIB_HOST_FAMILY musl)
     endif()
+elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    set(STXLIB_HOST_FAMILY freebsd)
 else()
-    message(FATAL_ERROR "STXlib phase I supports macOS, Linux (glibc, musl) and Windows; ${CMAKE_SYSTEM_NAME} is not one")
+    message(FATAL_ERROR "STXlib supports macOS, Linux (glibc, musl), FreeBSD and Windows; ${CMAKE_SYSTEM_NAME} is not one")
 endif()
 message(STATUS "STXlib host family: ${STXLIB_HOST_FAMILY}")
 
@@ -134,6 +139,52 @@ add_compile_options(${stxlib_fp_options})
 # in Debug builds, for every target alike, so no build mixes checked and
 # unchecked copies of those inline functions.
 add_compile_definitions($<$<CONFIG:Debug>:STXLIB_FLOAT_CHECKS>)
+# One printf for every translation unit on MinGW (audit C, C-9/C10).
+# mingw-w64's _mingw.h (v14.0.0, mingw-w64-headers/crt/_mingw.h.in:442-454)
+# switches a translation unit to MinGW's own printf family whenever it
+# defines _POSIX, _POSIX_SOURCE, _POSIX_C_SOURCE, _ISOC99_SOURCE,
+# _XOPEN_SOURCE, _GNU_SOURCE or _SVID_SOURCE (and, for C++ alone, against an
+# msvcrt older than the UCRT, :233-234), so the same source could format
+# through two implementations in one program. Defining the macro as 0 keeps
+# every STXlib unit on the UCRT's printf; STXlib's own text never goes
+# through printf (numeric_text), so this governs only test and tool output
+# and the C runtime's own uses. Consumers are advised to do the same.
+if(MINGW)
+    add_compile_definitions(__USE_MINGW_ANSI_STDIO=0)
+endif()
+# Unstable order made visible (R4; audit B, 3.16, the sort rule): with
+# libc++, _LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY shuffles ranges
+# around std::sort, std::nth_element and std::partial_sort, where the
+# standard leaves the order of equivalent elements open
+# (libcxx/include/__debug_utils/randomize_range.h; libc++ 15 and later;
+# the shuffle is skipped in constant evaluation), so code that relies on the order of equal elements
+# fails a test instead of passing on one library and not another. The seed
+# is the address of a static (libcxx/include/__algorithm/shuffle.h), so it
+# varies per run under address randomisation; STXLIB_UNSTABLE_ORDER_SEED
+# fixes it to reproduce a failure. A directory definition, so the library
+# and the tests that link it see the same inline algorithms. Test builds
+# with libc++ only; libstdc++ has no such switch.
+set(stxlib_randomize_default OFF)
+if(STXLIB_TESTS)
+    check_cxx_source_compiles("
+        #include <version>
+        #if !defined(_LIBCPP_VERSION) || _LIBCPP_VERSION < 15000
+        #error not libc++ 15 or later
+        #endif
+        int main() { return 0; }" STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
+    if(STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
+        set(stxlib_randomize_default ON)
+    endif()
+endif()
+option(STXLIB_RANDOMIZE_UNSTABLE_ORDER "Shuffle equal elements in unstable sorts (libc++ test builds)"
+    ${stxlib_randomize_default})
+set(STXLIB_UNSTABLE_ORDER_SEED "" CACHE STRING "A fixed seed for STXLIB_RANDOMIZE_UNSTABLE_ORDER (empty: per run)")
+if(STXLIB_RANDOMIZE_UNSTABLE_ORDER)
+    add_compile_definitions(_LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY)
+    if(NOT STXLIB_UNSTABLE_ORDER_SEED STREQUAL "")
+        add_compile_definitions(_LIBCPP_DEBUG_RANDOMIZE_UNSPECIFIED_STABILITY_SEED=${STXLIB_UNSTABLE_ORDER_SEED})
+    endif()
+endif()
 
 # ---- exceptions -------------------------------------------------------------
 # STXlib's own code never uses exceptions; STXLIB_EXCEPTIONS says whether its
@@ -275,6 +326,7 @@ endif()
 
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
+    src/core/atomic_rules.cpp
     src/core/capabilities.cpp
     src/core/children.cpp
     src/core/console.cpp
@@ -285,13 +337,18 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/exception_shadow.cpp
     src/core/fail_fast.cpp
     src/core/files.cpp
+    src/core/images.cpp
+    src/core/known_directories.cpp
+    src/core/library.cpp
     src/core/local_time.cpp
     src/core/memory.cpp
     src/core/path.cpp
     src/core/process.cpp
+    src/core/process_info.cpp
     src/core/report.cpp
     src/core/require.cpp
     src/core/shadow_frames.cpp
+    src/core/stack_trace.cpp
     src/core/text.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
@@ -301,9 +358,11 @@ set(STXLIB_BOUNDARY_SOURCES
     src/hosted/cxx_runtime/clocks.cpp
     src/hosted/cxx_runtime/current_exception.cpp)
 
-# Interface modules per family. POSIX services shared by macOS, glibc and
-# musl live in src/hosted/posix/; a family directory joins when a service
-# differs (the stx_auxlib hosted port).
+# Interface modules per family. POSIX services shared by macOS, glibc, musl
+# and FreeBSD live in src/hosted/posix/, with small host differences as
+# #elif branches; a service that differs whole has a family directory
+# (src/hosted/host.hpp): macos/, linux/ (glibc and musl), freebsd/, and
+# elf/ (glibc, musl and FreeBSD).
 set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/children_posix.cpp
     src/hosted/posix/clocks_posix.cpp
@@ -313,10 +372,23 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/environment_posix.cpp
     src/hosted/posix/events_posix.cpp
     src/hosted/posix/file_posix.cpp
+    src/hosted/posix/home_posix.cpp
+    src/hosted/posix/library_posix.cpp
     src/hosted/posix/local_time_posix.cpp
+    src/hosted/posix/pages_posix.cpp
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp
-    src/hosted/posix/trace_posix.cpp)
+    src/hosted/posix/trace_posix.cpp
+    src/hosted/posix/wake_posix.cpp)
+set(STXLIB_HOSTED_MACOS_SOURCES
+    src/hosted/macos/image_regions_macos.cpp
+    src/hosted/macos/process_macos.cpp)
+set(STXLIB_HOSTED_LINUX_SOURCES
+    src/hosted/elf/image_regions_elf.cpp
+    src/hosted/linux/process_linux.cpp)
+set(STXLIB_HOSTED_FREEBSD_SOURCES
+    src/hosted/elf/image_regions_elf.cpp
+    src/hosted/freebsd/process_freebsd.cpp)
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/children_windows.cpp
     src/hosted/windows/clocks_windows.cpp
@@ -326,15 +398,24 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/environment_windows.cpp
     src/hosted/windows/events_windows.cpp
     src/hosted/windows/file_windows.cpp
+    src/hosted/windows/images_windows.cpp
+    src/hosted/windows/known_folders_windows.cpp
     src/hosted/windows/local_time_windows.cpp
+    src/hosted/windows/pages_windows.cpp
+    src/hosted/windows/process_windows.cpp
     src/hosted/windows/terminal_windows.cpp
     src/hosted/windows/threads_windows.cpp
     src/hosted/windows/trace_windows.cpp
-    src/hosted/windows/utf16.cpp)
+    src/hosted/windows/utf16.cpp
+    src/hosted/windows/wake_windows.cpp)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_WINDOWS_SOURCES})
+elseif(STXLIB_HOST_FAMILY STREQUAL "macos")
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_MACOS_SOURCES})
+elseif(STXLIB_HOST_FAMILY STREQUAL "freebsd")
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_FREEBSD_SOURCES})
 else()
-    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES})
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_LINUX_SOURCES})
 endif()
 
 add_library(stxlib_boundary STATIC ${STXLIB_BOUNDARY_SOURCES})
@@ -379,8 +460,20 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # libmincore.a (crt Makefile.am: mincore.mri), so mincore is linked, after
     # kernel32 so that kernel32 still provides every function it exports and
     # mincore only these two.
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 kernel32 mincore)
+    # SHGetKnownFolderPath (known_folders_windows.cpp) is shell32's;
+    # CoTaskMemFree, which frees its result, is ole32's. K32EnumProcessModules,
+    # K32GetModuleInformation and K32GetProcessMemoryInfo (images_windows.cpp,
+    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's.
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore)
+elseif(STXLIB_HOST_FAMILY STREQUAL "glibc")
+    # dlopen, dlsym, dladdr and dl_iterate_phdr (library_posix.cpp,
+    # image_regions_elf.cpp): libc itself from glibc 2.34; CMAKE_DL_LIBS
+    # names libdl for older glibc and is empty where none is needed.
+    target_link_libraries(stxlib_boundary PUBLIC ${CMAKE_DL_LIBS})
 endif()
+# musl and FreeBSD carry the dl* functions in libc (FreeBSD: lib/libc/gen/
+# dlfcn.c:65-149 at fb9033d2876d, the stubs rtld-elf replaces), and macOS in
+# libSystem, so nothing more is linked there.
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # Static libc++ in every module (stx_auxlib docs/ALLOCATOR_OWNERSHIP.md,
     # 2.3): a shared libc++ DLL binds its own operator new and delete.
@@ -436,6 +529,7 @@ set(stxlib_math_options ${stxlib_fp_options})
 set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
+    src/algorithms/case_folding.cpp
     src/algorithms/hash.cpp
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
@@ -510,7 +604,8 @@ if(STXLIB_TESTS)
     # thread-pool check harnesses, the death cases, the two-module case)
     # need exceptions and are left out of a build without them
     # (STXLIB_EXCEPTIONS above).
-    set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time)
+    set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time
+                               images pages_wake rounding)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()
@@ -520,6 +615,17 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+
+    # The process's own arguments, compared with argv: the test is started
+    # with spaces, quotes, a trailing backslash, an empty argument and one
+    # that is not ASCII; the test starts itself again as a child with an
+    # argument that is not UTF-8 (POSIX) or holds a lone surrogate (Windows)
+    # (tests/process_tests.cpp).
+    add_executable(stxlib_process_tests tests/process_tests.cpp)
+    target_link_libraries(stxlib_process_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_process_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_process_tests
+        COMMAND stxlib_process_tests "plain" "two words" "" "quote\"inside" "trailing\\" "café")
 
     if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
@@ -534,6 +640,16 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # Simple case folding (C7): every code point against CaseFolding.txt,
+    # read by the test's own parser; and the committed table is the
+    # generator's output for the pinned file.
+    add_executable(stxlib_case_folding_tests tests/case_folding_tests.cpp)
+    target_link_libraries(stxlib_case_folding_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_case_folding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_case_folding_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_case_folding_tests
+        COMMAND stxlib_case_folding_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
+    set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
@@ -776,6 +892,26 @@ if(STXLIB_TESTS)
         endforeach()
     endif()
 
+    # Sealed pages, one process each (tests/platform_rest_death_tests.cpp).
+    add_executable(stxlib_platform_rest_death_tests tests/platform_rest_death_tests.cpp)
+    target_link_libraries(stxlib_platform_rest_death_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_platform_rest_death_tests PRIVATE ${stxlib_test_warnings})
+    set(stxlib_platform_rest_death_cases
+        "sealed_writable|stxlib: requirement failed: PageBlock::writable: the pages are sealed"
+        "sealed_store|ANY")
+    foreach(death_case IN LISTS stxlib_platform_rest_death_cases)
+        string(FIND "${death_case}" "|" separator)
+        string(SUBSTRING "${death_case}" 0 ${separator} case_name)
+        math(EXPR expect_start "${separator} + 1")
+        string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
+        add_test(NAME stxlib_platform_rest_death_${case_name}
+            COMMAND ${CMAKE_COMMAND}
+                -DPROGRAM=$<TARGET_FILE:stxlib_platform_rest_death_tests>
+                -DCASE=${case_name}
+                "-DEXPECT=${case_expect}"
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
+    endforeach()
+
     # The console and exit tasks, seen from outside the process.
     add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
     target_link_libraries(stxlib_console_process_tests PRIVATE stxlib::boundary)
@@ -826,11 +962,35 @@ if(STXLIB_TESTS)
     add_library(stxlib_exception_probe OBJECT tests/exception_probe.cpp)
     target_compile_options(stxlib_exception_probe PRIVATE -fexceptions)
 
+    # Proof harness: the platform layer's pure cores (A1 platform-rest):
+    # Windows command-line splitting and quoting, the stack line's bounds and
+    # the PE reader on damaged headers, exhaustive over the domains
+    # tests/platform_rest_exhaustive.cpp states (proofs/REPORT.md).
+    add_executable(stxlib_platform_rest_exhaustive tests/platform_rest_exhaustive.cpp)
+    target_link_libraries(stxlib_platform_rest_exhaustive PRIVATE stxlib::boundary)
+    target_include_directories(stxlib_platform_rest_exhaustive PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_platform_rest_exhaustive PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_platform_rest_exhaustive COMMAND stxlib_platform_rest_exhaustive)
+    set_tests_properties(stxlib_platform_rest_exhaustive PROPERTIES TIMEOUT 1200)
+
     # The public-header boundary (AGENTS.md): no std:: name, no angle include.
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND)
         add_test(NAME stxlib_public_headers
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_public_headers.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # The governance check (R4; audit B, section 3.16): the standard
+        # library rules over STXlib's own sources, and the check's own tests.
+        add_test(NAME stxlib_std_rules
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_std_rules.py
+                    --profile stxlib --root ${CMAKE_CURRENT_SOURCE_DIR}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        add_test(NAME stxlib_case_folding_table
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_case_folding.py --check
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
+        add_test(NAME stxlib_std_rules_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).

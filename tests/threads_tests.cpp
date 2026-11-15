@@ -11,6 +11,7 @@
 #include "test_support.hpp"
 
 #include <atomic>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -373,7 +374,24 @@ void sleeping_and_host() {
     stxlib::sleep_until(quick.after(Duration::seconds(-5)));
     CHECK(IntervalTime::now().since(quick) < Duration::seconds(1));
     CHECK(stxlib::processor_count() >= 1);
+    // The same count as libc++'s hardware_concurrency on every host (audit
+    // C, K-1 and K-2: all processor groups on Windows, sysconf on POSIX).
+    CHECK(stxlib::processor_count() == std::thread::hardware_concurrency());
     CHECK(stxlib::capability_supported(stxlib::Capability::threads));
+}
+
+// Short sleeps are not held to the system tick (audit C, K-3): twenty 1 ms
+// sleeps take well under the ~312 ms twenty 15.6 ms ticks would. The bound
+// is loose for loaded CI hosts; every sleep is still at least 1 ms.
+void short_sleeps() {
+    const IntervalTime before = IntervalTime::now();
+    for (int index = 0; index < 20; ++index) {
+        const IntervalTime start = IntervalTime::now();
+        stxlib::sleep_for(Duration::milliseconds(1));
+        CHECK(IntervalTime::now().since(start) >= Duration::milliseconds(1));
+    }
+    const Duration taken = IntervalTime::now().since(before);
+    CHECK(taken < Duration::milliseconds(250));
 }
 
 } // namespace
@@ -386,5 +404,6 @@ int main() {
     once();
     stacks();
     sleeping_and_host();
+    short_sleeps();
     return stxlib_tests::finish("threads");
 }

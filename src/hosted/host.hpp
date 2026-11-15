@@ -8,10 +8,13 @@
 // in CMakeLists.txt:
 //   src/hosted/c_library/    the C standard library, the same on every family
 //   src/hosted/cxx_runtime/  the C++ runtime's exception interface (Itanium C++ ABI)
-//   src/hosted/posix/        POSIX calls shared by macOS, glibc and musl
+//   src/hosted/posix/        POSIX calls shared by macOS, glibc, musl and
+//                            FreeBSD; small host differences are #elif
+//                            branches there
 //   src/hosted/windows/      Win32 and UCRT
-// Family directories for macOS, glibc and musl join when a service differs
-// between them (the port of stx_auxlib's hosted modules).
+// Family directories hold services that differ whole between families
+// (A1 platform-rest): macos/ (macOS), linux/ (glibc and musl), freebsd/
+// (FreeBSD 15.2), and elf/ (the ELF hosts: glibc, musl and FreeBSD).
 //
 // These are the first services, the ones the boundary core needs to report
 // and fail. Each is used only where a failure is already being reported, so

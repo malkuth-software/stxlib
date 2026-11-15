@@ -10,9 +10,12 @@
 // request (a missing program, no terminal).
 //
 // Host families: macOS, glibc and musl (POSIX) and Windows (UCRT) in phase
-// I; FreeBSD joins in phase II. A capability whose module has not been
-// ported yet is reported unsupported on every host until it is (README,
-// "Platform layer").
+// I; FreeBSD (hosted, 15.2) is its own family (owner, 2026-11-13, "run
+// everywhere"), built and tested in phase II. A capability whose module has
+// not been ported yet is reported unsupported on every host until it is
+// (README, "Platform layer"). The A1 platform-rest design note
+// (planning/stages/A1-platform-rest.md) has the table of every capability
+// by family.
 //
 // Failures of the platform layer are ErrorRecords (error.hpp): the kind is
 // the class of failure, the code is a HostCode below when a finer reason
@@ -58,9 +61,22 @@ enum class Capability : u8 {
     // (value 10, stx_auxlib's monotonic clock) stops while the machine is
     // suspended; elapsed_clock continues through suspension.
     elapsed_clock = 18,
+    // The rest of the platform layer (A0 inventory, section 2: the host calls
+    // GUI.Forms makes outside its window-system hosts).
+    process_arguments = 19, // the arguments the process was started with (process.hpp)
+    main_thread = 20,       // telling the process's initial thread apart (threads.hpp)
+    memory_report = 21,     // the process's resident memory (process.hpp)
+    dynamic_libraries = 22, // loading libraries and finding their symbols (library.hpp)
+    address_lookup = 23,    // the image and nearest symbol holding an address (images.hpp)
+    image_regions = 24,     // named data regions of the loaded images (images.hpp)
+    stack_trace = 25,       // the calling thread's return addresses (stack_trace.hpp)
+    page_protection = 26,   // whole pages that can be sealed read-only (pages.hpp)
+    wake_channel = 27,      // a waitable wake-up any thread or signal handler can raise (wake.hpp)
+    known_directories = 28, // the user's home, configuration, data and cache directories (files.hpp)
+    process_identity = 29,  // the process's identifier (process.hpp)
 };
 
-inline constexpr usize capability_count = 19;
+inline constexpr usize capability_count = 30;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.
@@ -91,6 +107,12 @@ enum class HostCode : u32 {
     closed_handle = 16,       // the object is closed or moved from (kind disposed)
     timed_out = 17,           // the wait's time limit passed (kind limit_exceeded)
     invalid_state = 18,       // the object is not in a state that allows the call (kind invalid_argument)
+    // The rest of the platform layer (A1 platform-rest).
+    no_home = 19,           // neither the environment nor the user database names a home (kind not_found)
+    symbol_not_found = 20,  // the library holds no symbol of that name (kind not_found)
+    no_image = 21,          // no loaded image holds the address (kind not_found)
+    too_many_handles = 22,  // more handles than the host can wait on at once (kind limit_exceeded)
+    sealed = 23,            // the pages are sealed read-only (kind invalid_argument)
 };
 
 } // namespace stxlib

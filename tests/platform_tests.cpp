@@ -76,6 +76,28 @@ void capabilities_report() {
     CHECK(stxlib::capability_supported(stxlib::Capability::resize_events));
     CHECK(stxlib::capability_supported(stxlib::Capability::suspend_events));
 #endif
+    // A1 platform-rest.
+    CHECK(stxlib::capability_supported(stxlib::Capability::process_arguments));
+    CHECK(stxlib::capability_supported(stxlib::Capability::memory_report));
+    CHECK(stxlib::capability_supported(stxlib::Capability::dynamic_libraries));
+    CHECK(stxlib::capability_supported(stxlib::Capability::address_lookup));
+    CHECK(stxlib::capability_supported(stxlib::Capability::image_regions));
+    CHECK(stxlib::capability_supported(stxlib::Capability::stack_trace));
+    CHECK(stxlib::capability_supported(stxlib::Capability::page_protection));
+    CHECK(stxlib::capability_supported(stxlib::Capability::wake_channel));
+    CHECK(stxlib::capability_supported(stxlib::Capability::known_directories));
+    CHECK(stxlib::capability_supported(stxlib::Capability::process_identity));
+    CHECK(stxlib::capability_name(stxlib::Capability::process_identity) == stxlib::TextView("process_identity"));
+#if defined(_WIN32)
+    CHECK(!stxlib::capability_supported(stxlib::Capability::main_thread));
+#else
+    CHECK(stxlib::capability_supported(stxlib::Capability::main_thread));
+#endif
+#if defined(__FreeBSD__)
+    CHECK(!stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#else
+    CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#endif
 }
 
 // ---- clocks -----------------------------------------------------------------
@@ -99,7 +121,11 @@ void steady_clocks_never_decrease() {
 // the clocks count from different epochs, so spans are compared, not
 // readings). The wall clock reads as the runtime's system clock does.
 void clocks_agree_with_host() {
+#if !defined(__FreeBSD__)
+    // FreeBSD: unsupported, and ElapsedTime reads uptime, which still
+    // advances alike over the sleep (clocks.hpp).
     CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
+#endif
     const std::chrono::steady_clock::time_point host_start = std::chrono::steady_clock::now();
     const stxlib::IntervalTime interval_start = stxlib::IntervalTime::now();
     const stxlib::ElapsedTime elapsed_start = stxlib::ElapsedTime::now();
@@ -151,6 +177,46 @@ void time_arithmetic_saturates() {
     const stxlib::IntervalTime start = stxlib::IntervalTime::now();
     const stxlib::IntervalTime later = start.after(stxlib::Duration::milliseconds(5));
     CHECK(later.since(start) == stxlib::Duration::milliseconds(5));
+}
+
+// ---- frame pacing (M2 C1) ------------------------------------------------------
+
+constexpr stxlib::IntervalTime at(const stxlib::i64 nanoseconds) {
+    return stxlib::IntervalTime::from_nanoseconds(nanoseconds);
+}
+
+void pacing() {
+    using stxlib::Duration;
+    using stxlib::i64;
+    static_assert(stxlib::pace(at(0), Duration::nanoseconds(10), at(0)).next == at(10), "the first tick follows");
+    static_assert(stxlib::pace(at(0), Duration::nanoseconds(10), at(25)).next == at(30), "late ticks are skipped");
+    static_assert(stxlib::pace(at(0), Duration::nanoseconds(10), at(25)).elapsed_periods == 2, "periods counted");
+    static_assert(stxlib::pace(at(5), Duration::nanoseconds(10), at(0)).next == at(5), "before the origin");
+    static_assert(stxlib::pace(at(0), Duration::nanoseconds(0), at(7)).next == at(7), "no period");
+    static_assert(stxlib::pace(at(stxlib::i64_min), Duration::nanoseconds(1), at(stxlib::i64_max)).next ==
+                      at(stxlib::i64_max),
+                  "the far end saturates");
+    // Exhaustive over a small domain against the definition: the least
+    // origin + k * period (k >= 1) strictly after now, and k - 1.
+    for (i64 origin = -20; origin <= 20; ++origin) {
+        for (i64 now = -20; now <= 20; ++now) {
+            for (i64 period = -3; period <= 7; ++period) {
+                const stxlib::Pacing paced = stxlib::pace(at(origin), Duration::nanoseconds(period), at(now));
+                if (period <= 0) {
+                    CHECK(paced.next == at(now) && paced.elapsed_periods == 0);
+                    continue;
+                }
+                if (now < origin) {
+                    CHECK(paced.next == at(origin) && paced.elapsed_periods == 0);
+                    continue;
+                }
+                i64 k = 1;
+                while (origin + k * period <= now) k = k + 1;
+                CHECK(paced.next == at(origin + k * period));
+                CHECK(paced.elapsed_periods == k - 1);
+            }
+        }
+    }
 }
 
 // ---- environment ------------------------------------------------------------
@@ -297,6 +363,7 @@ int main() {
     clocks_agree_with_host();
     wall_clock_is_unix_time();
     time_arithmetic_saturates();
+    pacing();
     variable_names();
     set_read_remove();
     concurrent_use();

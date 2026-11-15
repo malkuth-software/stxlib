@@ -108,6 +108,19 @@ enum class Durability : u8 {
     durable = 2,
 };
 
+enum class FileKind : u8 {
+    regular = 0,
+    directory = 1,
+    symbolic_link = 2,
+    other = 3,
+};
+
+struct FileInformation final {
+    FileKind kind{FileKind::other};
+    u64 size{0}; // bytes, for regular files; 0 otherwise
+    WallTime modified{};
+};
+
 enum class FileMode : u8 {
     read = 0,       // read an existing file
     create_new = 1, // write a new file; already_exists if the name is taken
@@ -146,13 +159,49 @@ public:
     [[nodiscard]] Status sync(Durability level) noexcept;
     [[nodiscard]] Status close() noexcept;
 
+    // ---- positioned I/O and the open file's metadata (M2 C2) ----
+    // Each leaves the position unchanged on every host (POSIX pread and
+    // pwrite do not move it; on Windows, where ReadFile and WriteFile with
+    // an offset move a synchronous handle's pointer, the backend puts it
+    // back).
+
+    // Reads up to output.count() bytes at `offset`; zero bytes means the
+    // offset is at or past the end. Offsets above 2^63 - 1 fail with
+    // limit_exceeded, HostCode::too_long.
+    [[nodiscard]] Result<usize> read_at(u64 offset, MutableView<Byte> output) noexcept;
+    // Writes every byte at `offset`, extending the file as needed; on
+    // failure an unknown prefix may have been written. A file opened with
+    // FileMode::append writes only at its end (O_APPEND; FILE_APPEND_DATA,
+    // and Linux's pwrite ignores the offset under O_APPEND), so it is
+    // refused with invalid_argument, HostCode::invalid_state, as is a file
+    // opened for reading.
+    [[nodiscard]] Status write_all_at(u64 offset, View<Byte> input) noexcept;
+    // The open file's kind, size and last-write time (fstat;
+    // GetFileInformationByHandle): the file this File holds, even if its
+    // name has since been renamed or replaced.
+    [[nodiscard]] Result<FileInformation> information() noexcept;
+    // Sets the last-write time (futimens with the access time left as it
+    // is; SetFileTime). The host keeps it at its own resolution: 1 ns on
+    // APFS, ext4 and UFS2, 100 ns on NTFS (WallTime is cut, toward the
+    // past, to the host's tick). A file opened for reading is refused
+    // with invalid_argument, HostCode::invalid_state.
+    [[nodiscard]] Status set_modified(WallTime modified) noexcept;
+    // Cuts or extends the file to `bytes` (ftruncate; SetFileInformationByHandle
+    // with FileEndOfFileInfo); extended bytes read as zero. The position is
+    // unchanged. Refused, invalid_argument with HostCode::invalid_state, for
+    // a file opened for reading or with FileMode::append (Windows' append
+    // access cannot set the end).
+    [[nodiscard]] Status set_size(u64 bytes) noexcept;
+
 private:
     static constexpr i64 closed = -1;
 
-    explicit File(const i64 handle) noexcept : handle_(handle) {}
+    File(const i64 handle, const FileMode opened_mode) noexcept : handle_(handle), mode_(opened_mode) {}
 
     // A POSIX descriptor or a Windows HANDLE's value; -1 when closed.
     i64 handle_{closed};
+    // The mode it was opened with, for the refusals above.
+    FileMode mode_{FileMode::read};
 };
 
 // The whole file. Refuses (limit_exceeded, HostCode::too_long) a file of
@@ -166,19 +215,6 @@ private:
 // is unchanged and the temporary file is removed. A path without a final
 // name ("/", ".") fails with invalid_argument, HostCode::invalid_name.
 [[nodiscard]] Status write_file(const Path& path, View<Byte> content, Durability level) noexcept;
-
-enum class FileKind : u8 {
-    regular = 0,
-    directory = 1,
-    symbolic_link = 2,
-    other = 3,
-};
-
-struct FileInformation final {
-    FileKind kind{FileKind::other};
-    u64 size{0}; // bytes, for regular files; 0 otherwise
-    WallTime modified{};
-};
 
 enum class LinkMode : u8 {
     follow = 0,    // describe what a symbolic link points to
@@ -196,9 +232,39 @@ enum class LinkMode : u8 {
 // Removes a file, a symbolic link or an empty directory; not_found when
 // nothing has that name.
 [[nodiscard]] Status remove(const Path& path) noexcept;
+// The deepest directory remove_tree descends (levels below the top).
+inline constexpr usize maximum_remove_tree_depth = 4096;
+
 // Removes a directory tree without following symbolic links. Yields the
-// number of entries removed, the top included; a missing path removes 0.
-// Not atomic: on failure, part of the tree may be gone.
+// number of entries removed, the top included; a missing path removes 0,
+// and a path naming anything but a directory removes that one entry. Not
+// atomic: on failure, part of the tree may be gone (and what remains is a
+// tree that a later call can remove).
+//
+// Safe against another program swapping a directory inside the tree for a
+// link while it runs (the race libc++'s Windows remove_all has, C-37 of
+// audit C): only `path` itself is looked up by name.
+//   - POSIX hosts: each directory is opened relative to its parent's
+//     descriptor with O_NOFOLLOW | O_DIRECTORY (openat), and its entries are
+//     removed relative to it (unlinkat), so a link is removed, never
+//     followed. One descriptor is open at a time: on the way back up the
+//     parent is reopened through ".." and checked to be the directory left
+//     (device and inode); a parent that changed fails with limit_exceeded,
+//     HostCode::busy.
+//   - Windows: each directory is held open, without FILE_SHARE_DELETE, from
+//     when it is entered until it is removed, so no other program can
+//     rename or delete it, and the path through the held directories
+//     cannot be rebound; each entry is opened with
+//     FILE_FLAG_OPEN_REPARSE_POINT and judged by that handle (a symbolic
+//     link or junction is removed, never entered) and removed through it
+//     (FileDispositionInfoEx with POSIX semantics, so the name goes at once;
+//     FileDispositionInfo where the volume refuses that). Read-only files are
+//     removed, as unlink removes them on POSIX hosts.
+// Bounded: the work held at once is one directory's position (a listing is
+// read in passes, not stored) and the names of the directories entered.
+// Deeper than maximum_remove_tree_depth levels fails with limit_exceeded,
+// HostCode::too_long. Terminates absent concurrent writers: each pass over a
+// directory removes an entry or finds it empty.
 [[nodiscard]] Result<u64> remove_tree(const Path& path) noexcept;
 // Renames, replacing an existing file at `to`.
 [[nodiscard]] Status rename(const Path& from, const Path& to) noexcept;
@@ -266,6 +332,38 @@ private:
 [[nodiscard]] Result<Path> temporary_directory() noexcept;
 // The process's working directory.
 [[nodiscard]] Result<Path> working_directory() noexcept;
+
+// The user's directories (Capability::known_directories; replaces
+// GUI.Forms' HOME, APPDATA and XDG_CONFIG_HOME reading in theme_files.cpp,
+// A0 inventory section 2).
+enum class KnownDirectory : u8 {
+    home = 0,               // the user's home directory
+    user_configuration = 1, // settings the user keeps (and roams, on Windows)
+    user_data = 2,          // data the program keeps for the user
+    user_cache = 3,         // data the program can rebuild; may be removed by the host
+};
+
+// The directory `which` names, as each host's convention defines it. The
+// directory need not exist (a fresh account may lack it); create it with
+// create_directories before writing into it.
+//   - macOS: home is HOME, else the user database's entry (getpwuid_r);
+//     user_configuration and user_data are home/Library/Application Support,
+//     user_cache home/Library/Caches (Apple's File System Programming Guide;
+//     unconfirmed at a pin).
+//   - Linux and FreeBSD (the XDG Base Directory Specification 0.8, as
+//     published; unconfirmed at a pin): home as on macOS;
+//     user_configuration is XDG_CONFIG_HOME, else home/.config; user_data
+//     XDG_DATA_HOME, else home/.local/share; user_cache XDG_CACHE_HOME, else
+//     home/.cache. A variable that is empty or not an absolute path is
+//     ignored, as the specification requires.
+//   - Windows: SHGetKnownFolderPath with FOLDERID_Profile, RoamingAppData,
+//     RoamingAppData and LocalAppData, in order of the enumerators.
+// The variables are read through environment.hpp, under its lock. Failures:
+// not_found with HostCode::no_home when no home can be named; invalid_argument
+// for a value the variable holds that is not a Path; out_of_memory;
+// foreign_failure with the host's code (Windows); unsupported for a value
+// outside the set.
+[[nodiscard]] Result<Path> known_directory(KnownDirectory which) noexcept;
 // `path` made absolute against the working directory, lexically: no
 // symbolic link is followed and the path need not exist.
 [[nodiscard]] Result<Path> absolute(const Path& path) noexcept;

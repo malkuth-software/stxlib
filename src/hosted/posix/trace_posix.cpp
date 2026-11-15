@@ -1,5 +1,8 @@
 // Native traces on POSIX hosts (host.hpp, capture_return_addresses), shared
-// by macOS, glibc and musl.
+// by macOS, glibc, musl and FreeBSD. FreeBSD has no pthread_getattr_np; its
+// pthread_attr_get_np (include/pthread_np.h:42 at fb9033d2876d, defined at
+// lib/libthr/thread/thr_attr.c:125) fills an attribute object the caller
+// has initialised with pthread_attr_init (A1 platform-rest).
 //
 // Primary mechanism: an owned walk of the frame-pointer chain, bounded by
 // the calling thread's stack. The batch 1 fold (2026-11-13, sbi, Homebrew
@@ -45,6 +48,10 @@
 #include <pthread.h>
 #include <unwind.h>
 
+#if defined(__FreeBSD__)
+#include <pthread_np.h>
+#endif
+
 #if defined(__APPLE__) && defined(__arm64e__)
 #include <ptrauth.h>
 #endif
@@ -71,7 +78,15 @@ bool current_stack(StackBounds& bounds) noexcept {
     return true;
 #else
     pthread_attr_t attributes;
+#if defined(__FreeBSD__)
+    if (::pthread_attr_init(&attributes) != 0) return false;
+    if (::pthread_attr_get_np(::pthread_self(), &attributes) != 0) {
+        static_cast<void>(::pthread_attr_destroy(&attributes));
+        return false;
+    }
+#else
     if (::pthread_getattr_np(::pthread_self(), &attributes) != 0) return false;
+#endif
     void* address = nullptr;
     size_t size = 0;
     const int got = ::pthread_attr_getstack(&attributes, &address, &size);

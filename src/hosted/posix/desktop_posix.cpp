@@ -4,8 +4,11 @@
 // src/hosted/desktop_posix.cpp at b6e330a.
 //
 // current_executable: _NSGetExecutablePath and realpath on Apple hosts,
-// /proc/self/exe on Linux (glibc and musl); FreeBSD (phase II) reports
-// unsupported until its module lands.
+// /proc/self/exe on Linux (glibc and musl), and on FreeBSD the sysctl
+// {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1} (sys/sys/sysctl.h:961, 999,
+// 1040 at fb9033d2876d): the kernel resolves the text vnode's path for the
+// calling process (pid -1) and returns it with its terminating NUL
+// (sys/kern/kern_proc.c:2363-2390). A1 platform-rest.
 
 #include "hosted/desktop_backend.hpp"
 
@@ -21,6 +24,10 @@
 
 #if defined(__APPLE__)
 #include <mach-o/dyld.h>
+#endif
+#if defined(__FreeBSD__)
+#include <sys/sysctl.h>
+#include <sys/types.h>
 #endif
 
 namespace stxlib::desktop_backend {
@@ -116,6 +123,25 @@ Status executable_name(Growable<char>& text) noexcept {
         }
         capacity = capacity * 2;
     }
+#elif defined(__FreeBSD__)
+    int names[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+    size_t size = 0;
+    if (::sysctl(names, 4, nullptr, &size, nullptr, 0) != 0) return io_failure_errno(errno);
+    if (size == 0 || size > 65536) {
+        return host_failure::failed(ErrorKind::io_failure, "stxlib.desktop.current_executable", HostCode::too_long);
+    }
+    if (!text.resize(static_cast<usize>(size))) return exhausted();
+    size_t got = size;
+    if (::sysctl(names, 4, text.data(), &got, nullptr, 0) != 0) {
+        const int error = errno;
+        text.clear();
+        return io_failure_errno(error);
+    }
+    usize length = static_cast<usize>(got);
+    // The kernel's count includes the terminating NUL.
+    while (length > 0 && text[length - 1] == '\0') length = length - 1;
+    text.shrink(length);
+    return Status::success();
 #else
     return host_failure::failed(ErrorKind::unsupported, "stxlib.desktop.current_executable", HostCode::none);
 #endif

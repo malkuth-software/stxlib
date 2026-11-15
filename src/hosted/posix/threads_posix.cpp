@@ -12,16 +12,24 @@
 // recursion check is core's (threads.cpp, check builds). Man-page
 // statements are from the published pages, not re-read in this batch.
 //
-// Timed waits: on Linux the condition uses CLOCK_MONOTONIC
-// (pthread_condattr_setclock, POSIX.1-2008), so a change of the wall clock
-// does not move the deadline; macOS has no pthread_condattr_setclock and
-// waits with pthread_cond_timedwait_relative_np, a relative interval (the
-// call libc++ makes there). Either way core passes a relative interval
-// measured on IntervalTime and decides the timeout by that clock.
+// Timed waits: on Linux, musl and FreeBSD the condition uses
+// CLOCK_MONOTONIC (pthread_condattr_setclock, POSIX.1-2008), so a change of
+// the wall clock does not move the deadline; macOS has no
+// pthread_condattr_setclock and waits with
+// pthread_cond_timedwait_relative_np, a relative interval. Either way core
+// passes a relative interval measured on IntervalTime and decides the
+// timeout by that clock. This is where STXlib departs from libc++, whose
+// std::condition_variable waits on a system_clock deadline with
+// pthread_cond_timedwait everywhere but glibc 2.30 and later
+// (include/__condition_variable/condition_variable.h:147-165,
+// include/__config:650-656, src/condition_variable.cpp:41-60 at
+// llvmorg-22.1.8; audit C, C-28), so a wall-clock step moves its waits on
+// macOS, musl and FreeBSD and not STXlib's.
 //
-// processor_count is libc++'s std::thread::hardware_concurrency: sysctl
-// hw.ncpu on Apple hosts, sysconf(_SC_NPROCESSORS_ONLN) elsewhere (libc++
-// src/thread.cpp; from memory of that file, not re-read).
+// processor_count is libc++'s std::thread::hardware_concurrency:
+// sysconf(_SC_NPROCESSORS_ONLN) on every POSIX host, Apple included
+// (src/thread.cpp:66-75 at llvmorg-22.1.8; audit C, K-2: an earlier comment
+// here said sysctl hw.ncpu on Apple hosts, which libc++ does not use).
 
 #include "hosted/thread_backend.hpp"
 
@@ -35,11 +43,6 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
-
-#if defined(__APPLE__)
-#include <sys/sysctl.h>
-#include <sys/types.h>
-#endif
 
 namespace stxlib::thread_backend {
 
@@ -209,18 +212,10 @@ void sleep_for(const Duration interval) noexcept {
 }
 
 u32 processor_count() noexcept {
-#if defined(__APPLE__)
-    int names[2] = {CTL_HW, HW_NCPU};
-    unsigned int count = 0;
-    size_t size = sizeof count;
-    if (::sysctl(names, 2, &count, &size, nullptr, 0) != 0) return 0;
-    return static_cast<u32>(count);
-#else
     const long count = ::sysconf(_SC_NPROCESSORS_ONLN);
     if (count <= 0) return 0;
     if (static_cast<unsigned long>(count) > 0xffffffffUL) return 0xffffffffU;
     return static_cast<u32>(count);
-#endif
 }
 
 } // namespace stxlib::thread_backend

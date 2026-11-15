@@ -92,6 +92,19 @@ struct Outcome final {
 // Releases the handle even when it reports a failure.
 [[nodiscard]] Outcome close(i64 handle) noexcept;
 
+// Positioned I/O (M2 C2): at most `count` bytes at `offset` (at most
+// 2^63 - 1, which core checks), leaving the handle's position as it was.
+[[nodiscard]] Outcome read_at(i64 handle, u64 offset, Byte* bytes, usize count, usize& transferred) noexcept;
+// Writes a prefix of bytes[0, count) at `offset`, at least one byte unless it
+// fails. Never called for an append handle (core refuses it).
+[[nodiscard]] Outcome write_at(i64 handle, u64 offset, const Byte* bytes, usize count, usize& transferred) noexcept;
+// The open file's kind, size and last-write time.
+[[nodiscard]] Outcome information(i64 handle, FileInformation& information) noexcept;
+// Sets the last-write time, leaving the access time.
+[[nodiscard]] Outcome set_modified(i64 handle, WallTime modified) noexcept;
+// Sets the file's length (at most 2^63 - 1, which core checks).
+[[nodiscard]] Outcome set_size(i64 handle, u64 bytes) noexcept;
+
 [[nodiscard]] Outcome inspect(const char* name, LinkMode links, FileInformation& information) noexcept;
 // Renames `from` over `to`; for Durability::durable, also makes the rename
 // itself durable (POSIX: flushes the directory holding `to`; Windows:
@@ -101,6 +114,12 @@ struct Outcome final {
 [[nodiscard]] Outcome create_directory(const char* name) noexcept;
 // A file, a symbolic link (not what it names) or an empty directory.
 [[nodiscard]] Outcome remove(const char* name) noexcept;
+// Removes the tree at `name` as files.hpp's remove_tree states (relative
+// descent on POSIX hosts, held directories on Windows), descending at most
+// `depth_limit` levels below it (too_large past that), adding each entry it
+// removes to `removed` (also on failure). Only `name` is looked up by path.
+// not_found, with nothing removed, when nothing has that name.
+[[nodiscard]] Outcome remove_tree(const char* name, usize depth_limit, u64& removed) noexcept;
 [[nodiscard]] Outcome rename(const char* from, const char* to) noexcept;
 [[nodiscard]] Outcome copy_file(const char* from, const char* to, CopyMode mode) noexcept;
 

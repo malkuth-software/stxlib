@@ -771,3 +771,37 @@ Generated from it (first party, not third-party code):
 `tests/zone_vectors.inc` by `tools/tzvectors.py`, both written for STXlib
 in batch 3b from the tzdata source format as zic(8) documents it; no zic
 or tzcode source is copied. Taking a later release: `tools/TZDATA_POLICY.md`.
+
+### Unicode 18.0.0 CaseFolding.txt (M2 C7)
+
+`third_party/unicode-18.0.0/CaseFolding.txt` is the Unicode Character
+Database's case folding file, version 18.0.0 (its header: "Date:
+2026-02-03, 23:09:45 GMT"), from
+<https://www.unicode.org/Public/18.0.0/ucd/CaseFolding.txt>. Downloaded by
+the coordinator with the owner's approval on 2026-11-15 (notes
+decisions/2026-11-15-roadmap-choices.md, choice 9) into the workspace's
+read-only `research/unicode-18.0.0/`, and copied here unmodified on
+2026-11-15: 88,776 bytes, SHA-256 equal to the download's.
+
+Licence: the Unicode License v3 (SPDX `Unicode-3.0`;
+<https://www.unicode.org/license.txt>). It asks that its copyright and
+permission notice appear with all copies of the Data Files, so
+`third_party/unicode-18.0.0/LICENSE` holds that notice. No separate
+download was made for it: it is lines 1 to 40 of the `LICENSE` of the ICU
+79.1 package already installed on the workspace's laptop (Homebrew's
+`icu4c@79/79.1/LICENSE`, whose first section is the Unicode License v3,
+"Copyright © 1991-2026 Unicode, Inc."), the notice alone, without ICU's
+third-party sections.
+
+| File (under `third_party/unicode-18.0.0/`) | SHA-256 |
+|---|---|
+| `CaseFolding.txt` | `a004797658a457bec4dc11683e39f69249ea3b595b752dbea6721c4c9f587b0d` |
+| `LICENSE` | `d9a52140f486a859a52aad5a4574d11358028b24e5df81ea3f9a20a6dbcf8583` |
+
+Generated from it (first party): `src/algorithms/case_folding_table.inc` by
+`tools/gen_case_folding.py`, which refuses an input with another hash and
+keeps the 1,501 C and 32 S mappings (simple case folding; F and T are not
+used). The CTest check `stxlib_case_folding_table` regenerates the table
+and compares. Taking a later Unicode version: replace the file, change the
+pin in the generator (hash and counts), here, and the version constants in
+`include/stxlib/case_folding.hpp`, then regenerate.
