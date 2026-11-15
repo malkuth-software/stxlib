@@ -1221,6 +1221,23 @@ if(STXLIB_TESTS)
                               stxlib_allocator_two_module_library)
         target_compile_options(stxlib_allocator_two_module_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_allocator_two_module_tests COMMAND stxlib_allocator_two_module_tests)
+
+        # The allocator at process end (the logic review's L-05): a library
+        # whose threads allocate until the host stops them, and whose
+        # detach-time destructor then allocates on every locking path
+        # (tests/allocator_exit_tests.cpp). Sampled over 20 child processes;
+        # the first hang ends the run, and the timeout catches any other
+        # stall, so a hang fails rather than holding up the suite.
+        add_library(stxlib_allocator_exit_library SHARED tests/allocator_exit_library.cpp)
+        target_link_libraries(stxlib_allocator_exit_library PRIVATE stxlib::boundary Threads::Threads)
+        target_compile_definitions(stxlib_allocator_exit_library PRIVATE STXLIB_ALLOCATOR_EXIT_BUILDING)
+        target_compile_options(stxlib_allocator_exit_library PRIVATE ${stxlib_test_warnings})
+        set_target_properties(stxlib_allocator_exit_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
+        add_executable(stxlib_allocator_exit_tests tests/allocator_exit_tests.cpp)
+        target_link_libraries(stxlib_allocator_exit_tests PRIVATE stxlib::boundary stxlib_allocator_exit_library)
+        target_compile_options(stxlib_allocator_exit_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_allocator_exit_tests COMMAND stxlib_allocator_exit_tests)
+        set_tests_properties(stxlib_allocator_exit_tests PROPERTIES TIMEOUT 300)
     endif()
 
     # The gates compiled without exceptions: direct calls (A1 design, 6).
