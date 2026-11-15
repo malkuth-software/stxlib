@@ -354,8 +354,19 @@ void pow_float_rounding(const int count) {
 // Stages 2 and 3 of float pow on every pair (region::pow_float_decided, the
 // stage 1 test skipped), and the accurate stage's error against the
 // reference (sampled; tools/math/pow_float_accurate_certificate.py proves
-// 2^-94.10; the margin to 2^-93 covers the reference's own error).
-void pow_float_accurate_check(const float x, const float y, int& checked, double& worst) {
+// 2^-94.10). The reference (tests/reference/wide.hpp) carries log x with an
+// absolute error near 2^-104 (its e^y0 in double-double), which |y|
+// multiplies: near x = 1.0039 with |y| = 2^13 it is off by 2^-90.5 while the
+// stage is within 2^-98.3 (round 2's failure; replayed operation for
+// operation against the 400-bit reference by
+// tools/math/pow_float_accurate_replay.py). So the error is checked against
+// 2^-93 only for |y| <= 64, where the replayed reference is good to 2^-98.09
+// (198,616 replayed pairs, none where the test could see more than 2^-93);
+// every pair's rounding is checked.
+constexpr float accurate_checked_y = 64.0f;
+
+void pow_float_accurate_check(const float x, const float y, int& checked, double& worst,
+                              double& worst_unchecked) {
     if (!(x > 0.0f) || !std::isfinite(x) || !std::isnormal(y)) return;
     const wide::ScaledWide exact = pow_reference(static_cast<double>(x), static_cast<double>(y));
     if (exact.exponent < -125 || exact.exponent > 128) return;  // x^y in [2^-126, 2^128)
@@ -369,33 +380,40 @@ void pow_float_accurate_check(const float x, const float y, int& checked, double
     const double exact_hi = std::ldexp(exact.mantissa.hi, exact.exponent);
     const double exact_lo = std::ldexp(exact.mantissa.lo, exact.exponent);
     const double error = std::fabs(((hi - exact_hi) + (lo - exact_lo)) / exact_hi);  // hi - exact_hi exact
+    checked += 1;
+    if (std::fabs(y) > accurate_checked_y) {
+        worst_unchecked = std::fmax(worst_unchecked, error);
+        return;
+    }
     worst = std::fmax(worst, error);
     require(error <= 0x1p-93, "region pow(float): the accurate stage above its bound");
-    checked += 1;
 }
 
 void pow_float_accurate_stage(const int count) {
     Lcg lcg{2032};
     int checked = 0;
     double worst = 0.0;
+    double worst_unchecked = 0.0;
     for (int i = 0; i < count; ++i) {
         const float x = static_cast<float>(lcg.unit() * 16.0);
         const float y = static_cast<float>((lcg.unit() - 0.5) * 80.0);
-        pow_float_accurate_check(x, y, checked, worst);
+        pow_float_accurate_check(x, y, checked, worst, worst_unchecked);
         const std::uint32_t x_bits = 0x00800000U + static_cast<std::uint32_t>(lcg.bits() % 0x7f000000U);
         const float wide_x = std::bit_cast<float>(x_bits);
         const double log2_x = std::log2(static_cast<double>(wide_x));
         if (log2_x != 0.0) {
             const float wide_y = static_cast<float>((lcg.unit() - 0.5) * 250.0 / log2_x);
-            pow_float_accurate_check(wide_x, wide_y, checked, worst);
+            pow_float_accurate_check(wide_x, wide_y, checked, worst, worst_unchecked);
         }
     }
     // x just above 1, where the log side's bound is tightest (bucket 81), and
-    // large y.
+    // large y: rounding checked here; the error, beyond the reference's reach,
+    // is replayed against the 400-bit reference by
+    // tools/math/pow_float_accurate_replay.py.
     for (int i = 0; i < 4096; ++i) {
         const float x = std::bit_cast<float>(0x3f808000U + static_cast<std::uint32_t>(lcg.bits() % 0x10000U));
         const float y = static_cast<float>((lcg.unit() - 0.5) * 250.0 / std::log2(static_cast<double>(x)));
-        pow_float_accurate_check(x, y, checked, worst);
+        pow_float_accurate_check(x, y, checked, worst, worst_unchecked);
     }
     // A hard case from the CORE-MATH project's slides (ARITH 2022): x^y =
     // 0x1.15f75e00000000000000058b...p-1, a float followed by 61 zero bits.
@@ -404,14 +422,16 @@ void pow_float_accurate_stage(const int count) {
     require(same_bits(region::pow(hard_x, hard_y), 0x1.15f75ep-1f) &&
                 same_bits(region::pow_float_decided(hard_x, hard_y), 0x1.15f75ep-1f),
             "region pow(float): the CORE-MATH hard case");
-    pow_float_accurate_check(hard_x, hard_y, checked, worst);
+    pow_float_accurate_check(hard_x, hard_y, checked, worst, worst_unchecked);
     // The exact midpoints go through stage 2.
     require(same_bits(region::pow_float_decided(4097.0f, 2.0f), 16785408.0f) &&
                 same_bits(region::pow_float_decided(66049.0f, 1.5f), 16974592.0f) &&
                 same_bits(region::pow_float_decided(67081.0f, 1.5f), 17373980.0f),
             "region pow(float): stage 2 misses an exact midpoint");
-    std::printf("pow(float) stages 2 and 3 correctly rounded at %d pairs; accurate stage worst 2^%.2f\n", checked,
-                worst > 0.0 ? std::log2(worst) : -1000.0);
+    std::printf("pow(float) stages 2 and 3 correctly rounded at %d pairs; accurate stage worst 2^%.2f for |y| <= 64, "
+                "2^%.2f beyond (the reference's error, not checked)\n",
+                checked, worst > 0.0 ? std::log2(worst) : -1000.0,
+                worst_unchecked > 0.0 ? std::log2(worst_unchecked) : -1000.0);
 }
 
 // Exact midpoints round to even: x^y = m with 25 significant bits.

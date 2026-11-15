@@ -554,10 +554,16 @@ STXLIB_MODULAR bool float_normal(const float x) noexcept {
 // ---- float hypot ----------------------------------------------------------
 
 // The value of a float bit pattern as a double, with the infinity pattern
-// read as 2^128 (the "float" above FLT_MAX for rounding at overflow).
+// read as 2^128 (the "float" above FLT_MAX for rounding at overflow). Only
+// patterns up to 0x7f800000 reach it (f and its neighbour, f finite or
+// infinity). The pattern is replaced, not masked, before the conversion: a
+// mask of 0x7f7fffff (round 2's bug) clears the exponent's low bit and
+// halves every float whose biased exponent is odd, 1.0 included.
 double float_bits_value(const std::uint32_t bits) noexcept {
-    const double finite = static_cast<double>(std::bit_cast<float>(bits & 0x7f7fffffU));
-    const double result = bits >= 0x7f800000U ? 0x1p128 : finite;
+    const bool beyond = bits >= 0x7f800000U;
+    const std::uint32_t finite_bits = beyond ? 0U : bits;
+    const double finite = static_cast<double>(std::bit_cast<float>(finite_bits));
+    const double result = beyond ? 0x1p128 : finite;
     return result;
 }
 
