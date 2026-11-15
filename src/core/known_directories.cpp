@@ -18,7 +18,7 @@ namespace {
 constexpr Operation operation = "stxlib.files.known_directory";
 
 Result<Path> failure_of(const ErrorKind kind, const HostCode code) noexcept {
-    const Result<Path> result = Result<Path>::failure(host_failure::record(kind, operation, code));
+    Result<Path> result = Result<Path>::failure(host_failure::record(kind, operation, code));
     return result;
 }
 

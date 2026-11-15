@@ -88,7 +88,7 @@ bool native_path(const Path& path, Growable<char>& output, bool& representable) 
 }
 
 Result<Library> failed_library(const Status& status) noexcept {
-    const Result<Library> result = Result<Library>::failure(*status.error());
+    Result<Library> result = Result<Library>::failure(*status.error());
     return result;
 }
 
