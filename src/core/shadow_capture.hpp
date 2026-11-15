@@ -19,18 +19,46 @@
 
 namespace stxlib::shadow_capture {
 
+// The ring slot a new record takes: the next after the newest, which is
+// the oldest once the ring is full.
+template <typename Store>
+[[nodiscard]] usize next_slot(const Store& store) noexcept {
+    const usize result = store.shadow_count == 0 ? 0 : (store.shadow_newest + 1) % Store::records_kept;
+    return result;
+}
+
+// Makes the record just filled at `slot` the newest and the pending
+// capture, and returns its reference.
+template <typename Store>
+ShadowReference publish(Store& store, const usize slot) noexcept {
+    store.shadow_newest = slot;
+    if (store.shadow_count < Store::records_kept) store.shadow_count = store.shadow_count + 1;
+    store.pending_shadow = store.shadows[slot].sequence;
+    store.pending_pushes = store.pushes;
+    const ShadowReference result{store.shadows[slot].sequence};
+    return result;
+}
+
+// The next shadow sequence of the calling thread, or 0 when it is exhausted
+// (2^64 - 1 records).
+[[nodiscard]] inline u64 next_sequence() noexcept {
+    state::ThreadFlags& flags = state::current_flags();
+    if (flags.last_shadow_sequence == u64_max) return 0;
+    flags.last_shadow_sequence = flags.last_shadow_sequence + 1;
+    return flags.last_shadow_sequence;
+}
+
 // Files the thread's logical stack (and, where the store keeps one, a
 // native trace) as a new shadow record and makes it the pending capture.
 // Returns its reference, or none when the thread's shadow sequence is
 // exhausted (2^64 - 1 records).
 template <typename Store>
 ShadowReference capture(Store& store, const CapturePoint point) noexcept {
-    state::ThreadFlags& flags = state::current_flags();
-    if (flags.last_shadow_sequence == u64_max) return ShadowReference{};
-    flags.last_shadow_sequence = flags.last_shadow_sequence + 1;
-    const usize slot = store.shadow_count == 0 ? 0 : (store.shadow_newest + 1) % Store::records_kept;
+    const u64 sequence = next_sequence();
+    if (sequence == 0) return ShadowReference{};
+    const usize slot = next_slot(store);
     typename Store::Record& record = store.shadows[slot];
-    record.sequence = flags.last_shadow_sequence;
+    record.sequence = sequence;
     record.point = point;
     const usize depth = static_cast<usize>(store.depth);
     const usize stored = depth < Store::frame_capacity ? depth : Store::frame_capacity;
@@ -42,11 +70,37 @@ ShadowReference capture(Store& store, const CapturePoint point) noexcept {
     } else {
         record.trace_count = 0; // a release build, or the reserve, takes no trace (S5 = 1)
     }
-    store.shadow_newest = slot;
-    if (store.shadow_count < Store::records_kept) store.shadow_count = store.shadow_count + 1;
-    store.pending_shadow = record.sequence;
-    store.pending_pushes = store.pushes;
-    const ShadowReference result{record.sequence};
+    const ShadowReference result = publish(store, slot);
+    return result;
+}
+
+// Files frames and a trace a caller copied out (park_shadow_into) as a new
+// shadow record and makes it the pending capture (restore_shadow_from).
+// Keeps what the store can hold: frames past its capacity are counted as
+// lost, and the trace is kept only where the store keeps one. Returns its
+// reference, or none when the thread's shadow sequence is exhausted.
+template <typename Store>
+ShadowReference file_copy(Store& store, const CapturePoint point, const View<ShadowFrameRecord> frames,
+                          const usize frames_lost, const View<uptr> trace) noexcept {
+    const u64 sequence = next_sequence();
+    if (sequence == 0) return ShadowReference{};
+    const usize slot = next_slot(store);
+    typename Store::Record& record = store.shadows[slot];
+    record.sequence = sequence;
+    record.point = point;
+    const usize stored = frames.count() < Store::frame_capacity ? frames.count() : Store::frame_capacity;
+    for (usize index = 0; index < stored; ++index) record.frames[index] = frames[index];
+    record.frame_count = stored;
+    record.frames_lost = frames_lost + (frames.count() - stored);
+    if constexpr (Store::trace_capacity > 0) {
+        const usize traced = trace.count() < Store::trace_capacity ? trace.count() : Store::trace_capacity;
+        for (usize index = 0; index < traced; ++index) record.trace[index] = trace[index];
+        record.trace_count = traced;
+    } else {
+        static_cast<void>(trace); // a release build, or the reserve, keeps no trace (S5 = 1)
+        record.trace_count = 0;
+    }
+    const ShadowReference result = publish(store, slot);
     return result;
 }
 

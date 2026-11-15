@@ -18,4 +18,10 @@ usize capture_return_addresses(uptr* const addresses, const usize capacity) noex
     return 0;
 }
 
+usize capture_report_addresses(uptr* const addresses, const usize capacity) noexcept {
+    static_cast<void>(addresses);
+    static_cast<void>(capacity);
+    return 0;
+}
+
 } // namespace stxlib::host

@@ -38,6 +38,36 @@
 // its bounds, 8-byte aligned, and each next record must lie strictly above
 // the current one, so a broken chain ends the walk; it never reads outside
 // the stack and never loops.
+//
+// Report safety (capture_report_addresses, for capture_stack_trace and a
+// fail-fast reporter; sb1, 2026-11-15, sources read as stated):
+// - The bounds query allocates on glibc and FreeBSD, so a report never
+//   makes it there. glibc 2.41 nptl/pthread_getattr_np.c takes the thread's
+//   descriptor lock (lll_lock on the thread's lock), reallocs a cpuset for the
+//   affinity copy on every call, and on the initial thread fopens
+//   /proc/self/maps and reads it with getline. FreeBSD fb9033d2876d
+//   lib/libthr/thread/thr_attr.c:137-142 mallocs the cpuset when the
+//   attribute has none (as after pthread_attr_init), and :146 takes the
+//   thread through _thr_find_thread, released at :152 or :165.
+// - macOS: pthread_get_stackaddr_np and pthread_get_stacksize_np return the
+//   calling thread's (or the main thread's) own fields without
+//   _pthread_list_lock and without allocating; the main thread's size path
+//   makes one getrlimit system call (apple-oss-distributions/libpthread,
+//   src/pthread.c on its main branch as read 2026-11-15, not a pinned tag).
+//   The walk is the report's mechanism there.
+// - The unwinder, which a report uses on the other POSIX hosts: libgcc
+//   14.2.0 (libgcc/unwind-dw2-fde-dip.c) looks up frames registered with
+//   __register_frame_info first, then _dl_find_object where glibc has it
+//   (2.35 and later), else dl_iterate_phdr, with a static header cache and
+//   no allocation in that file. The registered path
+//   (libgcc/unwind-dw2-fde.c, ATOMIC_FDE_FAST_PATH) is a lock-free b-tree
+//   lookup, but the first lookup in an object not yet initialised takes
+//   object_mutex and calls init_object, which allocates; without the fast
+//   path every lookup takes object_mutex. Registered frames come from code
+//   that calls __register_frame_info (JIT compilers); a process with none
+//   never takes that path. glibc's _dl_find_object and dl_iterate_phdr,
+//   and LLVM libunwind (FreeBSD's unwinder, and macOS's fallback when the
+//   walk finds at most one record), were not read at a pin.
 
 #if defined(__linux__) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE 1
@@ -184,6 +214,23 @@ usize capture_return_addresses(uptr* const addresses, const usize capacity) noex
     if (unwound >= walked) return unwound;
     const usize result = walk_frames(addresses, capacity);
     return result;
+}
+
+usize capture_report_addresses(uptr* const addresses, const usize capacity) noexcept {
+    if (addresses == nullptr || capacity == 0) return 0;
+#if defined(__APPLE__)
+    // The walk's bounds are pthread_get_stackaddr_np and
+    // pthread_get_stacksize_np on the calling thread, which read the thread's
+    // own record without a lock or an allocation (above), so the walk is
+    // report-safe here, and it is the mechanism that works inside a cleanup.
+    const usize result = capture_return_addresses(addresses, capacity);
+    return result;
+#else
+    // pthread_getattr_np (glibc) and pthread_attr_get_np (FreeBSD) allocate
+    // and lock (above), so a report takes the unwinder only.
+    const usize result = unwind_frames(addresses, capacity);
+    return result;
+#endif
 }
 
 } // namespace stxlib::host

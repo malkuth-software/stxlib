@@ -47,10 +47,32 @@ struct AddressDescription final {
     uptr symbol_address{0};
 };
 
-// Describes `address`. Allocates nothing, so a fault report can call it.
-// The host's loader takes its own locks (FreeBSD: rtld_bind_lock,
-// libexec/rtld-elf/rtld.c:4374-4427 at the pin), so it must not be called
-// from a signal handler or while the loader is held. Failures: not_found
+// Describes `address`. Allocates nothing in STXlib's code, so a fault
+// report can call it (fail_fast.hpp lists it among a reporter's calls).
+// The host's loader takes its own locks, so it must not be called from a
+// signal handler. What each loader was read to do (sb1, 2026-11-15):
+// - glibc 2.41 elf/dl-addr.c: _dl_addr takes GL(dl_load_lock) with
+//   __rtld_lock_lock_recursive and releases it, and allocates nothing; the
+//   lock is recursive, so a thread failing inside the loader (a static
+//   constructor run by dlopen) takes it again without deadlock.
+// - macOS: dyld's APIs::dladdr (apple-oss-distributions/dyld,
+//   dyld/DyldAPIs.cpp on its main branch, not a pinned tag) allocates
+//   nothing and takes no lock for the shared cache and for images that
+//   never unload; other images are found under the loaders' read lock
+//   (findImageMappedAt, "slow path").
+// - FreeBSD: rtld's dladdr takes rtld_bind_lock for reading
+//   (libexec/rtld-elf/rtld.c:4374-4427 at the pin; whether a thread that
+//   holds it for writing can take it again was not read).
+// - musl's dladdr was not read at a pin.
+// - Windows: GetModuleHandleExW (FROM_ADDRESS, UNCHANGED_REFCOUNT),
+//   GetModuleFileNameW into a fixed 1,024-unit buffer on the stack,
+//   K32GetModuleInformation, and a walk of the module's export directory
+//   that reads only inside the module's image (core/pe_image.hpp). The
+//   sources are closed and Microsoft's documentation does not say whether
+//   these three calls allocate or which locks they take, so on Windows
+//   neither is established; the A2 test (reporter_stack_unallocated)
+//   refuses C++ allocation there, not the process heap.
+// Failures: not_found
 // with HostCode::no_image when no loaded image holds the address;
 // unsupported where Capability::address_lookup is false.
 [[nodiscard]] Result<AddressDescription> describe_address(uptr address, MutableView<char> image_name_room,

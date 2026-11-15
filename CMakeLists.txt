@@ -1340,6 +1340,21 @@ if(STXLIB_TESTS)
         endforeach()
     endif()
 
+    # The stack and address calls inside a fail-fast reporter with allocation
+    # refused (tests/reporter_stack_tests.cpp; fail_fast.hpp's contract, A2
+    # P0). Its own program: it replaces the global operator new and delete,
+    # and on glibc malloc, calloc, realloc and free.
+    add_executable(stxlib_reporter_stack_tests tests/reporter_stack_tests.cpp)
+    target_link_libraries(stxlib_reporter_stack_tests PRIVATE stxlib::boundary)
+    target_compile_options(stxlib_reporter_stack_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_death_reporter_stack_unallocated
+        COMMAND ${CMAKE_COMMAND}
+            -DPROGRAM=$<TARGET_FILE:stxlib_reporter_stack_tests>
+            "-DEMULATOR=${stxlib_emulator_text}"
+            -DCASE=reporter_stack_unallocated
+            "-DEXPECT=reporter: stack ok, captured [0-9]+, described (yes|no|unsupported), refused "
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
+
     # Sealed pages, one process each (tests/platform_rest_death_tests.cpp),
     # and the console and exit tasks seen from outside the process
     # (a child process): neither exists on Emscripten.
@@ -1618,3 +1633,31 @@ function(stxlib_check_exception_flags)
     message(STATUS "STXlib exception flags: ${checked} targets checked")
 endfunction()
 stxlib_check_exception_flags()
+
+# ---- licences ---------------------------------------------------------------
+# The notices of what STXlib compiles into a program, installed at
+# share/licenses/stxlib under the names stx's packages already use
+# (stx cmake/Stxlib.cmake), so a package that installs STXlib carries them
+# and a consumer finds them there (GUI.Forms installs them beside its own:
+# its CMakeLists.txt, gui_forms_stx_licenses). stx fetches STXlib with
+# FetchContent_MakeAvailable, so these rules run in its install.
+# stx_minmallocpp's NOTICE (which carries mimalloc's licence, owner decision
+# 2026-11-15) is installed whatever the backend, so a consumer's install
+# rule for it holds in every configuration, Emscripten's host backend
+# included; mimalloc's own LICENSE only when the vendored mimalloc is
+# compiled in.
+include(GNUInstallDirs)
+set(stxlib_licence_directory ${CMAKE_INSTALL_DATADIR}/licenses/stxlib)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE DESTINATION ${stxlib_licence_directory})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/stx_btree/LICENSE
+        DESTINATION ${stxlib_licence_directory} RENAME stx_btree-LICENSE)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/stx_btree/NOTICE
+        DESTINATION ${stxlib_licence_directory} RENAME stx_btree-NOTICE)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tzdata/LICENSE
+        DESTINATION ${stxlib_licence_directory} RENAME tzdata-LICENSE)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/state/stx_minmallocpp/NOTICE
+        DESTINATION ${stxlib_licence_directory} RENAME stx_minmallocpp-NOTICE)
+if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/LICENSE
+            DESTINATION ${stxlib_licence_directory} RENAME mimalloc-LICENSE)
+endif()

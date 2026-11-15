@@ -362,6 +362,75 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
 [[nodiscard]] ShadowReference park_shadow() noexcept;
 void restore_shadow(ShadowReference reference) noexcept;
 
+// Parking into frames the caller owns (owner decision 2026-11-15, M1
+// option 2; notes decisions/2026-11-15-thread-local-exit-safety.md). A
+// thread keeps shadow_record_capacity records in a development build and
+// 1 in a release build, and every capture overwrites the oldest. A
+// reference held across later captures on the thread (another failure
+// filed, another park) can therefore name nothing by the time of the
+// rethrow: restore_shadow then makes a record pending that read_shadow
+// answers not_found for, and the outer gate files no frames. A carrier
+// that must keep the frames copies them out when it parks and hands them
+// back just before the rethrow:
+//
+//   ShadowFrameRecord frames[parked_shadow_frame_room]; // 7,680 bytes
+//   uptr trace[parked_shadow_trace_room];               // 256 bytes; optional
+//   catch (...) {
+//       Result<ParkedShadow> parked = park_shadow_into(frames_view, trace_view);
+//       // keep *parked.value() and the two arrays with the exception
+//   }
+//   ...
+//   restore_shadow_from(parked, frames_view, trace_view);
+//   std::rethrow_exception(exception);
+//
+// No layout changes: the copy lives in the carrier, and restore files it
+// as a new record in the thread's ring, as any capture does.
+
+// The frames and return addresses park_shadow_into needs room for: no
+// shadow record holds more.
+inline constexpr usize parked_shadow_frame_room = shadow_frame_capacity;
+inline constexpr usize parked_shadow_trace_room = shadow_trace_capacity;
+
+// What park_shadow_into copied.
+struct ParkedShadow final {
+    ShadowReference reference{}; // the parked record, readable with read_shadow until overwritten
+    CapturePoint point{CapturePoint::gate};
+    usize frame_count{0}; // frames copied, outermost first
+    usize frames_lost{0}; // frames deeper than shadow_frame_capacity, never recorded
+    usize trace_count{0}; // return addresses copied, innermost first (none in a release build)
+};
+
+// Called inside the handler that parks an exception, in place of
+// park_shadow: parks the exception's shadow record as park_shadow does,
+// then copies all its frames into `frames` and its trace into `trace`.
+// `trace` may be empty when the trace is not wanted. Never allocates.
+// Failures:
+// - limit_exceeded when frames.count() is less than
+//   parked_shadow_frame_room, or trace is not empty and trace.count() is
+//   less than parked_shadow_trace_room. The room is checked against the
+//   stated size, not against the record, because the record is known only
+//   once it is parked: so this failure parks nothing and leaves the
+//   pending capture as it was (the call is whole or not made).
+// - not_found when the thread's shadow sequence is exhausted (2^64 - 1
+//   records) and no record could be filed; the pending capture is
+//   cleared, as park_shadow clears it.
+[[nodiscard]] Result<ParkedShadow> park_shadow_into(MutableView<ShadowFrameRecord> frames,
+                                                    MutableView<uptr> trace) noexcept;
+
+// Called just before the rethrow, in place of restore_shadow: files the
+// frames and trace park_shadow_into copied (`frames` and `trace` are the
+// views it filled; at most parked.frame_count and parked.trace_count of
+// them are read) as a new shadow record on the calling thread, and makes
+// it the pending capture, so the scopes the rethrow unwinds keep it and
+// the outer gate attaches it. The record keeps parked.point. A thread
+// whose store is smaller (the failure reserve, 8 frames) keeps the
+// outermost frames and counts the rest as lost; a release build drops the
+// trace. Returns the new record's reference, or none when `parked` holds
+// nothing (its reference is absent) or the thread's shadow sequence is
+// exhausted; nothing is made pending then. Never allocates.
+ShadowReference restore_shadow_from(const ParkedShadow& parked, View<ShadowFrameRecord> frames,
+                                    View<uptr> trace) noexcept;
+
 // The number of gate records the calling thread keeps now (at most
 // recent_failure_capacity; 0 when shadowing is off).
 [[nodiscard]] usize recent_failure_count() noexcept;
