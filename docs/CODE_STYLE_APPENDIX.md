@@ -14,7 +14,8 @@ library, the successor to stx_auxlib. The record is the notes branch
 The floating-point rules restate options D1 and F1-F5 of the same record.
 Their reasoning and citations are in `planning/stages/A1-float-discipline.md` on the same branch.
 
-Sections are named after the house-style section they extend.
+Sections are named after the house-style section they extend. A4 has its
+own source, given in the section.
 
 ---
 
@@ -122,6 +123,28 @@ An advisory check (clang-tidy `misc-const-correctness`, in the repository's
 declared `const`. It informs and never fails a build. It never asks for
 mutable code to become immutable. The integrator runs it at each fold and
 reports what it finds.
+
+## A4. Result and state shapes (extends house style §2, "Failure and foreign interfaces")
+
+Source: the owner's decision of 2026-11-15, notes
+`decisions/2026-11-15-roadmap-choices.md`, choice 10 (audit A, X2).
+
+House style §2 keeps a result's or a state's `std::variant` behind named
+factories and named queries. A public header of STXlib names no `std::`
+type (AGENTS, "Hard boundaries"), so a public result or state shape is a
+tagged union written by hand, under the same discipline:
+- one discriminant (an enumeration, or a `bool` for two states) and the
+  alternatives' data, in a `union` where they do not coexist;
+- constructed only through named factories, one per alternative, with the
+  constructors private, so a contradictory value cannot be made;
+- read only through named queries, which return null, or are refused by a
+  requirement, for an alternative that is not the active one;
+- no flag beside a payload that could contradict it (house style §2 and
+  §3): the state is the discriminant.
+
+`Status`, `Result`, `text::Formatted`, `text::Parsed`, `PrvOutcome` and
+`ChildEnd` are the examples. Private code (`src/`) may use `std::variant`
+behind the same factories and queries.
 
 ## Not part of this appendix
 
