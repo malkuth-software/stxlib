@@ -56,7 +56,11 @@
 //
 // Execution. One thread. A cursor is valid until the next edit of its
 // tree; a stale cursor (or one from another tree) is detected by the
-// revision and owner and answered by a fresh seek.
+// revision and owner and answered by a fresh seek. Revisions come from one
+// process-wide counter, at construction and at every edit, so no two trees
+// ever hold the same revision: a cursor kept from a destroyed tree fails the
+// test even when a new tree takes the same address (audit 2026-11-15,
+// A-stxlib-algorithms-02-F4; before, every tree counted from 1).
 
 #include "algorithms/stx_btree/page_allocator.hpp"
 // STXLIB_MODULAR, arithmetic modulo 2^64 by design: the counting search's
@@ -65,6 +69,7 @@
 #include "core/checked.hpp"
 #include "stxlib/require.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -124,6 +129,15 @@ inline constexpr Units sequence_height_limit = packed_total_limit;
 // Every packed piece of a run but its last holds packed_count_limit rows or
 // at least this many units (proof at SequenceTree::segment_bound).
 inline constexpr Units packed_piece_least_total = packed_total_limit / 2;
+
+// The process-wide revision source (see "Execution" above). Relaxed: a
+// revision only has to be unique, and each tree is used by one thread.
+inline std::atomic<std::uint64_t> sequence_revision_source{1};
+
+[[nodiscard]] inline std::uint64_t next_sequence_revision() noexcept {
+    const std::uint64_t result = sequence_revision_source.fetch_add(1, std::memory_order_relaxed);
+    return result;
+}
 
 struct Run final {
     RowCount count{};
@@ -488,7 +502,7 @@ public:
     // only be destroyed.
     explicit SequenceTree(Units estimate, const Allocator& allocator = Allocator()) noexcept
         : allocator_(allocator), root_(nullptr), height_(0), rows_(0), total_(0), leaves_(0), branches_(0),
-          entries_(0), measured_rows_(0), revision_(1), estimate_(usable_estimate(estimate)), spare_leaves_(nullptr),
+          entries_(0), measured_rows_(0), revision_(next_sequence_revision()), estimate_(usable_estimate(estimate)), spare_leaves_(nullptr),
           spare_branches_(nullptr), spare_leaf_count_(0), spare_branch_count_(0), run_storage_(), runs_(nullptr),
           edit_(nullptr), pieces_(nullptr), child_storage_(), made_(nullptr), carry_(nullptr), kids_(nullptr),
           path_(), out_of_memory_(false) {
@@ -795,7 +809,7 @@ public:
         release_live_pages();
         root_ = take_leaf();
         estimate_ = usable;
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         if (rows > 0) {
             insert_segments(0, whole);
         }
@@ -849,7 +863,7 @@ public:
         swap_runs_and_edit();
         normalize_runs();
         commit_leaf_edit(edit_index);
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         trim_spares();
         return true;
     }
@@ -885,7 +899,7 @@ public:
         }
         const RowCount at = row < rows_ ? row : rows_;
         insert_segments(at, run);
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         trim_spares();
         return true;
     }
@@ -901,7 +915,7 @@ public:
             return refuse_for_memory();
         }
         erase_rows(row, rows);
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         trim_spares();
         return true;
     }
@@ -1256,7 +1270,7 @@ private:
             commit_leaf_edit(gap);
             done = done + here;
         }
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         trim_spares();
         return true;
     }
@@ -1815,7 +1829,7 @@ private:
         }
         erase_rows(row, run.count);
         insert_segments(row, run);
-        revision_ += 1;
+        revision_ = next_sequence_revision();
         trim_spares();
         return true;
     }
@@ -1863,12 +1877,23 @@ private:
     // packed_total_limit - (q + 1) units, and it holds at least one row of
     // at least q units; max(q, L - q) >= L / 2. Hence pieces <=
     // count / packed_count_limit + total / packed_piece_least_total + 1.
+    //
+    // Formed in 64 bits (rows and units are below 2^62, so pieces is below
+    // 2^63): a bound above std::size_t's maximum (a 32-bit target, from
+    // 2^56 rows) returns that maximum, which every caller's checked_sum or
+    // checked_product then refuses, so the edit is refused unchanged instead
+    // of reserving too little (audit 2026-11-15, A-stxlib-algorithms-02-F2).
+    // On a 64-bit target the value is the one it always was.
     [[nodiscard]] static std::size_t segment_bound(const Run& run) noexcept {
         const RowCount by_rows = run.count / packed_count_limit;
         const Units by_units = run.total / packed_piece_least_total;
-        const std::size_t pieces = static_cast<std::size_t>(by_rows) + static_cast<std::size_t>(by_units) + 1;
-        const std::size_t segments = (pieces + packed_capacity - 1) / packed_capacity;
-        return segments;
+        const std::uint64_t pieces = by_rows + static_cast<std::uint64_t>(by_units) + 1;
+        const std::uint64_t capacity = static_cast<std::uint64_t>(packed_capacity);
+        const std::uint64_t segments = (pieces + capacity - 1) / capacity;
+        const std::uint64_t size_limit = static_cast<std::uint64_t>(std::numeric_limits<std::size_t>::max());
+        const std::size_t result =
+            segments > size_limit ? std::numeric_limits<std::size_t>::max() : static_cast<std::size_t>(segments);
+        return result;
     }
 
     // Inserts `run` before `row` in segments of at most packed_capacity
