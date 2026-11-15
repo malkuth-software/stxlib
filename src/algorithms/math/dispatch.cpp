@@ -19,6 +19,12 @@
 // pointer and calls the kernel, with no CPU check. Two threads making their
 // first calls together both store the same table. Elsewhere the one native
 // variant is called directly.
+//
+// `active` is a write-once memo outside stxlib_state (AGENTS, "Hard
+// boundaries", the second recorded exception; audit A, H3). It derives from
+// ProcessState::simd_selection (simd.cpp), which never changes once
+// selected, so each module's copy goes from the resolvers to the same table
+// once and never changes again.
 
 #include "stxlib/math.hpp"
 

@@ -46,6 +46,22 @@ library's whole purpose:
   `appliance/shim/`. Nothing outside those directories issues a system call,
   includes an operating-system header or names a kernel object. The trust-chain checker enforces this on the compiled
   output.
+- Mutable process-wide and per-thread state lives in `stxlib_state`
+  (`src/state/state.hpp`), reached through its accessors, so every module
+  that links STXlib statically shares one copy. Two exceptions are recorded
+  (decisions 2026-11-15, notes `decisions/2026-11-15-roadmap-choices.md`,
+  choices 11 and 12):
+  - the allocator backend (`src/state/allocator.cpp`) calls the host C
+    allocator (`malloc` and `free`, or the pinned mimalloc) from
+    `src/state/`, outside `src/hosted/`, because the allocator lives in the
+    state so that a block allocated in one module may be released in
+    another. It is the only host interface called from `src/state/`;
+  - a module may keep a documented write-once memo: a value derived from a
+    state value that never changes once set, written at most once per
+    module with the same result in every module, for example the math
+    dispatch table (`src/algorithms/math/dispatch.cpp`, derived from
+    `ProcessState::simd_selection`). The memo's comment names the state it
+    derives from. Mutable shared data outside the state is never allowed.
 - The own runtime (`runtime/`) is linked only into the appliance
   supervisor and its test bed. It never replaces the host's runtime in a hosted process: no
   global `operator new`, `malloc` or symbol interposition is imposed on
@@ -62,8 +78,10 @@ library's whole purpose:
   fuzzing and sanitizers are evidence of likely defects only, and are
   reported as such.
 - Each module in scope carries its proof harnesses and a proof report entry:
-  proved, assumed (with the assumption), or not yet proved. A claim of
-  "verified" names the tool, its version, the bound and the property.
+  proved, assumed (with the assumption), or not yet proved. STXlib carries
+  no "verified" label (decision D16, 2026-11-15): its claim is conformance
+  to the house style, and each specific check names its tool, its version,
+  the bound and the property.
 - Each replaced implementation keeps its reference (glibc, musl, UCRT,
   libc++ or libstdc++ behaviour, cited at a pin) and a conformance or
   equivalence check against it (house style section 8).

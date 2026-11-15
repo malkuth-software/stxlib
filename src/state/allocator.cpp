@@ -7,6 +7,11 @@
 // module linking the static C runtime has its own malloc heap: every block
 // here comes from the one backend inside stxlib_state.
 //
+// The backend's host calls (malloc and free, or mimalloc's) are made here,
+// in src/state/, not under src/hosted/: the one host interface called from
+// the state, recorded as an exception in AGENTS ("Hard boundaries"; audit
+// A, S1).
+//
 // Ported from stx_auxlib b6e330a (src/hosted/memory.cpp, memory_host.cpp,
 // memory_mimalloc.cpp) by way of STXlib's src/core/memory.cpp (batch 2a and
 // the foreign-release fix), which this file replaces as the owner of the
