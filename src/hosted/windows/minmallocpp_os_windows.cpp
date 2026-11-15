@@ -75,6 +75,7 @@ using ShutdownQuery = BOOLEAN(NTAPI*)();
 
 // Set once at process attach; null when ntdll gave nothing.
 constinit std::atomic<ShutdownQuery> shutdown_query{nullptr};
+static_assert(std::atomic<ShutdownQuery>::is_always_lock_free, "the shutdown query is read without a lock");
 // Set at this module's DLL_PROCESS_DETACH when the process is ending.
 constinit std::atomic<bool> process_detached{false};
 
