@@ -20,7 +20,9 @@
 //
 // Modules: the watch's state (the recorded events, the one-watch flag and
 // the earlier handlers) lives in stxlib_state, so a watch made in one
-// module may be taken from or destroyed in another.
+// module may be taken from or destroyed in another. The installed signal
+// handler is code of the module that called watch, so that module must stay
+// loaded until the watch is destroyed.
 
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"

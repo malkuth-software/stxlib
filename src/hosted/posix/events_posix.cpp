@@ -8,8 +8,11 @@
 //
 // Changes from stx_auxlib: the recorded events, the one-watch flag and the
 // earlier handlers live in stxlib_state. The handler reaches the recorded
-// events through a pointer this module stores before installing it, so it
-// calls nothing (not even the state accessor) inside the signal.
+// events through the state accessor, state::process_state, which compares
+// one integer and returns a static's address, so it is async-signal-safe;
+// this module keeps no namespace-scope state of its own (audit A, H2: the
+// pointer it stored before was a per-module copy, AGENTS "state lives in
+// stxlib_state").
 
 #include "stxlib/events.hpp"
 
@@ -47,15 +50,15 @@ constexpr EventSignal event_signals[state::watched_signal_count] = {
     {ProcessEvent::suspend, SIGTSTP},
 };
 
-// The recorded events in stxlib_state, for the handler.
-std::atomic<std::atomic<u8>*> handler_target{nullptr};
-
+// The signal handler. It calls only process_state (see the top of this
+// file) and a lock-free fetch_or; a layout mismatch, which the module would
+// have reported at its first access, records nothing.
 void record_event(const int signal_number) {
-    std::atomic<u8>* const pending = handler_target.load(std::memory_order_acquire);
-    if (pending == nullptr) return;
+    state::ProcessState* const process = state::process_state(state::layout_version);
+    if (process == nullptr) return;
     for (const EventSignal& mapping : event_signals) {
         if (mapping.signal_number == signal_number) {
-            (*pending).fetch_or(static_cast<u8>(mapping.event), std::memory_order_relaxed);
+            (*process).pending_events.fetch_or(static_cast<u8>(mapping.event), std::memory_order_relaxed);
         }
     }
 }
@@ -117,7 +120,6 @@ Result<EventWatch> EventWatch::watch(const EventSet events) noexcept {
         return Result<EventWatch>::failure(busy);
     }
     process.pending_events.store(0, std::memory_order_relaxed);
-    handler_target.store(&process.pending_events, std::memory_order_release);
     EventSet installed{};
     for (usize index = 0; index < state::watched_signal_count; ++index) {
         const EventSignal& mapping = event_signals[index];
