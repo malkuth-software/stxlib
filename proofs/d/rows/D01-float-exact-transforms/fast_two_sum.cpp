@@ -2,8 +2,12 @@
 // <float> (src/core/float_exact.hpp), bit-precise.
 // P1: for every pair in the sums' range with exponent(a) >= exponent(b) or
 //     a == 0 (the precondition) and a finite sum, fast_two_sum gives the
-//     same value and error as two_sum, bit for bit (so it is exact by
-//     two_sum's P1, the harness two_sum.cpp of this row).
+//     same value as two_sum, bit for bit, and the same error as a number
+//     (so it is exact by two_sum's P1, the harness two_sum.cpp of this row).
+//     A zero error may differ in sign: with b == -0, fast_two_sum's error is
+//     b - (sum - a) = -0 - +0 = -0, while two_sum's is +0 + -0 = +0 (M5,
+//     2026-11-15: the bit-for-bit form was refuted by that case, which is
+//     not a defect; the sign of a zero error carries nothing).
 // Bound: none (every float pair).
 #include "verify.h"
 
@@ -26,8 +30,8 @@ int main() {
     const fe::Pair<float> sum = fe::raw::two_sum(a, b);
     STX_ASSUME(fe::finite(sum.value));
     STX_ASSERT(std::bit_cast<std::uint32_t>(fast.value) == std::bit_cast<std::uint32_t>(sum.value) &&
-                   std::bit_cast<std::uint32_t>(fast.error) == std::bit_cast<std::uint32_t>(sum.error),
-               "fast_two_sum equals two_sum bit for bit");
+                   fast.error == sum.error,
+               "fast_two_sum's value is two_sum's bit for bit, and its error the same number");
     STX_VACUITY_PROBE();
     return 0;
 }

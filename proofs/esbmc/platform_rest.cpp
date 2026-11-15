@@ -11,8 +11,12 @@
 //     --function <harness> --unwind <bound + 2> --unwinding-assertions
 //
 // with <bound> the harness's array size below (pe: 256; stack line: 64;
-// command line: 8). --unwinding-assertions makes a bound that is too small
-// fail the run rather than pass it.
+// command line: 8), except harness_quote, whose backslash loop runs up to
+// 2 * 8 + 1 times (a run of backslashes before a quote doubles, plus one):
+// --unwind 19 for it. --unwinding-assertions makes a bound that is too
+// small fail the run rather than pass it (M5, 2026-11-15: at --unwind 10
+// the quote run failed on that unwinding assertion, command_line.hpp line
+// 194, the harness's defect, not the code's).
 //
 // Scope: images of at most 256 bytes with every byte nondeterministic (the
 // exhaustive test, tests/platform_rest_exhaustive.cpp, covers a 4 KiB image
@@ -32,8 +36,8 @@
 extern "C" unsigned char __VERIFIER_nondet_uchar(void);
 extern "C" unsigned int __VERIFIER_nondet_uint(void);
 extern "C" unsigned long __VERIFIER_nondet_ulong(void);
-extern "C" void __ESBMC_assume(_Bool);
-extern "C" void __ESBMC_assert(_Bool, const char*);
+extern "C" void __ESBMC_assume(bool);
+extern "C" void __ESBMC_assert(bool, const char*);
 
 namespace pe = stxlib::pe_image;
 namespace sl = stxlib::stack_line;

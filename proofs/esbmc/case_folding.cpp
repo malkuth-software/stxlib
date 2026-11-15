@@ -29,8 +29,8 @@
 extern "C" unsigned char __VERIFIER_nondet_uchar(void);
 extern "C" unsigned int __VERIFIER_nondet_uint(void);
 extern "C" unsigned long __VERIFIER_nondet_ulong(void);
-extern "C" void __ESBMC_assume(_Bool);
-extern "C" void __ESBMC_assert(_Bool, const char*);
+extern "C" void __ESBMC_assume(bool);
+extern "C" void __ESBMC_assert(bool, const char*);
 
 namespace core = stxlib::case_folding_core;
 

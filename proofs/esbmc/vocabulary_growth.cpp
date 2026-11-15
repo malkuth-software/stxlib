@@ -15,8 +15,8 @@
 #include "stxlib/detail/growth.hpp"
 
 extern "C" unsigned long __VERIFIER_nondet_ulong(void);
-extern "C" void __ESBMC_assume(_Bool);
-extern "C" void __ESBMC_assert(_Bool, const char*);
+extern "C" void __ESBMC_assume(bool);
+extern "C" void __ESBMC_assert(bool, const char*);
 
 using stxlib::usize;
 

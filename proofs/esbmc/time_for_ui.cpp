@@ -25,8 +25,8 @@ extern "C" long long __VERIFIER_nondet_longlong(void);
 extern "C" double __VERIFIER_nondet_double(void);
 extern "C" float __VERIFIER_nondet_float(void);
 extern "C" unsigned char __VERIFIER_nondet_uchar(void);
-extern "C" void __ESBMC_assume(_Bool);
-extern "C" void __ESBMC_assert(_Bool, const char*);
+extern "C" void __ESBMC_assume(bool);
+extern "C" void __ESBMC_assert(bool, const char*);
 
 using stxlib::Duration;
 using stxlib::i64;
@@ -37,6 +37,15 @@ using stxlib::Rounding;
 // pace: for any origin, period and now (all of i64), the tick is the least
 // origin + k * period strictly after now with k >= 1, and elapsed_periods is
 // k - 1; or the range's end where that tick lies beyond it.
+//
+// The statement is in 128-bit arithmetic, which ESBMC's 32-bit target does
+// not have ("__int128 is not supported on this target", M5, 2026-11-15), so
+// harness_pace is compiled only where __int128 exists and the 32-bit run of
+// this file checks the rounding harnesses alone. pace uses i64 only (no
+// usize or uptr: clocks.hpp), so its statement does not depend on the
+// pointer width and the 64-bit verdict is the 32-bit one by that argument,
+// not by a run.
+#if defined(__SIZEOF_INT128__)
 void harness_pace() {
     const i64 origin = __VERIFIER_nondet_longlong();
     const i64 period = __VERIFIER_nondet_longlong();
@@ -66,6 +75,7 @@ void harness_pace() {
         __ESBMC_assert(paced.next.count_nanoseconds() == stxlib::i64_max, "saturates at the end");
     }
 }
+#endif
 
 Rounding nondet_rule() {
     const unsigned char choice = __VERIFIER_nondet_uchar();
@@ -74,9 +84,19 @@ Rounding nondet_rule() {
 }
 
 // round_to_i64 of a double: NaN, beyond the range, or an integer r with
-// |x - r| < 1 that the rule selects (stated with the floating-point
-// comparisons alone, every one exact here: r is an integer of magnitude at
-// most 2^63 and x - r is exact by Sterbenz's lemma where both are large).
+// |x - r| < 1 that the rule selects. Every comparison below is exact:
+// - |y| >= 2^52: every such double is an integer, so each rule returns y
+//   itself; y converts to i64 exactly (it lies in [-2^63, 2^63)), and the
+//   result is compared as an integer;
+// - |y| < 2^52: |r| <= 2^52, so r, r - 1 and r + 1 are doubles exactly,
+//   and so are r - 0.5 and r + 0.5 except the one beyond 2^52 in magnitude
+//   when |r| = 2^52, which rounds to r; y, strictly inside 2^52, compares
+//   with that rounded bound as with the exact one (y <= it holds and
+//   y == it fails either way). The rule is stated by these comparisons.
+// (M5, 2026-11-15: the first form compared y with r - 1.0 and r + 1.0 at
+// every magnitude; at |y| >= 2^54 those round back to r, and the run refuted
+// "within one" at x = -288230376386429952 (about -2^58), where r == y: a
+// harness defect, not the code's.)
 void harness_round_double() {
     const double x = __VERIFIER_nondet_double();
     const Rounding rule = nondet_rule();
@@ -88,11 +108,19 @@ void harness_round_double() {
     const bool subnormal = x != 0.0 && x > -2.2250738585072014e-308 && x < 2.2250738585072014e-308;
     const double y = subnormal ? 0.0 : x;
     if (!got.in_range()) {
-        __ESBMC_assert(got.is_above_range() ? y >= 9223372036854775807.0 : y < -9223372036854775808.0,
+        __ESBMC_assert(got.is_above_range() ? y >= 9223372036854775808.0 : y < -9223372036854775808.0,
                        "out of range only beyond it");
         return;
     }
-    const double r = static_cast<double>(*got.value());
+    __ESBMC_assert(y >= -9223372036854775808.0 && y < 9223372036854775808.0, "in range only within it");
+    const i64 value = *got.value();
+    const double magnitude = y < 0.0 ? -y : y;
+    if (magnitude >= 4503599627370496.0) { // 2^52
+        __ESBMC_assert(value == static_cast<i64>(y), "an integral value is its own rounding");
+        return;
+    }
+    __ESBMC_assert(value >= -4503599627370496LL && value <= 4503599627370496LL, "a small value rounds near it");
+    const double r = static_cast<double>(value);
     __ESBMC_assert(r - 1.0 < y && y < r + 1.0, "within one");
     switch (rule) {
     case Rounding::toward_zero:
@@ -105,15 +133,12 @@ void harness_round_double() {
         __ESBMC_assert(r - 1.0 < y && y <= r, "up");
         break;
     case Rounding::nearest_ties_away:
-        __ESBMC_assert(y - r <= 0.5 && r - y <= 0.5, "nearest");
-        if (y - r == 0.5 || r - y == 0.5) __ESBMC_assert(y >= 0.0 ? r > y : r < y, "halves away");
+        __ESBMC_assert(r - 0.5 <= y && y <= r + 0.5, "nearest");
+        if (y == r + 0.5 || y == r - 0.5) __ESBMC_assert(y >= 0.0 ? r > y : r < y, "halves away");
         break;
     case Rounding::nearest_ties_even:
-        __ESBMC_assert(y - r <= 0.5 && r - y <= 0.5, "nearest");
-        if (y - r == 0.5 || r - y == 0.5) {
-            const i64 value = *got.value();
-            __ESBMC_assert(value % 2 == 0, "halves to even");
-        }
+        __ESBMC_assert(r - 0.5 <= y && y <= r + 0.5, "nearest");
+        if (y == r + 0.5 || y == r - 0.5) __ESBMC_assert(value % 2 == 0, "halves to even");
         break;
     }
 }

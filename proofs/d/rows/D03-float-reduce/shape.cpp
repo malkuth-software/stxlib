@@ -38,7 +38,7 @@
 #include <unordered_map>
 #include <vector>
 
-//@ pin source=stxlib path=include/stxlib/types.hpp sha256=7d1b60e63a2dc6a28180f30d1941df8b628ea53c676cb251c65495c2a02f4b58
+//@ pin source=stxlib path=include/stxlib/types.hpp sha256=e8c563f2e84124ab284680198c844b971d8f0e48a2c0bec2f9ee8cf400b67b7f
 
 //@ model-begin reason="View and STXLIB_REQUIRE reduced to what the lifted code uses (data, count; a failed requirement stops the run)"
 #define STXLIB_REQUIRE(condition, message) \

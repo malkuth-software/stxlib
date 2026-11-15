@@ -27,7 +27,7 @@
 #include <bit>
 #include <cstdint>
 
-//@ pin source=stxlib path=include/stxlib/types.hpp sha256=7d1b60e63a2dc6a28180f30d1941df8b628ea53c676cb251c65495c2a02f4b58
+//@ pin source=stxlib path=include/stxlib/types.hpp sha256=e8c563f2e84124ab284680198c844b971d8f0e48a2c0bec2f9ee8cf400b67b7f
 //@ lift source=stxlib path=src/core/float_exact.hpp lines=65-85 sha256=fc27ef5e6487e677ff06a3ebd162b9d685d6a54506b1f6e6b0458d4c26c49da7
 //@ lift source=stxlib path=src/core/float_exact.hpp lines=90-178 namespace=stxlib::float_exact sha256=dd429e02a06a83cf766d77c33f0eeae971ecb91df97a9b84169f2e8971f78e01
 
