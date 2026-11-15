@@ -103,7 +103,7 @@ enum class ContentKind : std::uint8_t {
 
 [[nodiscard]] const char* content_type_of(ContentKind kind) noexcept;
 
-// The pages: a fixed list, served from memory (assets.h); no request path
+// The pages: a fixed list, served from memory (system_backend.h); no request path
 // ever names a file.
 struct AssetName {
     const char* path;

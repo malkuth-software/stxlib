@@ -763,8 +763,9 @@ std::optional<std::size_t> write_response_head(const ResponseHeadFields& fields,
         head.text("\r\n");
     }
     head.text(fields.cacheable ? "Cache-Control: no-cache\r\n" : "Cache-Control: no-store\r\n");
-    // No Date field: the appliance has no reliable clock (no RTC, no NTP),
-    // and RFC 9110 section 6.6.1 says such a server must not send one.
+    // No Date field: the appliance has no clock to trust (no RTC; one SNTP
+    // query at boot, which may fail), and RFC 9110 section 6.6.1 says such
+    // a server must not send one.
     head.text("Connection: close\r\n"
               "X-Content-Type-Options: nosniff\r\n"
               "X-Frame-Options: DENY\r\n"
