@@ -55,6 +55,7 @@ using stxlib::Byte;
 using stxlib::MutableView;
 using stxlib::u16;
 using stxlib::u32;
+using stxlib::u64;
 using stxlib::uptr;
 using stxlib::usize;
 using stxlib::View;
@@ -589,6 +590,33 @@ void truncations_and_corruptions() {
     }
 }
 
+// Pointer width (proofs/REPORT.md, "Pointer width"): a header field plus a
+// displacement is formed in u64, so an export RVA of 0xFFFFFFF0 refers past
+// the view on every target. In 32-bit usize it wrapped: +20 is 4, where this
+// image holds a well-formed export directory, and wasm32 found an export.
+void offsets_near_the_u32_end() {
+    std::vector<Byte> image = synthetic_image();
+    put32(image, 4, 4);      // NumberOfFunctions, at 0xFFFFFFF0 + 20 wrapped
+    put32(image, 8, 4);      // NumberOfNames
+    put32(image, 12, 0x440); // AddressOfFunctions
+    put32(image, 16, 0x460); // AddressOfNames
+    put32(image, 20, 0x480); // AddressOfNameOrdinals
+    const View<Byte> view(image.data(), image.size());
+    pe::Headers headers{};
+    expect(pe::read_headers(view, headers), "P3 headers");
+    headers.export_rva = 0xFFFFFFF0U;
+    headers.export_size = 0x100;
+    pe::Export found{};
+    expect(!pe::nearest_export(view, headers, 0x300, found), "P3 an export directory past the view is refused");
+    u32 word = 0;
+    expect(!pe::read_u32(view, static_cast<u64>(0xFFFFFFF0U) + 20, word), "P3 a read past 2^32 is refused");
+    u16 half = 0;
+    expect(!pe::read_u16(view, ~static_cast<u64>(0), half), "P3 the largest offset is refused");
+    headers.section_table_offset = ~static_cast<u64>(0) - 8;
+    pe::Section section{};
+    expect(!pe::find_section(view, headers, name_view(".text"), section), "P3 a section table past the view");
+}
+
 } // namespace
 
 int main() {
@@ -598,6 +626,7 @@ int main() {
     every_capacity();
     synthetic_lookups();
     truncations_and_corruptions();
+    offsets_near_the_u32_end();
     std::printf("stxlib_platform_rest_exhaustive: %llu comparisons, %llu mismatches\n",
                 static_cast<unsigned long long>(comparisons), static_cast<unsigned long long>(mismatches));
     const int status = mismatches == 0 ? 0 : 1;

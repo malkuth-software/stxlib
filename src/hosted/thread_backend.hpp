@@ -53,5 +53,8 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void thread_join(u64 handle) 
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void sleep_for(Duration interval) noexcept;
 // The host's count of processors that can run threads; 0 when it cannot say.
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT u32 processor_count() noexcept;
+// The most threads the program can have running at once when the host
+// fixes it in advance (Emscripten's pool in a browser), else 0.
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT u32 thread_pool_limit() noexcept;
 
 } // namespace stxlib::thread_backend

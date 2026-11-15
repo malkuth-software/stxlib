@@ -86,6 +86,11 @@ u32 processor_count() noexcept {
     return reported;
 }
 
+u32 thread_pool_limit() noexcept {
+    const u32 result = thread_backend::thread_pool_limit();
+    return result;
+}
+
 bool lock_checks_enabled() noexcept {
 #if defined(STXLIB_LOCK_CHECKS)
     return true;

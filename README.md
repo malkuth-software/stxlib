@@ -18,7 +18,7 @@ Planned layout:
 | `include/stxlib/` | owned vocabulary types, error records, capability declarations; no `std::` or platform type |
 | `src/core/` | the foreign-interface discipline: exception shadowing, call gates, callback trampolines, ownership tags, validation |
 | `src/state/` | `stxlib_state`, the one module that owns STXlib's per-thread and per-process state; every module's copy of STXlib reaches it through exported accessors |
-| `src/hosted/<family>/` | interface modules: POSIX (macOS, glibc, musl, FreeBSD) and Windows (UCRT); `c_library/` and `cxx_runtime/` hold the calls every family shares |
+| `src/hosted/<family>/` | interface modules: POSIX (macOS, glibc, musl, FreeBSD), Windows (UCRT) and Emscripten (browsers and Node, over the POSIX modules that hold there); `c_library/` and `cxx_runtime/` hold the calls every family shares |
 | `runtime/` | the own runtime over FreeBSD's system calls, for the appliance supervisor |
 | `appliance/` | the FreeBSD appliance: loader changes, kernel configuration, the kernel shim, the supervisor, image tooling |
 | `proofs/` | proof harnesses and the proof report |
@@ -50,6 +50,32 @@ module has not landed yet is reported unsupported.
 Process-wide state of these modules (locks, the console's read-ahead, the
 exit-task table, the event watch, the raw-terminal flag) lives in
 `stxlib_state`, so a program built from several modules shares it.
+
+### Emscripten
+
+The Emscripten family (owner decision 2026-11-15, in 1.0 after M3; for
+GUI.Forms' web host) builds with emsdk 6.0.13 through
+`cmake/emscripten.cmake`, for wasm32 (owner decision 2026-11-15; no
+`-m64`, as GUI.Forms' cp34 sets none). wasm32 is STXlib's one 32-bit
+target; the pointer-width audit is in `proofs/REPORT.md`. Configure, build
+and test (Node runs each test; the toolchain's platform file names it as
+the emulator):
+
+```sh
+cmake -S . -B build-web -G Ninja -DCMAKE_TOOLCHAIN_FILE=cmake/emscripten.cmake \
+      -DSTXLIB_EMSDK=/path/to/emsdk
+cmake --build build-web
+ctest --test-dir build-web --output-on-failure
+```
+
+Options: `STXLIB_EMSCRIPTEN_FILESYSTEM` (`js`, MEMFS and IDBFS, the
+default; or `wasmfs`, memory and OPFS), `STXLIB_EMSCRIPTEN_POOL_SIZE` (the
+pthread pool, 8), `STXLIB_EMSCRIPTEN_EXIT_RUNTIME` (on in test builds, off
+for pages). `stxlib_state` is static there and the allocator is the host's.
+CI: a web job is added after the first green web run on the M4; it will
+run the three commands above after installing emsdk 6.0.13 (`emsdk install
+6.0.13 && emsdk activate 6.0.13`), once per file system. What a page provides is in
+`capabilities.hpp`; web storage and its durability per volume in `web.hpp`.
 
 ## Algorithms
 

@@ -18,6 +18,12 @@
 // exhaustive test, tests/platform_rest_exhaustive.cpp, covers a 4 KiB image
 // with single-byte damage); names of at most 8 bytes; lines of at most 8
 // bytes. What is proved is the bounded statement for those sizes only.
+//
+// Pointer width: run each harness twice, as above (64-bit) and with
+// `--32 -D__wasm32__` added (wasm32's 32-bit usize and uptr; types.hpp
+// admits 32-bit pointers only under __wasm32__, and the cores here have no
+// other __wasm32__ branch). ESBMC's --32 and -D options are as its --help
+// lists them; unconfirmed at the pinned ESBMC (VERIFICATION_PROGRAMME).
 
 #include "core/command_line.hpp"
 #include "core/pe_image.hpp"

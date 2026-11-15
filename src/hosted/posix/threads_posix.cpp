@@ -30,6 +30,28 @@
 // sysconf(_SC_NPROCESSORS_ONLN) on every POSIX host, Apple included
 // (src/thread.cpp:66-75 at llvmorg-22.1.8; audit C, K-2: an earlier comment
 // here said sysctl hw.ncpu on Apple hosts, which libc++ does not use).
+//
+// Emscripten (owner decision 2026-11-15), facts at emscripten 6.0.13:
+// threads are Web Workers sharing the wasm memory, started through
+// Emscripten's pthreads.
+//   - processor_count is emscripten_num_logical_cores
+//     (system/include/emscripten/threading.h:29).
+//   - thread_pool_limit is the pool's size in a browser and 0 in Node
+//     (hosted/web_backend.hpp); other families have no fixed pool.
+//   - pthread_create fails with EAGAIN when no pool worker is free under
+//     PTHREAD_POOL_SIZE_STRICT=2, or when there is no SharedArrayBuffer
+//     (src/lib/libpthread.js:714-716, :792-796): Thread::start reports it.
+//   - The guard page is asked for as elsewhere, but wasm has no page
+//     protection (page_protection is false; pages_posix.cpp), so it is not
+//     enforced: a stack overflow is not caught by a guard there.
+//   - Blocking waits on the main browser thread busy-wait
+//     (site/source/docs/porting/pthreads.rst:75-117).
+//   - Early exit: pthread_exit and cancellation end a thread by unwinding
+//     to the JavaScript event loop (system/lib/pthread/pthread_create.c:
+//     398-400; musl's pthread_cancel.c:8-15 makes cancellation a
+//     pthread_exit), after running the thread's key destructors
+//     (pthread_create.c:310-330). STXlib never calls either: a Thread ends
+//     by returning from its body.
 
 #include "hosted/thread_backend.hpp"
 
@@ -43,6 +65,12 @@
 #include <pthread.h>
 #include <time.h>
 #include <unistd.h>
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/threading.h>
+
+#include "hosted/web_backend.hpp"
+#endif
 
 namespace stxlib::thread_backend {
 
@@ -212,10 +240,23 @@ void sleep_for(const Duration interval) noexcept {
 }
 
 u32 processor_count() noexcept {
+#if defined(__EMSCRIPTEN__)
+    const long count = static_cast<long>(emscripten_num_logical_cores());
+#else
     const long count = ::sysconf(_SC_NPROCESSORS_ONLN);
+#endif
     if (count <= 0) return 0;
     if (static_cast<unsigned long>(count) > 0xffffffffUL) return 0xffffffffU;
     return static_cast<u32>(count);
+}
+
+u32 thread_pool_limit() noexcept {
+#if defined(__EMSCRIPTEN__)
+    const u32 result = web_backend::thread_pool_limit();
+    return result;
+#else
+    return 0;
+#endif
 }
 
 } // namespace stxlib::thread_backend

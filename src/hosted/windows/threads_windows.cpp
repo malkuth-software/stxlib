@@ -208,4 +208,7 @@ u32 processor_count() noexcept {
     return result;
 }
 
+// Windows has no fixed pool of threads.
+u32 thread_pool_limit() noexcept { return 0; }
+
 } // namespace stxlib::thread_backend

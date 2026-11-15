@@ -10,7 +10,8 @@
 //
 // The tiers are BFFT's (bruun_simd_backend.hpp, BRUUN_LEVEL): a scalar
 // reference, one 128-bit tier (SSE2 on x86-64, NEON on arm64, both the
-// architecture's baseline), and AVX2 with FMA at 256 bits. There is no AVX
+// architecture's baseline, and wasm's SIMD128 in an Emscripten build
+// compiled with it), and AVX2 with FMA at 256 bits. There is no AVX
 // without AVX2, no SSE4 tier and no AVX-512 tier (owner, 2026-11-01). A
 // library compiles one kernel variant per tier it offers and calls the
 // selected one, so one binary runs at the best tier of each machine.
@@ -32,7 +33,7 @@ namespace stxlib::simd {
 enum class Level : u8 {
     // Portable code only; on x86-64 that still means SSE2 scalar arithmetic.
     scalar = 0,
-    // 128-bit vectors: SSE2 (x86-64) or NEON (arm64).
+    // 128-bit vectors: SSE2 (x86-64), NEON (arm64) or SIMD128 (wasm).
     vector128 = 1,
     // 256-bit AVX2 with FMA3 (x86-64 only). Requires the CPU's AVX2, FMA
     // and OSXSAVE flags and the operating system's saving of the vector
@@ -48,10 +49,15 @@ struct Features final {
     bool avx{false};
     bool avx2{false};
     bool fma{false};
+    // wasm's 128-bit SIMD. It is a property of the build, not detected: a
+    // module compiled with -msimd128 (Clang defines __wasm_simd128__) uses
+    // SIMD instructions, and an engine without them refuses to compile the
+    // whole module, so a module that runs at all has them.
+    bool simd128{false};
 };
 
 // What this CPU and operating system support (CPUID and XGETBV on x86-64;
-// NEON as arm64's baseline). Computed on each call; a pure function of the
+// NEON as arm64's baseline; SIMD128 as the wasm build was compiled). Computed on each call; a pure function of the
 // machine.
 [[nodiscard]] Features detected_features() noexcept;
 
@@ -76,7 +82,8 @@ struct Features final {
 // program-level override for tests and benchmarks; libraries never call it.
 [[nodiscard]] bool request_level(Level level) noexcept;
 
-// "scalar", "sse2-128", "neon-128" or "avx2-fma-256" (BFFT's names).
+// "scalar", "sse2-128", "neon-128", "wasm-simd-128" or "avx2-fma-256"
+// (BFFT's names, with wasm's named the same way).
 [[nodiscard]] TextView level_name(Level level) noexcept;
 
 } // namespace stxlib::simd

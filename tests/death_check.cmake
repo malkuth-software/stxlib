@@ -1,11 +1,18 @@
 # Runs one must-end case of stxlib_death_tests and checks how it ended:
-#   cmake -DPROGRAM=<path> -DCASE=<name> -DEXPECT=<regex> -P death_check.cmake
+#   cmake -DPROGRAM=<path> [-DEMULATOR=<command>] -DCASE=<name> -DEXPECT=<regex> -P death_check.cmake
 # Passes when the case printed "skipped", or when it ended abnormally (any
 # result other than 0, without printing "survived") and its standard error
 # matches EXPECT. EXPECT=ANY accepts any standard error: the case ends in a
 # host check whose wording STXlib does not own (foreign_free).
+# EMULATOR, when given, is the command that runs PROGRAM (Emscripten: Node,
+# CMAKE_CROSSCOMPILING_EMULATOR), its arguments separated by '|' since a
+# ';' cannot pass through add_test.
+set(emulator_command "")
+if(DEFINED EMULATOR AND NOT EMULATOR STREQUAL "")
+    string(REPLACE "|" ";" emulator_command "${EMULATOR}")
+endif()
 execute_process(
-    COMMAND "${PROGRAM}" "${CASE}"
+    COMMAND ${emulator_command} "${PROGRAM}" "${CASE}"
     RESULT_VARIABLE case_result
     OUTPUT_VARIABLE case_output
     ERROR_VARIABLE case_error)

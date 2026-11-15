@@ -30,10 +30,13 @@
 // and the handle is never valid again: a slot's next attachment has a new
 // generation.
 //
-// Handles: a slot index (16 bits) and a generation (48 bits), so a handle is
-// never reused while 2^48 - 1 attachments of its slot remain; a slot whose
-// generations are exhausted is retired, never wrapped. The packed value is
-// never 0, so a null context is never a valid handle.
+// Handles: a slot index (16 bits) and a generation (the rest of a pointer:
+// 48 bits on 64-bit targets, 16 on wasm32), so the packed value always fits
+// the context pointer and a handle is never reused while attachments of its
+// slot remain (trampoline_generation_limit: 2^48 - 1, or 65535 on wasm32);
+// a slot whose generations are exhausted is retired, never wrapped, and
+// attach then uses another slot or fails with limit_exceeded. The packed
+// value is never 0, so a null context is never a valid handle.
 //
 // A table is owned by one object and created with a fixed capacity (at most
 // trampoline_capacity_limit slots). Destroying it revokes every attached
@@ -53,6 +56,13 @@ inline constexpr usize trampoline_capacity_limit = 65535;
 // Nested trampoline invocations one thread may be inside (house style,
 // section 1: nested dispatch has a stated, enforced depth).
 inline constexpr usize trampoline_nesting_limit = 32;
+// Bits of a handle that hold the slot index; the rest of a pointer's bits
+// hold the generation.
+inline constexpr unsigned trampoline_index_bits = 16;
+// Attachments one slot accepts before it is retired: every generation fits
+// beside the index in a context pointer.
+inline constexpr u64 trampoline_generation_limit =
+    (static_cast<u64>(1) << (8 * sizeof(void*) - trampoline_index_bits)) - 1;
 
 class TrampolineHandle final {
 public:

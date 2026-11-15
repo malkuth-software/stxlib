@@ -5,7 +5,15 @@
 // Changes from stx_auxlib: the saved termios is kept inside the
 // RawTerminal (no heap block), and the one-at-a-time flag lives in
 // stxlib_state.
+//
+// Emscripten (owner decision 2026-11-15): a page has no terminal, though
+// Emscripten's file system gives the standard streams a tty device, so
+// isatty alone would not say so. Both calls ask Capability::raw_terminal
+// first, false there (core/capabilities.cpp), and fail with unsupported
+// before any host call; on the other POSIX families it is true and the
+// check changes nothing.
 
+#include "stxlib/capabilities.hpp"
 #include "stxlib/terminal.hpp"
 
 #include "core/host_failure.hpp"
@@ -50,6 +58,10 @@ ForeignCode errno_code() noexcept {
 } // namespace
 
 Result<TerminalSize> terminal_size() noexcept {
+    if (!capability_supported(Capability::raw_terminal)) {
+        const ErrorRecord none = host_failure::record(ErrorKind::unsupported, "stxlib.terminal.size", HostCode::none);
+        return Result<TerminalSize>::failure(none);
+    }
     if (::isatty(STDOUT_FILENO) != 1) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.size", HostCode::not_a_terminal);
@@ -94,6 +106,11 @@ void RawTerminal::release() noexcept {
 }
 
 Result<RawTerminal> RawTerminal::enter() noexcept {
+    if (!capability_supported(Capability::raw_terminal)) {
+        const ErrorRecord none =
+            host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::none);
+        return Result<RawTerminal>::failure(none);
+    }
     if (::isatty(STDIN_FILENO) != 1 || ::isatty(STDOUT_FILENO) != 1) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::not_a_terminal);

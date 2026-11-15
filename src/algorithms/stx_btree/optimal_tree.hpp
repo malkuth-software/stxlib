@@ -64,6 +64,38 @@
 
 namespace stxlib::stx_btree {
 
+namespace detail {
+
+// side (side + 1) / 2 in Unsigned, the even factor halved first so no
+// intermediate product passes the result. False when the result is not
+// representable: on wasm32 a std::size_t triangle of more than 92681 sides
+// is not, where (side)(side + 1) wraps long before (the pointer-width
+// audit, proofs/REPORT.md).
+template <typename Unsigned>
+[[nodiscard]] constexpr bool triangle_number(const Unsigned side, Unsigned& result) noexcept {
+    if (side == static_cast<Unsigned>(~static_cast<Unsigned>(0))) {
+        return false;
+    }
+    const Unsigned next = side + 1;
+    const bool side_even = side % 2 == 0;
+    const Unsigned half = side_even ? side / 2 : next / 2;
+    const Unsigned other = side_even ? next : side;
+    const bool overflowed = __builtin_mul_overflow(half, other, &result);
+    return !overflowed;
+}
+
+// The same when the result is known to be representable (it indexes cells
+// already allocated): no intermediate product passes it.
+template <typename Unsigned>
+[[nodiscard]] constexpr Unsigned known_triangle_number(const Unsigned side) noexcept {
+    if (side % 2 == 0) {
+        return (side / 2) * (side + 1);
+    }
+    return side * ((side + 1) / 2);
+}
+
+} // namespace detail
+
 enum class TreeConstruction : std::uint8_t {
     knuth,
     weight_balanced,
@@ -467,10 +499,9 @@ private:
             if (!cells.assign(cell_count, 0) || !offset.assign(key_count + 1, 0)) {
                 return false;
             }
-            const std::size_t side = key_count + 1;
             std::size_t row = 0;
-            for (row = 0; row <= key_count; row += 1) {
-                offset[row] = row * side - row * (row + 1) / 2;
+            for (row = 0; row < key_count; row += 1) {
+                offset[row + 1] = offset[row] + (key_count - row);
             }
             return true;
         }
@@ -493,7 +524,7 @@ private:
         }
 
         [[nodiscard]] static std::size_t column_start(std::size_t end) noexcept {
-            return end * (end + 1) / 2;
+            return detail::known_triangle_number(end);
         }
 
         [[nodiscard]] Cost at(std::size_t first, std::size_t end) const noexcept {

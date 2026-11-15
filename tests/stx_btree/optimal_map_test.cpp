@@ -53,6 +53,16 @@ using stx_btree::detail::TreePacker;
 using stx_btree_tests::SplitMix64;
 using stx_btree_tests::TestFailure;
 
+// Pointer width (proofs/REPORT.md, "Pointer width"): a cold subtree's child
+// capacity stops growing before its product wraps. The 32-bit cases are
+// wasm32's std::size_t; the old loop wrapped (13^9 - 1 mod 2^32 =
+// 2014564780 < 2100000000) and went on from the wrapped value.
+static_assert(stx_btree::detail::child_capacity_for<std::size_t>(1000, 12) == 168);
+static_assert(stx_btree::detail::child_capacity_for<std::uint32_t>(2100000000U, 12U) == 815730720U);
+static_assert(stx_btree::detail::child_capacity_for<std::uint64_t>(2100000000ULL, 12ULL) == 815730720ULL);
+static_assert(stx_btree::detail::child_capacity_for<std::uint32_t>(0xffffffffU, 1023U) == 1073741823U);
+static_assert(stx_btree::detail::child_capacity_for<std::uint32_t>(13U, 12U) == 12U);
+
 // The weights in the test's own storage; constructions take views.
 struct OwnedWeights final {
     std::vector<SearchWeight> keys;

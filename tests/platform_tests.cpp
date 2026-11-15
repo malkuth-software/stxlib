@@ -12,6 +12,7 @@
 #include "stxlib/events.hpp"
 #include "stxlib/terminal.hpp"
 #include "stxlib/text.hpp"
+#include "stxlib/web.hpp"
 
 #include "test_support.hpp"
 
@@ -56,6 +57,40 @@ void capabilities_report() {
     CHECK(stxlib::capability_supported(stxlib::Capability::interval_clock));
     CHECK(stxlib::capability_supported(stxlib::Capability::wall_clock));
     CHECK(stxlib::capability_supported(stxlib::Capability::entropy));
+    CHECK(stxlib::capability_supported(stxlib::Capability::files));
+    CHECK(stxlib::capability_supported(stxlib::Capability::local_time_zone));
+    CHECK(stxlib::capability_supported(stxlib::Capability::memory_report));
+    CHECK(stxlib::capability_supported(stxlib::Capability::wake_channel));
+    CHECK(stxlib::capability_supported(stxlib::Capability::known_directories));
+    CHECK(stxlib::capability_name(stxlib::Capability::atomic_replace) == stxlib::TextView("atomic_replace"));
+    CHECK(stxlib::capability_name(stxlib::Capability::process_identity) == stxlib::TextView("process_identity"));
+    CHECK(stxlib::capability_name(stxlib::Capability::web_storage) == stxlib::TextView("web_storage"));
+    CHECK(stxlib::capability_count == 34);
+#if defined(__EMSCRIPTEN__)
+    // The Emscripten family (core/capabilities.cpp has the reasons). Run
+    // under Node by ctest: no fixed pool there, and a process is isolated.
+    CHECK(stxlib::capability_supported(stxlib::Capability::web_storage));
+    CHECK(stxlib::capability_supported(stxlib::Capability::shared_memory));
+    CHECK(stxlib::capability_supported(stxlib::Capability::threads));
+    CHECK(stxlib::capability_supported(stxlib::Capability::cross_origin_isolated));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::fixed_thread_pool));
+    CHECK(stxlib::capability_supported(stxlib::Capability::exit_tasks)); // test builds link EXIT_RUNTIME
+    const stxlib::Capability absent[] = {
+        stxlib::Capability::child_processes,   stxlib::Capability::desktop_open,
+        stxlib::Capability::file_reveal,       stxlib::Capability::current_executable,
+        stxlib::Capability::raw_terminal,      stxlib::Capability::interrupt_events,
+        stxlib::Capability::resize_events,     stxlib::Capability::suspend_events,
+        stxlib::Capability::atomic_replace,    stxlib::Capability::elapsed_clock,
+        stxlib::Capability::process_arguments, stxlib::Capability::main_thread,
+        stxlib::Capability::dynamic_libraries, stxlib::Capability::address_lookup,
+        stxlib::Capability::image_regions,     stxlib::Capability::stack_trace,
+        stxlib::Capability::page_protection,   stxlib::Capability::process_identity};
+    for (const stxlib::Capability capability : absent) CHECK(!stxlib::capability_supported(capability));
+#else
+    CHECK(stxlib::capability_supported(stxlib::Capability::shared_memory));
+    CHECK(stxlib::capability_supported(stxlib::Capability::cross_origin_isolated));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::fixed_thread_pool));
+    CHECK(!stxlib::capability_supported(stxlib::Capability::web_storage));
     CHECK(stxlib::capability_supported(stxlib::Capability::exit_tasks));
     CHECK(stxlib::capability_supported(stxlib::Capability::raw_terminal));
     CHECK(stxlib::capability_supported(stxlib::Capability::interrupt_events));
@@ -98,6 +133,28 @@ void capabilities_report() {
 #else
     CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
 #endif
+#endif
+}
+
+// ---- web storage ------------------------------------------------------------
+
+// Every other family answers unsupported (web.hpp); emscripten_tests.cpp
+// covers the Emscripten family.
+void web_storage_elsewhere() {
+#if !defined(__EMSCRIPTEN__)
+    stxlib::Result<stxlib::Path> root = stxlib::Path::parse("/stxlib-web");
+    CHECK(root.succeeded());
+    if (root.failed()) return;
+    const stxlib::Status mounted = stxlib::mount_web_storage(*root.value(), stxlib::StorageKind::memory);
+    CHECK(mounted.failed() && (*mounted.error()).kind() == stxlib::ErrorKind::unsupported);
+    const stxlib::Status persisted = stxlib::persist_web_storage();
+    CHECK(persisted.failed() && (*persisted.error()).kind() == stxlib::ErrorKind::unsupported);
+    const stxlib::Status restored = stxlib::restore_web_storage();
+    CHECK(restored.failed() && (*restored.error()).kind() == stxlib::ErrorKind::unsupported);
+    const stxlib::Status hidden = stxlib::persist_web_storage_on_page_hide();
+    CHECK(hidden.failed() && (*hidden.error()).kind() == stxlib::ErrorKind::unsupported);
+    CHECK(stxlib::web_storage_durability(stxlib::StorageKind::indexed_db) == stxlib::Durability::ordered);
+#endif
 }
 
 // ---- clocks -----------------------------------------------------------------
@@ -121,9 +178,10 @@ void steady_clocks_never_decrease() {
 // the clocks count from different epochs, so spans are compared, not
 // readings). The wall clock reads as the runtime's system clock does.
 void clocks_agree_with_host() {
-#if !defined(__FreeBSD__)
+#if !defined(__FreeBSD__) && !defined(__EMSCRIPTEN__)
     // FreeBSD: unsupported, and ElapsedTime reads uptime, which still
-    // advances alike over the sleep (clocks.hpp).
+    // advances alike over the sleep (clocks.hpp); Emscripten likewise
+    // reads the interval clock.
     CHECK(stxlib::capability_supported(stxlib::Capability::elapsed_clock));
 #endif
     const std::chrono::steady_clock::time_point host_start = std::chrono::steady_clock::now();
@@ -309,6 +367,15 @@ void entropy_fills() {
 // ---- terminal ---------------------------------------------------------------
 
 void terminal_without_one() {
+#if defined(__EMSCRIPTEN__)
+    // A page has no terminal: refused before any host call.
+    const stxlib::Result<stxlib::TerminalSize> web_size = stxlib::terminal_size();
+    CHECK(web_size.failed() && (*web_size.error()).kind() == stxlib::ErrorKind::unsupported &&
+          code_of(*web_size.error()) == stxlib::HostCode::none);
+    const stxlib::Result<stxlib::RawTerminal> web_raw = stxlib::RawTerminal::enter();
+    CHECK(web_raw.failed() && (*web_raw.error()).kind() == stxlib::ErrorKind::unsupported);
+    return;
+#endif
     // CTest runs with standard output redirected.
     const stxlib::Result<stxlib::TerminalSize> size = stxlib::terminal_size();
     CHECK(size.failed() && (*size.error()).kind() == stxlib::ErrorKind::unsupported &&
@@ -330,6 +397,12 @@ void events() {
     CHECK(empty.failed() && code_of(*empty.error()) == stxlib::HostCode::empty_request);
     const stxlib::EventSet watched =
         stxlib::EventSet().with(stxlib::ProcessEvent::interrupt).with(stxlib::ProcessEvent::terminal_resized);
+#if defined(__EMSCRIPTEN__)
+    // A page receives no signals: refused before any handler is installed.
+    const stxlib::Result<stxlib::EventWatch> web_watch = stxlib::EventWatch::watch(watched);
+    CHECK(web_watch.failed() && (*web_watch.error()).kind() == stxlib::ErrorKind::unsupported);
+    return;
+#endif
     {
         stxlib::Result<stxlib::EventWatch> started = stxlib::EventWatch::watch(watched);
         CHECK(started.succeeded());
@@ -363,6 +436,7 @@ void events() {
 
 int main() {
     capabilities_report();
+    web_storage_elsewhere();
     steady_clocks_never_decrease();
     clocks_agree_with_host();
     wall_clock_is_unix_time();

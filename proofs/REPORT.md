@@ -353,3 +353,63 @@ These are evidence over the paths the tests take, not proof.
 | `allocator.cpp`, `heap.cpp` (early exit) | no path throws, calls back, or calls a cancellation point | argued: the host layer's calls are `mmap`, `mprotect`, `munmap`, `sched_yield` (POSIX.1-2024 XSH 2.9.5.2: in neither list), `pthread_key_create` and `pthread_setspecific` (not looked up: unconfirmed), and on Windows `VirtualAlloc`, `VirtualFree`, `SwitchToThread` | `src/hosted/posix/minmallocpp_os_posix.cpp`, `src/hosted/windows/minmallocpp_os_windows.cpp` |
 | the region tables | zero pages from the host are read as objects of the table types holding zero | assumed (`page.hpp`): `std::atomic<u32>` and `std::atomic<u64>` are checked to have the integer's size and to be lock free; the standard does not name `mmap` as creating objects | `page.hpp` |
 | performance | no slower than mimalloc v3.6.1 on each path; never more than twice the host's allocator | measured on the M4 only (`tests/memory_bench.cpp`, through `stxlib::memory`, best of 7, three runs). Against the host's `malloc`: 0.13 to 0.95 of its time on every workload. Against mimalloc as `main` builds it (no release checking): about 1.3 ns slower per call on blocks up to 1 KiB (4.3 against 3.0 to 3.7) and on the 100,000-block churn (15.0 against 12.5); faster from 8 KiB up, in the 4 KiB batch (5.3 against 17.5), at 1 MiB (16 against 165) and across threads (3.3 against 3.7 to 4.8). Against mimalloc with its own checking on (`MI_SECURE=4`): equal on the smallest pairs (4.3 against 4.1), faster on everything else. Where a small call's time goes (`tests/stx_minmallocpp_floor_bench.cpp`, the allocator linked directly): 3.5 ns per call, against 4.3 through `stxlib::memory` and `stxlib_state`, so about 0.8 ns is the path into the library, which every backend pays; passing the thread's heap in saves nothing measurable on macOS (the thread-local read is not the cost); passing the size class in saves about 0.3 ns at most. A direct path for unaligned requests and a simpler `slice_head` then took the direct call to about 3.15 ns. Not measured on Linux, FreeBSD or Windows, where the thread-local access differs | the seat's DESIGN.md 6 |
+
+## stxlib::boundary, the Emscripten family (owner decision 2026-11-15)
+
+Hosted modules only: no pure core was added, so nothing here is in proof
+scope; each row is tested under Node (`tests/emscripten_tests.cpp`,
+`tests/platform_tests.cpp`, `tests/simd_tests.cpp`), and what Node cannot
+show waits for a browser run.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/capabilities.cpp` (Emscripten table, capabilities 30 to 33) | every capability answered; those a page lacks false; shared_memory, cross_origin_isolated and fixed_thread_pool as the runtime reports; native answers for 30 to 33 | not yet proved; tested under Node (no fixed pool there) and natively | `tests/platform_tests.cpp` |
+| `src/hosted/emscripten/clocks_emscripten.cpp` | never backwards within a thread; ElapsedTime reads the interval clock; the conversion clamps to [0, i64_max] (NaN to 0) | not yet proved; tested on one thread (100,000 reads), sampled. Order across threads unconfirmed | `tests/emscripten_tests.cpp` (`clocks`) |
+| `src/hosted/emscripten/wake_emscripten.cpp` | as the POSIX row above, without host handles (a list is refused with unsupported); the flag released once, after the channel lets go of it | not yet proved; tested (cross-thread wake at 20 ms, timeout at 30 ms, sampled) | `tests/emscripten_tests.cpp` (`wake_channel`) |
+| `src/hosted/emscripten/storage_*`, `src/hosted/posix/file_posix.cpp` (volume rules), `src/core/web.cpp` | memory volumes accept every level; IDBFS honours ordered and refuses durable; a durable replace refused before its rename where it cannot be durable; restore and persist refused on the main thread; mounts refused where the browser lacks the volume | not yet proved; under Node: memory volumes, the refusals, and persist from a thread with no IndexedDB volume. Not tested: IDBFS and OPFS themselves (absent in Node), the page-hide hook | `tests/emscripten_tests.cpp` |
+| `src/algorithms/simd.cpp` (SIMD128) | vector128 exactly when the module was compiled with SIMD128; the name "wasm-simd-128" | not yet proved; tested | `tests/simd_tests.cpp`, `tests/emscripten_tests.cpp` |
+| the math kernels on wasm | the frozen bit-identity hashes (scalar kernels; the dispatch is x86-64 only) | **not yet run**: the first wasm run is cross-architecture evidence for the bit identity | CTest `stxlib_bit_identity`, `stxlib_bit_identity_dekker` |
+
+Nothing in this section has been compiled or run: emsdk is not installed
+on the M4 (a download the owner approves first), and no compiler runs on
+the seat's machine.
+
+## Pointer width (wasm32, owner decision 2026-11-15)
+
+The Emscripten family builds for wasm32, so usize and uptr are 32 bits
+there (clang's WebAssembly target: size_t is unsigned long, 32 bits on
+wasm32; __int128 is available and 64-bit atomics are inline,
+`clang/lib/Basic/Targets/WebAssembly.h` on llvm main, not read at the
+pin). Emscripten's musl keeps time_t and off_t 64-bit on wasm32
+(`system/lib/libc/musl/arch/emscripten/bits/alltypes.h` at 6.0.13:
+`typedef _Int64 time_t;`, `typedef _Int64 off_t;`), so the static_asserts
+on them in `src/hosted/posix/` hold. Every place found that depends on
+the width, and how it is classed: **essential** (kept; wasm32 refused at
+that point), **width-neutral** (correct at either width as written) or
+**fixed** (changed so 32-bit pointers work, with a test). Found by
+reading and `git grep`; the first wasm32 build (`-Wconversion` on) and an
+integer-checks run under Node would find what reading missed.
+
+| Place | Width dependence | Class | Evidence |
+|---|---|---|---|
+| `include/stxlib/types.hpp` | `sizeof(void*) == 8` | **fixed**: 4 admitted under `__wasm32__` only; other 32-bit targets stay refused (not audited) | the static_asserts; `tests/emscripten_tests.cpp` (`pointer_width`) |
+| `include/stxlib/trampoline.hpp`, `src/core/trampoline.cpp` | a handle packed 16 index bits and 48 generation bits into a context pointer | **fixed**: the generation takes the pointer's remaining bits (`trampoline_generation_limit`: 2^48 - 1, or 65535 on wasm32); a slot retires after it, a generation past it is stale | static_asserts in `trampoline.cpp`; `tests/trampoline_tests.cpp` (`handles_fit_the_pointer_width`: exhausts a slot on wasm32) |
+| `src/core/thread_pool.cpp` (create) | `sizeof(Thread) * thread_count` (u32) wraps in 32-bit usize, and the start loop would overrun the short array | **fixed**: refused with out_of_memory before any allocation | `tests/thread_pool_tests.cpp` (`creation`, wasm32 branch) |
+| `src/algorithms/stx_btree/optimal_tree.hpp` (Knuth's triangles) | (n + 1)(n + 2) / 2 cells, the row offsets and column starts formed through products that wrap in 32 bits from n = 92681 | **fixed**: `detail::triangle_number` (checked, even factor halved first), offsets built by addition, column starts by `known_triangle_number` | static_asserts in `tests/stx_btree/optimal_tree_test.cpp` (32-bit arithmetic) |
+| `src/algorithms/stx_btree/detail/tree_packing.hpp` (count separators) | the child-capacity growth formed an unchecked product; at capacity 12 it wraps in 32 bits for counts above 815730720 and went on from the wrapped value | **fixed**: `detail::child_capacity_for` stops before an unrepresentable product (which is at least the count) | static_asserts in `tests/stx_btree/optimal_map_test.cpp` (32-bit and 64-bit) |
+| `src/core/pe_image.hpp` (pure core, proof scope) | a header field plus a displacement in usize wraps on wasm32 (export RVA 0xFFFFFFF0 + 20 = 4), so a damaged image read the wrong bytes in bounds | **fixed**: offsets are u64 and the readers check them against the view | `tests/platform_rest_exhaustive.cpp` (`offsets_near_the_u32_end`); `proofs/esbmc/platform_rest.cpp` (32-bit run, below) |
+| `include/stxlib/shadow.hpp` (`ShadowFrameRecord`, 120 bytes) | fixed-width fields only; u64 is 8-aligned on wasm32 as on the 64-bit targets | width-neutral (the size assert holds at both widths) | `static_assert` in `shadow.hpp`; `tests/emscripten_tests.cpp` |
+| `src/state/state.hpp` (layout 8) | usize and uptr fields, so the layout differs by width | width-neutral: the layout is per process, and a process has one width; `layout_version` needs no change | reading |
+| `src/state/allocator.cpp` | the host backend's slot is `sizeof(void*)`; tags are u64 with the address widened; the registry hashes the widened address | width-neutral; one hardening for sb1 (the hand-in): the stored offset is narrowed to usize before it is checked | reading |
+| `src/core/atomic_rules.cpp` | atomics of usize, uptr, u64 | width-neutral: 64-bit atomics are lock-free on wasm32 (the asserts would refuse otherwise) | the static_asserts |
+| `src/core/growable.hpp`, `include/stxlib/buffer.hpp`, `stx_btree/detail/array.hpp`, `optimal_map.hpp`, `src/algorithms/voting.cpp` | element count times element size | width-neutral: each product is checked against the usize maximum first | reading; `tests/vocabulary_tests.cpp`, `tests/memory_tests.cpp` |
+| `src/core/files.cpp` (read_file) | a u64 file size narrowed to usize | width-neutral: narrowed only after `bytes <= limit` (a usize) | reading |
+| `src/algorithms/precedence.cpp`, `src/algorithms/row_height_index.cpp` | u64 block numbers and counts narrowed to usize | width-neutral: a block below `known_blocks()`, counts of objects in memory | reading |
+| `src/algorithms/stx_btree/detail/node_layout.hpp` | edges are `uintptr_t`, so internal pages hold more edges on wasm32 | width-neutral: capacities are derived from sizeof; no test states a capacity | reading |
+| `src/core/stack_line.hpp` | addresses printed to 16 hex digits | width-neutral: the same text, leading zeros on wasm32 | `tests/platform_rest_exhaustive.cpp` |
+| `src/state/allocator.cpp` (mimalloc) | `PTRDIFF_MAX` | not built on the web (the family refuses mimalloc) | `CMakeLists.txt` |
+| the bit-identity digests (`tests/bit_identity.cpp`) | counts and lengths enter the digest | width-neutral: every value is widened to u64 before it is hashed, and no item digests an address, a sizeof or usize_max; no expected line depends on the width | reading; the first wasm run compares against `tests/bit_identity_expected.txt` |
+| the bounded proofs (`proofs/esbmc/`) | proved at 64 bits only | to run twice: as written and with `--32 -D__wasm32__` (each harness's header) | not yet run |
+
+No place was classed essential: nothing in the tree needs 64-bit
+pointers once the rows marked fixed are in.

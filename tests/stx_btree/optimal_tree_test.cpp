@@ -35,6 +35,28 @@ using stx_btree::no_key;
 using stx_btree_tests::SplitMix64;
 using stx_btree_tests::TestFailure;
 
+// Pointer width (proofs/REPORT.md, "Pointer width"): Knuth's triangle of
+// (n + 1)(n + 2) / 2 cells is sized without an intermediate product passing
+// it, and refused where it is not representable. In 32-bit arithmetic
+// (wasm32's std::size_t) 92681 sides fit, 4294930221 cells, though
+// 92681 * 92682 wraps; 92682 sides do not fit.
+constexpr bool triangle_is(const std::uint32_t side, const std::uint32_t expected) {
+    std::uint32_t result = 0;
+    const bool representable = stx_btree::detail::triangle_number(side, result);
+    return representable && result == expected;
+}
+constexpr bool triangle_refused(const std::uint32_t side) {
+    std::uint32_t result = 0;
+    const bool representable = stx_btree::detail::triangle_number(side, result);
+    return !representable;
+}
+static_assert(triangle_is(0U, 0U) && triangle_is(1U, 1U) && triangle_is(4U, 10U) && triangle_is(5U, 15U));
+static_assert(triangle_is(92681U, 4294930221U));
+static_assert(triangle_refused(92682U) && triangle_refused(0xffffffffU));
+static_assert(stx_btree::detail::known_triangle_number<std::uint32_t>(92681U) == 4294930221U);
+static_assert(stx_btree::detail::known_triangle_number<std::size_t>(7) == 28 &&
+              stx_btree::detail::known_triangle_number<std::size_t>(8) == 36);
+
 // The weights in the test's own storage; constructions take views.
 struct OwnedWeights final {
     std::vector<SearchWeight> keys;

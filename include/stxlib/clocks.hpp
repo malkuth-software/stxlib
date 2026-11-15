@@ -29,6 +29,18 @@
 //     backwards, but a span of it does not include time suspended. Whether
 //     uptime itself stops in suspension depends on the time counter
 //     hardware (unconfirmed).
+//   - Emscripten reads emscripten_get_now (performance.timeOrigin plus
+//     performance.now() in a build with threads, src/lib/libcore.js:
+//     1490-1494 at emscripten 6.0.13), monotonic within a thread
+//     (libcore.js:1538-1546) at the resolution the browser grants
+//     (libcore.js:1521-1536: 1 ns stated for Node, 1 us assumed for a
+//     browser; browsers coarsen it further on pages that are not
+//     cross-origin isolated, unconfirmed: the High Resolution Time
+//     standard was not read for this). Whether it counts suspension is not stated
+//     (unconfirmed), so Capability::elapsed_clock is false and ElapsedTime
+//     reads the same value, as on FreeBSD. Readings taken on different
+//     threads come from each worker's own timeOrigin: their order across
+//     threads is unconfirmed.
 // IntervalTime replaces std::chrono::steady_clock (stx_auxlib's
 // MonotonicTime, whose behaviour in suspension was the host's).
 //

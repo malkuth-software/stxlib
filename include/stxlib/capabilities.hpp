@@ -11,7 +11,10 @@
 //
 // Host families: macOS, glibc and musl (POSIX) and Windows (UCRT) in phase
 // I; FreeBSD (hosted, 15.2) is its own family (owner, 2026-11-13, "run
-// everywhere"), built and tested in phase II. A capability whose module has
+// everywhere"), built and tested in phase II; Emscripten (browsers and
+// Node, emsdk 6.0.13) joins in 1.0 after M3 (owner, 2026-11-15). On
+// Emscripten some answers are the runtime's, asked at each call (shared
+// memory, isolation, the pool): a build runs in browsers that differ. A capability whose module has
 // not been ported yet is reported unsupported on every host until it is
 // (README, "Platform layer"). The A1 platform-rest design note
 // (planning/stages/A1-platform-rest.md) has the table of every capability
@@ -74,9 +77,18 @@ enum class Capability : u8 {
     wake_channel = 27,      // a waitable wake-up any thread or signal handler can raise (wake.hpp)
     known_directories = 28, // the user's home, configuration, data and cache directories (files.hpp)
     process_identity = 29,  // the process's identifier (process.hpp)
+    // The Emscripten family (owner decision 2026-11-15, "Emscripten family
+    // and the appliance surface interface"): the facts a web program's
+    // threads depend on, and web storage. Native hosts answer the first two
+    // true (a process's threads share its memory and no other site's
+    // content shares the process) and the last two false.
+    shared_memory = 30,         // threads share one memory (the web: SharedArrayBuffer is present)
+    cross_origin_isolated = 31, // isolated from other origins (the web: COOP and COEP; Node: a process)
+    fixed_thread_pool = 32,     // threads come from a pool fixed at start (threads.hpp, thread_pool_limit)
+    web_storage = 33,           // volumes that outlive the page, and their close hook (web.hpp)
 };
 
-inline constexpr usize capability_count = 30;
+inline constexpr usize capability_count = 34;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.

@@ -234,6 +234,10 @@ Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     static_assert(static_cast<u64>(maximum_pool_threads) * sizeof(Thread) <= usize_max,
                   "the largest thread table's size is representable");
     const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, operation);
+    // The threads' array must be representable: on wasm32 a u32 count times
+    // sizeof(Thread) can pass usize_max, and the product would wrap to a
+    // short block that the loop below overruns.
+    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) return Result<AtomicPool>::failure(exhausted);
     void* const block = memory::allocate(sizeof(State), alignof(State));
     if (block == nullptr) return Result<AtomicPool>::failure(exhausted);
     State* const state = ::new (block) State();

@@ -11,6 +11,12 @@
 // --floatbv makes the double harnesses bit-precise (SMT floating-point
 // theory). The rounding harnesses state the result against arithmetic on
 // the value itself (no host function), for every double and every float.
+//
+// Pointer width: run each harness twice, as above (64-bit) and with
+// `--32 -D__wasm32__` added (wasm32's 32-bit usize and uptr; types.hpp
+// admits 32-bit pointers only under __wasm32__, and the cores here have no
+// other __wasm32__ branch). ESBMC's --32 and -D options are as its --help
+// lists them; unconfirmed at the pinned ESBMC (VERIFICATION_PROGRAMME).
 
 #include "stxlib/clocks.hpp"
 #include "stxlib/rounding.hpp"

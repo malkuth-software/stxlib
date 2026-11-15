@@ -42,6 +42,27 @@
 
 namespace stxlib::stx_btree::detail {
 
+// The keys a subtree one level shorter than the shortest holding `count`
+// keys holds, at `capacity` keys a node: (capacity + 1)^(levels - 1) - 1,
+// for count > capacity. The next candidate is computed only while it is
+// representable; one that would pass the type's largest value is at least
+// `count`, so the growth stops there. (Before the pointer-width audit the
+// product was formed unchecked; on wasm32 it wraps for counts above
+// 815730720 at capacity 12 and the loop went on with a wrapped value.)
+template <typename Unsigned>
+[[nodiscard]] constexpr Unsigned child_capacity_for(const Unsigned count, const Unsigned capacity) noexcept {
+    const Unsigned limit = static_cast<Unsigned>(~static_cast<Unsigned>(0)) / (capacity + 1);
+    Unsigned child = capacity;
+    while (child + 1 <= limit) {
+        const Unsigned next = (child + 1) * (capacity + 1) - 1;
+        if (next >= count) {
+            break;
+        }
+        child = next;
+    }
+    return child;
+}
+
 // Nodes in breadth-first order: node 0 is the root, and the children of
 // each node are consecutive, in exit order, so that exit e of node x leads
 // to node first_child[x] + (the number of child exits before e).
@@ -530,10 +551,7 @@ private:
         }
         // child_capacity: the keys a subtree one level shorter holds,
         // (capacity + 1)^(levels - 1) - 1 for the fewest levels holding count.
-        std::size_t child_capacity = capacity;
-        while ((child_capacity + 1) * (capacity + 1) - 1 < count) {
-            child_capacity = (child_capacity + 1) * (capacity + 1) - 1;
-        }
+        const std::size_t child_capacity = child_capacity_for(count, capacity);
         // m separators leave count - m keys in m + 1 children of at most
         // child_capacity: m >= (count - child_capacity) / (child_capacity + 1),
         // whose ceiling is floor(count / (child_capacity + 1)).

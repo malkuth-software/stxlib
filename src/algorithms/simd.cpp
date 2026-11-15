@@ -1,7 +1,8 @@
 // The process's SIMD level (include/stxlib/simd.hpp): CPU detection on
 // x86-64 with CPUID and XGETBV, NEON as the arm64 baseline, and the
 // once-per-process selection with its overrides. Ported from stx_auxlib's
-// src/simd.cpp at b6e330a. Changes: the selection word is
+// src/simd.cpp at b6e330a; SIMD128 for the Emscripten family (owner
+// decision 2026-11-15). Changes: the selection word is
 // ProcessState::simd_selection in stxlib_state (one per process, not one
 // per module); STX_SIMD_LEVEL is read through stxlib::read_variable; the
 // detection is not cached (it is a pure function of the machine, run once
@@ -74,6 +75,14 @@ Features detect() noexcept {
     // Advanced SIMD is part of the AArch64 baseline.
     features.neon = true;
 #endif
+#if defined(__wasm_simd128__)
+    // Clang defines __wasm_simd128__ under -msimd128
+    // (clang/lib/Basic/Targets/WebAssembly.cpp:121 on llvm main, read
+    // 2026-11-15; not at the LLVM revision emsdk 6.0.13 ships, which was not
+    // read). The engine validated this module's SIMD instructions before
+    // running it, so the feature is present (simd.hpp, Features::simd128).
+    features.simd128 = true;
+#endif
     return features;
 }
 #endif
@@ -83,7 +92,7 @@ Level level_of(const Features& features) noexcept {
     if (features.avx2 && features.fma) return Level::avx2_fma;
     if (features.sse2) return Level::vector128;
 #else
-    if (features.neon) return Level::vector128;
+    if (features.neon || features.simd128) return Level::vector128;
 #endif
     return Level::scalar;
 }
@@ -169,6 +178,8 @@ TextView level_name(const Level level) noexcept {
     case Level::vector128:
 #if defined(__aarch64__) || defined(_M_ARM64)
         return "neon-128";
+#elif defined(__wasm__)
+        return "wasm-simd-128";
 #else
         return "sse2-128";
 #endif
