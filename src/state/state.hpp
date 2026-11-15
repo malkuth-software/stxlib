@@ -147,6 +147,23 @@ struct ThreadState final {
     u64 thread_identity{0};
 };
 
+// The per-thread budget (house style §1, "account for peak storage"; audit
+// A, S3). ThreadState is a thread_local of stxlib_state, a shared library
+// loaded at start, so on every host it is static TLS: each thread of the
+// process carries it, foreign threads included. By field arithmetic on a
+// 64-bit host it is about 43,000 bytes:
+//   frames            64 x 120                          =  7,680
+//   shadows            4 x (40 + 64 x 120 + 32 x 8)     = 31,904
+//   recent             8 x ErrorRecord (about 340)      =  2,720
+//   open              32 x 16                           =    512
+//   counters and flags                                  about 100
+// The shadow records dominate. The budget leaves about 5 KiB of margin for
+// padding and for growth of ErrorRecord; a layout that needs more raises
+// the budget here, with its reason, in the same change.
+inline constexpr usize thread_state_budget = 48 * 1024;
+static_assert(sizeof(ThreadState) <= thread_state_budget,
+              "ThreadState exceeds its stated per-thread budget; see the arithmetic above");
+
 // A process-wide lock (core/spin_lock.hpp takes and releases it). Plain
 // data, so it lives here; zero is unlocked.
 struct SpinLock final {
