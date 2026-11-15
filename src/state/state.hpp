@@ -427,7 +427,7 @@ enum class RecordStatus : u8 {
 // build type) they return null and the current_ accessors below refuse.
 // thread_state allocates the block on the thread's first call; it never
 // unwinds (AGENTS.md, "Allocators must not unwind").
-STXLIB_STATE_API STXLIB_NO_UNWIND ThreadState* thread_state(u32 expected_layout) noexcept;
+STXLIB_NO_UNWIND STXLIB_STATE_API ThreadState* thread_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API ThreadFlags* thread_flags(u32 expected_layout) noexcept;
 STXLIB_STATE_API ProcessState* process_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API const AllocatorCalls* allocator(u32 expected_layout) noexcept;
