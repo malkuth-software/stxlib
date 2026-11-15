@@ -53,6 +53,18 @@ library's whole purpose:
 - Third-party code is pinned and hashed in `PROVENANCE.md`, updated only by
   replacing it with another pinned, hashed release, never edited in place.
   Every download is the owner's approval first: file, source and size.
+- One exception, mimalloc (the owner, 2026-11-15; notes
+  `decisions/2026-11-15-mimalloc-audit-answers.md`): STXlib keeps its own
+  patched copy. `third_party/mimalloc/` is the pinned release that
+  `PROVENANCE.md` names, with STXlib's patch series applied. Each patch is a
+  numbered diff in `third_party/mimalloc-patches/`, listed in its `series`.
+  Its header states the defect it fixes (audit ID) and whether it is to be
+  reported upstream; its hash and the hashes of the files it changes are in
+  `PROVENANCE.md`. `tools/check_mimalloc_patches.py` (ctest
+  `stxlib_mimalloc_patches`) reverse-applies the series and requires exactly
+  the pinned release. A change to mimalloc is a new, audited patch, never an
+  unrecorded edit. A port forward rebases the series onto the new release.
+  Sending anything upstream is the owner's approval first.
 - This repository depends on nothing outside itself except its declared,
   pinned dependencies. It may be built on its own.
 

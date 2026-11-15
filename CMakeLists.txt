@@ -262,8 +262,9 @@ if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
-    # mimalloc v3.6.1 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
-    # its one translation unit (src/static.c) into stxlib_state, with the
+    # mimalloc v3.6.1 with STXlib's patch series (third_party/mimalloc, MIT;
+    # third_party/mimalloc-patches; PROVENANCE.md), compiled as its one
+    # translation unit (src/static.c) into stxlib_state, with the
     # definitions stx_auxlib b6e330a used (CMakeLists.txt there). It replaces
     # no C library function (MI_MALLOC_OVERRIDE stays undefined) and its
     # symbols are hidden, so its heap holds STXlib's blocks only. Compiled as
@@ -287,14 +288,50 @@ if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
     set_target_properties(stxlib_mimalloc PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(stxlib_mimalloc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
     target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1 MI_PROFILE=0)
+    # The owner's choices on the mimalloc audit (2026-11-15; notes
+    # decisions/2026-11-15-mimalloc-audit-answers.md; the audit's IDs):
+    # - MI_NO_GETENV (Q1): mimalloc reads no environment. Unset, it reads up
+    #   to 62 MIMALLOC_* variables at load, setuid processes included, before
+    #   STXlib runs; they can make every allocation fail, write to stderr,
+    #   commit memory up front or crash at exit (D1, D3, D5, C3, C4, E3, B9).
+    #   src/util/libc.c, _mi_getenv, then returns "not set" for every name.
+    # - The memory settings (Q4), each avoiding a v3.6.1 defect that upstream
+    #   fixed after the release: MI_DEFAULT_PAGEMAP_COMMIT=1 commits the page
+    #   map's top level up front, so concurrent commits cannot lower its
+    #   committed count and make mi_is_in_heap_region miss a live block (A3,
+    #   B5; upstream 3e4c338a6). MI_DEFAULT_ARENA_MAX_OBJECT_SIZE=32768 (KiB)
+    #   sends blocks over 32 MiB straight to the OS, so a block of about
+    #   224-255 MiB no longer reserves an arena it cannot use and no arena
+    #   keeps an unusable multi-chunk tail (B2, B6; dfb9e5060, 202e2785c).
+    #   MI_NO_ALIGNED_HINT leaves arena placement to the kernel, so a first
+    #   allocation on a worker thread cannot leave later arenas at fixed low
+    #   addresses (B3; 24a5896da). On FreeBSD, MI_DEFAULT_ARENA_EAGER_COMMIT=0,
+    #   below: v3.6.1 reads vm.overcommit inverted (B4, unfixed upstream;
+    #   patch 0001 corrects the reading) and would commit whole arenas up
+    #   front under strict accounting. The
+    #   purge delay of 0 (B1) is an option set at start-up, not a definition.
+    target_compile_definitions(stxlib_mimalloc PRIVATE
+        MI_NO_GETENV
+        MI_DEFAULT_PAGEMAP_COMMIT=1
+        MI_DEFAULT_ARENA_MAX_OBJECT_SIZE=32768
+        MI_NO_ALIGNED_HINT)
+    if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+        target_compile_definitions(stxlib_mimalloc PRIVATE MI_DEFAULT_ARENA_EAGER_COMMIT=0)
+    endif()
     # -fno-exceptions: mimalloc throws only from its operator new path
     # (mi_new and its kind, src/alloc/alloc.c, mi_try_new_handler), which STXlib
     # never calls (src/state/allocator.cpp calls mi_malloc_aligned, mi_free
     # and mi_is_in_heap_region); built without exceptions that path aborts
     # instead, and the object refers to no exception runtime
     # (stxlib_no_exception_symbols).
+    # -ftls-model=local-dynamic (the owner, Q2): with initial-exec the loader
+    # must place this module's whole TLS block in static TLS, so a dlopen of
+    # stxlib_state fails on musl always and on glibc and FreeBSD once their
+    # small reserve is used (audit C1), and sb3's thread-records design loads
+    # stxlib_state through dlopen too. Where the final link is an executable
+    # the linker relaxes the accesses to local-exec again.
     target_compile_options(stxlib_mimalloc PRIVATE
-        -w -fvisibility=hidden -ftls-model=initial-exec -fno-sanitize=all -fno-exceptions)
+        -w -fvisibility=hidden -ftls-model=local-dynamic -fno-sanitize=all -fno-exceptions)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
     endif()
@@ -1005,6 +1042,12 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # STXlib's patched mimalloc (AGENTS.md): the tree is the pinned
+        # release with the series of third_party/mimalloc-patches applied,
+        # every hash as PROVENANCE.md records it.
+        add_test(NAME stxlib_mimalloc_patches
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_mimalloc_patches.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).

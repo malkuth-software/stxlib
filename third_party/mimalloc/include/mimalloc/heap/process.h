@@ -22,6 +22,8 @@ void          _mi_thread_done(mi_theap_t* theap);
 mi_theap_t*   _mi_thread_init(void);
 mi_theap_t*   _mi_thread_init_with_heap(mi_heap_t* heap);
 bool          _mi_is_empty_theap(const mi_theap_t* theap);
+mi_theap_t*   _mi_theap_unavailable(void);    // empty default theap of a thread after `mi_thread_done`, or returned if a theap could not be created
+bool          _mi_thread_is_done(void);       // true after `mi_thread_done` (until an explicit `mi_thread_init`)
 
 extern mi_decl_hidden const mi_theap_t _mi_theap_empty; // read-only empty theap, initial value of the thread local default theap (in the MI_TLS_MODEL_LOCAL)
 
@@ -102,7 +104,7 @@ typedef struct mi_process_s {
   mi_decl_cache_align mi_tld_t      tld_main;               // initial tld for the main thread
   mi_decl_cache_align mi_theap_t    theap_meta;             // detached theap for meta-data allocation
   mi_decl_cache_align mi_tld_t      tld_meta;               // detached tld for `theap_meta`
-  mi_decl_cache_align mi_theap_t    theap_empty_wrong;      // read-only empty theap used to signal that a theap for a heap could not be allocated
+  mi_decl_cache_align mi_theap_t    theap_unavailable;      // read-only empty theap used for a thread after `mi_thread_done`, or if a theap for a heap could not be allocated
 
   // arrays last
   mi_option_state_t                 options[_mi_option_last]; // current option values (see `util/options.c`)
@@ -113,5 +115,10 @@ typedef struct mi_process_s {
 } mi_process_t;
 
 extern mi_decl_hidden mi_process_t _mi_process;
+
+// Is this the unavailable theap? (the default theap of a thread after `mi_thread_done`, or returned if a theap could not be created)
+static inline bool _mi_theap_is_unavailable(const mi_theap_t* theap) {
+  return (theap == &_mi_process.theap_unavailable);
+}
 
 #endif
