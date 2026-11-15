@@ -44,6 +44,8 @@ void write_standard_error(const char* const bytes, const usize count) noexcept {
     }
 }
 
+void hold_cancellation() noexcept {} // Windows has no thread cancellation
+
 void yield_thread() noexcept { static_cast<void>(SwitchToThread()); }
 
 void sleep_briefly() noexcept { Sleep(1); }

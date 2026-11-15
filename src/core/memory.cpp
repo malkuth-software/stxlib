@@ -20,6 +20,7 @@ namespace {
 }
 
 [[noreturn]] void reject_release() noexcept {
+    host::hold_cancellation(); // the report writes (audit E, section 4.9)
     report::text("stxlib: requirement failed: stxlib::memory::release: the block is not from memory::allocate, "
                  "or was already released\n");
     host::end_process_abnormally();

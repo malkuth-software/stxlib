@@ -137,6 +137,10 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
 }
 
 void fail_fast(const ErrorRecord& record) noexcept {
+    // The report writes, and the reporter may block: with cancellation on,
+    // a cancellation point there would unwind this thread out of fail_fast,
+    // and the process would go on (audit E, section 4.9).
+    host::hold_cancellation();
     // The anchor, not the block: fail-fast needs no allocation (state.hpp).
     state::ThreadFlags& thread = state::current_flags();
     thread.fail_fast_depth = thread.fail_fast_depth + 1;

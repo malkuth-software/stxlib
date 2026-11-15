@@ -31,6 +31,13 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void write_standard_error(con
 // where it makes one. No exit handler or static destructor runs.
 [[noreturn]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void end_process_abnormally() noexcept;
 
+// Turns off POSIX thread cancellation for the calling thread for good; on
+// Windows, which has none, does nothing. For a path that ends the process
+// (fail-fast): a cancellation point reached on it would otherwise unwind
+// the thread out of it, so the thread would exit and the process go on
+// (audit E, section 4.9).
+STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void hold_cancellation() noexcept;
+
 // Offers the processor to another thread (a spin-wait's pause).
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void yield_thread() noexcept;
 

@@ -68,6 +68,10 @@ bool arm(void* const block) noexcept {
 namespace state {
 
 void refuse_layout(const char* const message) noexcept {
+    // write is a cancellation point: with cancellation on, it could unwind
+    // the thread out of here instead of ending the process (audit E, 4.9).
+    int previous = 0;
+    static_cast<void>(::pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &previous));
     const usize count = std::strlen(message);
     usize written = 0;
     while (written < count) {

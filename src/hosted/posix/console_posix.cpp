@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <ctime>
 
+#include <pthread.h>
 #include <sched.h>
 #include <sys/uio.h>
 #include <unistd.h>
@@ -29,6 +30,11 @@ void write_standard_error(const char* const bytes, const usize count) noexcept {
         if (result == 0) return;
         written += static_cast<usize>(result);
     }
+}
+
+void hold_cancellation() noexcept {
+    int previous = 0;
+    static_cast<void>(::pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &previous));
 }
 
 void yield_thread() noexcept { static_cast<void>(::sched_yield()); }
