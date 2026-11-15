@@ -147,6 +147,10 @@ void pages_fill_and_drain() {
     fill_and_drain(1024, 300, 7);
     fill_and_drain(20000, 100, 3);
     fill_and_drain(200000, 40, 3);
+    // More pages than a heap claims back of one class (64 small, 8
+    // medium): the releases into the rest leave them abandoned.
+    fill_and_drain(1024, 6000, 7);
+    fill_and_drain(65536, 100, 7);
     // And again, so released pages and blocks are used a second time.
     fill_and_drain(16, 10000, 3);
     fill_and_drain(200000, 40, 7);

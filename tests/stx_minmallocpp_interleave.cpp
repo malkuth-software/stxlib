@@ -124,11 +124,20 @@ namespace {
 
 // ---- scenarios ---------------------------------------------------------------------
 
-// The largest class: 8 blocks to a page, one bitmap word, so a page fills
-// in eight allocations and each operation has few steps.
-constexpr usize block_bytes = largest_class_bytes;
+// The largest class of medium pages: 8 blocks to a page, one bitmap word,
+// so a page fills in eight allocations and each operation has few steps;
+// and a heap may hold 8 pages of it, so a release into an abandoned page
+// by a heap that is allocating the class claims the page. (It never does
+// for the classes of large pages, where the current page is the heap's
+// whole allowance: with one of those, as this file first had it, the
+// claim was not exercised.)
+constexpr usize block_bytes = 65536;
 constexpr usize page_capacity = 8;
 constexpr usize block_limit = 12;
+
+static_assert(class_table.shapes[class_of(block_bytes)].capacity == page_capacity &&
+                  class_table.shapes[class_of(block_bytes)].page_slices * 2 <= keep_slices,
+              "the scenarios' class: 8 blocks to a page, and a heap may hold more than one page of it");
 
 // What a scenario's threads share. Each thread's `before` runs on that
 // thread before it is controlled (its marks do nothing), so it may set up

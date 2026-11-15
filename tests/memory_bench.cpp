@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <functional>
 #include <thread>
 #include <vector>
@@ -208,7 +209,15 @@ void row(const char* const name, const double ours, const double host) {
 
 } // namespace
 
-int main() {
+int main(const int argument_count, const char* const* const arguments) {
+    if (argument_count == 2 && std::strcmp(arguments[1], "churn") == 0) {
+        // Only the large churn, through stxlib::memory, several times over:
+        // long enough for a sampling profiler to see where its time goes.
+        for (int pass = 0; pass < 8; ++pass) {
+            std::printf("churn 100000 slots %9.2f\n", churn(stxlib_calls, 100000, 2000000));
+        }
+        return 0;
+    }
     const char* backend = "host";
     if (stxlib::memory::backend() == stxlib::memory::Backend::mimalloc) backend = "mimalloc";
     if (stxlib::memory::backend() == stxlib::memory::Backend::stx_minmallocpp) backend = "stx_minmallocpp";
