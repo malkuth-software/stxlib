@@ -183,6 +183,34 @@ private:
     DIR* stream_;
 };
 
+// The last-write time of a stat result, as WallTime. tv_sec * 10^9 stays
+// in i64 for every time WallTime can hold; seconds beyond its range (past
+// 2262) are clamped to its ends (stx_auxlib's).
+WallTime modified_of(const struct stat& described) noexcept {
+#if defined(__APPLE__)
+    const struct timespec modified = described.st_mtimespec;
+#else
+    const struct timespec modified = described.st_mtim;
+#endif
+    constexpr i64 largest_seconds = 9223372035;
+    constexpr i64 smallest_seconds = -9223372035;
+    i64 seconds = static_cast<i64>(modified.tv_sec);
+    if (seconds > largest_seconds) seconds = largest_seconds;
+    if (seconds < smallest_seconds) seconds = smallest_seconds;
+    const i64 count = detail::saturating_add(seconds * 1000000000LL, static_cast<i64>(modified.tv_nsec));
+    const WallTime result = WallTime::from_unix_nanoseconds(count);
+    return result;
+}
+
+void describe(const struct stat& described, FileInformation& information) noexcept {
+    information.kind = kind_of_mode(described.st_mode);
+    information.size = 0;
+    if (information.kind == FileKind::regular) {
+        information.size = described.st_size < 0 ? 0 : static_cast<u64>(described.st_size);
+    }
+    information.modified = modified_of(described);
+}
+
 // Copies a NUL-terminated host string into `text`.
 Outcome copy_text(const char* const host, Growable<char>& text) noexcept {
     text.clear();
@@ -273,29 +301,76 @@ Outcome close(const i64 handle) noexcept {
     return success();
 }
 
+// ---- positioned I/O and the open file's metadata (M2 C2) ----
+// pread and pwrite take the offset and leave the descriptor's position
+// (POSIX.1-2017, pread). off_t is 64 bits (static_assert in seek), and core
+// passes offsets of at most 2^63 - 1.
+
+Outcome read_at(const i64 handle, const u64 offset, Byte* const bytes, const usize count, usize& transferred) noexcept {
+    transferred = 0;
+    const usize request = count < largest_transfer ? count : largest_transfer;
+    const off_t at = static_cast<off_t>(offset);
+    ssize_t got = ::pread(descriptor(handle), bytes, request, at);
+    while (got < 0 && errno == EINTR) got = ::pread(descriptor(handle), bytes, request, at);
+    if (got < 0) return from_errno(errno);
+    transferred = static_cast<usize>(got);
+    return success();
+}
+
+Outcome write_at(const i64 handle, const u64 offset, const Byte* const bytes, const usize count,
+                 usize& transferred) noexcept {
+    transferred = 0;
+    const usize request = count < largest_transfer ? count : largest_transfer;
+    const off_t at = static_cast<off_t>(offset);
+    ssize_t put = ::pwrite(descriptor(handle), bytes, request, at);
+    while (put < 0 && errno == EINTR) put = ::pwrite(descriptor(handle), bytes, request, at);
+    if (put < 0) return from_errno(errno);
+    if (put == 0 && request != 0) return failure(FileStatus::io_error);
+    transferred = static_cast<usize>(put);
+    return success();
+}
+
+Outcome information(const i64 handle, FileInformation& information) noexcept {
+    information = FileInformation{};
+    struct stat described{};
+    if (::fstat(descriptor(handle), &described) != 0) return from_errno(errno);
+    describe(described, information);
+    return success();
+}
+
+// futimens with UTIME_OMIT for the access time (POSIX.1-2008; macOS from
+// 10.13). WallTime's nanoseconds split with the remainder kept non-negative,
+// so a time before 1970 is still exact.
+Outcome set_modified(const i64 handle, const WallTime modified) noexcept {
+    const i64 count = modified.unix_nanoseconds();
+    i64 seconds = count / 1000000000LL;
+    i64 nanoseconds = count % 1000000000LL;
+    if (nanoseconds < 0) {
+        nanoseconds = nanoseconds + 1000000000LL;
+        seconds = seconds - 1;
+    }
+    struct timespec times[2]{};
+    times[0].tv_sec = 0;
+    times[0].tv_nsec = UTIME_OMIT;
+    times[1].tv_sec = static_cast<time_t>(seconds);
+    times[1].tv_nsec = static_cast<long>(nanoseconds);
+    if (::futimens(descriptor(handle), times) != 0) return from_errno(errno);
+    return success();
+}
+
+Outcome set_size(const i64 handle, const u64 bytes) noexcept {
+    int result = ::ftruncate(descriptor(handle), static_cast<off_t>(bytes));
+    while (result != 0 && errno == EINTR) result = ::ftruncate(descriptor(handle), static_cast<off_t>(bytes));
+    if (result != 0) return from_errno(errno);
+    return success();
+}
+
 Outcome inspect(const char* const name, const LinkMode links, FileInformation& information) noexcept {
     information = FileInformation{};
     struct stat described{};
     const int found = links == LinkMode::follow ? ::stat(name, &described) : ::lstat(name, &described);
     if (found != 0) return from_errno(errno);
-    information.kind = kind_of_mode(described.st_mode);
-    if (information.kind == FileKind::regular) {
-        information.size = described.st_size < 0 ? 0 : static_cast<u64>(described.st_size);
-    }
-#if defined(__APPLE__)
-    const struct timespec modified = described.st_mtimespec;
-#else
-    const struct timespec modified = described.st_mtim;
-#endif
-    // tv_sec * 10^9 stays in i64 for every time WallTime can hold; seconds
-    // beyond its range (past 2262) are clamped to its ends (stx_auxlib's).
-    constexpr i64 largest_seconds = 9223372035;
-    constexpr i64 smallest_seconds = -9223372035;
-    i64 seconds = static_cast<i64>(modified.tv_sec);
-    if (seconds > largest_seconds) seconds = largest_seconds;
-    if (seconds < smallest_seconds) seconds = smallest_seconds;
-    const i64 count = detail::saturating_add(seconds * 1000000000LL, static_cast<i64>(modified.tv_nsec));
-    information.modified = WallTime::from_unix_nanoseconds(count);
+    describe(described, information);
     return success();
 }
 
@@ -345,6 +420,260 @@ Outcome remove(const char* const name) noexcept {
     }
     if (::unlink(name) != 0) return from_errno(errno);
     return success();
+}
+
+// ---- remove_tree (files.hpp states the safety and the bounds) ----
+//
+// One directory is open at a time, as a stream over its own descriptor.
+// Its entries are judged and removed relative to that descriptor: a
+// directory is entered with openat(O_NOFOLLOW | O_DIRECTORY), so a link put
+// in its place is refused (ELOOP on Linux and macOS; EMLINK on FreeBSD,
+// lib/libsys/open.2:666-668 and :852-854 at the pin) and removed as a link;
+// anything else is removed with unlinkat. A directory is entered as soon as
+// one is met; once it is empty, its parent is reopened through ".." and
+// checked against the device and inode recorded on the way down, the
+// directory is removed from it (if its name still names it), and the
+// parent's entries are read again from the start. A pass that removed
+// entries is followed by another (POSIX leaves unspecified whether readdir
+// returns entries after a removal, POSIX.1-2017 readdir), so a directory is
+// left only when one whole pass finds nothing.
+
+namespace {
+
+// A directory entered: its name in its parent (in the name stack, with its
+// NUL) and its identity.
+struct TreeLevel final {
+    usize name_offset{0};
+    usize name_count{0};
+    dev_t device{};
+    ino_t inode{};
+};
+
+// Owns one directory stream; close() ends it early.
+class TreeStream final {
+public:
+    explicit TreeStream(DIR* const stream) noexcept : stream_(stream) {}
+    TreeStream(const TreeStream&) = delete;
+    TreeStream& operator=(const TreeStream&) = delete;
+    ~TreeStream() { close(); }
+
+    [[nodiscard]] DIR* get() const noexcept { return stream_; }
+    void close() noexcept {
+        if (stream_ != nullptr) (void)::closedir(stream_);
+        stream_ = nullptr;
+    }
+
+private:
+    DIR* stream_;
+};
+
+enum class EntryKind : u8 {
+    directory = 0,
+    other = 1,
+    gone = 2,
+};
+
+// Whether an open with O_NOFOLLOW | O_DIRECTORY met a link or a
+// non-directory.
+bool not_a_directory_now(const int error) noexcept {
+    const bool result = error == ELOOP || error == EMLINK || error == ENOTDIR;
+    return result;
+}
+
+int open_directory_at(const int parent, const char* const name, const int extra_flags) noexcept {
+    const int flags = O_RDONLY | O_DIRECTORY | O_CLOEXEC | extra_flags;
+    int fd = ::openat(parent, name, flags);
+    while (fd < 0 && errno == EINTR) fd = ::openat(parent, name, flags);
+    return fd;
+}
+
+EntryKind entry_kind(const int directory, const struct dirent& entry) noexcept {
+#if defined(DT_DIR) && defined(DT_UNKNOWN)
+    if (entry.d_type == DT_DIR) return EntryKind::directory;
+    if (entry.d_type != DT_UNKNOWN) return EntryKind::other;
+#endif
+    struct stat described{};
+    if (::fstatat(directory, entry.d_name, &described, AT_SYMLINK_NOFOLLOW) != 0) {
+        // Anything else is reported by the removal that follows.
+        return errno == ENOENT ? EntryKind::gone : EntryKind::other;
+    }
+    return S_ISDIR(described.st_mode) ? EntryKind::directory : EntryKind::other;
+}
+
+bool same_object(const struct stat& described, const dev_t device, const ino_t inode) noexcept {
+    const bool result = described.st_dev == device && described.st_ino == inode;
+    return result;
+}
+
+Outcome not_empty(const int error) noexcept {
+    const Outcome result{FileStatus::directory_not_empty, ForeignCode::of(ForeignFamily::posix_errno, error)};
+    return result;
+}
+
+// Removes a non-directory entry. `again` is set when the entry has become a
+// directory since it was read (unlink refuses a directory with EISDIR on
+// Linux, EPERM on macOS and FreeBSD), so the pass is repeated.
+Outcome unlink_entry(const int directory, const char* const name, u64& removed, bool& again) noexcept {
+    if (::unlinkat(directory, name, 0) == 0) {
+        removed = removed + 1;
+        again = true;
+        return success();
+    }
+    const int error = errno;
+    if (error == ENOENT) return success();
+    if (error == EISDIR || error == EPERM) {
+        struct stat described{};
+        if (::fstatat(directory, name, &described, AT_SYMLINK_NOFOLLOW) == 0 && S_ISDIR(described.st_mode)) {
+            again = true;
+            return success();
+        }
+    }
+    return from_errno(error);
+}
+
+// Removes the empty directory `level` names from `parent`, if that name
+// still names it.
+Outcome remove_entered(const int parent, const char* const name, const TreeLevel& level, u64& removed) noexcept {
+    struct stat named{};
+    if (::fstatat(parent, name, &named, AT_SYMLINK_NOFOLLOW) != 0) {
+        if (errno == ENOENT) return success();
+        return from_errno(errno);
+    }
+    // Moved away and replaced: what has the name now is not ours to remove.
+    if (!same_object(named, level.device, level.inode)) return success();
+    if (::unlinkat(parent, name, AT_REMOVEDIR) == 0) {
+        removed = removed + 1;
+        return success();
+    }
+    const int error = errno;
+    if (error == ENOENT) return success();
+    if (error == EEXIST || error == ENOTEMPTY) return not_empty(error);
+    return from_errno(error);
+}
+
+} // namespace
+
+Outcome remove_tree(const char* const name, const usize depth_limit, u64& removed) noexcept {
+    const int top = open_retrying(name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0);
+    if (top < 0) {
+        const int error = errno;
+        if (!not_a_directory_now(error)) return from_errno(error);
+        // Not a directory, or a link: that one entry.
+        const Outcome single = remove(name);
+        if (single.ok()) removed = removed + 1;
+        return single;
+    }
+    Growable<TreeLevel> levels;
+    Growable<char> level_names;
+    struct stat described{};
+    if (::fstat(top, &described) != 0) {
+        const int error = errno;
+        (void)::close(top);
+        return from_errno(error);
+    }
+    TreeLevel first{};
+    first.device = described.st_dev;
+    first.inode = described.st_ino;
+    if (!levels.push(first)) {
+        (void)::close(top);
+        return no_memory();
+    }
+    int current = top;
+    for (;;) {
+        DIR* const opened = ::fdopendir(current);
+        if (opened == nullptr) {
+            const int error = errno;
+            (void)::close(current);
+            return from_errno(error);
+        }
+        TreeStream stream(opened);
+        const int directory = ::dirfd(stream.get());
+        int child = -1;
+        bool again = false;
+        for (;;) {
+            errno = 0;
+            const struct dirent* const entry = ::readdir(stream.get());
+            if (entry == nullptr) {
+                if (errno != 0) return from_errno(errno);
+                if (!again) break;
+                again = false;
+                ::rewinddir(stream.get());
+                continue;
+            }
+            const char* const entry_name = (*entry).d_name;
+            if (std::strcmp(entry_name, ".") == 0 || std::strcmp(entry_name, "..") == 0) continue;
+            const EntryKind kind = entry_kind(directory, *entry);
+            if (kind == EntryKind::gone) continue;
+            if (kind == EntryKind::other) {
+                const Outcome unlinked = unlink_entry(directory, entry_name, removed, again);
+                if (!unlinked.ok()) return unlinked;
+                continue;
+            }
+            // levels holds the top and the directories below it: entering
+            // one more makes the depth levels.count().
+            if (levels.count() > depth_limit) return failure(FileStatus::too_large);
+            child = open_directory_at(directory, entry_name, O_NOFOLLOW);
+            if (child < 0) {
+                const int error = errno;
+                if (error == ENOENT) continue;
+                if (!not_a_directory_now(error)) return from_errno(error);
+                const Outcome unlinked = unlink_entry(directory, entry_name, removed, again);
+                if (!unlinked.ok()) return unlinked;
+                continue;
+            }
+            struct stat entered{};
+            if (::fstat(child, &entered) != 0) {
+                const int error = errno;
+                (void)::close(child);
+                return from_errno(error);
+            }
+            TreeLevel level{};
+            level.name_offset = level_names.count();
+            level.name_count = std::strlen(entry_name);
+            level.device = entered.st_dev;
+            level.inode = entered.st_ino;
+            if (!level_names.append(entry_name, level.name_count) || !level_names.push('\0') || !levels.push(level)) {
+                (void)::close(child);
+                return no_memory();
+            }
+            break;
+        }
+        if (child >= 0) {
+            // The parent's stream closes here; the child is read next.
+            current = child;
+            continue;
+        }
+        // The directory is empty (one whole pass found nothing).
+        if (levels.count() == 1) {
+            stream.close();
+            if (::rmdir(name) == 0) {
+                removed = removed + 1;
+                return success();
+            }
+            const int error = errno;
+            if (error == ENOENT) return success();
+            if (error == EEXIST || error == ENOTEMPTY) return not_empty(error);
+            return from_errno(error);
+        }
+        const int parent = open_directory_at(directory, "..", 0);
+        if (parent < 0) return from_errno(errno);
+        const TreeLevel level = levels[levels.count() - 1];
+        const TreeLevel& above = levels[levels.count() - 2];
+        struct stat reopened{};
+        if (::fstat(parent, &reopened) != 0 || !same_object(reopened, above.device, above.inode)) {
+            (void)::close(parent);
+            return failure(FileStatus::busy);
+        }
+        stream.close();
+        const Outcome gone = remove_entered(parent, level_names.data() + level.name_offset, level, removed);
+        if (!gone.ok()) {
+            (void)::close(parent);
+            return gone;
+        }
+        level_names.shrink(level.name_offset);
+        levels.shrink(levels.count() - 1);
+        current = parent;
+    }
 }
 
 Outcome rename(const char* const from, const char* const to) noexcept {

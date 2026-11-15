@@ -243,19 +243,6 @@ bool is_segment(const char* const bytes, const usize count) noexcept {
     return true;
 }
 
-// `directory` + '/' + `name` + NUL; a root ("/", "C:/") already ends with
-// its separator, and a doubled one would read as a UNC prefix on Windows
-// and as implementation-defined on POSIX hosts.
-bool child_name(const char* const directory, const char* const name, const usize name_count,
-                Growable<char>& output) noexcept {
-    output.clear();
-    const usize count = std::strlen(directory);
-    const bool separated = count != 0 && directory[count - 1] == '/';
-    const bool result = output.append(directory, count) && (separated || output.push('/')) &&
-                        output.append(name, name_count) && output.push('\0');
-    return result;
-}
-
 } // namespace
 
 // ---- File --------------------------------------------------------------------
@@ -264,12 +251,13 @@ File::~File() {
     if (handle_ != closed) (void)file_backend::close(handle_);
 }
 
-File::File(File&& other) noexcept : handle_(other.handle_) { other.handle_ = closed; }
+File::File(File&& other) noexcept : handle_(other.handle_), mode_(other.mode_) { other.handle_ = closed; }
 
 File& File::operator=(File&& other) noexcept {
     if (this == &other) return *this;
     if (handle_ != closed) (void)file_backend::close(handle_);
     handle_ = other.handle_;
+    mode_ = other.mode_;
     other.handle_ = closed;
     return *this;
 }
@@ -282,7 +270,7 @@ Result<File> File::open(const Path& path, const FileMode mode) noexcept {
     i64 handle = file_backend::no_handle;
     const Outcome opened = file_backend::open(name.data(), mode, handle);
     if (!opened.ok()) return Result<File>::failure(record_of(opened, operation));
-    Result<File> result = Result<File>::success(File(handle));
+    Result<File> result = Result<File>::success(File(handle, mode));
     return result;
 }
 
@@ -347,6 +335,74 @@ Status File::close() noexcept {
     const i64 handle = handle_;
     handle_ = closed;
     const Status result = status_of(file_backend::close(handle), operation);
+    return result;
+}
+
+// ---- positioned I/O and the open file's metadata (M2 C2) ------------------------
+
+namespace {
+
+constexpr u64 largest_offset = static_cast<u64>(i64_max);
+
+Status refused_state(const Operation operation) noexcept {
+    const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
+    return result;
+}
+
+} // namespace
+
+Result<usize> File::read_at(const u64 offset, const MutableView<Byte> output) noexcept {
+    const Operation operation = "stxlib.files.read_at";
+    if (!is_open()) return Result<usize>::failure(bad_handle_record(operation));
+    if (offset > largest_offset) return Result<usize>::failure(record_of_status(FileStatus::too_large, operation));
+    usize transferred = 0;
+    const Outcome outcome = file_backend::read_at(handle_, offset, output.data(), output.count(), transferred);
+    if (!outcome.ok()) return Result<usize>::failure(record_of(outcome, operation));
+    return Result<usize>::success(transferred);
+}
+
+Status File::write_all_at(const u64 offset, const View<Byte> input) noexcept {
+    const Operation operation = "stxlib.files.write_at";
+    if (!is_open()) return bad_handle(operation);
+    if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
+    if (offset > largest_offset || input.count() > largest_offset - offset) {
+        return failed(file_backend::failure(FileStatus::too_large), operation);
+    }
+    usize written = 0;
+    while (written < input.count()) {
+        usize transferred = 0;
+        const u64 at = offset + static_cast<u64>(written);
+        const Outcome outcome =
+            file_backend::write_at(handle_, at, input.data() + written, input.count() - written, transferred);
+        if (!outcome.ok()) return failed(outcome, operation);
+        written = written + transferred;
+    }
+    return Status::success();
+}
+
+Result<FileInformation> File::information() noexcept {
+    const Operation operation = "stxlib.files.information";
+    if (!is_open()) return Result<FileInformation>::failure(bad_handle_record(operation));
+    FileInformation described{};
+    const Outcome outcome = file_backend::information(handle_, described);
+    if (!outcome.ok()) return Result<FileInformation>::failure(record_of(outcome, operation));
+    return Result<FileInformation>::success(described);
+}
+
+Status File::set_modified(const WallTime modified) noexcept {
+    const Operation operation = "stxlib.files.set_modified";
+    if (!is_open()) return bad_handle(operation);
+    if (mode_ == FileMode::read) return refused_state(operation);
+    const Status result = status_of(file_backend::set_modified(handle_, modified), operation);
+    return result;
+}
+
+Status File::set_size(const u64 bytes) noexcept {
+    const Operation operation = "stxlib.files.set_size";
+    if (!is_open()) return bad_handle(operation);
+    if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
+    if (bytes > largest_offset) return failed(file_backend::failure(FileStatus::too_large), operation);
+    const Status result = status_of(file_backend::set_size(handle_, bytes), operation);
     return result;
 }
 
@@ -516,72 +572,18 @@ Status remove(const Path& path) noexcept {
     return result;
 }
 
-// Iterative, so depth costs heap, not stack: a stack of directory names;
-// the top is listed, its non-directories removed and its directories
-// pushed; a top with no directories left is removed and popped. A directory
-// is listed again after its subdirectories are gone.
+// The traversal is the backend's (file_backend::remove_tree): relative to
+// each directory's own descriptor or held handle, so only `path` is looked up
+// by name (files.hpp states the safety and the bounds).
 Result<u64> remove_tree(const Path& path) noexcept {
     const Operation operation = "stxlib.files.remove_tree";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
     if (!converted.ok()) return Result<u64>::failure(record_of(converted, operation));
-    FileInformation information{};
-    const Outcome described = file_backend::inspect(name.data(), LinkMode::no_follow, information);
-    if (described.status == FileStatus::not_found) return Result<u64>::success(0);
-    if (!described.ok()) return Result<u64>::failure(record_of(described, operation));
-    if (information.kind != FileKind::directory) {
-        const Outcome removed = file_backend::remove(name.data());
-        if (!removed.ok()) return Result<u64>::failure(record_of(removed, operation));
-        return Result<u64>::success(1);
-    }
-    const Outcome no_memory = file_backend::failure(FileStatus::out_of_memory);
-    Growable<char> stack_names;
-    Growable<usize> stack_starts;
-    if (!stack_starts.push(0) || !stack_names.append(name.data(), name.count())) {
-        return Result<u64>::failure(record_of(no_memory, operation));
-    }
     u64 removed = 0;
-    Growable<char> top;
-    Growable<char> names;
-    Growable<file_backend::RawEntry> entries;
-    Growable<char> child;
-    while (!stack_starts.empty()) {
-        const usize start = stack_starts[stack_starts.count() - 1];
-        top.clear();
-        if (!top.append(stack_names.data() + start, stack_names.count() - start)) {
-            return Result<u64>::failure(record_of(no_memory, operation));
-        }
-        names.clear();
-        entries.clear();
-        // Host names throughout: a child's name is the host's own, so every
-        // entry is reachable whatever its name (D13 a).
-        const Outcome listed = file_backend::list(top.data(), usize_max, names, entries);
-        if (!listed.ok()) return Result<u64>::failure(record_of(listed, operation));
-        bool pushed = false;
-        for (usize index = 0; index < entries.count(); ++index) {
-            const file_backend::RawEntry entry = entries[index];
-            if (!child_name(top.data(), names.data() + entry.offset, entry.count, child)) {
-                return Result<u64>::failure(record_of(no_memory, operation));
-            }
-            if (entry.kind == FileKind::directory) {
-                if (!stack_starts.push(stack_names.count()) || !stack_names.append(child.data(), child.count())) {
-                    return Result<u64>::failure(record_of(no_memory, operation));
-                }
-                pushed = true;
-                continue;
-            }
-            const Outcome gone = file_backend::remove(child.data());
-            if (gone.status == FileStatus::not_found) continue;
-            if (!gone.ok()) return Result<u64>::failure(record_of(gone, operation));
-            removed = removed + 1;
-        }
-        if (pushed) continue;
-        const Outcome gone = file_backend::remove(top.data());
-        if (!gone.ok() && gone.status != FileStatus::not_found) return Result<u64>::failure(record_of(gone, operation));
-        if (gone.ok()) removed = removed + 1;
-        stack_names.shrink(start);
-        stack_starts.shrink(stack_starts.count() - 1);
-    }
+    const Outcome outcome = file_backend::remove_tree(name.data(), maximum_remove_tree_depth, removed);
+    if (outcome.status == FileStatus::not_found && removed == 0) return Result<u64>::success(0);
+    if (!outcome.ok()) return Result<u64>::failure(record_of(outcome, operation));
     return Result<u64>::success(removed);
 }
 

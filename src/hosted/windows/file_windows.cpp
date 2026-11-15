@@ -253,16 +253,19 @@ Outcome open(const char* const name, const FileMode mode, i64& handle) noexcept 
         access = GENERIC_READ;
         disposition = OPEN_EXISTING;
         break;
+    // FILE_READ_ATTRIBUTES for File::information and size on every mode;
+    // FILE_WRITE_ATTRIBUTES (in GENERIC_WRITE) for File::set_modified, added
+    // to the append access, which holds no other write right (M2 C2).
     case FileMode::create_new:
-        access = GENERIC_WRITE;
+        access = GENERIC_WRITE | FILE_READ_ATTRIBUTES;
         disposition = CREATE_NEW;
         break;
     case FileMode::replace:
-        access = GENERIC_WRITE;
+        access = GENERIC_WRITE | FILE_READ_ATTRIBUTES;
         disposition = CREATE_ALWAYS;
         break;
     case FileMode::append:
-        access = FILE_APPEND_DATA | SYNCHRONIZE;
+        access = FILE_APPEND_DATA | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE;
         disposition = OPEN_ALWAYS;
         break;
     default:
@@ -345,6 +348,119 @@ Outcome close(const i64 handle) noexcept {
     return success();
 }
 
+// ---- positioned I/O and the open file's metadata (M2 C2) ----
+// ReadFile and WriteFile with an OVERLAPPED offset on a handle opened
+// without FILE_FLAG_OVERLAPPED read or write at that offset and move the
+// file pointer past it ("ReadFile function", Synchronization and File
+// Position; Microsoft Learn, as published), so the pointer is read first
+// and put back after: File's position is unchanged, as with pread.
+
+namespace {
+
+OVERLAPPED at_offset(const u64 offset) noexcept {
+    OVERLAPPED overlapped{};
+    overlapped.Offset = static_cast<DWORD>(offset & 0xFFFFFFFFu);
+    overlapped.OffsetHigh = static_cast<DWORD>(offset >> 32);
+    return overlapped;
+}
+
+bool current_pointer(const HANDLE handle, LARGE_INTEGER& saved) noexcept {
+    LARGE_INTEGER zero{};
+    const bool result = SetFilePointerEx(handle, zero, &saved, FILE_CURRENT) != 0;
+    return result;
+}
+
+Outcome restore_pointer(const HANDLE handle, const LARGE_INTEGER saved, const Outcome outcome) noexcept {
+    if (!SetFilePointerEx(handle, saved, nullptr, FILE_BEGIN) && outcome.ok()) return last_error();
+    return outcome;
+}
+
+// FILETIME ticks (100 ns since 1601-01-01) of a WallTime, toward the past;
+// false before 1601.
+bool ticks_of(const WallTime time, FILETIME& stamp) noexcept {
+    constexpr i64 unix_epoch_ticks = 116444736000000000LL;
+    const i64 count = time.unix_nanoseconds();
+    i64 ticks = count / 100;
+    if (count % 100 < 0) ticks = ticks - 1;
+    if (ticks < -unix_epoch_ticks) return false;
+    const u64 since_1601 = static_cast<u64>(ticks + unix_epoch_ticks);
+    stamp.dwLowDateTime = static_cast<DWORD>(since_1601 & 0xFFFFFFFFu);
+    stamp.dwHighDateTime = static_cast<DWORD>(since_1601 >> 32);
+    return true;
+}
+
+} // namespace
+
+Outcome read_at(const i64 handle, const u64 offset, Byte* const bytes, const usize count, usize& transferred) noexcept {
+    transferred = 0;
+    const HANDLE file = native_handle(handle);
+    LARGE_INTEGER saved{};
+    if (!current_pointer(file, saved)) return last_error();
+    const usize request = count < largest_transfer ? count : largest_transfer;
+    OVERLAPPED overlapped = at_offset(offset);
+    DWORD got = 0;
+    Outcome outcome = success();
+    if (!ReadFile(file, bytes, static_cast<DWORD>(request), &got, &overlapped)) {
+        // At or past the end: zero bytes, not a failure.
+        const DWORD error = GetLastError();
+        if (error != ERROR_HANDLE_EOF) outcome = from_error(error);
+        got = 0;
+    }
+    transferred = static_cast<usize>(got);
+    const Outcome result = restore_pointer(file, saved, outcome);
+    return result;
+}
+
+Outcome write_at(const i64 handle, const u64 offset, const Byte* const bytes, const usize count,
+                 usize& transferred) noexcept {
+    transferred = 0;
+    const HANDLE file = native_handle(handle);
+    LARGE_INTEGER saved{};
+    if (!current_pointer(file, saved)) return last_error();
+    const usize request = count < largest_transfer ? count : largest_transfer;
+    OVERLAPPED overlapped = at_offset(offset);
+    DWORD put = 0;
+    Outcome outcome = success();
+    if (!WriteFile(file, bytes, static_cast<DWORD>(request), &put, &overlapped)) {
+        outcome = last_error();
+    } else if (put == 0 && request != 0) {
+        outcome = failure(FileStatus::io_error);
+    }
+    transferred = outcome.ok() ? static_cast<usize>(put) : 0;
+    const Outcome result = restore_pointer(file, saved, outcome);
+    return result;
+}
+
+Outcome information(const i64 handle, FileInformation& information) noexcept {
+    information = FileInformation{};
+    BY_HANDLE_FILE_INFORMATION described{};
+    if (!GetFileInformationByHandle(native_handle(handle), &described)) return last_error();
+    // File::open follows links, so the handle holds no link: a reparse point
+    // here is a placeholder or similar, described by its attributes.
+    information.kind = kind_of_attributes(described.dwFileAttributes, 0);
+    if (information.kind == FileKind::regular) {
+        information.size = (static_cast<u64>(described.nFileSizeHigh) << 32) | described.nFileSizeLow;
+    }
+    information.modified = wall_time_of(described.ftLastWriteTime);
+    return success();
+}
+
+// SetFileTime with null creation and access times leaves them unchanged.
+// A time before 1601 is refused (too_large: limit_exceeded, too_long).
+Outcome set_modified(const i64 handle, const WallTime modified) noexcept {
+    FILETIME stamp{};
+    if (!ticks_of(modified, stamp)) return failure(FileStatus::too_large);
+    if (!SetFileTime(native_handle(handle), nullptr, nullptr, &stamp)) return last_error();
+    return success();
+}
+
+Outcome set_size(const i64 handle, const u64 bytes) noexcept {
+    FILE_END_OF_FILE_INFO end{};
+    end.EndOfFile.QuadPart = static_cast<LONGLONG>(bytes);
+    if (!SetFileInformationByHandle(native_handle(handle), FileEndOfFileInfo, &end, sizeof end)) return last_error();
+    return success();
+}
+
 Outcome inspect(const char* const name, const LinkMode links, FileInformation& information) noexcept {
     information = FileInformation{};
     Growable<wchar_t> wide;
@@ -407,6 +523,263 @@ Outcome remove(const char* const name) noexcept {
     }
     if (!DeleteFileW(wide.data())) return last_error();
     return success();
+}
+
+// ---- remove_tree (files.hpp states the safety and the bounds) ----
+//
+// Win32 has no openat, so the path to each directory is kept stable
+// instead: every directory entered is held open, from entry to removal,
+// with a share mode that leaves out FILE_SHARE_DELETE, and renaming or
+// deleting a file needs DELETE access, which such a share mode refuses to
+// every other opener ("Creating and Opening Files", sharing modes;
+// Microsoft Learn, as published). So no directory on the held path can be
+// renamed, removed or replaced by a link while the walk is below it, and
+// the path to a child names the child of the held directory. Each entry is
+// opened with FILE_FLAG_OPEN_REPARSE_POINT, judged by its own handle's
+// FileAttributeTagInfo (a symbolic link or junction is a link, never
+// entered; other reparse points with the directory attribute, such as
+// cloud placeholders, are directories, as inspect describes them), and
+// removed through that handle with FileDispositionInfoEx: DELETE, POSIX
+// semantics (the name leaves the directory when the handle closes, so a
+// virus scanner's open handle does not keep it listed) and
+// IGNORE_READONLY_ATTRIBUTE (FILE_DISPOSITION_INFORMATION_EX, Windows
+// driver documentation, docs commit dc334b3; flags 0x1, 0x2, 0x10). Where
+// the volume refuses that class (FAT, older systems), the read-only
+// attribute is cleared and FileDispositionInfo is used. The listing is read
+// from the held handle (GetFileInformationByHandleEx with
+// FileFullDirectoryRestartInfo, then FileFullDirectoryInfo), in passes, as
+// on POSIX hosts.
+
+namespace {
+
+// FILE_INFO_BY_HANDLE_CLASS's FileDispositionInfoEx (its 22nd enumerator,
+// minwinbase.h; "FILE_INFO_BY_HANDLE_CLASS enumeration", docs commit
+// 9267262), and FILE_DISPOSITION_INFO_EX's one ULONG of flags, restated so
+// the build does not depend on the headers' Windows-version guards.
+constexpr FILE_INFO_BY_HANDLE_CLASS disposition_ex_class = static_cast<FILE_INFO_BY_HANDLE_CLASS>(21);
+constexpr ULONG disposition_delete = 0x1;
+constexpr ULONG disposition_posix_semantics = 0x2;
+constexpr ULONG disposition_ignore_readonly = 0x10;
+
+struct DispositionEx final {
+    ULONG flags;
+};
+
+constexpr DWORD tree_flags = FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT;
+constexpr DWORD directory_access = DELETE | FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE;
+constexpr DWORD entry_access = DELETE | FILE_READ_ATTRIBUTES | FILE_WRITE_ATTRIBUTES | SYNCHRONIZE;
+// Held directories leave out FILE_SHARE_DELETE (above); entries removed at
+// once share everything.
+constexpr DWORD held_share = FILE_SHARE_READ | FILE_SHARE_WRITE;
+constexpr DWORD entry_share = FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE;
+
+// Marks the open file for deletion (above); it goes when the handle closes.
+Outcome dispose(const HANDLE handle) noexcept {
+    DispositionEx extended{};
+    extended.flags = disposition_delete | disposition_posix_semantics | disposition_ignore_readonly;
+    if (SetFileInformationByHandle(handle, disposition_ex_class, &extended, sizeof extended)) return success();
+    const DWORD error = GetLastError();
+    if (error != ERROR_INVALID_PARAMETER && error != ERROR_NOT_SUPPORTED && error != ERROR_INVALID_FUNCTION) {
+        return from_error(error);
+    }
+    FILE_BASIC_INFO basic{};
+    if (GetFileInformationByHandleEx(handle, FileBasicInfo, &basic, sizeof basic) &&
+        (basic.FileAttributes & FILE_ATTRIBUTE_READONLY) != 0) {
+        // Zero times leave them unchanged (FILE_BASIC_INFO).
+        FILE_BASIC_INFO cleared{};
+        cleared.FileAttributes = basic.FileAttributes & ~static_cast<DWORD>(FILE_ATTRIBUTE_READONLY);
+        if (cleared.FileAttributes == 0) cleared.FileAttributes = FILE_ATTRIBUTE_NORMAL;
+        if (!SetFileInformationByHandle(handle, FileBasicInfo, &cleared, sizeof cleared)) return last_error();
+    }
+    // Without POSIX semantics the name stays listed until every handle on
+    // the file closes; a pass that then meets it fails to open it
+    // (ERROR_ACCESS_DENIED for a delete-pending file), and remove_tree
+    // reports permission_denied rather than looping.
+    FILE_DISPOSITION_INFO classic{TRUE};
+    if (!SetFileInformationByHandle(handle, FileDispositionInfo, &classic, sizeof classic)) return last_error();
+    return success();
+}
+
+// Whether the open object is a directory to enter: the directory attribute
+// and not a link (symbolic link or junction).
+Outcome judge(const HANDLE handle, bool& directory) noexcept {
+    directory = false;
+    FILE_ATTRIBUTE_TAG_INFO tag{};
+    if (!GetFileInformationByHandleEx(handle, FileAttributeTagInfo, &tag, sizeof tag)) return last_error();
+    const bool link = (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 && is_link_tag(tag.ReparseTag);
+    directory = (tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 && !link;
+    return success();
+}
+
+struct HeldDirectory final {
+    HANDLE handle{INVALID_HANDLE_VALUE};
+    // The length of its path in the path buffer, without the NUL.
+    usize path_count{0};
+};
+
+void release_all(Growable<HeldDirectory>& held) noexcept {
+    for (usize index = 0; index < held.count(); ++index) (void)CloseHandle(held[index].handle);
+    held.clear();
+}
+
+// Disposes and closes; a failure still closes.
+Outcome dispose_and_close(const HANDLE handle) noexcept {
+    const Outcome disposed = dispose(handle);
+    const bool closed = CloseHandle(handle) != 0;
+    if (!disposed.ok()) return disposed;
+    if (!closed) return last_error();
+    return success();
+}
+
+bool is_dot_name(const wchar_t* const name, const usize count) noexcept {
+    const bool dot = count == 1 && name[0] == L'.';
+    const bool dot_dot = count == 2 && name[0] == L'.' && name[1] == L'.';
+    return dot || dot_dot;
+}
+
+// `path` cut to `count` units, then '', `name`, NUL.
+bool child_path(Growable<wchar_t>& path, const usize count, const wchar_t* const name, const usize name_count) noexcept {
+    path.shrink(count);
+    const bool separated = count != 0 && path[count - 1] == L'\\';
+    const bool result =
+        (separated || path.push(L'\\')) && path.append(name, name_count) && path.push(L'\0');
+    return result;
+}
+
+usize unit_count(const wchar_t* const units) noexcept {
+    usize count = 0;
+    while (units[count] != L'\0') count = count + 1;
+    return count;
+}
+
+// One pass's result over the top directory's listing.
+enum class PassEnd : u8 {
+    empty = 0,   // a whole pass found nothing
+    entered = 1, // a directory was entered (pushed)
+};
+
+// Reads the top directory in passes: non-directories are removed, the first
+// directory met is entered.
+Outcome walk_top(Growable<HeldDirectory>& held, Growable<wchar_t>& path, const usize depth_limit, u64& removed,
+                 PassEnd& end) noexcept {
+    end = PassEnd::empty;
+    alignas(8) unsigned char listing[16 * 1024];
+    const HeldDirectory top = held[held.count() - 1];
+    bool restart = true;
+    bool again = false;
+    for (;;) {
+        const FILE_INFO_BY_HANDLE_CLASS read_class = restart ? FileFullDirectoryRestartInfo : FileFullDirectoryInfo;
+        restart = false;
+        if (!GetFileInformationByHandleEx(top.handle, read_class, listing, sizeof listing)) {
+            const DWORD error = GetLastError();
+            if (error != ERROR_NO_MORE_FILES) return from_error(error);
+            if (!again) return success();
+            again = false;
+            restart = true;
+            continue;
+        }
+        usize offset = 0;
+        for (;;) {
+            const FILE_FULL_DIR_INFO& entry = *reinterpret_cast<const FILE_FULL_DIR_INFO*>(listing + offset);
+            const usize name_count = static_cast<usize>(entry.FileNameLength) / sizeof(wchar_t);
+            if (!is_dot_name(entry.FileName, name_count)) {
+                if (!child_path(path, top.path_count, entry.FileName, name_count)) return no_memory();
+                const bool listed_directory = (entry.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0 &&
+                                              (entry.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0;
+                const DWORD access = listed_directory ? directory_access : entry_access;
+                const DWORD share = listed_directory ? held_share : entry_share;
+                const HANDLE opened = CreateFileW(path.data(), access, share, nullptr, OPEN_EXISTING, tree_flags, nullptr);
+                if (opened == INVALID_HANDLE_VALUE) {
+                    const DWORD error = GetLastError();
+                    if (error != ERROR_FILE_NOT_FOUND && error != ERROR_PATH_NOT_FOUND) return from_error(error);
+                } else {
+                    bool directory = false;
+                    const Outcome judged = judge(opened, directory);
+                    if (!judged.ok()) {
+                        (void)CloseHandle(opened);
+                        return judged;
+                    }
+                    if (!directory) {
+                        const Outcome gone = dispose_and_close(opened);
+                        if (!gone.ok()) return gone;
+                        removed = removed + 1;
+                        again = true;
+                    } else if (!listed_directory) {
+                        // Became a directory since it was listed; opened
+                        // without the listing right, so read it next pass.
+                        (void)CloseHandle(opened);
+                        again = true;
+                    } else {
+                        // held holds the top and the directories below it.
+                        if (held.count() > depth_limit) {
+                            (void)CloseHandle(opened);
+                            return failure(FileStatus::too_large);
+                        }
+                        HeldDirectory entered{};
+                        entered.handle = opened;
+                        entered.path_count = path.count() - 1;
+                        if (!held.push(entered)) {
+                            (void)CloseHandle(opened);
+                            return no_memory();
+                        }
+                        end = PassEnd::entered;
+                        return success();
+                    }
+                }
+            }
+            if (entry.NextEntryOffset == 0) break;
+            offset = offset + static_cast<usize>(entry.NextEntryOffset);
+        }
+    }
+}
+
+} // namespace
+
+Outcome remove_tree(const char* const name, const usize depth_limit, u64& removed) noexcept {
+    Growable<wchar_t> path;
+    if (!wide_name(name, path)) return no_memory();
+    {
+        // The top is looked up by name (files.hpp): anything but a directory
+        // is removed as remove removes it.
+        const OwnedHandle described(open_for_attributes(path.data(), true));
+        if (!described.valid()) return last_error();
+        bool directory = false;
+        const Outcome judged = judge(described.get(), directory);
+        if (!judged.ok()) return judged;
+        if (!directory) {
+            const Outcome single = remove(name);
+            if (single.ok()) removed = removed + 1;
+            return single;
+        }
+    }
+    const HANDLE top = CreateFileW(path.data(), directory_access, held_share, nullptr, OPEN_EXISTING, tree_flags, nullptr);
+    if (top == INVALID_HANDLE_VALUE) return last_error();
+    Growable<HeldDirectory> held;
+    HeldDirectory first{};
+    first.handle = top;
+    first.path_count = unit_count(path.data());
+    if (!held.push(first)) {
+        (void)CloseHandle(top);
+        return no_memory();
+    }
+    for (;;) {
+        PassEnd end = PassEnd::empty;
+        const Outcome walked = walk_top(held, path, depth_limit, removed, end);
+        if (!walked.ok()) {
+            release_all(held);
+            return walked;
+        }
+        if (end == PassEnd::entered) continue;
+        const HeldDirectory emptied = held[held.count() - 1];
+        held.shrink(held.count() - 1);
+        const Outcome gone = dispose_and_close(emptied.handle);
+        if (!gone.ok()) {
+            release_all(held);
+            return gone;
+        }
+        removed = removed + 1;
+        if (held.empty()) return success();
+    }
 }
 
 Outcome rename(const char* const from, const char* const to) noexcept {
