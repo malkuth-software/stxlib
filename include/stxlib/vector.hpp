@@ -85,12 +85,22 @@ namespace stxlib {
 
 template <typename Element>
 class Vector final {
-    static_assert(__is_nothrow_constructible(Element, Element&&),
-                  "Vector's Element must be nothrow move constructible (relocation has no failure path)");
-    static_assert(detail::nothrow_destructible<Element>, "Vector's Element must be nothrow destructible");
+    // Element may be incomplete where Vector<Element> is named (a tree node
+    // holding its children: struct Node { Vector<Node> children; }), so
+    // nothing at class scope asks about Element: the requirements on it are
+    // checked in the destructor, which every vector object reaches, and the
+    // assignability question is a function, evaluated where it is used.
+    static constexpr void check_element() noexcept {
+        static_assert(__is_nothrow_constructible(Element, Element&&),
+                      "Vector's Element must be nothrow move constructible (relocation has no failure path)");
+        static_assert(detail::nothrow_destructible<Element>, "Vector's Element must be nothrow destructible");
+    }
 
     // Whether insert and erase can shift by move assignment (form 1, above).
-    static constexpr bool assignable = __is_nothrow_assignable(Element&, Element&&);
+    [[nodiscard]] static constexpr bool assignable() noexcept {
+        const bool result = __is_nothrow_assignable(Element&, Element&&);
+        return result;
+    }
 
 public:
     // The empty vector: no storage.
@@ -170,7 +180,10 @@ public:
         return *this;
     }
 
-    ~Vector() { release(); }
+    ~Vector() {
+        check_element();
+        release();
+    }
 
     // ---- queries ----------------------------------------------------------
 
@@ -366,7 +379,7 @@ public:
     void erase_range(const usize first, const usize length) noexcept {
         STXLIB_REQUIRE(first <= count_ && length <= count_ - first, "Vector::erase_range: range out of range");
         if (length == 0) return;
-        if constexpr (assignable) {
+        if constexpr (assignable()) {
             // Form 1: every counted slot stays live while the tail moves
             // down; then the moved-from tail is truncated.
             for (usize index = first; index + length < count_; ++index) {
@@ -532,7 +545,7 @@ private:
             count_ = count_ + 1;
             return Status::success();
         }
-        if constexpr (assignable) {
+        if constexpr (assignable()) {
             // Form 1: the last element is moved into the spare slot and
             // counted, then the rest shift up by assignment, every counted
             // slot live throughout.

@@ -755,6 +755,83 @@ void vector_emplace_and_exact_copies() {
     CHECK(none.succeeded() && (*none.value()).capacity() == 0 && (*none.value()).empty());
 }
 
+// ---- element types incomplete where the container is named (D15) -----------
+
+// A tree whose node holds a Vector of its own type, named while TreeNode is
+// still incomplete: Vector asks nothing about its element at class scope.
+struct TreeNode final {
+    Tracked tracked;
+    stxlib::Vector<TreeNode> children;
+    explicit TreeNode(const int value) noexcept : tracked(value), children() {}
+};
+
+static_assert(__is_nothrow_constructible(TreeNode, TreeNode&&), "a tree node relocates without failing");
+
+void vector_of_its_own_node() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        TreeNode root(1);
+        CHECK(root.children.push(TreeNode(2)).succeeded());
+        CHECK(root.children.push(TreeNode(3)).succeeded());
+        CHECK(root.children[0].children.push(TreeNode(4)).succeeded());
+        CHECK(root.children[0].children.push(TreeNode(5)).succeeded());
+        CHECK(ledger.live == live_before + 5);
+        // Collapse a level: the root's children become its first child's
+        // children (the source lives inside an element the assignment
+        // destroys; A-stxlib-include-01-F2).
+        root.children = static_cast<stxlib::Vector<TreeNode>&&>(root.children[0].children);
+        CHECK(root.children.count() == 2 && root.children[0].tracked.value == 4 &&
+              root.children[1].tracked.value == 5);
+        CHECK(ledger.live == live_before + 3);
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+}
+
+// A node that owns its successor through Shared and observes its
+// predecessor through Weak, both named while SharedNode is incomplete.
+struct SharedNode final {
+    Tracked tracked;
+    stxlib::Shared<SharedNode> next;
+    stxlib::Weak<SharedNode> previous;
+    explicit SharedNode(const int value) noexcept : tracked(value), next(), previous() {}
+};
+
+stxlib::Shared<SharedNode> shared_node(const int value) {
+    stxlib::Result<stxlib::Shared<SharedNode>> made = stxlib::Shared<SharedNode>::make(value);
+    STXLIB_REQUIRE(made.succeeded(), "making a shared node");
+    stxlib::Shared<SharedNode> result = static_cast<stxlib::Result<stxlib::Shared<SharedNode>>&&>(made).take_value();
+    return result;
+}
+
+void shared_of_its_own_node() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        stxlib::Shared<SharedNode> head = shared_node(1);
+        {
+            const stxlib::Shared<SharedNode> second = shared_node(2);
+            (*head).next = second;
+            (*second).previous = stxlib::Weak<SharedNode>(head);
+        }
+        CHECK(ledger.live == live_before + 2);
+        CHECK((*head).next.present() && (*(*head).next).tracked.value == 2);
+        CHECK((*(*head).next).previous.lock() == head);
+
+        // Advance the head along its own link (copy from inside the object
+        // head owns): the old head goes, the second node stays, and its
+        // backward link now finds nothing.
+        head = (*head).next;
+        CHECK(ledger.live == live_before + 1);
+        CHECK(head.present() && (*head).tracked.value == 2);
+        CHECK((*head).previous.expired());
+        CHECK((*head).previous.lock().empty());
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+}
+
 // ---- Shared and Weak: bounded exhaustive exploration ------------------------
 
 constexpr unsigned owner_slots = 3;
@@ -1003,6 +1080,8 @@ int main(const int argc, char** const argv) {
     vector_from_inside_an_element();
     optional_from_inside_its_value();
     vector_emplace_and_exact_copies();
+    vector_of_its_own_node();
+    shared_of_its_own_node();
     shared_exhaustive(depth);
     shared_self_and_casts();
     shared_threads();

@@ -477,6 +477,7 @@ pointers once the rows marked fixed are in.
 | F9 | `copy_file` carries 0777 by default, 07777 with `CopyPermissions::with_special_bits` | tested on POSIX hosts: `tests/files_tests.cpp` (`copy_permissions`) |
 | F10 | a trampoline table packs its slot index in as few bits as its capacity needs; the generation takes the rest, capped at 2^48 - 1 | static_asserts in `trampoline.cpp`; `tests/trampoline_tests.cpp` (`handles_fit_the_pointer_width`: exhausts slot 0 of a 65535-slot table on wasm32) |
 | F11 | AUTO tags are on whenever the host backend is chosen; the Emscripten default is stx_minmallocpp (the finding's premise is stale at e549318), docs corrected | by reading CMakeLists.txt |
+| D15 follow-up: incomplete element types | `Vector` checks its element in its destructor and asks about assignability through a function; `Shared` checks its value in `make`; `Weak` asked nothing at class scope already. `struct Node { Vector<Node> children; }` and a node holding `Shared` and `Weak` of its own type compile | tested: `vector_of_its_own_node`, `shared_of_its_own_node` |
 | needs a check: restored frames' text counts | `file_copy` cuts each restored frame's counts to the arrays and to the well-formed UTF-8 prefix | tested: `tests/shadow_tests.cpp` (`a_park_into_too_little_room_parks_nothing`) |
 
 Nothing on this branch has been compiled or run yet (no compiler on Neo).

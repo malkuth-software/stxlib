@@ -151,7 +151,9 @@ private:
 
 template <typename Value>
 class Shared final {
-    static_assert(detail::nothrow_destructible<Value>, "Shared's Value must be nothrow destructible");
+    // Value may be incomplete where Shared<Value> is named (an object that
+    // holds a Shared or Weak of its own type), so the requirement on its
+    // destructor is checked where an object is made (make), not here.
 
 public:
     // Owns nothing.
@@ -165,6 +167,7 @@ public:
     [[nodiscard]] static Result<Shared> make(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Value, Arguments&&...),
                       "Shared::make needs a nothrow constructor for these arguments");
+        static_assert(detail::nothrow_destructible<Value>, "Shared's Value must be nothrow destructible");
         const usize offset = detail::shared_object_offset<Value>;
         const usize alignment = detail::larger(alignof(detail::SharedHeader), alignof(Value));
         void* const block = detail::vocabulary_allocate(offset + sizeof(Value), alignment);
