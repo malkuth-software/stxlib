@@ -165,13 +165,28 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::too_many_services: return "too_many_services";
     case ParseError::start_unknown_service: return "start_unknown_service";
     case ParseError::folder_malformed: return "folder_malformed";
-    case ParseError::folder_outside_user: return "folder_outside_user";
-    case ParseError::folder_with_directory: return "folder_with_directory";
-    case ParseError::confinement_without_folder: return "confinement_without_folder";
+    case ParseError::folder_outside_data: return "folder_outside_data";
     case ParseError::device_pattern_malformed: return "device_pattern_malformed";
     case ParseError::too_many_devices: return "too_many_devices";
-    case ParseError::service_network_unknown: return "service_network_unknown";
     case ParseError::sysctl_malformed: return "sysctl_malformed";
+    case ParseError::target_setting_missing: return "target_setting_missing";
+    case ParseError::target_role_unknown: return "target_role_unknown";
+    case ParseError::target_id_malformed: return "target_id_malformed";
+    case ParseError::target_id_repeated: return "target_id_repeated";
+    case ParseError::second_foreground: return "second_foreground";
+    case ParseError::devices_not_foreground: return "devices_not_foreground";
+    case ParseError::port_malformed: return "port_malformed";
+    case ParseError::too_many_ports: return "too_many_ports";
+    case ParseError::port_repeated: return "port_repeated";
+    case ParseError::program_path_malformed: return "program_path_malformed";
+    case ParseError::start_policy_unknown: return "start_policy_unknown";
+    case ParseError::update_url_malformed: return "update_url_malformed";
+    case ParseError::update_interval_malformed: return "update_interval_malformed";
+    case ParseError::healthy_after_malformed: return "healthy_after_malformed";
+    case ParseError::name_repeated: return "name_repeated";
+    case ParseError::network_setting_unknown: return "network_setting_unknown";
+    case ParseError::network_value_malformed: return "network_value_malformed";
+    case ParseError::folder_repeated: return "folder_repeated";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -472,22 +487,39 @@ struct SettingPlace {
     std::uint32_t column;
 };
 
-// The service section being read; it becomes a ServiceDefinition when the
-// next header or the end of the text closes it.
+// A target's declared ports, as read from its setting.
+struct TargetPortWords {
+    std::uint32_t count;
+    PortDeclaration ports[ports_max];
+};
+
+// The target settings read so far (each absent until its line).
+struct TargetDraft {
+    std::optional<TargetRole> role;
+    std::optional<std::uint32_t> id;
+    std::optional<TextRef> program;
+    std::optional<TextRef> folder;
+    std::optional<TargetPortWords> ports;
+    std::optional<ServiceDeviceWords> devices;
+    std::optional<SettingPlace> devices_place;
+    std::optional<StartPolicy> start;
+    std::optional<TextRef> update_url;
+    std::optional<std::uint32_t> update_interval_s;
+    std::optional<SettingPlace> update_interval_place;
+    std::optional<std::uint32_t> healthy_after_s;
+};
+
+// The service or target section being read; it becomes a ServiceDefinition
+// when the next header or the end of the text closes it.
 struct ServiceDraft {
     TextRef name;
     std::uint32_t line;
     std::uint32_t name_column;
     std::optional<ServiceCommandWords> command;
     std::optional<TextRef> directory;
-    std::optional<SettingPlace> directory_place;
-    std::optional<TextRef> folder;
-    std::optional<SettingPlace> folder_place;
-    std::optional<ServiceDeviceWords> devices;
-    std::optional<SettingPlace> devices_place;
-    std::optional<NetworkAccess> network;
-    std::optional<SettingPlace> network_place;
     std::optional<RestartPolicy> restart;
+    // Present for a target section.
+    std::optional<TargetDraft> target;
 };
 
 // The parse's state between lines.
@@ -495,8 +527,10 @@ struct ParseState {
     // Index of the current section, or nothing before the first header.
     std::optional<std::uint32_t> section_index;
     bool in_init_section;
-    // Present while the current section is a service section.
+    // Present while the current section is a service or target section.
     std::optional<ServiceDraft> service;
+    // Whether the current section is [network].
+    bool in_network_section;
 };
 
 // A line's outcome: nothing (the line was accepted) or the refusal.
@@ -515,7 +549,55 @@ using LineResult = std::optional<ParseFailed>;
     return refuse_at(line.number, column_of(index), error);
 }
 
-// Closes the current service section, if any: a service needs a command.
+// A target's settings from its draft, or the refusal: role, id, folder
+// and command are required; devices belong to the foreground target only;
+// update-interval needs update-url.
+[[nodiscard]] LineResult finish_target(const ServiceDraft& draft, const TargetDraft& target_draft,
+                                       ServiceDefinition& service) noexcept {
+    if (!target_draft.role.has_value() || !target_draft.id.has_value() || !target_draft.folder.has_value()) {
+        return refuse_at(draft.line, draft.name_column, ParseError::target_setting_missing);
+    }
+    if (*target_draft.role != TargetRole::foreground && target_draft.devices.has_value()) {
+        const SettingPlace place =
+            target_draft.devices_place.has_value() ? *target_draft.devices_place : SettingPlace{draft.line, 1};
+        return refuse_at(place.line, place.column, ParseError::devices_not_foreground);
+    }
+    if (target_draft.update_interval_s.has_value() && !target_draft.update_url.has_value()) {
+        const SettingPlace place = target_draft.update_interval_place.has_value() ? *target_draft.update_interval_place
+                                                                                 : SettingPlace{draft.line, 1};
+        return refuse_at(place.line, place.column, ParseError::update_interval_malformed);
+    }
+    TargetSettings target{};
+    target.role = *target_draft.role;
+    target.id = *target_draft.id;
+    target.program = target_draft.program.has_value() ? *target_draft.program : draft.name;
+    target.folder = *target_draft.folder;
+    target.port_count = 0;
+    if (target_draft.ports.has_value()) {
+        target.port_count = (*target_draft.ports).count;
+        for (std::uint32_t index = 0; index < (*target_draft.ports).count; index += 1) {
+            target.ports[index] = (*target_draft.ports).ports[index];
+        }
+    }
+    target.device_count = 0;
+    if (target_draft.devices.has_value()) {
+        target.device_count = (*target_draft.devices).count;
+        for (std::uint32_t index = 0; index < (*target_draft.devices).count; index += 1) {
+            target.devices[index] = (*target_draft.devices).patterns[index];
+        }
+    }
+    target.start = target_draft.start.has_value() ? *target_draft.start : StartPolicy::boot;
+    target.update_url = target_draft.update_url;
+    target.update_interval_s =
+        target_draft.update_interval_s.has_value() ? *target_draft.update_interval_s : update_interval_default_s;
+    target.healthy_after_s =
+        target_draft.healthy_after_s.has_value() ? *target_draft.healthy_after_s : healthy_after_default_s;
+    service.target = target;
+    return std::nullopt;
+}
+
+// Closes the current service or target section, if any: each needs a
+// command, a target its required settings.
 [[nodiscard]] LineResult finish_service(ConfigBuilder& builder, ParseState& state) noexcept {
     if (!state.service.has_value()) {
         return std::nullopt;
@@ -525,18 +607,6 @@ using LineResult = std::optional<ParseFailed>;
     if (!draft.command.has_value()) {
         return refuse_at(draft.line, draft.name_column, ParseError::service_command_missing);
     }
-    // Confinement settings need a folder; a folder excludes a directory
-    // (the working directory of a confined service is /srv). Refused at the
-    // offending setting.
-    if (draft.folder.has_value() && draft.directory.has_value()) {
-        const SettingPlace place = draft.folder_place.has_value() ? *draft.folder_place : SettingPlace{draft.line, 1};
-        return refuse_at(place.line, place.column, ParseError::folder_with_directory);
-    }
-    if (!draft.folder.has_value() && (draft.devices.has_value() || draft.network.has_value())) {
-        const std::optional<SettingPlace> first = draft.devices.has_value() ? draft.devices_place : draft.network_place;
-        const SettingPlace place = first.has_value() ? *first : SettingPlace{draft.line, 1};
-        return refuse_at(place.line, place.column, ParseError::confinement_without_folder);
-    }
     ServiceDefinition service{};
     service.name = draft.name;
     service.argument_count = (*draft.command).count;
@@ -544,15 +614,13 @@ using LineResult = std::optional<ParseFailed>;
         service.arguments[index] = (*draft.command).arguments[index];
     }
     service.directory = draft.directory;
-    service.folder = draft.folder;
-    service.device_count = 0;
-    if (draft.devices.has_value()) {
-        service.device_count = (*draft.devices).count;
-        for (std::uint32_t index = 0; index < (*draft.devices).count; index += 1) {
-            service.devices[index] = (*draft.devices).patterns[index];
+    service.target = std::nullopt;
+    if (draft.target.has_value()) {
+        const LineResult target = finish_target(draft, *draft.target, service);
+        if (target.has_value()) {
+            return target;
         }
     }
-    service.network = draft.network.has_value() ? *draft.network : NetworkAccess::none;
     service.restart = draft.restart.has_value() ? *draft.restart : RestartPolicy::on_failure;
     service.line = draft.line;
     // Room was checked when the section began.
@@ -560,11 +628,11 @@ using LineResult = std::optional<ParseFailed>;
     return std::nullopt;
 }
 
-// Whether the stored section name starts with the service prefix.
-[[nodiscard]] bool has_service_prefix(const char* name) noexcept {
+// Whether the stored section name starts with prefix.
+[[nodiscard]] bool has_prefix(const char* name, const char* prefix) noexcept {
     std::size_t index = 0;
-    while (service_section_prefix[index] != '\0') {
-        if (name[index] != service_section_prefix[index]) {
+    while (prefix[index] != '\0') {
+        if (name[index] != prefix[index]) {
             return false;
         }
         index += 1;
@@ -643,8 +711,11 @@ using LineResult = std::optional<ParseFailed>;
         return finished;
     }
     std::optional<ServiceDraft> service;
-    if (has_service_prefix(builder.text(*name))) {
-        const std::size_t service_begin = name_begin + c_string_length(service_section_prefix);
+    const bool is_service = has_prefix(builder.text(*name), service_section_prefix);
+    const bool is_target = has_prefix(builder.text(*name), target_section_prefix);
+    if (is_service || is_target) {
+        const char* const prefix = is_service ? service_section_prefix : target_section_prefix;
+        const std::size_t service_begin = name_begin + c_string_length(prefix);
         // The name after the prefix is itself a name: at least one byte, a
         // lower-case letter first (the rest are name bytes already).
         if (service_begin >= end_of_name || !is_lower_letter(line.bytes[service_begin])) {
@@ -661,6 +732,9 @@ using LineResult = std::optional<ParseFailed>;
         draft.name = *service_name;
         draft.line = line.number;
         draft.name_column = column_of(name_begin);
+        if (is_target) {
+            draft.target = TargetDraft{};
+        }
         service = draft;
     }
     Section section{};
@@ -670,6 +744,7 @@ using LineResult = std::optional<ParseFailed>;
     state.section_index = index;
     state.in_init_section = c_strings_equal(builder.text(*name), "init");
     state.service = service;
+    state.in_network_section = c_strings_equal(builder.text(*name), "network");
     if (state.in_init_section) {
         builder.mark_init_section();
     }
@@ -1162,35 +1237,6 @@ private:
     return true;
 }
 
-[[nodiscard]] LineResult read_service_command(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
-                                              std::size_t value_begin, std::size_t value_end) noexcept {
-    // The words of the value only: a view of the line that ends where the
-    // value ends, so columns stay the line's.
-    LineView value_line = line;
-    value_line.length = value_end;
-    CommandWords words{};
-    const LineResult split = split_words(builder, value_line, value_begin, words);
-    if (split.has_value()) {
-        return split;
-    }
-    if (words.count == 0u) {
-        return refuse(line, value_begin, ParseError::program_not_absolute);
-    }
-    if (words.count > run_arguments_max) {
-        return refuse(line, words.words[run_arguments_max].index, ParseError::too_many_run_arguments);
-    }
-    if (words.words[0].text.length == 0u || builder.text(words.words[0].text)[0] != '/') {
-        return refuse(line, words.words[0].index, ParseError::program_not_absolute);
-    }
-    ServiceCommandWords command{};
-    command.count = static_cast<std::uint32_t>(words.count);
-    for (std::size_t index = 0; index < words.count; index += 1) {
-        command.arguments[index] = words.words[index].text;
-    }
-    draft.command = command;
-    return std::nullopt;
-}
-
 [[nodiscard]] bool is_folder_byte(char byte) noexcept {
     return (byte >= 'A' && byte <= 'Z') || is_lower_letter(byte) || is_digit(byte) || byte == '.' || byte == '_' ||
            byte == '-' || byte == '/';
@@ -1209,7 +1255,8 @@ private:
 }
 
 // A folder: an absolute path of folder bytes with no empty, "." or ".."
-// component and no trailing '/'. Returns the refusal, or nothing.
+// component and no trailing '/', below target_folder_parent. Returns the
+// refusal, or nothing.
 [[nodiscard]] std::optional<ParseError> folder_error(const char* bytes, std::size_t length) noexcept {
     if (length < 2u || bytes[0] != '/' || bytes[length - 1u] == '/') {
         return ParseError::folder_malformed;
@@ -1226,14 +1273,14 @@ private:
             component_begin = index + 1u;
         }
     }
-    // Below the user part: "/user/" and at least one more component.
-    const std::size_t parent_length = c_string_length(service_folder_parent);
+    // Below the parent: "<parent>/" and at least one more component.
+    const std::size_t parent_length = c_string_length(target_folder_parent);
     if (length <= parent_length + 1u || bytes[parent_length] != '/') {
-        return ParseError::folder_outside_user;
+        return ParseError::folder_outside_data;
     }
     for (std::size_t index = 0; index < parent_length; index += 1) {
-        if (bytes[index] != service_folder_parent[index]) {
-            return ParseError::folder_outside_user;
+        if (bytes[index] != target_folder_parent[index]) {
+            return ParseError::folder_outside_data;
         }
     }
     return std::nullopt;
@@ -1265,12 +1312,19 @@ private:
     return true;
 }
 
-[[nodiscard]] LineResult read_service_devices(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
-                                              std::size_t value_begin, std::size_t value_end) noexcept {
+// The words of a setting's value: a view of the line that ends where the
+// value ends, so columns stay the line's.
+[[nodiscard]] LineResult split_value_words(ConfigBuilder& builder, const LineView& line, std::size_t value_begin,
+                                           std::size_t value_end, CommandWords& words) noexcept {
     LineView value_line = line;
     value_line.length = value_end;
+    return split_words(builder, value_line, value_begin, words);
+}
+
+[[nodiscard]] LineResult read_target_devices(ConfigBuilder& builder, TargetDraft& target, const LineView& line,
+                                             std::size_t value_begin, std::size_t value_end) noexcept {
     CommandWords words{};
-    const LineResult split = split_words(builder, value_line, value_begin, words);
+    const LineResult split = split_value_words(builder, line, value_begin, value_end, words);
     if (split.has_value()) {
         return split;
     }
@@ -1289,9 +1343,252 @@ private:
         }
         devices.patterns[index] = word.text;
     }
-    draft.devices = devices;
-    draft.devices_place = SettingPlace{line.number, column_of(value_begin)};
+    target.devices = devices;
+    target.devices_place = SettingPlace{line.number, column_of(value_begin)};
     return std::nullopt;
+}
+
+// A decimal number of bytes [begin, end): 1 to 10 digits, no sign, no
+// leading zero, at most maximum; or nothing.
+[[nodiscard]] std::optional<std::uint32_t> bounded_decimal(const char* bytes, std::size_t length,
+                                                           std::uint32_t maximum) noexcept {
+    if (length == 0u || length > 10u || (bytes[0] == '0' && length > 1u)) {
+        return std::nullopt;
+    }
+    std::uint64_t value = 0;
+    for (std::size_t index = 0; index < length; index += 1) {
+        if (!is_digit(bytes[index])) {
+            return std::nullopt;
+        }
+        // At most 10 digits: below 10^10, far inside 64 bits.
+        value = value * 10u + static_cast<std::uint64_t>(bytes[index] - '0');
+    }
+    if (value > maximum) {
+        return std::nullopt;
+    }
+    const std::optional<std::uint32_t> result = static_cast<std::uint32_t>(value);
+    return result;
+}
+
+// "<tcp|udp>/<1-65535>", or nothing.
+[[nodiscard]] std::optional<PortDeclaration> port_of(const char* bytes, std::size_t length) noexcept {
+    PortDeclaration port{};
+    std::size_t number_begin = 0;
+    if (length > 4u && bytes[0] == 't' && bytes[1] == 'c' && bytes[2] == 'p' && bytes[3] == '/') {
+        port.protocol = PortProtocol::tcp;
+        number_begin = 4;
+    } else if (length > 4u && bytes[0] == 'u' && bytes[1] == 'd' && bytes[2] == 'p' && bytes[3] == '/') {
+        port.protocol = PortProtocol::udp;
+        number_begin = 4;
+    } else {
+        return std::nullopt;
+    }
+    const std::optional<std::uint32_t> number = bounded_decimal(&bytes[number_begin], length - number_begin, 65535u);
+    if (!number.has_value() || *number == 0u) {
+        return std::nullopt;
+    }
+    port.port = static_cast<std::uint16_t>(*number);
+    const std::optional<PortDeclaration> result = port;
+    return result;
+}
+
+[[nodiscard]] LineResult read_target_ports(ConfigBuilder& builder, TargetDraft& target, const LineView& line,
+                                           std::size_t value_begin, std::size_t value_end) noexcept {
+    CommandWords words{};
+    const LineResult split = split_value_words(builder, line, value_begin, value_end, words);
+    if (split.has_value()) {
+        return split;
+    }
+    if (words.count == 0u) {
+        return refuse(line, value_begin, ParseError::port_malformed);
+    }
+    if (words.count > ports_max) {
+        return refuse(line, words.words[ports_max].index, ParseError::too_many_ports);
+    }
+    TargetPortWords ports{};
+    ports.count = static_cast<std::uint32_t>(words.count);
+    for (std::size_t index = 0; index < words.count; index += 1) {
+        const Word& word = words.words[index];
+        const std::optional<PortDeclaration> port = port_of(builder.text(word.text), word.text.length);
+        if (!port.has_value()) {
+            return refuse(line, word.index, ParseError::port_malformed);
+        }
+        for (std::size_t earlier = 0; earlier < index; earlier += 1) {
+            if (ports.ports[earlier].protocol == (*port).protocol && ports.ports[earlier].port == (*port).port) {
+                return refuse(line, word.index, ParseError::port_repeated);
+            }
+        }
+        ports.ports[index] = *port;
+    }
+    target.ports = ports;
+    return std::nullopt;
+}
+
+// The command's words. A service's program is an absolute path; a
+// target's is a file of its package, a relative path.
+[[nodiscard]] LineResult read_service_command(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
+                                              std::size_t value_begin, std::size_t value_end) noexcept {
+    CommandWords words{};
+    const LineResult split = split_value_words(builder, line, value_begin, value_end, words);
+    if (split.has_value()) {
+        return split;
+    }
+    const bool is_target = draft.target.has_value();
+    const ParseError program_error = is_target ? ParseError::program_path_malformed : ParseError::program_not_absolute;
+    if (words.count == 0u) {
+        return refuse(line, value_begin, program_error);
+    }
+    if (words.count > run_arguments_max) {
+        return refuse(line, words.words[run_arguments_max].index, ParseError::too_many_run_arguments);
+    }
+    const Word& program = words.words[0];
+    if (is_target) {
+        if (!package_path_valid(builder.text(program.text), program.text.length)) {
+            return refuse(line, program.index, program_error);
+        }
+    } else if (program.text.length == 0u || builder.text(program.text)[0] != '/') {
+        return refuse(line, program.index, program_error);
+    }
+    ServiceCommandWords command{};
+    command.count = static_cast<std::uint32_t>(words.count);
+    for (std::size_t index = 0; index < words.count; index += 1) {
+        command.arguments[index] = words.words[index].text;
+    }
+    draft.command = command;
+    return std::nullopt;
+}
+
+// The value parse_setting has just stored.
+[[nodiscard]] TextRef last_value(const ConfigBuilder& builder) noexcept {
+    const BootConfig& config = builder.config();
+    return config.setting(config.setting_count() - 1u).value;
+}
+
+// An https URL a line can hold: "https://", then a host of at least one
+// byte, and only bytes that may appear in a URL unescaped or escaped
+// (printable, no blank, no '"', '<', '>', '\\', '^', '`', '{', '|', '}').
+// stxpkg parses it fully before use (package/url.h); this only keeps text
+// that cannot be one out of the configuration.
+[[nodiscard]] bool update_url_plausible(const char* bytes, std::size_t length) noexcept {
+    const char prefix[] = "https://";
+    const std::size_t prefix_length = sizeof(prefix) - 1u;
+    if (length <= prefix_length) {
+        return false;
+    }
+    for (std::size_t index = 0; index < prefix_length; index += 1) {
+        if (bytes[index] != prefix[index]) {
+            return false;
+        }
+    }
+    if (bytes[prefix_length] == '/') {
+        return false;
+    }
+    for (std::size_t index = prefix_length; index < length; index += 1) {
+        const char byte = bytes[index];
+        const bool excluded = byte <= ' ' || byte > '~' || byte == '"' || byte == '<' || byte == '>' ||
+                              byte == '\\' || byte == '^' || byte == '`' || byte == '{' || byte == '|' || byte == '}';
+        if (excluded) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Settings of a service section (parse_setting accepted the line).
+[[nodiscard]] LineResult parse_service_only_setting(ConfigBuilder& builder, ServiceDraft& draft,
+                                                    const LineView& line, std::size_t begin, std::size_t end_of_name,
+                                                    std::size_t value_begin, std::size_t value_end) noexcept {
+    if (bytes_are(line, begin, end_of_name, "directory")) {
+        if (value_begin >= value_end || line.bytes[value_begin] != '/') {
+            return refuse(line, value_begin, ParseError::directory_not_absolute);
+        }
+        draft.directory = last_value(builder);
+        return std::nullopt;
+    }
+    return refuse(line, begin, ParseError::service_setting_unknown);
+}
+
+// Settings of a target section (parse_setting accepted the line).
+[[nodiscard]] LineResult parse_target_setting(ConfigBuilder& builder, TargetDraft& target, const LineView& line,
+                                              std::size_t begin, std::size_t end_of_name, std::size_t value_begin,
+                                              std::size_t value_end) noexcept {
+    const char* const value = &line.bytes[value_begin];
+    const std::size_t value_length = value_end - value_begin;
+    if (bytes_are(line, begin, end_of_name, "role")) {
+        if (bytes_are(line, value_begin, value_end, "foreground")) {
+            target.role = TargetRole::foreground;
+        } else if (bytes_are(line, value_begin, value_end, "server")) {
+            target.role = TargetRole::server;
+        } else {
+            return refuse(line, value_begin, ParseError::target_role_unknown);
+        }
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "id")) {
+        const std::optional<std::uint32_t> id = bounded_decimal(value, value_length, target_id_max);
+        if (!id.has_value() || *id == 0u) {
+            return refuse(line, value_begin, ParseError::target_id_malformed);
+        }
+        target.id = *id;
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "program")) {
+        const std::size_t end = name_end(line, value_begin);
+        if (end != value_end || !name_is_valid(line, value_begin, value_end)) {
+            return refuse(line, value_begin, ParseError::name_malformed);
+        }
+        target.program = last_value(builder);
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "folder")) {
+        const std::optional<ParseError> error = folder_error(value, value_length);
+        if (error.has_value()) {
+            return refuse(line, value_begin, *error);
+        }
+        target.folder = last_value(builder);
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "ports")) {
+        return read_target_ports(builder, target, line, value_begin, value_end);
+    }
+    if (bytes_are(line, begin, end_of_name, "devices")) {
+        return read_target_devices(builder, target, line, value_begin, value_end);
+    }
+    if (bytes_are(line, begin, end_of_name, "start")) {
+        if (bytes_are(line, value_begin, value_end, "boot")) {
+            target.start = StartPolicy::boot;
+        } else if (bytes_are(line, value_begin, value_end, "manual")) {
+            target.start = StartPolicy::manual;
+        } else {
+            return refuse(line, value_begin, ParseError::start_policy_unknown);
+        }
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "update-url")) {
+        if (!update_url_plausible(value, value_length)) {
+            return refuse(line, value_begin, ParseError::update_url_malformed);
+        }
+        target.update_url = last_value(builder);
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "update-interval")) {
+        const std::optional<std::uint32_t> seconds = bounded_decimal(value, value_length, update_interval_max_s);
+        if (!seconds.has_value() || *seconds < update_interval_min_s) {
+            return refuse(line, value_begin, ParseError::update_interval_malformed);
+        }
+        target.update_interval_s = *seconds;
+        target.update_interval_place = SettingPlace{line.number, column_of(begin)};
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "healthy-after")) {
+        const std::optional<std::uint32_t> seconds = bounded_decimal(value, value_length, healthy_after_max_s);
+        if (!seconds.has_value() || *seconds == 0u) {
+            return refuse(line, value_begin, ParseError::healthy_after_malformed);
+        }
+        target.healthy_after_s = *seconds;
+        return std::nullopt;
+    }
+    return refuse(line, begin, ParseError::service_setting_unknown);
 }
 
 [[nodiscard]] LineResult parse_service_setting(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
@@ -1308,40 +1605,6 @@ private:
     if (bytes_are(line, begin, end_of_name, "command")) {
         return read_service_command(builder, draft, line, value_begin, value_end);
     }
-    if (bytes_are(line, begin, end_of_name, "directory")) {
-        if (value_begin >= value_end || line.bytes[value_begin] != '/') {
-            return refuse(line, value_begin, ParseError::directory_not_absolute);
-        }
-        // The value parse_setting has just stored.
-        const BootConfig& config = builder.config();
-        draft.directory = config.setting(config.setting_count() - 1u).value;
-        draft.directory_place = SettingPlace{line.number, column_of(begin)};
-        return std::nullopt;
-    }
-    if (bytes_are(line, begin, end_of_name, "folder")) {
-        const std::optional<ParseError> error = folder_error(&line.bytes[value_begin], value_end - value_begin);
-        if (error.has_value()) {
-            return refuse(line, value_begin, *error);
-        }
-        const BootConfig& config = builder.config();
-        draft.folder = config.setting(config.setting_count() - 1u).value;
-        draft.folder_place = SettingPlace{line.number, column_of(begin)};
-        return std::nullopt;
-    }
-    if (bytes_are(line, begin, end_of_name, "devices")) {
-        return read_service_devices(builder, draft, line, value_begin, value_end);
-    }
-    if (bytes_are(line, begin, end_of_name, "network")) {
-        if (bytes_are(line, value_begin, value_end, "none")) {
-            draft.network = NetworkAccess::none;
-        } else if (bytes_are(line, value_begin, value_end, "inherit")) {
-            draft.network = NetworkAccess::inherit;
-        } else {
-            return refuse(line, value_begin, ParseError::service_network_unknown);
-        }
-        draft.network_place = SettingPlace{line.number, column_of(begin)};
-        return std::nullopt;
-    }
     if (bytes_are(line, begin, end_of_name, "restart")) {
         if (bytes_are(line, value_begin, value_end, "never")) {
             draft.restart = RestartPolicy::never;
@@ -1354,10 +1617,146 @@ private:
         }
         return std::nullopt;
     }
-    return refuse(line, begin, ParseError::service_setting_unknown);
+    if (draft.target.has_value()) {
+        return parse_target_setting(builder, *draft.target, line, begin, end_of_name, value_begin, value_end);
+    }
+    return parse_service_only_setting(builder, draft, line, begin, end_of_name, value_begin, value_end);
 }
 
-// After the last line: every start names a defined service.
+// An IPv4 address with a prefix length: "<dotted quad>/<0-32>".
+[[nodiscard]] bool address_with_prefix_valid(const char* bytes, std::size_t length) noexcept {
+    std::size_t slash = 0;
+    while (slash < length && bytes[slash] != '/') {
+        slash += 1;
+    }
+    if (slash == length) {
+        return false;
+    }
+    if (!ipv4_of(bytes, slash).has_value()) {
+        return false;
+    }
+    return bounded_decimal(&bytes[slash + 1u], length - slash - 1u, 32u).has_value();
+}
+
+// An interface name as ifconfig(8) prints one: 1..15 bytes (IFNAMSIZ 16
+// with its NUL) of [a-z0-9], a letter first.
+[[nodiscard]] bool interface_name_valid(const char* bytes, std::size_t length) noexcept {
+    if (length == 0u || length > 15u || !is_lower_letter(bytes[0])) {
+        return false;
+    }
+    for (std::size_t index = 0; index < length; index += 1) {
+        if (!is_lower_letter(bytes[index]) && !is_digit(bytes[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// [network]: only the settings the format lists, each value well formed.
+// Whether the static settings agree with the mode is stxnet's to report
+// (it has the whole section); here each value is checked alone.
+[[nodiscard]] LineResult parse_network_setting(ConfigBuilder& builder, const LineView& line,
+                                               std::size_t begin) noexcept {
+    const std::size_t end_of_name = name_end(line, begin);
+    const std::size_t equals = skip_blanks(line, end_of_name);
+    const std::size_t value_begin = skip_blanks(line, equals + 1u);
+    std::size_t value_end = line.length;
+    while (value_end > value_begin && is_blank(line.bytes[value_end - 1u])) {
+        value_end -= 1;
+    }
+    const char* const value = &line.bytes[value_begin];
+    const std::size_t value_length = value_end - value_begin;
+    bool valid = false;
+    if (bytes_are(line, begin, end_of_name, "mode")) {
+        valid = bytes_are(line, value_begin, value_end, "dhcp") || bytes_are(line, value_begin, value_end, "static");
+    } else if (bytes_are(line, begin, end_of_name, "interface")) {
+        valid = interface_name_valid(value, value_length);
+    } else if (bytes_are(line, begin, end_of_name, "address")) {
+        valid = address_with_prefix_valid(value, value_length);
+    } else if (bytes_are(line, begin, end_of_name, "gateway")) {
+        valid = ipv4_of(value, value_length).has_value();
+    } else if (bytes_are(line, begin, end_of_name, "dns")) {
+        CommandWords words{};
+        const LineResult split = split_value_words(builder, line, value_begin, value_end, words);
+        if (split.has_value()) {
+            return split;
+        }
+        valid = words.count >= 1u && words.count <= name_servers_max;
+        for (std::size_t index = 0; valid && index < words.count; index += 1) {
+            valid = ipv4_of(builder.text(words.words[index].text), words.words[index].text.length).has_value();
+        }
+    } else {
+        return refuse(line, begin, ParseError::network_setting_unknown);
+    }
+    if (!valid) {
+        return refuse(line, value_begin, ParseError::network_value_malformed);
+    }
+    return std::nullopt;
+}
+
+// Whether one folder is the other or contains it (both valid folders, so
+// a component boundary is a '/').
+[[nodiscard]] bool folders_overlap(const char* left, const char* right) noexcept {
+    std::size_t index = 0;
+    while (left[index] != '\0' && left[index] == right[index]) {
+        index += 1;
+    }
+    if (left[index] == '\0') {
+        return right[index] == '\0' || right[index] == '/';
+    }
+    return right[index] == '\0' && left[index] == '/';
+}
+
+// After the last line: names unique across services and targets; target
+// ids unique; at most one foreground target; no listener declared twice;
+// no folder shared or nested. Each refusal is placed at the later
+// definition's header.
+[[nodiscard]] LineResult check_definitions(const BootConfig& config) noexcept {
+    std::size_t foreground_count = 0;
+    for (std::size_t index = 0; index < config.service_count(); index += 1) {
+        const ServiceDefinition& later = config.service(index);
+        for (std::size_t earlier_index = 0; earlier_index < index; earlier_index += 1) {
+            const ServiceDefinition& earlier = config.service(earlier_index);
+            if (c_strings_equal(config.text(earlier.name), config.text(later.name))) {
+                return refuse_at(later.line, 1, ParseError::name_repeated);
+            }
+        }
+        if (!later.target.has_value()) {
+            continue;
+        }
+        const TargetSettings& target = *later.target;
+        if (target.role == TargetRole::foreground) {
+            foreground_count += 1;
+            if (foreground_count > 1u) {
+                return refuse_at(later.line, 1, ParseError::second_foreground);
+            }
+        }
+        for (std::size_t earlier_index = 0; earlier_index < index; earlier_index += 1) {
+            const ServiceDefinition& earlier = config.service(earlier_index);
+            if (!earlier.target.has_value()) {
+                continue;
+            }
+            const TargetSettings& other = *earlier.target;
+            if (other.id == target.id) {
+                return refuse_at(later.line, 1, ParseError::target_id_repeated);
+            }
+            if (folders_overlap(config.text(other.folder), config.text(target.folder))) {
+                return refuse_at(later.line, 1, ParseError::folder_repeated);
+            }
+            for (std::uint32_t mine = 0; mine < target.port_count; mine += 1) {
+                for (std::uint32_t theirs = 0; theirs < other.port_count; theirs += 1) {
+                    if (target.ports[mine].protocol == other.ports[theirs].protocol &&
+                        target.ports[mine].port == other.ports[theirs].port) {
+                        return refuse_at(later.line, 1, ParseError::port_repeated);
+                    }
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// After the last line: every start names a defined service or target.
 [[nodiscard]] LineResult check_starts(const BootConfig& config) noexcept {
     for (std::size_t index = 0; index < config.init_command_count(); index += 1) {
         const InitCommand& command = config.init_command(index);
@@ -1392,7 +1791,13 @@ private:
         return parse_command(builder, line, first);
     }
     const LineResult setting = parse_setting(builder, state, line, first);
-    if (setting.has_value() || !state.service.has_value()) {
+    if (setting.has_value()) {
+        return setting;
+    }
+    if (state.in_network_section) {
+        return parse_network_setting(builder, line, first);
+    }
+    if (!state.service.has_value()) {
         return setting;
     }
     return parse_service_setting(builder, *state.service, line, first);
@@ -1408,6 +1813,7 @@ ParseOutcome parse_boot_config(std::span<const char> text, BootConfig& config) n
     ConfigBuilder builder(config);
     ParseState state{};
     state.in_init_section = false;
+    state.in_network_section = false;
     const char* const bytes = text.data();
     const std::size_t size = text.size();
     std::size_t line_begin = 0;
@@ -1445,6 +1851,9 @@ ParseOutcome parse_boot_config(std::span<const char> text, BootConfig& config) n
     }
     LineResult closing = finish_service(builder, state);
     if (!closing.has_value()) {
+        closing = check_definitions(config);
+    }
+    if (!closing.has_value()) {
         closing = check_starts(config);
     }
     if (closing.has_value()) {
@@ -1452,6 +1861,57 @@ ParseOutcome parse_boot_config(std::span<const char> text, BootConfig& config) n
         return ParseOutcome::failed((*closing).line, (*closing).column, (*closing).error);
     }
     return ParseOutcome::succeeded();
+}
+
+std::uint32_t target_identity(const TargetSettings& target) noexcept {
+    // id is at most target_id_max, so the sum stays far inside 32 bits.
+    return target_identity_base + target.id;
+}
+
+bool package_path_valid(const char* bytes, std::size_t length) noexcept {
+    if (length == 0u || length > package_path_length_max || bytes[0] == '/' || bytes[length - 1u] == '/') {
+        return false;
+    }
+    std::size_t component_begin = 0;
+    for (std::size_t index = 0; index <= length; index += 1) {
+        if (index < length && !is_folder_byte(bytes[index])) {
+            return false;
+        }
+        if (index == length || bytes[index] == '/') {
+            if (index == component_begin || is_dot_component(bytes, component_begin, index)) {
+                return false;
+            }
+            component_begin = index + 1u;
+        }
+    }
+    return true;
+}
+
+std::optional<std::uint32_t> ipv4_of(const char* bytes, std::size_t length) noexcept {
+    std::uint32_t address = 0;
+    std::size_t index = 0;
+    for (std::uint32_t part = 0; part < 4u; part += 1) {
+        if (part > 0u) {
+            if (index >= length || bytes[index] != '.') {
+                return std::nullopt;
+            }
+            index += 1;
+        }
+        const std::size_t begin = index;
+        while (index < length && is_digit(bytes[index]) && index - begin < 3u) {
+            index += 1;
+        }
+        const std::optional<std::uint32_t> value = bounded_decimal(&bytes[begin], index - begin, 255u);
+        if (!value.has_value()) {
+            return std::nullopt;
+        }
+        address = (address << 8u) | *value;
+    }
+    if (index != length) {
+        return std::nullopt;
+    }
+    const std::optional<std::uint32_t> result = address;
+    return result;
 }
 
 }  // namespace stxconfig

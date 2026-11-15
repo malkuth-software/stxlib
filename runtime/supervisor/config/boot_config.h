@@ -52,35 +52,68 @@
 //   restart = on-failure                           optional: never,
 //                                                  on-failure (default), always
 //
-// A service with a folder is confined (C2, appliance/C2_DESIGN.md,
-// "Services"): it runs in a jail of its own that sees its folder
-// read-write at /srv (its working directory), the system's programs,
-// libraries and /etc read-only (without /etc/stx), a /tmp of its own, and
-// only the devices it names. Its command's program is a path as the jail
-// sees it (/srv/... or a system directory).
+// A service is a system service: it runs as root, as the configuration's
+// author defined it. Only the configuration's author defines one.
 //
-//   folder = /user/services/web     optional: a directory below /user (the
-//                                   user part), absolute, without "."
-//                                   or ".." components, empty components or
-//                                   a trailing '/', in [A-Za-z0-9._/-]; not
-//                                   with directory
-//   devices = bpf0 "usb/*"          optional, confined only: devfs path
+// A target is a section named target-<name> (C2, appliance/C2_DESIGN.md,
+// "Targets"): a registered program the appliance exists to run, from a
+// signed package in the program store (/data/programs/<program>/), with
+// plain separation and nothing added: its own numeric user and group, its
+// folder, and only the listeners and devices it declares.
+//
+//   [target-radio]
+//   role = server                   required: foreground (at most one target:
+//                                   it holds the screen) or server
+//   id = 7                          required: 1..target_id_max, unique among
+//                                   targets; the target runs as uid and gid
+//                                   target_identity_base + id. The writer of
+//                                   the file issues ids and never reuses one
+//   program = radio                 optional: the package's name, a name; the
+//                                   target's own name by default
+//   command = bin/radiod --port 8000   required: words as in an init command;
+//                                   the first is a file of the package, a
+//                                   relative path (package_path_valid)
+//   folder = /data/targets/radio    required: the target's working and data
+//                                   directory, below target_folder_parent;
+//                                   the supervisor creates it, owned by the
+//                                   target's user, mode 0700. No target's
+//                                   folder is another's or inside another's
+//   ports = tcp/8000 udp/5353       optional: the listeners it declares,
+//                                   1 to ports_max words <tcp|udp>/<1-65535>;
+//                                   no two targets declare the same one
+//   devices = fb0 ttyv1 "input/*"   optional, foreground only: devfs path
 //                                   patterns (devfs.rules(5)) of the devices
-//                                   the jail sees besides null, zero, random,
-//                                   urandom, fd and the standard streams; 1 to
-//                                   devices_max words of [A-Za-z0-9._/*?+-],
-//                                   each shorter than devfs's 200-byte
-//                                   pattern, no leading '/' or ".." component
-//   network = inherit               optional, confined only: none (the
-//                                   default: no network) or inherit (the
-//                                   host's addresses)
+//                                   the boot ruleset gives to the target's
+//                                   group; 1 to devices_max words of
+//                                   [A-Za-z0-9._/*?+-], each shorter than
+//                                   devfs's 200-byte pattern, no leading '/'
+//                                   or ".." component
+//   start = boot                    optional: boot (the default: started
+//                                   after the init section, the foreground
+//                                   target first) or manual
+//   restart = always                optional, as for a service
+//   update-url = https://example.com/radio/latest   optional: where the
+//                                   update service asks for a newer version
+//                                   (https only, at most a line)
+//   update-interval = 86400         optional, with update-url: seconds
+//                                   between checks, update_interval_min_s to
+//                                   update_interval_max_s (default 86400)
+//   healthy-after = 30              optional: seconds a newly installed
+//                                   version must run before it is kept,
+//                                   1 to healthy_after_max_s (default 30)
 //
-// A service without a folder is a system service: unconfined, as in C1.
-// Only the configuration's author can define one; the services console and
-// the web interface create confined services only.
+// A [network] section, when present, holds only these settings (stxnet
+// applies them; any other is refused):
 //
-// Any other setting in a service section is refused, and every start in the
-// init section must name a service the file defines.
+//   mode = dhcp                     dhcp (the default) or static
+//   interface = genet0              optional: one interface name, or every
+//                                   Ethernet interface when absent
+//   address = 192.168.1.20/24       static only, required: IPv4 and prefix
+//   gateway = 192.168.1.1           static only, optional: IPv4
+//   dns = 192.168.1.1 9.9.9.9       static only, optional: 1 to 3 IPv4
+//
+// Any other setting in a service or target section is refused, and every
+// start in the init section must name a service or target the file defines.
 //
 // if-present guards one command, which is not itself an if-present: guards
 // do not nest. There are no loops, jumps or definitions, so an init section
@@ -117,27 +150,45 @@ constexpr std::size_t command_words_max = 20;
 // A run's argument vector: the program and at most 15 arguments.
 constexpr std::size_t run_arguments_max = 16;
 constexpr std::uint32_t wait_ms_max = 60000;
-constexpr std::size_t services_max = 16;
-// The prefix that makes a section a service definition.
+// Services and targets together.
+constexpr std::size_t services_max = 24;
+// The prefixes that make a section a service or a target definition.
 constexpr const char* service_section_prefix = "service-";
-// A confined service's device patterns.
+constexpr const char* target_section_prefix = "target-";
+// A foreground target's device patterns.
 constexpr std::size_t devices_max = 8;
 // devfs keeps a pattern in a 200-byte array with its NUL
 // (sys/fs/devfs/devfs.h:80, DEVFS_MAXPTRNLEN, at fb9033d2876d).
 constexpr std::size_t device_pattern_length_max = 199;
-// The directory a confined service's folder must be below: the user part.
-constexpr const char* service_folder_parent = "/user";
+// The directory a target's folder must be below: on the data partition
+// (UFS2, which keeps owners and modes; appliance/disk/LAYOUT.md).
+constexpr const char* target_folder_parent = "/data/targets";
+// Target ids and the identities they give.
+constexpr std::uint32_t target_id_max = 999;
+constexpr std::uint32_t target_identity_base = 30000;
+// A target's declared listeners.
+constexpr std::size_t ports_max = 8;
+// A path inside a package (package/manifest.h uses the same rule and bound).
+constexpr std::size_t package_path_length_max = 200;
+// The update service's interval and a trial's healthy time, in seconds.
+constexpr std::uint32_t update_interval_min_s = 300;
+constexpr std::uint32_t update_interval_max_s = 2592000;
+constexpr std::uint32_t update_interval_default_s = 86400;
+constexpr std::uint32_t healthy_after_default_s = 30;
+constexpr std::uint32_t healthy_after_max_s = 3600;
+// [network]: name servers.
+constexpr std::size_t name_servers_max = 3;
 
 // Every stored text (a name, a value, a word) is copied, unescaped and
 // NUL-terminated, into the configuration's text store. A stored text is
 // never longer than the input bytes it came from, and every stored text but
 // the file's last is followed in the input by at least one byte it does not
 // store (a blank, '=', ']' or a line end), so one copy of the file needs at
-// most config_size_max + 1 bytes. A service's command and its devices are
-// each stored twice, as the setting's value and as its words; no byte of
-// the file belongs to two settings, so the second copies together are at
-// most one more copy of the file, and the store holds two copies. The
-// parser still checks capacity on every copy.
+// most config_size_max + 1 bytes. A service's or target's command and a
+// target's devices are each stored twice, as the setting's value and as its
+// words; no byte of the file belongs to two settings, so the second copies
+// together are at most one more copy of the file, and the store holds two
+// copies. The parser still checks capacity on every copy.
 constexpr std::size_t text_store_bytes = 2u * (config_size_max + 1u);
 
 // ---------------------------------------------------------------------------
@@ -270,33 +321,72 @@ enum class RestartPolicy : std::uint8_t {
     always,
 };
 
-// A confined service's network.
-enum class NetworkAccess : std::uint8_t {
-    none,     // no addresses: the jail cannot use the network
-    inherit,  // the host's addresses
+enum class TargetRole : std::uint8_t {
+    foreground,  // holds the screen; at most one
+    server,
 };
 
+enum class StartPolicy : std::uint8_t {
+    boot,    // started after the init section
+    manual,  // started only when asked (init start, the web interface)
+};
+
+enum class PortProtocol : std::uint8_t {
+    tcp,
+    udp,
+};
+
+struct PortDeclaration {
+    PortProtocol protocol;
+    std::uint16_t port;  // 1..65535
+};
+
+// What makes a definition a target (see the format above).
+struct TargetSettings {
+    TargetRole role;
+    std::uint32_t id;  // 1..target_id_max
+    // The package's name: the program setting, or the target's name.
+    TextRef program;
+    TextRef folder;
+    std::uint32_t port_count;  // 0..ports_max
+    PortDeclaration ports[ports_max];
+    std::uint32_t device_count;  // 0..devices_max; 0 for a server
+    TextRef devices[devices_max];
+    StartPolicy start;
+    std::optional<TextRef> update_url;
+    std::uint32_t update_interval_s;
+    std::uint32_t healthy_after_s;
+};
+
+// The uid and gid a target runs as.
+[[nodiscard]] std::uint32_t target_identity(const TargetSettings& target) noexcept;
+
 struct ServiceDefinition {
-    // The name after the section prefix ("web" for [service-web]).
+    // The name after the section prefix ("web" for [service-web], "radio"
+    // for [target-radio]); names are unique across both kinds.
     TextRef name;
-    // The command's words: argument_count is 1..run_arguments_max and
-    // arguments[0] is the program's absolute path.
+    // The command's words: argument_count is 1..run_arguments_max. For a
+    // service arguments[0] is the program's absolute path; for a target it
+    // is a file of its package, relative (package_path_valid).
     std::uint32_t argument_count;
     TextRef arguments[run_arguments_max];
-    // Absent: the service runs in "/". Never present with folder.
+    // Services only. Absent: the service runs in "/".
     std::optional<TextRef> directory;
-    // Present: the service is confined (see the format above).
-    std::optional<TextRef> folder;
-    // Device patterns, confined services only: device_count is
-    // 0..devices_max.
-    std::uint32_t device_count;
-    TextRef devices[devices_max];
-    // none unless the file says inherit; meaningful for confined services.
-    NetworkAccess network;
+    // Present for a target, absent for a service.
+    std::optional<TargetSettings> target;
     RestartPolicy restart;
     // The section header's line.
     std::uint32_t line;
 };
+
+// A path inside a package: 1..package_path_length_max bytes of
+// [A-Za-z0-9._-] and '/', relative, with no empty, "." or ".." component
+// and no trailing '/'.
+[[nodiscard]] bool package_path_valid(const char* bytes, std::size_t length) noexcept;
+
+// An IPv4 address in dotted-quad form (four decimal numbers 0..255 without
+// leading zeros), as a host-order value, or nothing.
+[[nodiscard]] std::optional<std::uint32_t> ipv4_of(const char* bytes, std::size_t length) noexcept;
 
 // ---------------------------------------------------------------------------
 // The configuration. Large (about 30 KiB) and filled in place by the
@@ -399,13 +489,28 @@ enum class ParseError : std::uint8_t {
     start_unknown_service,
     // C2.
     folder_malformed,
-    folder_outside_user,
-    folder_with_directory,
-    confinement_without_folder,
+    folder_outside_data,
     device_pattern_malformed,
     too_many_devices,
-    service_network_unknown,
     sysctl_malformed,
+    target_setting_missing,
+    target_role_unknown,
+    target_id_malformed,
+    target_id_repeated,
+    second_foreground,
+    devices_not_foreground,
+    port_malformed,
+    too_many_ports,
+    port_repeated,
+    program_path_malformed,
+    start_policy_unknown,
+    update_url_malformed,
+    update_interval_malformed,
+    healthy_after_malformed,
+    name_repeated,
+    network_setting_unknown,
+    network_value_malformed,
+    folder_repeated,
 };
 
 // The error's name as printed on the console ("line_too_long", ...).

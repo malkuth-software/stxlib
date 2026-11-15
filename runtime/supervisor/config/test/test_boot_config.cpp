@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <optional>
 
 #include "../boot_config.h"
 #include "test_support.h"
@@ -353,30 +354,104 @@ const Refusal refusals[] = {
     {"[init]\nif-present file /a if-present file /b run /c\n", 2, 20, ParseError::guard_nested},
     {"[init]\nif-present file /a\n", 2, 1, ParseError::command_arguments_wrong},
     {"[init]\nif-present dir /a run /b\n", 2, 12, ParseError::presence_kind_unknown},
-    // C2: confined services.
-    {"[service-web]\ncommand = /w\nfolder = /w\n", 3, 10, ParseError::folder_outside_user},
-    {"[service-web]\ncommand = /w\nfolder = user/x\n", 3, 10, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user\n", 3, 10, ParseError::folder_outside_user},
-    {"[service-web]\ncommand = /w\nfolder = /user/\n", 3, 10, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/a/../b\n", 3, 10, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user//a\n", 3, 10, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/a b\n", 3, 10, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /users/a\n", 3, 10, ParseError::folder_outside_user},
-    {"[service-web]\ncommand = /w\nfolder =\n", 3, 9, ParseError::folder_malformed},
-    {"[service-web]\ncommand = /w\ndirectory = /d\nfolder = /user/w\n", 4, 1, ParseError::folder_with_directory},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndirectory = /d\n", 3, 1, ParseError::folder_with_directory},
-    {"[service-web]\ncommand = /w\ndevices = bpf0\n", 3, 11, ParseError::confinement_without_folder},
-    {"[service-web]\ncommand = /w\nnetwork = none\n", 3, 1, ParseError::confinement_without_folder},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\nnetwork = some\n", 4, 11, ParseError::service_network_unknown},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = /dev/x\n", 4, 11,
-     ParseError::device_pattern_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = a/../b\n", 4, 11,
-     ParseError::device_pattern_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = ok tty[0]\n", 4, 14,
-     ParseError::device_pattern_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices =\n", 4, 10, ParseError::device_pattern_malformed},
-    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = a b c d e f g h i\n", 4, 27,
-     ParseError::too_many_devices},
+    // C2: targets. [target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n is a complete server target (5 lines).
+    {"[target-a]\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
+    {"[target-a]\nrole = server\nfolder = /data/targets/a\ncommand = bin/a\n", 1, 2,
+     ParseError::target_setting_missing},
+    {"[target-a]\nid = 1\nfolder = /data/targets/a\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
+    {"[target-a]\nrole = server\nid = 1\nfolder = /data/targets/a\n", 1, 2, ParseError::service_command_missing},
+    {"[target-a]\nrole = boss\n", 2, 8, ParseError::target_role_unknown},
+    {"[target-a]\nid = 0\n", 2, 6, ParseError::target_id_malformed},
+    {"[target-a]\nid = 01\n", 2, 6, ParseError::target_id_malformed},
+    {"[target-a]\nid = 1000\n", 2, 6, ParseError::target_id_malformed},
+    {"[target-a]\nid = -1\n", 2, 6, ParseError::target_id_malformed},
+    {"[target-a]\nprogram = A\n", 2, 11, ParseError::name_malformed},
+    {"[target-a]\nprogram = a b\n", 2, 11, ParseError::name_malformed},
+    {"[target-a]\ncommand = /bin/a\n", 2, 11, ParseError::program_path_malformed},
+    {"[target-a]\ncommand = ../a\n", 2, 11, ParseError::program_path_malformed},
+    {"[target-a]\ncommand = bin/\n", 2, 11, ParseError::program_path_malformed},
+    {"[target-a]\ncommand =\n", 2, 10, ParseError::program_path_malformed},
+    {"[target-a]\ndirectory = /x\n", 2, 1, ParseError::service_setting_unknown},
+    {"[target-a]\nnetwork = none\n", 2, 1, ParseError::service_setting_unknown},
+    {"[service-a]\ncommand = /w\nfolder = /data/targets/a\n", 3, 1, ParseError::service_setting_unknown},
+    {"[service-a]\ncommand = /w\nid = 1\n", 3, 1, ParseError::service_setting_unknown},
+    {"[target-a]\nfolder = /w\n", 2, 10, ParseError::folder_outside_data},
+    {"[target-a]\nfolder = data/targets/x\n", 2, 10, ParseError::folder_malformed},
+    {"[target-a]\nfolder = /data/targets\n", 2, 10, ParseError::folder_outside_data},
+    {"[target-a]\nfolder = /data/targets/\n", 2, 10, ParseError::folder_malformed},
+    {"[target-a]\nfolder = /data/targets/a/../b\n", 2, 10, ParseError::folder_malformed},
+    {"[target-a]\nfolder = /data/targets//a\n", 2, 10, ParseError::folder_malformed},
+    {"[target-a]\nfolder = /data/targets/a b\n", 2, 10, ParseError::folder_malformed},
+    {"[target-a]\nfolder = /data/targetsx/a\n", 2, 10, ParseError::folder_outside_data},
+    {"[target-a]\nfolder =\n", 2, 9, ParseError::folder_malformed},
+    {"[target-a]\nports = tcp/0\n", 2, 9, ParseError::port_malformed},
+    {"[target-a]\nports = tcp/65536\n", 2, 9, ParseError::port_malformed},
+    {"[target-a]\nports = tcp/080\n", 2, 9, ParseError::port_malformed},
+    {"[target-a]\nports = sctp/1\n", 2, 9, ParseError::port_malformed},
+    {"[target-a]\nports = tcp/\n", 2, 9, ParseError::port_malformed},
+    {"[target-a]\nports =\n", 2, 8, ParseError::port_malformed},
+    {"[target-a]\nports = tcp/80 udp/80 tcp/80\n", 2, 23, ParseError::port_repeated},
+    {"[target-a]\nports = a b c d e f g h i\n", 2, 25, ParseError::too_many_ports},
+    {"[target-a]\nstart = later\n", 2, 9, ParseError::start_policy_unknown},
+    {"[target-a]\nrestart = sometimes\n", 2, 11, ParseError::service_restart_unknown},
+    {"[target-a]\nupdate-url = http://x/l\n", 2, 14, ParseError::update_url_malformed},
+    {"[target-a]\nupdate-url = https:///l\n", 2, 14, ParseError::update_url_malformed},
+    {"[target-a]\nupdate-url = https://\n", 2, 14, ParseError::update_url_malformed},
+    {"[target-a]\nupdate-url = https://x/a|b\n", 2, 14, ParseError::update_url_malformed},
+    {"[target-a]\nupdate-interval = 299\n", 2, 19, ParseError::update_interval_malformed},
+    {"[target-a]\nupdate-interval = 2592001\n", 2, 19, ParseError::update_interval_malformed},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "update-interval = 300\n", 6, 1, ParseError::update_interval_malformed},
+    {"[target-a]\nhealthy-after = 0\n", 2, 17, ParseError::healthy_after_malformed},
+    {"[target-a]\nhealthy-after = 3601\n", 2, 17, ParseError::healthy_after_malformed},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices = fb0\n", 6, 11, ParseError::devices_not_foreground},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices = /dev/x\n", 6, 11, ParseError::device_pattern_malformed},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices = a/../b\n", 6, 11, ParseError::device_pattern_malformed},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices = ok tty[0]\n", 6, 14, ParseError::device_pattern_malformed},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices =\n", 6, 10, ParseError::device_pattern_malformed},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "devices = a b c d e f g h i\n", 6, 27, ParseError::too_many_devices},
+    {"[target-a]\nrole = foreground\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "[target-b]\nrole = foreground\nid = 2\ncommand = bin/b\nfolder = /data/targets/b\n", 6, 1,
+     ParseError::second_foreground},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "[target-b]\nrole = server\nid = 1\ncommand = bin/b\nfolder = /data/targets/b\n", 6, 1,
+     ParseError::target_id_repeated},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "[target-b]\nrole = server\nid = 2\ncommand = bin/b\nfolder = /data/targets/a\n", 6, 1,
+     ParseError::folder_repeated},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "[target-b]\nrole = server\nid = 2\ncommand = bin/b\nfolder = /data/targets/a/b\n", 6, 1,
+     ParseError::folder_repeated},
+    {"[target-b]\nrole = server\nid = 2\ncommand = bin/b\nfolder = /data/targets/a/b\n"
+     "[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n", 6, 1, ParseError::folder_repeated},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "ports = tcp/8000\n"
+     "[target-b]\nrole = server\nid = 2\ncommand = bin/b\nfolder = /data/targets/b\nports = udp/8000 tcp/8000\n",
+     7, 1, ParseError::port_repeated},
+    {"[service-a]\ncommand = /w\n"
+     "[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n", 3, 1, ParseError::name_repeated},
+    {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n"
+     "[init]\nstart b\n", 7, 1, ParseError::start_unknown_service},
+    // C2: the network section.
+    {"[network]\nmode = auto\n", 2, 8, ParseError::network_value_malformed},
+    {"[network]\nhost = x\n", 2, 1, ParseError::network_setting_unknown},
+    {"[network]\ninterface = 9x\n", 2, 13, ParseError::network_value_malformed},
+    {"[network]\ninterface = abcdefghijklmnop\n", 2, 13, ParseError::network_value_malformed},
+    {"[network]\naddress = 10.0.0.1\n", 2, 11, ParseError::network_value_malformed},
+    {"[network]\naddress = 10.0.0.1/33\n", 2, 11, ParseError::network_value_malformed},
+    {"[network]\naddress = 10.0.0/8\n", 2, 11, ParseError::network_value_malformed},
+    {"[network]\ngateway = 10.0.0.256\n", 2, 11, ParseError::network_value_malformed},
+    {"[network]\ngateway = 10.00.0.1\n", 2, 11, ParseError::network_value_malformed},
+    {"[network]\ndns = 1.1.1.1 2.2.2.2 3.3.3.3 4.4.4.4\n", 2, 7, ParseError::network_value_malformed},
+    {"[network]\ndns =\n", 2, 6, ParseError::network_value_malformed},
+    {"[network]\nmode = dhcp\nmode = static\n", 3, 1, ParseError::setting_repeated},
     // C2: sysctl.
     {"[init]\nsysctl a\n", 2, 8, ParseError::sysctl_malformed},
     {"[init]\nsysctl =1\n", 2, 8, ParseError::sysctl_malformed},
@@ -691,43 +766,93 @@ void test_exhaustive_tokens() {
 
 }  // namespace
 
-// A confined service read back field by field, and an unconfined one.
-void test_confined_service() {
-    const char* const test = "confined service";
+// A target read back field by field, defaults included, beside a service;
+// and a network section.
+void test_target_definition() {
+    const char* const test = "target definition";
     const char* const text =
         "[service-web]\n"
-        "command = /srv/bin/webd --port 8443\n"
-        "folder = /user/services/web\n"
-        "devices = bpf0 \"usb/*\" tty?\n"
-        "network = inherit\n"
-        "[service-plain]\n"
-        "command = /bin/sleep 1\n";
+        "command = /sbin/webd --port 8443\n"
+        "[target-show]\n"
+        "role = foreground\n"
+        "id = 7\n"
+        "program = viewer\n"
+        "command = bin/viewer --full \"a b\"\n"
+        "folder = /data/targets/show\n"
+        "ports = tcp/8000 udp/5353\n"
+        "devices = fb0 \"input/*\" ttyv?\n"
+        "start = manual\n"
+        "restart = always\n"
+        "update-url = https://updates.example/show/latest\n"
+        "update-interval = 3600\n"
+        "healthy-after = 60\n"
+        "[target-radio]\n"
+        "role = server\n"
+        "id = 999\n"
+        "command = radiod\n"
+        "folder = /data/targets/radio\n"
+        "[network]\n"
+        "mode = static\n"
+        "interface = genet0\n"
+        "address = 192.168.1.20/24\n"
+        "gateway = 192.168.1.1\n"
+        "dns = 192.168.1.1 9.9.9.9\n"
+        "[init]\n"
+        "start radio\n"
+        "start show\n";
     const ParseOutcome outcome = parse_checked(test, text_of(text));
     check(outcome.is_success(), test, "parses");
-    if (!outcome.is_success() || config.service_count() != 2u) {
+    if (!outcome.is_success() || config.service_count() != 3u) {
         return;
     }
-    const stxconfig::ServiceDefinition& web = config.service(0);
-    check(web.folder.has_value() && same_text(config.text(*web.folder), "/user/services/web"), test, "folder");
-    check(!web.directory.has_value(), test, "no directory");
-    check(web.device_count == 3u && same_text(config.text(web.devices[0]), "bpf0") &&
-              same_text(config.text(web.devices[1]), "usb/*") && same_text(config.text(web.devices[2]), "tty?"),
-          test, "devices, quoted or bare");
-    check(web.network == stxconfig::NetworkAccess::inherit, test, "network inherit");
-    const stxconfig::ServiceDefinition& plain = config.service(1);
-    check(!plain.folder.has_value() && plain.device_count == 0u && plain.network == stxconfig::NetworkAccess::none,
-          test, "a service without a folder is unconfined");
-    const char* const defaulted = "[service-a]\ncommand = /w\nfolder = /user/a\n";
-    const ParseOutcome second = parse_checked(test, text_of(defaulted));
-    check(second.is_success() && config.service(0).network == stxconfig::NetworkAccess::none &&
-              config.service(0).device_count == 0u,
-          test, "network defaults to none, no devices");
+    check(!config.service(0).target.has_value(), test, "the service is no target");
+    const stxconfig::ServiceDefinition& show = config.service(1);
+    check(same_text(config.text(show.name), "show") && show.target.has_value(), test, "show is a target");
+    if (!show.target.has_value()) {
+        return;
+    }
+    const stxconfig::TargetSettings& settings = *show.target;
+    check(settings.role == stxconfig::TargetRole::foreground && settings.id == 7u &&
+              stxconfig::target_identity(settings) == 30007u,
+          test, "role, id, identity");
+    check(same_text(config.text(settings.program), "viewer") &&
+              same_text(config.text(settings.folder), "/data/targets/show"),
+          test, "program and folder");
+    check(show.argument_count == 3u && same_text(config.text(show.arguments[0]), "bin/viewer") &&
+              same_text(config.text(show.arguments[2]), "a b"),
+          test, "command words, the file relative");
+    check(settings.port_count == 2u && settings.ports[0].protocol == stxconfig::PortProtocol::tcp &&
+              settings.ports[0].port == 8000u && settings.ports[1].protocol == stxconfig::PortProtocol::udp &&
+              settings.ports[1].port == 5353u,
+          test, "ports");
+    check(settings.device_count == 3u && same_text(config.text(settings.devices[1]), "input/*"), test, "devices");
+    check(settings.start == stxconfig::StartPolicy::manual && show.restart == stxconfig::RestartPolicy::always, test,
+          "start and restart");
+    check(settings.update_url.has_value() &&
+              same_text(config.text(*settings.update_url), "https://updates.example/show/latest") &&
+              settings.update_interval_s == 3600u && settings.healthy_after_s == 60u,
+          test, "update settings");
+    check(!show.directory.has_value(), test, "no directory");
+    const stxconfig::ServiceDefinition& radio = config.service(2);
+    check(radio.target.has_value(), test, "radio is a target");
+    if (radio.target.has_value()) {
+        const stxconfig::TargetSettings& defaults = *radio.target;
+        check(same_text(config.text(defaults.program), "radio"), test, "program defaults to the name");
+        check(defaults.port_count == 0u && defaults.device_count == 0u &&
+                  defaults.start == stxconfig::StartPolicy::boot && !defaults.update_url.has_value() &&
+                  defaults.update_interval_s == stxconfig::update_interval_default_s &&
+                  defaults.healthy_after_s == stxconfig::healthy_after_default_s &&
+                  radio.restart == stxconfig::RestartPolicy::on_failure,
+              test, "defaults");
+    }
 }
 
-// The folder rule, exhaustive: every value made of a prefix (none, "/u",
-// "/user", "/user/", "/users/") and 0 to 5 bytes over "/", ".", "a", " ",
-// "-", "$" (5 x 9,331 = 46,655 values), against a reference that splits
-// the trimmed value into components.
+// The folder rule, exhaustive: every value made of a prefix (none,
+// "/data/target", "/data/targets", "/data/targets/", "/data/targetsx/") and
+// 0 to 5 bytes over "/", ".", "a", " ", "-", "$" (5 x 9,331 = 46,655
+// values), against a reference that splits the trimmed value into
+// components. A folder is accepted when it has at least three components
+// and begins "/data/targets/".
 [[nodiscard]] bool reference_folder_valid(const char* value) {
     std::size_t begin = 0;
     std::size_t end = stxtest::c_length(value);
@@ -737,7 +862,7 @@ void test_confined_service() {
     while (end > begin && value[end - 1u] == ' ') {
         end -= 1;
     }
-    if (end - begin < 7u || std::strncmp(&value[begin], "/user/", 6) != 0) {
+    if (end - begin < 15u || std::strncmp(&value[begin], "/data/targets/", 14) != 0) {
         return false;
     }
     std::size_t component_begin = begin + 1u;
@@ -765,15 +890,15 @@ void test_confined_service() {
             return false;
         }
     }
-    return components >= 2u;
+    return components >= 3u;
 }
 
 void test_exhaustive_folders() {
-    const char* const prefixes[] = {"", "/u", "/user", "/user/", "/users/"};
+    const char* const prefixes[] = {"", "/data/target", "/data/targets", "/data/targets/", "/data/targetsx/"};
     const char alphabet[] = {'/', '.', 'a', ' ', '-', '$'};
     constexpr std::size_t symbols = sizeof(alphabet);
     std::size_t values = 0;
-    char value[16];
+    char value[32];
     for (const char* const prefix : prefixes) {
         const std::size_t prefix_length = stxtest::c_length(prefix);
         for (std::size_t length = 0; length <= 5u; length += 1) {
@@ -790,7 +915,7 @@ void test_exhaustive_folders() {
                 }
                 value[prefix_length + length] = '\0';
                 build_reset();
-                build_append("[service-a]\ncommand = /w\nfolder = ");
+                build_append("[target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = ");
                 build_append(value);
                 build_append("\n");
                 const ParseOutcome outcome = parse_checked("exhaustive folders", built_text());
@@ -807,10 +932,129 @@ void test_exhaustive_folders() {
     check(values == 46655u, "exhaustive folders", "the stated domain was covered");
 }
 
+// package_path_valid, exhaustive over every string of 0 to 7 bytes over
+// "/", ".", "a", "-", " ", "$" (335,923 strings), against a reference
+// that splits on '/'.
+[[nodiscard]] bool reference_package_path(const char* value, std::size_t length) {
+    if (length == 0u) {
+        return false;
+    }
+    std::size_t component_begin = 0;
+    for (std::size_t index = 0; index <= length; index += 1) {
+        if (index == length || value[index] == '/') {
+            const std::size_t size = index - component_begin;
+            if (size == 0u || (size == 1u && value[component_begin] == '.') ||
+                (size == 2u && value[component_begin] == '.' && value[component_begin + 1u] == '.')) {
+                return false;
+            }
+            component_begin = index + 1u;
+            continue;
+        }
+        const char byte = value[index];
+        if (!((byte >= 'a' && byte <= 'z') || byte == '.' || byte == '-')) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void test_exhaustive_package_paths() {
+    const char alphabet[] = {'/', '.', 'a', '-', ' ', '$'};
+    constexpr std::size_t symbols = sizeof(alphabet);
+    std::size_t values = 0;
+    char value[8];
+    for (std::size_t length = 0; length <= 7u; length += 1) {
+        std::size_t total = 1;
+        for (std::size_t position = 0; position < length; position += 1) {
+            total *= symbols;
+        }
+        for (std::size_t index = 0; index < total; index += 1) {
+            std::size_t rest = index;
+            for (std::size_t position = 0; position < length; position += 1) {
+                value[position] = alphabet[rest % symbols];
+                rest /= symbols;
+            }
+            const bool expected = reference_package_path(value, length);
+            const bool got = stxconfig::package_path_valid(value, length);
+            check(got == expected, "exhaustive package paths", "accepted exactly per the reference");
+            values += 1;
+        }
+    }
+    std::printf("exhaustive package paths: %zu values\n", values);
+    check(values == 335923u, "exhaustive package paths", "the stated domain was covered");
+}
+
+// ipv4_of, exhaustive over every string of 0 to 10 bytes over "0", "2",
+// "5", "6", "." (12,207,031 strings: it holds 255 and 256, 0 and 02, a
+// fourth digit and a fifth part), against a reference that splits on '.'.
+[[nodiscard]] bool reference_ipv4(const char* value, std::size_t length, std::uint32_t& address) {
+    std::uint32_t parts = 0;
+    std::uint32_t result = 0;
+    std::size_t begin = 0;
+    for (std::size_t index = 0; index <= length; index += 1) {
+        if (index < length && value[index] != '.') {
+            continue;
+        }
+        const std::size_t size = index - begin;
+        if (size == 0u || size > 3u || (size > 1u && value[begin] == '0')) {
+            return false;
+        }
+        std::uint32_t number = 0;
+        for (std::size_t digit = begin; digit < index; digit += 1) {
+            number = number * 10u + static_cast<std::uint32_t>(value[digit] - '0');
+        }
+        if (number > 255u) {
+            return false;
+        }
+        result = (result << 8u) | number;
+        parts += 1;
+        begin = index + 1u;
+    }
+    if (parts != 4u) {
+        return false;
+    }
+    address = result;
+    return true;
+}
+
+void test_exhaustive_ipv4() {
+    const char alphabet[] = {'0', '2', '5', '6', '.'};
+    constexpr std::size_t symbols = sizeof(alphabet);
+    std::size_t values = 0;
+    std::size_t accepted = 0;
+    char value[10];
+    for (std::size_t length = 0; length <= 10u; length += 1) {
+        std::size_t total = 1;
+        for (std::size_t position = 0; position < length; position += 1) {
+            total *= symbols;
+        }
+        for (std::size_t index = 0; index < total; index += 1) {
+            std::size_t rest = index;
+            for (std::size_t position = 0; position < length; position += 1) {
+                value[position] = alphabet[rest % symbols];
+                rest /= symbols;
+            }
+            std::uint32_t expected_address = 0;
+            const bool expected = reference_ipv4(value, length, expected_address);
+            const std::optional<std::uint32_t> got = stxconfig::ipv4_of(value, length);
+            const bool same = got.has_value() == expected && (!expected || *got == expected_address);
+            if (!same) {
+                check(false, "exhaustive ipv4", "accepted and valued exactly per the reference");
+            }
+            accepted += expected ? 1u : 0u;
+            values += 1;
+        }
+    }
+    std::printf("exhaustive ipv4: %zu values, %zu addresses\n", values, accepted);
+    check(values == 12207031u, "exhaustive ipv4", "the stated domain was covered");
+}
+
 int main() {
     test_full_example();
-    test_confined_service();
+    test_target_definition();
     test_exhaustive_folders();
+    test_exhaustive_package_paths();
+    test_exhaustive_ipv4();
     test_line_ends_and_empty();
     test_failure_empties_previous();
     test_refusals();

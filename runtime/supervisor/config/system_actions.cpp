@@ -10,12 +10,14 @@
 #include <sys/param.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
+#include <sys/sysctl.h>
 #include <sys/uio.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
 
 #include "../../common/console_line.h"
+#include "sysctl_value.h"
 
 namespace stxconfig {
 
@@ -382,9 +384,116 @@ StepOutcome SystemActions::run_program(const char* const* arguments, const char*
 }
 
 // ---------------------------------------------------------------------------
+// sysctl.
+
+namespace {
+
+// The OIDFMT answer: the kind word, then the format string (sbin/sysctl
+// reads it the same way, sys/kern/kern_sysctl.c, sysctl_sysctl_oidfmt).
+struct OidFormat {
+    std::uint32_t kind;
+    char format[64];
+};
+
+static_assert(sizeof(std::uint32_t) == sizeof(u_int), "the kind word is a u_int");
+static_assert(stxconfig::sysctl_type_mask == CTLTYPE, "sysctl_value.h spells CTLTYPE");
+static_assert(stxconfig::sysctl_flag_writable == CTLFLAG_WR, "sysctl_value.h spells CTLFLAG_WR");
+static_assert(stxconfig::sysctl_type_int == CTLTYPE_INT && stxconfig::sysctl_type_string == CTLTYPE_STRING &&
+                  stxconfig::sysctl_type_s64 == CTLTYPE_S64 && stxconfig::sysctl_type_uint == CTLTYPE_UINT &&
+                  stxconfig::sysctl_type_long == CTLTYPE_LONG && stxconfig::sysctl_type_ulong == CTLTYPE_ULONG &&
+                  stxconfig::sysctl_type_u64 == CTLTYPE_U64 && stxconfig::sysctl_type_u8 == CTLTYPE_U8 &&
+                  stxconfig::sysctl_type_u16 == CTLTYPE_U16 && stxconfig::sysctl_type_s8 == CTLTYPE_S8 &&
+                  stxconfig::sysctl_type_s16 == CTLTYPE_S16 && stxconfig::sysctl_type_s32 == CTLTYPE_S32 &&
+                  stxconfig::sysctl_type_u32 == CTLTYPE_U32,
+              "sysctl_value.h spells the CTLTYPE values");
+
+}  // namespace
+
+StepOutcome SystemActions::set_sysctl(const char* name, const char* value) noexcept {
+    int mib[CTL_MAXNAME + 2] = {};
+    std::size_t mib_length = CTL_MAXNAME;
+    if (sysctlnametomib(name, &mib[2], &mib_length) != 0) {
+        return StepOutcome::failed(errno);
+    }
+    // { CTL_SYSCTL, CTL_SYSCTL_OIDFMT, <the variable's mib> }.
+    mib[0] = CTL_SYSCTL;
+    mib[1] = CTL_SYSCTL_OIDFMT;
+    // Zeroed, and one byte short of the buffer offered, so the format is
+    // NUL-terminated whatever the kernel wrote.
+    OidFormat format{};
+    std::size_t format_length = sizeof(format) - 1u;
+    if (sysctl(mib, static_cast<u_int>(mib_length + 2u), &format, &format_length, nullptr, 0) != 0) {
+        return StepOutcome::failed(errno);
+    }
+    if (format_length < sizeof(format.kind)) {
+        return StepOutcome::failed(EINVAL);
+    }
+    const SysctlValue decided = parse_sysctl_value(format.kind, format.format, value);
+    const SysctlRefusal* const refusal = decided.as_refused();
+    if (refusal != nullptr) {
+        stxruntime::LineText line = stxruntime::empty_line();
+        stxruntime::append_text(line, "STXSUPERVISOR init sysctl refused=");
+        stxruntime::append_text(line, sysctl_refusal_name(*refusal));
+        stxruntime::append_text(line, "\n");
+        stxruntime::write_line(console_, line);
+        return StepOutcome::failed(EINVAL);
+    }
+    const SysctlString* const text = decided.as_string();
+    if (text != nullptr) {
+        if (sysctl(&mib[2], static_cast<u_int>(mib_length), nullptr, nullptr, (*text).bytes, (*text).length) != 0) {
+            return StepOutcome::failed(errno);
+        }
+        return StepOutcome::done();
+    }
+    const SysctlNumber* const number = decided.as_number();
+    if (number == nullptr) {
+        // Fallback: a decision in no known state.
+        return StepOutcome::failed(EINVAL);
+    }
+    // The value in the variable's width, in the host's byte order.
+    std::uint8_t one = 0;
+    std::uint16_t two = 0;
+    std::uint32_t four = 0;
+    std::uint64_t eight = 0;
+    const void* bytes = nullptr;
+    switch ((*number).width) {
+    case 1:
+        one = static_cast<std::uint8_t>((*number).bits);
+        bytes = &one;
+        break;
+    case 2:
+        two = static_cast<std::uint16_t>((*number).bits);
+        bytes = &two;
+        break;
+    case 4:
+        four = static_cast<std::uint32_t>((*number).bits);
+        bytes = &four;
+        break;
+    case 8:
+        eight = (*number).bits;
+        bytes = &eight;
+        break;
+    default:
+        break;
+    }
+    if (bytes == nullptr) {
+        // Fallback: parse_sysctl_value gives widths 1, 2, 4 and 8 only.
+        return StepOutcome::failed(EINVAL);
+    }
+    if (sysctl(&mib[2], static_cast<u_int>(mib_length), nullptr, nullptr, bytes, (*number).width) != 0) {
+        return StepOutcome::failed(errno);
+    }
+    return StepOutcome::done();
+}
+
+// ---------------------------------------------------------------------------
 // SystemServiceActions.
 
-SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console) {}
+SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console), target_hooks_(nullptr) {}
+
+void SystemServiceActions::set_target_hooks(TargetHooks* hooks) noexcept {
+    target_hooks_ = hooks;
+}
 
 namespace {
 
@@ -402,17 +511,94 @@ namespace {
     _exit(127);
 }
 
+// A target's child: as become_service, but first the target's identity,
+// which it can never give up again (setuid from root to a non-root uid sets
+// all three uids). Only async-signal-safe calls.
+[[noreturn]] void become_target(const char* const* arguments, const char* const* environment, const char* directory,
+                                std::uint32_t identity) noexcept {
+    (void)setsid();
+    const gid_t group = static_cast<gid_t>(identity);
+    const uid_t user = static_cast<uid_t>(identity);
+    if (setgroups(1, &group) != 0 || setgid(group) != 0 || setuid(user) != 0) {
+        _exit(126);
+    }
+    sigset_t none{};
+    sigemptyset(&none);
+    (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    if (chdir(directory) != 0) {
+        _exit(126);
+    }
+    (void)execve(arguments[0], const_cast<char* const*>(arguments), const_cast<char* const*>(environment));
+    _exit(127);
+}
+
+// Creates directory with mode and owner, or checks that an existing one is
+// a directory (not a link) and gives it that mode and owner. 0 or an errno.
+[[nodiscard]] int ensure_directory(const char* path, mode_t mode, uid_t user, gid_t group) noexcept {
+    if (mkdir(path, mode) != 0 && errno != EEXIST) {
+        return errno;
+    }
+    struct stat status{};
+    if (lstat(path, &status) != 0) {
+        return errno;
+    }
+    if (!S_ISDIR(status.st_mode)) {
+        return ENOTDIR;
+    }
+    if ((status.st_uid != user || status.st_gid != group) && lchown(path, user, group) != 0) {
+        return errno;
+    }
+    if ((status.st_mode & 07777u) != mode && chmod(path, mode) != 0) {
+        return errno;
+    }
+    return 0;
+}
+
+// A target's folder: each component below target_folder_parent is created
+// as needed, root-owned 0755 but the last, which belongs to the target
+// (0700). The parser has checked the path (absolute, below the parent, no
+// "." or ".." component, at most a line), so a copy fits a line's buffer.
+[[nodiscard]] int prepare_target_folder(const char* folder, std::uint32_t identity) noexcept {
+    char path[line_length_max + 1u] = {};
+    std::size_t length = 0;
+    while (folder[length] != '\0' && length < line_length_max) {
+        path[length] = folder[length];
+        length += 1;
+    }
+    if (folder[length] != '\0') {
+        return ENAMETOOLONG;
+    }
+    std::size_t parent_length = 0;
+    while (target_folder_parent[parent_length] != '\0') {
+        parent_length += 1;
+    }
+    for (std::size_t index = parent_length + 1u; index < length; index += 1) {
+        if (path[index] != '/') {
+            continue;
+        }
+        path[index] = '\0';
+        const int error_number = ensure_directory(path, 0755, 0, 0);
+        path[index] = '/';
+        if (error_number != 0) {
+            return error_number;
+        }
+    }
+    return ensure_directory(path, 0700, static_cast<uid_t>(identity), static_cast<gid_t>(identity));
+}
+
 }  // namespace
 
-SpawnOutcome SystemServiceActions::spawn(const char* const* arguments, const char* const* environment,
-                                         const char* directory) noexcept {
+SpawnOutcome SystemServiceActions::spawn(const SpawnRequest& request) noexcept {
+    if (request.target.has_value()) {
+        return spawn_target(request, *request.target);
+    }
     // Checked before forking, so the common failures carry their errno
     // rather than exit status 126 (directory) or 127 (program).
-    if (access(arguments[0], X_OK) != 0) {
+    if (access(request.arguments[0], X_OK) != 0) {
         return SpawnOutcome::spawn_failed(errno);
     }
     struct stat status{};
-    if (stat(directory, &status) != 0) {
+    if (stat(request.directory, &status) != 0) {
         return SpawnOutcome::spawn_failed(errno);
     }
     if (!S_ISDIR(status.st_mode)) {
@@ -423,8 +609,49 @@ SpawnOutcome SystemServiceActions::spawn(const char* const* arguments, const cha
         return SpawnOutcome::spawn_failed(errno);
     }
     if (child == 0) {
-        become_service(arguments, environment, directory);
+        become_service(request.arguments, request.environment, request.directory);
     }
+    return SpawnOutcome::spawned(static_cast<int>(child));
+}
+
+SpawnOutcome SystemServiceActions::spawn_target(const SpawnRequest& request, const SpawnTarget& target) noexcept {
+    if (target_hooks_ == nullptr) {
+        return SpawnOutcome::spawn_failed(ENOENT);
+    }
+    const std::optional<char> slot = (*target_hooks_).slot_to_run(request);
+    if (!slot.has_value()) {
+        return SpawnOutcome::spawn_failed(ENOENT);
+    }
+    const int folder_error = prepare_target_folder(target.folder, target.identity);
+    if (folder_error != 0) {
+        return SpawnOutcome::spawn_failed(folder_error);
+    }
+    // The launcher's words, then the target's own (at most
+    // run_arguments_max, the parser's bound), then the terminating null.
+    const char slot_text[2] = {*slot, '\0'};
+    const char* words[launcher_words + run_arguments_max + 1u] = {};
+    words[0] = target_launcher_path;
+    words[1] = "run";
+    words[2] = target.program;
+    words[3] = slot_text;
+    words[4] = "--";
+    std::size_t count = launcher_words;
+    for (std::size_t index = 0; request.arguments[index] != nullptr && index < run_arguments_max; index += 1) {
+        words[count] = request.arguments[index];
+        count += 1;
+    }
+    words[count] = nullptr;
+    if (access(target_launcher_path, X_OK) != 0) {
+        return SpawnOutcome::spawn_failed(errno);
+    }
+    const pid_t child = fork();
+    if (child < 0) {
+        return SpawnOutcome::spawn_failed(errno);
+    }
+    if (child == 0) {
+        become_target(words, request.environment, target.folder, target.identity);
+    }
+    (*target_hooks_).target_started(request.service_index, *slot, static_cast<int>(child));
     return SpawnOutcome::spawned(static_cast<int>(child));
 }
 
@@ -497,6 +724,9 @@ void SystemServiceActions::report(const ServiceEvent& event) noexcept {
     }
     stxruntime::append_text(line, "\n");
     stxruntime::write_line(console_, line);
+    if (target_hooks_ != nullptr) {
+        (*target_hooks_).service_event(event);
+    }
 }
 
 // ---------------------------------------------------------------------------
