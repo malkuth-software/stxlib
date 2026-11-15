@@ -19,6 +19,7 @@
 // - refusals: unsorted, repeated, mismatched lengths and weights, and a
 //   refused allocation, each with nothing built.
 
+#include "core/checked.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/frozen_map.hpp"
 #include "stxlib/text.hpp"
@@ -59,7 +60,8 @@ bool check_number_map(const stxlib::FrozenMap& map, const std::vector<u64>& keys
     return same;
 }
 
-std::vector<u64> neighbours_of(const std::vector<u64>& points) {
+// Each point's neighbours wrap modulo 2^64 (0 - 1 is the largest key).
+STXLIB_MODULAR std::vector<u64> neighbours_of(const std::vector<u64>& points) {
     std::vector<u64> result;
     for (const u64 point : points) {
         result.push_back(point - 1);
