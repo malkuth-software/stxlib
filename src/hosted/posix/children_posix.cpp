@@ -281,12 +281,10 @@ void Child::release() noexcept {
     if (output_ != none) (void)::close(static_cast<int>(output_));
     output_ = none;
     const i64 process = process_;
+    const Phase phase = phase_;
     process_ = none;
-    if (process == none || waited_) {
-        waited_ = false;
-        return;
-    }
-    waited_ = false;
+    phase_ = Phase::empty;
+    if (phase != Phase::running) return;
     // A child that has ended is reaped now; a running one is listed.
     int status = 0;
     if (::waitpid(process_id(process), &status, WNOHANG) != 0) return;
@@ -345,6 +343,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     if (error != 0) return Result<Child>::failure(record_of_errno(error, operation));
     Child child;
     child.process_ = static_cast<i64>(pid);
+    child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? static_cast<i64>(reader.release()) : none;
     Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
     return result;
@@ -352,7 +351,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
     reap_abandoned();
     const IntervalTime deadline = IntervalTime::now().after(timeout.negative() ? Duration() : timeout);
     Duration pause = Duration::microseconds(200);
@@ -364,7 +363,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
             return Result<ChildEnd>::failure(record_of_errno(errno, operation));
         }
         if (reaped == process_id(process_)) {
-            waited_ = true;
+            phase_ = Phase::waited;
             if (WIFSIGNALED(status)) {
                 return Result<ChildEnd>::success(ChildEnd::signalled(static_cast<u32>(WTERMSIG(status))));
             }
@@ -383,7 +382,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
 
 Status Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (process_ == none || waited_) return Status::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
     if (::kill(process_id(process_), SIGKILL) != 0) return Status::failure(record_of_errno(errno, operation));
     return Status::success();
 }

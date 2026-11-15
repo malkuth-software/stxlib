@@ -58,16 +58,23 @@ public:
     ~ConsoleLine() = default;
 
     // True when no more input will arrive; text() is then empty.
-    [[nodiscard]] bool ended() const noexcept { return ended_; }
+    [[nodiscard]] bool ended() const noexcept { return kind_ == Kind::end_of_input; }
     // The line without its ending. Borrowed from this object.
     [[nodiscard]] TextView text() const& noexcept { return text_.view(); }
     TextView text() const&& = delete;
 
 private:
+    // Which state this is (audit A, X3); text_ is empty unless it is a line.
+    // Only the two factories write either field.
+    enum class Kind : u8 {
+        line = 0,
+        end_of_input = 1,
+    };
+
     ConsoleLine() noexcept = default;
 
     Utf8String text_{};
-    bool ended_{false};
+    Kind kind_{Kind::line};
 };
 
 // The next line of standard input, without its line ending. A last line

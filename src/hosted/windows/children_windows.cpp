@@ -157,7 +157,7 @@ void Child::release() noexcept {
     if (process_ != none) (void)CloseHandle(handle_of(process_));
     output_ = none;
     process_ = none;
-    waited_ = false;
+    phase_ = Phase::empty;
 }
 
 Result<Child> Child::start(const ChildRequest& request) noexcept {
@@ -235,6 +235,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     (void)CloseHandle(information.hThread);
     Child child;
     child.process_ = value_of(information.hProcess);
+    child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? value_of(output_reader.release()) : none;
     Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
     return result;
@@ -242,7 +243,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
     // timed_out means IntervalTime::now() has reached the deadline
     // (children.hpp), as on POSIX hosts. WaitForSingleObject's interval is
     // whole milliseconds counted on the system timer, whose accuracy
@@ -272,13 +273,13 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     if (outcome != WAIT_OBJECT_0) return Result<ChildEnd>::failure(last_error(operation));
     DWORD code = 0;
     if (!GetExitCodeProcess(handle_of(process_), &code)) return Result<ChildEnd>::failure(last_error(operation));
-    waited_ = true;
+    phase_ = Phase::waited;
     return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(code)));
 }
 
 Status Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (process_ == none || waited_) return Status::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
     if (!TerminateProcess(handle_of(process_), 1)) return Status::failure(last_error(operation));
     return Status::success();
 }

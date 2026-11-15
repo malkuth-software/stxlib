@@ -68,10 +68,10 @@ Result<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit
 
 Child::~Child() { release(); }
 
-Child::Child(Child&& other) noexcept : process_(other.process_), output_(other.output_), waited_(other.waited_) {
+Child::Child(Child&& other) noexcept : process_(other.process_), output_(other.output_), phase_(other.phase_) {
     other.process_ = none;
     other.output_ = none;
-    other.waited_ = false;
+    other.phase_ = Phase::empty;
 }
 
 Child& Child::operator=(Child&& other) noexcept {
@@ -79,10 +79,10 @@ Child& Child::operator=(Child&& other) noexcept {
     release();
     process_ = other.process_;
     output_ = other.output_;
-    waited_ = other.waited_;
+    phase_ = other.phase_;
     other.process_ = none;
     other.output_ = none;
-    other.waited_ = false;
+    other.phase_ = Phase::empty;
     return *this;
 }
 

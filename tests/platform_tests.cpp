@@ -276,6 +276,7 @@ void events() {
         // Deferred events wait until the deferral ends.
         {
             const stxlib::EventDeferral deferral(watched);
+            CHECK(deferral.active());
             CHECK(std::raise(SIGINT) == 0);
             CHECK(watch.take().empty());
         }

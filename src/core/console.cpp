@@ -97,7 +97,7 @@ ConsoleLine ConsoleLine::line(Utf8String&& text) noexcept {
 
 ConsoleLine ConsoleLine::end_of_input() noexcept {
     ConsoleLine result;
-    result.ended_ = true;
+    result.kind_ = Kind::end_of_input;
     return result;
 }
 

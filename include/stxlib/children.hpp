@@ -123,8 +123,8 @@ public:
     // Releases this child first, as the destructor does.
     Child& operator=(Child&& other) noexcept;
 
-    // Whether this owns a started child.
-    [[nodiscard]] bool started() const noexcept { return process_ != none; }
+    // Whether this owns a started child (running, or ended and waited for).
+    [[nodiscard]] bool started() const noexcept { return phase_ != Phase::empty; }
 
     // Waits until the child ends or `timeout` passes (limit_exceeded with
     // HostCode::timed_out; the child keeps running and can be waited for
@@ -146,13 +146,25 @@ public:
 private:
     static constexpr i64 none = -1;
 
+    // The child's state (audit A, X3: one enum in place of a flag beside the
+    // process): empty, no process and process_ is none; running, process_
+    // holds it; waited, it ended and was waited for, and process_ still
+    // holds the Windows handle until release. Only start, wait, release and
+    // the moves write it, together with process_.
+    enum class Phase : u8 {
+        empty = 0,
+        running = 1,
+        waited = 2,
+    };
+
     void release() noexcept;
 
     // A POSIX process id or a Windows process HANDLE's value; -1 when empty.
     i64 process_{none};
-    // The read end of the captured output pipe (descriptor or HANDLE), or -1.
+    // The read end of the captured output pipe (descriptor or HANDLE), or -1;
+    // a resource of its own, released by read_output or release.
     i64 output_{none};
-    bool waited_{false};
+    Phase phase_{Phase::empty};
 };
 
 } // namespace stxlib

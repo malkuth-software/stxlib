@@ -98,7 +98,9 @@ inline constexpr usize event_deferral_state_bytes = 128;
 // Defers the given events on the calling thread for this object's lifetime
 // (a critical section that must not be interrupted); they are delivered
 // when it ends. POSIX only; on Windows it has no effect, since console
-// events arrive on their own thread.
+// events arrive on their own thread. active() says whether the events are
+// deferred: false on Windows, and when the host refused the mask
+// (pthread_sigmask failing), so a deferral that did nothing is observable.
 class EventDeferral final {
 public:
     explicit EventDeferral(EventSet events) noexcept;
@@ -108,7 +110,10 @@ public:
     EventDeferral(EventDeferral&&) = delete;
     EventDeferral& operator=(EventDeferral&&) = delete;
 
+    [[nodiscard]] bool active() const noexcept { return active_; }
+
 private:
+    // The thread's earlier mask while active_; all zero bytes otherwise.
     alignas(8) unsigned char previous_[event_deferral_state_bytes]{};
     bool active_{false};
 };
