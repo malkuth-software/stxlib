@@ -43,7 +43,9 @@
 //                          from stx_auxlib tests/ownership_death_tests.cpp)
 //   foreign_delete         the same with operator delete
 //   gate_cancelled         a callback that calls pthread_exit inside
-//                          invoke_callback, on glibc with libstdc++: the
+//                          invoke_callback, on glibc with libstdc++ or
+//                          libc++ (libc++abi, recognised by the exception
+//                          class): the
 //                          gate sees the forced unwind and fails fast with
 //                          a record naming cancellation (owner decision
 //                          2026-11-15, audit E, 1); elsewhere skipped
@@ -412,7 +414,7 @@ int foreign_delete() {
     return 0;
 }
 
-#if defined(__GLIBC__) && defined(__GLIBCXX__)
+#if defined(__GLIBC__) && (defined(__GLIBCXX__) || defined(_LIBCPP_VERSION))
 struct ExitingCallback final {
     void operator()() const { ::pthread_exit(nullptr); }
 };
@@ -425,7 +427,7 @@ void* run_exiting_gate(void*) {
 #endif
 
 int gate_cancelled() {
-#if defined(__GLIBC__) && defined(__GLIBCXX__)
+#if defined(__GLIBC__) && (defined(__GLIBCXX__) || defined(_LIBCPP_VERSION))
     pthread_t thread{};
     if (::pthread_create(&thread, nullptr, run_exiting_gate, nullptr) != 0) return 2;
     static_cast<void>(::pthread_join(thread, nullptr));

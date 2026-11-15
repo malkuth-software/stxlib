@@ -46,10 +46,17 @@
 #include "core/shadow_capture.hpp"
 #include "hosted/host.hpp"
 
+#include <atomic>
+#include <cstdlib> // on glibc, <features.h> and so __GLIBC__
+#include <cstring>
 #include <exception>
 #include <new>
 #if defined(__GLIBCXX__)
 #include <cxxabi.h> // abi::__forced_unwind (libstdc++'s <bits/cxxabi_forced.h>)
+#elif defined(_LIBCPP_VERSION) && defined(__GLIBC__)
+#define STXLIB_FORCED_UNWIND_BY_CLASS 1
+#include <cxxabi.h> // libc++abi: abi::__cxa_current_primary_exception
+#include <unwind.h> // _Unwind_Exception
 #endif
 #include <stdexcept>
 #include <system_error>
@@ -150,21 +157,107 @@ void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept 
 // a gate that sees it fails fast with a record naming cancellation. The
 // fail-fast call is made inside the handler, so the forced unwind is never
 // ended. Runs before anything else in the gate's handler, the consumer's
-// classifier included (it could swallow it the same way). Hosts whose
-// cancellation does not unwind (macOS, musl, Windows) and libc++ on glibc
-// (no abi::__forced_unwind; glibc's abort stays) compile it to nothing.
+// classifier included (it could swallow it the same way). libstdc++ names
+// the exception's type; libc++abi on glibc is recognised by the exception
+// class (below). Hosts whose cancellation does not unwind (macOS, musl,
+// Windows) compile it to nothing.
+[[noreturn]] void fail_fast_cancelled(const Operation operation) noexcept {
+    const ErrorRecord record =
+        ErrorRecord::make(ErrorKind::interrupted, operation,
+                          ErrorDetail{.message = "thread cancellation or pthread_exit unwound into a gate"});
+    fail_fast(record);
+}
+
+#if defined(STXLIB_FORCED_UNWIND_BY_CLASS)
+// libc++abi on glibc (STXlib's and GUI.Forms' toolchain on Linux: libc++ 22,
+// audit C, C-1 b). libc++abi has no abi::__forced_unwind type, so the
+// forced unwind is recognised by its exception class. The mechanism, read in
+// llvm-project libcxxabi at release 22.1.8 (as vendored in emsdk 6.0.13,
+// system/lib/libcxxabi; Emscripten's fork, whose README names that base)
+// and glibc 2.41 (nptl/unwind.c, read in the bminor/glibc mirror at tag
+// glibc-2.41):
+// - glibc's __pthread_unwind sets the forced unwind's exception_class to 0
+//   ("This is not a catchable exception", unwind.c lines 122-124), its
+//   cleanup to unwind_cleanup, which aborts with "FATAL: exception not
+//   rethrown" (lines 106-112), and raises it with _Unwind_ForcedUnwind
+//   (line 127).
+// - libc++abi's personality finds catch (...) during a forced unwind
+//   (cxa_personality.cpp lines 807-819). __cxa_begin_catch, for an exception
+//   whose class is not CLNGC++ (cxa_exception.cpp lines 105-107), pushes
+//   (__cxa_exception*)(unwind_exception + 1) - 1 onto the caught stack
+//   (lines 463-475 and 503-509; the helper at lines 61-67), or terminates
+//   if that stack is not empty. __cxa_end_catch would delete it
+//   (lines 592-601), which is glibc's abort above.
+// - __cxa_get_globals (Itanium C++ ABI 2.2.2; exported, cxa_exception.h
+//   line 183) returns the per-thread globals, whose first member is that
+//   stack's top (cxa_exception.h lines 175-181).
+// - __cxa_current_primary_exception returns null for a foreign exception
+//   (cxa_exception.cpp lines 728-737) and, for one of libc++abi's own, the
+//   thrown object, which is the header's end (lines 50-56).
+// So, inside a handler: a null primary exception means the caught
+// exception is foreign; the caught stack's top plus the header size is the
+// end of its _Unwind_Exception; exception_class 0 is glibc's forced unwind.
+// The header size is not taken from a copy of libc++abi's private struct:
+// it is measured once from the running library (a thrown int's thrown
+// object minus its stack entry).
+struct CaughtStack final {
+    void* caught_exceptions;
+    unsigned int uncaught_exceptions;
+};
+
+extern "C" CaughtStack* __cxa_get_globals() noexcept;
+
+constinit std::atomic<usize> measured_header_bytes{0};
+
+// libc++abi's __cxa_exception size, measured; 0 when it cannot be.
+usize header_bytes() noexcept {
+    const usize known = measured_header_bytes.load(std::memory_order_relaxed);
+    if (known != 0) return known;
+    usize found = 0;
+    try {
+        throw 0;
+    } catch (const int&) {
+        const unsigned char* const entry = static_cast<const unsigned char*>((*__cxa_get_globals()).caught_exceptions);
+        void* const thrown = abi::__cxa_current_primary_exception();
+        if (thrown != nullptr && entry != nullptr && static_cast<const unsigned char*>(thrown) > entry) {
+            found = static_cast<usize>(static_cast<const unsigned char*>(thrown) - entry);
+        }
+        if (thrown != nullptr) abi::__cxa_decrement_exception_refcount(thrown);
+    }
+    if (found >= sizeof(_Unwind_Exception)) measured_header_bytes.store(found, std::memory_order_relaxed);
+    return found >= sizeof(_Unwind_Exception) ? found : 0;
+}
+
+// True when the exception being handled is glibc's forced unwind.
+bool handling_forced_unwind() noexcept {
+    const usize header = header_bytes(); // before the stack is read: it pushes and pops its own
+    if (header == 0) return false;
+    void* const primary = abi::__cxa_current_primary_exception();
+    if (primary != nullptr) {
+        abi::__cxa_decrement_exception_refcount(primary);
+        return false; // one of libc++abi's own
+    }
+    const unsigned char* const entry = static_cast<const unsigned char*>((*__cxa_get_globals()).caught_exceptions);
+    if (entry == nullptr) return false;
+    const unsigned char* const unwind_end = entry + header;
+    u64 exception_class = 1;
+    std::memcpy(&exception_class, unwind_end - sizeof(_Unwind_Exception), sizeof(exception_class));
+    const bool result = exception_class == 0;
+    return result;
+}
+#endif
+
 void fail_fast_if_cancelled(const Operation operation) noexcept {
 #if defined(__GLIBCXX__)
     try {
         throw;
     } catch (abi::__forced_unwind&) {
-        const ErrorRecord record = ErrorRecord::make(
-            ErrorKind::interrupted, operation,
-            ErrorDetail{.message = "thread cancellation or pthread_exit unwound into a gate"});
-        fail_fast(record);
+        fail_fast_cancelled(operation);
     } catch (...) {
         // Any other exception: the gate's handler goes on with it.
     }
+#elif defined(STXLIB_FORCED_UNWIND_BY_CLASS)
+    if (handling_forced_unwind()) fail_fast_cancelled(operation);
 #else
     static_cast<void>(operation);
 #endif
