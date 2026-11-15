@@ -34,18 +34,22 @@
 // counterexamples below), so the range is a precondition:
 // - sums (two_sum, fast_two_sum, compensated sums): every operand zero or of
 //   magnitude at least 2^(emin + p) (double 2^-969, float 2^-102) and at
-//   most 2^emax (double 2^1023, float 2^127), and the sum finite. Operands
-//   at least 2^(emin + p - 1) are integer multiples of 2^emin, so every
-//   error term is a multiple of 2^emin: zero or normal. The upper bound
-//   keeps two_sum's b_part = sum - a = b + d, |d| <= ulp(sum) / 2 <=
-//   2^(emax - p), at most 2^emax + 2^(emax - p), which rounds to at most
-//   2^emax (a tie, to the even 2^emax); likewise a_part = sum - b_part =
-//   a - d', |d'| <= 2^(emax - p), and the two corrections are at most
-//   2^(emax - p + 1). So no operation of two_sum overflows, and Knuth's
-//   theorem (exact barring overflow) applies. Without it, a = 0x767e0000,
-//   b = -FLT_MAX has a finite sum and a NaN error (ESBMC and z3, M5).
-//   fast_two_sum needs only the finite sum (its sum - a is exact), but
-//   shares the range.
+//   most 2^(emax - 1) (double 2^1022, float 2^126). Operands at least
+//   2^(emin + p - 1) are integer multiples of 2^emin, so every error term is
+//   a multiple of 2^emin: zero or normal. The upper bound is on each
+//   operand, so it is checked before any arithmetic, and it excludes
+//   overflow outright: |a + b| <= 2^emax, which is a float, so the sum is
+//   at most 2^emax and finite. Then two_sum's b_part = sum - a = b + d,
+//   |d| <= ulp(sum) / 2 <= 2^(emax - p), is at most 2^(emax - 1) +
+//   2^(emax - p) < 2^emax; likewise a_part = sum - b_part = a - d', |d'| <=
+//   2^(emax - p); and the two corrections are at most 2^(emax - p + 1). So
+//   no operation of two_sum overflows, and Knuth's theorem (exact barring
+//   overflow) applies. The M5 runs refuted two weaker bounds: none (a =
+//   0x767e0000, b = -FLT_MAX: a finite sum and a NaN error) and 2^emax on
+//   each operand (a = -0x1.fffffep126, b = -0x1p127: the sum is the tie
+//   above FLT_MAX and rounds to infinity; ESBMC's overflow check on the
+//   first add). fast_two_sum needs only a finite sum (its sum - a is
+//   exact), but shares the range.
 // - split: a zero, or exponent(a) >= emin + p - 1 (double -970, float
 //   -103), so both halves are multiples of ulp(a) >= 2^emin; and |a| <=
 //   2^995 (double) or 2^115 (float), where the split cannot overflow.
@@ -64,12 +68,13 @@
 //   sums' bound; a product needs these as well, with the same purpose.
 // - expansions: every component zero or normal, and every value an integer
 //   multiple of a power of two whose products stay at or above 2^emin; and
-//   every two-sum's operands at most 2^emax with a finite sum, every
+//   every two-sum's operands at most 2^(emax - 1) (as for the sums), every
 //   product's operands within split's magnitude limit with exponent(a) +
 //   exponent(b) <= emax - 2. A sufficient condition for the sums: the sum
 //   of the magnitudes of every component that enters (times the factor, for
-//   a scaled expansion) at most 2^(emax - 1), since each running sum is
-//   then at most that sum times (1 + u)^n (rounding is monotone). The
+//   a scaled expansion) at most 2^(emax - 2), since each running sum is
+//   then at most that sum times (1 + u)^n <= 2 for n < 2^52 (rounding is
+//   monotone). The
 //   expansions orient2d and incircle build meet all of it by their
 //   coordinate ranges below.
 // The ranges are checked when STXLIB_FLOAT_CHECKS is defined (CMake defines
@@ -135,7 +140,7 @@ struct Format<double> final {
     static constexpr double splitter = 134217729.0;  // 2^27 + 1
     static constexpr double split_limit = 0x1p995;
     static constexpr double sum_floor = 0x1p-969;    // 2^(emin + p)
-    static constexpr double sum_ceiling = 0x1p1023;  // 2^emax
+    static constexpr double sum_ceiling = 0x1p1022;  // 2^(emax - 1)
     static constexpr double unit_roundoff = 0x1p-53; // Shewchuk's epsilon
 };
 
@@ -151,7 +156,7 @@ struct Format<float> final {
     static constexpr float splitter = 4097.0f;       // 2^12 + 1
     static constexpr float split_limit = 0x1p115f;
     static constexpr float sum_floor = 0x1p-102f;    // 2^(emin + p)
-    static constexpr float sum_ceiling = 0x1p127f;   // 2^emax
+    static constexpr float sum_ceiling = 0x1p126f;   // 2^(emax - 1)
     static constexpr float unit_roundoff = 0x1p-24f;
 };
 
@@ -207,8 +212,9 @@ template <typename T>
 
 // The overflow side of the ranges alone, for the expansions' steps (whose
 // underflow side is argued from the components' multiples, not from
-// exponents): a two-sum operand at most 2^emax, and a product's operands
-// within split's magnitude limit with exponent(a) + exponent(b) <= emax - 2.
+// exponents): a two-sum operand at most 2^(emax - 1), and a product's
+// operands within split's magnitude limit with exponent(a) + exponent(b) <=
+// emax - 2.
 // A NaN fails both.
 template <typename T>
 [[nodiscard]] constexpr bool below_sum_ceiling(const T value) noexcept {
@@ -375,7 +381,7 @@ template <typename T>
 template <typename T>
 [[nodiscard]] STXLIB_FLOAT_EXACT_INLINE Pair<T> component_two_sum(const T a, const T b) noexcept {
     STXLIB_FLOAT_REQUIRE(below_sum_ceiling(a) && below_sum_ceiling(b),
-                         "float_exact: an expansion's two-sum operand above 2^emax");
+                         "float_exact: an expansion's two-sum operand above 2^(emax - 1)");
     const Pair<T> result = raw::two_sum(a, b);
     STXLIB_FLOAT_REQUIRE(finite(result.value), "float_exact: an expansion's sum overflows");
     return result;
@@ -384,7 +390,7 @@ template <typename T>
 template <typename T>
 [[nodiscard]] STXLIB_FLOAT_EXACT_INLINE Pair<T> component_fast_two_sum(const T a, const T b) noexcept {
     STXLIB_FLOAT_REQUIRE(below_sum_ceiling(a) && below_sum_ceiling(b),
-                         "float_exact: an expansion's two-sum operand above 2^emax");
+                         "float_exact: an expansion's two-sum operand above 2^(emax - 1)");
     const Pair<T> result = raw::fast_two_sum(a, b);
     STXLIB_FLOAT_REQUIRE(finite(result.value), "float_exact: an expansion's sum overflows");
     return result;
@@ -542,10 +548,11 @@ template <typename T>
 //
 // Order matters to both: the result is the same bits only for the same
 // terms in the same order (evaluation rule 6). Every term zero or of
-// magnitude at least 2^(emin + p) and at most 2^emax (in_sum_range), and
-// every partial sum finite. With terms at most 2^emax, Neumaier's
+// magnitude at least 2^(emin + p) and at most 2^(emax - 1) (in_sum_range),
+// and every partial sum finite. With terms so bounded, Neumaier's
 // correction is an exact difference and Kahan's (next - sum) is at most
-// 2^emax (1 + 3u), so neither overflows while the partial sums are finite.
+// 2^(emax - 1) (1 + 3u), so neither overflows while the partial sums are
+// finite.
 
 // Kahan's: error at most (2u + O(n u^2)) sum |x_i| (Higham, Accuracy and
 // Stability of Numerical Algorithms, 2nd ed., section 4.3). 4 operations a
@@ -618,8 +625,8 @@ private:
 // differences are at most 2^251, the lifts and cross terms at most 2^505 in
 // component magnitude, their products' exponent sums at most 1010, and the
 // whole determinant's components sum in magnitude to below 2^1014 (<=
-// 2^(emax - 1)). Every two-sum operand is so at most 2^emax and every
-// product step within split's limit. The float forms evaluate in
+// 2^(emax - 2)). Every two-sum operand is so at most 2^(emax - 1) and
+// every product step within split's limit. The float forms evaluate in
 // double, exactly (a float converts to double exactly), so any zero or
 // normal float coordinate is in range.
 

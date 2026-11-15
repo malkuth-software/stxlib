@@ -8,7 +8,8 @@
 //
 // for each harness below. Each assumes the primitive's range as
 // float_exact.hpp's predicates state it (since claude/float-exact-edges:
-// sums at most 2^127 in magnitude; products with both operands in split's
+// sum operands at most 2^126 in magnitude, which implies a finite sum, so
+// the sum harnesses assert it instead of assuming it; products with both operands in split's
 // range, a zero included, and exponent(a) + exponent(b) <= 125, which
 // exclude the M5 counterexamples) (and, for the
 // sum, an exponent gap of at most 28, so the check in double is exact) and
@@ -37,7 +38,7 @@ void harness_two_sum() {
     __ESBMC_assume(a == 0.0f || b == 0.0f ||
                    (fe::exponent_of(a) - fe::exponent_of(b) <= 28 && fe::exponent_of(b) - fe::exponent_of(a) <= 28));
     const fe::Pair<float> sum = fe::raw::two_sum(a, b);
-    __ESBMC_assume(fe::finite(sum.value));
+    __ESBMC_assert(fe::finite(sum.value), "the sum is finite over the range");
     __ESBMC_assert(static_cast<double>(sum.value) + static_cast<double>(sum.error) ==
                        static_cast<double>(a) + static_cast<double>(b),
                    "two_sum is exact");
@@ -51,7 +52,7 @@ void harness_fast_two_sum() {
     __ESBMC_assume(a == 0.0f || b == 0.0f || fe::exponent_of(a) >= fe::exponent_of(b));
     const fe::Pair<float> fast = fe::raw::fast_two_sum(a, b);
     const fe::Pair<float> sum = fe::raw::two_sum(a, b);
-    __ESBMC_assume(fe::finite(sum.value));
+    __ESBMC_assert(fe::finite(sum.value), "the sum is finite over the range");
     __ESBMC_assert(fast.value == sum.value && fast.error == sum.error, "fast_two_sum equals two_sum");
 }
 

@@ -1,11 +1,13 @@
 // Row D01 (phase D, targeted), two_sum: float_exact::raw::two_sum<float>
 // (src/core/float_exact.hpp), bit-precise in the SMT floating-point theory.
 // P1: for every pair of floats in two_sum's range (each zero or of magnitude
-//     at least 2^-102 and at most 2^127, F3 = 1; the upper bound added after
-//     the M5 counterexample a = 0x767e0000, b = -FLT_MAX, whose error was
-//     NaN) whose sum is finite, the error is exactly the rounding error of
-//     the sum (value + error == a + b in the reals; so every intermediate
-//     is finite), and it is zero or normal.
+//     at least 2^-102 and at most 2^126, F3 = 1; the upper bound added after
+//     the M5 counterexamples a = 0x767e0000, b = -FLT_MAX, whose error was
+//     NaN, and, under a 2^127 bound, a = -0x1.fffffep126, b = -0x1p127,
+//     whose sum overflowed), no operation overflows (the tool's overflow
+//     check; the range alone implies a finite sum, so no assumption is made
+//     after the add), the error is exactly the rounding error of the sum
+//     (value + error == a + b in the reals), and it is zero or normal.
 // The check is exact, so a refutation cannot be hidden by rounding:
 //   - exponents within 28 of each other (or a zero): a + b is exact in
 //     double (at most 53 significant bits), and so is (a + b) - value
@@ -19,10 +21,10 @@
 #include <bit>
 #include <cstdint>
 
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=91-111 sha256=fc27ef5e6487e677ff06a3ebd162b9d685d6a54506b1f6e6b0458d4c26c49da7
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=116-232 namespace=stxlib::float_exact sha256=f036384bf9c4cfaf177b2a2d8c6a35286aa7937724f80e9927b3151e68bb97d6
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=239-309 namespace=stxlib::float_exact::raw sha256=739554fe1becd806427b891bcedf279c360bbd1acf95318e2c2aad319de1f46a
-//@ mutant id=m1 source=stxlib path=src/core/float_exact.hpp line=244 from="+ (b - b_part)" to="- (b - b_part)"
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=96-116 sha256=fc27ef5e6487e677ff06a3ebd162b9d685d6a54506b1f6e6b0458d4c26c49da7
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=121-238 namespace=stxlib::float_exact sha256=34db4ddd7d8dbe16480845b870b984f00c68f7a3a33268116e88b207eebea1f9
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=245-315 namespace=stxlib::float_exact::raw sha256=739554fe1becd806427b891bcedf279c360bbd1acf95318e2c2aad319de1f46a
+//@ mutant id=m1 source=stxlib path=src/core/float_exact.hpp line=250 from="+ (b - b_part)" to="- (b - b_part)"
 
 namespace fe = stxlib::float_exact;
 
@@ -31,7 +33,7 @@ int main() {
     const float b = nondet_float();
     STX_ASSUME(fe::in_sum_range(a) && fe::in_sum_range(b));
     const fe::Pair<float> sum = fe::raw::two_sum(a, b);
-    STX_ASSUME(fe::finite(sum.value));
+    STX_ASSERT(fe::finite(sum.value), "two_sum's sum is finite over the range");
     const int gap = fe::exponent_of(a) - fe::exponent_of(b);
     if (a == 0.0f || b == 0.0f || (gap <= 28 && gap >= -28)) {
         const double exact = static_cast<double>(a) + static_cast<double>(b);

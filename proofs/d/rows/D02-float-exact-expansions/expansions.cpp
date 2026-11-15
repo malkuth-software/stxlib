@@ -28,8 +28,8 @@
 #include <cstdint>
 
 //@ pin source=stxlib path=include/stxlib/types.hpp sha256=7d1b60e63a2dc6a28180f30d1941df8b628ea53c676cb251c65495c2a02f4b58
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=91-111 sha256=fc27ef5e6487e677ff06a3ebd162b9d685d6a54506b1f6e6b0458d4c26c49da7
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=116-232 namespace=stxlib::float_exact sha256=f036384bf9c4cfaf177b2a2d8c6a35286aa7937724f80e9927b3151e68bb97d6
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=96-116 sha256=fc27ef5e6487e677ff06a3ebd162b9d685d6a54506b1f6e6b0458d4c26c49da7
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=121-238 namespace=stxlib::float_exact sha256=34db4ddd7d8dbe16480845b870b984f00c68f7a3a33268116e88b207eebea1f9
 
 //@ model-begin reason="the effect of an error-free transformation: any pair of doubles (no bound; the checked counts and indices do not depend on the values)"
 static stxlib::float_exact::Pair<double> stx_any_pair() {
@@ -38,20 +38,20 @@ static stxlib::float_exact::Pair<double> stx_any_pair() {
 }
 //@ model-end
 
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=395-474 namespace=stxlib::float_exact sha256=8cdfab84ca4cfb33e7bb3fdd1b165bd36586a9e9fb02546cac3667e01b83ae56
-//@ lift source=stxlib path=src/core/float_exact.hpp lines=491-539 namespace=stxlib::float_exact sha256=be1c3018c2ef54aedf0faae2cf43f7417dbf41638c44523a0726ceacfd94180c
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=400 from="component_two_sum(q, e[index])" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=433 from="component_fast_two_sum(e_now, q)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=437 from="component_fast_two_sum(f_now, q)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=445 from="component_two_sum(q, e_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=449 from="component_two_sum(q, f_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=458 from="component_two_sum(q, e_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=465 from="component_two_sum(q, f_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=495 from="expansion_product_step(e[0], b)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of the product step"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=499 from="expansion_product_step(e[index], b)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of the product step"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=500 from="component_two_sum(q, product.error)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
-//@ abstract source=stxlib path=src/core/float_exact.hpp line=502 from="component_fast_two_sum(product.value, sum.value)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
-//@ mutant id=m1 source=stxlib path=src/core/float_exact.hpp line=516 from="scratch + 2 * elen * flen" to="scratch + 2 * elen * flen + 1"
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=401-480 namespace=stxlib::float_exact sha256=8cdfab84ca4cfb33e7bb3fdd1b165bd36586a9e9fb02546cac3667e01b83ae56
+//@ lift source=stxlib path=src/core/float_exact.hpp lines=497-545 namespace=stxlib::float_exact sha256=be1c3018c2ef54aedf0faae2cf43f7417dbf41638c44523a0726ceacfd94180c
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=406 from="component_two_sum(q, e[index])" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=439 from="component_fast_two_sum(e_now, q)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=443 from="component_fast_two_sum(f_now, q)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=451 from="component_two_sum(q, e_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=455 from="component_two_sum(q, f_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=464 from="component_two_sum(q, e_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=471 from="component_two_sum(q, f_now)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=501 from="expansion_product_step(e[0], b)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of the product step"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=505 from="expansion_product_step(e[index], b)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of the product step"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=506 from="component_two_sum(q, product.error)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of two_sum"
+//@ abstract source=stxlib path=src/core/float_exact.hpp line=508 from="component_fast_two_sum(product.value, sum.value)" to="stx_any_pair()" bound="any pair (none needed)" reason="effect of fast_two_sum"
+//@ mutant id=m1 source=stxlib path=src/core/float_exact.hpp line=522 from="scratch + 2 * elen * flen" to="scratch + 2 * elen * flen + 1"
 
 #ifndef STX_N
 #define STX_N 3
