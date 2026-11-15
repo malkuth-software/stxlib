@@ -127,7 +127,8 @@ void check_invariants(const char* test, std::span<const char> input, const Parse
             const char* const file = config.text(service.arguments[0]);
             valid = valid && stxconfig::package_path_valid(file, service.arguments[0].length);
             valid = valid && text_ref_valid(config, target.program) && text_ref_valid(config, target.folder);
-            valid = valid && target.id >= 1u && target.id <= stxconfig::target_id_max;
+            // 0: not issued yet (config/target_ids.h).
+            valid = valid && target.id <= stxconfig::target_id_max;
             valid = valid && target.port_count <= stxconfig::ports_max;
             valid = valid && target.device_count <= stxconfig::devices_max;
             valid = valid && (target.role == stxconfig::TargetRole::foreground || target.device_count == 0u);
