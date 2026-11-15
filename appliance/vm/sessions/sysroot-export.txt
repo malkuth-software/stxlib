@@ -1,0 +1,5 @@
+# Send the host the files a static cross build against this image's userland
+# needs: the headers and the static libraries and start files. The first
+# command fails the session if the image has no static C library.
+cd / && ls -l usr/lib/libc.a usr/lib/crt1.o usr/lib/crti.o usr/lib/crtn.o
+cd / && tar -czf - usr/include $(ls usr/lib/*.a usr/lib/*.o) | nc -N {recv}

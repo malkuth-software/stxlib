@@ -1,0 +1,8 @@
+# C1 S1: hw.acpi.verbose makes the guest print "power button pressed" when
+# the ACPI power button reaches acpi_button (sys/dev/acpica/acpi.c:651-655,
+# acpi_button.c:223 ACPI_VPRINT), so a scenario tells a press that never
+# arrived from a PID 1 that ignored it.
+sed -i '' '/^hw.acpi.verbose=/d' /boot/loader.conf.local
+printf '%s\n' 'hw.acpi.verbose="1"' >> /boot/loader.conf.local
+cat /boot/loader.conf.local
+sync

@@ -1,0 +1,18 @@
+# Install the web service (C2): stxweb, its three pages, and a provisioned
+# password record (password.0, a turn file made on the host by
+# appliance/web/tools/make_password_turn.py, so the scenario needs no setup
+# code from the console). Run after install-config and before
+# install-programs, which ends the login path.
+mkdir -p /usr/share/stx/web /var/db/stxweb /user/stx
+fetch -q -o /usr/sbin/stxweb {http}/stxweb
+test "$(sha256 -q /usr/sbin/stxweb)" = "{web_sha256}"
+chmod 555 /usr/sbin/stxweb
+fetch -q -o /usr/share/stx/web/index.html {http}/index.html
+fetch -q -o /usr/share/stx/web/app.js {http}/app.js
+fetch -q -o /usr/share/stx/web/style.css {http}/style.css
+test "$(sha256 -q /usr/share/stx/web/app.js)" = "{app_sha256}"
+fetch -q -o /var/db/stxweb/password.0 {http}/password.0
+test "$(sha256 -q /var/db/stxweb/password.0)" = "{password_sha256}"
+chmod 600 /var/db/stxweb/password.0
+rm -f /var/db/stxweb/password.1 /var/db/stxweb/tls.0 /var/db/stxweb/tls.1 /user/stx/config.0 /user/stx/config.1
+sync

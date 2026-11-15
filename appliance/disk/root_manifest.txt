@@ -1,0 +1,49 @@
+# root_manifest.txt -- what the appliance root takes from the pinned base
+# (C1 step S4; C2), besides our own files (kernel, stx programs, /etc/stx,
+# the accounts, the certificate bundle). build_image.sh (C2) and
+# build_disk.sh (C1) copy each path and the shared libraries the programs
+# need, so the root holds exactly what the failsafe path, normal running
+# (Ethernet, sshd, the clock) and the targets' launcher use; check_root.sh
+# then holds the built root to this list, every path. One path per line;
+# # starts a comment. Accounts are generated (master.passwd, group in this
+# directory, pwd_mkdb), not copied; build_disk.sh (C1 only) still copies
+# the base's.
+# Run-time linker
+/libexec/ld-elf.so.1
+# Shell and the commands failsafe.conf and dhclient-script use
+/bin/sh
+/bin/cat
+/bin/chmod
+/bin/cp
+/bin/hostname
+/bin/mkdir
+/bin/mv
+/bin/rm
+/bin/sleep
+/bin/pkill
+/sbin/dhclient
+/sbin/dhclient-script
+/sbin/fsck_ffs
+/sbin/ifconfig
+/sbin/mount
+/sbin/route
+/sbin/sysctl
+/usr/bin/logger
+/usr/bin/sed
+/usr/bin/ssh-keygen
+/usr/sbin/arp
+/usr/sbin/sshd
+/usr/libexec/sshd-session
+/usr/libexec/sshd-auth
+# The shell of the accounts that never log in (master.passwd)
+/usr/sbin/nologin
+# Login classes (sshd's setusercontext), name service
+/etc/login.conf
+/etc/login.conf.db
+/etc/nsswitch.conf
+/etc/protocols
+/etc/services
+/etc/ssh/moduli
+# The loader's scripts and defaults, read again after the slot switch
+/boot/lua
+/boot/defaults

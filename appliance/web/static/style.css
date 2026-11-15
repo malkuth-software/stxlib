@@ -1,0 +1,107 @@
+/* The appliance's web interface (C2): plain, readable on a phone, light
+   and dark from the browser's preference. */
+:root {
+  --background: #ffffff;
+  --text: #1b1d21;
+  --muted: #5d6470;
+  --line: #d6d9de;
+  --accent: #1f5fbf;
+  --danger: #b3261e;
+  --banner: #fff4d6;
+  --code: #f3f4f6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #15171a;
+    --text: #e6e8eb;
+    --muted: #9aa1ab;
+    --line: #2f343a;
+    --accent: #7fb0ff;
+    --danger: #ff8a80;
+    --banner: #3a3220;
+    --code: #1f2226;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 600; }
+nav { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+nav a { color: var(--accent); text-decoration: none; }
+nav a.current { font-weight: 600; text-decoration: underline; }
+main { max-width: 920px; margin: 0 auto; padding: 8px 16px 48px; }
+h1 { font-size: 1.4em; margin: 16px 0 8px; }
+h2 { font-size: 1.1em; margin: 22px 0 6px; }
+.hint { color: var(--muted); }
+label { display: block; margin: 8px 0; }
+label.inline { display: flex; gap: 8px; align-items: center; }
+input[type="text"], input[type="password"], select, textarea {
+  display: block;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 3px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+}
+textarea { max-width: none; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 13px; }
+button {
+  margin: 6px 6px 6px 0;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--background);
+  font: inherit;
+  cursor: pointer;
+}
+button.secondary { background: transparent; color: var(--accent); }
+button.danger { background: var(--danger); border-color: var(--danger); }
+button.link { border: none; background: none; color: var(--accent); padding: 0; margin: 0; }
+button:disabled { opacity: 0.5; cursor: default; }
+.notice {
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--banner);
+}
+.notice.error { color: var(--danger); }
+.banner { padding: 8px 10px; border-radius: 4px; background: var(--banner); }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 0; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+table.grid { border-collapse: collapse; width: 100%; }
+table.grid th, table.grid td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.grid th { color: var(--muted); font-weight: 500; }
+pre.log {
+  max-height: 320px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--code);
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.target { border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; margin: 10px 0; }
+.target h3 { margin: 2px 0 6px; font-size: 1.05em; }
+.state-running { color: #2e7d32; }
+.state-failed, .state-crashed { color: var(--danger); }
+.buttons { margin-top: 6px; }
+progress { width: 100%; max-width: 560px; }
+code { background: var(--code); padding: 0 3px; border-radius: 3px; }
