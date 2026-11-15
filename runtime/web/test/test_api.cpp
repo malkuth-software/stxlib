@@ -324,11 +324,18 @@ void test_setup_and_login(Client& owner) {
     check(send(owner, Method::post, "/api/setup", body) != 200u, "login", "setup closed once a password is set");
 
     Client guesser = client_at(66);
-    std::uint16_t last = 0;
-    for (std::uint32_t attempt = 0; attempt < gate_failures_before_lock; attempt += 1) {
-        last = send(guesser, Method::post, "/api/login", "{\"password\":\"wrong-pass\"}");
+    // Each failure before the lock is a 401; the failure that locks the
+    // client is answered as locked already (429, api.cpp handle_login).
+    std::uint32_t refused = 0;
+    for (std::uint32_t attempt = 0; attempt + 1u < gate_failures_before_lock; attempt += 1) {
+        if (send(guesser, Method::post, "/api/login", "{\"password\":\"wrong-pass\"}") == 401u) {
+            refused += 1;
+        }
     }
-    check(last == 401u, "login", "wrong passwords refused");
+    check(refused + 1u == gate_failures_before_lock, "login", "wrong passwords refused");
+    check(send(guesser, Method::post, "/api/login", "{\"password\":\"wrong-pass\"}") == 429u &&
+              answer.retry_after_s.has_value(),
+          "login", "the failure that locks is answered 429");
     check(send(guesser, Method::post, "/api/login", "{\"password\":\"first-pass\"}") == 429u &&
               answer.retry_after_s.has_value() && *answer.retry_after_s > 0u,
           "login", "a locked client gets 429 with Retry-After, even with the right password");
@@ -402,14 +409,26 @@ void test_target_log(Client& owner) {
 }
 
 void test_pages(Client& owner) {
+    // A user section is a target: K11's target settings (boot_config.h; the
+    // command is a path inside the package), and no start setting
+    // (user_config.h, rules 5 and 6).
     check(send(owner, Method::post, "/api/targets/player",
-               "{\"settings\":{\"command\":\"/bin/sleep 3600\",\"restart\":\"always\"},\"enabled\":true}") == 200u,
+               "{\"settings\":{\"role\":\"server\",\"id\":\"1\",\"command\":\"bin/player --loop\","
+               "\"folder\":\"/data/targets/player\",\"restart\":\"always\"},\"enabled\":true}") == 200u,
           "pages", "target written");
+    check(send(owner, Method::post, "/api/targets/loose",
+               "{\"settings\":{\"command\":\"/bin/sleep 3600\"},\"enabled\":true}") == 422u,
+          "pages", "a section without target settings refused");
+    check(send(owner, Method::post, "/api/targets/loose",
+               "{\"settings\":{\"role\":\"server\",\"id\":\"2\",\"command\":\"bin/loose\","
+               "\"folder\":\"/data/targets/loose\",\"start\":\"boot\"},\"enabled\":true}") == 422u,
+          "pages", "a target with its own start setting refused");
     check(send(owner, Method::get, "/api/targets") == 200u && body_has("\"name\":\"player\"") &&
               body_has("\"enabled\":true") && body_has("\"programs_supported\":false"),
           "pages", "target read back, enabled; programs not supported yet");
-    check(send(owner, Method::post, "/api/targets/web", "{\"settings\":{\"command\":\"/bin/sh\"},\"enabled\":true}") ==
-              422u,
+    check(send(owner, Method::post, "/api/targets/web",
+               "{\"settings\":{\"role\":\"server\",\"id\":\"3\",\"command\":\"bin/web\","
+               "\"folder\":\"/data/targets/web\"},\"enabled\":true}") == 422u,
           "pages", "a target named after a factory service refused");
     check(send(owner, Method::post, "/api/targets/player/install", "{\"source\":\"upload\"}") == 501u, "pages",
           "install answers 501 while the host side lacks it");

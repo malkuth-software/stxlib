@@ -438,8 +438,8 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
         case Event::start: {
             const StartResult result = registry.start(name, now, actions);
             // A start refused because the service is not stopped (running,
-            // waiting, or stopping after a stop) changes nothing: a stop by
-            // request stays one.
+            // waiting or still stopping) changes nothing: a pending stop
+            // stands, and its exit still ends stopped by request.
             if (result != StartResult::already_running) {
                 stopped_by_request = false;
             }
