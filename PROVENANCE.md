@@ -739,16 +739,36 @@ same day, and are here unmodified:
 | `third_party/whatwg-entities/entities.json` | <https://html.spec.whatwg.org/entities.json> | 145,897 | `d741d877ac77c4194c4ad526b5b4a19aef8dfe411ab840a466891cdbb9f362e6` |
 | `third_party/commonmark-0.31.2/spec.txt` | <https://spec.commonmark.org/0.31.2/spec.txt> | 204,857 | `bfef4ddc97276b6ab6c2a28ace48478e35b1c50e60cde9f517ab8ab030aa3b82` |
 
-Licences. `UnicodeData.txt`: the Unicode License v3, as `CaseFolding.txt`
-beside it (`third_party/unicode-18.0.0/LICENSE`). `entities.json`: part of
-the WHATWG HTML Standard, Creative Commons Attribution 4.0 (the standard's
-own statement); the table generated from it keeps the names and code
-points, which are facts of the standard. `spec.txt`: the CommonMark
-specification by John MacFarlane, Creative Commons Attribution-ShareAlike
-4.0 (stated in the file); it is test data only, read by
-`tests/markdown_tests.cpp` and built into nothing. A share-alike text in a
-public repository is the coordinator's and the owner's to confirm; the test
-can take the file from outside the tree instead.
+The two `LICENSE` files beside `entities.json` and `spec.txt` are first
+party (notices written here, 2026-11-15).
+
+Licences.
+- `UnicodeData.txt`: the Unicode License v3, as `CaseFolding.txt` beside it
+  (`third_party/unicode-18.0.0/LICENSE`, installed as `unicode-LICENSE`).
+- `entities.json`: part of the WHATWG HTML Standard. The standard's
+  statement, read at
+  <https://html.spec.whatwg.org/multipage/acknowledgements.html> on
+  2026-11-15: Creative Commons Attribution 4.0, and for portions
+  incorporated into source code the BSD 3-Clause License instead.
+  `third_party/whatwg-entities/LICENSE` carries the statement, the
+  attribution and the BSD 3-Clause text for the generated table, and is
+  installed as `whatwg-entities-LICENSE`. The BSD text was written out
+  from the licence's standard wording, not downloaded.
+- `spec.txt`: the CommonMark Spec, version 0.31.2 (2024-01-28), by John
+  MacFarlane, Creative Commons Attribution-ShareAlike 4.0 International.
+  The file as published does not state its licence; the specification's
+  page does (<https://spec.commonmark.org/0.31.2/>, read 2026-11-15):
+  "CommonMark Spec by John MacFarlane is licensed under a Creative Commons
+  Attribution-ShareAlike 4.0 International License."
+  `third_party/commonmark-0.31.2/LICENSE` carries the attribution, the
+  licence's name and address, and what the file is used for. The licence's
+  full text is not copied here: the licence admits its address in place of
+  its text (section 3(a)(1)(C)), and no download was made for it. The owner
+  decided on 2026-11-15 that the text stays in the repository, attributed
+  (notes `decisions/2026-11-15-font-digester-and-spec-text.md`). It is
+  test data only: `tests/markdown_tests.cpp` reads its examples; it is
+  compiled into nothing and installed nowhere, and STXlib's own code is not
+  adapted from it and keeps STXlib's licence.
 
 Generated (first party) by `tools/gen_markdown_tables.py`, which checks the
 properties the reader relies on before it writes:
