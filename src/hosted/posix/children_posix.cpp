@@ -411,8 +411,8 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
             break;
         }
     }
+    output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)::close(descriptor);
-    output_ = none;
     if (failed_errno != 0) return Result<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
     if (exhausted) {
         return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));

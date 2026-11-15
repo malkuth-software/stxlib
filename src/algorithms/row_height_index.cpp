@@ -126,14 +126,18 @@ RowHeightIndex::RowHeightIndex(RowHeightIndex&& other) noexcept : tree_(other.tr
 
 RowHeightIndex& RowHeightIndex::operator=(RowHeightIndex&& other) noexcept {
     if (this == &other) return *this;
-    destroy(tree_);
+    void* const held = tree_;
     tree_ = other.tree_;
     other.tree_ = nullptr;
+    destroy(held);
     return *this;
 }
 
+// Lets go before destroying (AGENTS.md, rule 1).
 RowHeightIndex::~RowHeightIndex() {
-    destroy(tree_);
+    void* const held = tree_;
+    tree_ = nullptr;
+    destroy(held);
 }
 
 // ---- queries ----------------------------------------------------------------

@@ -119,7 +119,10 @@ public:
     OwnedHandle(const OwnedHandle&) = delete;
     OwnedHandle& operator=(const OwnedHandle&) = delete;
     ~OwnedHandle() {
-        if (value != nullptr && value != INVALID_HANDLE_VALUE) (void)CloseHandle(value);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const HANDLE held = value;
+        value = nullptr;
+        if (held != nullptr && held != INVALID_HANDLE_VALUE) (void)CloseHandle(held);
     }
 
     [[nodiscard]] HANDLE release() noexcept {
@@ -309,8 +312,8 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
             break;
         }
     }
+    output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)CloseHandle(pipe);
-    output_ = none;
     if (failed_error != 0) return Result<Buffer<Byte>>::failure(record_of_error(failed_error, operation));
     if (exhausted) {
         return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));

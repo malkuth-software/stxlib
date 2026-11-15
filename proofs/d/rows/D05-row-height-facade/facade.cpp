@@ -206,9 +206,9 @@ private:
 
 //@ lift source=stxlib path=src/algorithms/row_height_index.cpp lines=43-46 namespace=stxlib anonymous sha256=7806ef4b58f2cd8a45f6ed0174407d57f1035ab5cf4f9d597a2e3a604f0142d8
 //@ lift source=stxlib path=src/algorithms/row_height_index.cpp lines=58-77 namespace=stxlib anonymous sha256=de8841b98d83cf14d179cadc27903e8114d53950fdeebf8c5e37267b20ac25cd
-//@ lift source=stxlib path=src/algorithms/row_height_index.cpp lines=174-241 namespace=stxlib sha256=6bf1a01a4f389dc94bb539e4881e2b8af1c74950248b31356e806e6fa7df2d30
-//@ subst source=stxlib path=src/algorithms/row_height_index.cpp line=201 from="std::span<const i64>" to="stx_model::Span<const i64>" reason="std::span reduced to its data and size"
-//@ mutant id=m1 source=stxlib path=src/algorithms/row_height_index.cpp line=182 from="height < 0" to="height < -1"
+//@ lift source=stxlib path=src/algorithms/row_height_index.cpp lines=178-245 namespace=stxlib sha256=6bf1a01a4f389dc94bb539e4881e2b8af1c74950248b31356e806e6fa7df2d30
+//@ subst source=stxlib path=src/algorithms/row_height_index.cpp line=205 from="std::span<const i64>" to="stx_model::Span<const i64>" reason="std::span reduced to its data and size"
+//@ mutant id=m1 source=stxlib path=src/algorithms/row_height_index.cpp line=186 from="height < 0" to="height < -1"
 
 #ifndef STX_N
 #define STX_N 2
