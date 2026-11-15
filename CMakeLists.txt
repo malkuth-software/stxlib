@@ -996,10 +996,23 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
     # stxlib::markdown: the CommonMark specification's examples, the tape's
-    # form, and the generated tables against the Unicode files, each read by
-    # the test's own parser (tests/markdown_tests.cpp); and the committed
-    # tables are the generator's output for the pinned inputs. Not built for
-    # the web tests yet (three data files to embed).
+    # form, and the generated tables against the Unicode file, read by the
+    # test's own parser (tests/markdown_tests.cpp); and the committed tables
+    # are the generator's output for the pinned inputs. Not built for the
+    # web tests yet (two data files to embed).
+    #
+    # The specification's text (CC-BY-SA 4.0) may live outside the tree:
+    # STXLIB_COMMONMARK_SPEC names it. When no file is there the test runs
+    # everything but the specification's examples, and says so.
+    set(STXLIB_COMMONMARK_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/third_party/commonmark-0.31.2/spec.txt"
+        CACHE FILEPATH "The CommonMark 0.31.2 spec.txt for stxlib_markdown_tests")
+    set(stxlib_commonmark_argument -)
+    if(EXISTS "${STXLIB_COMMONMARK_SPEC}")
+        set(stxlib_commonmark_argument "${STXLIB_COMMONMARK_SPEC}")
+    else()
+        message(STATUS "STXlib: no CommonMark specification at ${STXLIB_COMMONMARK_SPEC}; "
+                       "stxlib_markdown_tests runs without its examples")
+    endif()
     if(NOT stxlib_web_tests)
         add_executable(stxlib_markdown_tests tests/markdown_tests.cpp)
         target_link_libraries(stxlib_markdown_tests PRIVATE stxlib::algorithms)
@@ -1007,9 +1020,8 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_markdown_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_markdown_tests
             COMMAND stxlib_markdown_tests
-                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/commonmark-0.31.2/spec.txt
-                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/UnicodeData.txt
-                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
+                    ${stxlib_commonmark_argument}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/UnicodeData.txt)
         set_tests_properties(stxlib_markdown_tests PROPERTIES TIMEOUT 600)
         find_package(Python3 COMPONENTS Interpreter)
         if(Python3_Interpreter_FOUND)
@@ -1451,7 +1463,8 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_case_folding_table
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_case_folding.py --check
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_full_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})

@@ -17,7 +17,8 @@
 // What simple folding is and is not:
 // - every code point maps to one code point (itself when the file does not
 //   list it); "ß" stays "ß" and does not match "ss" (that is full folding,
-//   status F, not provided);
+//   status F: fold_case_full below gives it for one code point; the
+//   functions over text here are simple folding only);
 // - the Turkic dotted and dotless I (status T) are not used: "I" folds to
 //   "i" in every language;
 // - no normalisation: "é" as one code point and "e" followed by U+0301 are
@@ -47,6 +48,25 @@ inline constexpr u32 case_folding_unicode_update = 0;
 // value (a surrogate, or above 0x10FFFF) is returned unchanged, as is every
 // code point the table does not list.
 [[nodiscard]] u32 fold_case_simple(u32 code_point) noexcept;
+
+// The full case folding of one code point: CaseFolding.txt's mapping with
+// status F where the code point has one (105 code points, each to two or
+// three code points: "ß" to "ss", U+0390 to three), otherwise its simple
+// folding. For matching that must treat such spellings as equal, as a
+// Markdown link label is matched. As with simple folding: no Turkic
+// mappings, no normalisation, and folding a folded code point changes
+// nothing. A value that is not a scalar value is returned unchanged.
+// Checked against the file at every code point (tests/
+// case_folding_tests.cpp).
+inline constexpr usize full_fold_longest = 3;
+
+struct FullFold final {
+    // How many of `scalars` are the folding: 1 to full_fold_longest.
+    u32 count{1};
+    u32 scalars[full_fold_longest]{0, 0, 0};
+};
+
+[[nodiscard]] FullFold fold_case_full(u32 code_point) noexcept;
 
 // The most bytes the folding of `byte_count` bytes of text takes: no
 // scalar's UTF-8 form grows by more than half (two bytes to three, the

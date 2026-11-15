@@ -109,11 +109,6 @@ struct Decoded final {
 // P and S.
 [[nodiscard]] bool is_unicode_punctuation(u32 code_point) noexcept;
 
-// The full case folding of a scalar value (Unicode CaseFolding.txt, status
-// C and F), written to out[0, 3); returns how many code points, 1 to 3.
-// What the table does not list folds to itself.
-[[nodiscard]] u32 fold_case_full(u32 code_point, u32* out) noexcept;
-
 // ---- scanning ------------------------------------------------------------------------
 
 // The first offset at or after `offset` whose byte is LF or CR, or `size`.

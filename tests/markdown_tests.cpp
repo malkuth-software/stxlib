@@ -1,9 +1,11 @@
 // Tests of include/stxlib/markdown.hpp.
 //
-// Usage: stxlib_markdown_tests <spec.txt> <UnicodeData.txt> <CaseFolding.txt> [--list]
-// (CMake passes third_party/commonmark-0.31.2/spec.txt and the two files
-// of third_party/unicode-18.0.0). --list prints every specification
-// example whose HTML differs, with both texts.
+// Usage: stxlib_markdown_tests <spec.txt | -> <UnicodeData.txt> [--list]
+// (CMake passes STXLIB_COMMONMARK_SPEC, by default third_party/
+// commonmark-0.31.2/spec.txt, and third_party/unicode-18.0.0/
+// UnicodeData.txt). With "-" for the specification, S1 and S2 are not run
+// and the test says so. --list prints every specification example whose
+// HTML differs, with both texts.
 //
 // Properties:
 //   S1  every example of the CommonMark 0.31.2 specification, read through
@@ -26,15 +28,15 @@
 //   U1  is_unicode_whitespace and is_unicode_punctuation agree with
 //       UnicodeData.txt, read here by a parser of its own, at every code
 //       point 0 to 0x10FFFF;
-//   U2  fold_case_full agrees with CaseFolding.txt (status C and F) at
-//       every code point;
 //   E1  known character references decode; names that are not references
 //       stay text;
 //   L1  limits and the stop signal: each named failure, and an empty
 //       document after it;
 //   D1  the places this reader differs from MD4C on purpose behave as
 //       CommonMark says (lines.cpp, inlines.cpp).
-// C1, C3 (over its buffers), U1 and U2 are exhaustive over their domains.
+// C1, C3 (over its buffers) and U1 are exhaustive over their domains.
+// (Full case folding, which label matching uses, is checked at every code
+// point by tests/case_folding_tests.cpp.)
 
 #include "stxlib/markdown.hpp"
 
@@ -576,39 +578,6 @@ void unicode_classes(const char* const path) {
     CHECK(!detail::is_unicode_punctuation(detail::not_a_character));
 }
 
-void full_folding(const char* const path) {
-    std::vector<std::vector<u32>> expected(0x110000);
-    std::ifstream file(path);
-    CHECK(static_cast<bool>(file));
-    std::string line{};
-    while (std::getline(file, line)) {
-        const usize comment = line.find('#');
-        if (comment != std::string::npos) line.erase(comment);
-        const std::vector<std::string> fields = split(line, ';');
-        if (fields.size() < 3) continue;
-        const std::string status = fields[1].substr(fields[1].find_first_not_of(' '));
-        if (status != "C" && status != "F") continue;
-        const u32 code_point = static_cast<u32>(std::strtoul(fields[0].c_str(), nullptr, 16));
-        std::istringstream mapped(fields[2]);
-        std::string piece{};
-        while (mapped >> piece) expected[code_point].push_back(static_cast<u32>(std::strtoul(piece.c_str(), nullptr, 16)));
-    }
-    bool agree = true;
-    for (u32 code_point = 0; code_point <= 0x10ffff; ++code_point) {
-        u32 folded[3] = {0, 0, 0};
-        const u32 count = detail::fold_case_full(code_point, folded);
-        if (expected[code_point].empty()) {
-            if (count != 1 || folded[0] != code_point) agree = false;
-        } else {
-            if (count != expected[code_point].size()) agree = false;
-            for (u32 index = 0; index < count && index < expected[code_point].size(); ++index) {
-                if (folded[index] != expected[code_point][index]) agree = false;
-            }
-        }
-    }
-    CHECK(agree);
-}
-
 // ---- E1, L1, D1 ------------------------------------------------------------------------
 
 [[nodiscard]] std::string html_of(const std::string& source, const bool strikethrough) {
@@ -632,6 +601,8 @@ void references_and_marks() {
           "<p>&amp; # # &amp;nosuch; \xEF\xBF\xBD \xEF\xBF\xBD</p>\n");
     CHECK(html_of("~~gone~~ and ~one~ and ~~~three~~~\n", true) == "<p><del>gone</del> and <del>one</del> and ~~~three~~~</p>\n");
     CHECK(html_of("~~kept~~\n", false) == "<p>~~kept~~</p>\n");
+    // Labels match by full case folding, and whatever the whitespace around them.
+    CHECK(html_of("[STRASSE ]\n\n[stra\xC3\x9F" "e]: /u\n", false) == "<p><a href=\"/u\">STRASSE </a></p>\n");
     CHECK(html_of("<b>bold</b>\n\n<div>\nx\n</div>\n", false) == "<p>&lt;b&gt;bold&lt;/b&gt;</p>\n<p>&lt;div&gt;\nx\n&lt;/div&gt;</p>\n");
     CHECK(html_of("<me@example.org> <https://example.org/a?b=c>\n", false) ==
           "<p><a href=\"mailto:me@example.org\">me@example.org</a> <a href=\"https://example.org/a?b=c\">https://example.org/a?b=c</a></p>\n");
@@ -746,21 +717,24 @@ void hostile_shapes() {
 } // namespace
 
 int main(const int argument_count, const char* const* const arguments) {
-    if (argument_count < 4) {
-        std::fprintf(stderr, "usage: stxlib_markdown_tests <spec.txt> <UnicodeData.txt> <CaseFolding.txt> [--list]\n");
+    if (argument_count < 3) {
+        std::fprintf(stderr, "usage: stxlib_markdown_tests <spec.txt | -> <UnicodeData.txt> [--list]\n");
         return 2;
     }
-    const bool list = argument_count > 4 && std::strcmp(arguments[4], "--list") == 0;
+    const bool list = argument_count > 3 && std::strcmp(arguments[3], "--list") == 0;
     byte_classes();
     utf8_decoding();
     newline_scan();
     unicode_classes(arguments[2]);
-    full_folding(arguments[3]);
     references_and_marks();
     limits_and_stopping();
     differences_from_md4c();
     hostile_shapes();
-    specification(arguments[1], list);
+    if (std::strcmp(arguments[1], "-") == 0) {
+        std::printf("specification: not run (no specification text was given)\n");
+    } else {
+        specification(arguments[1], list);
+    }
     const int status = stxlib_tests::finish("stxlib_markdown_tests");
     return status;
 }

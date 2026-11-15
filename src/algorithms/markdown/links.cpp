@@ -6,7 +6,7 @@
 //
 // Reformulated:
 // - A label is matched in one fixed form, made once: case folded (full
-//   folding), whitespace runs as one space, no leading or trailing space.
+//   folding, case_folding.hpp), whitespace runs as one space, no leading or trailing space.
 //   A definition's form is kept; a reference's is made in a buffer on the
 //   stack, which a label's 999-character limit bounds. Matching is then a
 //   comparison of bytes. (MD4C folds both labels again at every
@@ -23,6 +23,7 @@
 #include "algorithms/markdown/internal.hpp"
 
 #include "algorithms/markdown/entities.hpp"
+#include "stxlib/case_folding.hpp"
 
 namespace stxlib::markdown::detail {
 
@@ -32,6 +33,7 @@ namespace {
 inline constexpr u32 label_limit = 999;
 // One character folds to at most three code points of at most four bytes.
 inline constexpr u32 label_form_bytes = label_limit * 12;
+static_assert(text::full_fold_longest == 3, "markdown: the label buffer allows three folded code points a character");
 
 inline constexpr u32 fnv_basis = 2166136261U;
 inline constexpr u32 fnv_prime = 16777619U;
@@ -144,10 +146,9 @@ struct LabelPlace final {
                     out[written] = ctx.text[offset];
                     written = written + 1;
                 } else {
-                    u32 folded[3] = {0, 0, 0};
-                    const u32 count = fold_case_full(decoded.code_point, folded);
-                    for (u32 piece = 0; piece < count; ++piece) {
-                        written = written + encode_utf8(folded[piece], out + written);
+                    const text::FullFold folded = text::fold_case_full(decoded.code_point);
+                    for (u32 piece = 0; piece < folded.count; ++piece) {
+                        written = written + encode_utf8(folded.scalars[piece], out + written);
                     }
                 }
             }

@@ -17,16 +17,6 @@ struct CodePointRange final {
 // sorted, disjoint, inclusive, all above U+007F.
 #include "algorithms/markdown/unicode_classes.inc"
 
-// Generated from CaseFolding.txt by the same tool: full_foldings, sorted by
-// code point, each with one to three folded code points; ASCII left out.
-struct FullFolding final {
-    u32 code_point{0};
-    u32 count{0};
-    u32 folded[3]{};
-};
-
-#include "algorithms/markdown/case_folding_full.inc"
-
 [[nodiscard]] bool is_continuation(const char byte) noexcept {
     const bool result = (static_cast<u8>(byte) & 0xc0) == 0x80;
     return result;
@@ -158,30 +148,6 @@ bool is_unicode_punctuation(const u32 code_point) noexcept {
     const bool result =
         in_ranges(punctuation_ranges, sizeof(punctuation_ranges) / sizeof(punctuation_ranges[0]), code_point);
     return result;
-}
-
-u32 fold_case_full(const u32 code_point, u32* const out) noexcept {
-    if (code_point < 0x80) {
-        out[0] = (code_point >= 'A' && code_point <= 'Z') ? code_point + ('a' - 'A') : code_point;
-        return 1;
-    }
-    usize low = 0;
-    usize high = sizeof(full_foldings) / sizeof(full_foldings[0]);
-    while (low < high) {
-        const usize middle = low + (high - low) / 2;
-        if (full_foldings[middle].code_point < code_point) {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    if (low < sizeof(full_foldings) / sizeof(full_foldings[0]) && full_foldings[low].code_point == code_point) {
-        const FullFolding& entry = full_foldings[low];
-        for (u32 index = 0; index < entry.count; ++index) out[index] = entry.folded[index];
-        return entry.count;
-    }
-    out[0] = code_point;
-    return 1;
 }
 
 u32 scan_to_newline(const char* const text, const u32 size, const u32 offset) noexcept {

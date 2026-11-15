@@ -753,9 +753,11 @@ can take the file from outside the tree instead.
 Generated (first party) by `tools/gen_markdown_tables.py`, which checks the
 properties the reader relies on before it writes:
 `src/algorithms/markdown/unicode_classes.inc` (general category Zs, 16 code
-points; P and S, 9,588 code points in 355 ranges),
-`case_folding_full.inc` (CaseFolding.txt status C and F, 1,580 code points
-above U+007F, at most three folded code points each) and
-`entities_table.inc` (the 2,125 names written with their semicolon). The
+points; P and S, 9,588 code points in 355 ranges) and
+`entities_table.inc` (the 2,125 names written with their semicolon).
+Label matching's full case folding is `fold_case_full` of
+`include/stxlib/case_folding.hpp`, whose table of the 105 F mappings
+(`src/algorithms/case_folding_full_table.inc`) `tools/gen_case_folding.py`
+now writes and checks beside the simple one, from the same pinned file. The
 CTest check `stxlib_markdown_tables` regenerates and compares. Taking a
 later version of an input: replace the file, update this table, regenerate.
