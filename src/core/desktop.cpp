@@ -62,13 +62,25 @@ Status refused(const Operation operation) noexcept {
     return result;
 }
 
+bool is_link(const TextView target) noexcept {
+    const bool result = starts_with_folded(target, "http://") || starts_with_folded(target, "https://") ||
+                        starts_with_folded(target, "mailto:");
+    return result;
+}
+
 } // namespace
+
+Status open_link_with_desktop(const TextView link) noexcept {
+    const Operation operation = "stxlib.desktop.open_link";
+    if (has_control_character(link) || !is_link(link) || has_link_separator(link)) return refused(operation);
+    const Status opened = desktop_backend::open_target(link, true);
+    return opened;
+}
 
 Status open_with_desktop(const TextView target) noexcept {
     const Operation operation = "stxlib.desktop.open";
     if (has_control_character(target)) return refused(operation);
-    if (starts_with_folded(target, "http://") || starts_with_folded(target, "https://") ||
-        starts_with_folded(target, "mailto:")) {
+    if (is_link(target)) {
         if (has_link_separator(target)) return refused(operation);
         const Status opened = desktop_backend::open_target(target, true);
         return opened;

@@ -173,11 +173,15 @@ public:
         : entries_(static_cast<Vector<HeapEntry<Value>>&&>(other.entries_)), next_sequence_(other.next_sequence_) {
         other.next_sequence_ = 0;
     }
+    // The source's sequence is read before the entries move, since the
+    // move destroys this queue's old entries, inside which the source may
+    // live (security audit 2026-11-15, the A-stxlib-include-01-F1 pattern).
     PriorityQueue& operator=(PriorityQueue&& other) noexcept {
         if (this == &other) return *this;
-        entries_ = static_cast<Vector<HeapEntry<Value>>&&>(other.entries_);
-        next_sequence_ = other.next_sequence_;
+        const u64 sequence = other.next_sequence_;
         other.next_sequence_ = 0;
+        next_sequence_ = sequence;
+        entries_ = static_cast<Vector<HeapEntry<Value>>&&>(other.entries_);
         return *this;
     }
     ~PriorityQueue() = default;

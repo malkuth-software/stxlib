@@ -88,21 +88,34 @@ void invoke_revoke_and_reissue() {
     CHECK(out_of_table.failed());
 }
 
-// Pointer width: every handle fits the context pointer (16 bits of slot
-// index, the rest generation), and a slot retires after its last
-// generation instead of reissuing an old handle. The exhaustion is run
-// where the limit is small (wasm32: 65535 attachments); on 64-bit targets
-// the limit is 2^48 - 1 and only the largest handle's round trip is run.
+// Pointer width: every handle fits the context pointer (the slot index in
+// as few bits as the table needs, the rest generation, capped at 2^48 - 1),
+// and a slot retires after its last generation instead of reissuing an old
+// handle (A-stxlib-include-01-F10). The exhaustion is run where the limit
+// is small: wasm32, on a table of trampoline_capacity_limit slots (65535
+// attachments); a small table there takes far more, and on 64-bit targets
+// every table takes 2^48 - 1, so only the largest handle's round trip is
+// run.
 void handles_fit_the_pointer_width() {
     constexpr unsigned pointer_bits = 8 * sizeof(void*);
     static_assert(stxlib::trampoline_generation_limit ==
-                  (1ULL << (pointer_bits - stxlib::trampoline_index_bits)) - 1);
+                  (1ULL << (pointer_bits - stxlib::trampoline_index_bits)) - 1 ||
+                  stxlib::trampoline_generation_limit == (1ULL << 48) - 1);
     const stxlib::u64 largest_value =
         (stxlib::trampoline_generation_limit << stxlib::trampoline_index_bits) | 0xffffULL;
     const stxlib::TrampolineHandle largest = stxlib::TrampolineHandle::from_value(largest_value);
     CHECK(stxlib::TrampolineHandle::from_context(largest.as_context()) == largest);
 
-    CounterTrampolines table = make_counters(1);
+    // A small table's slots take more generations where the pointer is
+    // narrow: 1 index bit for 1 slot, so 2^31 - 1 on wasm32.
+    CounterTrampolines small = make_counters(1);
+    if constexpr (pointer_bits < 64) {
+        CHECK(small.generation_limit() == (1ULL << (pointer_bits - 1)) - 1);
+    } else {
+        CHECK(small.generation_limit() == (1ULL << 48) - 1);
+    }
+    CounterTrampolines table = make_counters(stxlib::trampoline_capacity_limit);
+    CHECK(table.generation_limit() == stxlib::trampoline_generation_limit);
     int amount = 1;
     // A generation past the limit is never a handle of this table.
     if constexpr (pointer_bits < 64) {
@@ -137,9 +150,12 @@ void handles_fit_the_pointer_width() {
     CHECK(all_attached);
     CHECK(all_round_trips);
     CHECK((previous.value() >> stxlib::trampoline_index_bits) == stxlib::trampoline_generation_limit);
-    // The slot is retired: no further attachment, and the old handle stays stale.
-    const stxlib::Result<stxlib::TrampolineHandle> retired = table.attach(counter);
-    CHECK(retired.failed() && (*retired.error()).kind() == stxlib::ErrorKind::limit_exceeded);
+    CHECK((previous.value() & 0xffffULL) == 0);
+    // Slot 0 is retired: the next attachment takes slot 1, and the old
+    // handle stays stale.
+    const stxlib::Result<stxlib::TrampolineHandle> next_slot = table.attach(counter);
+    CHECK(next_slot.succeeded() && ((*next_slot.value()).value() & 0xffffULL) == 1);
+    if (next_slot.succeeded()) CHECK(table.revoke(*next_slot.value()).succeeded());
     const stxlib::Status stale = table.invoke(previous, amount);
     CHECK(stale.failed());
     CHECK(counter.total == 0);

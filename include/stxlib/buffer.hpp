@@ -70,14 +70,20 @@ public:
         other.count_ = 0;
     }
 
-    // Releases this buffer's storage, then takes other's; other is empty.
+    // Takes other's storage, then releases this buffer's old storage; other
+    // is empty. The source is taken first because it may live in the
+    // storage being released (security audit 2026-11-15, the
+    // A-stxlib-include-01-F1 pattern).
     Buffer& operator=(Buffer&& other) noexcept {
         if (this == &other) return *this;
-        release();
-        elements_ = other.elements_;
-        count_ = other.count_;
+        Element* const elements = other.elements_;
+        const usize count = other.count_;
         other.elements_ = nullptr;
         other.count_ = 0;
+        Element* const previous = elements_;
+        elements_ = elements;
+        count_ = count;
+        if (previous != nullptr) memory::release(previous);
         return *this;
     }
 

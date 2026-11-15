@@ -147,7 +147,7 @@ struct Outcome final {
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome remove_tree(const char* name, usize depth_limit,
                                                                                     usize entries_limit, u64& removed) noexcept;
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome rename(const char* from, const char* to) noexcept;
-[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome copy_file(const char* from, const char* to, CopyMode mode) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome copy_file(const char* from, const char* to, CopyMode mode, CopyPermissions permissions) noexcept;
 
 // One entry list returned: names[offset, offset + count), its kind without
 // following links.

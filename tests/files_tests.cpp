@@ -803,6 +803,35 @@ void permissions_carried(const Scratch& scratch) {
 }
 #endif
 
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+// copy_file carries the ordinary permission bits by default and the setuid,
+// setgid and sticky bits only when asked (A-stxlib-include-01-F9).
+void copy_permissions(const Scratch& scratch) {
+    const Path source = under(scratch.root, "setuid_source");
+    const std::string name = text_of(source.text());
+    const int made = ::open(name.c_str(), O_CREAT | O_WRONLY | O_CLOEXEC, 0600);
+    CHECK(made >= 0);
+    if (made < 0) return;
+    CHECK(::close(made) == 0);
+    CHECK(::chmod(name.c_str(), 04755) == 0);
+    const int source_mode = mode_of(source);
+    CHECK((source_mode & 0777) == 0755);
+
+    const Path plain = under(scratch.root, "setuid_plain_copy");
+    CHECK(stxlib::copy_file(source, plain, stxlib::CopyMode::fail_if_exists).succeeded());
+    CHECK(mode_of(plain) == 0755);
+
+    const Path special = under(scratch.root, "setuid_special_copy");
+    CHECK(stxlib::copy_file(source, special, stxlib::CopyMode::fail_if_exists,
+                            stxlib::CopyPermissions::with_special_bits)
+              .succeeded());
+    // The host may refuse the setuid bit on the source (a file system that
+    // does not keep it); the copy then has what the source has.
+    CHECK((mode_of(special) & 04000) == (source_mode & 04000));
+    CHECK((mode_of(special) & 0777) == 0755);
+}
+#endif
+
 int main() {
     {
         const Scratch scratch{};
@@ -817,6 +846,9 @@ int main() {
         links_and_resolution(scratch);
         odd_names(scratch);
         unrepresentable_names(scratch);
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+        copy_permissions(scratch);
+#endif
     }
     roots_and_host_forms();
     return stxlib_tests::finish("stxlib files tests");

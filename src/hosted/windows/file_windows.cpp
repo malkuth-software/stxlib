@@ -853,7 +853,10 @@ bool same_file(const HANDLE first, const HANDLE second) noexcept {
 // A copy onto the source itself is refused (already_exists), as on POSIX
 // hosts: CopyFileW does not refuse it (CI run 43429568298, Windows Debug,
 // tests/files_tests.cpp's copy onto itself).
-Outcome copy_file(const char* const from, const char* const to, const CopyMode mode) noexcept {
+// `permissions` names POSIX bits Windows does not have.
+Outcome copy_file(const char* const from, const char* const to, const CopyMode mode,
+                  const CopyPermissions permissions) noexcept {
+    static_cast<void>(permissions);
     Growable<wchar_t> source;
     Growable<wchar_t> target;
     if (!wide_name(from, source) || !wide_name(to, target)) return no_memory();

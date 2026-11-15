@@ -460,3 +460,24 @@ integer-checks run under Node would find what reading missed.
 
 No place was classed essential: nothing in the tree needs 64-bit
 pointers once the rows marked fixed are in.
+
+## Security audit 2026-11-15, the include section (branch `claude/audit-include`)
+
+| Finding | Change | Evidence |
+|---|---|---|
+| A-stxlib-include-01-F1 (Medium) | `Unique` move assignment takes the source before destroying the old object; the destructor requirement moved from the class to `make`, so a node may own its successor | tested: `tests/owned_vocabulary_tests.cpp` (`unique_list_pop`: three pops, live counts and released blocks), not proved |
+| F1 pattern elsewhere | the same order in `Vector`, `Optional` (copy and move), `Buffer`, `PriorityQueue`, `precedence::Verifier`, stx_btree's `OwnedEntries` and `UnsyncTree`; `Shared`, `Weak`, `Array` already had it | tested for `Vector` and `Optional` (`vector_from_inside_an_element`, `optional_from_inside_its_value`); the rest by reading |
+| F2 | `Vector` and `Optional` assignment, as above | as above |
+| F3 | `Vector::emplace` builds the new element in the new block before the old storage goes; an argument may refer into the vector | tested: `vector_emplace_and_exact_copies` |
+| F4 | `Vector::copy_of` and `copy` allocate exactly the count | tested: capacities 5, 1 and 0 |
+| F5 | `find_ignoring_ascii_case` starts from the next boundary, as `find` does | static_asserts and the UTF-8 exhaustive domain (`tests/ascii_search_tests.cpp`, `utf8_search_exhaustive`: every text of up to 4 pieces of 1, 2 and 4 bytes, every needle of up to 2, every start) |
+| F6 | `precedence::Verifier` declares its moves; a moved-from verifier knows the anchor's block only | tested: `tests/precedence_tests.cpp` (`lifecycle`) |
+| F7 | the gates are in an inline namespace named for the unit's exception setting, and `Trampolines::invoke` takes the setting as a defaulted template argument, so the two bodies are two entities | by reading (no mixed-setting link is built) |
+| F8 | `open_link_with_desktop`: links only; `open_with_desktop` is documented for paths the program made | tested: `tests/children_tests.cpp` (`desktop_refusals`) |
+| F9 | `copy_file` carries 0777 by default, 07777 with `CopyPermissions::with_special_bits` | tested on POSIX hosts: `tests/files_tests.cpp` (`copy_permissions`) |
+| F10 | a trampoline table packs its slot index in as few bits as its capacity needs; the generation takes the rest, capped at 2^48 - 1 | static_asserts in `trampoline.cpp`; `tests/trampoline_tests.cpp` (`handles_fit_the_pointer_width`: exhausts slot 0 of a 65535-slot table on wasm32) |
+| F11 | AUTO tags are on whenever the host backend is chosen; the Emscripten default is stx_minmallocpp (the finding's premise is stale at e549318), docs corrected | by reading CMakeLists.txt |
+| D15 follow-up: incomplete element types | `Vector` checks its element in its destructor and asks about assignability through a function; `Shared` checks its value in `make`; `Weak` asked nothing at class scope already. `struct Node { Vector<Node> children; }` and a node holding `Shared` and `Weak` of its own type compile | tested: `vector_of_its_own_node`, `shared_of_its_own_node` |
+| needs a check: restored frames' text counts | `file_copy` cuts each restored frame's counts to the arrays and to the well-formed UTF-8 prefix | tested: `tests/shadow_tests.cpp` (`a_park_into_too_little_room_parks_nothing`) |
+
+Nothing on this branch has been compiled or run yet (no compiler on Neo).

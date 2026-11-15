@@ -412,6 +412,15 @@ void desktop_refusals() {
     for (const TextView target : refused) {
         const Status status = stxlib::open_with_desktop(target);
         CHECK(kind_of(status) == ErrorKind::invalid_argument && code_of(status) == HostCode::invalid_value);
+        const Status link = stxlib::open_link_with_desktop(target);
+        CHECK(kind_of(link) == ErrorKind::invalid_argument && code_of(link) == HostCode::invalid_value);
+    }
+    // The link-only entry refuses every path, absolute ones included: a
+    // path that names a program would run it (A-stxlib-include-01-F8).
+    const TextView paths[] = {"/bin/sh", "/usr/bin/env", "C:/Windows/System32/cmd.exe", "/"};
+    for (const TextView target : paths) {
+        const Status status = stxlib::open_link_with_desktop(target);
+        CHECK(kind_of(status) == ErrorKind::invalid_argument && code_of(status) == HostCode::invalid_value);
     }
     Result<stxlib::Path> relative = stxlib::Path::parse("some/file");
     CHECK(relative.succeeded());

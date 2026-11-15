@@ -13,8 +13,11 @@
 // Unlike Result, an Optional is an ordinary field type: it can be assigned
 // (set(), reset(), and copy or move assignment), because the records it
 // replaces std::optional in (layout margins, selected indices, colours) are
-// plain data that callers update. Assignment destroys the old value first
-// and then constructs the new one; neither step can fail.
+// plain data that callers update. Assignment takes the source's value into
+// a local first (a copy or a move), then destroys the old value, then
+// constructs the new one from the local; no step can fail. Taking the
+// source first keeps an optional assigned from one held inside its own
+// value correct (security audit 2026-11-15, A-stxlib-include-01-F2).
 //
 // Value: any type whose move constructor and destructor cannot throw. An
 // Optional is copyable when Value has a non-throwing copy constructor, and
@@ -79,11 +82,14 @@ public:
         requires(copyable && !trivial)
     {
         if (this == &other) return *this;
-        reset();
-        if (other.present_) {
-            detail::construct<Value>(&storage_.value, other.storage_.value);
-            present_ = true;
+        if (!other.present_) {
+            reset();
+            return *this;
         }
+        Value copied(other.storage_.value);
+        reset();
+        detail::construct<Value>(&storage_.value, static_cast<Value&&>(copied));
+        present_ = true;
         return *this;
     }
 
@@ -107,11 +113,14 @@ public:
         requires(!trivial)
     {
         if (this == &other) return *this;
-        reset();
-        if (other.present_) {
-            detail::construct<Value>(&storage_.value, static_cast<Value&&>(other.storage_.value));
-            present_ = true;
+        if (!other.present_) {
+            reset();
+            return *this;
         }
+        Value taken(static_cast<Value&&>(other.storage_.value));
+        reset();
+        detail::construct<Value>(&storage_.value, static_cast<Value&&>(taken));
+        present_ = true;
         return *this;
     }
 

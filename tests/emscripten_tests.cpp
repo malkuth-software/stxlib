@@ -123,7 +123,8 @@ static_assert(alignof(stxlib::u64) == 8);
 
 void pointer_width() {
     CHECK(stxlib::usize_max == 0xffffffffU);
-    // A trampoline handle carries 16 bits of generation beside the slot.
+    // A trampoline handle beside the widest slot index (16 bits) carries 16
+    // bits of generation; smaller tables carry more (trampoline.hpp).
     CHECK(stxlib::trampoline_generation_limit == 65535U);
     // A memory request the width cannot hold is refused, not wrapped.
     CHECK(stxlib::memory::allocate(stxlib::usize_max - 8, 16) == nullptr);

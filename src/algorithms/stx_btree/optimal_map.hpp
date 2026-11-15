@@ -126,15 +126,19 @@ public:
         other.length = 0;
         other.capacity = 0;
     }
+    // The source is taken into a local first: it may live inside an entry
+    // that clear() destroys (security audit 2026-11-15, the
+    // A-stxlib-include-01-F1 pattern).
     OwnedEntries& operator=(OwnedEntries&& other) noexcept {
         if (this != &other) {
+            OwnedEntries taken(std::move(other));
             clear();
-            elements = other.elements;
-            length = other.length;
-            capacity = other.capacity;
-            other.elements = nullptr;
-            other.length = 0;
-            other.capacity = 0;
+            elements = taken.elements;
+            length = taken.length;
+            capacity = taken.capacity;
+            taken.elements = nullptr;
+            taken.length = 0;
+            taken.capacity = 0;
         }
         return *this;
     }

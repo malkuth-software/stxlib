@@ -46,6 +46,12 @@ static_assert(stxlib::find("abc", "") == 0 && stxlib::find_last("abc", "") == 3)
 static_assert(stxlib::find("abc", "abcd") == stxlib::not_found);
 static_assert(stxlib::starts_with("prefix", "pre") && stxlib::ends_with("suffix", "fix"));
 static_assert(stxlib::find_ignoring_ascii_case("Hello World", "WORLD") == 6);
+// A `from` inside a code point counts from the next boundary, as find's
+// does, also for an empty needle (A-stxlib-include-01-F5): "\xc3\xa9" is
+// one code point, so position 1 is inside it.
+static_assert(stxlib::find_ignoring_ascii_case("\xc3\xa9x", "", 1) == 2);
+static_assert(stxlib::find("\xc3\xa9x", "", 1) == 2);
+static_assert(stxlib::find_ignoring_ascii_case("\xc3\xa9X", "x", 1) == 2);
 static_assert(stxlib::ascii_lower('Q') == 'q' && stxlib::ascii_upper('q') == 'Q');
 
 stxlib::TextView view_of(const std::string& text) {
@@ -291,6 +297,11 @@ void utf8_search_exhaustive() {
                 while (!on_boundary(haystack, boundary)) boundary = boundary + 1;
                 CHECK(found == naive_find(haystack, needle, boundary, false));
                 if (found != stxlib::not_found) CHECK(on_boundary(haystack, found) && on_boundary(haystack, found + needle.size()));
+                // The case-folding search counts from the same boundary
+                // (A-stxlib-include-01-F5; the empty needle included).
+                const usize folded = stxlib::find_ignoring_ascii_case(h, n, from);
+                CHECK(folded == naive_find(haystack, needle, boundary, true));
+                if (folded != stxlib::not_found) CHECK(on_boundary(haystack, folded));
             }
             const usize last = stxlib::find_last(h, n);
             CHECK(last == naive_find_last(haystack, needle, false));

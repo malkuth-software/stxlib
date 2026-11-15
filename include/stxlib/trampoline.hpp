@@ -30,13 +30,18 @@
 // and the handle is never valid again: a slot's next attachment has a new
 // generation.
 //
-// Handles: a slot index (16 bits) and a generation (the rest of a pointer:
-// 48 bits on 64-bit targets, 16 on wasm32), so the packed value always fits
-// the context pointer and a handle is never reused while attachments of its
-// slot remain (trampoline_generation_limit: 2^48 - 1, or 65535 on wasm32);
-// a slot whose generations are exhausted is retired, never wrapped, and
-// attach then uses another slot or fails with limit_exceeded. The packed
-// value is never 0, so a null context is never a valid handle.
+// Handles: a slot index, in as few bits as the table's capacity needs (1 to
+// 16), and a generation in the rest of a pointer, at most 2^48 - 1, so the
+// packed value always fits the context pointer and a handle is never reused
+// while attachments of its slot remain. A table's limit is
+// generation_limit(): 2^48 - 1 on 64-bit targets; on wasm32 2^(32 - index
+// bits) - 1, so a table of 16 slots takes 2^28 - 1 attachments per slot and
+// only one of more than 32,768 slots is down to 65535
+// (trampoline_generation_limit, the least any table has; security audit
+// 2026-11-15, A-stxlib-include-01-F10). A slot whose generations are
+// exhausted is retired, never wrapped, and attach then uses another slot or
+// fails with limit_exceeded. The packed value is never 0, so a null context
+// is never a valid handle.
 //
 // A table is owned by one object and created with a fixed capacity (at most
 // trampoline_capacity_limit slots). Destroying it revokes every attached
@@ -56,11 +61,14 @@ inline constexpr usize trampoline_capacity_limit = 65535;
 // Nested trampoline invocations one thread may be inside (house style,
 // section 1: nested dispatch has a stated, enforced depth).
 inline constexpr usize trampoline_nesting_limit = 32;
-// Bits of a handle that hold the slot index; the rest of a pointer's bits
-// hold the generation.
+// The most bits of a handle that hold the slot index (a table of
+// trampoline_capacity_limit slots); a smaller table uses fewer, and the rest
+// of a pointer's bits hold the generation.
 inline constexpr unsigned trampoline_index_bits = 16;
-// Attachments one slot accepts before it is retired: every generation fits
-// beside the index in a context pointer.
+// The fewest attachments one slot of any table accepts before it is
+// retired (a table with the widest index): every generation fits beside the
+// index in a context pointer. TrampolineTable::generation_limit gives a
+// table's own, which is at least this.
 inline constexpr u64 trampoline_generation_limit =
     (static_cast<u64>(1) << (8 * sizeof(void*) - trampoline_index_bits)) - 1;
 
@@ -138,6 +146,9 @@ public:
     ~TrampolineTable();
 
     [[nodiscard]] usize capacity() const noexcept;
+    // Attachments one slot of this table accepts before it is retired
+    // (see "Handles" above); 0 for a moved-from table.
+    [[nodiscard]] u64 generation_limit() const noexcept;
 
     // Attaches `target` to a free slot; limit_exceeded when none is free.
     // Requirement: target is non-null.
@@ -189,6 +200,8 @@ public:
     Trampolines& operator=(Trampolines&&) = delete;
     ~Trampolines() = default;
 
+    [[nodiscard]] u64 generation_limit() const noexcept { return table_.generation_limit(); }
+
     // `target` is borrowed until its revocation completes.
     [[nodiscard]] Result<TrampolineHandle> attach(Target& target) noexcept {
         Result<TrampolineHandle> result = table_.attach(&target);
@@ -201,10 +214,14 @@ public:
     }
 
     // The invocation sequence above. A refused entry returns its failure as
-    // the target's result type.
-    template <typename... Arguments>
+    // the target's result type. Exceptions is the unit's exception setting
+    // (never given by a caller): the body differs with it, so the two
+    // settings are two specialisations, never one with two definitions
+    // (gate.hpp; security audit 2026-11-15, A-stxlib-include-01-F7).
+    template <typename... Arguments, bool Exceptions = detail::gate_exceptions>
     [[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type invoke(const TrampolineHandle handle,
                                                                                   Arguments&... arguments) noexcept {
+        static_assert(Exceptions == detail::gate_exceptions, "Trampolines::invoke: Exceptions is the unit's setting");
         using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
         Result<TrampolineEntry> entered = table_.enter(handle);
         if (entered.failed()) return Return::failure(*entered.error());

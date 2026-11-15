@@ -234,6 +234,21 @@ struct CallbackCall final {
 
 } // namespace detail
 
+// The gates' bodies depend on the unit's exception setting (a handler with
+// exceptions, a direct call without). So that one specialisation never has
+// two definitions in one program (the one-definition rule; security audit
+// 2026-11-15, A-stxlib-include-01-F7), the gates are declared in an inline
+// namespace named for the setting: a unit built with exceptions and one
+// built without instantiate different entities, each with its own body, and
+// a program may mix them. Callers name the gates as stxlib::call_gate and so
+// on; the inline namespace is not spelled. Trampolines::invoke
+// (trampoline.hpp) calls call_gate and is keyed the same way.
+#if defined(__cpp_exceptions)
+inline namespace gates_with_exceptions {
+#else
+inline namespace gates_without_exceptions {
+#endif
+
 template <typename Target, typename... Arguments>
 [[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate(const GateFrame frame_at,
                                                                                   Target& target,
@@ -444,5 +459,19 @@ Return invoke_callback_target(const Operation operation, const CallbackTarget<Re
         return result;
     }
 }
+
+} // inline namespace gates_with_exceptions or gates_without_exceptions
+
+namespace detail {
+
+// The unit's exception setting, as a constant (Trampolines::invoke keys its
+// specialisations on it).
+#if defined(__cpp_exceptions)
+inline constexpr bool gate_exceptions = true;
+#else
+inline constexpr bool gate_exceptions = false;
+#endif
+
+} // namespace detail
 
 } // namespace stxlib

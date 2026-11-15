@@ -649,6 +649,28 @@ void a_park_into_too_little_room_parks_nothing() {
         stxlib::restore_shadow_from(stxlib::ParkedShadow{}, stxlib::View<stxlib::ShadowFrameRecord>(),
                                     stxlib::View<stxlib::uptr>());
     CHECK(!none.present());
+
+    // A carrier's frames are input: text counts past the arrays, or bytes
+    // that are not UTF-8, are cut on restore, so the restored frame's texts
+    // stay inside their arrays and well-formed (A-stxlib-include-01, "needs
+    // a check").
+    if (parked.reference.present()) {
+        stxlib::ShadowFrameRecord tampered{};
+        for (stxlib::usize index = 0; index < stxlib::shadow_subject_capacity; ++index) tampered.subject[index] = 'a';
+        for (stxlib::usize index = 0; index < stxlib::shadow_name_capacity; ++index) tampered.name[index] = 'b';
+        tampered.name[3] = static_cast<char>(0xff);
+        tampered.subject_count = 1000;
+        tampered.name_count = 1000;
+        const stxlib::ShadowReference restored = stxlib::restore_shadow_from(
+            parked, stxlib::View<stxlib::ShadowFrameRecord>(&tampered, 1), stxlib::View<stxlib::uptr>());
+        CHECK(restored.present());
+        stxlib::ShadowFrameRecord read_back[1]{};
+        const stxlib::Result<stxlib::ShadowSummary> summary = stxlib::read_shadow(
+            restored, stxlib::MutableView<stxlib::ShadowFrameRecord>(read_back), stxlib::MutableView<stxlib::uptr>());
+        CHECK(summary.succeeded() && (*summary.value()).frame_count == 1);
+        CHECK(read_back[0].subject_count == stxlib::shadow_subject_capacity);
+        CHECK(read_back[0].name_count == 3);
+    }
     CHECK(stxlib::shadow_depth() == 0);
 }
 
