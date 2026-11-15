@@ -58,6 +58,17 @@ void require(const bool condition, const char* const message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+// Misrounded floats found by the float screens: each is printed and counted,
+// the screen goes on, and main fails once every check has run, so one
+// exhaustive run lists every misrounded float of every function (a throw at
+// the first one hid the rest; R3).
+std::uint64_t misrounded_floats = 0;
+
+void report_misrounded(const char* const name, const double x, const double result, const double expected) {
+    misrounded_floats += 1;
+    std::fprintf(stderr, "%s(%a): result %a, correctly rounded %a\n", name, x, result, expected);
+}
+
 // A frozen output hash per kernel path (src/algorithms/math/paths.hpp):
 // `expected` is the value for the paths this build's switches choose; 0
 // means not frozen yet for those paths (printed with today's frozen value,
@@ -427,8 +438,10 @@ void float_rounding(const std::uint32_t stride) {
             checked += 1;
             if (s == screen_s && c == screen_c && screen_holds(library_s) && screen_holds(library_c)) continue;
             const wide::WideSinCos exact = wide::reference(xd);
-            require(s == correctly_rounded_float(exact.s) && c == correctly_rounded_float(exact.c),
-                    "sincos(float): result is not correctly rounded");
+            const float expected_s = correctly_rounded_float(exact.s);
+            const float expected_c = correctly_rounded_float(exact.c);
+            if (s != expected_s) report_misrounded("sin", xd, static_cast<double>(s), static_cast<double>(expected_s));
+            if (c != expected_c) report_misrounded("cos", xd, static_cast<double>(c), static_cast<double>(expected_c));
         }
     }
     std::printf("sincos(float) correctly rounded at %llu floats (stride %u)\n",
@@ -490,8 +503,9 @@ STXLIB_MODULAR std::uint64_t output_hash() {
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
 constexpr std::uint64_t today_output_hash = 0x9cecbc587874960dULL;
-// The region path of sincos(double) (trig_region.cpp): its own value, not yet
-// frozen; it differs from today's (the polynomial chains round differently,
+// The region path of sincos(double) (trig_region.cpp): frozen on 2026-11-15
+// (sbi, main f5cbc30, from the M4 run on 45b275b; fused and Dekker builds
+// agree). It differs from today's (the polynomial chains round differently,
 // within the same bound). Float sincos has one path.
 constexpr std::uint64_t region_output_hash = 0xa3564fda3e1d73c8ULL;
 constexpr std::uint64_t expected_output_hash = STXLIB_MATH_REGION_TRIG_DOUBLE ? region_output_hash
@@ -684,8 +698,8 @@ void exp_float_rounding(const std::uint32_t stride) {
             if (y == screen && screen_holds(library)) continue;
             // Beyond these, float results are infinity or zero with margin.
             require(xd >= -110.0 && xd <= 90.0, "exp(float): wrong overflow or underflow");
-            require(y == exp_correctly_rounded_float(wide::exp_reference(xd)),
-                    "exp(float): result is not correctly rounded");
+            const float expected = exp_correctly_rounded_float(wide::exp_reference(xd));
+            if (y != expected) report_misrounded("exp", xd, static_cast<double>(y), static_cast<double>(expected));
         }
     }
     std::printf("exp(float) correctly rounded at %llu floats (stride %u)\n",
@@ -894,8 +908,10 @@ void log_float_rounding(const std::vector<LogKernel>& kernels, const std::uint32
             const float screen = static_cast<float>(library);
             checked += 1;
             if (y == screen && screen_holds(library)) continue;
-            require(y == correctly_rounded_float(log_exact(kernel, xd)),
-                    "log(float): result is not correctly rounded");
+            const float expected = correctly_rounded_float(log_exact(kernel, xd));
+            if (y != expected) {
+                report_misrounded(kernel.name, xd, static_cast<double>(y), static_cast<double>(expected));
+            }
         }
         std::printf("%s(float) correctly rounded at %llu floats (stride %u)\n", kernel.name,
                     static_cast<unsigned long long>(checked), stride);
@@ -926,10 +942,12 @@ STXLIB_MODULAR std::uint64_t log_output_hash(const std::vector<LogKernel>& kerne
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
 constexpr std::uint64_t today_log_output_hash = 0x2e4ea58329a77abcULL;
-// The region path of the float logs (region.cpp): its own value, not yet
-// frozen; expected equal to today's (both correctly rounded for every float,
-// and a subnormal x takes today's kernel; math_region_tests --exhaustive
-// compares every float pattern).
+// The region path of the float logs (region.cpp): frozen on 2026-11-15 (sbi,
+// main f5cbc30); equal to today's at every sampled input. Not because both
+// were correctly rounded for every float, as this comment once predicted:
+// today's log(float) misrounded 5 floats (R3), none of them in this sample,
+// and today's cold fallback now calls the region kernel. A subnormal x takes
+// today's kernel; math_region_tests --exhaustive compares every pattern.
 constexpr std::uint64_t region_log_output_hash = 0x2e4ea58329a77abcULL;
 constexpr std::uint64_t expected_log_output_hash = STXLIB_MATH_REGION_LOG_FLOAT ? region_log_output_hash
                                                                                 : today_log_output_hash;
@@ -1371,13 +1389,31 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
 // differ, both within bound. Same value at the scalar, vector128 and
 // avx2_fma levels and in the Dekker build (x86-64 MinGW).
 constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
-// The region paths (region.cpp): their own values, not yet frozen. With
-// pow(double) on the region kernel the hash differs (0.500097 ulp against
-// 0.576); with only pow(float) on round, test, decide it is expected equal
-// to today's (both correctly rounded at every sampled pair).
+// The hash mixes pow(double) and pow(float) outputs, and each has its own
+// switch, so each of the four switch settings has its own value (R3: one
+// region constant had served all three region settings). Frozen: both on the
+// region path, 2026-11-15 (sbi, main f5cbc30, the all-ON build; it differs
+// from today's: region pow(double) is 0.500097 ulp against 0.576). Not
+// frozen yet (0, printed by check_frozen): only one of the two on the region
+// path; the R3 run list builds each to freeze it.
+constexpr std::uint64_t region_pow_double_only_output_hash = 0;
+constexpr std::uint64_t region_pow_float_only_output_hash = 0;
 constexpr std::uint64_t region_pow_output_hash = 0x9bc52c7be16de26fULL;
-constexpr bool pow_on_region = STXLIB_MATH_REGION_POW_DOUBLE || STXLIB_MATH_REGION_POW_FLOAT;
-constexpr std::uint64_t expected_pow_output_hash = pow_on_region ? region_pow_output_hash : today_pow_output_hash;
+
+constexpr std::uint64_t pow_expected_hash(const bool double_on_region, const bool float_on_region) {
+    std::uint64_t result = today_pow_output_hash;
+    if (double_on_region && float_on_region) {
+        result = region_pow_output_hash;
+    } else if (double_on_region) {
+        result = region_pow_double_only_output_hash;
+    } else if (float_on_region) {
+        result = region_pow_float_only_output_hash;
+    }
+    return result;
+}
+
+constexpr std::uint64_t expected_pow_output_hash =
+    pow_expected_hash(STXLIB_MATH_REGION_POW_DOUBLE != 0, STXLIB_MATH_REGION_POW_FLOAT != 0);
 
 void pow_determinism() {
     const std::uint64_t hash = pow_output_hash();
@@ -1594,10 +1630,11 @@ STXLIB_MODULAR std::uint64_t hypot_output_hash() {
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
 constexpr std::uint64_t today_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
-// The region path of float hypot (region.cpp): its own value, not yet
-// frozen; expected equal to today's (region correctly rounded by
-// construction, today's at every sampled pair; subnormal operands take
-// today's kernel). A difference names a pair today's kernel misrounds.
+// The region path of float hypot (region.cpp): frozen on 2026-11-15 (sbi,
+// main f5cbc30); equal to today's at every sampled pair (region correctly
+// rounded by construction, today's checked at sampled pairs; subnormal
+// operands take today's kernel). Off by default since R3: identical results,
+// 2.1 times slower (R2 bench).
 constexpr std::uint64_t region_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
 constexpr std::uint64_t expected_hypot_output_hash = STXLIB_MATH_REGION_HYPOT_FLOAT ? region_hypot_output_hash
                                                                                     : today_hypot_output_hash;
@@ -1805,8 +1842,10 @@ void inverse_trig_float_rounding(const std::uint32_t stride) {
                 const float screen = static_cast<float>(library);
                 checked += 1;
                 if (y == screen && screen_holds(library)) continue;
-                require(y == correctly_rounded_float((*kernel.exact)(xd)),
-                        "inverse trig (float): result is not correctly rounded");
+                const float expected = correctly_rounded_float((*kernel.exact)(xd));
+                if (y != expected) {
+                    report_misrounded(kernel.name, xd, static_cast<double>(y), static_cast<double>(expected));
+                }
             }
         }
         std::printf("%s(float) correctly rounded at %llu floats (stride %u)\n", kernel.name,
@@ -2102,8 +2141,10 @@ void remaining_float_rounding(const std::uint32_t stride) {
                 const float screen = static_cast<float>(library);
                 checked += 1;
                 if (same_bits(y, screen) && screen_holds(library)) continue;
-                require(std::isfinite(y) && y == correctly_rounded_float((*kernel.exact)(xd)),
-                        "tan/cbrt/hyperbolic (float): result is not correctly rounded");
+                const float expected = correctly_rounded_float((*kernel.exact)(xd));
+                if (!std::isfinite(y) || y != expected) {
+                    report_misrounded(kernel.name, xd, static_cast<double>(y), static_cast<double>(expected));
+                }
             }
         }
         std::printf("%s(float) correctly rounded at %llu floats (stride %u)\n", kernel.name,
@@ -2138,9 +2179,10 @@ STXLIB_MODULAR std::uint64_t remaining_output_hash() {
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
 constexpr std::uint64_t today_remaining_output_hash = 0x46fd05aac7dac755ULL;
-// The region path of tan(double) (trig_region.cpp): its own value, not yet
-// frozen; it differs from today's (Estrin's scheme rounds differently,
-// within the same bound).
+// The region path of tan(double) (trig_region.cpp): frozen on 2026-11-15
+// (sbi, main f5cbc30). Equal to today's: at every sampled input region tan
+// gives today's bits, though R2 predicted Estrin's scheme would round some
+// differently (both within the same bound; sampled, not proved equal).
 constexpr std::uint64_t region_remaining_output_hash = 0x46fd05aac7dac755ULL;
 constexpr std::uint64_t expected_remaining_output_hash =
     STXLIB_MATH_REGION_TRIG_DOUBLE ? region_remaining_output_hash : today_remaining_output_hash;
@@ -2781,6 +2823,8 @@ int main(const int argument_count, char** const arguments) {
         remaining_float_rounding(exhaustive ? 1 : 1999);
         public_special_values();
         flush_rule(exhaustive);
+        std::printf("float screens: %llu misrounded floats\n", static_cast<unsigned long long>(misrounded_floats));
+        require(misrounded_floats == 0, "float screens: results not correctly rounded (listed on stderr)");
     } catch (const std::exception& failure) {
         std::fprintf(stderr, "math tests failed: %s\n", failure.what());
         return 1;

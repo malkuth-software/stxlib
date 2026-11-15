@@ -19,8 +19,17 @@ does the same operations is checked by tests/math_region_tests.cpp's
 exhaustive mode on the M4 (it compares region::log* with the current
 kernels, themselves exhaustively correctly rounded).
 
+With --double-rounding it also lists, per function, every float whose
+correctly rounded double logarithm (the kernel's v rounded to double; v is
+within 2^-62, so that rounding is decided wherever v is not within 2^-62 of
+a double midpoint, and such floats are listed as undecided) rounds to a
+different float than the correct one: the floats a kernel that rounds a
+correctly rounded double result to float misrounds (today's float log
+fallback, log.cpp's log_float_accurate before R3). Each is decided against
+the 400-bit reference.
+
 Usage:
-  region_exhaustive.py [--chunk-bits N] [--first HEX --last HEX]
+  region_exhaustive.py [--chunk-bits N] [--first HEX --last HEX] [--double-rounding]
 """
 
 import argparse
@@ -201,7 +210,9 @@ def main(arguments):
     parser.add_argument('--chunk-bits', type=int, default=22)
     parser.add_argument('--first', type=hexadecimal, default=0x00800000)
     parser.add_argument('--last', type=hexadecimal, default=0x7f7fffff)
+    parser.add_argument('--double-rounding', action='store_true')
     options = parser.parse_args(arguments)
+    double_rounded = {name: [] for name, _ in KERNELS}
     start = time.time()
     counts = {name: 0 for name, _ in KERNELS}
     unsettled_cases = {name: [] for name, _ in KERNELS}
@@ -226,6 +237,20 @@ def main(arguments):
                 unsettled_cases[name].append((x.hex(), got == want))
                 if got != want:
                     wrong.append((name, x.hex(), got, want))
+            if options.double_rounding:
+                d_hi, d_lo = two_sum(d, tail)
+                twice = d_hi.astype(np.float32)
+                # d_hi is RN(v) unless v lies within 2^-62 |v| of a double midpoint.
+                ulp = np.abs(np.nextafter(d_hi, np.inf) - d_hi)
+                undecided = np.abs(np.abs(d_lo) - ulp * 0.5) <= np.abs(d_hi) * SCREEN
+                toward = np.where(d_lo > 0.0, np.inf, -np.inf)
+                other = np.nextafter(d_hi, toward).astype(np.float32)
+                undecided = undecided & (other != result)
+                for position in np.nonzero((twice != result) | undecided)[0]:
+                    x = float(xd[position])
+                    want = exact_float(x, name)
+                    double_rounded[name].append((x.hex(), float(twice[position]), want,
+                                                 bool(undecided[position])))
         total += high - low
     elapsed = time.time() - start
     print('region float logs, exhaustive screen: %d floats [0x%08x, 0x%08x], %.0f s' %
@@ -237,6 +262,14 @@ def main(arguments):
               (name, counts[name], sum(1 for _, ok in resolved if ok)))
         for text, ok in resolved[:20]:
             print('    %s %s' % (text, 'correct' if ok else 'WRONG'))
+    if options.double_rounding:
+        for name, _ in KERNELS:
+            cases = double_rounded[name]
+            print('  %-8s correctly rounded double, rounded again to float: %d floats misrounded' %
+                  (name, sum(1 for _, twice, want, _ in cases if twice != want)))
+            for text, twice, want, undecided in cases:
+                print('    %s: twice rounded %s, correctly rounded %s%s' %
+                      (text, float(twice).hex(), float(want).hex(), ' (undecided double)' if undecided else ''))
     if wrong:
         print('FAIL: %d results not correctly rounded' % len(wrong))
         for item in wrong[:50]:

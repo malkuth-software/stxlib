@@ -43,8 +43,8 @@ namespace stxlib::math {
 // of a double each have two kernels in every build: today's and a region
 // kernel. A build switch chooses the one these functions take (CMake options
 // STXLIB_MATH_REGION_POW_DOUBLE, _POW_FLOAT, _LOG_FLOAT, _HYPOT_FLOAT,
-// _TRIG_DOUBLE; defaults: region for float hypot and for sin, cos and tan of
-// a double, today's for the rest). The contracts below state each path's
+// _TRIG_DOUBLE; defaults, the faster path at today's accuracy by the R2
+// bench: region for sin, cos and tan of a double, today's for the rest). The contracts below state each path's
 // accuracy where they differ; everything else (special values, the
 // subnormal rule, refusals) is the same on both paths.
 
@@ -96,14 +96,20 @@ void sincos(double x, double& s, double& c) noexcept;
 // 1; NaN returns NaN and -infinity returns +0.
 [[nodiscard]] double exp(double x) noexcept;
 
-// Natural, binary and decimal logarithms. Float: correctly rounded for every
-// positive finite float on both paths, so both give the same bits. Today's
-// kernel (the default): exhaustively checked, 2,139,095,039 floats each.
-// Region kernel: proved, a double-double within 2^-62 rounded once, every
-// positive normal float screened against that bound
-// (tools/math/region_exhaustive.py, a replica of the kernel's operations;
-// the compiled kernel's agreement is checked on every float pattern by
-// tests/math_region_tests.cpp --exhaustive).
+// Natural, binary and decimal logarithms. Float, region kernel: correctly
+// rounded for every positive normal float, proved: a double-double within
+// 2^-62 rounded once, every positive normal float screened against that
+// bound (tools/math/region_exhaustive.py, a replica of the kernel's
+// operations, deciding the close cases against a 400-bit reference); the
+// compiled kernel's agreement is checked on every float pattern by
+// tests/math_region_tests.cpp --exhaustive. Float, today's kernel (the
+// default): a cheap path, kept only where its error bound (2^-40 relative,
+// 2^-39 for log2 and log10; argued by hand in log_core.hpp, not
+// machine-checked) makes the rounding certain, and
+// otherwise the region kernel's result. Until R3 that fallback rounded the
+// double result to float, a second rounding: log was wrong at five
+// floats and log10, modelled, at one; the exhaustive check of the corrected function (2,139,095,039
+// floats each, tests/math_tests.cpp --exhaustive) has not yet run.
 // Double: within 0.500012 ulp (240 million inputs measured per function;
 // about 1 in 24 million results is not the correctly rounded double).
 // Own every input: +0 and -0 give -infinity, negative x and -infinity give
@@ -154,10 +160,12 @@ void sincos(double x, double& s, double& c) noexcept;
 // input: an infinite operand gives +infinity even when the other is NaN
 // (Annex F), otherwise NaN gives NaN; hypot(x, +-0) = |x|. Subnormal
 // operands are read as zero: hypot of two subnormals is +0. Accuracy: see
-// tests/math_tests.cpp. Float, region kernel (the default): correctly
-// rounded for every pair, by construction (the exact a^2 + b^2, its square
-// root rounded, and the rounding decided exactly against the midpoint);
-// today's kernel: correctly rounded at every sampled pair (100,000,000).
+// tests/math_tests.cpp. Float, today's kernel (the default): correctly
+// rounded at every sampled pair (100,000,000; sampled, not proved). Region
+// kernel: correctly rounded for every pair, by construction (the exact
+// a^2 + b^2, its square root rounded, and the rounding decided exactly
+// against the midpoint); 2.1 times slower than today's in the R2 bench,
+// with the same results at every tested pair.
 [[nodiscard]] double hypot(double x, double y) noexcept;
 [[nodiscard]] float hypot(float x, float y) noexcept;
 

@@ -732,12 +732,13 @@ set(STXLIB_MATH_KERNEL_SOURCES
 # region kernels (region.cpp, trig_region.cpp). Every build compiles both;
 # these switches choose the one the public functions take, and every target
 # here sees them (the tests pick their frozen hashes by them). Defaults: the
-# region path where it is proved and not slower by design (paths.hpp says
-# why for each); keep them equal to paths.hpp's.
+# faster path at today's accuracy, from the R2 bench (region only for sincos,
+# sin, cos and tan of a double; paths.hpp says why for each); keep them equal
+# to paths.hpp's.
 option(STXLIB_MATH_REGION_POW_DOUBLE "pow(double) takes the region kernel" OFF)
 option(STXLIB_MATH_REGION_POW_FLOAT "pow(float) takes the region round, test, decide path" OFF)
 option(STXLIB_MATH_REGION_LOG_FLOAT "log, log2, log10 (float) take the region kernels" OFF)
-option(STXLIB_MATH_REGION_HYPOT_FLOAT "hypot(float) takes the region kernel" ON)
+option(STXLIB_MATH_REGION_HYPOT_FLOAT "hypot(float) takes the region kernel" OFF)
 option(STXLIB_MATH_REGION_TRIG_DOUBLE "sincos, sin, cos and tan (double) take the region kernels" ON)
 add_compile_definitions(
     STXLIB_MATH_REGION_POW_DOUBLE=$<BOOL:${STXLIB_MATH_REGION_POW_DOUBLE}>

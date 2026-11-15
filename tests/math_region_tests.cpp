@@ -535,14 +535,22 @@ float log_float_expected(const LogPair& pair, const float x) {
 }
 
 // Every float pattern at the stride (1 with --exhaustive: all 2^32): the
-// region function must give the current function's bits, which
-// tests/math_tests.cpp --exhaustive proves correctly rounded for every
-// float (and the subnormal rule's results for the rest). A difference is
-// decided against the reference and reported either way.
+// region function against today's. A difference is printed and decided
+// against the reference: a region result that is not correctly rounded
+// fails the test; today's misrounded results are counted and fail it at the
+// end of main, after every other check (the region hash included) has run,
+// so one exhaustive run lists every difference of all three functions (R3:
+// round 2's run stopped at log's 5, today's were wrong at all of them, a
+// double rounding in today's cold fallback). Today's fallback now calls the
+// region kernel for a positive normal x, so a difference left names a
+// result of today's cheap path.
+std::uint64_t current_misrounded = 0;
+
 void log_float_rounding(const std::uint32_t stride) {
     for (const LogPair& pair : log_pairs) {
         std::uint64_t checked = 0;
         std::uint64_t differ = 0;
+        std::uint64_t region_wrong = 0;
         for (std::uint64_t pattern = 0; pattern <= 0xffffffffULL; pattern += stride) {
             const float x = std::bit_cast<float>(static_cast<std::uint32_t>(pattern));
             const float result = (*pair.region_function)(x);
@@ -556,14 +564,19 @@ void log_float_rounding(const std::uint32_t stride) {
                 std::fprintf(stderr, "%s(%a): region %a, current %a, correctly rounded %a\n", pair.name,
                              static_cast<double>(x), static_cast<double>(result), static_cast<double>(current),
                              static_cast<double>(expected));
+                if (!same_bits(result, expected)) region_wrong += 1;
+                if (!same_bits(current, expected)) current_misrounded += 1;
             } else {
+                region_wrong += 1;
                 std::fprintf(stderr, "%s(%a): region %a, current %a (special)\n", pair.name,
                              static_cast<double>(x), static_cast<double>(result), static_cast<double>(current));
             }
         }
-        std::printf("%s(float): %llu patterns (stride %u), %llu differ from the current function\n", pair.name,
-                    static_cast<unsigned long long>(checked), stride, static_cast<unsigned long long>(differ));
-        require(differ == 0, "region log(float): differs from the current, correctly rounded function");
+        std::printf("%s(float): %llu patterns (stride %u), %llu differ from the current function, %llu of them "
+                    "with the region result not correctly rounded\n",
+                    pair.name, static_cast<unsigned long long>(checked), stride,
+                    static_cast<unsigned long long>(differ), static_cast<unsigned long long>(region_wrong));
+        require(region_wrong == 0, "region log(float): a result differs from the current and is not correct");
     }
 }
 
@@ -988,31 +1001,66 @@ void bench() {
     }
 }
 
+// ---- main -----------------------------------------------------------------------
+
+// Each check runs on its own: a failing check is reported and the rest still
+// run, so an exhaustive run always reaches region_determinism and prints the
+// region hash (R3: the log(float) finding stopped the run before it).
+bool exhaustive_run = false;
+
+void check_pow_double_accuracy() { pow_double_accuracy(exhaustive_run ? 20000000 : 100000); }
+void check_pow_float_rounding() { pow_float_rounding(exhaustive_run ? 100000000 : 200000); }
+void check_pow_float_accurate_stage() { pow_float_accurate_stage(exhaustive_run ? 10000000 : 100000); }
+void check_log_float_rounding() { log_float_rounding(exhaustive_run ? 1 : 997); }
+void check_hypot_float_rounding() { hypot_float_rounding(exhaustive_run ? 100000000 : 300000); }
+void check_trig_accuracy() { trig_accuracy(exhaustive_run ? 20000000 : 200000); }
+
+void check_current_log_float() {
+    require(current_misrounded == 0, "current log(float): results not correctly rounded (listed on stderr)");
+}
+
+struct Check final {
+    const char* name{nullptr};
+    void (*run)(){nullptr};
+};
+
+const Check checks[] = {
+    {"pow_double_special_values", pow_double_special_values},
+    {"pow_double_accuracy", check_pow_double_accuracy},
+    {"pow_float_special_values", pow_float_special_values},
+    {"pow_float_midpoints", pow_float_midpoints},
+    {"pow_float_rounding", check_pow_float_rounding},
+    {"pow_float_accurate_stage", check_pow_float_accurate_stage},
+    {"log_float_exact_cases", log_float_exact_cases},
+    {"log_float_rounding", check_log_float_rounding},
+    {"hypot_float_special_values", hypot_float_special_values},
+    {"hypot_float_rounding", check_hypot_float_rounding},
+    {"trig_special_values", trig_special_values},
+    {"trig_worst_cases", trig_worst_cases},
+    {"trig_accuracy", check_trig_accuracy},
+    {"region_determinism", region_determinism},
+    {"current_log_float", check_current_log_float},
+};
+
 } // namespace
 
 int main(const int argument_count, char** const arguments) {
-    const bool exhaustive = argument_count == 2 && std::strcmp(arguments[1], "--exhaustive") == 0;
+    exhaustive_run = argument_count == 2 && std::strcmp(arguments[1], "--exhaustive") == 0;
     if (argument_count == 2 && std::strcmp(arguments[1], "--bench") == 0) {
         bench();
         return 0;
     }
-    try {
-        pow_double_special_values();
-        pow_double_accuracy(exhaustive ? 20000000 : 100000);
-        pow_float_special_values();
-        pow_float_midpoints();
-        pow_float_rounding(exhaustive ? 100000000 : 200000);
-        pow_float_accurate_stage(exhaustive ? 10000000 : 100000);
-        log_float_exact_cases();
-        log_float_rounding(exhaustive ? 1 : 997);
-        hypot_float_special_values();
-        hypot_float_rounding(exhaustive ? 100000000 : 300000);
-        trig_special_values();
-        trig_worst_cases();
-        trig_accuracy(exhaustive ? 20000000 : 200000);
-        region_determinism();
-    } catch (const std::exception& failure) {
-        std::fprintf(stderr, "math region tests failed: %s\n", failure.what());
+    int failed = 0;
+    for (const Check& check : checks) {
+        try {
+            (*check.run)();
+        } catch (const std::exception& failure) {
+            failed += 1;
+            std::fprintf(stderr, "math region tests: %s failed: %s\n", check.name, failure.what());
+        }
+    }
+    if (failed != 0) {
+        std::fprintf(stderr, "math region tests failed: %d check(s)\n", failed);
         return 1;
     }
     std::puts("math region tests passed");
