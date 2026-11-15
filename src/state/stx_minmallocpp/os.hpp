@@ -84,6 +84,10 @@ void yield() noexcept;
 // host keeps saying so. Such a thread is given no new heap.
 [[nodiscard]] bool thread_has_ended() noexcept;
 
+// Tells the host that the calling thread has given up what it armed, so
+// the hook will not be called with it (end_thread, allocator.hpp).
+void mark_thread_ended() noexcept;
+
 } // namespace stxlib::stx_minmallocpp::os
 
 namespace stxlib::stx_minmallocpp {

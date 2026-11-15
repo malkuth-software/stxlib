@@ -39,7 +39,8 @@
 // handling (owner decision D11: no thread-local storage with a non-trivial
 // destructor). The process state is a static of stxlib_state with constant
 // initialisation. Neither ever allocates; the allocator is the one part of
-// stxlib_state that calls anything (its backend: mimalloc or malloc).
+// stxlib_state that calls anything (its backend: stx_minmallocpp, mimalloc
+// or malloc).
 
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"

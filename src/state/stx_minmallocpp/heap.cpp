@@ -132,6 +132,7 @@ void unlist(PageMeta& page) noexcept {
 void list_abandoned(PageMeta& page, const usize class_index) noexcept {
     const LockScope scope(structure.lock);
     if (page.listed_in != 0) return;
+    STX_MINMALLOCPP_STEP();
     if (owner_of_state(page.state.load()) != owner_abandoned) return;
     page.previous = nullptr;
     page.next = structure.abandoned_first[class_index];
@@ -176,6 +177,7 @@ struct PagePlan final {
     STX_MINMALLOCPP_CHECK(plan.words >= 1 && plan.words <= page_words && plan.capacity <= plan.words * word_bits);
     std::atomic<u64>* const free_cells = free_words(run.base, run.slice);
     std::atomic<u64>* const remote_cells = remote_words(run.base, run.slice);
+    STX_MINMALLOCPP_STEP();
     for (usize word = 0; word < plan.words; ++word) {
         if (remote_cells[word].load() != 0) integrity_stop(Integrity::released_into_freed_page);
         u64 free_bits = 0;
@@ -199,10 +201,13 @@ struct PagePlan final {
     page.words = static_cast<u8>(plan.words);
     page.next = nullptr;
     page.previous = nullptr;
+    STX_MINMALLOCPP_STEP();
     page.state.store(plan.state);
     std::atomic<u32>* const heads = slice_heads(run.base);
+    STX_MINMALLOCPP_STEP();
+    const u32 head_code = static_cast<u32>(run.slice + 1);
     for (usize slice = 0; slice < plan.slices; ++slice) {
-        heads[run.slice + slice].store(static_cast<u32>(slice + 1), std::memory_order_release);
+        heads[run.slice + slice].store(head_code, std::memory_order_release);
     }
     return page;
 }
@@ -218,9 +223,11 @@ void free_page(PageMeta& page) noexcept {
     std::atomic<u32>* const heads = slice_heads(place.base);
     const LockScope scope(structure.lock);
     unlist(page);
+    STX_MINMALLOCPP_STEP();
     for (usize slice = 0; slice < slices; ++slice) {
         heads[place.head + slice].store(0, std::memory_order_release);
     }
+    STX_MINMALLOCPP_STEP();
     page.state.store(owner_none);
     give_run(place.base, place.head, slices);
 }
@@ -230,9 +237,11 @@ void free_page(PageMeta& page) noexcept {
 // Makes `owner` the owner of an abandoned page; false if the page has an
 // owner. The new state has nothing pending: the claimer collects next.
 [[nodiscard]] bool claim(PageMeta& page, const u64 owner) noexcept {
+    STX_MINMALLOCPP_STEP();
     u64 seen = page.state.load();
     while (owner_of_state(seen) == owner_abandoned) {
-        if (page.state.compare_exchange_weak(seen, owned_state(owner))) return true;
+        STX_MINMALLOCPP_STEP();
+        if (page.state.compare_exchange_strong(seen, owned_state(owner))) return true;
     }
     return false;
 }
@@ -242,6 +251,7 @@ void free_page(PageMeta& page) noexcept {
 // Repeats only while other threads keep releasing into it.
 void abandon(PageMeta& page, const u64 owner) noexcept {
     for (;;) {
+        STX_MINMALLOCPP_STEP();
         if (page.state.load(std::memory_order_relaxed) != owned_state(owner)) collect(page, owner);
         if (page.live == 0) {
             free_page(page);
@@ -250,6 +260,7 @@ void abandon(PageMeta& page, const u64 owner) noexcept {
         const bool has_space = page.live < page.capacity;
         const usize class_index = page.class_index;
         u64 expected = owned_state(owner);
+        STX_MINMALLOCPP_STEP();
         if (page.state.compare_exchange_strong(expected, abandoned_state(page.live))) {
             // The page is no longer ours: only list_abandoned's checks from here.
             if (has_space && class_index < class_count) list_abandoned(page, class_index);
@@ -284,6 +295,7 @@ void sweep_oldest(Heap& heap, const usize class_index) noexcept {
     PageMeta* const oldest = queue.last;
     if (oldest == nullptr || oldest == heap.entries[class_index].page) return;
     PageMeta& page = *oldest;
+    STX_MINMALLOCPP_STEP();
     if (page.state.load(std::memory_order_relaxed) != owned_state(heap.owner)) collect(page, heap.owner);
     if (page.live != 0) return;
     unlink(queue, page);
@@ -390,6 +402,7 @@ void claim_into(Heap& heap, PageMeta& page) noexcept {
                 void* const block = take_block(entry);
                 return block;
             }
+            STX_MINMALLOCPP_STEP();
             if (page.state.load(std::memory_order_relaxed) != owned_state(heap.owner)) {
                 collect(page, heap.owner);
                 if (page.summary != 0) continue;
@@ -400,6 +413,7 @@ void claim_into(Heap& heap, PageMeta& page) noexcept {
             unlink(queue, page);
             entry = ClassEntry{};
             u64 expected = owned_state(heap.owner);
+            STX_MINMALLOCPP_STEP();
             if (!page.state.compare_exchange_strong(expected, abandoned_state(page.live))) {
                 // A release arrived in between: the page is still ours.
                 link_first(queue, page);
@@ -588,13 +602,17 @@ Release release_remote(Heap& heap, PageMeta& page, std::atomic<u64>& free_cell, 
     // this release is merged the page cannot be freed.
     const u64 capacity = page.capacity;
     const usize class_index = page.class_index;
+    STX_MINMALLOCPP_STEP();
     if ((free_cell.load(std::memory_order_relaxed) & bit) != 0) return Release::refused;
+    STX_MINMALLOCPP_STEP();
     const u64 before = remote_cell.fetch_or(bit);
     if ((before & bit) != 0) return Release::refused;
     // Announce. An owner that already has releases pending will collect
     // before it abandons, and that collect reads the bit just set.
+    STX_MINMALLOCPP_STEP();
     const u64 seen = page.state.load();
     if (owner_of_state(seen) > owner_abandoned && count_of_state(seen) != pending_base) return Release::released;
+    STX_MINMALLOCPP_STEP();
     const u64 prior = page.state.fetch_sub(count_unit);
     if (owner_of_state(prior) != owner_abandoned) return Release::released;
     // The page was abandoned, with `remaining` blocks not yet released
@@ -635,6 +653,7 @@ void trim_heap(Heap& heap) noexcept {
         while (cursor != nullptr) {
             PageMeta& page = *cursor;
             cursor = page.next;
+            STX_MINMALLOCPP_STEP();
             if (page.state.load(std::memory_order_relaxed) != owned_state(heap.owner)) collect(page, heap.owner);
             if (page.live != 0) continue;
             if (heap.entries[class_index].page == &page) heap.entries[class_index] = ClassEntry{};

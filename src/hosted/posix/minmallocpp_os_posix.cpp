@@ -159,4 +159,9 @@ bool thread_has_ended() noexcept {
     return result;
 }
 
+void mark_thread_ended() noexcept {
+    if (key_state.load(std::memory_order_acquire) != key_made) return;
+    static_cast<void>(::pthread_setspecific(exit_key, &ended_mark));
+}
+
 } // namespace stxlib::stx_minmallocpp::os

@@ -7,8 +7,7 @@
 //
 //   0         RegionHeader (region.hpp)
 //   1         slice_head: one u32 per slice. 0: the slice is not part of a
-//             page. Otherwise 1 + the number of slices back to the page's
-//             first slice.
+//             page. Otherwise 1 + the index of the page's first slice.
 //   2..4      the free-run tables: length (u16), next and previous (u32)
 //   5..20     PageMeta, 64 bytes per slice; a page's is at its first slice
 //   21..148   free words, 64 per slice
@@ -108,6 +107,26 @@ static_assert(std::atomic<u32>::is_always_lock_free && std::atomic<u64>::is_alwa
 #define STX_MINMALLOCPP_CHECK(condition) static_cast<void>(0)
 #endif
 
+// ---- steps -------------------------------------------------------------------------
+
+// A mark before each operation on memory that another thread may touch at
+// the same time (the atomic steps of proofs/stx_minmallocpp_graph.md,
+// section 5). In every ordinary build it is nothing. In the interleaving
+// checker's build (tests/stx_minmallocpp_interleave.cpp,
+// STXLIB_STX_MINMALLOCPP_INTERLEAVE) it hands control to the checker, which
+// decides which thread takes its next step, so that every ordering of the
+// steps can be run through this code itself.
+#if defined(STXLIB_STX_MINMALLOCPP_INTERLEAVE)
+// The calling thread is about to take a step.
+void interleave_step() noexcept;
+// The calling thread cannot go on until another thread has taken a step
+// (it found a lock held).
+void interleave_blocked() noexcept;
+#define STX_MINMALLOCPP_STEP() ::stxlib::stx_minmallocpp::interleave_step()
+#else
+#define STX_MINMALLOCPP_STEP() static_cast<void>(0)
+#endif
+
 // ---- the lock --------------------------------------------------------------------
 
 // A spin lock for the allocator's structure (region.hpp) and the orphan
@@ -123,11 +142,20 @@ struct Lock final {
 class LockScope final {
 public:
     explicit LockScope(Lock& target) noexcept : target_(target) {
+#if defined(STXLIB_STX_MINMALLOCPP_INTERLEAVE)
+        // Taking the lock is a step; finding it held hands the turn on.
+        for (;;) {
+            interleave_step();
+            if (target_.held.exchange(1, std::memory_order_acquire) == 0) break;
+            interleave_blocked();
+        }
+#else
         while (target_.held.exchange(1, std::memory_order_acquire) != 0) {
             while (target_.held.load(std::memory_order_relaxed) != 0) {
                 os::yield();
             }
         }
+#endif
     }
     ~LockScope() { target_.held.store(0, std::memory_order_release); }
     LockScope(const LockScope&) = delete;
@@ -336,13 +364,16 @@ enum class Integrity : u32 {
 // announces again and is merged by a later collect. At most 64 words.
 inline void collect(PageMeta& page, const u64 owner) noexcept {
     STX_MINMALLOCPP_CHECK(owner_of_state(page.state.load()) == owner);
+    STX_MINMALLOCPP_STEP();
     page.state.store(owned_state(owner));
     const PagePlace place = place_of(page);
     std::atomic<u64>* const free_cells = free_words(place.base, place.head);
     std::atomic<u64>* const remote_cells = remote_words(place.base, place.head);
     const usize words = page.words;
     for (usize word = 0; word < words; ++word) {
+        STX_MINMALLOCPP_STEP();
         if (remote_cells[word].load(std::memory_order_relaxed) == 0) continue;
+        STX_MINMALLOCPP_STEP();
         const u64 released = remote_cells[word].exchange(0);
         const u64 known = free_cells[word].load(std::memory_order_relaxed);
         if ((known & released) != 0) integrity_stop(Integrity::released_twice);

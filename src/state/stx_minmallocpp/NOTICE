@@ -1,0 +1,40 @@
+stx_minmallocpp
+
+stx_minmallocpp is part of STXlib and is STXlib's own code, under STXlib's
+licence (the repository's LICENSE). It is a conversion to house-style C++ of
+the design of mimalloc v3 (https://github.com/microsoft/mimalloc), by Daan
+Leijen and Microsoft Corporation: thread heaps, pages of one block size,
+the separation of the owner's frees from other threads' frees, the rule
+that a full page is abandoned and claimed again by a later free, arenas cut
+into slices, and an address map consulted without touching the address. No
+source text of mimalloc is copied. By the owner's decision of 2026-11-15
+it carries mimalloc's notice, which follows unchanged.
+
+Its index of free slice runs is TLSF (M. Masmano, I. Ripoll, A. Crespo and
+J. Real, "TLSF: a new dynamic memory allocator for real-time systems",
+ECRTS 2004), implemented from the paper.
+
+--------------------------------------------------------------------------
+mimalloc's licence
+
+MIT License
+
+Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

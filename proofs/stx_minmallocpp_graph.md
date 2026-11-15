@@ -196,6 +196,9 @@ table under the structure lock.
   fact taken from the compiled objects.
 - The host's behaviour at the leaves.
 - That the carried state holds for every interleaving of section 5's
-  steps. That is the remaining proof (`proofs/REPORT.md`): a check of every
-  interleaving for 2 to 3 threads on one page, taken from this skeleton,
-  then an argument for any number.
+  steps. `tests/stx_minmallocpp_interleave.cpp` checks it within a bound,
+  on the code itself: each step in section 5 is marked in the source
+  (`STX_MINMALLOCPP_STEP`), and the checker runs every ordering of the
+  marked steps with up to N forced switches for five two-thread scenarios
+  (`proofs/REPORT.md` has the counts). An argument for any number of
+  threads and pages is still to be written.

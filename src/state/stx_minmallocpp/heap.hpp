@@ -143,4 +143,14 @@ void trim_orphan() noexcept;
 // Abandons every page of the heap and frees its slot. The thread's exit.
 void retire_heap(Heap& heap) noexcept;
 
+// allocate and release (allocator.hpp) for a caller that already has the
+// calling thread's heap, and allocate for one that also has the size class:
+// what the public calls do after they read the thread's pointer. `heap` is
+// the calling thread's own (or a sentinel); passing another thread's is
+// undefined. Measured apart from the public calls by
+// tests/stx_minmallocpp_floor_bench.cpp.
+[[nodiscard]] void* allocate_with(Heap& heap, usize size, usize alignment) noexcept;
+[[nodiscard]] void* allocate_class_with(Heap& heap, usize class_index) noexcept;
+[[nodiscard]] Release release_with(Heap& heap, void* address) noexcept;
+
 } // namespace stxlib::stx_minmallocpp

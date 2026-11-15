@@ -608,9 +608,11 @@ What is taken is design, with its source named:
   Ripoll, Crespo and Real, "TLSF: a new dynamic memory allocator for
   real-time systems", ECRTS 2004), implemented from the paper's
   description; no TLSF source was read or copied.
-Whether mimalloc's MIT notice is owed for a design conversion with no
-copied text is the owner's call; it is reproduced in
-`third_party/mimalloc/LICENSE` either way.
+By the owner's decision of 2026-11-15 (notes
+`decisions/2026-11-15-stx-minmallocpp.md`) stx_minmallocpp carries
+mimalloc's MIT notice and credits its design origin:
+`src/state/stx_minmallocpp/NOTICE`, whose licence text is
+`third_party/mimalloc/LICENSE` unchanged.
 
 ## Third party
 

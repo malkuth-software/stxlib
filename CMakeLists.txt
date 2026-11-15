@@ -221,20 +221,23 @@ message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 # Since layout 5 it also owns the allocator (src/state/allocator.cpp), so a
 # block from stxlib::memory in one module may be released in another.
 option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)" ON)
-# The allocator's backend (include/stxlib/memory.hpp). Sanitizers track the
-# host allocator only, so a build with sanitizers (or the integer checks,
-# which would halt on mimalloc's intended wrap-around) defaults to the host
-# backend, and src/state/allocator.cpp refuses mimalloc under address,
-# thread or memory sanitizers.
+# The allocator's backend (include/stxlib/memory.hpp).
+# - stx_minmallocpp, the default: STXlib's own allocator
+#   (src/state/stx_minmallocpp), a conversion of mimalloc's design to
+#   house-style C++ (the owner, 2026-11-15; the default by the owner's
+#   decision of the same day, notes decisions/2026-11-15-stx-minmallocpp.md).
+#   proofs/REPORT.md says what of it is proved, tested and measured.
+# - mimalloc: the vendored release (third_party/mimalloc), kept as an
+#   option.
+# - host: the host's C library. Sanitizers track the host allocator only,
+#   so a build with sanitizers or the integer checks defaults to it (their
+#   reports then name STXlib's own blocks), and src/state/allocator.cpp
+#   refuses mimalloc under address, thread or memory sanitizers.
 if(stxlib_sanitized)
     set(stxlib_allocator_default host)
 else()
-    set(stxlib_allocator_default mimalloc)
+    set(stxlib_allocator_default stx_minmallocpp)
 endif()
-# stx_minmallocpp is STXlib's own allocator (src/state/stx_minmallocpp), a
-# conversion of mimalloc's design to house-style C++ (the owner,
-# 2026-11-15). It is chosen by name until it has been built, run, measured
-# and proved (proofs/REPORT.md); it is not a default yet.
 set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: mimalloc, host or stx_minmallocpp")
 set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host stx_minmallocpp)
 if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host|stx_minmallocpp)$")
@@ -702,6 +705,49 @@ if(STXLIB_TESTS)
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
         POSITION_INDEPENDENT_CODE ON)
+    # The same sources without the checks, for the layer-by-layer benchmark
+    # (tests/stx_minmallocpp_floor_bench.cpp; built, never run by ctest).
+    add_library(stxlib_stx_minmallocpp_plain OBJECT ${stxlib_stx_minmallocpp_sources})
+    target_include_directories(stxlib_stx_minmallocpp_plain PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_stx_minmallocpp_plain PRIVATE cxx_std_20)
+    target_compile_options(stxlib_stx_minmallocpp_plain PRIVATE ${stxlib_warnings} ${stxlib_frame_pointers} -fno-exceptions)
+    set_target_properties(stxlib_stx_minmallocpp_plain PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        POSITION_INDEPENDENT_CODE ON)
+    add_executable(stxlib_stx_minmallocpp_floor_bench tests/stx_minmallocpp_floor_bench.cpp
+        $<TARGET_OBJECTS:stxlib_stx_minmallocpp_plain>)
+    target_include_directories(stxlib_stx_minmallocpp_floor_bench PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_stx_minmallocpp_floor_bench PRIVATE cxx_std_20)
+    target_compile_options(stxlib_stx_minmallocpp_floor_bench PRIVATE ${stxlib_test_warnings})
+    target_link_libraries(stxlib_stx_minmallocpp_floor_bench PRIVATE Threads::Threads)
+
+    # The interleaving checker (tests/stx_minmallocpp_interleave.cpp): the
+    # same sources with the marks before each shared-memory step turned into
+    # hand-overs to the checker, which runs every ordering of the steps with
+    # up to two forced switches, each in a child process. POSIX hosts (fork).
+    if(NOT WIN32)
+        add_library(stxlib_stx_minmallocpp_stepped OBJECT ${stxlib_stx_minmallocpp_sources})
+        target_include_directories(stxlib_stx_minmallocpp_stepped PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_features(stxlib_stx_minmallocpp_stepped PRIVATE cxx_std_20)
+        target_compile_options(stxlib_stx_minmallocpp_stepped PRIVATE ${stxlib_warnings} ${stxlib_frame_pointers} -fno-exceptions)
+        target_compile_definitions(stxlib_stx_minmallocpp_stepped PRIVATE
+            STXLIB_STX_MINMALLOCPP_CHECKS STXLIB_STX_MINMALLOCPP_INTERLEAVE)
+        add_executable(stxlib_stx_minmallocpp_interleave tests/stx_minmallocpp_interleave.cpp
+            $<TARGET_OBJECTS:stxlib_stx_minmallocpp_stepped>)
+        target_include_directories(stxlib_stx_minmallocpp_interleave PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_features(stxlib_stx_minmallocpp_interleave PRIVATE cxx_std_20)
+        target_compile_options(stxlib_stx_minmallocpp_interleave PRIVATE ${stxlib_test_warnings})
+        target_compile_definitions(stxlib_stx_minmallocpp_interleave PRIVATE
+            STXLIB_STX_MINMALLOCPP_CHECKS STXLIB_STX_MINMALLOCPP_INTERLEAVE)
+        target_link_libraries(stxlib_stx_minmallocpp_interleave PRIVATE Threads::Threads)
+        add_test(NAME stxlib_stx_minmallocpp_interleave COMMAND stxlib_stx_minmallocpp_interleave 2)
+    endif()
+
     add_executable(stxlib_stx_minmallocpp_direct_tests tests/stx_minmallocpp_direct_tests.cpp
         $<TARGET_OBJECTS:stxlib_stx_minmallocpp_checked>)
     target_include_directories(stxlib_stx_minmallocpp_direct_tests PRIVATE

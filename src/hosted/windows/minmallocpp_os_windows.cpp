@@ -110,6 +110,9 @@ void* armed_context() noexcept { return nullptr; }
 
 bool thread_has_ended() noexcept { return false; }
 
+// The callback finds the thread's pointer already at the ended sentinel.
+void mark_thread_ended() noexcept {}
+
 } // namespace stxlib::stx_minmallocpp::os
 
 #if defined(__MINGW32__)

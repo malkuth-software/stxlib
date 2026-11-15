@@ -59,4 +59,11 @@ enum class Release : u8 {
 // thread owns and to the number of regions.
 void trim() noexcept;
 
+// Gives up the calling thread's heap now, as its exit would: its pages are
+// abandoned (or freed if empty) and its slot returned. The thread may go on
+// allocating and releasing; it is then served as a thread without a heap.
+// For a thread that wants its memory handed on before it exits, and for
+// STXlib's own thread-exit hook to call once it replaces the allocator's.
+void end_thread() noexcept;
+
 } // namespace stxlib::stx_minmallocpp
