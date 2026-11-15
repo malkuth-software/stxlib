@@ -25,6 +25,11 @@
 
 namespace stxlib {
 
+namespace detail {
+template <typename Element>
+struct BufferAdoption;
+} // namespace detail
+
 template <typename Element>
 class Buffer final {
     static_assert(__is_trivially_copyable(Element), "Buffer holds trivially copyable elements");
@@ -113,8 +118,36 @@ public:
     }
 
 private:
+    template <typename>
+    friend struct detail::BufferAdoption;
+
     Element* elements_{nullptr};
     usize count_{0};
 };
+
+namespace detail {
+
+// For STXlib's own implementation (src/core/growable.hpp): a Buffer that
+// owns `elements`, a block from memory::allocate whose first `count`
+// elements are initialised, without copying them (audit A, X5: a result
+// collected in a Growable is handed over, not copied into a second block).
+// The block may be larger than `count` elements; the excess is released
+// with the buffer. A zero count releases the block and yields the empty
+// buffer, which owns nothing.
+template <typename Element>
+struct BufferAdoption final {
+    [[nodiscard]] static Buffer<Element> adopt(Element* const elements, const usize count) noexcept {
+        Buffer<Element> result;
+        if (count == 0) {
+            memory::release(elements);
+            return result;
+        }
+        result.elements_ = elements;
+        result.count_ = count;
+        return result;
+    }
+};
+
+} // namespace detail
 
 } // namespace stxlib

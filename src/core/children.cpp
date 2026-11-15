@@ -8,8 +8,6 @@
 #include "core/host_failure.hpp"
 #include "hosted/children_common.hpp"
 
-#include <cstring>
-
 namespace stxlib {
 
 namespace children_detail {
@@ -57,17 +55,13 @@ bool keep_output(const Byte* const bytes, const usize count, const usize limit, 
     return result;
 }
 
-Result<Buffer<Byte>> finish_output(const Growable<Byte>& output, const bool over_limit,
-                                   const Operation operation) noexcept {
+Result<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit, const Operation operation) noexcept {
     if (over_limit) {
         return Result<Buffer<Byte>>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
     }
-    Result<Buffer<Byte>> result = Buffer<Byte>::allocate_zeroed(output.count());
-    if (result.succeeded() && output.count() != 0) {
-        std::memcpy((*result.value()).mutable_view().data(), output.data(), output.count());
-    }
-    return result;
+    // Handed over, not copied (audit A, X5).
+    return Result<Buffer<Byte>>::success(output.take_as_buffer());
 }
 
 } // namespace children_detail

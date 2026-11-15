@@ -354,7 +354,11 @@ Status File::close() noexcept {
 
 // Reads into a growing buffer, toward `limit` as the file proves longer than
 // its reported size, and probes one byte at the limit to tell a file of
-// exactly `limit` bytes from a longer one (stx_auxlib's read_file).
+// exactly `limit` bytes from a longer one (stx_auxlib's read_file). The
+// buffer is reserved at exactly the reported size and handed to the result
+// without a copy (audit A, X5), so a file that keeps its size costs one
+// block of its size; one that grows while it is read costs the doubling's
+// block, under twice the bytes read.
 Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const Operation operation = "stxlib.files.read_file";
     Result<File> opened = File::open(path, FileMode::read);
@@ -365,7 +369,7 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const u64 bytes = *reported.value();
     if (bytes > limit) return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
     Growable<Byte> content;
-    if (!content.resize(static_cast<usize>(bytes))) {
+    if (!content.reserve_exact(static_cast<usize>(bytes)) || !content.resize(static_cast<usize>(bytes))) {
         return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
     }
     usize filled = 0;
@@ -394,10 +398,8 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     }
     const Status closed = file.close();
     if (closed.failed()) return Result<Buffer<Byte>>::failure(*closed.error());
-    Result<Buffer<Byte>> buffer = Buffer<Byte>::allocate_zeroed(filled);
-    if (buffer.failed()) return buffer;
-    if (filled != 0) std::memcpy((*buffer.value()).mutable_view().data(), content.data(), filled);
-    return buffer;
+    content.shrink(filled);
+    return Result<Buffer<Byte>>::success(content.take_as_buffer());
 }
 
 // Creates write_file's temporary file in `directory`, retrying on the rare

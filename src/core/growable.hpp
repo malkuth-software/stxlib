@@ -6,6 +6,7 @@
 // aborting (survey D8's recommendation a, provisional), which a std::string
 // in a build without exceptions cannot. Private to one call or one object.
 
+#include "stxlib/buffer.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/types.hpp"
 
@@ -44,13 +45,31 @@ public:
             }
             next = next * 2;
         }
-        void* const block = memory::allocate(next * sizeof(Element), alignof(Element));
-        if (block == nullptr) return false;
-        if (count_ != 0) std::memcpy(block, elements_, count_ * sizeof(Element));
-        memory::release(elements_);
-        elements_ = static_cast<Element*>(block);
-        capacity_ = next;
-        return true;
+        const bool result = move_to(next);
+        return result;
+    }
+
+    // Room for exactly `wanted` elements when it must grow, for a count known
+    // in advance (read_file's reported size); false when it cannot be had.
+    [[nodiscard]] bool reserve_exact(const usize wanted) noexcept {
+        if (wanted <= capacity_) return true;
+        if (wanted > usize_max / sizeof(Element)) return false;
+        const bool result = move_to(wanted);
+        return result;
+    }
+
+    // Hands the elements to a Buffer without copying them; this Growable is
+    // empty afterwards. The buffer's block is this Growable's: at most twice
+    // its count after growth by doubling, exactly its count after
+    // reserve_exact (audit A, X5).
+    [[nodiscard]] Buffer<Element> take_as_buffer() noexcept {
+        Element* const elements = elements_;
+        const usize count = count_;
+        elements_ = nullptr;
+        count_ = 0;
+        capacity_ = 0;
+        Buffer<Element> result = detail::BufferAdoption<Element>::adopt(elements, count);
+        return result;
     }
 
     [[nodiscard]] bool append(const Element* const source, const usize source_count) noexcept {
@@ -86,6 +105,19 @@ public:
     void clear() noexcept { count_ = 0; }
 
 private:
+    // Moves the elements into a block of `next` elements; false when it
+    // cannot be had, with nothing changed. Requirement: count_ <= next, and
+    // next * sizeof(Element) representable.
+    [[nodiscard]] bool move_to(const usize next) noexcept {
+        void* const block = memory::allocate(next * sizeof(Element), alignof(Element));
+        if (block == nullptr) return false;
+        if (count_ != 0) std::memcpy(block, elements_, count_ * sizeof(Element));
+        memory::release(elements_);
+        elements_ = static_cast<Element*>(block);
+        capacity_ = next;
+        return true;
+    }
+
     Element* elements_{nullptr};
     usize count_{0};
     usize capacity_{0};
