@@ -505,6 +505,17 @@ Outcome replace(const char* const from, const char* const to, const Durability l
     return success();
 }
 
+// Nothing to do: Windows has no permission bits to carry. The temporary
+// file takes the directory's inherited ACL, and MoveFileExW keeps the
+// moved file's own security descriptor ("MoveFileExW function", Microsoft
+// Learn: the moved file keeps its descriptor), so a replaced file's
+// explicit ACL is not carried (files.hpp, write_file).
+Outcome carry_permissions(const i64 handle, const char* const target) noexcept {
+    static_cast<void>(handle);
+    static_cast<void>(target);
+    return success();
+}
+
 Outcome create_directory(const char* const name) noexcept {
     Growable<wchar_t> wide;
     if (!wide_name(name, wide)) return no_memory();

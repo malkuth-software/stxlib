@@ -410,6 +410,24 @@ Outcome set_size(const i64 handle, const u64 bytes) noexcept {
     return success();
 }
 
+// The permission bits only, not setuid, setgid or sticky: the replacement
+// is owned by the writer, not by the replaced file's owner, so carrying
+// setuid would make a set-user-ID file of the writer's that nobody chose.
+// A target that is missing (or a path through a missing directory) has
+// nothing to carry; one that is not a regular file is left to the rename to
+// refuse or replace.
+Outcome carry_permissions(const i64 handle, const char* const target) noexcept {
+    struct stat existing{};
+    if (::stat(target, &existing) != 0) {
+        const int error = errno;
+        if (error == ENOENT || error == ENOTDIR) return success();
+        return from_errno(error);
+    }
+    if (!S_ISREG(existing.st_mode)) return success();
+    if (::fchmod(descriptor(handle), static_cast<mode_t>(existing.st_mode & 0777)) != 0) return from_errno(errno);
+    return success();
+}
+
 Outcome inspect(const char* const name, const LinkMode links, FileInformation& information) noexcept {
     information = FileInformation{};
     struct stat described{};
@@ -772,6 +790,12 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     const mode_t permissions = static_cast<mode_t>(described.st_mode & 07777);
     Descriptor target(open_retrying(to, flags, permissions));
     if (target.get() < 0) return from_errno(errno);
+    // An existing target keeps its old permission bits through O_TRUNC, so
+    // they are narrowed before the first byte is written, not after the last
+    // (A-stxlib-hosted-01-F8): a reader allowed by the old bits can open it
+    // only while it is still empty. The descriptor was opened for writing,
+    // so it stays writable whatever the new bits say.
+    if (::fchmod(target.get(), permissions) != 0) return from_errno(errno);
     Byte chunk[16384]{};
     for (;;) {
         usize got = 0;
@@ -786,8 +810,6 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
             written = written + put;
         }
     }
-    // An existing target kept its old permission bits through O_TRUNC.
-    if (::fchmod(target.get(), permissions) != 0) return from_errno(errno);
     const int closed = target.close_now();
     if (closed != 0) return from_errno(closed);
     return success();

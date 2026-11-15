@@ -140,6 +140,11 @@ enum class FileMode : u8 {
     append = 3,     // write at the end of a file, creating it if missing
 };
 
+namespace detail {
+// STXlib's own access to an open File's host handle (src/core/files.cpp).
+class FileAccess;
+} // namespace detail
+
 // An open file. Move-only; the destructor closes it and discards any close
 // failure, so call close() where that failure matters. A moved-from or
 // closed File fails with disposed, HostCode::closed_handle.
@@ -207,6 +212,8 @@ public:
     [[nodiscard]] Status set_size(u64 bytes) noexcept;
 
 private:
+    friend class detail::FileAccess;
+
     static constexpr i64 closed = -1;
 
     File(const i64 handle, const FileMode opened_mode) noexcept : handle_(handle), mode_(opened_mode) {}
@@ -227,6 +234,13 @@ private:
 // where Capability::atomic_replace is true. On failure the old file, if any,
 // is unchanged and the temporary file is removed. A path without a final
 // name ("/", ".") fails with invalid_argument, HostCode::invalid_name.
+// The replacement is a new file: on POSIX hosts it takes the replaced
+// regular file's permission bits (st_mode & 0777, read through a link;
+// setuid, setgid and sticky are dropped) before any content is written,
+// and is owned by the writer; ownership, ACLs, extended attributes and a
+// link at the name are not kept (a link is replaced by the file). On
+// Windows it takes the directory's inherited ACL, not the replaced file's
+// own.
 [[nodiscard]] Status write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class LinkMode : u8 {

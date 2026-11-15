@@ -177,6 +177,19 @@ void whole_files(const Scratch& scratch) {
     CHECK(kind_of(stxlib::read_file(under(scratch.root, "missing"), 16)) == ErrorKind::not_found);
     const Result<Buffer<Byte>> directory = stxlib::read_file(scratch.root, 16);
     CHECK(kind_of(directory) == ErrorKind::invalid_argument && code_of(directory) == HostCode::is_a_directory);
+#if defined(__linux__)
+    // A file that reports size 0 and holds more (procfs): read_file finds it
+    // longer with its one-byte probe and must keep that byte as the first of
+    // the content (A-stxlib-core-01-F3).
+    const Result<Buffer<Byte>> status_file = stxlib::read_file(parse_or_empty("/proc/self/status"), 1 << 20);
+    CHECK(status_file.succeeded());
+    if (status_file.succeeded()) {
+        const stxlib::View<Byte> content = (*status_file.value()).view();
+        CHECK(content.count() > 5 && std::memcmp(content.data(), "Name:", 5) == 0);
+    }
+    const Result<Buffer<Byte>> clipped_status = stxlib::read_file(parse_or_empty("/proc/self/status"), 3);
+    CHECK(kind_of(clipped_status) == ErrorKind::limit_exceeded);
+#endif
     // A path without a final name cannot be written as a file.
     const Status root_write = stxlib::write_file(parse_or_empty("/"), view_bytes(first), Durability::durable);
     CHECK(kind_of(root_write) == ErrorKind::invalid_argument && code_of(root_write) == HostCode::invalid_name);
@@ -745,10 +758,58 @@ void unrepresentable_names(const Scratch& scratch) {
 
 } // namespace
 
+#if !defined(_WIN32)
+// The permission bits of a POSIX file, or -1.
+int mode_of(const Path& path) {
+    const stxlib::PathText text = path.text();
+    const std::string name(text.data(), text.count());
+    struct stat described {};
+    if (::stat(name.c_str(), &described) != 0) return -1;
+    const int result = static_cast<int>(described.st_mode & 07777);
+    return result;
+}
+
+bool set_mode(const Path& path, const int mode) {
+    const stxlib::PathText text = path.text();
+    const std::string name(text.data(), text.count());
+    const bool result = ::chmod(name.c_str(), static_cast<mode_t>(mode)) == 0;
+    return result;
+}
+
+// write_file keeps the replaced file's permission bits (A-stxlib-core-01-F4)
+// and drops setuid, setgid and sticky; copy_file over a wider existing file
+// leaves it with the source's bits (A-stxlib-hosted-01-F8; the order, bits
+// before content, is not observable here).
+void permissions_carried(const Scratch& scratch) {
+    const Path secret = under(scratch.root, "secret");
+    const std::vector<Byte> first = bytes_of("token one");
+    CHECK(stxlib::write_file(secret, view_bytes(first), Durability::none).succeeded());
+    CHECK(set_mode(secret, 0600));
+    const std::vector<Byte> second = bytes_of("token two, longer");
+    CHECK(stxlib::write_file(secret, view_bytes(second), Durability::ordered).succeeded());
+    CHECK(mode_of(secret) == 0600);
+    CHECK(read_or_empty(secret, 64) == second);
+    CHECK(set_mode(secret, 0640));
+    CHECK(stxlib::write_file(secret, view_bytes(first), Durability::none).succeeded());
+    CHECK(mode_of(secret) == 0640);
+    const Path wide = under(scratch.root, "wide");
+    CHECK(stxlib::write_file(wide, view_bytes(first), Durability::none).succeeded());
+    CHECK(set_mode(wide, 0666));
+    CHECK(stxlib::copy_file(secret, wide, stxlib::CopyMode::replace).succeeded());
+    CHECK(mode_of(wide) == 0640);
+    CHECK(read_or_empty(wide, 64) == first);
+    CHECK(stxlib::remove(secret).succeeded());
+    CHECK(stxlib::remove(wide).succeeded());
+}
+#endif
+
 int main() {
     {
         const Scratch scratch{};
         whole_files(scratch);
+#if !defined(_WIN32)
+        permissions_carried(scratch);
+#endif
         file_handles(scratch);
         positioned_and_metadata(scratch);
         deep_and_wide_trees(scratch);

@@ -1,13 +1,15 @@
 // Tests of trampolines with revocation (include/stxlib/trampoline.hpp).
 // The concurrent case checks the ordering property revoke promises (it does
 // not return before a running invocation has left) on one interleaving the
-// test forces; it is a test, not a proof (proofs/REPORT.md).
+// test forces, and a stale caller racing a self-revocation (core-01-F2) over
+// many rounds; tests, not proofs (proofs/REPORT.md).
 
 #include "stxlib/boundary.hpp"
 
 #include "test_support.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <stdexcept>
 #include <thread>
@@ -175,6 +177,76 @@ void self_revocation_is_deferred() {
     CHECK(table.attach(next).succeeded());
 }
 
+// Calls a stale handle until told to stop: each refused enter announces
+// itself on the slot before it reads the state.
+struct StaleCaller final {
+    stxlib::Trampolines<SelfRevoker>* table{nullptr};
+    stxlib::TrampolineHandle handle{};
+    std::atomic<bool> stop{false};
+    std::atomic<bool> running{false};
+
+    void operator()() {
+        running.store(true);
+        while (!stop.load()) static_cast<void>((*table).invoke(handle));
+    }
+};
+
+// A-stxlib-core-01-F2: a refused enter with a stale handle that is the last
+// to leave after a self-revocation must still free the slot. Before the
+// fix it freed only its own (older) generation, stranding the revoked slot
+// for good: a capacity-1 table then refused every attach. The interleaving
+// is a race, so it is tried many times; a stranded slot never recovers, so
+// one stranding fails the attach that follows.
+void stale_enter_does_not_strand_a_self_revocation() {
+    stxlib::Result<stxlib::Trampolines<SelfRevoker>> made =
+        stxlib::Trampolines<SelfRevoker>::create("stxlib.tests.trampoline", 1);
+    CHECK(made.succeeded());
+    if (made.failed()) return;
+    stxlib::Trampolines<SelfRevoker> table = static_cast<stxlib::Result<stxlib::Trampolines<SelfRevoker>>&&>(made).take_value();
+    SelfRevoker first;
+    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(first);
+    CHECK(attached.succeeded());
+    if (attached.failed()) return;
+    const stxlib::TrampolineHandle stale = *attached.value();
+    CHECK(table.revoke(stale).succeeded());
+
+    StaleCaller caller;
+    caller.table = &table;
+    caller.handle = stale;
+    std::thread calling(std::ref(caller));
+    while (!caller.running.load()) std::this_thread::yield();
+    bool every_attach = true;
+    for (int round = 0; round < 4000 && every_attach; ++round) {
+        SelfRevoker revoker;
+        // The stale caller may hold the just-freed slot's count for a moment
+        // (it is revoked until its enter departs), so attach is retried for
+        // up to two seconds; a stranded slot stays revoked past that.
+        const std::chrono::steady_clock::time_point deadline =
+            std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        bool placed = false;
+        for (;;) {
+            const stxlib::Result<stxlib::TrampolineHandle> next = table.attach(revoker);
+            if (next.succeeded()) {
+                revoker.handle = *next.value();
+                placed = true;
+                break;
+            }
+            if (std::chrono::steady_clock::now() >= deadline) break;
+            std::this_thread::yield();
+        }
+        if (!placed) {
+            every_attach = false;
+            break;
+        }
+        revoker.table = &table;
+        CHECK(table.invoke(revoker.handle).succeeded());
+        CHECK(revoker.deferred);
+    }
+    caller.stop.store(true);
+    calling.join();
+    CHECK(every_attach);
+}
+
 // A target that re-enters its own trampoline, to the nesting limit.
 struct Nester final {
     stxlib::Trampolines<Nester>* table{nullptr};
@@ -300,6 +372,7 @@ int main() {
     invoke_revoke_and_reissue();
     handles_fit_the_pointer_width();
     self_revocation_is_deferred();
+    stale_enter_does_not_strand_a_self_revocation();
     nesting_is_bounded();
     a_throwing_target_leaves_its_slot();
     revoke_waits_for_a_running_invocation();

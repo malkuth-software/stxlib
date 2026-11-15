@@ -29,7 +29,8 @@
 // party frees it: the waiting revoker, or the leave (or refused enter) that
 // brought in_flight to zero. A deferred revocation (from inside its own
 // invocation) is always freed by a leave, since that invocation holds
-// in_flight above zero until it leaves.
+// in_flight above zero until it leaves; the last leaver frees the state's
+// own generation, which may be later than the one a refused enter carried.
 //
 // The calling thread's open invocations are kept on a bounded stack
 // (trampoline_nesting_limit) in stxlib_state, which tells a self-revocation
@@ -145,10 +146,17 @@ bool try_free(TrampolineSlot& slot, const u64 generation) noexcept {
     return true;
 }
 
-// Ends one announced invocation of `generation` on `slot`.
-void depart(TrampolineSlot& slot, const u64 generation) noexcept {
+// Ends one announced invocation on `slot`. The last to leave frees the
+// slot if it is revoked, whatever generation the leaver carried: a refused
+// enter with a stale handle announces itself too, and if it is the last to
+// leave after a self-revocation of a later generation, freeing only its own
+// generation would strand revoked(later) with nothing in flight
+// (A-stxlib-core-01-F2). The state's own generation is the one freed.
+void depart(TrampolineSlot& slot) noexcept {
     const u32 before = slot.in_flight.fetch_sub(1, std::memory_order_seq_cst);
-    if (before == 1) static_cast<void>(try_free(slot, generation));
+    if (before != 1) return;
+    const u64 state = slot.state.load(std::memory_order_seq_cst);
+    if (phase_of(state) == Phase::revoked) static_cast<void>(try_free(slot, generation_of(state)));
 }
 
 // Waits until revoked(generation) has no invocation in flight and is freed,
@@ -302,7 +310,7 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
     slot.in_flight.fetch_add(1, std::memory_order_seq_cst);
     const u64 state = slot.state.load(std::memory_order_seq_cst);
     if (state != detail::make_state(generation, detail::Phase::attached)) {
-        detail::depart(slot, generation);
+        detail::depart(slot);
         if (state == detail::make_state(generation, detail::Phase::revoked)) {
             const ErrorRecord revoked = ErrorRecord::make(ErrorKind::revoked, "stxlib.trampoline.enter",
                                                           ErrorDetail{.message = "the trampoline handle is revoked"});
@@ -329,8 +337,7 @@ void TrampolineTable::leave(const TrampolineEntry& entry) noexcept {
     thread.open_depth = thread.open_depth - 1;
     detail::TrampolineSlots& table = *slots_;
     const usize index = static_cast<usize>(entry.handle.value() & detail::handle_index_mask);
-    const u64 generation = entry.handle.value() >> detail::handle_index_bits;
-    detail::depart(table.slots[index], generation);
+    detail::depart(table.slots[index]);
 }
 
 Result<Revocation> TrampolineTable::revoke(const TrampolineHandle handle) noexcept {
