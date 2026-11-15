@@ -177,7 +177,10 @@ public:
     DirectoryStream(const DirectoryStream&) = delete;
     DirectoryStream& operator=(const DirectoryStream&) = delete;
     ~DirectoryStream() {
-        if (stream_ != nullptr) (void)::closedir(stream_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        DIR* const held = stream_;
+        stream_ = nullptr;
+        if (held != nullptr) (void)::closedir(held);
     }
 
     [[nodiscard]] DIR* get() const noexcept { return stream_; }

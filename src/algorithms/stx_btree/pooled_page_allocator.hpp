@@ -61,8 +61,10 @@ public:
     PagePool() noexcept = default;
     PagePool(const PagePool&) = delete;
     PagePool& operator=(const PagePool&) = delete;
+    // Lets go of the chunk list before releasing it (STXlib AGENTS.md, rule 1).
     ~PagePool() {
         Chunk* chunk = chunks;
+        chunks = nullptr;
         while (chunk != nullptr) {
             Chunk* const next = (*chunk).next;
             memory::release((*chunk).start);
@@ -246,13 +248,17 @@ public:
     PooledPageAllocator& operator=(const PooledPageAllocator& other) noexcept {
         if (pool != other.pool) {
             share(other.pool);
-            leave(pool);
+            PagePool* const held = pool;
             pool = other.pool;
+            leave(held);
         }
         return *this;
     }
+    // Lets go before leaving (STXlib AGENTS.md, rule 1).
     ~PooledPageAllocator() {
-        leave(pool);
+        PagePool* const held = pool;
+        pool = nullptr;
+        leave(held);
     }
 
     // Null when the pool has no page (or there is no pool).
