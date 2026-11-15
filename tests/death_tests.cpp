@@ -42,6 +42,11 @@
 //                          process (the host allocator's own check; ported
 //                          from stx_auxlib tests/ownership_death_tests.cpp)
 //   foreign_delete         the same with operator delete
+//   gate_cancelled         a callback that calls pthread_exit inside
+//                          invoke_callback, on glibc with libstdc++: the
+//                          gate sees the forced unwind and fails fast with
+//                          a record naming cancellation (owner decision
+//                          2026-11-15, audit E, 1); elsewhere skipped
 //
 // foreign_free and foreign_delete are skipped under ThreadSanitizer: its
 // free and operator delete do not check that a pointer is the start of a
@@ -68,6 +73,7 @@
 #endif
 #include <windows.h>
 #else
+#include <pthread.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
@@ -406,6 +412,31 @@ int foreign_delete() {
     return 0;
 }
 
+#if defined(__GLIBC__) && defined(__GLIBCXX__)
+struct ExitingCallback final {
+    void operator()() const { ::pthread_exit(nullptr); }
+};
+
+void* run_exiting_gate(void*) {
+    ExitingCallback callback;
+    stxlib::invoke_callback("stxlib.tests.cancel", callback);
+    return nullptr;
+}
+#endif
+
+int gate_cancelled() {
+#if defined(__GLIBC__) && defined(__GLIBCXX__)
+    pthread_t thread{};
+    if (::pthread_create(&thread, nullptr, run_exiting_gate, nullptr) != 0) return 2;
+    static_cast<void>(::pthread_join(thread, nullptr));
+    std::puts("survived");
+    return 0;
+#else
+    std::puts("skipped: the host's thread exit does not unwind as abi::__forced_unwind");
+    return 0;
+#endif
+}
+
 } // namespace
 
 int main(const int argc, char** const argv) {
@@ -433,6 +464,7 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "reporter_nested") == 0) return reporter_nested();
     if (std::strcmp(name, "foreign_free") == 0) return foreign_free();
     if (std::strcmp(name, "foreign_delete") == 0) return foreign_delete();
+    if (std::strcmp(name, "gate_cancelled") == 0) return gate_cancelled();
     std::fprintf(stderr, "unknown case %s\n", name);
     return 2;
 }

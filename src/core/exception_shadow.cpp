@@ -35,6 +35,7 @@
 // shadow.hpp), in finish_record(), the one point every gate passes
 // through. The consumer's classifier runs first, exactly once (gate.hpp).
 
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/gate.hpp"
 #include "stxlib/shadow.hpp"
 
@@ -47,6 +48,9 @@
 
 #include <exception>
 #include <new>
+#if defined(__GLIBCXX__)
+#include <cxxabi.h> // abi::__forced_unwind (libstdc++'s <bits/cxxabi_forced.h>)
+#endif
 #include <stdexcept>
 #include <system_error>
 #endif
@@ -138,11 +142,40 @@ void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept 
 #endif
 }
 
+// glibc unwinds a cancelled thread, and one that calls pthread_exit, with a
+// foreign exception that libstdc++ matches as abi::__forced_unwind. A gate's
+// catch (...) would catch it, and a handler that ends without rethrowing it
+// makes glibc abort with no report ("FATAL: exception not rethrown"). Owner
+// decision 2026-11-15 (notes decisions/2026-11-15-audit-e-decisions.md, 1):
+// a gate that sees it fails fast with a record naming cancellation. The
+// fail-fast call is made inside the handler, so the forced unwind is never
+// ended. Runs before anything else in the gate's handler, the consumer's
+// classifier included (it could swallow it the same way). Hosts whose
+// cancellation does not unwind (macOS, musl, Windows) and libc++ on glibc
+// (no abi::__forced_unwind; glibc's abort stays) compile it to nothing.
+void fail_fast_if_cancelled(const Operation operation) noexcept {
+#if defined(__GLIBCXX__)
+    try {
+        throw;
+    } catch (abi::__forced_unwind&) {
+        const ErrorRecord record = ErrorRecord::make(
+            ErrorKind::interrupted, operation,
+            ErrorDetail{.message = "thread cancellation or pthread_exit unwound into a gate"});
+        fail_fast(record);
+    } catch (...) {
+        // Any other exception: the gate's handler goes on with it.
+    }
+#else
+    static_cast<void>(operation);
+#endif
+}
+
 } // namespace
 
 namespace detail {
 
 ErrorRecord record_current_exception(const Operation operation) noexcept {
+    fail_fast_if_cancelled(operation);
     const StandardClass standard = classify_standard();
     ErrorRecord record = ErrorRecord::make(standard.kind, operation, ErrorDetail{.foreign = standard.foreign});
     finish_record(record, standard);
@@ -151,6 +184,7 @@ ErrorRecord record_current_exception(const Operation operation) noexcept {
 
 ErrorRecord record_current_exception_classified(const Operation operation,
                                                 const ExceptionClassifier& classifier) noexcept {
+    fail_fast_if_cancelled(operation);
     ExceptionClass decided{};
     bool recognised = false;
     if (classifier.classify != nullptr) recognised = classifier.classify(classifier.context, decided);

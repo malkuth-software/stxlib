@@ -750,7 +750,7 @@ if(STXLIB_TESTS)
     # Must-end cases, one process each.
     if(STXLIB_EXCEPTIONS)
         add_executable(stxlib_death_tests tests/death_tests.cpp)
-        target_link_libraries(stxlib_death_tests PRIVATE stxlib::boundary)
+        target_link_libraries(stxlib_death_tests PRIVATE stxlib::boundary Threads::Threads)
         target_compile_options(stxlib_death_tests PRIVATE ${stxlib_test_warnings})
         set(stxlib_death_cases
             "callback_throw|stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure.*client callback failed"
@@ -771,7 +771,8 @@ if(STXLIB_TESTS)
             "reporter_opens_frame|stxlib: requirement failed: a fail-fast reporter opened a shadow frame"
             "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
             "foreign_free|ANY"
-            "foreign_delete|ANY")
+            "foreign_delete|ANY"
+            "gate_cancelled|stxlib: fail fast: stxlib\\.tests\\.cancel: interrupted.*thread cancellation or pthread_exit")
         foreach(death_case IN LISTS stxlib_death_cases)
             string(FIND "${death_case}" "|" separator)
             string(SUBSTRING "${death_case}" 0 ${separator} case_name)
