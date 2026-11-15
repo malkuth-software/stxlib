@@ -34,7 +34,8 @@ namespace stxlib {
 inline constexpr usize maximum_exit_tasks = 32;
 
 // Registers `task` to run when the process exits normally (exit_process, or
-// returning from main), newest first. A task must not throw; it may
+// returning from main), newest first. A task must not throw or longjmp out
+// (AGENTS.md, early exits); it may
 // register further tasks, which run after it. Its context is borrowed until
 // it has run. Failures: invalid_argument for an unbound task;
 // limit_exceeded with HostCode::table_full when all maximum_exit_tasks

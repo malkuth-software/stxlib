@@ -123,7 +123,8 @@ private:
 };
 
 // A named predicate over the waited-for state: true when the wait is over.
-// It is called with the lock held, so it reads state that lock guards.
+// It is called with the lock held, so it reads state that lock guards. It
+// must return (AGENTS.md, early exits): no longjmp out of it.
 using WaitPredicate = bool (*)(const void* context) noexcept;
 
 enum class WaitResult : u8 {
@@ -191,6 +192,9 @@ private:
     Mutex mutex_{};
 };
 
+// Runs `entry` once per flag. `entry` runs under the flag's mutex and must
+// return (AGENTS.md, early exits): no longjmp out and no thread exit or
+// cancellation inside it, or every later caller waits for ever.
 inline void call_once(OnceFlag& flag, void (*const entry)(void* context) noexcept, void* const context) noexcept {
     if (flag.done()) return;
     call_once_slow(flag, entry, context);
@@ -243,6 +247,8 @@ enum class ThreadFailure : u32 {
 
 class Thread final {
 public:
+    // The thread's body. No longjmp out of it (AGENTS.md, early exits); a
+    // thread exit inside it ends the thread as a return would.
     using Entry = void (*)(const StopSignal& stop, void* context) noexcept;
 
     // The thread's stack is `stack_bytes` rounded up to the host's page

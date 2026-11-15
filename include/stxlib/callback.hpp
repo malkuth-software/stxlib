@@ -12,6 +12,8 @@
 //
 // A CallbackTarget is invoked only through invoke_callback (gate.hpp), the
 // callback gate: it has no call operator, so no call can bypass the gate.
+// The gate catches an exception from the target; a longjmp out of the
+// target is outside every STXlib contract (AGENTS.md, early exits).
 
 #include "stxlib/types.hpp"
 

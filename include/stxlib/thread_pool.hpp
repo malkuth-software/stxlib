@@ -56,7 +56,10 @@ namespace stxlib {
 
 // One unit of work. `function` must return normally (it is noexcept: an
 // exception on a worker ends the process). `argument` is borrowed until the
-// batch that holds the task finishes.
+// batch that holds the task finishes. Early exits (AGENTS.md): no longjmp
+// out of a task and no thread exit or cancellation inside one. A task that
+// does not return leaves its batch unfinished for ever, and one run on the
+// caller of run holds the pool's run lock while it runs.
 struct PoolTask final {
     void (*function)(void* argument) noexcept {nullptr};
     void* argument{nullptr};

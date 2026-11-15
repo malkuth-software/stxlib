@@ -44,6 +44,9 @@
 
 namespace stxlib {
 
+// `report` runs once per process, on the failing thread, with no STXlib
+// lock held. It must return or end the process itself; no longjmp out of
+// it (AGENTS.md, early exits).
 struct FailFastReporter final {
     void (*report)(void* context, const ErrorRecord& record) noexcept{nullptr};
     void* context{nullptr};

@@ -83,7 +83,7 @@ struct ExceptionClass final {
 // unchanged. It may rethrow the current exception inside its own try block
 // to test its type, and returns true with `decided` filled when it
 // recognises it; false leaves the standard classification. It must not let
-// an exception escape.
+// an exception escape or longjmp out (AGENTS.md, early exits).
 //
 // The message sink (decision A2-2 = 1): ErrorRecord keeps
 // error_message_capacity (200) bytes of message. A consumer that keeps more

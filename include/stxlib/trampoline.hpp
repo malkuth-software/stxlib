@@ -107,7 +107,10 @@ class TrampolineSlots;
 
 // The untyped table. Targets are borrowed: each stays alive until its
 // handle's revocation has completed (or, deferred, until its last running
-// invocation has left).
+// invocation has left). Early exits (AGENTS.md): an exception leaving a
+// target is caught by the invocation's gate, and the invocation's visit
+// guard closes the visit as the stack unwinds; a longjmp out of a target
+// leaves its visit open, so revoking that handle waits for ever.
 class TrampolineTable final {
 public:
     // A table of `capacity` slots: 1 to trampoline_capacity_limit, else
