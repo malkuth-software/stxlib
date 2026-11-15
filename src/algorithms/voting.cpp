@@ -47,6 +47,14 @@ bool product(const usize left, const usize right, usize& result) noexcept {
     return !overflowed;
 }
 
+// Adds `count` elements of `size` bytes to `total`; false on overflow.
+bool add_bytes(usize& total, const usize count, const usize size) noexcept {
+    usize bytes = 0;
+    if (!product(count, size, bytes)) return false;
+    const bool overflowed = __builtin_add_overflow(total, bytes, &total);
+    return !overflowed;
+}
+
 // Rankings, one row of `stride` cells per group: group g ranks
 // cells[g * stride, g * stride + lengths[g]), with weight weights[g].
 struct GroupSet final {
@@ -121,6 +129,34 @@ struct Workspace final {
     Buffer<u64> priority_best{};
     Buffer<i64> margins{};
     Buffer<u8> wins{};
+
+    // The bytes allocate_for(groups, count) allocates, element for element
+    // (the two are kept in step); false when the size is not representable.
+    [[nodiscard]] static bool working_bytes(const usize groups, const usize count, usize& bytes) noexcept {
+        usize square = 0;
+        usize rows = 0;
+        if (!product(count, count, square) || !product(groups, count, rows)) return false;
+        // Per candidate: member, in_pattern, seen; missing, tied, remaining,
+        // order, bracket, active; proposals, first; stack; the signatures.
+        const usize per_candidate = 3 * sizeof(u8) + 6 * sizeof(Candidate) + 2 * sizeof(u64) + sizeof(usize) +
+                                    2 * sizeof(i64);
+        // Per group: four GroupSets' lengths and weights; the donors'
+        // lengths, weight and group; level, decision_group, sorted and
+        // decision_candidate.
+        const usize per_group = 4 * (sizeof(u32) + sizeof(u64)) + 2 * sizeof(u32) + sizeof(u64) + sizeof(usize) +
+                                3 * sizeof(usize) + sizeof(Candidate);
+        // Per group and candidate: four GroupSets' cells, donor_residual and
+        // donor_positions.
+        const usize per_row = 4 * sizeof(Candidate) + sizeof(Candidate) + sizeof(u32);
+        // Per candidate pair: positions, tie_vectors, the two priorities,
+        // margins and wins.
+        const usize per_pair = 4 * sizeof(u64) + sizeof(i64) + sizeof(u8);
+        usize total = 0;
+        const bool result = add_bytes(total, count, per_candidate) && add_bytes(total, groups, per_group) &&
+                            add_bytes(total, rows, per_row) && add_bytes(total, square, per_pair);
+        bytes = total;
+        return result;
+    }
 
     bool allocate_for(const usize groups, const usize count) noexcept {
         candidates = count;
@@ -783,6 +819,10 @@ PrvOutcome count_preference_ranked(const u32 candidate_count, const Ballots& bal
     if (candidate_count < 2) return PrvOutcome::failed(PrvFailure::too_few_candidates, 0);
     const usize count = candidate_count;
     const usize groups = ballots.distinct() == 0 ? 1 : ballots.distinct();
+    usize working = 0;
+    if (!Workspace::working_bytes(groups, count, working) || working > options.max_working_bytes) {
+        return PrvOutcome::failed(PrvFailure::working_storage_limit, 0);
+    }
     Workspace ws{};
     if (!ws.allocate_for(groups, count)) return PrvOutcome::failed(PrvFailure::out_of_memory, 0);
 
