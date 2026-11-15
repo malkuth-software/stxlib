@@ -313,6 +313,10 @@ void a_throwing_target_leaves_its_slot() {
     CHECK(revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed);
 }
 
+// How long revoke_waits_for_a_running_invocation keeps its target inside
+// the invocation after the revoking thread has started its revoke.
+constexpr std::chrono::milliseconds revoke_window{50};
+
 // A target that announces it is running and waits for permission to leave.
 struct Blocker final {
     std::atomic<bool> entered{false};
@@ -342,11 +346,14 @@ struct RevokeRun final {
     stxlib::Trampolines<Blocker>* table{nullptr};
     stxlib::TrampolineHandle handle{};
     Blocker* blocker{nullptr};
+    // Set just before revoke is called.
+    std::atomic<bool> started{false};
     std::atomic<bool> done{false};
     bool left_before_return{false};
     bool completed{false};
 
     void operator()() {
+        started.store(true);
         stxlib::Result<stxlib::Revocation> revoked = (*table).revoke(handle);
         left_before_return = (*blocker).left.load();
         completed = revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed;
@@ -367,9 +374,17 @@ void revoke_waits_for_a_running_invocation() {
 
     RevokeRun revoke{&table, handle, &blocker};
     std::thread revoking(std::ref(revoke));
-    // The invocation is still inside the target, so revoke must not have
-    // returned; then let the target leave.
+    // The target stays inside its invocation while the revoking thread
+    // reaches revoke and has time to return from it: a revoke that did not
+    // wait would have returned by then (security audit 2026-11-15,
+    // B-stxlib-tests-proofs-02-F1). Sampled, as thread_pool_tests'
+    // serialization is: 50 ms is long enough for a non-waiting revoke to
+    // return (it makes one compare-exchange and one load). Only then may the
+    // target leave.
+    while (!revoke.started.load()) std::this_thread::yield();
+    std::this_thread::sleep_for(revoke_window);
     const bool returned_early = revoke.done.load();
+    CHECK(!blocker.left.load());
     blocker.may_leave.store(true);
     invoking.join();
     revoking.join();
