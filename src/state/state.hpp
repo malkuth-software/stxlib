@@ -37,7 +37,11 @@
 // mimalloc audit, D6). Layout 11 (the owner, 2026-11-15; notes
 // decisions/2026-11-15-gui-forms-priority.md) removes it with the C
 // mimalloc: stx_minmallocpp stops the process itself on a contradiction in
-// its own state, and the host backend detects none.
+// its own state, and the host backend detects none. Layout 12 (the owner,
+// 2026-11-15; notes decisions/2026-11-15-boundary-sideloading.md) gives the
+// anchor the thread's stack bounds, recorded by STXlib on a path that is
+// not a failure (note_thread_stack, below) so the frame walk never asks the
+// host at failure time.
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -92,7 +96,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 11;
+inline constexpr u32 layout_version = 12;
 
 // The build type's part of the layout: development builds (STXLIB_SHADOW)
 // lay ThreadState out differently from release builds, so the key the
@@ -228,11 +232,12 @@ enum class ThreadPhase : u8 {
 // it again, zero, when the hook reads it: the hook rebuilds it from the
 // armed block (state.cpp, end_thread).
 //
-// Size (layout 10, by field arithmetic on a 64-bit host; the static_assert
+// Size (layout 12, by field arithmetic on a 64-bit host; the static_assert
 // in state.cpp bounds it): the three counters 24 bytes, the depth, flag and
-// phase bytes 8, the reserve 2,016 (its stack 24 + 8 x 120 frames + 32 of
-// pending capture and ring counters, its record 40 + 8 x 120): 2,048 bytes;
-// with the block pointer the anchor is 2,056 bytes of TLS per thread.
+// phase bytes 8, the stack bounds 16, the reserve 2,016 (its stack 24 + 8 x
+// 120 frames + 32 of pending capture and ring counters, its record 40 + 8 x
+// 120): 2,064 bytes; with the block pointer the anchor is 2,072 bytes of
+// TLS per thread.
 //
 // What a thread on the reserve records, compared with a block's
 // ThreadState: error-record sequence numbers and shadow-record numbers are
@@ -261,6 +266,15 @@ struct ThreadFlags final {
     // life (a later block would pair a shadow leave with an unrecorded
     // enter; E-thread-records.md, section 7).
     bool block_failed{false};
+    // The thread's stack, [stack_low, stack_high), as STXlib found it on a
+    // path that is not a failure (note_thread_stack;
+    // hosted/posix/stack_bounds_posix.cpp); stack_high 0: not recorded. The frame walk (src/hosted/posix/trace_posix.cpp) reads
+    // these and never asks the host itself. Recorded at stxlib_state's load
+    // for the loading thread, at a thread's block, and at a Thread's start;
+    // never while the thread fails fast or runs the reporter. On macOS the
+    // hook's rebuild of the anchor (above) starts them again at 0.
+    uptr stack_low{0};
+    uptr stack_high{0};
     // The failure reserve: the shadow stack and record of a thread with no
     // block (its allocation failed, or the hook has released it).
     ReserveShadow reserve{};
@@ -269,7 +283,7 @@ struct ThreadFlags final {
 // The per-thread budget, per build type (house style §1, "account for peak
 // storage"; audit A, S3). Since layout 10 ThreadState is a block allocated
 // on the thread's first touch of STXlib (threads that never touch it carry
-// only the 2,056-byte anchor, ThreadFlags with its failure reserve). By field
+// only the 2,072-byte anchor, ThreadFlags with its failure reserve). By field
 // arithmetic on a 64-bit host:
 //                         development                  release
 //   frames            64 x 120          =  7,680       7,680
@@ -454,6 +468,16 @@ STXLIB_STATE_API RecordStatus thread_record_get(u32 expected_layout, u32 slot, v
 STXLIB_STATE_API void* thread_record_existing(u32 expected_layout, u32 slot) noexcept;
 STXLIB_STATE_API void thread_records_end(u32 expected_layout) noexcept;
 
+// Records the calling thread's stack bounds in its anchor
+// (ThreadFlags::stack_low and stack_high) unless they are recorded already
+// or the thread is failing fast or running the reporter
+// (fail_fast_depth, in_reporter). The host's query
+// (hosted/stack_bounds_backend.hpp) may allocate, lock and make system
+// calls, so only a path that is not a failure calls this: stxlib_state
+// itself at its load and at a thread's block, and core/threads.cpp at a
+// Thread's start. Never unwinds; no callback.
+STXLIB_STATE_API void note_thread_stack(u32 expected_layout) noexcept;
+
 // Ends the process after a layout mismatch, writing `message` to the host's
 // error stream and aborting. It uses no thread state, so it cannot recurse
 // into an accessor (src/hosted/<family>/thread_exit_<family>.cpp).
@@ -481,6 +505,10 @@ inline ProcessState& current_process() noexcept {
     ProcessState* const process = process_state(layout_key);
     if (process == nullptr) refuse_layout(layout_refusal);
     return *process;
+}
+
+inline void note_current_stack() noexcept {
+    note_thread_stack(layout_key);
 }
 
 inline const AllocatorCalls& current_allocator() noexcept {

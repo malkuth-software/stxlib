@@ -71,19 +71,18 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void flush_c_stream(bool erro
 // Writes up to `capacity` return addresses of the calling thread's stack,
 // innermost first, starting at the caller of this function's caller or
 // deeper; returns how many were written. 0 when the host cannot walk the
-// stack. For the shadow records' traces (development builds). On glibc and
-// FreeBSD its frame walk asks for the thread's stack bounds through
-// pthread_getattr_np or pthread_attr_get_np, which allocate (trace_posix.cpp
-// states where), so it is not for a fail-fast report.
+// stack. For the shadow records' traces (development builds).
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT usize capture_return_addresses(uptr* addresses, usize capacity) noexcept;
 
 // As capture_return_addresses, for capture_stack_trace and so for a
-// fail-fast report: no allocation and no C library lock in STXlib's own
-// code on any family. macOS and Windows: the same walk as
-// capture_return_addresses (their bounds and capture calls neither
-// allocate nor lock for the calling thread). Other POSIX hosts: the
-// unwinder only (_Unwind_Backtrace). What the host's unwinder itself does
-// is stated in trace_posix.cpp.
+// fail-fast report: no allocation and no lock in STXlib's own code on any
+// family. On POSIX hosts both are the same walk of the frame-pointer chain,
+// bounded by the stack STXlib recorded for the thread on a path that is not
+// a failure (state.hpp, ThreadFlags::stack_low), so it asks the host
+// nothing; the unwinder (_Unwind_Backtrace) is the fallback where the walk
+// cannot run (trace_posix.cpp says where, and what the host's unwinder
+// itself does). Windows: RtlCaptureStackBackTrace for both. Emscripten:
+// none.
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT usize capture_report_addresses(uptr* addresses, usize capacity) noexcept;
 
 // The C++ runtime's mangled name of the exception being handled, or null

@@ -288,10 +288,16 @@ endif()
 # The thread-exit hook that releases each thread's block (layout 10; notes
 # planning/stages/E-thread-records.md) lives with the state it releases,
 # whatever the backend.
+# So does the stack-bounds query that fills each thread's anchor (layout 12;
+# hosted/stack_bounds_backend.hpp).
 if(WIN32)
-    list(APPEND STXLIB_STATE_SOURCES src/hosted/windows/thread_exit_windows.cpp)
+    list(APPEND STXLIB_STATE_SOURCES
+        src/hosted/windows/thread_exit_windows.cpp
+        src/hosted/windows/stack_bounds_windows.cpp)
 else()
-    list(APPEND STXLIB_STATE_SOURCES src/hosted/posix/thread_exit_posix.cpp)
+    list(APPEND STXLIB_STATE_SOURCES
+        src/hosted/posix/thread_exit_posix.cpp
+        src/hosted/posix/stack_bounds_posix.cpp)
 endif()
 if(STXLIB_STATE_SHARED)
     add_library(stxlib_state SHARED ${STXLIB_STATE_SOURCES})

@@ -287,10 +287,12 @@ struct Thread::State final {
 };
 
 // The host thread's body (thread_backend.hpp): adopt the identity the owner
-// issued, then run the entry.
+// issued, record the thread's stack bounds while nothing has failed yet
+// (state.hpp, note_thread_stack), then run the entry.
 void thread_backend::run_started_thread(void* const address) noexcept {
     Thread::State& started = *static_cast<Thread::State*>(address);
     state::current_flags().thread_identity = started.identity.value();
+    state::note_current_stack();
     started.entry(started.stop, started.context);
 }
 

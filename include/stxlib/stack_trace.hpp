@@ -5,14 +5,24 @@
 // (core/failure/fail_fast.cpp at 491156eac; A0 inventory, section 2).
 // A1 platform-rest.
 //
-// capture_stack_trace takes return addresses by the host's report-safe
-// walk (src/hosted/host.hpp, capture_report_addresses): on macOS the
-// frame-pointer chain bounded by the thread's stack, then _Unwind_Backtrace
-// when the chain breaks at once (src/hosted/posix/trace_posix.cpp); on
-// Linux and FreeBSD _Unwind_Backtrace only, since the stack bounds the walk
-// needs come there only from calls that allocate and lock; on Windows
+// capture_stack_trace takes return addresses by STXlib's own walk
+// (src/hosted/host.hpp, capture_report_addresses): on POSIX hosts the
+// frame-pointer chain, bounded by the thread's stack as STXlib recorded it
+// before any failure (at stxlib_state's load for the loading thread, when
+// the thread first uses STXlib's thread state, and when a Thread starts;
+// src/state/state.hpp, ThreadFlags::stack_low), so the walk asks the host
+// nothing and is the same whichever C library STXlib sideloads alongside
+// (glibc, musl, FreeBSD's). _Unwind_Backtrace is the fallback where the
+// walk cannot run: a thread with no recorded bounds (macOS asks its own
+// lock-free query instead), a stack other than the recorded one, or code
+// without frame pointers (src/hosted/posix/trace_posix.cpp). On Windows
 // RtlCaptureStackBackTrace (src/hosted/windows/trace_windows.cpp); on
 // Emscripten none.
+//
+// A thread that never used STXlib's thread state and is not the loading
+// thread (a thread created by other code whose first STXlib call is a
+// failure) has no recorded bounds: its trace comes from the unwinder,
+// which may give fewer frames (on Alpine's libgcc, fewer than two).
 //
 // write_stack_trace writes them to standard error, one line each, with the
 // image and nearest symbol describe_address (images.hpp) finds, holding

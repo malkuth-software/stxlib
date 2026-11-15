@@ -9,8 +9,9 @@
 // host-specific way. A provided capability can still fail for a particular
 // request (a missing program, no terminal).
 //
-// Host families: macOS, glibc and musl (POSIX) and Windows (UCRT) in phase
-// I; FreeBSD (hosted, 15.2) is its own family (owner, 2026-11-13, "run
+// Host families, the hosts STXlib sideloads alongside (it owns what it can
+// and calls the host only for the rest): macOS, glibc and musl (POSIX) and
+// Windows (UCRT) in phase I; FreeBSD (hosted, 15.2) is its own family (owner, 2026-11-13, "run
 // everywhere"), built and tested in phase II; Emscripten (browsers and
 // Node, emsdk 6.0.13) joins in 1.0 after M3 (owner, 2026-11-15). On
 // Emscripten some answers are the runtime's, asked at each call (shared

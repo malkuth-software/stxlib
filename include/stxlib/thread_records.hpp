@@ -31,11 +31,12 @@
 // them, so a release callback may call STXlib.
 //
 // STXlib's own per-thread cost: one trivially destructible thread_local
-// anchor of 2,056 bytes (64-bit hosts; a static_assert bounds it), in the
+// anchor of 2,072 bytes (64-bit hosts; a static_assert bounds it), in the
 // default TLS model (global-dynamic in the shared stxlib_state, so it loads
 // through dlopen as well as at start; static TLS when loaded at start), plus
 // a block allocated on the thread's first touch of STXlib. The anchor holds
-// the thread's identity, its record counters, the fail-fast state and a
+// the thread's identity, its record counters, the fail-fast state, its
+// stack bounds (recorded before any failure, for stack traces) and a
 // failure reserve (owner decision 2026-11-15): a thread whose block could
 // not be allocated, or whose block the hook has released, keeps numbering
 // its error records and keeps an 8-frame shadow stack and one shadow record

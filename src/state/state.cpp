@@ -14,13 +14,16 @@
 // thread exit; process termination releases nothing (rule 1 as reworded).
 //
 // Early exits (AGENTS.md): the only foreign calls here are a record type's
-// initialize and release callbacks and the allocator backend (STXLIB_NO_UNWIND).
+// initialize and release callbacks, the allocator backend (STXLIB_NO_UNWIND)
+// and the stack-bounds query (stack_bounds_backend.hpp: no callback, its
+// cancellation points held off), made before anything is changed.
 // Both callbacks are called with every invariant of this file whole: the
 // record is unpublished (initialize) or already let go (release), and no
 // lock is held.
 
 #include "state/state.hpp"
 
+#include "hosted/stack_bounds_backend.hpp"
 #include "hosted/thread_exit_backend.hpp"
 #include "stxlib/detail/early_exit.hpp"
 
@@ -48,7 +51,7 @@ struct Anchor final {
 };
 
 static_assert(std::is_trivially_destructible_v<Anchor>, "rule 2: every thread_local is trivially destructible");
-static_assert(sizeof(Anchor) <= 2112, "the anchor (2,056 bytes by state.hpp's arithmetic) is the only TLS stxlib_state adds per thread");
+static_assert(sizeof(Anchor) <= 2112, "the anchor (2,072 bytes by state.hpp's arithmetic) is the only TLS stxlib_state adds per thread");
 
 constinit thread_local Anchor anchor{};
 constinit ProcessState process_state_instance{};
@@ -115,6 +118,36 @@ STXLIB_NO_UNWIND void release_bytes(void* const address) noexcept {
     static_cast<void>((*calls).release(address));
 }
 
+// Records the calling thread's stack bounds (state.hpp, note_thread_stack):
+// once, and only while the thread is neither failing fast nor running the
+// reporter, since the host's query may allocate and lock.
+void note_stack_here() noexcept {
+    ThreadFlags& flags = anchor.flags;
+    if (flags.stack_high != 0) return;
+    if (flags.fail_fast_depth != 0 || flags.in_reporter) return;
+    uptr low = 0;
+    uptr high = 0;
+    if (!stack_bounds_backend::query(low, high)) return;
+    flags.stack_low = low;
+    flags.stack_high = high;
+}
+
+// The thread that loads stxlib_state (a program's initial thread when it is
+// linked in, the loading thread when a module is opened later) has its
+// bounds recorded then, before any failure can come: such a thread may
+// never make a block (a program that only captures a stack). A dynamic
+// initialiser of this module; it touches only the anchor, which is
+// constant-initialised, so its order against other initialisers does not
+// matter. Not on Windows or Emscripten, whose query answers nothing.
+#if !defined(_WIN32) && !defined(__EMSCRIPTEN__)
+bool note_loading_thread() noexcept {
+    note_stack_here();
+    return true;
+}
+
+[[maybe_unused]] const bool loading_thread_noted = note_loading_thread();
+#endif
+
 // The calling thread's block, allocated on first use; null in degraded mode
 // (the hook has released it, or its allocation failed once). A thread whose
 // records ended before it touched STXlib still gets a block, in phase
@@ -129,6 +162,9 @@ STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
         anchor.flags.phase = ThreadPhase::ended;
         return nullptr;
     }
+    // Before the allocation, so a thread whose block fails still has its
+    // bounds for a fail-fast report.
+    note_stack_here();
     void* const memory = allocate_bytes(sizeof(ThreadBlock), alignof(ThreadBlock));
     if (memory == nullptr) {
         anchor.flags.block_failed = true;
@@ -266,6 +302,11 @@ void thread_records_end(const u32 expected_layout) noexcept {
     anchor.flags.phase = ThreadPhase::ending;
     // Without a block there is nothing to release.
     if (anchor.block != nullptr) release_records(*anchor.block);
+}
+
+void note_thread_stack(const u32 expected_layout) noexcept {
+    if (expected_layout != layout_key) return;
+    note_stack_here();
 }
 
 namespace detail {

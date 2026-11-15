@@ -1,20 +1,52 @@
-// Native traces on POSIX hosts (host.hpp, capture_return_addresses), shared
-// by macOS, glibc, musl and FreeBSD. FreeBSD has no pthread_getattr_np; its
-// pthread_attr_get_np (include/pthread_np.h:42 at fb9033d2876d, defined at
-// lib/libthr/thread/thr_attr.c:125) fills an attribute object the caller
-// has initialised with pthread_attr_init (A1 platform-rest).
+// Native traces on POSIX hosts (host.hpp, capture_return_addresses and
+// capture_report_addresses), shared by macOS, FreeBSD and Linux whichever C
+// library is loaded alongside STXlib (glibc, musl). Both calls take the same
+// path: STXlib's own walk of the frame-pointer chain, bounded by the
+// thread's stack as STXlib recorded it, with the unwinder as the fallback
+// (notes decisions/2026-11-15-boundary-sideloading.md: STXlib owns what it
+// can, so the walk is the same on every host).
 //
-// Primary mechanism: an owned walk of the frame-pointer chain, bounded by
-// the calling thread's stack. The batch 1 fold (2026-11-13, sbi, Homebrew
-// clang 22.1.8 on arm64 macOS) found _Unwind_Backtrace returning no frames
-// when called from a shadow frame's destructor during phase-2 unwinding in
-// Debug, UBSan and integer-check builds, while ASan and TSan builds
-// returned frames; the cause is unconfirmed. The walk does not involve the
-// unwinder at all, so it is the same inside a cleanup as anywhere else.
-// _Unwind_Backtrace remains the fallback when the walk finds at most one
-// record (no stack bounds, a first frame without a frame record, or a chain
-// broken at the first caller; CI 43700804309, glibc Release without
-// exceptions, captured one address).
+// The bounds. stxlib_state records each thread's stack in its anchor
+// (state.hpp, ThreadFlags::stack_low and stack_high) on a path that is not
+// a failure: at its own load for the loading thread, when the thread's
+// block is made, and when a Thread starts (state.cpp, note_stack_here;
+// hosted/posix/stack_bounds_posix.cpp asks the host and says what each
+// host does). The walk reads the anchor, which is constant-initialised
+// thread_local storage already touched by fail_fast before any reporter
+// runs, and asks the host nothing: no allocation, no lock, no system call,
+// on glibc, musl and FreeBSD alike. A thread with no recorded bounds (one
+// that never touched STXlib's thread state, and whose first touch is a
+// failure; or a macOS thread after its thread-exit hook rebuilt the anchor)
+// walks only on macOS, whose own query reads the thread's fields without a
+// lock or an allocation (pthread_get_stackaddr_np, pthread_get_stacksize_np;
+// apple-oss-distributions/libpthread, src/pthread.c on its main branch as
+// read 2026-11-15, not a pinned tag; the main thread's size takes one
+// getrlimit); elsewhere it takes the unwinder.
+//
+// Why a walk at all: the batch 1 fold (2026-11-13, sbi, Homebrew clang
+// 22.1.8 on arm64 macOS) found _Unwind_Backtrace returning no frames when
+// called from a shadow frame's destructor during phase-2 unwinding in
+// Debug, UBSan and integer-check builds (cause unconfirmed), and libgcc's
+// unwinder alone gave fewer than two frames on Alpine (CI 43733503918,
+// linux-musl Plain, 2026-11-15). The walk does not involve the unwinder.
+//
+// The unwinder (_Unwind_Backtrace) is the fallback where the walk cannot
+// run: no recorded bounds (above, not macOS), a first frame not on the
+// recorded stack (an alternate signal stack, a fiber), or a chain broken
+// at the first caller (code built without frame pointers, such as an
+// optimised Linux build; CI 43700804309, glibc Release without exceptions,
+// captured one address). What it does: libgcc 14.2.0
+// (libgcc/unwind-dw2-fde-dip.c) looks up frames registered with
+// __register_frame_info first, then _dl_find_object where glibc has it
+// (2.35 and later), else dl_iterate_phdr, with a static header cache and no
+// allocation in that file. The registered path (libgcc/unwind-dw2-fde.c,
+// ATOMIC_FDE_FAST_PATH) is a lock-free b-tree lookup, but the first lookup
+// in an object not yet initialised takes object_mutex and calls
+// init_object, which allocates; without the fast path every lookup takes
+// object_mutex. Registered frames come from code that calls
+// __register_frame_info (JIT compilers); a process with none never takes
+// that path. glibc's _dl_find_object and dl_iterate_phdr, and LLVM
+// libunwind (FreeBSD's unwinder, and macOS's), were not read at a pin.
 //
 // The frame record. AArch64: "The lowest addressed double-word shall point
 // to the previous frame record", and "the highest addressed double-word
@@ -34,54 +66,23 @@
 // that flag uses rbp or x29 as a general register, and the walk then stops
 // early at the first frame whose record fails the checks below.
 //
-// Safety: every load is from inside the calling thread's stack, between
-// its bounds, 8-byte aligned, and each next record must lie strictly above
-// the current one, so a broken chain ends the walk; it never reads outside
-// the stack and never loops.
-//
-// Report safety (capture_report_addresses, for capture_stack_trace and a
-// fail-fast reporter; sb1, 2026-11-15, sources read as stated):
-// - The bounds query allocates on glibc and FreeBSD, so a report never
-//   makes it there. glibc 2.41 nptl/pthread_getattr_np.c takes the thread's
-//   descriptor lock (lll_lock on the thread's lock), reallocs a cpuset for the
-//   affinity copy on every call, and on the initial thread fopens
-//   /proc/self/maps and reads it with getline. FreeBSD fb9033d2876d
-//   lib/libthr/thread/thr_attr.c:137-142 mallocs the cpuset when the
-//   attribute has none (as after pthread_attr_init), and :146 takes the
-//   thread through _thr_find_thread, released at :152 or :165.
-// - macOS: pthread_get_stackaddr_np and pthread_get_stacksize_np return the
-//   calling thread's (or the main thread's) own fields without
-//   _pthread_list_lock and without allocating; the main thread's size path
-//   makes one getrlimit system call (apple-oss-distributions/libpthread,
-//   src/pthread.c on its main branch as read 2026-11-15, not a pinned tag).
-//   The walk is the report's mechanism there.
-// - The unwinder, which a report uses on the other POSIX hosts: libgcc
-//   14.2.0 (libgcc/unwind-dw2-fde-dip.c) looks up frames registered with
-//   __register_frame_info first, then _dl_find_object where glibc has it
-//   (2.35 and later), else dl_iterate_phdr, with a static header cache and
-//   no allocation in that file. The registered path
-//   (libgcc/unwind-dw2-fde.c, ATOMIC_FDE_FAST_PATH) is a lock-free b-tree
-//   lookup, but the first lookup in an object not yet initialised takes
-//   object_mutex and calls init_object, which allocates; without the fast
-//   path every lookup takes object_mutex. Registered frames come from code
-//   that calls __register_frame_info (JIT compilers); a process with none
-//   never takes that path. glibc's _dl_find_object and dl_iterate_phdr,
-//   and LLVM libunwind (FreeBSD's unwinder, and macOS's fallback when the
-//   walk finds at most one record), were not read at a pin.
-
-#if defined(__linux__) && !defined(_GNU_SOURCE)
-#define _GNU_SOURCE 1
-#endif
+// Safety: every load is from inside the recorded stack, 8-byte aligned, at
+// or above the walk's own frame, and each next record must lie strictly
+// above the current one and below the stack's end, so a broken chain ends
+// the walk; it never loops, and it reads only between a frame of the
+// running stack and that stack's end (stack_bounds_posix.cpp says why that
+// range is mapped, also on a Linux initial thread whose recorded lower
+// bound is below the part mapped so far).
 
 #include "hosted/host.hpp"
+#include "state/state.hpp"
 
 #include <cstring>
 
-#include <pthread.h>
 #include <unwind.h>
 
-#if defined(__FreeBSD__)
-#include <pthread_np.h>
+#if defined(__APPLE__)
+#include <pthread.h>
 #endif
 
 #if defined(__APPLE__) && defined(__arm64e__)
@@ -99,7 +100,15 @@ struct StackBounds final {
     uptr high{0};
 };
 
+// The calling thread's stack as STXlib recorded it; on macOS, when nothing
+// is recorded, the thread's own fields (report-safe there, above).
 bool current_stack(StackBounds& bounds) noexcept {
+    const state::ThreadFlags& flags = state::current_flags();
+    if (flags.stack_high != 0) {
+        bounds.low = flags.stack_low;
+        bounds.high = flags.stack_high;
+        return true;
+    }
 #if defined(__APPLE__)
     const pthread_t self = ::pthread_self();
     const uptr top = reinterpret_cast<uptr>(::pthread_get_stackaddr_np(self));
@@ -109,25 +118,7 @@ bool current_stack(StackBounds& bounds) noexcept {
     bounds.high = top;
     return true;
 #else
-    pthread_attr_t attributes{};
-#if defined(__FreeBSD__)
-    if (::pthread_attr_init(&attributes) != 0) return false;
-    if (::pthread_attr_get_np(::pthread_self(), &attributes) != 0) {
-        static_cast<void>(::pthread_attr_destroy(&attributes));
-        return false;
-    }
-#else
-    if (::pthread_getattr_np(::pthread_self(), &attributes) != 0) return false;
-#endif
-    void* address = nullptr;
-    size_t size = 0;
-    const int got = ::pthread_attr_getstack(&attributes, &address, &size);
-    static_cast<void>(::pthread_attr_destroy(&attributes));
-    if (got != 0 || address == nullptr || size == 0) return false;
-    bounds.low = reinterpret_cast<uptr>(address);
-    if (size > ~bounds.low) return false;
-    bounds.high = bounds.low + size;
-    return true;
+    return false;
 #endif
 }
 
@@ -216,21 +207,11 @@ usize capture_return_addresses(uptr* const addresses, const usize capacity) noex
     return result;
 }
 
+// The same path: the walk asks the host nothing (above), so a report takes
+// it too.
 usize capture_report_addresses(uptr* const addresses, const usize capacity) noexcept {
-    if (addresses == nullptr || capacity == 0) return 0;
-#if defined(__APPLE__)
-    // The walk's bounds are pthread_get_stackaddr_np and
-    // pthread_get_stacksize_np on the calling thread, which read the thread's
-    // own record without a lock or an allocation (above), so the walk is
-    // report-safe here, and it is the mechanism that works inside a cleanup.
     const usize result = capture_return_addresses(addresses, capacity);
     return result;
-#else
-    // pthread_getattr_np (glibc) and pthread_attr_get_np (FreeBSD) allocate
-    // and lock (above), so a report takes the unwinder only.
-    const usize result = unwind_frames(addresses, capacity);
-    return result;
-#endif
 }
 
 } // namespace stxlib::host
