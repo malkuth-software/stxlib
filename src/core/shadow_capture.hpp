@@ -7,9 +7,9 @@
 // Since layout 10 a thread's shadow state is in one of two stores
 // (state.hpp): the block's FullShadow, or, with no block (its allocation
 // failed, or the thread-exit hook has released it), the anchor's
-// ReserveShadow. with_shadow picks the store; the functions below work on
-// either. The record numbers come from ThreadFlags in both cases, so a
-// reference never names a record of the other store.
+// ReserveShadow. The functions below work on either; take_for_current_handler
+// picks the calling thread's. The record numbers come from ThreadFlags in
+// both cases, so a reference never names a record of the other store.
 
 #include "stxlib/error.hpp"
 #include "stxlib/shadow.hpp"
@@ -18,15 +18,6 @@
 #include "state/state.hpp"
 
 namespace stxlib::shadow_capture {
-
-// Calls `visit` with the calling thread's shadow store and returns what it
-// returns.
-template <typename Visit>
-decltype(auto) with_shadow(Visit visit) noexcept {
-    state::ThreadState* const thread = state::current_thread_state();
-    if (thread != nullptr) return visit((*thread).shadow);
-    return visit(state::current_flags().reserve);
-}
 
 // Files the thread's logical stack (and, where the store keeps one, a
 // native trace) as a new shadow record and makes it the pending capture.
@@ -80,6 +71,13 @@ ShadowReference take_for_handler(Store& store) noexcept {
     }
     store.pending_shadow = 0;
     return result;
+}
+
+// take_for_handler on the calling thread's store.
+inline ShadowReference take_for_current_handler() noexcept {
+    state::ThreadState* const thread = state::current_thread_state();
+    if (thread != nullptr) return take_for_handler((*thread).shadow);
+    return take_for_handler(state::current_flags().reserve);
 }
 
 } // namespace stxlib::shadow_capture

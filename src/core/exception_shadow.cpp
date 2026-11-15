@@ -127,8 +127,7 @@ void keep_recent(state::ThreadState& thread, const ErrorRecord& record) noexcept
 // taken here at the catch) and the recent ring.
 void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept {
     detail::ErrorRecordWriter::copy_foreign_message(record, standard.what);
-    const ShadowReference shadow = shadow_capture::with_shadow(
-        [](auto& store) noexcept -> ShadowReference { return shadow_capture::take_for_handler(store); });
+    const ShadowReference shadow = shadow_capture::take_for_current_handler();
     detail::ErrorRecordWriter::set_shadow(record, shadow);
 #if defined(STXLIB_SHADOW)
     detail::ErrorRecordWriter::copy_exception_type(record, host::current_exception_type_name());
