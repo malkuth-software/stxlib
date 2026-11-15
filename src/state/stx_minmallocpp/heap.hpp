@@ -32,13 +32,17 @@
 //     owner finds it so. Thread exit abandons every page.
 //   - A release into an abandoned page claims it for the releasing
 //     thread's heap only if that heap is allocating that class and holds
-//     fewer than keep_limit pages of it; then the thread's later releases
-//     into the page take the fast path. Otherwise the release leaves the
+//     less than keep_slices (4 MiB) of pages of it; then the thread's later
+//     releases into the page take the fast path. Otherwise the release leaves the
 //     page abandoned: it sets the block's remote bit, counts the release in
 //     the page's state, puts the page on its class's abandoned list if it
 //     was full, and frees the page if that release was its last.
 //   So a thread that only releases owns nothing and takes no lock, and what
-//   a heap holds without visiting is at most keep_limit pages per class.
+//   a heap holds without visiting is at most 4 MiB per class (64 pages of
+//   small blocks, 8 of medium, 1 of large). The first measurement (M4,
+//   2026-11-15) had this at 8 pages: a program with 100,000 live blocks of
+//   mixed sizes then left most of its pages abandoned and paid a claim and
+//   an abandon for almost every allocation.
 //
 // Bounds (region.hpp gives the structure's): refill looks at no more than
 // 64 words of one page, takes the first page of a queue, pops at most
@@ -53,7 +57,7 @@
 namespace stxlib::stx_minmallocpp {
 
 inline constexpr u32 adopt_attempts = 4;
-inline constexpr u32 keep_limit = 8;
+inline constexpr usize keep_slices = 64;
 
 // All the allocate fast path reads for a class. With no current page the
 // entry names the empty word and the empty page.

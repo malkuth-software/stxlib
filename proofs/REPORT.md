@@ -260,8 +260,30 @@ the integrator builds and runs them on the M4.
 
 A conversion of mimalloc v3's design to house-style C++
 (`src/state/stx_minmallocpp/`), chosen with `STXLIB_ALLOCATOR=stx_minmallocpp`.
-Written on Neo; not built, not run, nothing proved. "Enumerated" below means
-a test that covers its whole domain, which is a proof once it has run.
+Written on Neo. Built and run on the M4 on 2026-11-15 (macOS arm64, Clang;
+the seat's logs `stx_minmallocpp/dev/logs/battery-1`, `round-2`, `round-3`),
+and on no other host yet. "Enumerated" below means a test that covers its
+whole domain, which is a proof once it has run: those ran and passed
+(`stxlib_stx_minmallocpp_tests`, 18 checks). The arithmetic is integer
+arithmetic on 64-bit values, so the result does not depend on the host.
+
+What ran on the M4, all passing:
+- the whole suite with this allocator as `stxlib_state`'s backend, Debug and
+  Release (76 of 76 tests each, no compiler warning), and the default
+  configuration (76 of 76);
+- `stxlib_stx_minmallocpp_direct_tests` (81 checks, entry and exit checks
+  on) in Release, under ThreadSanitizer, and under AddressSanitizer with
+  UndefinedBehaviorSanitizer: 50 runs each, no failure and no report;
+- the same under the integer sanitizers this host's compiler accepts
+  (signed and unsigned overflow, shift, implicit truncation, pointer
+  overflow), halting on any report: none. `STXLIB_INTEGER_CHECKS` itself
+  does not configure on macOS arm64 (`implicit-integer-sign-change` is
+  refused), so the repository's own integer build is still to run on Linux;
+- `stxlib_stx_minmallocpp_surface`: the objects' leaves are exactly `mmap`,
+  `mprotect`, `munmap`, `sched_yield`, `sysconf`, `pthread_key_create`,
+  `pthread_setspecific`, `pthread_getspecific`, `abort` and the thread-local
+  access routine.
+These are evidence over the paths the tests take, not proof.
 
 | Module | Property | Status | Evidence |
 |---|---|---|---|
@@ -276,4 +298,4 @@ a test that covers its whole domain, which is a proof once it has run.
 | `allocator.cpp` (`release`) | an address that is not the first byte of a live block of this allocator is refused without reading or writing it or anything near it | argued from the code: the directory, `slice_head` and the block index decide before any write; a release that races the freeing of the same page is outside the argument (a client error already) | the direct tests' `refusals` |
 | `allocator.cpp`, `heap.cpp` (early exit) | no path throws, calls back, or calls a cancellation point | argued: the host layer's calls are `mmap`, `mprotect`, `munmap`, `sched_yield` (POSIX.1-2024 XSH 2.9.5.2: in neither list), `pthread_key_create` and `pthread_setspecific` (not looked up: unconfirmed), and on Windows `VirtualAlloc`, `VirtualFree`, `SwitchToThread` | `src/hosted/posix/minmallocpp_os_posix.cpp`, `src/hosted/windows/minmallocpp_os_windows.cpp` |
 | the region tables | zero pages from the host are read as objects of the table types holding zero | assumed (`page.hpp`): `std::atomic<u32>` and `std::atomic<u64>` are checked to have the integer's size and to be lock free; the standard does not name `mmap` as creating objects | `page.hpp` |
-| performance | the same as mimalloc v3.6.1 on each path | not measured. Known costs to measure: the thread-local read, a multiply on the allocate path, two atomic operations per remote release | the seat's DESIGN.md 6 |
+| performance | no slower than mimalloc v3.6.1 on each path; never more than twice the host's allocator | measured on the M4 only (`tests/memory_bench.cpp`, through `stxlib::memory`, best of 7, three runs). Against the host's `malloc`: 0.13 to 0.95 of its time on every workload. Against mimalloc as `main` builds it (no release checking): about 1.3 ns slower per call on blocks up to 1 KiB (4.3 against 3.0 to 3.7) and on the 100,000-block churn (15.0 against 12.5); faster from 8 KiB up, in the 4 KiB batch (5.3 against 17.5), at 1 MiB (16 against 165) and across threads (3.3 against 3.7 to 4.8). Against mimalloc with its own checking on (`MI_SECURE=4`): equal on the smallest pairs (4.3 against 4.1), faster on everything else. Not measured on Linux, FreeBSD or Windows, where the thread-local access differs | the seat's DESIGN.md 6 |

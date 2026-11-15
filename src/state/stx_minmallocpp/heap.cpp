@@ -502,10 +502,12 @@ void free_heap_slot(Heap& heap) noexcept {
 }
 
 // Whether a release into an abandoned page should claim the page for the
-// heap: the heap is allocating that class and holds few pages of it.
+// heap: the heap is allocating that class and holds less than keep_slices
+// of pages of it.
 [[nodiscard]] bool keeps(const Heap& heap, const usize class_index) noexcept {
-    const bool result = heap.owner != owner_unbound && heap.entries[class_index].page != &empty_page &&
-                        heap.queues[class_index].pages < keep_limit;
+    const usize held = static_cast<usize>(heap.queues[class_index].pages) * class_table.shapes[class_index].page_slices;
+    const bool result =
+        heap.owner != owner_unbound && heap.entries[class_index].page != &empty_page && held < keep_slices;
     return result;
 }
 

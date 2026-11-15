@@ -663,6 +663,12 @@ if(STXLIB_TESTS)
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_STX_MINMALLOCPP)
     endif()
 
+    # A benchmark of stxlib::memory beside the host's malloc
+    # (tests/memory_bench.cpp). Not a test: built, never run by ctest.
+    add_executable(stxlib_memory_bench tests/memory_bench.cpp)
+    target_link_libraries(stxlib_memory_bench PRIVATE stxlib::boundary Threads::Threads)
+    target_compile_options(stxlib_memory_bench PRIVATE ${stxlib_test_warnings})
+
     # stx_minmallocpp. Its arithmetic (size classes, the alignment rule, the
     # block index, the free-run lists) is in headers and is checked
     # exhaustively in every configuration. Its behaviour is tested with the
