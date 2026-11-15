@@ -41,6 +41,7 @@
 // every module shares (memory.hpp), so a Thread may be started in one of
 // STXlib's modules and joined or destroyed in another.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/clocks.hpp"
 #include "stxlib/identity.hpp"
 #include "stxlib/result.hpp"
@@ -107,7 +108,7 @@ private:
 
 // Holds a Mutex for its own lifetime. A condition wait releases and
 // reacquires it, and it is held again when the wait returns.
-class ScopedLock final {
+class STXLIB_EARLY_EXIT_LOCK ScopedLock final {
 public:
     explicit ScopedLock(Mutex& mutex) noexcept : mutex_(mutex) { mutex_.lock(); }
     ~ScopedLock() { mutex_.unlock(); }

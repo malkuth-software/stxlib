@@ -40,6 +40,7 @@
 // handle and waits for running invocations; it must not be destroyed from
 // inside one of its own invocations.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/gate.hpp"
 #include "stxlib/result.hpp"
@@ -144,7 +145,7 @@ private:
 };
 
 // Leaves an entered slot on every way out of an invocation.
-class TrampolineVisit final {
+class STXLIB_EARLY_EXIT_GUARD STXLIB_EARLY_EXIT_OPEN TrampolineVisit final {
 public:
     TrampolineVisit(TrampolineTable& table, const TrampolineEntry& entry) noexcept : table_(table), entry_(entry) {}
     TrampolineVisit(const TrampolineVisit&) = delete;

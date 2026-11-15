@@ -19,6 +19,7 @@
 // A handle is a POSIX descriptor or a Windows HANDLE held in an i64; -1
 // means none on both. Every primitive retries interrupted calls.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "core/growable.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/files.hpp"
@@ -78,31 +79,31 @@ struct Outcome final {
 
 // Opens `name` for `mode`. Opening a directory for reading fails with
 // is_a_directory.
-[[nodiscard]] Outcome open(const char* name, FileMode mode, i64& handle) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome open(const char* name, FileMode mode, i64& handle) noexcept;
 // Reads at most `count` bytes; zero transferred is the end.
-[[nodiscard]] Outcome read(i64 handle, Byte* bytes, usize count, usize& transferred) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome read(i64 handle, Byte* bytes, usize count, usize& transferred) noexcept;
 // Writes a prefix of bytes[0, count), at least one byte unless it fails.
-[[nodiscard]] Outcome write(i64 handle, const Byte* bytes, usize count, usize& transferred) noexcept;
-[[nodiscard]] Outcome size(i64 handle, u64& bytes) noexcept;
-[[nodiscard]] Outcome position(i64 handle, u64& offset) noexcept;
-[[nodiscard]] Outcome seek(i64 handle, u64 offset) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome write(i64 handle, const Byte* bytes, usize count, usize& transferred) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome size(i64 handle, u64& bytes) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome position(i64 handle, u64& offset) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome seek(i64 handle, u64 offset) noexcept;
 // Flushes the file's content as `level` says (files.hpp, Durability); none
 // does nothing.
-[[nodiscard]] Outcome sync(i64 handle, Durability level) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome sync(i64 handle, Durability level) noexcept;
 // Releases the handle even when it reports a failure.
-[[nodiscard]] Outcome close(i64 handle) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome close(i64 handle) noexcept;
 
-[[nodiscard]] Outcome inspect(const char* name, LinkMode links, FileInformation& information) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome inspect(const char* name, LinkMode links, FileInformation& information) noexcept;
 // Renames `from` over `to`; for Durability::durable, also makes the rename
 // itself durable (POSIX: flushes the directory holding `to`; Windows:
 // MOVEFILE_WRITE_THROUGH).
-[[nodiscard]] Outcome replace(const char* from, const char* to, Durability level) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome replace(const char* from, const char* to, Durability level) noexcept;
 // already_exists when anything has the name.
-[[nodiscard]] Outcome create_directory(const char* name) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome create_directory(const char* name) noexcept;
 // A file, a symbolic link (not what it names) or an empty directory.
-[[nodiscard]] Outcome remove(const char* name) noexcept;
-[[nodiscard]] Outcome rename(const char* from, const char* to) noexcept;
-[[nodiscard]] Outcome copy_file(const char* from, const char* to, CopyMode mode) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome remove(const char* name) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome rename(const char* from, const char* to) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome copy_file(const char* from, const char* to, CopyMode mode) noexcept;
 
 // One entry list returned: names[offset, offset + count), its kind without
 // following links.
@@ -115,17 +116,17 @@ struct RawEntry final {
 // Appends the directory's entries (not "." and "..") to `names` (each name
 // followed by a NUL, in the family's name form above) and `entries`;
 // too_large once more than `limit` are seen.
-[[nodiscard]] Outcome list(const char* name, usize limit, Growable<char>& names, Growable<RawEntry>& entries) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome list(const char* name, usize limit, Growable<char>& names, Growable<RawEntry>& entries) noexcept;
 
 // Each replaces `text` with a host name in the family's form (not
 // NUL-terminated).
-[[nodiscard]] Outcome temporary_directory(Growable<char>& text) noexcept;
-[[nodiscard]] Outcome working_directory(Growable<char>& text) noexcept;
-[[nodiscard]] Outcome resolve(const char* name, Growable<char>& text) noexcept;
-[[nodiscard]] Outcome read_link(const char* name, Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome temporary_directory(Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome working_directory(Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome resolve(const char* name, Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome read_link(const char* name, Growable<char>& text) noexcept;
 
 // `to_directory`: the target is a directory (Windows distinguishes links to
 // directories; POSIX hosts ignore it).
-[[nodiscard]] Outcome create_link(const char* target, const char* link, bool to_directory) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome create_link(const char* target, const char* link, bool to_directory) noexcept;
 
 } // namespace stxlib::file_backend

@@ -35,6 +35,7 @@
 //   block.
 // None of those host calls takes an STXlib lock, so no cycle can form.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "hosted/host.hpp"
 #include "state/state.hpp"
 
@@ -59,7 +60,7 @@ inline void lock(state::SpinLock& target) noexcept {
 inline void unlock(state::SpinLock& target) noexcept { target.held.store(0, std::memory_order_release); }
 
 // Holds a lock for its own lifetime.
-class Guard final {
+class STXLIB_EARLY_EXIT_LOCK Guard final {
 public:
     explicit Guard(state::SpinLock& target) noexcept : target_(target) { lock(target_); }
     ~Guard() { unlock(target_); }

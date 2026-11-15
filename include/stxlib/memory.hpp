@@ -36,6 +36,7 @@
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/types.hpp"
 
 namespace stxlib::memory {
@@ -55,11 +56,11 @@ enum class Backend : u8 {
 // power of two, when the size cannot be represented with the alignment's
 // bookkeeping, or when memory is exhausted. Never throws and never calls the
 // new-handler.
-[[nodiscard]] void* allocate(usize size, usize alignment) noexcept;
+[[nodiscard]] STXLIB_NO_UNWIND void* allocate(usize size, usize alignment) noexcept;
 
 // Releases a block from allocate; null is a no-op. A block from anywhere
 // else, or released twice, ends the process in the tag-checking mode and is
 // undefined behaviour otherwise.
-void release(void* address) noexcept;
+STXLIB_NO_UNWIND void release(void* address) noexcept;
 
 } // namespace stxlib::memory

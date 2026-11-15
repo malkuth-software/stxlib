@@ -7,6 +7,7 @@
 // NUL-terminated name, runs alone, and may assume a value without NUL.
 // Ported from stx_auxlib's src/hosted/environment_backend.hpp at b6e330a.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "core/growable.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/types.hpp"
@@ -29,9 +30,9 @@ struct Report final {
 
 // Replaces `value` with the variable's raw bytes (not yet checked as UTF-8
 // on POSIX hosts; core/environment.cpp checks).
-[[nodiscard]] Report read(const char* name, usize limit, Growable<char>& value) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Report read(const char* name, usize limit, Growable<char>& value) noexcept;
 // `value` is NUL-terminated.
-[[nodiscard]] Report set(const char* name, const char* value, usize value_count) noexcept;
-[[nodiscard]] Report remove(const char* name) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Report set(const char* name, const char* value, usize value_count) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Report remove(const char* name) noexcept;
 
 } // namespace stxlib::environment_backend

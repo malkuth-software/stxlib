@@ -59,6 +59,7 @@
 // Every function here reads and writes only the calling thread's state; a
 // ShadowReference is read only on the thread that made it.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/result.hpp"
@@ -222,7 +223,7 @@ void shadow_frame_leave(u32 depth, bool closed) noexcept;
 // (the GUI.Forms coordinator's fix for per-module destructors, bf3d0b6f1).
 // Requirement: frames are left in reverse order of opening on their thread
 // (automatic objects only).
-class ShadowFrameScope final {
+class STXLIB_EARLY_EXIT_GUARD STXLIB_EARLY_EXIT_OPEN ShadowFrameScope final {
 public:
     explicit ShadowFrameScope(const FramePush& push) noexcept : depth_(shadow_frame_enter(push)) {}
     ~ShadowFrameScope() { shadow_frame_leave(depth_, closed_); }
