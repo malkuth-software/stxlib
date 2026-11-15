@@ -10,6 +10,8 @@
 // a normal thread exit only: never at process termination (rule 1 as
 // reworded), never for a thread killed by TerminateThread.
 
+#include "stxlib/types.hpp"
+
 namespace stxlib::thread_exit_backend {
 
 // Arms the hook for the calling thread's new block. False when the host
@@ -18,6 +20,15 @@ namespace stxlib::thread_exit_backend {
 // (pthread_key_create, pthread_setspecific, GetModuleHandleExW: none is a
 // cancellation point or takes a callback).
 [[nodiscard]] bool arm(void* block) noexcept;
+
+// The host's id of the calling thread, as a debugger lists it (the
+// debugger registry, stxlib/debugger_anchor.hpp): Windows
+// GetCurrentThreadId; Linux gettid (through syscall); macOS
+// pthread_threadid_np; FreeBSD pthread_getthreadid_np. 0 where the host
+// gives none (Emscripten and other POSIX hosts), and then the thread is not
+// registered. None of those calls is a cancellation point or takes a
+// callback; none allocates.
+[[nodiscard]] u64 os_thread_id() noexcept;
 
 // True on a thread whose hook has run (its block is released) while the
 // host may still run more thread-exit code on it. POSIX hosts that may

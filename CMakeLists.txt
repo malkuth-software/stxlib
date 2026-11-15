@@ -766,7 +766,7 @@ if(STXLIB_TESTS)
     if(stxlib_web_tests)
         list(APPEND stxlib_boundary_tests emscripten)
     else()
-        list(APPEND stxlib_boundary_tests children images pages_wake)
+        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor)
     endif()
     foreach(test_name IN LISTS stxlib_boundary_tests)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
@@ -778,6 +778,14 @@ if(STXLIB_TESTS)
     # STXLIB_MODULAR (core/checked.hpp).
     target_include_directories(stxlib_rounding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_include_directories(stxlib_heap_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    # debugger_anchor_tests reads the registry back from stxlib_state's
+    # `.stxshdw` section (include/stxlib/debugger_anchor.hpp); it names the
+    # state's module through state.hpp and, on ELF and Mach-O, finds it with
+    # dladdr.
+    if(NOT stxlib_web_tests)
+        target_include_directories(stxlib_debugger_anchor_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_link_libraries(stxlib_debugger_anchor_tests PRIVATE ${CMAKE_DL_LIBS})
+    endif()
     if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
         target_compile_definitions(stxlib_emscripten_tests PRIVATE STXLIB_TEST_WASMFS)
         target_compile_definitions(stxlib_files_tests PRIVATE STXLIB_TEST_WASMFS)

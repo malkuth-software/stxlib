@@ -20,6 +20,16 @@
 // Both callbacks are called with every invariant of this file whole: the
 // record is unpublished (initialize) or already let go (release), and no
 // lock is held.
+//
+// The debugger anchor (stxlib/debugger_anchor.hpp): this module's
+// `.stxshdw` descriptor names the registry in the process state. A thread
+// claims an entry when its block is made (the block's store, 64 frames) or
+// when it falls back to the failure reserve (the anchor's reserve, 8
+// frames), and its hook clears the entry before the block is released.
+// Claiming is a bounded scan (at most debugger_thread_capacity entries)
+// with one compare-exchange per free entry tried; clearing is three atomic
+// stores. Neither locks, allocates or calls anything that can exit early
+// (thread_exit_backend::os_thread_id calls none).
 
 #include "state/state.hpp"
 
@@ -28,6 +38,9 @@
 #include "stxlib/detail/early_exit.hpp"
 
 #include <atomic>
+#include <bit>
+#include <cstddef>
+#include <cstdint>
 #include <new>
 #include <type_traits>
 
@@ -43,7 +56,11 @@ struct ThreadBlock final {
     // The registry's links (registry_lock).
     ThreadBlock* previous{nullptr};
     ThreadBlock* next{nullptr};
+    // The thread's debugger registry entry, or no_debugger_slot.
+    u32 debugger_slot{u32_max};
 };
+
+constexpr u32 no_debugger_slot = u32_max;
 
 struct Anchor final {
     ThreadFlags flags{};
@@ -55,6 +72,153 @@ static_assert(sizeof(Anchor) <= 2112, "the anchor (2,072 bytes by state.hpp's ar
 
 constinit thread_local Anchor anchor{};
 constinit ProcessState process_state_instance{};
+
+// ---- the debugger anchor (stxlib/debugger_anchor.hpp) -----------------------------
+
+static_assert(std::endian::native == std::endian::little, "the debugger anchor's layout is little-endian");
+static_assert(offsetof(DebuggerThreadSlot, os_thread_id) == offsetof(DebuggerThreadEntry, os_thread_id) &&
+                  offsetof(DebuggerThreadSlot, store_address) == offsetof(DebuggerThreadEntry, store_address) &&
+                  offsetof(DebuggerThreadSlot, frame_capacity) == offsetof(DebuggerThreadEntry, frame_capacity) &&
+                  offsetof(DebuggerThreadSlot, reserved) == offsetof(DebuggerThreadEntry, reserved),
+              "the registry entry's fields are where the public layout puts them");
+static_assert(sizeof(std::atomic<u64>) == 8 && std::atomic<u64>::is_always_lock_free &&
+                  sizeof(std::atomic<u32>) == 4 && std::atomic<u32>::is_always_lock_free,
+              "the registry's atomics are plain words a debugger can read");
+// Both stores a thread can register share their prefix, so one pair of
+// offsets serves both.
+static_assert(offsetof(FullShadow, depth) == offsetof(ReserveShadow, depth) &&
+                  offsetof(FullShadow, frames) == offsetof(ReserveShadow, frames),
+              "the block's store and the reserve agree on depth and frames");
+static_assert(sizeof(ShadowFrameRecord) == 120, "the frame stride is GUI.Forms' 120 bytes");
+
+} // namespace
+
+// Outside the unnamed namespace: the descriptor below has external
+// linkage, so its type must too.
+
+// The registry's address as the descriptor holds it: a pointer, so that it
+// is a constant initialiser (an address cast to an integer is not), widened
+// to 8 bytes where pointers are 4.
+struct RegistryAddress final {
+    const DebuggerThreadSlot* pointer;
+#if UINTPTR_MAX == 0xffffffffu
+    u32 high{0};
+#endif
+};
+
+static_assert(sizeof(RegistryAddress) == 8, "the registry address takes 8 bytes");
+
+// DebuggerAnchor's layout, with the registry address as a pointer.
+struct AnchorDescriptor final {
+    char magic[8];
+    u32 struct_size;
+    u32 layout_key;
+    RegistryAddress registry_address;
+    u32 registry_capacity;
+    u32 entry_size;
+    u32 depth_offset;
+    u32 frames_offset;
+    u32 frame_stride;
+    u32 reserved;
+};
+
+static_assert(sizeof(AnchorDescriptor) == sizeof(DebuggerAnchor) &&
+                  offsetof(AnchorDescriptor, struct_size) == offsetof(DebuggerAnchor, struct_size) &&
+                  offsetof(AnchorDescriptor, layout_key) == offsetof(DebuggerAnchor, layout_key) &&
+                  offsetof(AnchorDescriptor, registry_address) == offsetof(DebuggerAnchor, registry_address) &&
+                  offsetof(AnchorDescriptor, registry_capacity) == offsetof(DebuggerAnchor, registry_capacity) &&
+                  offsetof(AnchorDescriptor, entry_size) == offsetof(DebuggerAnchor, entry_size) &&
+                  offsetof(AnchorDescriptor, depth_offset) == offsetof(DebuggerAnchor, depth_offset) &&
+                  offsetof(AnchorDescriptor, frames_offset) == offsetof(DebuggerAnchor, frames_offset) &&
+                  offsetof(AnchorDescriptor, frame_stride) == offsetof(DebuggerAnchor, frame_stride) &&
+                  offsetof(AnchorDescriptor, reserved) == offsetof(DebuggerAnchor, reserved),
+              "the descriptor is DebuggerAnchor's layout");
+
+} // namespace stxlib::state
+
+// The descriptor itself, in `.stxshdw`. Writable data, never written: the
+// registry address needs a relocation in a shared library, which ELF
+// linkers refuse in a read-only section of position-independent code.
+// Kept by every linker: `used` (and `retain` on ELF, against
+// --gc-sections; Mach-O's no_dead_strip comes with `used`), and on MSVC the
+// /INCLUDE below, against /OPT:REF. extern "C", so that it also has one
+// plain name for a debugger that has symbols.
+#if defined(_MSC_VER)
+#pragma section(".stxshdw", read, write)
+#define STXLIB_DEBUGGER_ANCHOR_SECTION __declspec(allocate(".stxshdw"))
+#if defined(_WIN64)
+#pragma comment(linker, "/INCLUDE:stxlib_debugger_anchor")
+#else
+#pragma comment(linker, "/INCLUDE:_stxlib_debugger_anchor")
+#endif
+#elif defined(__APPLE__)
+#define STXLIB_DEBUGGER_ANCHOR_SECTION __attribute__((used, section("__DATA,.stxshdw")))
+#elif defined(__ELF__) && defined(__has_attribute)
+#if __has_attribute(retain)
+#define STXLIB_DEBUGGER_ANCHOR_SECTION __attribute__((used, retain, section(".stxshdw")))
+#else
+#define STXLIB_DEBUGGER_ANCHOR_SECTION __attribute__((used, section(".stxshdw")))
+#endif
+#else
+#define STXLIB_DEBUGGER_ANCHOR_SECTION __attribute__((used, section(".stxshdw")))
+#endif
+
+extern "C" {
+extern stxlib::state::AnchorDescriptor stxlib_debugger_anchor;
+STXLIB_DEBUGGER_ANCHOR_SECTION constinit stxlib::state::AnchorDescriptor stxlib_debugger_anchor{
+    .magic = {'S', 'T', 'X', 'S', 'H', 'D', 'W', '1'},
+    .struct_size = sizeof(stxlib::DebuggerAnchor),
+    .layout_key = stxlib::state::layout_key,
+    .registry_address = {.pointer = &stxlib::state::process_state_instance.debugger_threads[0]},
+    .registry_capacity = stxlib::debugger_thread_capacity,
+    .entry_size = sizeof(stxlib::DebuggerThreadEntry),
+    .depth_offset = static_cast<stxlib::u32>(offsetof(stxlib::state::FullShadow, depth)),
+    .frames_offset = static_cast<stxlib::u32>(offsetof(stxlib::state::FullShadow, frames)),
+    .frame_stride = sizeof(stxlib::ShadowFrameRecord),
+    .reserved = 0,
+};
+}
+
+namespace stxlib::state {
+
+namespace {
+
+static_assert(sizeof(debugger_anchor_magic) == sizeof(stxlib_debugger_anchor.magic), "the magic is eight bytes");
+
+// Claims a free registry entry for the calling thread's store; the entry,
+// or no_debugger_slot when the host gives no thread id or the registry is
+// full (the thread then has none; nothing is allocated). The scan starts at
+// the id's own place, so threads spread over the table.
+u32 claim_debugger_slot(const void* const store, const u32 frame_capacity) noexcept {
+    const u64 thread = thread_exit_backend::os_thread_id();
+    if (thread == 0) return no_debugger_slot;
+    DebuggerThreadSlot* const slots = process_state_instance.debugger_threads;
+    const u32 start = static_cast<u32>(thread % debugger_thread_capacity);
+    for (u32 step = 0; step < debugger_thread_capacity; ++step) {
+        const u32 index = (start + step) % debugger_thread_capacity;
+        DebuggerThreadSlot& slot = slots[index];
+        u64 expected = 0;
+        if (slot.os_thread_id.load(std::memory_order_relaxed) != 0) continue;
+        if (!slot.os_thread_id.compare_exchange_strong(expected, thread, std::memory_order_acq_rel,
+                                                       std::memory_order_relaxed)) {
+            continue;
+        }
+        const u64 address = static_cast<u64>(reinterpret_cast<std::uintptr_t>(store));
+        slot.store_address.store(address, std::memory_order_release);
+        slot.frame_capacity.store(frame_capacity, std::memory_order_release);
+        return index;
+    }
+    return no_debugger_slot;
+}
+
+// Clears an entry claim_debugger_slot gave, the thread id last.
+void clear_debugger_slot(const u32 index) noexcept {
+    if (index >= debugger_thread_capacity) return;
+    DebuggerThreadSlot& slot = process_state_instance.debugger_threads[index];
+    slot.store_address.store(0, std::memory_order_relaxed);
+    slot.frame_capacity.store(0, std::memory_order_relaxed);
+    slot.os_thread_id.store(0, std::memory_order_release);
+}
 
 // The record types: entries [0, type_count) are immutable once published by
 // the release store of type_count; registration is serialised by type_lock.
@@ -168,6 +332,9 @@ STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
     void* const memory = allocate_bytes(sizeof(ThreadBlock), alignof(ThreadBlock));
     if (memory == nullptr) {
         anchor.flags.block_failed = true;
+        // Falls back to the reserve, for the thread's life: registered
+        // once, and never cleared, since no hook is armed.
+        static_cast<void>(claim_debugger_slot(&anchor.flags.reserve, reserve_frame_capacity));
         return nullptr;
     }
     ThreadBlock* const block = ::new (memory) ThreadBlock{};
@@ -175,9 +342,11 @@ STXLIB_NO_UNWIND ThreadBlock* block_for_thread(const bool create) noexcept {
         // No hook: a block nothing would release is never made.
         release_bytes(memory);
         anchor.flags.block_failed = true;
+        static_cast<void>(claim_debugger_slot(&anchor.flags.reserve, reserve_frame_capacity));
         return nullptr;
     }
     link_block(*block);
+    (*block).debugger_slot = claim_debugger_slot(&(*block).state.shadow, FullShadow::frame_capacity);
     anchor.block = block;
     if (anchor.flags.phase == ThreadPhase::none) anchor.flags.phase = ThreadPhase::live;
     return block;
@@ -346,6 +515,9 @@ void end_thread(void* const armed) noexcept {
     }
     anchor.block = nullptr;
     anchor.flags.phase = ThreadPhase::ended;
+    // Before the block's memory goes, so a debugger stops reading it first.
+    clear_debugger_slot((*block).debugger_slot);
+    (*block).debugger_slot = no_debugger_slot;
     unlink_block(*block);
     (*block).~ThreadBlock();
     release_bytes(block);
