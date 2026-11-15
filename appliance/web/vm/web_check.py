@@ -83,13 +83,16 @@ class Client:
         if csrf and self.csrf is not None and method == 'POST':
             headers['X-STX-CSRF'] = self.csrf
         try:
-            connection.request(method, path, body=body, headers=headers)
-            response = connection.getresponse()
-            data = response.read()
+            # The certificate before the request: a response that closes the
+            # connection leaves connection.sock None once it is read.
+            connection.connect()
             if connection.sock is not None:
                 der = connection.sock.getpeercert(binary_form=True)
                 if der:
                     self.fingerprint = fingerprint_of(der)
+            connection.request(method, path, body=body, headers=headers)
+            response = connection.getresponse()
+            data = response.read()
             fields = {name.lower(): value for name, value in response.getheaders()}
             return response.status, fields, data
         finally:
@@ -206,6 +209,10 @@ def phase_second(client: Client, password: str) -> None:
     check(status == 200, 'logout')
     status, _, _ = client.json_request('GET', '/api/supervisor', cookie=old_cookie)
     check(status == 401, 'session ended by logout')
+    # The last request, and the scenario's cue to power off: a refused
+    # login is logged (STXWEB event=login_failed); a 401 above is not.
+    status, _, _ = client.json_request('POST', '/api/login', {'password': password + 'x'})
+    check(status == 401, 'wrong password refused after logout')
 
 
 def main(argv: List[str]) -> int:

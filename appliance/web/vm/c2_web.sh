@@ -129,6 +129,7 @@ python3 scenario.py --name "$vm" --firmware-timeout-ms 0 --label web2 --ssh-forw
     --step 'expect:10:STXWEB listening port=22' \
     --step 'expect:240:STXWEB event=login_ok client=\S+' \
     --step 'expect:60:STXWEB event=logout client=\S+' \
+    --step 'expect:60:STXWEB event=login_failed client=\S+' \
     --step 'monitor:system_powerdown' \
     --step 'expect:5:power button pressed' \
     --step 'expect:15:STXINIT shutdown power-off' \

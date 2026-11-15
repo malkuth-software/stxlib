@@ -54,7 +54,7 @@ rundir=$storage/appliance/vm/$run
 mkdir -p "$rundir"
 cp /opt/homebrew/share/qemu/edk2-i386-vars.fd "$rundir/vars.fd"
 cp "$out" "$rundir/appliance.raw"
-python3 scenario.py --name "$run" --arch x86_64 --firmware-timeout-ms 0 --label amd64-boot1 \
+python3 scenario.py --storage-root "$storage" --name "$run" --arch x86_64 --firmware-timeout-ms 0 --label amd64-boot1 \
     --appliance-disk "$rundir/appliance.raw" --appliance-only \
     --step 'expect:120:STXLOADER slot=A tries=0 fallback=0 reason=good' \
     --step 'expect:180:STXINIT uptime_ns=\d+' \

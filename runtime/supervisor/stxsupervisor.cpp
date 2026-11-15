@@ -479,8 +479,10 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
         service_registry.load(boot_config);
         service_actions.set_target_hooks(&targets);
         control_system.set_targets(&targets);
-        targets.load(boot_config, boot_facts_now.slot, stxconfig::monotonic_milliseconds());
         run_init(console);
+        // After init: the program states live on /data, which init mounts.
+        // Loaded before, every state read as none and no target could run.
+        targets.load(boot_config, boot_facts_now.slot, stxconfig::monotonic_milliseconds());
         write_access_keys(console);
         // Target ids (config/target_ids.h): adopt, remove deleted folders.
         control_system.boot_target_ids(boot_config, console);
