@@ -79,7 +79,8 @@
 //   before its slices are freed and purged (arena-page.c:921). An
 //   environment setting that turns on page_commit_on_demand weakens this
 //   (mimalloc reads its options from the environment); a stale address
-//   racing the release and purge of its page (purge_delay, 1000 ms) is a
+//   racing the release and purge of its page (purge_delay, 0 since the owner's
+//   Q4: purged at once; see apply_options) is a
 //   misuse the check does not cover.
 // - host: a registry of live addresses (an open-addressing hash set under
 //   one spin lock, in malloc storage), as the foreign-release fix made it:
@@ -104,6 +105,7 @@
 
 #include "core/checked.hpp"
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -173,12 +175,36 @@ private:
 #endif
 };
 
+// mimalloc's run-time options, set once before the first block (the owner's
+// Q4 on smi's mimalloc audit, B1): purge_delay 0, so freed pages are purged
+// at once instead of after 1000 ms. It has no compile-time definition, so it
+// is set with mi_option_set. The place: the first call of backend_allocate,
+// before its mi_malloc_aligned. Every block STXlib takes from mimalloc
+// passes there (allocate_block, with or without tags), and nothing else in
+// stxlib_state allocates from mimalloc (mi_is_in_heap_region only reads the
+// page map), so no STXlib block exists before the option is set. Racing
+// first callers: one sets it (phase 1), the others wait for phase 2.
+constinit std::atomic<u32> options_phase{0};
+
+STXLIB_NO_UNWIND void apply_options() noexcept {
+    if (options_phase.load(std::memory_order_acquire) == 2) return;
+    u32 expected = 0;
+    if (options_phase.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
+        mi_option_set(mi_option_purge_delay, 0);
+        options_phase.store(2, std::memory_order_release);
+        return;
+    }
+    while (options_phase.load(std::memory_order_acquire) != 2) {
+    }
+}
+
 STXLIB_NO_UNWIND void* backend_allocate(const usize size, const usize alignment) noexcept {
     // Checked so the subtraction cannot wrap: an alignment above
     // PTRDIFF_MAX (2^63, a power of two memory::allocate accepts) is refused
     // here (smi's audit, A6).
     if (alignment > largest_request || size > largest_request - alignment) return nullptr;
     const CancellationOff no_cancel;
+    apply_options();
     void* const result = mi_malloc_aligned(size, alignment);
     return result;
 }
@@ -418,6 +444,13 @@ STXLIB_NO_UNWIND ReleaseOutcome release_block(void* const block) noexcept {
     if (tag != tag_for(address)) return ReleaseOutcome::refused;
     u64 offset_value = 0;
     std::memcpy(&offset_value, address - offset_slot, sizeof(offset_value));
+    // The stored offset is 8 bytes on every host; on a host whose usize is
+    // narrower (wasm32), a value above usize_max is refused before it is
+    // narrowed (sc1's wasm32 audit, proofs/REPORT.md "Pointer width"; no
+    // layout change: the slot stays 8 bytes).
+    if constexpr (sizeof(usize) < sizeof(u64)) {
+        if (offset_value > static_cast<u64>(usize_max)) return ReleaseOutcome::refused;
+    }
     const bool offset_valid = offset_value >= header_bytes && power_of_two(static_cast<usize>(offset_value));
     if (!offset_valid) return ReleaseOutcome::refused;
     const u64 cleared = 0;
