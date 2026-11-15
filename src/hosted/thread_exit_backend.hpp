@@ -20,12 +20,14 @@ namespace stxlib::thread_exit_backend {
 [[nodiscard]] bool arm(void* block) noexcept;
 
 // True on a thread whose hook has run (its block is released) while the
-// host may still run more thread-exit code on it. POSIX: the key's value
-// is a mark from then on, for the remaining destructor rounds, so a later
-// key destructor that reaches STXlib finds the thread ended even when the
-// host has freed and made again the anchor's storage (macOS dyld, see
-// state.cpp, end_thread). Windows: false; the anchor's storage outlives the
-// TLS callback. Calls nothing that can exit early.
+// host may still run more thread-exit code on it. POSIX hosts that may
+// free thread_local storage early (macOS dyld, see state.cpp, end_thread):
+// the key's value is a mark from then on, for the remaining destructor
+// rounds, so a later key destructor that reaches STXlib finds the thread
+// ended even when the anchor's storage was freed and made again. glibc and
+// Windows: false; the anchor's storage outlives the hook, so the anchor
+// itself says ended (thread_exit_posix.cpp says why glibc sets no mark).
+// Calls nothing that can exit early.
 [[nodiscard]] bool ended() noexcept;
 
 } // namespace stxlib::thread_exit_backend
