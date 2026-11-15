@@ -149,7 +149,8 @@ std::vector<std::string> all_texts(const std::vector<std::string>& pieces, const
     return result;
 }
 
-u64 text_value(const std::string& text) {
+// FNV-1a over the text, modulo 2^64 by definition.
+STXLIB_MODULAR u64 text_value(const std::string& text) {
     u64 result = 0xcbf29ce484222325ULL;
     for (const char byte : text) result = (result ^ static_cast<unsigned char>(byte)) * 0x100000001b3ULL;
     return result;
