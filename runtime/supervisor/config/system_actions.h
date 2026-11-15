@@ -136,15 +136,47 @@ constexpr const char* target_launcher_path = "/sbin/stxpkg";
 // Launcher words before the target's own: path, "run", program, slot, "--".
 constexpr std::size_t launcher_words = 5;
 
+// Control channels for services whose definition grants control (C2;
+// ../control_channels.h implements this). SystemServiceActions asks for a
+// channel before it forks and says after the fork whose it is.
+class ChannelGrants {
+public:
+    ChannelGrants() noexcept = default;
+    ChannelGrants(const ChannelGrants&) = delete;
+    ChannelGrants& operator=(const ChannelGrants&) = delete;
+
+    // A new channel: the descriptor the child is to get as its descriptor
+    // control_child_descriptor, or -1 when none can be made (the service
+    // then runs without a channel). Close-on-exec in the supervisor.
+    [[nodiscard]] virtual int prepare_channel() noexcept = 0;
+    // After the fork: the prepared channel belongs to pid.
+    virtual void channel_started(int pid) noexcept = 0;
+    // The fork failed: the prepared channel is closed.
+    virtual void channel_abandoned() noexcept = 0;
+
+protected:
+    ~ChannelGrants() = default;
+};
+
+// The descriptor a service finds its control channel on.
+constexpr int control_child_descriptor = 3;
+
 // Services on FreeBSD. spawn forks; the child starts a new session (so the
 // console's job-control signals do not reach it), clears its signal mask,
-// changes to the service's directory and executes the program. A target is
-// different in three ways: its folder is created first if absent (owned
-// by the target's identity, mode 0700; its parents below
+// changes to the service's directory and executes the program. Descriptors
+// 3 and up are closed in every child (closefrom), except that a service
+// whose request carries control access other than none gets its control
+// channel as descriptor 3 (control_child_descriptor) first; when no channel
+// could be made, descriptor 3 is closed like the rest. The supervisor's own
+// descriptor 3, the shim's file, is close-on-exec (shim_client.cpp), so it
+// never reaches a child (C2_DESIGN.md, "The supervisor interface", item 1).
+// A target is different in three ways: its folder is created first if
+// absent (owned by the target's identity, mode 0700; its parents below
 // target_folder_parent root-owned, mode 0755); the child takes the target's
 // uid and gid (setgroups, setgid, setuid) before anything else; and it
 // executes the launcher:
 //   /sbin/stxpkg run <program> <slot> -- <file> [argument...]
+// Targets never get a control channel (check_user_config refuses one).
 // Console lines, one per event:
 //
 //   STXSUPERVISOR service <name> started pid=<n> restart_count=<n>
@@ -165,11 +197,16 @@ public:
     // target start fails with ENOENT.
     void set_target_hooks(TargetHooks* hooks) noexcept;
 
+    // Where channels come from; borrowed, must outlive these actions or be
+    // reset to null first. Until set, no service gets a channel.
+    void set_channel_grants(ChannelGrants* grants) noexcept;
+
 private:
     [[nodiscard]] SpawnOutcome spawn_target(const SpawnRequest& request, const SpawnTarget& target) noexcept;
 
     int console_;
     TargetHooks* target_hooks_;
+    ChannelGrants* grants_;
 };
 
 // CLOCK_MONOTONIC in milliseconds; 0 if the clock cannot be read.

@@ -150,6 +150,9 @@ struct SpawnRequest {
     const char* directory;
     // Present for a target.
     std::optional<SpawnTarget> target;
+    // The service's control access (boot_config.h); always none for a
+    // target (sc2, C2-web.md section 7 item 2: one field in the merge).
+    ControlAccess control;
 };
 
 class ServiceActions {
@@ -158,7 +161,9 @@ public:
     ServiceActions(const ServiceActions&) = delete;
     ServiceActions& operator=(const ServiceActions&) = delete;
 
-    // Starts the request's program as the service.
+    // Starts the request's program as the service. request.control is the
+    // service's control access (boot_config.h): anything but none gives the
+    // new process a control channel (../control_channels.h).
     [[nodiscard]] virtual SpawnOutcome spawn(const SpawnRequest& request) noexcept = 0;
     virtual void signal(int pid, ServiceSignal which) noexcept = 0;
     virtual void report(const ServiceEvent& event) noexcept = 0;
@@ -171,6 +176,11 @@ protected:
 // Service states.
 
 struct ServiceStopped {
+    // Stopped by a stop request (the control channel's stop, or stop_all),
+    // as opposed to never started or exited under its restart policy. The
+    // good-boot rule counts such a service as healthy (C2-web.md, owner
+    // question 2, built as recommended).
+    bool by_request;
 };
 struct ServiceRunning {
     int pid;
@@ -191,12 +201,14 @@ struct ServiceStopping {
 class ServiceState {
 public:
     [[nodiscard]] static ServiceState stopped() noexcept;
+    [[nodiscard]] static ServiceState stopped_by_request() noexcept;
     [[nodiscard]] static ServiceState running(int pid, std::uint64_t started_ms) noexcept;
     [[nodiscard]] static ServiceState waiting(std::uint64_t start_at_ms) noexcept;
     [[nodiscard]] static ServiceState stopping(int pid, std::uint64_t started_ms, std::uint64_t kill_at_ms,
                                                bool kill_sent, bool start_after) noexcept;
 
     [[nodiscard]] bool is_stopped() const noexcept;
+    [[nodiscard]] bool is_stopped_by_request() const noexcept;
     [[nodiscard]] const ServiceRunning* as_running() const noexcept;
     [[nodiscard]] const ServiceWaiting* as_waiting() const noexcept;
     [[nodiscard]] const ServiceStopping* as_stopping() const noexcept;

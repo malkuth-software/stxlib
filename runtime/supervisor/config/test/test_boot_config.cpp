@@ -349,6 +349,9 @@ const Refusal refusals[] = {
     {"[service-web]\ncommand = /w\ncommand = /v\n", 3, 1, ParseError::setting_repeated},
     {"[service-web]\ncommand = /w\ndirectory = w\n", 3, 13, ParseError::directory_not_absolute},
     {"[service-web]\ncommand = /w\nrestart = sometimes\n", 3, 11, ParseError::service_restart_unknown},
+    {"[service-web]\ncommand = /w\ncontrol = all\n", 3, 11, ParseError::service_control_unknown},
+    {"[service-web]\ncommand = /w\ncontrol =\n", 3, 10, ParseError::service_control_unknown},
+    {"[service-web]\ncommand = /w\ncontrol = read\ncontrol = read\n", 4, 1, ParseError::setting_repeated},
     {"[service-]\n", 1, 2, ParseError::name_malformed},
     {"[service-9]\n", 1, 2, ParseError::name_malformed},
     {"[init]\nif-present file /a if-present file /b run /c\n", 2, 20, ParseError::guard_nested},
@@ -374,6 +377,9 @@ const Refusal refusals[] = {
     {"[target-a]\ncommand =\n", 2, 10, ParseError::program_path_malformed},
     {"[target-a]\ndirectory = /x\n", 2, 1, ParseError::service_setting_unknown},
     {"[target-a]\nnetwork = none\n", 2, 1, ParseError::service_setting_unknown},
+    // A target never gets a control channel (C2_DESIGN.md, "The supervisor
+    // interface", item 2).
+    {"[target-a]\ncontrol = read\n", 2, 1, ParseError::service_setting_unknown},
     {"[service-a]\ncommand = /w\nfolder = /data/targets/a\n", 3, 1, ParseError::service_setting_unknown},
     {"[service-a]\ncommand = /w\nid = 1\n", 3, 1, ParseError::service_setting_unknown},
     {"[target-a]\nfolder = /w\n", 2, 10, ParseError::folder_outside_data},
@@ -1049,12 +1055,35 @@ void test_exhaustive_ipv4() {
     check(values == 12207031u, "exhaustive ipv4", "the stated domain was covered");
 }
 
+// The control setting (C2): each value, and none when it is absent.
+void test_control_access() {
+    const char* const test = "control access";
+    struct Case {
+        const char* text;
+        stxconfig::ControlAccess expected;
+    };
+    const Case cases[] = {
+        {"[service-web]\ncommand = /w\n", stxconfig::ControlAccess::none},
+        {"[service-web]\ncommand = /w\ncontrol = none\n", stxconfig::ControlAccess::none},
+        {"[service-web]\ncommand = /w\ncontrol = read\n", stxconfig::ControlAccess::read},
+        {"[service-web]\ncontrol = operate  \ncommand = /w\n", stxconfig::ControlAccess::operate},
+    };
+    for (const Case& item : cases) {
+        const ParseOutcome outcome = parse_checked(test, text_of(item.text));
+        check(outcome.is_success() && config.service_count() == 1, test, item.text);
+        if (outcome.is_success() && config.service_count() == 1) {
+            check(config.service(0).control == item.expected, test, item.text);
+        }
+    }
+}
+
 int main() {
     test_full_example();
     test_target_definition();
     test_exhaustive_folders();
     test_exhaustive_package_paths();
     test_exhaustive_ipv4();
+    test_control_access();
     test_line_ends_and_empty();
     test_failure_empties_previous();
     test_refusals();

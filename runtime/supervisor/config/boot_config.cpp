@@ -187,6 +187,7 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::network_setting_unknown: return "network_setting_unknown";
     case ParseError::network_value_malformed: return "network_value_malformed";
     case ParseError::folder_repeated: return "folder_repeated";
+    case ParseError::service_control_unknown: return "service_control_unknown";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -520,6 +521,7 @@ struct ServiceDraft {
     std::optional<RestartPolicy> restart;
     // Present for a target section.
     std::optional<TargetDraft> target;
+    std::optional<ControlAccess> control;
 };
 
 // The parse's state between lines.
@@ -622,6 +624,7 @@ using LineResult = std::optional<ParseFailed>;
         }
     }
     service.restart = draft.restart.has_value() ? *draft.restart : RestartPolicy::on_failure;
+    service.control = draft.control.has_value() ? *draft.control : ControlAccess::none;
     service.line = draft.line;
     // Room was checked when the section began.
     builder.add_service(service);
@@ -1503,6 +1506,19 @@ private:
             return refuse(line, value_begin, ParseError::directory_not_absolute);
         }
         draft.directory = last_value(builder);
+        return std::nullopt;
+    }
+    // Services only: a target never gets a control channel.
+    if (bytes_are(line, begin, end_of_name, "control")) {
+        if (bytes_are(line, value_begin, value_end, "none")) {
+            draft.control = ControlAccess::none;
+        } else if (bytes_are(line, value_begin, value_end, "read")) {
+            draft.control = ControlAccess::read;
+        } else if (bytes_are(line, value_begin, value_end, "operate")) {
+            draft.control = ControlAccess::operate;
+        } else {
+            return refuse(line, value_begin, ParseError::service_control_unknown);
+        }
         return std::nullopt;
     }
     return refuse(line, begin, ParseError::service_setting_unknown);

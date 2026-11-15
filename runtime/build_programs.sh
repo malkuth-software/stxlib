@@ -6,12 +6,17 @@
 #
 #   stxinit                 runtime/init/stxinit.cpp (PID 1)
 #   stxsupervisor           runtime/supervisor/*.cpp, runtime/supervisor/config/*.cpp,
-#                           runtime/package/program_slots.cpp, manifest.cpp, store_layout.cpp
+#                           runtime/package/program_slots.cpp, manifest.cpp, store_layout.cpp,
+#                           the control channel (runtime/supervisor/control/*.cpp,
+#                           control_channels.cpp) and runtime/store/*.cpp
 #   stxpkg                  runtime/package/*.cpp and runtime/net/{url,http_head,fetch}.cpp,
 #                           with the base system's libssl, libcrypto and libufs (static)
 #   stxnet                  runtime/net/stxnet.cpp with the configuration parser
 #   stxsntp                 runtime/net/stxsntp.cpp, sntp.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
+#   stxweb                  runtime/web/*.cpp with the supervisor's pure
+#                           configuration, protocol and store files, linked
+#                           with the sysroot's base OpenSSL (-lssl -lcrypto)
 #
 # Static (no run-time linker for PID 1), stripped (-s), unused sections
 # dropped (--gc-sections); no exceptions, no RTTI. The C++ library is linked
@@ -91,7 +96,10 @@ build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/conf
     runtime/supervisor/shim_client.cpp runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp \
     runtime/supervisor/device_rules.cpp runtime/supervisor/device_rules_system.cpp \
     runtime/supervisor/targets.cpp runtime/supervisor/targets_plan.cpp \
-    runtime/package/program_slots.cpp runtime/package/manifest.cpp runtime/package/store_layout.cpp
+    runtime/package/program_slots.cpp runtime/package/manifest.cpp runtime/package/store_layout.cpp \
+    runtime/supervisor/config/user_config.cpp runtime/supervisor/target_log.cpp \
+    runtime/supervisor/control/control_protocol.cpp runtime/supervisor/control/control_server.cpp \
+    runtime/supervisor/control_channels.cpp runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp
 build stxpkg runtime/package/stxpkg.cpp runtime/package/manifest.cpp runtime/package/container.cpp \
     runtime/package/latest.cpp runtime/package/program_slots.cpp runtime/package/store_layout.cpp \
     runtime/net/url.cpp runtime/net/http_head.cpp runtime/net/fetch.cpp \
@@ -100,3 +108,9 @@ build stxpkg runtime/package/stxpkg.cpp runtime/package/manifest.cpp runtime/pac
 build stxnet runtime/net/stxnet.cpp runtime/supervisor/config/boot_config.cpp
 build stxsntp runtime/net/stxsntp.cpp runtime/net/sntp.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
+build stxweb runtime/web/stxweb.cpp runtime/web/tls_server.cpp runtime/web/system_backend.cpp \
+    runtime/web/crypto_system.cpp runtime/web/control_client.cpp runtime/web/api.cpp runtime/web/api_pages.cpp \
+    runtime/web/auth.cpp runtime/web/config_edit.cpp runtime/web/http.cpp runtime/web/json.cpp \
+    runtime/supervisor/config/boot_config.cpp runtime/supervisor/config/user_config.cpp \
+    runtime/supervisor/control/control_protocol.cpp runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp \
+    -- -lssl -lcrypto -lpthread

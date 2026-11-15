@@ -317,9 +317,9 @@ namespace {
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
-    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
-    // control channel, when it folds, is dup2'd to 3 before this becomes
-    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
+    // Descriptor 3 and above: an init program gets no control channel, so
+    // nothing reaches it but 0-2 (C2_DESIGN.md, "The supervisor interface",
+    // item 1).
     closefrom(3);
     // execve's declaration takes char* const[]; it does not modify them.
     (void)execve(arguments[0], const_cast<char* const*>(arguments), const_cast<char* const*>(environment));
@@ -493,25 +493,47 @@ StepOutcome SystemActions::set_sysctl(const char* name, const char* value) noexc
 // ---------------------------------------------------------------------------
 // SystemServiceActions.
 
-SystemServiceActions::SystemServiceActions(int console) noexcept : console_(console), target_hooks_(nullptr) {}
+SystemServiceActions::SystemServiceActions(int console) noexcept
+    : console_(console), target_hooks_(nullptr), grants_(nullptr) {}
 
 void SystemServiceActions::set_target_hooks(TargetHooks* hooks) noexcept {
     target_hooks_ = hooks;
 }
 
+void SystemServiceActions::set_channel_grants(ChannelGrants* grants) noexcept {
+    grants_ = grants;
+}
+
 namespace {
 
-// In the child between fork and execve: only async-signal-safe calls.
+// In the child between fork and execve: only async-signal-safe calls
+// (setsid, sigprocmask, fcntl, dup2, closefrom, chdir, execve, _exit).
+// channel: the control channel to place as descriptor 3, or -1; with -1,
+// descriptor 3 is closed with the rest, so that the service cannot mistake
+// an inherited descriptor for a channel.
 [[noreturn]] void become_service(const char* const* arguments, const char* const* environment,
-                                 const char* directory) noexcept {
+                                 const char* directory, int channel) noexcept {
     (void)setsid();
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
-    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
-    // control channel, when it folds, is dup2'd to 3 before this becomes
-    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
-    closefrom(3);
+    if (channel == control_child_descriptor) {
+        // Already in place: only its close-on-exec flag must go.
+        if (fcntl(channel, F_SETFD, 0) != 0) {
+            _exit(125);
+        }
+    } else if (channel >= 0) {
+        // dup2 clears close-on-exec on the new descriptor; the original
+        // keeps it and is closed below in any case.
+        if (dup2(channel, control_child_descriptor) != control_child_descriptor) {
+            _exit(125);
+        }
+    }
+    // Everything above 0-2 and the channel is closed, the supervisor's shim
+    // file (its descriptor 3, which dup2 replaced or which closes here)
+    // included: in a child, descriptor 3 is the control channel or nothing
+    // (C2_DESIGN.md, "The supervisor interface", item 1).
+    closefrom(channel >= 0 ? control_child_descriptor + 1 : control_child_descriptor);
     if (chdir(directory) != 0) {
         _exit(126);
     }
@@ -533,9 +555,8 @@ namespace {
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
-    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
-    // control channel, when it folds, is dup2'd to 3 before this becomes
-    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
+    // Descriptor 3 and above: a target gets no control channel, so nothing
+    // reaches it but 0-2 (C2_DESIGN.md, "The supervisor interface", item 1).
     closefrom(3);
     if (chdir(directory) != 0) {
         _exit(126);
@@ -604,6 +625,7 @@ SpawnOutcome SystemServiceActions::spawn(const SpawnRequest& request) noexcept {
     if (request.target.has_value()) {
         return spawn_target(request, *request.target);
     }
+    const ControlAccess control = request.control;
     // Checked before forking, so the common failures carry their errno
     // rather than exit status 126 (directory) or 127 (program).
     if (access(request.arguments[0], X_OK) != 0) {
@@ -616,12 +638,24 @@ SpawnOutcome SystemServiceActions::spawn(const SpawnRequest& request) noexcept {
     if (!S_ISDIR(status.st_mode)) {
         return SpawnOutcome::spawn_failed(ENOTDIR);
     }
+    const bool wants_channel = control != ControlAccess::none;
+    int channel = -1;
+    if (wants_channel && grants_ != nullptr) {
+        channel = (*grants_).prepare_channel();
+    }
     const pid_t child = fork();
     if (child < 0) {
-        return SpawnOutcome::spawn_failed(errno);
+        const int error_number = errno;
+        if (channel >= 0) {
+            (*grants_).channel_abandoned();
+        }
+        return SpawnOutcome::spawn_failed(error_number);
     }
     if (child == 0) {
-        become_service(request.arguments, request.environment, request.directory);
+        become_service(request.arguments, request.environment, request.directory, channel);
+    }
+    if (channel >= 0) {
+        (*grants_).channel_started(static_cast<int>(child));
     }
     return SpawnOutcome::spawned(static_cast<int>(child));
 }

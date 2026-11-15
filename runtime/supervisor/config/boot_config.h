@@ -51,6 +51,10 @@
 //   directory = /user/services/web                 optional, absolute; "/"
 //   restart = on-failure                           optional: never,
 //                                                  on-failure (default), always
+//   control = operate                              optional: none (default),
+//                                                  read, operate: the
+//                                                  supervisor's control
+//                                                  channel (C2, control/)
 //
 // A service is a system service: it runs as root, as the configuration's
 // author defined it. Only the configuration's author defines one.
@@ -361,6 +365,16 @@ struct TargetSettings {
 // The uid and gid a target runs as.
 [[nodiscard]] std::uint32_t target_identity(const TargetSettings& target) noexcept;
 
+// What a service may ask of the supervisor through its control channel
+// (control/control_protocol.h). none: the service gets no channel. read:
+// the supervisor's state, the services, the slots and the boot log.
+// operate: read, and start, stop and restart services.
+enum class ControlAccess : std::uint8_t {
+    none,
+    read,
+    operate,
+};
+
 struct ServiceDefinition {
     // The name after the section prefix ("web" for [service-web], "radio"
     // for [target-radio]); names are unique across both kinds.
@@ -375,6 +389,7 @@ struct ServiceDefinition {
     // Present for a target, absent for a service.
     std::optional<TargetSettings> target;
     RestartPolicy restart;
+    ControlAccess control;
     // The section header's line.
     std::uint32_t line;
 };
@@ -511,6 +526,7 @@ enum class ParseError : std::uint8_t {
     network_setting_unknown,
     network_value_malformed,
     folder_repeated,
+    service_control_unknown,
 };
 
 // The error's name as printed on the console ("line_too_long", ...).

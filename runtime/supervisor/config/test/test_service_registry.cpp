@@ -34,7 +34,8 @@ public:
     FakeServiceActions() noexcept
         : next_pid_(100), fail_spawns_(false), spawns_(0), last_pid_(0), last_directory_{}, last_name_{},
           last_program_{}, last_folder_{}, last_target_(std::nullopt), last_environment_first_{},
-          signals_(0), last_signal_pid_(0), last_signal_(ServiceSignal::terminate), events_{}, event_count_(0) {}
+          signals_(0), last_signal_pid_(0), last_signal_(ServiceSignal::terminate), events_{}, event_count_(0),
+          last_control_(stxconfig::ControlAccess::none) {}
 
     void set_fail_spawns(bool fail) noexcept {
         fail_spawns_ = fail;
@@ -44,6 +45,7 @@ public:
     }
 
     [[nodiscard]] SpawnOutcome spawn(const stxconfig::SpawnRequest& request) noexcept override {
+        last_control_ = request.control;
         copy(last_name_, request.name);
         copy(last_program_, request.arguments[0]);
         copy(last_directory_, request.directory);
@@ -125,6 +127,9 @@ public:
     [[nodiscard]] const ServiceEvent& last_event() const noexcept {
         return event(event_count_ - 1u);
     }
+    [[nodiscard]] stxconfig::ControlAccess last_control() const noexcept {
+        return last_control_;
+    }
 
 private:
     static void copy(char (&destination)[64], const char* source) noexcept {
@@ -148,6 +153,7 @@ private:
     ServiceSignal last_signal_;
     ServiceEvent events_[events_max];
     std::size_t event_count_;
+    stxconfig::ControlAccess last_control_;
 };
 
 BootConfig config;
@@ -157,6 +163,7 @@ const char* const configuration =
     "command = /bin/web --port 1\n"
     "directory = /srv/web\n"
     "restart = on-failure\n"
+    "control = operate\n"
     "[service-always]\n"
     "command = /bin/always\n"
     "restart = always\n"
@@ -291,6 +298,7 @@ void test_stop_and_restart() {
     check(registry.restart("web", 10, actions) == stxconfig::RestartResult::started &&
               registry.state(0).as_running() != nullptr && registry.account(0).restart_count == 0,
           test, "restart of a stopped service starts it, uncounted");
+    check(actions.last_control() == stxconfig::ControlAccess::operate, test, "control access passed to spawn");
     check(registry.find("web").has_value() && *registry.find("web") == 0 && !registry.find("absent").has_value(), test,
           "find");
     const int first_pid = actions.last_pid();
@@ -479,6 +487,13 @@ void run_sequence(const char* name, std::size_t service, const std::size_t* digi
                   "restart by request runs after the exit");
         }
         const stxconfig::ServiceState& state = registry.state(service);
+        // Stopped by request only after a stop or stop_all with no start or
+        // restart since, and only while stopped (the good-boot rule counts
+        // it as healthy: stxsupervisor.cpp, check_good_boot).
+        if (state.is_stopped_by_request()) {
+            check(stopped_by_request && state.is_stopped(), "exhaustive registry",
+                  "stopped by request only after a stop, and only when stopped");
+        }
         if (state.as_running() != nullptr || state.as_stopping() != nullptr) {
             const int pid = state.as_running() != nullptr ? (*state.as_running()).pid : (*state.as_stopping()).pid;
             own_pid = actions.last_pid();
@@ -562,6 +577,7 @@ void test_target_request() {
     check(target.has_value() && (*target).identity == stxconfig::target_identity_base + 7u, test,
           "a target, identity 30007");
     check(actions.last_index() == 1u, test, "its index");
+    check(actions.last_control() == stxconfig::ControlAccess::none, test, "a target gets no control channel");
     check(same_text(actions.last_name(), "show") && same_text(actions.last_program(), "bin/show") &&
               same_text(actions.last_directory(), "/data/targets/show") &&
               same_text(actions.last_folder(), "/data/targets/show") && same_text(actions.last_package(), "show"),
