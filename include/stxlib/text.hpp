@@ -144,6 +144,7 @@ private:
     Storage storage_{};
 };
 
-static_assert(sizeof(Utf8String) == 32, "Utf8String's layout is 32 bytes on 64-bit targets");
+static_assert(sizeof(Utf8String) == 2 * sizeof(usize) + 16,
+              "Utf8String's layout: count, capacity and 16 inline bytes (32 bytes on 64-bit targets, 24 on wasm32)");
 
 } // namespace stxlib
