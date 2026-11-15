@@ -97,9 +97,23 @@ struct Definition final {
     u32 attribute{none};
 };
 
-// ---- the context ---------------------------------------------------------------------
+// ---- inline marks --------------------------------------------------------------------
 
-struct Mark;
+// A place in a block's text that may begin or end a span, or stands for
+// something other than itself (inlines.cpp).
+struct Mark final {
+    u32 begin{0};
+    u32 end{0};
+    // Resolved as a range: the opener's `next` is its closer and the
+    // closer's `previous` its opener. An unresolved opener's `next` is the
+    // opener below it on its stack.
+    u32 previous{none};
+    u32 next{none};
+    char ch{0};
+    u8 flags{0};
+};
+
+// ---- the context ---------------------------------------------------------------------
 
 struct Context final {
     // The source.
@@ -140,7 +154,9 @@ struct Context final {
     Vector<u8> loose_stack{};
     // Inline work (inlines.cpp).
     Vector<Mark> marks{};
-    Vector<char> scratch{};
+    // The openers of the bracket pairs of the block being read, in the
+    // order of their closers.
+    Vector<u32> bracket_pairs{};
 };
 
 // Records the first failure. Always returns false, for `return fail(...)`.
