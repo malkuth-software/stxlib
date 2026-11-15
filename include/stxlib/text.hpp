@@ -18,33 +18,124 @@ namespace stxlib {
 // Requirement: bytes is non-null unless count is zero.
 [[nodiscard]] Result<TextView> validate_utf8(const char* bytes, usize count) noexcept;
 
-// Owned UTF-8 text on STXlib's allocator: a Buffer<char> whose bytes are
-// well-formed UTF-8 by construction. Unique owner; moving leaves the source
-// empty.
+// Byte-wise order of two texts: negative when left sorts first, zero when
+// equal, positive when right sorts first. For well-formed UTF-8 this is the
+// order of the code point sequences (Unicode section 2.5: UTF-8 preserves
+// code point order). No normalisation and no locale (D9 a).
+[[nodiscard]] i32 compare_text(TextView left, TextView right) noexcept;
+
+// Owned, growable UTF-8 text on STXlib's allocator: the owned vocabulary's
+// replacement for std::string at a public surface (owner, D15 before 1.0).
+//
+// Invariant: the bytes [0, count()) are well-formed UTF-8 and the byte at
+// count() is NUL, always. Every operation that adds text takes a TextView,
+// which is well-formed by construction, and every offset it takes must be a
+// sequence boundary (a byte that does not continue a sequence, or count()),
+// so no operation can make the text ill-formed. An offset that is out of
+// range fails with out_of_range; one inside a sequence fails with
+// invalid_argument; neither changes anything.
+//
+// Allocation (D8 = a, as answered): every operation that may allocate
+// returns a Status or a Result; a refused allocation is out_of_memory (or
+// limit_exceeded when the size is not representable) and changes nothing.
+// A TextView argument may borrow from this same string.
+//
+// Storage: text of up to inline_capacity bytes lives inside the object, so
+// short text allocates nothing; longer text lives in a block of capacity()
+// + 1 bytes (the NUL included). Layout (defined here, the same on every
+// host, 32 bytes): the count, the capacity (inline_capacity while the text
+// is inline), then a 16-byte union of the block pointer and the inline
+// bytes. Unique owner: copying is deleted (copy() is the named copy);
+// moving leaves the source empty.
+//
+// Borrows: view(), c_text() and data borrowed from them stay valid until an
+// operation that changes the text, a move from the string, or its
+// destruction. A move does not keep them: inline text moves with the object.
 class Utf8String final {
 public:
-    // The empty text.
+    // Bytes of text held without allocating (a 16-byte array with its NUL).
+    static constexpr usize inline_capacity = 15;
+
+    // The empty text (inline; allocates nothing).
     Utf8String() noexcept = default;
 
-    // A copy of `text`. Fails with out_of_memory or limit_exceeded as
-    // Buffer::allocate_zeroed does.
+    // A copy of `text`.
     [[nodiscard]] static Result<Utf8String> copy_of(TextView text) noexcept;
+    // Empty text with room for `room` bytes.
+    [[nodiscard]] static Result<Utf8String> with_capacity(usize room) noexcept;
+    // A named copy of this text.
+    [[nodiscard]] Result<Utf8String> copy() const noexcept;
 
-    Utf8String(Utf8String&&) noexcept = default;
-    Utf8String& operator=(Utf8String&&) noexcept = default;
+    Utf8String(Utf8String&& other) noexcept;
+    Utf8String& operator=(Utf8String&& other) noexcept;
     Utf8String(const Utf8String&) = delete;
     Utf8String& operator=(const Utf8String&) = delete;
-    ~Utf8String() = default;
+    ~Utf8String();
 
-    [[nodiscard]] usize count() const noexcept { return bytes_.count(); }
-    [[nodiscard]] bool empty() const noexcept { return bytes_.empty(); }
+    // ---- queries ----------------------------------------------------------
 
-    // Borrowed from this string: valid until it is moved from or destroyed.
+    [[nodiscard]] usize count() const noexcept { return count_; }
+    [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+    [[nodiscard]] usize capacity() const noexcept { return capacity_; }
+
+    // Borrowed from this string (see "Borrows").
     [[nodiscard]] TextView view() const& noexcept;
     TextView view() const&& = delete;
+    // The text followed by its NUL, for a foreign call that wants a C string.
+    // Text that holds a NUL byte reads as shorter there. Borrowed as view().
+    [[nodiscard]] const char* c_text() const& noexcept;
+    const char* c_text() const&& = delete;
+
+    // True when `offset` is count() or the start of a sequence.
+    [[nodiscard]] bool is_boundary(usize offset) const noexcept;
+
+    [[nodiscard]] bool equals(TextView text) const noexcept;
+    [[nodiscard]] bool operator==(const Utf8String& other) const noexcept;
+    [[nodiscard]] bool operator!=(const Utf8String& other) const noexcept;
+
+    // ---- changes ------------------------------------------------------------
+
+    // Room for at least `wanted` bytes; the text is unchanged.
+    [[nodiscard]] Status reserve(usize wanted) noexcept;
+    // The text becomes `text`.
+    [[nodiscard]] Status assign(TextView text) noexcept;
+    [[nodiscard]] Status append(TextView text) noexcept;
+    // Appends one code point, encoded as UTF-8. A surrogate (U+D800 to
+    // U+DFFF) or a value above U+10FFFF fails with invalid_argument.
+    [[nodiscard]] Status append_code_point(u32 code_point) noexcept;
+    // Inserts `text` before the byte at `offset` (a boundary).
+    [[nodiscard]] Status insert(usize offset, TextView text) noexcept;
+    // Removes bytes [offset, offset + length); both ends must be boundaries.
+    [[nodiscard]] Status erase(usize offset, usize length) noexcept;
+    // Replaces bytes [offset, offset + length) with `text`; both ends must
+    // be boundaries.
+    [[nodiscard]] Status replace(usize offset, usize length, TextView text) noexcept;
+    // Keeps the first `length` bytes; length must be a boundary.
+    [[nodiscard]] Status truncate(usize length) noexcept;
+
+    // The empty text; the capacity remains.
+    void clear() noexcept;
+    // The empty text; a block is released and the text is inline again.
+    void release() noexcept;
 
 private:
-    Buffer<char> bytes_;
+    [[nodiscard]] bool on_heap() const noexcept { return capacity_ > inline_capacity; }
+    [[nodiscard]] char* bytes() noexcept;
+    [[nodiscard]] const char* bytes() const noexcept;
+    [[nodiscard]] Status replace_checked(usize offset, usize length, TextView text, Operation operation) noexcept;
+
+    union Storage {
+        char* block;
+        char inline_bytes[inline_capacity + 1];
+
+        constexpr Storage() noexcept : inline_bytes{} {}
+    };
+
+    usize count_{0};
+    usize capacity_{inline_capacity};
+    Storage storage_{};
 };
+
+static_assert(sizeof(Utf8String) == 32, "Utf8String's layout is 32 bytes on 64-bit targets");
 
 } // namespace stxlib

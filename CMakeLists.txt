@@ -258,6 +258,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/trampoline.cpp
+    src/core/vocabulary.cpp
     src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
@@ -464,7 +465,7 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time)
+    foreach(test_name IN ITEMS vocabulary owned_vocabulary owned_text gate memory trampoline shadow platform path files children threads thread_pool local_time)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
@@ -698,6 +699,9 @@ if(STXLIB_TESTS)
         "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
         "view_index|stxlib: requirement failed: View: index out of range"
         "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
+        "vector_index|stxlib: requirement failed: Vector: index out of range"
+        "optional_take|stxlib: requirement failed: Optional::take on an absent value"
+        "shared_dereference|stxlib: requirement failed: Shared: dereference of an empty owner"
         "callback_frames|stxlib: frames \\(throw_site\\): stxlib\\.tests\\.outer\\[7,8\\] > stxlib\\.tests\\.callback\\[0,0\\] > stxlib\\.tests\\.inner\\[9,0\\]"
         "callback_frame_texts|stxlib: fail fast: stxlib\\.tests\\.event: invalid_argument.*stxlib: frames \\(throw_site\\): 3:button\\.ok:click\\[0,0\\]#12 > stxlib\\.tests\\.inner\\[9,0\\]"
         "reporter_contract|reporter: console.*reporter: classified 1, message 300, frames 2, kind 3, type (named|none), console ok"

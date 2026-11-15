@@ -20,6 +20,9 @@
 //                          fast (the same)
 //   view_index             an out-of-range index is a failed requirement
 //   take_failed_value      take_value on a failure is a failed requirement
+//   vector_index           an out-of-range Vector index is a failed requirement
+//   optional_take          take on an absent Optional is a failed requirement
+//   shared_dereference     dereferencing an empty Shared is a failed requirement
 //   callback_frames        the fail-fast report of a callback that throws
 //                          inside shadow frames shows the logical stack at
 //                          the throw (every build; the trace line in
@@ -212,6 +215,29 @@ int take_failed_value() {
     return 0;
 }
 
+int vector_index() {
+    stxlib::Vector<int> numbers;
+    const stxlib::Status pushed = numbers.push(7);
+    std::printf("pushed %d\n", pushed.succeeded() ? 1 : 0);
+    const int beyond = numbers[1];
+    std::printf("survived %d\n", beyond);
+    return 0;
+}
+
+int optional_take() {
+    stxlib::Optional<int> nothing = stxlib::Optional<int>::none();
+    const int value = nothing.take();
+    std::printf("survived %d\n", value);
+    return 0;
+}
+
+int shared_dereference() {
+    const stxlib::Shared<int> empty;
+    const int value = *empty;
+    std::printf("survived %d\n", value);
+    return 0;
+}
+
 struct ThrowsInside final {
     void operator()() const { throw std::invalid_argument("inner failure"); }
 };
@@ -399,6 +425,9 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "foreign_unlock") == 0) return foreign_unlock();
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
+    if (std::strcmp(name, "vector_index") == 0) return vector_index();
+    if (std::strcmp(name, "optional_take") == 0) return optional_take();
+    if (std::strcmp(name, "shared_dereference") == 0) return shared_dereference();
     if (std::strcmp(name, "callback_frames") == 0) return callback_frames();
     if (std::strcmp(name, "callback_frame_texts") == 0) return callback_frame_texts();
     if (std::strcmp(name, "reporter_contract") == 0) return reporter_contract();
