@@ -61,12 +61,14 @@ bool same_bytes(const ArgumentText argument, const char* const text) {
     return result;
 }
 
+#if defined(_WIN32)
 bool is_ascii(const char* const text) {
     for (const char* byte = text; *byte != 0; ++byte) {
         if (static_cast<unsigned char>(*byte) >= 0x80) return false;
     }
     return true;
 }
+#endif
 
 template <typename T>
 ErrorKind kind_of(const Result<T>& result) {
