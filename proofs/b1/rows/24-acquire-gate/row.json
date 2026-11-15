@@ -1,0 +1,25 @@
+{
+  "row": "24",
+  "title": "acquire (call-gate stand-in)",
+  "successor": "sb1 call gates (D7 shadowing)",
+  "harnesses": [
+    {
+      "file": "treatment.cpp",
+      "language": "c++20",
+      "tools": [
+        "esbmc",
+        "cbmc"
+      ],
+      "unwind": "64",
+      "mutants": [
+        "m1"
+      ],
+      "unbounded": {
+        "tools": [
+          "esbmc"
+        ]
+      },
+      "unwind_note": "The harness has no loop of its own; the bound covers the tools' library models (ESBMC's strlen over std::system_error's message needed 30 in rerun 6, bound-too-small at 1)."
+    }
+  ]
+}

@@ -26,6 +26,13 @@
 // is the borrowed view of such text; PathText::is_unicode says whether it
 // is plain UTF-8, and display() shows it with U+FFFD for each surrogate.
 //
+// Storage (house style §6; audit A, X10). Each factory returns a Path that
+// owns its text, at most maximum_path_bytes. Text from outside (parse and
+// the host-name factories) is refused above that bound before anything is
+// allocated; join's working storage is bounded by its two Paths. A Path is
+// a value the caller keeps, not a scratch output, so no caller-storage form
+// is offered.
+//
 // Syntax. A path is a root followed by segments separated by single '/'.
 // The root is "/" (absolute), "X:/" for a drive letter X (absolute; always
 // upper case), or none (relative). parse normalizes: repeated '/' collapse,

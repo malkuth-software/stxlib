@@ -20,7 +20,9 @@
 //
 // Modules: the watch's state (the recorded events, the one-watch flag and
 // the earlier handlers) lives in stxlib_state, so a watch made in one
-// module may be taken from or destroyed in another.
+// module may be taken from or destroyed in another. The installed signal
+// handler is code of the module that called watch, so that module must stay
+// loaded until the watch is destroyed.
 
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"
@@ -40,9 +42,11 @@ class EventSet final {
 public:
     constexpr EventSet() noexcept = default;
 
+    // The events whose bits are set; bits that name no ProcessEvent are
+    // dropped (audit A, X4), so a set holds only defined events.
     [[nodiscard]] static constexpr EventSet of_bits(const u8 bits) noexcept {
         EventSet result;
-        result.bits_ = bits;
+        result.bits_ = static_cast<u8>(bits & defined_bits);
         return result;
     }
     [[nodiscard]] constexpr bool contains(const ProcessEvent event) const noexcept {
@@ -57,6 +61,11 @@ public:
     [[nodiscard]] constexpr bool operator!=(const EventSet other) const noexcept { return bits_ != other.bits_; }
 
 private:
+    static constexpr u8 defined_bits =
+        static_cast<u8>(static_cast<u8>(ProcessEvent::interrupt) | static_cast<u8>(ProcessEvent::terminate) |
+                        static_cast<u8>(ProcessEvent::hangup) | static_cast<u8>(ProcessEvent::terminal_resized) |
+                        static_cast<u8>(ProcessEvent::suspend));
+
     u8 bits_{0};
 };
 
@@ -96,7 +105,9 @@ inline constexpr usize event_deferral_state_bytes = 128;
 // Defers the given events on the calling thread for this object's lifetime
 // (a critical section that must not be interrupted); they are delivered
 // when it ends. POSIX only; on Windows it has no effect, since console
-// events arrive on their own thread.
+// events arrive on their own thread. active() says whether the events are
+// deferred: false on Windows, and when the host refused the mask
+// (pthread_sigmask failing), so a deferral that did nothing is observable.
 class EventDeferral final {
 public:
     explicit EventDeferral(EventSet events) noexcept;
@@ -106,7 +117,10 @@ public:
     EventDeferral(EventDeferral&&) = delete;
     EventDeferral& operator=(EventDeferral&&) = delete;
 
+    [[nodiscard]] bool active() const noexcept { return active_; }
+
 private:
+    // The thread's earlier mask while active_; all zero bytes otherwise.
     alignas(8) unsigned char previous_[event_deferral_state_bytes]{};
     bool active_{false};
 };

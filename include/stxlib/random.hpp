@@ -210,6 +210,11 @@ template <RandomGenerator Generator>
 // move constructible and move assignable.
 template <RandomGenerator Generator, typename Element>
 void shuffle(Generator& generator, const MutableView<Element> elements) noexcept {
+    // Compiler built-in traits, since a public header names no std:: type
+    // (audit A, I2).
+    static_assert(__is_nothrow_constructible(Element, Element&&),
+                  "shuffle: Element must be nothrow move constructible");
+    static_assert(__is_nothrow_assignable(Element&, Element&&), "shuffle: Element must be nothrow move assignable");
     for (usize index = elements.count(); index > 1; --index) {
         const usize last = index - 1;
         const usize other = static_cast<usize>(uniform_below(generator, index));

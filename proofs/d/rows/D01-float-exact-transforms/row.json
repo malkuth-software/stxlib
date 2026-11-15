@@ -1,0 +1,12 @@
+{
+  "row": "D01",
+  "title": "float_exact error-free transformations (float)",
+  "module": "src/core/float_exact.hpp",
+  "harnesses": [
+    {"file": "two_sum.cpp", "language": "c++20", "tools": ["esbmc"], "unwind": "1", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1"]},
+    {"file": "fast_two_sum.cpp", "language": "c++20", "tools": ["esbmc"], "unwind": "1", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1"]},
+    {"file": "split.cpp", "language": "c++20", "tools": ["esbmc"], "unwind": "1", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1"]},
+    {"file": "product.cpp", "language": "c++20", "tools": ["esbmc"], "unwind": "1", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1"]},
+    {"file": "product_fused.cpp", "language": "c++20", "tools": ["esbmc"], "unwind": "1", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1"]}
+  ]
+}

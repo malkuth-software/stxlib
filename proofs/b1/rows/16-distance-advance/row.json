@@ -1,0 +1,11 @@
+{
+  "row": "16",
+  "title": "random::detail::distance and advance",
+  "successor": "sb1 or stx_auxlib algorithms",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "1",
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}},
+    {"file": "cppverify.cpp", "language": "c++20", "tools": ["cpp-verify"], "unwind": "1",
+     "mutants": ["m1"], "unbounded": {"tools": ["cpp-verify"]}}
+  ]
+}

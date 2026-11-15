@@ -1,7 +1,7 @@
 # STXlib CI (owner, 2026-11-13: "Add CI"; notes decisions/2026-11-13-survey-round-4.md).
 # Modelled on GUI.Forms' native.yml and native-platform.yml, much reduced:
-# one job per platform, each building its modes one after another, so a run
-# costs three jobs. The M4 integrator covers macOS (seven builds per fold);
+# one job per platform, each building its modes one after another, plus the
+# census job (no build), so a run costs four jobs. The M4 integrator covers macOS (seven builds per fold);
 # CI covers the platforms the M4 does not host.
 #
 # Toolchain pin: LLVM 22.1.8 (the product pin, FORWARD_PROGRAMME section 4).
@@ -129,6 +129,47 @@ jobs:
         if: always()
         run: ccache --show-stats
 
+  census:
+    # The construct census of every STXlib source and header (proofs/b1/
+    # tools/census.py --tree; B1.md section 5.3, census-3 rules): the
+    # house-style distance of the code itself, recorded at every change
+    # (roadmap M5). It compiles nothing: clang dumps each file's AST. The
+    # step fails when a file cannot be censused (no AST, or a clang error on
+    # one of its lines), and writes the per-file summary to the job summary.
+    # Excluded: src/hosted/windows (Windows headers); the math sources are
+    # censused as the native variant, as CMakeLists.txt builds them on arm64.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install LLVM 22 from apt.llvm.org
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key -o "$RUNNER_TEMP/llvm-key.asc"
+          sudo install -m 0644 "$RUNNER_TEMP/llvm-key.asc" /usr/share/keyrings/apt-llvm.asc
+          echo 'deb [signed-by=/usr/share/keyrings/apt-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang-22
+      - name: Compiler
+        run: |
+          clang++-22 --version | head -1
+          clang++-22 --version | head -1 | grep -q ' 22\.1\.8' || echo "::warning::LLVM is not 22.1.8 for the census: $(clang++-22 --version | head -1)"
+      - name: Census (tree)
+        run: |
+          printf '{"stxlib": {"root": "%s"}}\n' "$GITHUB_WORKSPACE" > "$RUNNER_TEMP/sources.json"
+          status=0
+          python3 proofs/b1/tools/census.py --sources "$RUNNER_TEMP/sources.json" --out "$RUNNER_TEMP/census" \
+            --source stxlib --tree --exclude src/hosted/windows --define STXLIB_MATH_VARIANT=native \
+            --clang clang++-22 --fail-on-error > "$RUNNER_TEMP/census.log" 2>&1 || status=$?
+          tail -3 "$RUNNER_TEMP/census.log"
+          {
+            echo '### Census (tree)'
+            echo '```'
+            cat "$RUNNER_TEMP/census/census/summary.txt"
+            tail -1 "$RUNNER_TEMP/census.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
   linux-musl:
     # Plain (Release) and Debug in an Alpine container, with libc++, LLVM's
     # unwinder and compiler-rt, as Alpine 3.24 packages them (main, all

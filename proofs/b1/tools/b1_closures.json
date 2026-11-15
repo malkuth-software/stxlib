@@ -1,0 +1,27 @@
+{
+ "stx_auxlib::call_once_slow@src/hosted/threads.cpp:190": {
+  "strictc:C6": {
+   "owner": "none",
+   "change": "the call through `entry` is the job: call_once runs the caller's function once"
+  }
+ },
+ "stx_auxlib::text::(anonymous)::integer_prefix@src/text.cpp:193": {
+  "strictc:C6": {
+   "owner": "census defect",
+   "change": "not a function-pointer call: dependent calls in a template pattern (Parsed<Integer>::failure, std::from_chars, Parsed<Integer>::success) fall into census.py's catch-all; to fix and re-count (census-3)"
+  }
+ },
+ "stx_auxlib::text::(anonymous)::whole@src/text.cpp:222": {
+  "strictc:C6": {
+   "owner": "census defect",
+   "change": "not a function-pointer call: dependent calls in a template pattern (prefix.parsed.succeeded, Parsed<Value>::failure); to fix and re-count (census-3)"
+  }
+ },
+ "_voids": [
+  {
+   "row": "21",
+   "unless_span": "src/math/constants.cpp",
+   "reason": "void: constants unlifted (kernel_constants undefined, so the tools saw arbitrary constants; not a finding)"
+  }
+ ]
+}

@@ -415,6 +415,31 @@ void metadata_and_directories(const Scratch& scratch) {
     CHECK(removed.succeeded() && *removed.value() == 5);
     const Result<stxlib::u64> nothing = stxlib::remove_tree(under(scratch.root, "list"));
     CHECK(nothing.succeeded() && *nothing.value() == 0);
+    // Audit A, C3, over the held-directory walk (platform-rest): a limit
+    // stops the walk with limit_exceeded, too_long; what was removed before
+    // the limit stays removed, and a later call removes the rest.
+    const auto empty_file = [&](const char* const name) {
+        CHECK(stxlib::write_file(under(scratch.root, name), stxlib::View<Byte>(), Durability::none).succeeded());
+    };
+    CHECK(stxlib::create_directories(under(scratch.root, "bounded/x/y")).succeeded());
+    empty_file("bounded/x/one");
+    empty_file("bounded/x/two");
+    stxlib::RemoveTreeLimits shallow{};
+    shallow.depth = 1; // bounded is 0, x is 1, y would be 2
+    const Result<stxlib::u64> too_deep = stxlib::remove_tree(under(scratch.root, "bounded"), shallow);
+    CHECK(kind_of(too_deep) == ErrorKind::limit_exceeded && code_of(too_deep) == HostCode::too_long);
+    CHECK(stxlib::inspect(under(scratch.root, "bounded/x/y"), stxlib::LinkMode::no_follow).succeeded());
+    empty_file("bounded/x/one");
+    empty_file("bounded/x/two");
+    empty_file("bounded/x/three");
+    stxlib::RemoveTreeLimits narrow{};
+    narrow.entries_per_directory = 2; // x holds y, one, two and three
+    const Result<stxlib::u64> too_wide = stxlib::remove_tree(under(scratch.root, "bounded"), narrow);
+    CHECK(kind_of(too_wide) == ErrorKind::limit_exceeded && code_of(too_wide) == HostCode::too_long);
+    CHECK(stxlib::inspect(under(scratch.root, "bounded/x"), stxlib::LinkMode::no_follow).succeeded());
+    const Result<stxlib::u64> bounded = stxlib::remove_tree(under(scratch.root, "bounded"));
+    CHECK(bounded.succeeded());
+    CHECK(stxlib::inspect(under(scratch.root, "bounded"), stxlib::LinkMode::no_follow).failed());
     // A nested tree: a/b/c, a/note.txt, and a itself.
     const Result<stxlib::u64> tree = stxlib::remove_tree(under(scratch.root, "a"));
     CHECK(tree.succeeded() && *tree.value() == 4);

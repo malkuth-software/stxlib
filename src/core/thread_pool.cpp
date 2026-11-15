@@ -14,6 +14,9 @@
 
 #include "stxlib/thread_pool.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/threads.hpp"
@@ -50,6 +53,14 @@ struct AtomicPool::State final {
     // run_lock is held from begin until wait. Only the thread that called
     // begin reads or writes this.
     bool batch_open{false};
+    // The thread that holds the open asynchronous batch (its identity's
+    // value), 0 when none. Written by that thread only, after taking
+    // run_lock in begin and before releasing it in wait; read by any thread,
+    // which finds its own identity there only if it holds the batch.
+    std::atomic<u64> batch_owner{0};
+    // The batch owner's cancellation state before begin, restored by wait
+    // (cancellation stays off while run_lock is held; audit E, 4.4).
+    int batch_cancellation{0};
 };
 
 namespace {
@@ -77,6 +88,17 @@ bool batch_finished(const void* const address) noexcept {
     return result;
 }
 
+// A call that would deadlock on run_lock, which this thread holds for its
+// open batch: a defect, recorded and failed fast (S2).
+void check_not_batch_owner(const AtomicPool::State& pool, const Operation operation) noexcept {
+    if (pool.batch_owner.load(std::memory_order_relaxed) != current_thread().value()) return;
+    const ErrorRecord record = ErrorRecord::make(
+        ErrorKind::invalid_argument, operation,
+        ErrorDetail{.code = static_cast<u32>(PoolFailure::batch_still_open),
+                    .message = "this thread's asynchronous batch is still open; call wait first"});
+    fail_fast(record);
+}
+
 ErrorRecord refusal(const PoolFailure failure, const Operation operation) noexcept {
     const ErrorRecord result =
         ErrorRecord::make(ErrorKind::invalid_argument, operation, ErrorDetail{.code = static_cast<u32>(failure)});
@@ -85,6 +107,9 @@ ErrorRecord refusal(const PoolFailure failure, const Operation operation) noexce
 
 void run_worker(const StopSignal& stop, void* const address) noexcept {
     static_cast<void>(stop); // the pool stops its workers through `terminate`
+    // A worker is STXlib's thread and waits under sleep_lock: it never acts
+    // on a cancellation (audit E, 4.4).
+    const detail::CancellationHold no_cancel;
     AtomicPool::State& pool = *static_cast<AtomicPool::State*>(address);
     for (;;) {
         {
@@ -165,7 +190,15 @@ Status validate_batch(const View<PoolTask> tasks, const Operation operation) noe
 void destroy_state(AtomicPool::State* const state) noexcept {
     if (state == nullptr) return;
     AtomicPool::State& owned = *state;
+    if (owned.batch_owner.load(std::memory_order_relaxed) != 0) {
+        const ErrorRecord record = ErrorRecord::make(
+            ErrorKind::invalid_argument, "stxlib.thread_pool.destroy",
+            ErrorDetail{.code = static_cast<u32>(PoolFailure::batch_still_open),
+                        .message = "an AtomicPool was destroyed with an asynchronous batch open"});
+        fail_fast(record);
+    }
     {
+        const detail::CancellationHold no_cancel; // the joins are cancellation points (audit E, 4.4)
         const ScopedLock run(owned.run_lock);
         stop_workers(owned);
     }
@@ -176,22 +209,30 @@ void destroy_state(AtomicPool::State* const state) noexcept {
 
 } // namespace
 
+// Each owner lets go of its state before destroying it (AGENTS.md, rule 1).
 AtomicPool::~AtomicPool() {
-    destroy_state(state_);
+    State* const held = state_;
     state_ = nullptr;
+    destroy_state(held);
 }
 
 AtomicPool& AtomicPool::operator=(AtomicPool&& other) noexcept {
     if (this == &other) return *this;
-    destroy_state(state_);
+    State* const held = state_;
     state_ = other.state_;
     other.state_ = nullptr;
+    destroy_state(held);
     return *this;
 }
 
 Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     const Operation operation = "stxlib.thread_pool.create";
     if (thread_count == 0) return Result<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
+    if (thread_count > maximum_pool_threads) {
+        return Result<AtomicPool>::failure(refusal(PoolFailure::too_many_threads, operation));
+    }
+    static_assert(static_cast<u64>(maximum_pool_threads) * sizeof(Thread) <= usize_max,
+                  "the largest thread table's size is representable");
     const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, operation);
     void* const block = memory::allocate(sizeof(State), alignof(State));
     if (block == nullptr) return Result<AtomicPool>::failure(exhausted);
@@ -227,12 +268,18 @@ u32 AtomicPool::thread_count() const noexcept {
 Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.run";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    check_not_batch_owner(*state_, operation);
     if (tasks.count() == 0) return Status::success();
     Status validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
 
+    // Cancellation stays off while run_lock is held: the batch wait is a
+    // cancellation point, and caller-run tasks run under the lock (audit E,
+    // section 3 and 4.4).
+    const detail::CancellationHold no_cancel;
     const ScopedLock run_hold(pool.run_lock);
     // Small batches, and every batch of a one-thread pool, run on the caller
     // in index order; waking workers would cost more than the batch.
@@ -251,27 +298,35 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
 Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.begin";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    check_not_batch_owner(*state_, operation);
     if (tasks.count() == 0) return Status::failure(refusal(PoolFailure::empty_batch, operation));
     Status validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
 
-    // Held until wait, which releases it.
+    // Held until wait, which releases it; cancellation stays off until then
+    // (audit E, 4.4).
+    const int cancellation = detail::cancellation_off();
     pool.run_lock.lock();
+    pool.batch_cancellation = cancellation;
     {
         const ScopedLock sleep(pool.sleep_lock);
         publish_batch(pool, tasks.data(), count);
     }
     pool.batch_open = true;
+    pool.batch_owner.store(current_thread().value(), std::memory_order_relaxed);
     return Status::success();
 }
 
 Status AtomicPool::wait() noexcept {
     const Operation operation = "stxlib.thread_pool.wait";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
     State& pool = *state_;
     {
+        const detail::CancellationHold no_cancel;
         ScopedLock sleep(pool.sleep_lock);
         pool.done_cv.wait(sleep, batch_finished, &pool);
         pool.tasks = nullptr;
@@ -281,7 +336,10 @@ Status AtomicPool::wait() noexcept {
     // would unlock a mutex it does not hold).
     if (pool.batch_open) {
         pool.batch_open = false;
+        pool.batch_owner.store(0, std::memory_order_relaxed);
+        const int cancellation = pool.batch_cancellation;
         pool.run_lock.unlock();
+        detail::restore_cancellation(cancellation);
     }
     return Status::success();
 }

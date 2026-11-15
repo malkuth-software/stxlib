@@ -1,4 +1,4 @@
-// Ending the process and the exit tasks (include/stxlib/process.hpp),
+// The exit tasks (include/stxlib/process.hpp),
 // ported from stx_auxlib's src/hosted/process.cpp at b6e330a. The exit
 // tasks run from one handler the C library's atexit receives once, when
 // the first task is registered.
@@ -38,8 +38,6 @@ void run_exit_tasks() {
 }
 
 } // namespace
-
-void exit_process(const u8 status) noexcept { host::exit_normally(static_cast<int>(status)); }
 
 Status register_exit_task(const CallbackTarget<void()> task) noexcept {
     if (!task.bound()) {

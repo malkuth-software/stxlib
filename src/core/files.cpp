@@ -176,7 +176,9 @@ void append_hexadecimal(char* const output, const u64 value) noexcept {
 // A name for write_file's temporary file (".stx-write-<stamp>-<serial>",
 // stx_auxlib's), unique within this process and unlikely to collide with
 // another's: the interval clock and a serial in stxlib_state. The serial
-// wraps after 2^64 writes, which only risks a collision create_new detects.
+// wraps after 2^64 writes, which only risks a collision create_new detects;
+// it is part of a name, not an identity, so house style §3's rule that
+// identity counters never wrap does not apply (audit A, C4).
 struct TemporaryName final {
     char text[11 + 16 + 1 + 16]{};
 };
@@ -247,18 +249,23 @@ bool is_segment(const char* const bytes, const usize count) noexcept {
 
 // ---- File --------------------------------------------------------------------
 
+// Each owner lets go of its handle before closing it (AGENTS.md, rule 1):
+// close is a cancellation point on POSIX.
 File::~File() {
-    if (handle_ != closed) (void)file_backend::close(handle_);
+    const i64 held = handle_;
+    handle_ = closed;
+    if (held != closed) (void)file_backend::close(held);
 }
 
 File::File(File&& other) noexcept : handle_(other.handle_), mode_(other.mode_) { other.handle_ = closed; }
 
 File& File::operator=(File&& other) noexcept {
     if (this == &other) return *this;
-    if (handle_ != closed) (void)file_backend::close(handle_);
+    const i64 held = handle_;
     handle_ = other.handle_;
     mode_ = other.mode_;
     other.handle_ = closed;
+    if (held != closed) (void)file_backend::close(held);
     return *this;
 }
 
@@ -410,7 +417,11 @@ Status File::set_size(const u64 bytes) noexcept {
 
 // Reads into a growing buffer, toward `limit` as the file proves longer than
 // its reported size, and probes one byte at the limit to tell a file of
-// exactly `limit` bytes from a longer one (stx_auxlib's read_file).
+// exactly `limit` bytes from a longer one (stx_auxlib's read_file). The
+// buffer is reserved at exactly the reported size and handed to the result
+// without a copy (audit A, X5), so a file that keeps its size costs one
+// block of its size; one that grows while it is read costs the doubling's
+// block, under twice the bytes read.
 Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const Operation operation = "stxlib.files.read_file";
     Result<File> opened = File::open(path, FileMode::read);
@@ -421,7 +432,7 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const u64 bytes = *reported.value();
     if (bytes > limit) return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
     Growable<Byte> content;
-    if (!content.resize(static_cast<usize>(bytes))) {
+    if (!content.reserve_exact(static_cast<usize>(bytes)) || !content.resize(static_cast<usize>(bytes))) {
         return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
     }
     usize filled = 0;
@@ -450,10 +461,8 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     }
     const Status closed = file.close();
     if (closed.failed()) return Result<Buffer<Byte>>::failure(*closed.error());
-    Result<Buffer<Byte>> buffer = Buffer<Byte>::allocate_zeroed(filled);
-    if (buffer.failed()) return buffer;
-    if (filled != 0) std::memcpy((*buffer.value()).mutable_view().data(), content.data(), filled);
-    return buffer;
+    content.shrink(filled);
+    return Result<Buffer<Byte>>::success(content.take_as_buffer());
 }
 
 // Creates write_file's temporary file in `directory`, retrying on the rare
@@ -575,13 +584,13 @@ Status remove(const Path& path) noexcept {
 // The traversal is the backend's (file_backend::remove_tree): relative to
 // each directory's own descriptor or held handle, so only `path` is looked up
 // by name (files.hpp states the safety and the bounds).
-Result<u64> remove_tree(const Path& path) noexcept {
+Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits) noexcept {
     const Operation operation = "stxlib.files.remove_tree";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
     if (!converted.ok()) return Result<u64>::failure(record_of(converted, operation));
     u64 removed = 0;
-    const Outcome outcome = file_backend::remove_tree(name.data(), maximum_remove_tree_depth, removed);
+    const Outcome outcome = file_backend::remove_tree(name.data(), limits.depth, limits.entries_per_directory, removed);
     if (outcome.status == FileStatus::not_found && removed == 0) return Result<u64>::success(0);
     if (!outcome.ok()) return Result<u64>::failure(record_of(outcome, operation));
     return Result<u64>::success(removed);

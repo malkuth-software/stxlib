@@ -119,7 +119,10 @@ public:
     OwnedHandle(const OwnedHandle&) = delete;
     OwnedHandle& operator=(const OwnedHandle&) = delete;
     ~OwnedHandle() {
-        if (value != nullptr && value != INVALID_HANDLE_VALUE) (void)CloseHandle(value);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const HANDLE held = value;
+        value = nullptr;
+        if (held != nullptr && held != INVALID_HANDLE_VALUE) (void)CloseHandle(held);
     }
 
     [[nodiscard]] HANDLE release() noexcept {
@@ -153,11 +156,14 @@ public:
 } // namespace
 
 void Child::release() noexcept {
-    if (output_ != none) (void)CloseHandle(handle_of(output_));
-    if (process_ != none) (void)CloseHandle(handle_of(process_));
+    // Lets go of each handle before closing it (AGENTS.md, rule 1).
+    const i64 output = output_;
+    const i64 process = process_;
     output_ = none;
     process_ = none;
-    waited_ = false;
+    phase_ = Phase::empty;
+    if (output != none) (void)CloseHandle(handle_of(output));
+    if (process != none) (void)CloseHandle(handle_of(process));
 }
 
 Result<Child> Child::start(const ChildRequest& request) noexcept {
@@ -235,6 +241,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     (void)CloseHandle(information.hThread);
     Child child;
     child.process_ = value_of(information.hProcess);
+    child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? value_of(output_reader.release()) : none;
     Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
     return result;
@@ -242,7 +249,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
     // timed_out means IntervalTime::now() has reached the deadline
     // (children.hpp), as on POSIX hosts. WaitForSingleObject's interval is
     // whole milliseconds counted on the system timer, whose accuracy
@@ -272,13 +279,13 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     if (outcome != WAIT_OBJECT_0) return Result<ChildEnd>::failure(last_error(operation));
     DWORD code = 0;
     if (!GetExitCodeProcess(handle_of(process_), &code)) return Result<ChildEnd>::failure(last_error(operation));
-    waited_ = true;
+    phase_ = Phase::waited;
     return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(code)));
 }
 
 Status Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (process_ == none || waited_) return Status::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
     if (!TerminateProcess(handle_of(process_), 1)) return Status::failure(last_error(operation));
     return Status::success();
 }
@@ -289,7 +296,7 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const HANDLE pipe = handle_of(output_);
     Growable<Byte> output;
     bool over_limit = false;
-    Byte chunk[4096];
+    Byte chunk[4096]{};
     DWORD failed_error = 0;
     bool exhausted = false;
     for (;;) {
@@ -305,8 +312,8 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
             break;
         }
     }
+    output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)CloseHandle(pipe);
-    output_ = none;
     if (failed_error != 0) return Result<Buffer<Byte>>::failure(record_of_error(failed_error, operation));
     if (exhausted) {
         return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));

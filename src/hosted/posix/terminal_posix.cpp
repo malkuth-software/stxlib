@@ -69,6 +69,7 @@ RawTerminal::~RawTerminal() { release(); }
 
 RawTerminal::RawTerminal(RawTerminal&& other) noexcept : active_(other.active_) {
     std::memcpy(saved_, other.saved_, raw_terminal_state_bytes);
+    std::memset(other.saved_, 0, raw_terminal_state_bytes);
     other.active_ = false;
 }
 
@@ -77,6 +78,7 @@ RawTerminal& RawTerminal::operator=(RawTerminal&& other) noexcept {
     release();
     std::memcpy(saved_, other.saved_, raw_terminal_state_bytes);
     active_ = other.active_;
+    std::memset(other.saved_, 0, raw_terminal_state_bytes);
     other.active_ = false;
     return *this;
 }
@@ -85,6 +87,7 @@ void RawTerminal::release() noexcept {
     if (!active_) return;
     const termios original = HostAccess::saved(*this);
     restore(original);
+    std::memset(saved_, 0, raw_terminal_state_bytes);
     active_ = false;
     state::ProcessState& process = state::current_process();
     process.raw_terminal_active.store(false, std::memory_order_release);

@@ -1,0 +1,9 @@
+{
+  "row": "D03",
+  "title": "float_reduce: the reduction order (F5) and its chunks",
+  "module": "src/core/float_reduce.hpp",
+  "harnesses": [
+    {"file": "bounds.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [17, 40], "headline": 40, "unwind": "N + 2", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P0", "P1 (signed zero)"]},
+    {"file": "shape.cpp", "language": "c++20", "tools": ["enumeration"], "runner": "tools/enumerate_d.sh", "mutants": ["m1"], "properties": ["P1 (shape, every term value)", "P2 (chunks, pool data flow)"]}
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "row": "10",
+  "title": "text::append_signed",
+  "successor": "sb1 text",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "66",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

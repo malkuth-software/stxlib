@@ -5,6 +5,7 @@
 // linked. core/console.cpp serializes calls and assembles lines on them.
 // Ported from stx_auxlib's src/hosted/console_backend.hpp at b6e330a.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/console.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/types.hpp"
@@ -26,12 +27,12 @@ struct Report final {
 };
 
 // Writes all `count` bytes of valid UTF-8 to the stream.
-[[nodiscard]] Report write(ConsoleStream stream, const char* bytes, usize count) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Report write(ConsoleStream stream, const char* bytes, usize count) noexcept;
 // Writes the bytes and then "\n", in one host call where the host can.
-[[nodiscard]] Report write_line(ConsoleStream stream, const char* bytes, usize count) noexcept;
-[[nodiscard]] bool is_terminal(ConsoleStream stream) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Report write_line(ConsoleStream stream, const char* bytes, usize count) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT bool is_terminal(ConsoleStream stream) noexcept;
 // Reads UTF-8 bytes from standard input into `buffer` (at least 16 bytes);
 // zero transferred with ok is the end of input.
-[[nodiscard]] Report read(char* buffer, usize capacity, usize& transferred) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Report read(char* buffer, usize capacity, usize& transferred) noexcept;
 
 } // namespace stxlib::console_backend

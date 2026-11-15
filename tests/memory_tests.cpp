@@ -41,6 +41,32 @@ void zero_sizes_are_unique() {
     stxlib::memory::release(second);
 }
 
+// Zero-size and tiny blocks at large alignments, and the last block of a
+// filled page: the release ownership check asks mimalloc about the header
+// only, so none of these is refused (smi's mimalloc audit, A1 and A2; a
+// refusal would end the process in a tagged build).
+void edge_blocks_release() {
+    for (stxlib::usize shift = 15; shift <= 21; ++shift) {
+        const stxlib::usize alignment = static_cast<stxlib::usize>(1) << shift;
+        void* const empty = stxlib::memory::allocate(0, alignment);
+        void* const one = stxlib::memory::allocate(1, alignment);
+        CHECK(empty != nullptr && one != nullptr);
+        stxlib::memory::release(empty);
+        stxlib::memory::release(one);
+    }
+    constexpr stxlib::usize filled = 4100;
+    static void* blocks[filled]{};
+    bool all_allocated = true;
+    for (stxlib::usize index = 0; index < filled; ++index) {
+        blocks[index] = stxlib::memory::allocate(0, 16);
+        if (blocks[index] == nullptr) all_allocated = false;
+    }
+    CHECK(all_allocated);
+    for (stxlib::usize index = 0; index < filled; ++index) stxlib::memory::release(blocks[index]);
+    // An alignment above PTRDIFF_MAX is refused, not wrapped (A6).
+    CHECK(stxlib::memory::allocate(16, static_cast<stxlib::usize>(1) << 63) == nullptr);
+}
+
 void refusals() {
     CHECK(stxlib::memory::allocate(16, 0) == nullptr);
     CHECK(stxlib::memory::allocate(16, 3) == nullptr);
@@ -62,6 +88,7 @@ void refusals() {
 int main() {
     round_trips_keep_alignment();
     zero_sizes_are_unique();
+    edge_blocks_release();
     refusals();
     const int status = stxlib_tests::finish("stxlib memory");
     return status;

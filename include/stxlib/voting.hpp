@@ -40,8 +40,11 @@
 // the start, sized by the candidate count C and the number of distinct
 // ballots D: about 24 * C * D + 48 * C * C bytes (rankings and donors per
 // distinct ballot; positional, tie and margin tables per candidate pair).
-// When that cannot be had, or its size is not representable, the count
-// fails with PrvFailure::out_of_memory and nothing else happens.
+// The exact size is computed, with checked arithmetic, before anything is
+// allocated. Above PrvOptions::max_working_bytes, or when it is not
+// representable, the count fails with PrvFailure::working_storage_limit;
+// when it cannot be had, with PrvFailure::out_of_memory. Nothing else
+// happens in either case.
 //
 // Changes from stx_auxlib: Ballots stores its rankings in STXlib Buffers
 // and reports a failed growth (add returns Status); the outcome is a tagged
@@ -97,6 +100,10 @@ private:
 struct PrvOptions final {
     usize bracket_threshold{30};
     usize bracket_interval{10};
+    // The most working storage one count may allocate (see "Storage"
+    // above); 1 GiB by default, which holds, for example, 1,000 candidates
+    // with 30,000 distinct ballots.
+    usize max_working_bytes{static_cast<usize>(1) << 30};
 };
 
 enum class PrvFailure : u8 {
@@ -114,6 +121,9 @@ enum class PrvFailure : u8 {
     too_many_ballots = 10,
     // The working storage could not be allocated (see "Storage" above).
     out_of_memory = 11,
+    // The working storage would exceed PrvOptions::max_working_bytes, or
+    // its size is not representable (see "Storage" above).
+    working_storage_limit = 12,
 };
 
 // The count's result: the winner, or why there is none. Never both. The

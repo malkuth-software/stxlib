@@ -26,9 +26,10 @@ namespace stxlib::children_detail {
 [[nodiscard]] bool keep_output(const Byte* bytes, usize count, usize limit, Growable<Byte>& output,
                                bool& over_limit) noexcept;
 
-// The captured output as the caller's buffer, or limit_exceeded with
+// The captured output as the caller's buffer, taking `output`'s block
+// without a copy (`output` is empty afterwards), or limit_exceeded with
 // HostCode::too_long.
-[[nodiscard]] Result<Buffer<Byte>> finish_output(const Growable<Byte>& output, bool over_limit,
+[[nodiscard]] Result<Buffer<Byte>> finish_output(Growable<Byte>& output, bool over_limit,
                                                  Operation operation) noexcept;
 
 } // namespace stxlib::children_detail

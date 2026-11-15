@@ -4,6 +4,7 @@
 // (posix/desktop_posix.cpp, windows/desktop_windows.cpp); core/desktop.cpp
 // validates every target before calling them.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "core/growable.hpp"
 #include "stxlib/path.hpp"
 #include "stxlib/result.hpp"
@@ -23,11 +24,11 @@ inline constexpr bool byte_names = true;
 
 // Opens a link (an http, https or mailto URL) or an absolute Path's text,
 // already checked.
-[[nodiscard]] Status open_target(TextView target, bool is_link) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN Status open_target(TextView target, bool is_link) noexcept;
 // Reveals an absolute Path, already checked, whose text is Unicode.
-[[nodiscard]] Status reveal(const Path& path) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN Status reveal(const Path& path) noexcept;
 // The executable's host name ('/' separators; WTF-8 on Windows, raw bytes on
 // POSIX), not yet parsed; or a failure.
-[[nodiscard]] Status executable_name(Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Status executable_name(Growable<char>& text) noexcept;
 
 } // namespace stxlib::desktop_backend

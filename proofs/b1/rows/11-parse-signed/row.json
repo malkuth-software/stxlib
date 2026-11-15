@@ -1,0 +1,10 @@
+{
+  "row": "11",
+  "title": "text::parse_signed",
+  "successor": "sb1 text",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"],
+     "sizes": [4, 8, 12], "headline": 12, "unwind": "N + 1",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

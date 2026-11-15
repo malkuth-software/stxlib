@@ -1,0 +1,10 @@
+{
+  "row": "07",
+  "title": "Path::parse",
+  "successor": "sb1 platform layer paths",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"],
+     "sizes": [4, 8], "headline": 8, "unwind": "N + 2",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

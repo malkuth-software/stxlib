@@ -1,0 +1,9 @@
+{
+  "row": "06",
+  "title": "PathParse result record",
+  "successor": "sb1 result / error record",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "2",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

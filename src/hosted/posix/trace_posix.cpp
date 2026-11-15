@@ -79,7 +79,7 @@ bool current_stack(StackBounds& bounds) noexcept {
     bounds.high = top;
     return true;
 #else
-    pthread_attr_t attributes;
+    pthread_attr_t attributes{};
 #if defined(__FreeBSD__)
     if (::pthread_attr_init(&attributes) != 0) return false;
     if (::pthread_attr_get_np(::pthread_self(), &attributes) != 0) {

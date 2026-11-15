@@ -76,7 +76,7 @@ template <typename T>
     usize index = 0;
     T result = T(0);
     if (blocked > 0) {
-        T accumulator[lanes];
+        T accumulator[lanes]{};
         for (usize lane = 0; lane < lanes; ++lane) accumulator[lane] = terms[lane];
         for (index = lanes; index < blocked; index += lanes) {
             for (usize lane = 0; lane < lanes; ++lane) accumulator[lane] = accumulator[lane] + terms[index + lane];
@@ -103,7 +103,7 @@ template <typename T>
     usize index = 0;
     T result = T(0);
     if (blocked > 0) {
-        T accumulator[lanes];
+        T accumulator[lanes]{};
         for (usize lane = 0; lane < lanes; ++lane) accumulator[lane] = left[lane] * right[lane];
         for (index = lanes; index < blocked; index += lanes) {
             for (usize lane = 0; lane < lanes; ++lane) {

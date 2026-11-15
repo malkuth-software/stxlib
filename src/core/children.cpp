@@ -8,8 +8,6 @@
 #include "core/host_failure.hpp"
 #include "hosted/children_common.hpp"
 
-#include <cstring>
-
 namespace stxlib {
 
 namespace children_detail {
@@ -57,27 +55,23 @@ bool keep_output(const Byte* const bytes, const usize count, const usize limit, 
     return result;
 }
 
-Result<Buffer<Byte>> finish_output(const Growable<Byte>& output, const bool over_limit,
-                                   const Operation operation) noexcept {
+Result<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit, const Operation operation) noexcept {
     if (over_limit) {
         return Result<Buffer<Byte>>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
     }
-    Result<Buffer<Byte>> result = Buffer<Byte>::allocate_zeroed(output.count());
-    if (result.succeeded() && output.count() != 0) {
-        std::memcpy((*result.value()).mutable_view().data(), output.data(), output.count());
-    }
-    return result;
+    // Handed over, not copied (audit A, X5).
+    return Result<Buffer<Byte>>::success(output.take_as_buffer());
 }
 
 } // namespace children_detail
 
 Child::~Child() { release(); }
 
-Child::Child(Child&& other) noexcept : process_(other.process_), output_(other.output_), waited_(other.waited_) {
+Child::Child(Child&& other) noexcept : process_(other.process_), output_(other.output_), phase_(other.phase_) {
     other.process_ = none;
     other.output_ = none;
-    other.waited_ = false;
+    other.phase_ = Phase::empty;
 }
 
 Child& Child::operator=(Child&& other) noexcept {
@@ -85,10 +79,10 @@ Child& Child::operator=(Child&& other) noexcept {
     release();
     process_ = other.process_;
     output_ = other.output_;
-    waited_ = other.waited_;
+    phase_ = other.phase_;
     other.process_ = none;
     other.output_ = none;
-    other.waited_ = false;
+    other.phase_ = Phase::empty;
     return *this;
 }
 

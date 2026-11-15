@@ -1,0 +1,9 @@
+{
+  "row": "14",
+  "title": "calendar_detail::wall_from_seconds",
+  "successor": "sb1 calendar",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "1",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

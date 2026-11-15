@@ -187,7 +187,10 @@ public:
     OwnedHandle(const OwnedHandle&) = delete;
     OwnedHandle& operator=(const OwnedHandle&) = delete;
     ~OwnedHandle() {
-        if (handle_ != INVALID_HANDLE_VALUE && handle_ != nullptr) (void)CloseHandle(handle_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const HANDLE held = handle_;
+        handle_ = nullptr;
+        if (held != INVALID_HANDLE_VALUE && held != nullptr) (void)CloseHandle(held);
     }
 
     [[nodiscard]] HANDLE get() const noexcept { return handle_; }
@@ -615,7 +618,17 @@ struct HeldDirectory final {
     HANDLE handle{INVALID_HANDLE_VALUE};
     // The length of its path in the path buffer, without the NUL.
     usize path_count{0};
+    // Entries removed from it so far (entries_limit bounds it).
+    usize removed_here{0};
 };
+
+// Counts one entry removed from the directory `directory`; false past
+// `entries_limit` (RemoveTreeLimits::entries_per_directory).
+bool count_removed(HeldDirectory& directory, const usize entries_limit) noexcept {
+    directory.removed_here = directory.removed_here + 1;
+    const bool result = directory.removed_here <= entries_limit;
+    return result;
+}
 
 void release_all(Growable<HeldDirectory>& held) noexcept {
     for (usize index = 0; index < held.count(); ++index) (void)CloseHandle(held[index].handle);
@@ -660,8 +673,8 @@ enum class PassEnd : u8 {
 
 // Reads the top directory in passes: non-directories are removed, the first
 // directory met is entered.
-Outcome walk_top(Growable<HeldDirectory>& held, Growable<wchar_t>& path, const usize depth_limit, u64& removed,
-                 PassEnd& end) noexcept {
+Outcome walk_top(Growable<HeldDirectory>& held, Growable<wchar_t>& path, const usize depth_limit,
+                 const usize entries_limit, u64& removed, PassEnd& end) noexcept {
     end = PassEnd::empty;
     alignas(8) unsigned char listing[16 * 1024];
     const HeldDirectory top = held[held.count() - 1];
@@ -704,6 +717,9 @@ Outcome walk_top(Growable<HeldDirectory>& held, Growable<wchar_t>& path, const u
                         if (!gone.ok()) return gone;
                         removed = removed + 1;
                         again = true;
+                        if (!count_removed(held[held.count() - 1], entries_limit)) {
+                            return failure(FileStatus::too_large);
+                        }
                     } else if (!listed_directory) {
                         // Became a directory since it was listed; opened
                         // without the listing right, so read it next pass.
@@ -735,7 +751,7 @@ Outcome walk_top(Growable<HeldDirectory>& held, Growable<wchar_t>& path, const u
 
 } // namespace
 
-Outcome remove_tree(const char* const name, const usize depth_limit, u64& removed) noexcept {
+Outcome remove_tree(const char* const name, const usize depth_limit, const usize entries_limit, u64& removed) noexcept {
     Growable<wchar_t> path;
     if (!wide_name(name, path)) return no_memory();
     {
@@ -764,7 +780,7 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
     }
     for (;;) {
         PassEnd end = PassEnd::empty;
-        const Outcome walked = walk_top(held, path, depth_limit, removed, end);
+        const Outcome walked = walk_top(held, path, depth_limit, entries_limit, removed, end);
         if (!walked.ok()) {
             release_all(held);
             return walked;
@@ -779,6 +795,10 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
         }
         removed = removed + 1;
         if (held.empty()) return success();
+        if (!count_removed(held[held.count() - 1], entries_limit)) {
+            release_all(held);
+            return failure(FileStatus::too_large);
+        }
     }
 }
 
@@ -936,6 +956,11 @@ Outcome resolve(const char* const name, Growable<char>& text) noexcept {
         length = GetFinalPathNameByHandleW(opened.get(), buffer.data(), capacity, FILE_NAME_NORMALIZED | VOLUME_NAME_DOS);
         if (length == 0) return last_error();
         if (length < capacity) break;
+        // STXlib's own bound, before allocating for the name (audit A, H8):
+        // each UTF-16 unit is at least one byte of WTF-8, so a longer name
+        // cannot become a Path of maximum_path_bytes, even after a "\\?\"
+        // prefix of up to 8 units is removed.
+        if (length > maximum_path_bytes + 8) return failure(FileStatus::too_large);
         capacity = length + 1;
     }
     const Outcome result = narrow_name(buffer.data(), length, text);

@@ -1,0 +1,52 @@
+{
+  "row": "23",
+  "title": "AtomicPool begin and wait",
+  "successor": "sb1 or own runtime",
+  "harnesses": [
+    {
+      "file": "treatment.cpp",
+      "language": "c++20",
+      "tools": [
+        "genmc-vm"
+      ],
+      "unwind": "6",
+      "includes": [
+        "stx_auxlib:include"
+      ],
+      "flags": {
+        "genmc-vm": [
+          "-fno-exceptions"
+        ]
+      },
+      "configs": [
+        {
+          "name": "batch1",
+          "defines": {
+            "STX_BATCH": "1"
+          }
+        },
+        {
+          "name": "batch2",
+          "defines": {
+            "STX_BATCH": "2"
+          }
+        },
+        {
+          "name": "batch3",
+          "defines": {
+            "STX_BATCH": "3"
+          }
+        },
+        {
+          "name": "batch4",
+          "defines": {
+            "STX_BATCH": "4"
+          }
+        }
+      ],
+      "mutants": [
+        "m1"
+      ]
+    }
+  ]
+}

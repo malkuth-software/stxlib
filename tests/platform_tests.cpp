@@ -323,6 +323,9 @@ void terminal_without_one() {
 
 #if !defined(_WIN32)
 void events() {
+    // Audit A, X4: of_bits keeps only the bits of defined events.
+    static_assert(stxlib::EventSet::of_bits(0xE0).empty(), "undefined event bits are dropped");
+    static_assert(stxlib::EventSet::of_bits(0xFF).bits() == 31, "every defined event bit is kept");
     const stxlib::Result<stxlib::EventWatch> empty = stxlib::EventWatch::watch(stxlib::EventSet());
     CHECK(empty.failed() && code_of(*empty.error()) == stxlib::HostCode::empty_request);
     const stxlib::EventSet watched =
@@ -342,6 +345,7 @@ void events() {
         // Deferred events wait until the deferral ends.
         {
             const stxlib::EventDeferral deferral(watched);
+            CHECK(deferral.active());
             CHECK(std::raise(SIGINT) == 0);
             CHECK(watch.take().empty());
         }

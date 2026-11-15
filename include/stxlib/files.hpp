@@ -13,6 +13,13 @@
 //   (unsigned), so every host lists a directory in the same order.
 // - Times are WallTime (Unix time) on every host.
 //
+// Storage (house style §6; audit A, X10): read_file and list_directory
+// return storage of their own (a Buffer, a DirectoryListing) instead of
+// writing into storage the caller supplies. Each is a one-shot read whose
+// size the caller's limit bounds before anything is allocated, and its
+// result is the caller's to keep; no repeated hot path reads files, so no
+// caller-storage form is offered until one does.
+//
 // Owner decision D13, option a (notes decisions/2026-11-13-d13-files-paths.md,
 // "Carry losslessly"):
 // - Binary I/O only: files are bytes; text encodings are the caller's.
@@ -35,7 +42,9 @@
 // Where std::filesystem behaviour was relied on, the host calls reproduce
 // it: remove takes a file, a link or an empty directory; remove_tree removes
 // without following links and counts what it removed, the top included;
-// copy_file copies the permission bits on POSIX hosts and refuses to copy a
+// copy_file copies the permission bits on POSIX hosts (st_mode & 07777: the
+// setuid, setgid and sticky bits included, as std::filesystem::copy_file
+// does, where cp(1) without -p clears setuid and setgid) and refuses to copy a
 // file onto itself (already_exists); temporary_directory reads TMPDIR, TMP,
 // TEMP, TEMPDIR and then "/tmp" on POSIX hosts, GetTempPathW on Windows,
 // and must name a directory.
@@ -232,8 +241,19 @@ enum class LinkMode : u8 {
 // Removes a file, a symbolic link or an empty directory; not_found when
 // nothing has that name.
 [[nodiscard]] Status remove(const Path& path) noexcept;
-// The deepest directory remove_tree descends (levels below the top).
+// The deepest directory remove_tree descends by default (levels below the
+// top).
 inline constexpr usize maximum_remove_tree_depth = 4096;
+
+// remove_tree's bounds, the caller's control (house style section 1, audit
+// A, C3). `depth` (the top is depth 0) bounds the names held at once, one
+// per directory entered; `entries_per_directory` bounds the entries removed
+// from any one directory. The defaults hold any tree a desktop application
+// writes.
+struct RemoveTreeLimits final {
+    usize entries_per_directory{static_cast<usize>(1) << 20};
+    usize depth{maximum_remove_tree_depth};
+};
 
 // Removes a directory tree without following symbolic links. Yields the
 // number of entries removed, the top included; a missing path removes 0,
@@ -262,10 +282,12 @@ inline constexpr usize maximum_remove_tree_depth = 4096;
 //     removed, as unlink removes them on POSIX hosts.
 // Bounded: the work held at once is one directory's position (a listing is
 // read in passes, not stored) and the names of the directories entered.
-// Deeper than maximum_remove_tree_depth levels fails with limit_exceeded,
-// HostCode::too_long. Terminates absent concurrent writers: each pass over a
-// directory removes an entry or finds it empty.
-[[nodiscard]] Result<u64> remove_tree(const Path& path) noexcept;
+// Deeper than limits.depth levels, or more than limits.entries_per_directory
+// entries removed from one directory, fails with limit_exceeded,
+// HostCode::too_long (what was removed before stays removed). Terminates
+// absent concurrent writers: each pass over a directory removes an entry or
+// finds it empty.
+[[nodiscard]] Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;
 // Renames, replacing an existing file at `to`.
 [[nodiscard]] Status rename(const Path& from, const Path& to) noexcept;
 

@@ -1,0 +1,11 @@
+{
+  "row": "19",
+  "title": "memory::allocate and release with tags",
+  "successor": "sb1 ownership tags",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"], "unwind": "9",
+     "includes": ["stx_auxlib:include", "stx_auxlib:src/hosted"],
+     "defines": {"STX_AUXLIB_ALLOCATION_TAGS": "1"},
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "row": "17",
+  "title": "hash::Blake2s update and finish",
+  "successor": "stx_auxlib algorithms",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"],
+     "sizes": [4, 8, 16, 32, 64, 192], "headline": 16, "unwind": "max(N + 1, 33)",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

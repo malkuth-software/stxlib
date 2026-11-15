@@ -1,0 +1,40 @@
+{
+  "row": "22",
+  "title": "call_once and call_once_slow",
+  "successor": "sb1 or own runtime",
+  "harnesses": [
+    {
+      "file": "treatment.cpp",
+      "language": "c++20",
+      "tools": [
+        "genmc-vm"
+      ],
+      "unwind": "4",
+      "includes": [
+        "stx_auxlib:include"
+      ],
+      "flags": {
+        "genmc-vm": [
+          "-fno-exceptions"
+        ]
+      },
+      "configs": [
+        {
+          "name": "threads2",
+          "defines": {
+            "STX_THREADS": "2"
+          }
+        },
+        {
+          "name": "threads3",
+          "defines": {
+            "STX_THREADS": "3"
+          }
+        }
+      ],
+      "mutants": [
+        "m1"
+      ]
+    }
+  ]
+}

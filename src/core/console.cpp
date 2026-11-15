@@ -9,6 +9,8 @@
 
 #include "stxlib/console.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "core/host_failure.hpp"
 #include "core/spin_lock.hpp"
 #include "hosted/console_backend.hpp"
@@ -55,9 +57,11 @@ bool reserve_pending(state::ProcessState& process, const usize wanted) noexcept 
     if (process.console_pending_count != 0) {
         std::memcpy(block, process.console_pending, process.console_pending_count);
     }
-    memory::release(process.console_pending);
+    // Let go before releasing (AGENTS.md, rule 1).
+    char* const previous = process.console_pending;
     process.console_pending = static_cast<char*>(block);
     process.console_pending_capacity = next;
+    memory::release(previous);
     return true;
 }
 
@@ -97,12 +101,13 @@ ConsoleLine ConsoleLine::line(Utf8String&& text) noexcept {
 
 ConsoleLine ConsoleLine::end_of_input() noexcept {
     ConsoleLine result;
-    result.ended_ = true;
+    result.kind_ = Kind::end_of_input;
     return result;
 }
 
 Status write_console(const ConsoleStream stream, const TextView text) noexcept {
     state::ProcessState& process = state::current_process();
+    const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write(stream, text.data(), text.count());
@@ -112,6 +117,7 @@ Status write_console(const ConsoleStream stream, const TextView text) noexcept {
 
 Status write_console_line(const ConsoleStream stream, const TextView text) noexcept {
     state::ProcessState& process = state::current_process();
+    const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write_line(stream, text.data(), text.count());
@@ -129,8 +135,9 @@ bool console_is_terminal(const ConsoleStream stream) noexcept {
 // starts at the following line.
 Result<ConsoleLine> read_console_line(const usize limit) noexcept {
     state::ProcessState& process = state::current_process();
+    const detail::CancellationHold no_cancel; // read is a cancellation point (audit E, 4.1)
     const spin::Guard lock(process.console_input_lock);
-    char chunk[read_chunk_bytes];
+    char chunk[read_chunk_bytes]{};
     bool over_limit = false;
     usize length = 0;
     for (;;) {

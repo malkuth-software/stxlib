@@ -53,6 +53,8 @@ const char* failure_name(const voting::PrvFailure failure) {
         return "TOO_MANY_BALLOTS";
     case voting::PrvFailure::out_of_memory:
         return "OUT_OF_MEMORY";
+    case voting::PrvFailure::working_storage_limit:
+        return "WORKING_STORAGE_LIMIT";
     }
     return "UNKNOWN";
 }
@@ -214,6 +216,17 @@ void weighted_ballots() {
     voting::Ballots none{};
     CHECK(outcome_text(voting::count_preference_ranked(1, none)) == "failure TOO_FEW_CANDIDATES");
     CHECK(outcome_text(voting::count_preference_ranked(3, none)) == "failure TOO_FEW_VALID_BALLOTS");
+
+    // Audit A, I3: the working storage is checked against the caller's limit
+    // before anything is allocated. 8 candidates and 400 distinct ballots
+    // need more than 4 KiB and less than 1 MiB.
+    voting::PrvOptions small{};
+    small.max_working_bytes = 4096;
+    CHECK(outcome_text(voting::count_preference_ranked(8, large, small)) == "failure WORKING_STORAGE_LIMIT");
+    small.max_working_bytes = static_cast<usize>(1) << 20;
+    CHECK(outcome_text(voting::count_preference_ranked(8, large, small)) == outcome_text(outcome));
+    // A candidate count whose square tables exceed the default limit.
+    CHECK(outcome_text(voting::count_preference_ranked(100000, none)) == "failure WORKING_STORAGE_LIMIT");
 }
 
 } // namespace

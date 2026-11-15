@@ -8,6 +8,8 @@
 
 #include "stxlib/threads.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "hosted/host.hpp"
 #include "hosted/thread_backend.hpp"
 #include "state/state.hpp"
@@ -51,7 +53,7 @@ u64 issue_identity() noexcept {
 } // namespace
 
 ThreadIdentity current_thread() noexcept {
-    state::ThreadState& thread = state::current_thread();
+    state::ThreadFlags& thread = state::current_flags();
     if (thread.thread_identity == 0) {
         const u64 issued = issue_identity();
         if (issued == 0) identities_exhausted();
@@ -244,6 +246,18 @@ void ConditionVariable::notify_one() noexcept { thread_backend::condition_notify
 
 void ConditionVariable::notify_all() noexcept { thread_backend::condition_notify_all(storage_); }
 
+// stxlib/detail/cancellation.hpp: the boundary's entry to the host's switch.
+namespace detail {
+
+int cancellation_off() noexcept {
+    const int result = host::cancellation_off();
+    return result;
+}
+
+void restore_cancellation(const int previous) noexcept { host::restore_cancellation(previous); }
+
+} // namespace detail
+
 // The first caller to take the mutex runs `entry`; later callers wait on the
 // mutex and then see done_. (call_once's inline acquire load lets finished
 // callers skip the mutex.)
@@ -271,7 +285,7 @@ struct Thread::State final {
 // issued, then run the entry.
 void thread_backend::run_started_thread(void* const address) noexcept {
     Thread::State& started = *static_cast<Thread::State*>(address);
-    state::current_thread().thread_identity = started.identity.value();
+    state::current_flags().thread_identity = started.identity.value();
     started.entry(started.stop, started.context);
 }
 
@@ -300,18 +314,19 @@ void finish_thread(Thread& thread) noexcept {
 Thread::~Thread() {
     if (state_ == nullptr) return;
     finish_thread(*this);
-    release_state(state_);
+    // Let go before releasing (AGENTS.md, rule 1).
+    State* const held = state_;
     state_ = nullptr;
+    release_state(held);
 }
 
 Thread& Thread::operator=(Thread&& other) noexcept {
     if (this == &other) return *this;
-    if (state_ != nullptr) {
-        finish_thread(*this);
-        release_state(state_);
-    }
+    if (state_ != nullptr) finish_thread(*this);
+    State* const held = state_;
     state_ = other.state_;
     other.state_ = nullptr;
+    if (held != nullptr) release_state(held);
     return *this;
 }
 

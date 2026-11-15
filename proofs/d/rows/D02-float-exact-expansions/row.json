@@ -1,0 +1,8 @@
+{
+  "row": "D02",
+  "title": "float_exact expansions: control flow (bound effect)",
+  "module": "src/core/float_exact.hpp",
+  "harnesses": [
+    {"file": "expansions.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [2, 3], "headline": 3, "unwind": "2 * N * N + 2", "includes": ["stxlib:include"], "configs": [{"name": "bound-effect", "defines": {}}], "mutants": ["m1"], "properties": ["P0", "P1 (counts)"]}
+  ]
+}

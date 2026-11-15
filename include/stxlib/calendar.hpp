@@ -81,8 +81,10 @@ inline constexpr usize maximum_iso8601_bytes = 1 + 10 + 6 + 1 + 8 + 10 + 6;
 // not at all (text::Formatted). Years outside 0 to 9999 are written with a
 // sign and at least four digits ("-0042", "+12345"), as ISO 8601's expanded
 // form does. ISO 8601 offsets are whole minutes; any seconds of the offset
-// are dropped. The fields are written as given: pass a valid time (a field
-// out of range is written as its two low decimal digits).
+// are dropped. Requirements (audit A, X4; a failure is a defect in the
+// caller, so check external values with is_valid_civil_time first): the
+// time is valid (is_valid_civil_time), and the offset is less than 100 hours
+// either way, so every field fits its digits.
 [[nodiscard]] text::Formatted format_iso8601(MutableView<char> output, const CivilTime& time, i32 offset_seconds,
                                              const Iso8601Format& format = {}) noexcept;
 

@@ -13,6 +13,7 @@ constexpr usize message_limit = 1024;
 constexpr usize file_limit = 4096;
 
 void requirement_failed(const char* const message, const char* const file, const int line) noexcept {
+    host::hold_cancellation(); // the report writes (audit E, section 4.9)
     report::text("stxlib: requirement failed: ");
     report::c_text(message, message_limit);
     report::text(" (");

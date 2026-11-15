@@ -1,0 +1,10 @@
+{
+  "row": "18",
+  "title": "hash::secure_erase",
+  "successor": "sb1",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"],
+     "sizes": [4, 16, 64], "headline": 16, "unwind": "N + 1",
+     "includes": ["stx_auxlib:include"], "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

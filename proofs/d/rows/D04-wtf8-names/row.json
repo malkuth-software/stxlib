@@ -1,0 +1,10 @@
+{
+  "row": "D04",
+  "title": "WTF-8 path names: POSIX escapes and UTF-16 (D13 a)",
+  "module": "src/core/wtf8.hpp",
+  "harnesses": [
+    {"file": "roundtrip_posix.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [3, 5], "headline": 5, "unwind": "3 * N + 2", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P0", "P1 (lossless)"]},
+    {"file": "injective.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [3, 6], "headline": 6, "unwind": "3 * N + 2", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P0", "P1 (canonical)"]},
+    {"file": "utf16.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [2, 4], "headline": 4, "unwind": "3 * N + 2", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P0", "P1 (bijection)"]}
+  ]
+}

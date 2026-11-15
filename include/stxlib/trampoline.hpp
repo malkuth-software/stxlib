@@ -40,6 +40,8 @@
 // handle and waits for running invocations; it must not be destroyed from
 // inside one of its own invocations.
 
+#include "stxlib/detail/cancellation.hpp"
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/gate.hpp"
 #include "stxlib/result.hpp"
@@ -106,7 +108,10 @@ class TrampolineSlots;
 
 // The untyped table. Targets are borrowed: each stays alive until its
 // handle's revocation has completed (or, deferred, until its last running
-// invocation has left).
+// invocation has left). Early exits (AGENTS.md): an exception leaving a
+// target is caught by the invocation's gate, and the invocation's visit
+// guard closes the visit as the stack unwinds; a longjmp out of a target
+// leaves its visit open, so revoking that handle waits for ever.
 class TrampolineTable final {
 public:
     // A table of `capacity` slots: 1 to trampoline_capacity_limit, else
@@ -144,7 +149,7 @@ private:
 };
 
 // Leaves an entered slot on every way out of an invocation.
-class TrampolineVisit final {
+class STXLIB_EARLY_EXIT_GUARD STXLIB_EARLY_EXIT_OPEN TrampolineVisit final {
 public:
     TrampolineVisit(TrampolineTable& table, const TrampolineEntry& entry) noexcept : table_(table), entry_(entry) {}
     TrampolineVisit(const TrampolineVisit&) = delete;
@@ -194,6 +199,12 @@ public:
         Result<TrampolineEntry> entered = table_.enter(handle);
         if (entered.failed()) return Return::failure(*entered.error());
         const TrampolineEntry entry = *entered.value();
+#if !defined(__cpp_exceptions)
+        // Without exceptions the visit guard does not run on a forced
+        // unwind, which would leave the visit open and revocation waiting
+        // for ever: cancellation stays off for the visit (audit E, 3).
+        const detail::CancellationHold no_cancel;
+#endif
         const TrampolineVisit visit(table_, entry);
         Target& target = *static_cast<Target*>(entry.target);
         Return result = call_gate(operation_, target, arguments...);

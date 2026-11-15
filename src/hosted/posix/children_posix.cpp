@@ -18,6 +18,8 @@
 
 #include "stxlib/children.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
 #include "core/spin_lock.hpp"
@@ -91,6 +93,7 @@ pid_t process_id(const i64 process) noexcept {
 // Reaps every abandoned child that has ended, without blocking.
 void reap_abandoned() noexcept {
     state::ProcessState& process = state::current_process();
+    const detail::CancellationHold no_cancel; // waitpid is a cancellation point (audit E, 4.2)
     const spin::Guard lock(process.children_lock);
     usize kept = 0;
     for (usize index = 0; index < process.abandoned_child_count; ++index) {
@@ -154,6 +157,38 @@ public:
 
     int value{-1};
 };
+
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+    defined(__DragonFly__)
+#define STXLIB_HAS_PIPE2 1
+#endif
+
+// Opens the capture pipe with both ends closing on exec (audit A, H5): the
+// parent's ends must not leak into this or any other child (the child
+// receives the writer through dup2, which clears the flag). With pipe2 the
+// flag is set as the pipe is made. Without it (Apple hosts), pipe and the
+// two fcntl calls run under the environment lock, which every STXlib spawn
+// holds, so no STXlib child can inherit an end; a fork by foreign code in
+// another thread between pipe and fcntl still can, and its child then holds
+// the writer until it closes it or execs. Yields 0 or the errno.
+int open_capture_pipe(Descriptor& reader, Descriptor& writer) noexcept {
+    int ends[2] = {-1, -1};
+#if defined(STXLIB_HAS_PIPE2)
+    if (::pipe2(ends, O_CLOEXEC) != 0) return errno;
+    reader.value = ends[0];
+    writer.value = ends[1];
+    return 0;
+#else
+    state::ProcessState& process = state::current_process();
+    const spin::Guard lock(process.environment_lock);
+    if (::pipe(ends) != 0) return errno;
+    reader.value = ends[0];
+    writer.value = ends[1];
+    if (::fcntl(reader.value, F_SETFD, FD_CLOEXEC) != 0) return errno;
+    if (::fcntl(writer.value, F_SETFD, FD_CLOEXEC) != 0) return errno;
+    return 0;
+#endif
+}
 
 // Signals whose disposition the child resets to the default.
 constexpr int reset_signals[] = {SIGPIPE, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGWINCH};
@@ -246,15 +281,15 @@ void sleep_for(const Duration interval) noexcept {
 } // namespace
 
 void Child::release() noexcept {
-    if (output_ != none) (void)::close(static_cast<int>(output_));
+    // Lets go of each handle before closing or reaping it (AGENTS.md, rule 1).
+    const i64 output = output_;
     output_ = none;
+    if (output != none) (void)::close(static_cast<int>(output));
     const i64 process = process_;
+    const Phase phase = phase_;
     process_ = none;
-    if (process == none || waited_) {
-        waited_ = false;
-        return;
-    }
-    waited_ = false;
+    phase_ = Phase::empty;
+    if (phase != Phase::running) return;
     // A child that has ended is reaped now; a running one is listed.
     int status = 0;
     if (::waitpid(process_id(process), &status, WNOHANG) != 0) return;
@@ -291,14 +326,8 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     Descriptor reader;
     Descriptor writer;
     if (request.streams == ChildStreams::capture) {
-        int ends[2] = {-1, -1};
-        if (::pipe(ends) != 0) return Result<Child>::failure(record_of_errno(errno, operation));
-        reader.value = ends[0];
-        writer.value = ends[1];
-        // The parent's ends must not leak into this or any other child; the
-        // child receives the writer through dup2, which clears the flag.
-        (void)::fcntl(reader.value, F_SETFD, FD_CLOEXEC);
-        (void)::fcntl(writer.value, F_SETFD, FD_CLOEXEC);
+        const int opened = open_capture_pipe(reader, writer);
+        if (opened != 0) return Result<Child>::failure(record_of_errno(opened, operation));
     }
     SpawnSetup setup;
     const int prepared = prepare(setup, request, writer.value);
@@ -308,6 +337,8 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     int error = 0;
     {
         state::ProcessState& process = state::current_process();
+        // POSIX lets posix_spawn be a cancellation point (audit E, 4.2).
+        const detail::CancellationHold no_cancel;
         const spin::Guard lock(process.environment_lock);
         char* const* const environment = environment_block();
         if (contains_slash(request.program)) {
@@ -319,6 +350,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     if (error != 0) return Result<Child>::failure(record_of_errno(error, operation));
     Child child;
     child.process_ = static_cast<i64>(pid);
+    child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? static_cast<i64>(reader.release()) : none;
     Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
     return result;
@@ -326,7 +358,7 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
 
 Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (process_ == none || waited_) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
     reap_abandoned();
     const IntervalTime deadline = IntervalTime::now().after(timeout.negative() ? Duration() : timeout);
     Duration pause = Duration::microseconds(200);
@@ -338,7 +370,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
             return Result<ChildEnd>::failure(record_of_errno(errno, operation));
         }
         if (reaped == process_id(process_)) {
-            waited_ = true;
+            phase_ = Phase::waited;
             if (WIFSIGNALED(status)) {
                 return Result<ChildEnd>::success(ChildEnd::signalled(static_cast<u32>(WTERMSIG(status))));
             }
@@ -357,7 +389,7 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
 
 Status Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (process_ == none || waited_) return Status::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
     if (::kill(process_id(process_), SIGKILL) != 0) return Status::failure(record_of_errno(errno, operation));
     return Status::success();
 }
@@ -368,7 +400,7 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const int descriptor = static_cast<int>(output_);
     Growable<Byte> output;
     bool over_limit = false;
-    Byte chunk[4096];
+    Byte chunk[4096]{};
     int failed_errno = 0;
     bool exhausted = false;
     for (;;) {
@@ -384,8 +416,8 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
             break;
         }
     }
+    output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)::close(descriptor);
-    output_ = none;
     if (failed_errno != 0) return Result<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
     if (exhausted) {
         return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));

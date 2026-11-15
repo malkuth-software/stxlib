@@ -62,6 +62,8 @@ private:
 
     void release() noexcept;
 
+    // The terminal's earlier mode while active_; all zero bytes otherwise
+    // (audit A, X3: release and a move clear it, so no stale mode remains).
     alignas(8) unsigned char saved_[raw_terminal_state_bytes]{};
     bool active_{false};
 };

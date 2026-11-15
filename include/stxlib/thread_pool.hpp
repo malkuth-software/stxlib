@@ -14,7 +14,9 @@
 // invalid_argument and PoolFailure::empty_pool (thread_count() is 0,
 // is_worker() false). Destruction stops and joins every worker. It must not
 // overlap another call on the pool, and an asynchronous batch must be
-// finished by wait first. The pool's state is a block of STXlib's
+// finished by wait first: destroying a pool with a batch open is a defect
+// that fails fast (it would deadlock), as is calling begin or run again on
+// the thread that holds an open batch (audit A, C6). The pool's state is a block of STXlib's
 // allocator, which every module shares (memory.hpp).
 //
 // Execution: batches are serialized. run returns after every task of the
@@ -23,7 +25,10 @@
 // order; larger batches run on the workers only, in unspecified order. begin
 // always uses the workers, including for one task; the thread that called
 // begin must call wait. Tasks stay borrowed until run or wait returns. A
-// task must not call into its own pool.
+// task must not call into its own pool: run, begin and wait called on one
+// of the pool's workers are refused (PoolFailure::called_from_worker).
+// POSIX thread cancellation is held off during run, from begin until wait
+// returns, and on the workers (threads.hpp, "POSIX thread cancellation").
 //
 // Reductions (STXlib's floating-point discipline, F5 = 1, 2026-11-13): a
 // reduction STXlib spreads over a pool partitions its terms into fixed
@@ -53,7 +58,10 @@ namespace stxlib {
 
 // One unit of work. `function` must return normally (it is noexcept: an
 // exception on a worker ends the process). `argument` is borrowed until the
-// batch that holds the task finishes.
+// batch that holds the task finishes. Early exits (AGENTS.md): no longjmp
+// out of a task and no thread exit or cancellation inside one. A task that
+// does not return leaves its batch unfinished for ever, and one run on the
+// caller of run holds the pool's run lock while it runs.
 struct PoolTask final {
     void (*function)(void* argument) noexcept {nullptr};
     void* argument{nullptr};
@@ -66,12 +74,20 @@ enum class PoolFailure : u32 {
     empty_batch = 3,           // begin with no task
     too_many_tasks = 4,        // more than 2^32 - 1 tasks
     task_without_function = 5, // a task whose function is null
+    called_from_worker = 6,    // run, begin or wait on one of the pool's workers
+    too_many_threads = 7,      // create above maximum_pool_threads
+    batch_still_open = 8,      // (fails fast) destroy, begin or run with this thread's batch open
 };
+
+// The most worker threads one pool holds. A bound of STXlib's (audit A,
+// C7): each worker reserves a stack (4 MiB by default, threads.hpp), and
+// the pool's thread table is sized from the count.
+inline constexpr u32 maximum_pool_threads = 4096;
 
 // A fixed set of worker threads that run batches of PoolTask.
 class AtomicPool final {
 public:
-    // thread_count must be non-zero.
+    // thread_count must be 1 to maximum_pool_threads.
     [[nodiscard]] static Result<AtomicPool> create(u32 thread_count) noexcept;
     AtomicPool() noexcept = default;
     ~AtomicPool();

@@ -182,9 +182,10 @@ private:
             length -= 1;
             elements[length].~Entry();
         }
-        memory::release(elements);
+        Entry* const held = elements;
         elements = nullptr;
         capacity = 0;
+        memory::release(held);
     }
 
     Entry* elements = nullptr;

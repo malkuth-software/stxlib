@@ -40,7 +40,24 @@
 // Modules: a Thread's shared state is a block of STXlib's allocator, which
 // every module shares (memory.hpp), so a Thread may be started in one of
 // STXlib's modules and joined or destroyed in another.
+//
+// POSIX thread cancellation (owner decision 2026-11-15, notes
+// decisions/2026-11-15-audit-e-decisions.md, 2): STXlib acts on a
+// cancellation only outside its locked sections. Inside them (the console,
+// spawning and reaping children, a thread pool's run, its begin-to-wait
+// window, its workers and its destruction, and a trampoline invocation in a
+// unit built without exceptions) cancellation is held off, and a
+// cancellation requested meanwhile takes effect at the thread's next
+// cancellation point after the section. The waits and joins on this page
+// stay cancellation points, as POSIX makes them, when the caller holds no
+// STXlib lock of its own making: a wait cancelled with the caller's Mutex
+// held re-takes it, and the caller's ScopedLock releases it as the stack
+// unwinds in a unit built with exceptions (in a check build the lock
+// checks then report the release as a defect and fail fast). A gate that
+// a cancellation unwinds into fails fast (gate.hpp). Windows has no thread
+// cancellation.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "stxlib/clocks.hpp"
 #include "stxlib/identity.hpp"
 #include "stxlib/result.hpp"
@@ -118,7 +135,7 @@ private:
 
 // Holds a Mutex for its own lifetime. A condition wait releases and
 // reacquires it, and it is held again when the wait returns.
-class ScopedLock final {
+class STXLIB_EARLY_EXIT_LOCK ScopedLock final {
 public:
     explicit ScopedLock(Mutex& mutex) noexcept : mutex_(mutex) { mutex_.lock(); }
     ~ScopedLock() { mutex_.unlock(); }
@@ -133,7 +150,8 @@ private:
 };
 
 // A named predicate over the waited-for state: true when the wait is over.
-// It is called with the lock held, so it reads state that lock guards.
+// It is called with the lock held, so it reads state that lock guards. It
+// must return (AGENTS.md, early exits): no longjmp out of it.
 using WaitPredicate = bool (*)(const void* context) noexcept;
 
 enum class WaitResult : u8 {
@@ -201,6 +219,9 @@ private:
     Mutex mutex_{};
 };
 
+// Runs `entry` once per flag. `entry` runs under the flag's mutex and must
+// return (AGENTS.md, early exits): no longjmp out and no thread exit or
+// cancellation inside it, or every later caller waits for ever.
 inline void call_once(OnceFlag& flag, void (*const entry)(void* context) noexcept, void* const context) noexcept {
     if (flag.done()) return;
     call_once_slow(flag, entry, context);
@@ -253,6 +274,8 @@ enum class ThreadFailure : u32 {
 
 class Thread final {
 public:
+    // The thread's body. No longjmp out of it (AGENTS.md, early exits); a
+    // thread exit inside it ends the thread as a return would.
     using Entry = void (*)(const StopSignal& stop, void* context) noexcept;
 
     // The thread's stack is `stack_bytes` rounded up to the host's page

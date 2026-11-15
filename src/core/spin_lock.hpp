@@ -17,7 +17,25 @@
 //
 // Not reentrant: a thread that takes a lock it holds waits forever. Every
 // holder in STXlib takes one lock and calls nothing that takes it again.
+//
+// Lock order (house style §5; audit A, X11). No STXlib spin lock is taken
+// under another, so there is no order among them. Where holding the lock is
+// the point, these host locks are taken under one:
+// - exit_lock (process.cpp): libc's atexit lock, while registering the one
+//   handler. The handler takes exit_lock only after registration, when
+//   libc's lock is no longer held by this path.
+// - environment_lock (environment.cpp, children_posix.cpp): libc's
+//   environment lock in getenv and setenv; posix_spawn's own locks; on
+//   Apple hosts pipe and fcntl for the capture pipe.
+// - console_output_lock (console.cpp): the C library's FILE lock, across
+//   the write and fflush.
+// - console_input_lock (console.cpp): none; it is held across a blocking
+//   read by design.
+// - children_lock (children_posix.cpp): none; waitpid with WNOHANG does not
+//   block.
+// None of those host calls takes an STXlib lock, so no cycle can form.
 
+#include "stxlib/detail/early_exit.hpp"
 #include "hosted/host.hpp"
 #include "state/state.hpp"
 
@@ -42,7 +60,7 @@ inline void lock(state::SpinLock& target) noexcept {
 inline void unlock(state::SpinLock& target) noexcept { target.held.store(0, std::memory_order_release); }
 
 // Holds a lock for its own lifetime.
-class Guard final {
+class STXLIB_EARLY_EXIT_LOCK Guard final {
 public:
     explicit Guard(state::SpinLock& target) noexcept : target_(target) { lock(target_); }
     ~Guard() { unlock(target_); }

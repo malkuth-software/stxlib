@@ -34,7 +34,9 @@ inline constexpr usize maximum_environment_bytes = 32767;
 // HostCode::invalid_name; not_found when it is not set; limit_exceeded with
 // HostCode::too_long for a value of more than `limit` bytes (refused before
 // copying); invalid_argument with HostCode::invalid_text when the host's
-// value is not UTF-8; out_of_memory.
+// value is not UTF-8; out_of_memory. The value is a string of its own,
+// bounded by `limit` (house style §6, audit A, X10): variables are read
+// rarely, never on a hot path.
 [[nodiscard]] Result<Utf8String> read_variable(TextView name, usize limit) noexcept;
 // Sets the variable, replacing any value it had. Failures: invalid_name;
 // limit_exceeded (more than maximum_environment_bytes); invalid_argument

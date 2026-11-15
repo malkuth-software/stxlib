@@ -19,10 +19,15 @@
 //         UChar* id, int32_t idCapacity, UErrorCode* status);
 // UChar is a 16-bit UTF-16 unit (wchar_t's size and representation on
 // Windows), UErrorCode an int-sized enumeration whose values above zero are
-// failures (U_FAILURE), and U_EXPORT2 is __cdecl. No ICU header is part of
-// the toolchain, so the type below restates that declaration by hand: an
-// exception to house style section 2 (take a foreign entry point's type
-// from its declaration), reported in proofs/REPORT.md.
+// failures (U_FAILURE), and U_EXPORT2 is __cdecl.
+//
+// Where the toolchain carries the Windows SDK's <icu.h> (10.0.17134 and
+// later), the entry point's type is taken from that declaration by
+// decltype (house style section 2), and the 16-bit buffers are passed as
+// UChar, whose representation wchar_t shares on Windows. Where it does not
+// (MSYS2's mingw-w64 headers, the CI toolchain, at the time of writing), the
+// type below restates the declaration by hand: the one remaining exception
+// to section 2, reported in proofs/REPORT.md (audit A, H1).
 
 #include "hosted/local_time_backend.hpp"
 
@@ -39,14 +44,34 @@
 #endif
 #include <windows.h>
 
+#if __has_include(<icu.h>)
+#include <icu.h>
+#define STXLIB_ICU_DECLARED 1
+#endif
+
 namespace stxlib::local_time_backend {
 
 namespace {
 
 constexpr Operation operation = "stxlib.local_time.host_zone";
 
+#if defined(STXLIB_ICU_DECLARED)
+// The entry point's type, from its declaration (house style section 2).
+template <typename Function>
+struct DeclaredType final {
+    using Type = Function;
+};
+using WindowsZoneToIana = DeclaredType<decltype(&ucal_getTimeZoneIDForWindowsID)>::Type;
+using IcuUnit = UChar;
+using IcuStatus = UErrorCode;
+static_assert(sizeof(UChar) == sizeof(wchar_t), "ICU's UChar and wchar_t share a representation");
+#else
+// Restated by hand: no ICU header in this toolchain (the exception above).
 using WindowsZoneToIana = i32(__cdecl*)(const wchar_t* windows_id, i32 length, const char* region, wchar_t* id,
                                         i32 capacity, int* status);
+using IcuUnit = wchar_t;
+using IcuStatus = int;
+#endif
 static_assert(sizeof(wchar_t) == 2, "ICU's UChar is a 16-bit unit");
 static_assert(sizeof(WindowsZoneToIana) == sizeof(FARPROC), "function pointers share one representation");
 
@@ -93,12 +118,17 @@ Status system_zone_text(ZoneText& text) noexcept {
     // IANA names are at most 32 ASCII characters (zone_data.inc); 128
     // units leave room for any name ICU might give.
     wchar_t mapped[128]{};
-    int status = 0;
-    const i32 mapped_count =
-        mapping(zone.TimeZoneKeyName, static_cast<i32>(key_count), "001", mapped, 128, &status);
+    IcuStatus status{};
+    // wchar_t and UChar are both 16-bit UTF-16 units on Windows; the casts
+    // change only the pointer's type (the identity when ICU is undeclared).
+    const IcuUnit* const key_units = reinterpret_cast<const IcuUnit*>(zone.TimeZoneKeyName);
+    IcuUnit* const mapped_units = reinterpret_cast<IcuUnit*>(mapped);
+    const i32 mapped_count = mapping(key_units, static_cast<i32>(key_count), "001", mapped_units, 128, &status);
     // ICU's status has no ForeignFamily of its own; the failure is named
-    // without it.
-    if (status > 0) return host_failure::failed(ErrorKind::foreign_failure, operation, HostCode::none);
+    // without it. U_FAILURE is a status above zero.
+    if (static_cast<int>(status) > 0) {
+        return host_failure::failed(ErrorKind::foreign_failure, operation, HostCode::none);
+    }
     // A key ICU does not know maps to the empty name.
     if (mapped_count <= 0 || mapped_count >= 128) {
         return host_failure::failed(ErrorKind::not_found, operation, HostCode::none);

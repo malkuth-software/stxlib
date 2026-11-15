@@ -23,8 +23,11 @@ class Array final {
 
 public:
     Array() noexcept = default;
+    // Each owner lets go before releasing (STXlib AGENTS.md, rule 1).
     ~Array() {
-        memory::release(elements);
+        Element* const held = elements;
+        elements = nullptr;
+        memory::release(held);
     }
     Array(const Array&) = delete;
     Array& operator=(const Array&) = delete;
@@ -35,13 +38,14 @@ public:
     }
     Array& operator=(Array&& other) noexcept {
         if (this != &other) {
-            memory::release(elements);
+            Element* const held = elements;
             elements = other.elements;
             length = other.length;
             capacity = other.capacity;
             other.elements = nullptr;
             other.length = 0;
             other.capacity = 0;
+            memory::release(held);
         }
         return *this;
     }
@@ -97,9 +101,10 @@ public:
         if (length != 0) {
             std::memcpy(block, static_cast<const void*>(elements), length * sizeof(Element));
         }
-        memory::release(elements);
+        Element* const previous = elements;
         elements = static_cast<Element*>(block);
         capacity = next;
+        memory::release(previous);
         return true;
     }
 

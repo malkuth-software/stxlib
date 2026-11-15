@@ -73,6 +73,15 @@ enum class TreeConstruction : std::uint8_t {
     bottom_up,
 };
 
+// The largest table a quadratic construction allocates, in cells: Knuth's
+// triangle of costs ((n + 1)(n + 2) / 2 cells, both layouts) and bottom_up's
+// re-solved chain ((s + 1)^2 cells for a chain of s keys). 2^28 cells is 2 GiB
+// of 8-byte costs or 4 GiB of 16-byte ones; Knuth's triangle exceeds it
+// from 23,169 keys. A construction whose table would be larger refuses with
+// limit_exceeded before allocating (STXlib, audit A, A2: every size product
+// is checked, and the quadratic working size is bounded and stated).
+inline constexpr std::size_t maximum_table_cells = static_cast<std::size_t>(1) << 28;
+
 class OptimalTreeBuilder final {
 public:
     [[nodiscard]] static Result<SearchTree> build(const SearchWeights& weights, TreeConstruction construction) noexcept {
@@ -106,6 +115,10 @@ public:
         if (!valid.succeeded()) {
             return Result<SearchTree>::failure(*valid.error());
         }
+        std::size_t cells = 0;
+        if (!triangle_cells(weights.keys.count(), cells)) {
+            return too_large();
+        }
         if (narrow_costs_fit(weights)) {
             return knuth_by_diagonals<std::int64_t>(weights);
         }
@@ -121,6 +134,10 @@ public:
         const Status valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
             return Result<SearchTree>::failure(*valid.error());
+        }
+        std::size_t cells = 0;
+        if (!triangle_cells(weights.keys.count(), cells)) {
+            return too_large();
         }
         if (narrow_costs_fit(weights)) {
             return knuth_by_rows<std::int64_t>(weights);
@@ -339,8 +356,12 @@ public:
             return exhausted();
         }
         KeyIndex root = no_key;
-        if (!bottom_up_build(weights, state, 0, key_count, &root)) {
+        const BuildOutcome built = bottom_up_build(weights, state, 0, key_count, &root);
+        if (built == BuildOutcome::exhausted) {
             return exhausted();
+        }
+        if (built == BuildOutcome::too_large) {
+            return too_large();
         }
         tree.shape.root = root;
         tree.shape.left = std::move(state.left);
@@ -383,6 +404,46 @@ private:
         return Result<SearchTree>::failure(BinaryTreeRules::exhausted());
     }
 
+    [[nodiscard]] static Result<SearchTree> too_large() noexcept {
+        const ErrorRecord refused =
+            ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.stx_btree.optimal_tree",
+                              ErrorDetail{.message = "the construction's table would exceed maximum_table_cells"});
+        return Result<SearchTree>::failure(refused);
+    }
+
+    // (n + 1)(n + 2) / 2, the cells of Knuth's triangle over n keys, into
+    // `cells`; false when the product is unrepresentable or above
+    // maximum_table_cells.
+    [[nodiscard]] static bool triangle_cells(const std::size_t key_count, std::size_t& cells) noexcept {
+        cells = 0;
+        std::size_t rows = 0;
+        std::size_t columns = 0;
+        std::size_t product = 0;
+        if (__builtin_add_overflow(key_count, static_cast<std::size_t>(1), &rows) ||
+            __builtin_add_overflow(key_count, static_cast<std::size_t>(2), &columns) ||
+            __builtin_mul_overflow(rows, columns, &product)) {
+            return false;
+        }
+        const std::size_t result = product / 2;
+        if (result > maximum_table_cells) {
+            return false;
+        }
+        cells = result;
+        return true;
+    }
+
+    // side^2, the cells of a chain table, into `cells`; false when the
+    // product is unrepresentable or above maximum_table_cells.
+    [[nodiscard]] static bool square_cells(const std::size_t side, std::size_t& cells) noexcept {
+        cells = 0;
+        std::size_t product = 0;
+        if (__builtin_mul_overflow(side, side, &product) || product > maximum_table_cells) {
+            return false;
+        }
+        cells = product;
+        return true;
+    }
+
     // The tree with these parents, and its cost.
     [[nodiscard]] static Result<SearchTree> tree_from_parents(const detail::Array<KeyIndex>& parent,
                                                               const SearchWeights& weights) noexcept {
@@ -401,8 +462,9 @@ private:
     // Cells (i, j), 0 <= i <= j <= n, row by row: row i starts at offset[i] + i.
     template <typename Cost>
     struct RowTriangle final {
-        [[nodiscard]] bool prepare(std::size_t key_count) noexcept {
-            if (!cells.assign((key_count + 1) * (key_count + 2) / 2, 0) || !offset.assign(key_count + 1, 0)) {
+        // `cell_count` is triangle_cells(key_count), already checked.
+        [[nodiscard]] bool prepare(std::size_t key_count, std::size_t cell_count) noexcept {
+            if (!cells.assign(cell_count, 0) || !offset.assign(key_count + 1, 0)) {
                 return false;
             }
             const std::size_t side = key_count + 1;
@@ -425,8 +487,9 @@ private:
     // j (j + 1) / 2.
     template <typename Cost>
     struct ColumnTriangle final {
-        [[nodiscard]] bool prepare(std::size_t key_count) noexcept {
-            return cells.assign((key_count + 1) * (key_count + 2) / 2, 0);
+        // `cell_count` is triangle_cells(key_count), already checked.
+        [[nodiscard]] bool prepare(std::size_t cell_count) noexcept {
+            return cells.assign(cell_count, 0);
         }
 
         [[nodiscard]] static std::size_t column_start(std::size_t end) noexcept {
@@ -481,7 +544,12 @@ private:
         RowTriangle<Cost> table;
         // roots[i]: root of (i, i + length) once that length is done.
         detail::Array<std::size_t> roots;
-        if (!cost_prefix<Cost>(weights, prefix) || !table.prepare(key_count) || !roots.assign(key_count + 1, 0)) {
+        std::size_t cell_count = 0;
+        if (!triangle_cells(key_count, cell_count)) {
+            return too_large();
+        }
+        if (!cost_prefix<Cost>(weights, prefix) || !table.prepare(key_count, cell_count) ||
+            !roots.assign(key_count + 1, 0)) {
             return exhausted();
         }
         std::size_t length = 0;
@@ -518,7 +586,11 @@ private:
         ColumnTriangle<Cost> table;
         detail::Array<Cost> row;           // C(i, r) for the current row i
         detail::Array<std::size_t> roots;  // roots[j]: root(i + 1, j), then root(i, j)
-        if (!cost_prefix<Cost>(weights, prefix) || !table.prepare(key_count) || !row.assign(key_count + 1, 0) ||
+        std::size_t cell_count = 0;
+        if (!triangle_cells(key_count, cell_count)) {
+            return too_large();
+        }
+        if (!cost_prefix<Cost>(weights, prefix) || !table.prepare(cell_count) || !row.assign(key_count + 1, 0) ||
             !roots.assign(key_count + 1, 0)) {
             return exhausted();
         }
@@ -595,6 +667,14 @@ private:
         return Result<SearchTree>::success(std::move(tree));
     }
 
+    // One chain interval (a, b) waiting to be linked: first its two halves,
+    // then (halves_done) the interval itself, once both halves are done.
+    struct ChainVisit final {
+        std::size_t a;
+        std::size_t b;
+        bool halves_done;
+    };
+
     // The bottom-up construction's tree and scratch. chain_keys and atoms
     // describe the current join: atom t is the subtree between chain keys
     // t - 1 and t.
@@ -608,41 +688,57 @@ private:
         detail::Array<KeyIndex> spine;
         detail::Array<ExactCost> chain_costs;
         detail::Array<std::size_t> chain_roots;
+        detail::Array<ChainVisit> chain_visits;
+    };
+
+    // How a bottom-up build ended.
+    enum class BuildOutcome : std::uint8_t {
+        built,
+        exhausted, // storage could not be had
+        too_large, // a chain table would exceed maximum_table_cells
     };
 
     [[nodiscard]] static ExactCost subtree_cost_of(const BottomUpState& state, KeyIndex node) noexcept {
         return node == no_key ? 0 : state.subtree_cost[static_cast<std::size_t>(node)];
     }
 
-    // Builds keys [first, end) and writes the root (no_key when empty);
-    // false when storage cannot be had.
-    [[nodiscard]] static bool bottom_up_build(const SearchWeights& weights, BottomUpState& state, std::size_t first,
-                                              std::size_t end, KeyIndex* root) noexcept {
+    // Builds keys [first, end) and writes the root (no_key when empty).
+    // Recursion over halves: the depth is at most ceil(log2(n)) + 1, 32 for
+    // n <= maximum_search_keys (< 2^31), each level one frame of six
+    // arguments and two locals (house style section 1: the bound is fixed by
+    // the key index's type, not by the weights).
+    [[nodiscard]] static BuildOutcome bottom_up_build(const SearchWeights& weights, BottomUpState& state,
+                                                      std::size_t first, std::size_t end, KeyIndex* root) noexcept {
         if (first == end) {
             *root = no_key;
-            return true;
+            return BuildOutcome::built;
         }
         if (end == first + 1) {
             state.left[first] = no_key;
             state.right[first] = no_key;
             state.subtree_cost[first] = interval_mass(state.prefix, weights, first, end);
             *root = static_cast<KeyIndex>(first);
-            return true;
+            return BuildOutcome::built;
         }
         const std::size_t middle = first + (end - first) / 2;
         KeyIndex left_root = no_key;
         KeyIndex right_root = no_key;
-        if (!bottom_up_build(weights, state, first, middle, &left_root) ||
-            !bottom_up_build(weights, state, middle + 1, end, &right_root)) {
-            return false;
+        const BuildOutcome left_built = bottom_up_build(weights, state, first, middle, &left_root);
+        if (left_built != BuildOutcome::built) {
+            return left_built;
         }
-        return bottom_up_join(weights, state, left_root, first, middle, right_root, end, root);
+        const BuildOutcome right_built = bottom_up_build(weights, state, middle + 1, end, &right_root);
+        if (right_built != BuildOutcome::built) {
+            return right_built;
+        }
+        const BuildOutcome joined = bottom_up_join(weights, state, left_root, first, middle, right_root, end, root);
+        return joined;
     }
 
     // Joins the trees of [first, middle) and [middle + 1, end) around middle.
-    [[nodiscard]] static bool bottom_up_join(const SearchWeights& weights, BottomUpState& state, KeyIndex left_root,
-                                             std::size_t first, std::size_t middle, KeyIndex right_root, std::size_t end,
-                                             KeyIndex* root) noexcept {
+    [[nodiscard]] static BuildOutcome bottom_up_join(const SearchWeights& weights, BottomUpState& state,
+                                                     KeyIndex left_root, std::size_t first, std::size_t middle,
+                                                     KeyIndex right_root, std::size_t end, KeyIndex* root) noexcept {
         state.chain_keys.clear();
         state.atoms.clear();
         state.spine.clear();
@@ -650,31 +746,31 @@ private:
         KeyIndex last = no_key;
         while (node != no_key) {
             if (!state.atoms.push_back(state.left[static_cast<std::size_t>(node)]) || !state.chain_keys.push_back(node)) {
-                return false;
+                return BuildOutcome::exhausted;
             }
             last = node;
             node = state.right[static_cast<std::size_t>(node)];
         }
         if (!state.atoms.push_back(last == no_key ? no_key : state.right[static_cast<std::size_t>(last)]) ||
             !state.chain_keys.push_back(static_cast<KeyIndex>(middle))) {
-            return false;
+            return BuildOutcome::exhausted;
         }
         node = right_root;
         while (node != no_key) {
             if (!state.spine.push_back(node)) {
-                return false;
+                return BuildOutcome::exhausted;
             }
             node = state.left[static_cast<std::size_t>(node)];
         }
         if (!state.atoms.push_back(state.spine.empty() ? no_key : state.left[static_cast<std::size_t>(state.spine.back())])) {
-            return false;
+            return BuildOutcome::exhausted;
         }
         std::size_t index = state.spine.size();
         while (index > 0) {
             index -= 1;
             if (!state.chain_keys.push_back(state.spine[index]) ||
                 !state.atoms.push_back(state.right[static_cast<std::size_t>(state.spine[index])])) {
-                return false;
+                return BuildOutcome::exhausted;
             }
         }
         // Knuth over the chain: interval (a, b) holds atoms a..b and chain
@@ -683,8 +779,12 @@ private:
         // bounds hold.
         const std::size_t count = state.chain_keys.size();
         const std::size_t side = count + 1;
-        if (!state.chain_costs.assign(side * side, 0) || !state.chain_roots.assign(side * side, 0)) {
-            return false;
+        std::size_t cells = 0;
+        if (!square_cells(side, cells)) {
+            return BuildOutcome::too_large;
+        }
+        if (!state.chain_costs.assign(cells, 0) || !state.chain_roots.assign(cells, 0)) {
+            return BuildOutcome::exhausted;
         }
         std::size_t length = 0;
         for (length = 1; length <= count; length += 1) {
@@ -711,8 +811,10 @@ private:
                 state.chain_roots[a * side + b] = best_root;
             }
         }
-        *root = chain_link(weights, state, first, end, 0, count);
-        return true;
+        if (!chain_link(weights, state, first, end, count, root)) {
+            return BuildOutcome::exhausted;
+        }
+        return BuildOutcome::built;
     }
 
     // The keys [low, high) that chain interval (a, b) covers.
@@ -723,22 +825,56 @@ private:
         return interval_mass(state.prefix, weights, low, high);
     }
 
-    // Links the solved chain interval (a, b) into the tree; returns its root.
-    static KeyIndex chain_link(const SearchWeights& weights, BottomUpState& state, std::size_t first, std::size_t end, std::size_t a,
-                               std::size_t b) noexcept {
+    // The root of solved chain interval (a, b): its atom when a == b, else
+    // the chain key chosen for it.
+    [[nodiscard]] static KeyIndex chain_root(const BottomUpState& state, std::size_t a, std::size_t b) noexcept {
         if (a == b) {
             return state.atoms[a];
         }
         const std::size_t side = state.chain_keys.size() + 1;
-        const std::size_t chosen = state.chain_roots[a * side + b];
-        const KeyIndex key = state.chain_keys[chosen];
-        const KeyIndex left_child = chain_link(weights, state, first, end, a, chosen);
-        const KeyIndex right_child = chain_link(weights, state, first, end, chosen + 1, b);
-        const std::size_t at = static_cast<std::size_t>(key);
-        state.left[at] = left_child;
-        state.right[at] = right_child;
-        state.subtree_cost[at] = chain_mass(weights, state, first, end, a, b) + subtree_cost_of(state, left_child) + subtree_cost_of(state, right_child);
-        return key;
+        return state.chain_keys[state.chain_roots[a * side + b]];
+    }
+
+    // Links the solved chain interval (0, count) into the tree and writes
+    // its root. Iterative, post-order over an explicit stack (house style
+    // section 1: the interval tree's depth is the chain's length, which the
+    // weights decide; audit A, A1): an interval is linked once both its
+    // halves are, so their subtree costs are known. The stack holds at most
+    // two entries per level, 2 * count + 1 in all. False when the stack's
+    // storage cannot be had.
+    [[nodiscard]] static bool chain_link(const SearchWeights& weights, BottomUpState& state, std::size_t first,
+                                         std::size_t end, std::size_t count, KeyIndex* root) noexcept {
+        *root = chain_root(state, 0, count);
+        state.chain_visits.clear();
+        if (!state.chain_visits.push_back(ChainVisit{.a = 0, .b = count, .halves_done = false})) {
+            return false;
+        }
+        const std::size_t side = count + 1;
+        while (!state.chain_visits.empty()) {
+            const ChainVisit visit = state.chain_visits.back();
+            state.chain_visits.pop_back();
+            if (visit.a == visit.b) {
+                continue; // an atom: a subtree kept whole, already linked
+            }
+            const std::size_t chosen = state.chain_roots[visit.a * side + visit.b];
+            if (!visit.halves_done) {
+                if (!state.chain_visits.push_back(ChainVisit{.a = visit.a, .b = visit.b, .halves_done = true}) ||
+                    !state.chain_visits.push_back(ChainVisit{.a = visit.a, .b = chosen, .halves_done = false}) ||
+                    !state.chain_visits.push_back(ChainVisit{.a = chosen + 1, .b = visit.b, .halves_done = false})) {
+                    return false;
+                }
+                continue;
+            }
+            const KeyIndex key = state.chain_keys[chosen];
+            const KeyIndex left_child = chain_root(state, visit.a, chosen);
+            const KeyIndex right_child = chain_root(state, chosen + 1, visit.b);
+            const std::size_t at = static_cast<std::size_t>(key);
+            state.left[at] = left_child;
+            state.right[at] = right_child;
+            state.subtree_cost[at] = chain_mass(weights, state, first, end, visit.a, visit.b) +
+                                     subtree_cost_of(state, left_child) + subtree_cost_of(state, right_child);
+        }
+        return true;
     }
 
     // prefix[k] = sum over t < k of (p_t + q_{t+1}), so that

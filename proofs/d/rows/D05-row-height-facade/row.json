@@ -1,0 +1,8 @@
+{
+  "row": "D05",
+  "title": "RowHeightIndex facade: translation and refusal classification",
+  "module": "src/algorithms/row_height_index.cpp",
+  "harnesses": [
+    {"file": "facade.cpp", "language": "c++20", "tools": ["esbmc"], "sizes": [2, 3], "headline": 3, "unwind": "N + 2", "includes": ["stxlib:include"], "mutants": ["m1"], "properties": ["P1 (failure kinds)"]}
+  ]
+}

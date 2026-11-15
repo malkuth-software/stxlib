@@ -151,7 +151,10 @@ public:
     Descriptor(const Descriptor&) = delete;
     Descriptor& operator=(const Descriptor&) = delete;
     ~Descriptor() {
-        if (fd_ >= 0) (void)::close(fd_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const int held = fd_;
+        fd_ = -1;
+        if (held >= 0) (void)::close(held);
     }
 
     [[nodiscard]] int get() const noexcept { return fd_; }
@@ -174,7 +177,10 @@ public:
     DirectoryStream(const DirectoryStream&) = delete;
     DirectoryStream& operator=(const DirectoryStream&) = delete;
     ~DirectoryStream() {
-        if (stream_ != nullptr) (void)::closedir(stream_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        DIR* const held = stream_;
+        stream_ = nullptr;
+        if (held != nullptr) (void)::closedir(held);
     }
 
     [[nodiscard]] DIR* get() const noexcept { return stream_; }
@@ -447,7 +453,17 @@ struct TreeLevel final {
     usize name_count{0};
     dev_t device{};
     ino_t inode{};
+    // Entries removed from this directory so far (entries_limit bounds it).
+    usize removed_here{0};
 };
+
+// Counts `count` entries removed from the directory `level`; false past
+// `entries_limit` (RemoveTreeLimits::entries_per_directory).
+bool count_removed(TreeLevel& level, const u64 count, const usize entries_limit) noexcept {
+    level.removed_here = level.removed_here + static_cast<usize>(count);
+    const bool result = level.removed_here <= entries_limit;
+    return result;
+}
 
 // Owns one directory stream; close() ends it early.
 class TreeStream final {
@@ -553,7 +569,7 @@ Outcome remove_entered(const int parent, const char* const name, const TreeLevel
 
 } // namespace
 
-Outcome remove_tree(const char* const name, const usize depth_limit, u64& removed) noexcept {
+Outcome remove_tree(const char* const name, const usize depth_limit, const usize entries_limit, u64& removed) noexcept {
     const int top = open_retrying(name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC, 0);
     if (top < 0) {
         const int error = errno;
@@ -605,8 +621,12 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
             const EntryKind kind = entry_kind(directory, *entry);
             if (kind == EntryKind::gone) continue;
             if (kind == EntryKind::other) {
+                const u64 before = removed;
                 const Outcome unlinked = unlink_entry(directory, entry_name, removed, again);
                 if (!unlinked.ok()) return unlinked;
+                if (!count_removed(levels[levels.count() - 1], removed - before, entries_limit)) {
+                    return failure(FileStatus::too_large);
+                }
                 continue;
             }
             // levels holds the top and the directories below it: entering
@@ -617,8 +637,12 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
                 const int error = errno;
                 if (error == ENOENT) continue;
                 if (!not_a_directory_now(error)) return from_errno(error);
+                const u64 before = removed;
                 const Outcome unlinked = unlink_entry(directory, entry_name, removed, again);
                 if (!unlinked.ok()) return unlinked;
+                if (!count_removed(levels[levels.count() - 1], removed - before, entries_limit)) {
+                    return failure(FileStatus::too_large);
+                }
                 continue;
             }
             struct stat entered{};
@@ -665,6 +689,7 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
             return failure(FileStatus::busy);
         }
         stream.close();
+        const u64 before = removed;
         const Outcome gone = remove_entered(parent, level_names.data() + level.name_offset, level, removed);
         if (!gone.ok()) {
             (void)::close(parent);
@@ -672,6 +697,10 @@ Outcome remove_tree(const char* const name, const usize depth_limit, u64& remove
         }
         level_names.shrink(level.name_offset);
         levels.shrink(levels.count() - 1);
+        if (!count_removed(levels[levels.count() - 1], removed - before, entries_limit)) {
+            (void)::close(parent);
+            return failure(FileStatus::too_large);
+        }
         current = parent;
     }
 }
@@ -701,7 +730,7 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     const mode_t permissions = static_cast<mode_t>(described.st_mode & 07777);
     Descriptor target(open_retrying(to, flags, permissions));
     if (target.get() < 0) return from_errno(errno);
-    Byte chunk[16384];
+    Byte chunk[16384]{};
     for (;;) {
         usize got = 0;
         const Outcome taken = read(static_cast<i64>(source.get()), chunk, sizeof chunk, got);

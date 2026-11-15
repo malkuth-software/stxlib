@@ -1,0 +1,10 @@
+{
+  "row": "04",
+  "title": "unicode::append_utf16",
+  "successor": "sb1 UTF-8 vocabulary",
+  "harnesses": [
+    {"file": "treatment.cpp", "language": "c++20", "tools": ["esbmc", "cbmc"],
+     "sizes": [4, 8, 16, 32], "headline": 16, "unwind": "N + 1",
+     "mutants": ["m1"], "unbounded": {"tools": ["esbmc"]}}
+  ]
+}

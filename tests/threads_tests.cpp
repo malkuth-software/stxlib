@@ -274,6 +274,9 @@ struct StackProbe final {
     std::atomic<bool> finished{false};
 };
 
+// Recursion bounded by its byte argument (house style §1; audit A, T1): each
+// level consumes at least sizeof frame of `remaining`, and the caller passes
+// three quarters of the thread's stack.
 [[gnu::noinline]] stxlib::u32 use_stack(const stxlib::usize remaining) noexcept {
     volatile unsigned char frame[16384];
     for (stxlib::usize index = 0; index < sizeof frame; index += 512) frame[index] = static_cast<unsigned char>(index);

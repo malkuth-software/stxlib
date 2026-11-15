@@ -261,6 +261,11 @@ Result<Path> Path::parse_wtf8(const char* const bytes, const usize count) noexce
 
 Result<Path> Path::from_posix_name(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::from_posix_name: a null pointer with a non-zero count");
+    // Escaping never shrinks the text, so a name longer than the bound is
+    // refused before any storage is taken for it (audit A, C2).
+    if (count > maximum_path_bytes) {
+        return Result<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
+    }
     Growable<char> escaped;
     if (!wtf8::escape_posix(bytes, count, escaped)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
     // escape_posix writes well-formed WTF-8 (its only surrogates are low
@@ -271,6 +276,12 @@ Result<Path> Path::from_posix_name(const char* const bytes, const usize count) n
 
 Result<Path> Path::from_windows_name(const u16* const units, const usize count) noexcept {
     STXLIB_REQUIRE(units != nullptr || count == 0, "Path::from_windows_name: a null pointer with a non-zero count");
+    // Every UTF-16 unit becomes at least one WTF-8 byte, so a name of more
+    // units than the bound has bytes is refused before converting (audit A,
+    // C2).
+    if (count > maximum_path_bytes) {
+        return Result<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
+    }
     Growable<char> text;
     if (!wtf8::from_utf16(units, count, text)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
     // '\' is ASCII, so it is never part of a multi-byte sequence.
