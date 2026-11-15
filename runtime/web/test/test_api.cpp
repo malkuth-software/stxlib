@@ -412,8 +412,9 @@ void test_pages(Client& owner) {
     // A user section is a target: K11's target settings (boot_config.h; the
     // command is a path inside the package), and no start setting
     // (user_config.h, rules 5 and 6).
+    // No id: the supervisor issues it (config/target_ids.h; sb2).
     check(send(owner, Method::post, "/api/targets/player",
-               "{\"settings\":{\"role\":\"server\",\"id\":\"1\",\"command\":\"bin/player --loop\","
+               "{\"settings\":{\"role\":\"server\",\"command\":\"bin/player --loop\","
                "\"folder\":\"/data/targets/player\",\"restart\":\"always\"},\"enabled\":true}") == 200u,
           "pages", "target written");
     check(send(owner, Method::post, "/api/targets/loose",

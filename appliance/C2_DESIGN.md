@@ -114,8 +114,15 @@ stays a service is refused by `check_user_config` (rule 5).
 - **Roles.** `foreground` (at most one: it holds the screen, keyboard and
   pointer) or `server`.
 - **Plain separation, nothing added.** Each target runs as uid and gid
-  `30000 + id` (`id` 1..999, issued by the writer of the configuration and
-  never reused). Its folder is `/data/targets/<name>`; the supervisor creates
+  `30000 + id` (`id` 1..999). The supervisor issues ids
+  (`runtime/supervisor/config/target_ids.h`): the web page leaves `id` out of
+  a new target, and `config_write` adds the lowest id never used before,
+  recorded in a ledger on `/data/stx/target_ids` and never issued again. A
+  target keeps its id while it exists; an id written that the ledger does
+  not give that target is refused (`target_id_not_issued`). Deleting a
+  target marks its id deleted; at the next boot the supervisor removes its
+  folder once and keeps the id spent, so no later target inherits its
+  files. Its folder is `/data/targets/<name>`; the supervisor creates
   it, owned by the target, mode 0700. Its working directory is that folder.
   No target's folder is inside another's.
 - **Ports.** Declared ports (`tcp/8080`) are what the run-time surface check
@@ -541,6 +548,8 @@ unwinds. Memory that libufs and OpenSSL allocate is left to process exit.
 | User configuration turns | U | sc2's two-turn files: a torn newest turn fails to parse, and the older one or the factory configuration is used (item 3). |
 | The supervisor's `/user` mount (`mount_user_partition`) | W | It only reads afterwards. A failure means no user configuration: the factory configuration runs, and the init section's own mount line tries again. |
 | Reading the turns (`read_turns`) and the K18 choice | W | Reads only, into static buffers; nothing is written. A death here is a supervisor restart that makes the same choice from the same files. stxnet makes the same choice independently. |
+| The target id ledger write | W | A new file (O_NOFOLLOW, 0600), write, fsync, rename, then an fsync of `/data/stx`; it is written before the configuration turn, so an id in a stored turn is always in the ledger (an id spent on a write that then fails is simply skipped). A ledger that cannot be read is never taken as empty: issuing fails until it is repaired. |
+| Removing a deleted target's folder (fts, physical, one file system) | U | A partial removal leaves files owned by an id that is never issued again. It is tried once (the entry is marked removed either way), so a later target in the same folder never loses files to a retry. |
 | `authorized_keys.access` write | W | A new file (O_NOFOLLOW, 0600), write, fsync, rename, then an fsync of `/data/ssh`. It is the old file or the new one; any failure leaves the old one and says so on the console. |
 | A target's output pipe | W | The pipe holds no state. When the target dies the read end sees end of file and is closed. When the supervisor dies the target's next write gets SIGPIPE (an exit, modelled like any other); the ring's contents are lost. |
 | Control commands (program, system, log tail) | W | Each answer is computed from state the supervisor already holds; a job is recorded only after fork returns. A death mid-request is EOF for the web service. |
@@ -561,6 +570,9 @@ unwinds. Memory that libufs and OpenSSL allocate is left to process exit.
   once a second.
 - `update_available` in the ProgramRecord is always false: the supervisor
   looks for updates only by installing them.
+- The ledger keeps a target's folder as it was when its id was issued: a
+  target whose folder setting later changes leaves the new folder in place
+  when it is deleted (the old one is removed).
 
 - Services are not adopted after a supervisor restart: the new supervisor
   starts them again, and the old processes are PID 1's to reap.

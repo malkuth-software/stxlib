@@ -371,8 +371,6 @@ const Refusal refusals[] = {
     // C2: targets. [target-a]\nrole = server\nid = 1\ncommand = bin/a\nfolder = /data/targets/a\n is a complete server target (5 lines).
     {"[target-a]\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
     {"[target-a]\nrole = server\nid = 1\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
-    {"[target-a]\nrole = server\nfolder = /data/targets/a\ncommand = bin/a\n", 1, 2,
-     ParseError::target_setting_missing},
     {"[target-a]\nid = 1\nfolder = /data/targets/a\ncommand = bin/a\n", 1, 2, ParseError::target_setting_missing},
     {"[target-a]\nrole = server\nid = 1\nfolder = /data/targets/a\n", 1, 2, ParseError::service_command_missing},
     {"[target-a]\nrole = boss\n", 2, 8, ParseError::target_role_unknown},
@@ -916,6 +914,32 @@ void test_target_in_service_section() {
     check(!web.target.has_value() && web.control == stxconfig::ControlAccess::operate, test, "web stays a service");
 }
 
+// A target without an id parses with id 0 (the supervisor issues it,
+// target_ids.h); two such targets do not count as a repeated id, and an id
+// given twice still does.
+void test_target_without_id() {
+    const char* const test = "target without an id";
+    const char* const text =
+        "[service-a]\nrole = server\ncommand = bin/a\nfolder = /data/targets/a\n"
+        "[service-b]\nrole = server\ncommand = bin/b\nfolder = /data/targets/b\n"
+        "[target-c]\nrole = server\nid = 3\ncommand = bin/c\nfolder = /data/targets/c\n";
+    const ParseOutcome outcome = parse_checked(test, text_of(text));
+    check(outcome.is_success() && config.service_count() == 3u, test, "parses");
+    if (outcome.is_success() && config.service_count() == 3u) {
+        check(config.service(0).target.has_value() && (*config.service(0).target).id == 0u &&
+                  config.service(1).target.has_value() && (*config.service(1).target).id == 0u &&
+                  config.service(2).target.has_value() && (*config.service(2).target).id == 3u,
+              test, "ids 0, 0 and 3");
+    }
+    const char* const twice =
+        "[target-a]\nrole = server\nid = 3\ncommand = bin/a\nfolder = /data/targets/a\n"
+        "[target-c]\nrole = server\nid = 3\ncommand = bin/c\nfolder = /data/targets/c\n";
+    const ParseOutcome repeated = parse_checked(test, text_of(twice));
+    const stxconfig::ParseFailed* const failure = repeated.as_failure();
+    check(failure != nullptr && (*failure).error == ParseError::target_id_repeated && (*failure).line == 6u, test,
+          "a given id twice is still refused");
+}
+
 // The folder rule, exhaustive: every value made of a prefix (none,
 // "/data/target", "/data/targets", "/data/targets/", "/data/targetsx/") and
 // 0 to 5 bytes over "/", ".", "a", " ", "-", "$" (5 x 9,331 = 46,655
@@ -1144,6 +1168,7 @@ int main() {
     test_full_example();
     test_target_definition();
     test_target_in_service_section();
+    test_target_without_id();
     test_exhaustive_folders();
     test_exhaustive_package_paths();
     test_exhaustive_ipv4();

@@ -685,6 +685,11 @@ SpawnOutcome SystemServiceActions::spawn_target(const SpawnRequest& request, con
     if (target_hooks_ == nullptr) {
         return SpawnOutcome::spawn_failed(ENOENT);
     }
+    // An id the supervisor has not issued (0) gives no identity of its
+    // own: never run as target_identity_base (config/target_ids.h).
+    if (target.identity <= target_identity_base) {
+        return SpawnOutcome::spawn_failed(EINVAL);
+    }
     const std::optional<char> slot = (*target_hooks_).slot_to_run(request);
     if (!slot.has_value()) {
         return SpawnOutcome::spawn_failed(ENOENT);

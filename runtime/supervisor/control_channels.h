@@ -40,6 +40,7 @@
 #include "../store/turn_file.h"
 #include "control/control_protocol.h"
 #include "control/control_server.h"
+#include "config/target_ids.h"
 #include "targets.h"
 
 namespace stxsupervisor {
@@ -125,6 +126,10 @@ public:
     SystemControl() noexcept;
     [[nodiscard]] stxcontrol::BootLogRead read_boot_log_end(std::span<char> destination) noexcept override;
     [[nodiscard]] stxcontrol::UserConfigRead read_user_config(std::span<char> destination) noexcept override;
+    [[nodiscard]] stxcontrol::IdsIssued issue_target_ids(const stxconfig::BootConfig& user,
+                                                         const stxconfig::BootConfig& factory,
+                                                         std::span<const char> text,
+                                                         std::span<char> out) noexcept override;
     [[nodiscard]] stxcontrol::Status write_user_config(std::span<const char> text,
                                                        stxcontrol::ConfigWritten& written) noexcept override;
     void request_reboot() noexcept override;
@@ -143,6 +148,10 @@ public:
     // The targets layer the program commands go to; borrowed, must outlive
     // this system or be reset to null first.
     void set_targets(stxtargets::Targets* targets) noexcept;
+    // At boot, after the init section (/data mounted), before the targets
+    // start: adopts the running configuration's target ids into the ledger
+    // and removes the folders of deleted targets (config/target_ids.h).
+    void boot_target_ids(const stxconfig::BootConfig& running, int console) noexcept;
 
 private:
     // status, with the target's ProgramRecord when it is a target.
@@ -151,6 +160,9 @@ private:
 
     bool reboot_requested_;
     stxtargets::Targets* targets_;
+    // The target id ledger and its text (config/target_ids.h).
+    stxconfig::TargetIdLedger ledger_;
+    char ledger_text_[stxconfig::target_id_ledger_text_max];
     char turn_buffers_[2][stxstore::turn_file_bytes_max + 1u];
 };
 

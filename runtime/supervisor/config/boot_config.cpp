@@ -557,12 +557,13 @@ using LineResult = std::optional<ParseFailed>;
     return refuse_at(line.number, column_of(index), error);
 }
 
-// A target's settings from its draft, or the refusal: role, id, folder
-// and command are required; devices belong to the foreground target only;
+// A target's settings from its draft, or the refusal: role, folder and
+// command are required (id is optional: 0 until the supervisor issues it,
+// target_ids.h); devices belong to the foreground target only;
 // update-interval needs update-url.
 [[nodiscard]] LineResult finish_target(const ServiceDraft& draft, const TargetDraft& target_draft,
                                        ServiceDefinition& service) noexcept {
-    if (!target_draft.role.has_value() || !target_draft.id.has_value() || !target_draft.folder.has_value()) {
+    if (!target_draft.role.has_value() || !target_draft.folder.has_value()) {
         return refuse_at(draft.line, draft.name_column, ParseError::target_setting_missing);
     }
     if (*target_draft.role != TargetRole::foreground && target_draft.devices.has_value()) {
@@ -577,7 +578,7 @@ using LineResult = std::optional<ParseFailed>;
     }
     TargetSettings target{};
     target.role = *target_draft.role;
-    target.id = *target_draft.id;
+    target.id = target_draft.id.has_value() ? *target_draft.id : 0u;
     target.program = target_draft.program.has_value() ? *target_draft.program : draft.name;
     target.folder = *target_draft.folder;
     target.port_count = 0;
@@ -1796,7 +1797,7 @@ constexpr const char* const target_setting_names[] = {
                 continue;
             }
             const TargetSettings& other = *earlier.target;
-            if (other.id == target.id) {
+            if (other.id != 0u && other.id == target.id) {
                 return refuse_at(later.line, 1, ParseError::target_id_repeated);
             }
             if (folders_overlap(config.text(other.folder), config.text(target.folder))) {

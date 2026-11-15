@@ -253,6 +253,17 @@ void test_fallbacks() {
                   (*chosen).passed_over[0].refusal == stxconfig::TurnRefusal::rule &&
                   (*chosen).passed_over[0].code == static_cast<std::uint8_t>(stxconfig::UserRule::service_not_target),
               test, "a user service refused by rule 5");
+        // A target without an id (written past config_write) is passed over.
+        const std::optional<stxstore::TurnView> no_id[2] = {
+            stxstore::TurnView{2u, text_of("[service-x]\ncommand = bin/x\nrole = server\nfolder = /data/targets/x\n")},
+            std::nullopt};
+        const std::optional<stxconfig::BootChoice> passed = stxconfig::choose_boot_config(
+            text_of(factory_with_target), factory, no_id, choice, user, effective, out);
+        check(passed.has_value() && !(*passed).file_index.has_value() && (*passed).passed_over_count == 1u &&
+                  (*passed).passed_over[0].refusal == stxconfig::TurnRefusal::id_missing &&
+                  (*passed).passed_over[0].line == 1u &&
+                  same_text(stxconfig::turn_refusal_name(stxconfig::TurnRefusal::id_missing), "id-missing"),
+              test, "a target without an id passed over");
         const std::optional<stxstore::TurnView> none[2] = {std::nullopt, std::nullopt};
         const stxstore::TurnChoice empty{std::nullopt, std::nullopt, 0u, 1u};
         const std::optional<stxconfig::BootChoice> alone = stxconfig::choose_boot_config(
@@ -298,7 +309,9 @@ void test_rules() {
     check(same_text(stxconfig::user_rule_name(stxconfig::UserRule::access_setting_not_allowed),
                     "access_setting_not_allowed") &&
               stxconfig::user_rule_from_code(6u) == stxconfig::UserRule::access_setting_not_allowed &&
-              !stxconfig::user_rule_from_code(7u).has_value(),
+              stxconfig::user_rule_from_code(7u) == stxconfig::UserRule::target_id_not_issued &&
+              same_text(stxconfig::user_rule_name(stxconfig::UserRule::target_id_not_issued), "target_id_not_issued") &&
+              !stxconfig::user_rule_from_code(8u).has_value(),
           test, "names and codes");
 }
 

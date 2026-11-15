@@ -37,6 +37,10 @@ DevicePlan plan_device_rules(const stxconfig::BootConfig& config) noexcept {
             continue;
         }
         const stxconfig::TargetSettings& target = *definition.target;
+        // No id issued: no group of its own to give devices to.
+        if (target.id == 0u) {
+            continue;
+        }
         for (std::uint32_t device = 0; device < target.device_count && plan.count < rules_max; device += 1) {
             DeviceRule rule{};
             rule.action = RuleAction::show_to_group;

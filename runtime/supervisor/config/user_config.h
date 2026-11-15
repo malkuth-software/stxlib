@@ -83,8 +83,12 @@ enum class UserRule : std::uint8_t {
     service_not_target,
     target_start_not_allowed,
     access_setting_not_allowed,
+    // A target's id that the supervisor did not issue to that target
+    // (target_ids.h): checked by config_write against the id ledger on
+    // /data, not by check_user_config (the web service has no ledger).
+    target_id_not_issued,
 };
-constexpr std::uint8_t user_rule_last = 6;
+constexpr std::uint8_t user_rule_last = 7;
 
 [[nodiscard]] const char* user_rule_name(UserRule rule) noexcept;
 [[nodiscard]] std::optional<UserRule> user_rule_from_code(std::uint8_t code) noexcept;

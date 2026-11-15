@@ -317,7 +317,7 @@ namespace {
 ControlServer::ControlServer(stxconfig::ServiceRegistry& registry, stxconfig::ServiceActions& actions,
                              ControlSystem& system, const stxconfig::BootConfig& factory) noexcept
     : registry_(registry), actions_(actions), system_(system), factory_(factory), written_since_start_(false),
-      payload_{}, check_() {}
+      payload_{}, issued_{}, check_() {}
 
 Status ControlServer::read_config(std::size_t& payload_size) noexcept {
     const std::span<std::uint8_t> payload(payload_, sizeof(payload_));
@@ -365,8 +365,35 @@ Status ControlServer::write_config(std::span<const std::uint8_t> text, std::size
         payload_size = encode_config_refusal(refusal, payload);
         return Status::config_refused;
     }
+    // The supervisor issues the ids of new targets (config/target_ids.h);
+    // the text written is the one with them.
+    const IdsIssued ids = system_.issue_target_ids(check_, factory_, characters,
+                                                   std::span<char>(issued_, sizeof(issued_)));
+    if (ids.kind == IdsIssuedKind::not_issued || ids.kind == IdsIssuedKind::too_large) {
+        ConfigRefusal refusal{};
+        refusal.line = ids.kind == IdsIssuedKind::not_issued ? ids.line : 1u;
+        refusal.column = ids.kind == IdsIssuedKind::not_issued ? ids.column : 1u;
+        refusal.kind = ids.kind == IdsIssuedKind::not_issued ? RefusalKind::user_rule : RefusalKind::parse;
+        refusal.code = ids.kind == IdsIssuedKind::not_issued
+                           ? static_cast<std::uint8_t>(stxconfig::UserRule::target_id_not_issued)
+                           : static_cast<std::uint8_t>(stxconfig::ParseError::file_too_large);
+        payload_size = encode_config_refusal(refusal, payload);
+        return Status::config_refused;
+    }
+    if (ids.kind != IdsIssuedKind::issued || ids.length > sizeof(issued_)) {
+        payload_size = 0;
+        return Status::store_failed;
+    }
+    const std::span<const char> issued_text(issued_, ids.length);
+    // The added lines are "id = <n>" after section headers: the text still
+    // parses and keeps the rules. Checked again all the same.
+    const stxconfig::ParseOutcome reparsed = stxconfig::parse_boot_config(issued_text, check_);
+    if (!reparsed.is_success() || stxconfig::check_user_config(check_, factory_).has_value()) {
+        payload_size = 0;
+        return Status::store_failed;
+    }
     ConfigWritten written{};
-    const Status status = system_.write_user_config(characters, written);
+    const Status status = system_.write_user_config(issued_text, written);
     if (status != Status::ok) {
         payload_size = 0;
         return Status::store_failed;

@@ -27,7 +27,7 @@ flags="-std=c++20 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -f
 "$compiler" $flags -o "$out/test_control_server" "$here/test_control_server.cpp" \
     "$supervisor/control/control_protocol.cpp" "$supervisor/control/control_server.cpp" \
     "$supervisor/config/boot_config.cpp" "$supervisor/config/service_registry.cpp" \
-    "$supervisor/config/user_config.cpp" "$supervisor/boot_slots.cpp"
+    "$supervisor/config/user_config.cpp" "$supervisor/config/target_ids.cpp" "$supervisor/boot_slots.cpp"
 scratch=$out/turn_scratch
 rm -rf "$scratch"
 mkdir -p "$scratch"

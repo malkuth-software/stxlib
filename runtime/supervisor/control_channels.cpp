@@ -4,6 +4,7 @@
 #include "control_channels.h"
 
 #include <cerrno>
+#include <cstring>
 
 #include <fcntl.h>
 #include <sys/event.h>
@@ -18,6 +19,7 @@
 #include "boot_slots_system.h"
 #include "config/user_config.h"
 #include "program_answers.h"
+#include "target_id_files.h"
 
 namespace stxsupervisor {
 
@@ -414,7 +416,8 @@ const stxstore::TurnPaths user_config_paths = {
 
 }  // namespace
 
-SystemControl::SystemControl() noexcept : reboot_requested_(false), targets_(nullptr), turn_buffers_{} {}
+SystemControl::SystemControl() noexcept
+    : reboot_requested_(false), targets_(nullptr), ledger_(), ledger_text_{}, turn_buffers_{} {}
 
 stxcontrol::UserConfigRead SystemControl::read_user_config(std::span<char> destination) noexcept {
     const stxstore::TurnState state =
@@ -459,6 +462,85 @@ stxcontrol::Status SystemControl::write_user_config(std::span<const char> text,
     written.sequence = (*done).sequence;
     written.file_index = static_cast<std::uint8_t>((*done).file_index);
     return stxcontrol::Status::ok;
+}
+
+stxcontrol::IdsIssued SystemControl::issue_target_ids(const stxconfig::BootConfig& user,
+                                                      const stxconfig::BootConfig& factory, std::span<const char> text,
+                                                      std::span<char> out) noexcept {
+    stxcontrol::IdsIssued answer{stxcontrol::IdsIssuedKind::failed, 0, 0, 0};
+    // A ledger that cannot be read is never taken as empty.
+    if (read_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_))) == LedgerRead::failed) {
+        return answer;
+    }
+    const stxconfig::IdIssueOutcome outcome = stxconfig::issue_target_ids(user, factory, text, ledger_, out);
+    switch (outcome.kind) {
+    case stxconfig::IdIssueKind::issued:
+        break;
+    case stxconfig::IdIssueKind::refused:
+        answer.kind = stxcontrol::IdsIssuedKind::not_issued;
+        answer.line = outcome.line;
+        answer.column = outcome.column;
+        return answer;
+    case stxconfig::IdIssueKind::too_large:
+        answer.kind = stxcontrol::IdsIssuedKind::too_large;
+        return answer;
+    case stxconfig::IdIssueKind::ledger_full:
+    default:
+        return answer;
+    }
+    // The ledger first: an id issued for a write that then fails is spent.
+    if (!ensure_target_id_directory() ||
+        !write_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_)))) {
+        return answer;
+    }
+    answer.kind = stxcontrol::IdsIssuedKind::issued;
+    answer.length = outcome.length;
+    return answer;
+}
+
+void SystemControl::boot_target_ids(const stxconfig::BootConfig& running, int console) noexcept {
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR target-ids ");
+    if (!ensure_target_id_directory()) {
+        stxruntime::append_text(line, "folder-unavailable\n");
+        stxruntime::write_line(console, line);
+        return;
+    }
+    const LedgerRead read = read_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_)));
+    if (read == LedgerRead::failed) {
+        stxruntime::append_text(line, "ledger-unreadable\n");
+        stxruntime::write_line(console, line);
+        return;
+    }
+    static stxconfig::BootIdPlan plan;
+    stxconfig::plan_boot_ids(running, ledger_, plan);
+    std::size_t removed = 0;
+    std::size_t failed = 0;
+    for (std::size_t index = 0; index < plan.removal_count; index += 1) {
+        const stxconfig::LedgerEntry& entry = ledger_.entry(plan.removals[index]);
+        char folder[stxconfig::line_length_max + 1u] = {};
+        std::memcpy(folder, entry.folder, entry.folder_length);
+        // Tried once: the entry is removed whatever the result, so a later
+        // target in the same folder never loses its files to a retry.
+        if (remove_target_folder(folder)) {
+            removed += 1;
+        } else {
+            failed += 1;
+        }
+        ledger_.set_state(plan.removals[index], stxconfig::LedgerState::removed);
+    }
+    const bool written = (!plan.changed && plan.removal_count == 0u) ||
+                         write_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_)));
+    stxruntime::append_text(line, "entries=");
+    stxruntime::append_decimal(line, ledger_.count());
+    stxruntime::append_text(line, " folders-removed=");
+    stxruntime::append_decimal(line, removed);
+    stxruntime::append_text(line, " remove-failed=");
+    stxruntime::append_decimal(line, failed);
+    stxruntime::append_text(line, " conflicts=");
+    stxruntime::append_decimal(line, plan.conflicts);
+    stxruntime::append_text(line, written ? "\n" : " write-failed\n");
+    stxruntime::write_line(console, line);
 }
 
 void SystemControl::request_reboot() noexcept {

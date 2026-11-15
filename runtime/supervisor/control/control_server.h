@@ -129,6 +129,20 @@ struct ProgramAnswer {
 };
 [[nodiscard]] ProgramAnswer program_answer(Status status) noexcept;
 
+// The system's answer to issue_target_ids.
+enum class IdsIssuedKind : std::uint8_t {
+    issued,       // the text with the ids added, length bytes at the front of out
+    not_issued,   // a given id is not the one issued to that target: line, column
+    too_large,    // the text with the ids added is over config_text_max
+    failed,       // the ledger could not be read or written, or no id is left
+};
+struct IdsIssued {
+    IdsIssuedKind kind;
+    std::size_t length;
+    std::uint32_t line;
+    std::uint32_t column;
+};
+
 // What the server asks of the system.
 class ControlSystem {
 public:
@@ -146,6 +160,13 @@ public:
     // newest that parses and keeps the rules, then the older, is the
     // boot's choice: user_config.h.)
     [[nodiscard]] virtual UserConfigRead read_user_config(std::span<char> destination) noexcept = 0;
+    // The supervisor issues target ids (config/target_ids.h): user is text
+    // parsed and checked; the text with an id added to each new target goes
+    // into out (config_text_max bytes), and the ledger on /data is written
+    // before the answer. config_write writes that text.
+    [[nodiscard]] virtual IdsIssued issue_target_ids(const stxconfig::BootConfig& user,
+                                                     const stxconfig::BootConfig& factory,
+                                                     std::span<const char> text, std::span<char> out) noexcept = 0;
     // Writes text, already checked, as the next turn. ok with the record,
     // or store_failed.
     [[nodiscard]] virtual Status write_user_config(std::span<const char> text, ConfigWritten& written) noexcept = 0;
@@ -236,6 +257,8 @@ private:
     bool written_since_start_;
     // The payload is built here, then copied behind the header.
     std::uint8_t payload_[response_payload_max];
+    // config_write's text with the issued ids.
+    char issued_[config_text_max];
     stxconfig::BootConfig check_;
 };
 

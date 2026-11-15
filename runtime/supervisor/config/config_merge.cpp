@@ -274,6 +274,7 @@ const char* turn_refusal_name(TurnRefusal refusal) noexcept {
     case TurnRefusal::rule: return "rule";
     case TurnRefusal::too_large: return "too-large";
     case TurnRefusal::merged_parse: return "merged-parse";
+    case TurnRefusal::id_missing: return "id-missing";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -313,6 +314,16 @@ std::optional<BootChoice> choose_boot_config(std::span<const char> factory_text,
                 tried.code = static_cast<std::uint8_t>((*broken).rule);
                 tried.line = (*broken).line;
                 tried.column = (*broken).column;
+            }
+        }
+        // Every target the boot runs has its id (the supervisor issued it).
+        for (std::size_t index = 0; tried.refusal == TurnRefusal::none && index < user_work.service_count();
+             index += 1) {
+            const ServiceDefinition& service = user_work.service(index);
+            if (service.target.has_value() && (*service.target).id == 0u) {
+                tried.refusal = TurnRefusal::id_missing;
+                tried.line = service.line;
+                tried.column = 1;
             }
         }
         std::optional<std::size_t> length = std::nullopt;

@@ -81,9 +81,11 @@
 //   STXSUPERVISOR config path=<p> sections=<n> settings=<n> commands=<n>
 //   STXSUPERVISOR config path=<p> absent | too-large | errno=<n>
 //   STXSUPERVISOR config path=<p> refused line=<n> column=<n> error=<name>
-//   STXSUPERVISOR config user-turn file=<0|1> sequence=<n> refused=<parse|rule|too-large|merged-parse> code=<n> line=<n> column=<n>
+//   STXSUPERVISOR config user-turn file=<0|1> sequence=<n> refused=<parse|rule|too-large|merged-parse|id-missing> code=<n> line=<n> column=<n>
 //   STXSUPERVISOR config user file=<0|1> sequence=<n> | user=none | user=unavailable step=<s> errno=<n>
 //   STXSUPERVISOR access keys=<n> written | access failed step=<s> errno=<n>
+//   STXSUPERVISOR target-ids entries=<n> folders-removed=<n> remove-failed=<n> conflicts=<n>[ write-failed]
+//     | target-ids folder-unavailable | target-ids ledger-unreadable                    (config/target_ids.h)
 //   STXSUPERVISOR init line=<n> <keyword> <outcome> ... ms=<n>   (one per command)
 //   STXSUPERVISOR init done commands=<n> skipped=<n> failed=<n> ms=<n>
 //   STXSUPERVISOR init not-run restart_count=<n|unknown>
@@ -480,6 +482,8 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
         targets.load(boot_config, boot_facts_now.slot, stxconfig::monotonic_milliseconds());
         run_init(console);
         write_access_keys(console);
+        // Target ids (config/target_ids.h): adopt, remove deleted folders.
+        control_system.boot_target_ids(boot_config, console);
         (void)stxdevices::apply_device_plan(console, stxdevices::plan_device_rules(boot_config));
         targets.start_boot_targets(stxconfig::monotonic_milliseconds());
         init_done = true;

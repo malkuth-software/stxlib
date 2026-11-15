@@ -31,11 +31,15 @@ flags="-std=c++20 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -f
 # shellcheck disable=SC2086
 "$compiler" $flags -o "$out/test_config_merge" "$here/test_config_merge.cpp" "$config/boot_config.cpp" \
     "$config/user_config.cpp" "$config/access_keys.cpp" "$config/config_merge.cpp"
+# shellcheck disable=SC2086
+"$compiler" $flags -o "$out/test_target_ids" "$here/test_target_ids.cpp" "$config/boot_config.cpp" \
+    "$config/target_ids.cpp"
 status=0
 "$out/test_boot_slots" || status=1
 "$out/test_boot_config" || status=1
 "$out/test_init_executor" || status=1
 "$out/test_service_registry" || status=1
 "$out/test_config_merge" || status=1
+"$out/test_target_ids" || status=1
 echo "run_host_tests: status=$status"
 exit $status

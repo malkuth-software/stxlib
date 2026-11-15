@@ -96,6 +96,7 @@ const char* user_rule_name(UserRule rule) noexcept {
     case UserRule::service_not_target: return "service_not_target";
     case UserRule::target_start_not_allowed: return "target_start_not_allowed";
     case UserRule::access_setting_not_allowed: return "access_setting_not_allowed";
+    case UserRule::target_id_not_issued: return "target_id_not_issued";
     default: break;
     }
     // Fallback: a value outside the enumeration.

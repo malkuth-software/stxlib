@@ -64,6 +64,9 @@ enum class TurnRefusal : std::uint8_t {
     rule,           // it breaks a user-configuration rule
     too_large,      // the merged text does not fit config_size_max
     merged_parse,   // the merged text does not parse
+    // C2, sb2: a target without an id (written past config_write, which
+    // issues every id: target_ids.h); appended.
+    id_missing,
 };
 [[nodiscard]] const char* turn_refusal_name(TurnRefusal refusal) noexcept;
 

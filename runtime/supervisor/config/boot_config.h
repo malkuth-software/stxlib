@@ -68,10 +68,15 @@
 //   [target-radio]
 //   role = server                   required: foreground (at most one target:
 //                                   it holds the screen) or server
-//   id = 7                          required: 1..target_id_max, unique among
-//                                   targets; the target runs as uid and gid
-//                                   target_identity_base + id. The writer of
-//                                   the file issues ids and never reuses one
+//   id = 7                          1..target_id_max, unique among targets;
+//                                   the target runs as uid and gid
+//                                   target_identity_base + id. The supervisor
+//                                   issues ids (target_ids.h): a user
+//                                   configuration leaves it out for a new
+//                                   target and config_write adds the lowest
+//                                   id never used before; never reused. A
+//                                   configuration the supervisor runs has
+//                                   every id (absent: 0, refused at boot)
 //   program = radio                 optional: the package's name, a name; the
 //                                   target's own name by default
 //   command = bin/radiod --port 8000   required: words as in an init command;
@@ -350,7 +355,7 @@ struct PortDeclaration {
 // What makes a definition a target (see the format above).
 struct TargetSettings {
     TargetRole role;
-    std::uint32_t id;  // 1..target_id_max
+    std::uint32_t id;  // 1..target_id_max; 0 when not yet issued (target_ids.h)
     // The package's name: the program setting, or the target's name.
     TextRef program;
     TextRef folder;

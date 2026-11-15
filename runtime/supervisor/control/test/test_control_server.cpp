@@ -194,8 +194,12 @@ void test_user_config() {
           "user_config", "an init command other than start refused");
 
     // A user configuration's services are targets (user_config.h, rule 5).
+    // The id is left out: the supervisor issues it (config/target_ids.h).
     const char* const good =
-        "[system]\nhostname = stx\n\n[service-player]\ncommand = bin/player\nrole = server\nid = 1\n"
+        "[system]\nhostname = stx\n\n[service-player]\ncommand = bin/player\nrole = server\n"
+        "folder = /data/targets/player\n\n[init]\nstart player\n";
+    const char* const stored =
+        "[system]\nhostname = stx\n\n[service-player]\nid = 1\ncommand = bin/player\nrole = server\n"
         "folder = /data/targets/player\n\n[init]\nstart player\n";
     answer = ask(config_write_of(good), web_pid);
     const std::optional<ConfigWritten> written =
@@ -207,8 +211,23 @@ void test_user_config() {
     text = answer.has_value() ? decode_config_text((*answer).payload) : std::nullopt;
     check(answer.has_value() && (*answer).status == Status::ok && text.has_value() &&
               (*text).source == ConfigSource::file_0 && (*text).sequence == 1u && (*text).written_since_boot &&
-              (*text).text.size() == std::strlen(good) && std::memcmp((*text).text.data(), good, std::strlen(good)) == 0,
-          "user_config", "read back, written since start");
+              (*text).text.size() == std::strlen(stored) &&
+              std::memcmp((*text).text.data(), stored, std::strlen(stored)) == 0,
+          "user_config", "read back with the issued id 1, written since start");
+
+    // An id the supervisor did not issue to that target is refused on its line.
+    answer = ask(config_write_of("[service-player]\nid = 5\ncommand = bin/player\nrole = server\n"
+                                 "folder = /data/targets/player\n"),
+                 web_pid);
+    refusal = answer.has_value() ? decode_config_refusal((*answer).payload) : std::nullopt;
+    check(answer.has_value() && (*answer).status == Status::config_refused && refusal.has_value() &&
+              (*refusal).kind == RefusalKind::user_rule &&
+              (*refusal).code == static_cast<std::uint8_t>(stxconfig::UserRule::target_id_not_issued) &&
+              (*refusal).line == 2u,
+          "user_config", "an id not issued refused");
+    // The issued one is taken back as it is.
+    answer = ask(config_write_of(stored), web_pid);
+    check(answer.has_value() && (*answer).status == Status::ok, "user_config", "the issued id accepted");
 
     fake_system.set_fail_writes(true);
     answer = ask(config_write_of(good), web_pid);

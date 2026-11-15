@@ -11,6 +11,7 @@
 #include <span>
 
 #include "../../config/service_registry.h"
+#include "../../config/target_ids.h"
 #include "../control_protocol.h"
 #include "../control_server.h"
 
@@ -46,6 +47,9 @@ private:
     int signals_;
 };
 
+// Large: static storage.
+inline stxconfig::TargetIdLedger fake_ledger;
+
 class FakeSystem final : public ControlSystem {
 public:
     FakeSystem() noexcept
@@ -65,6 +69,20 @@ public:
         std::memcpy(destination.data(), text_, size_);
         return UserConfigRead::text(sequence_ % 2u == 1u ? ConfigSource::file_0 : ConfigSource::file_1, sequence_,
                                     size_);
+    }
+    // The real issuing rule (config/target_ids.h) over an in-memory ledger.
+    [[nodiscard]] IdsIssued issue_target_ids(const stxconfig::BootConfig& user, const stxconfig::BootConfig& factory,
+                                             std::span<const char> text, std::span<char> out) noexcept override {
+        const stxconfig::IdIssueOutcome outcome = stxconfig::issue_target_ids(user, factory, text, fake_ledger, out);
+        IdsIssued answer{IdsIssuedKind::failed, outcome.length, outcome.line, outcome.column};
+        switch (outcome.kind) {
+        case stxconfig::IdIssueKind::issued: answer.kind = IdsIssuedKind::issued; break;
+        case stxconfig::IdIssueKind::refused: answer.kind = IdsIssuedKind::not_issued; break;
+        case stxconfig::IdIssueKind::too_large: answer.kind = IdsIssuedKind::too_large; break;
+        case stxconfig::IdIssueKind::ledger_full:
+        default: answer.kind = IdsIssuedKind::failed; break;
+        }
+        return answer;
     }
     [[nodiscard]] Status write_user_config(std::span<const char> text, ConfigWritten& written) noexcept override {
         if (fail_writes_ || text.size() > sizeof(text_)) {

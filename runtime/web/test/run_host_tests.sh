@@ -27,7 +27,7 @@ pure="$web/json.cpp $web/http.cpp $web/auth.cpp $web/config_edit.cpp $web/api.cp
 "$compiler" $flags -o "$out/test_web" "$here/test_web.cpp" $pure
 # shellcheck disable=SC2086
 "$compiler" $flags -o "$out/test_api" "$here/test_api.cpp" $pure "$supervisor/control/control_server.cpp" \
-    "$supervisor/config/service_registry.cpp" "$supervisor/boot_slots.cpp"
+    "$supervisor/config/service_registry.cpp" "$supervisor/config/target_ids.cpp" "$supervisor/boot_slots.cpp"
 status=0
 "$out/test_web" || status=1
 "$out/test_api" || status=1
