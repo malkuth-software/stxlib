@@ -25,7 +25,8 @@ struct TerminalSize final {
 };
 
 // The size of the terminal on standard output. Failures: unsupported with
-// HostCode::not_a_terminal when it is redirected; io_failure.
+// HostCode::not_a_terminal when it is redirected; io_failure; unsupported
+// with HostCode::none where Capability::raw_terminal is false (Emscripten).
 [[nodiscard]] Result<TerminalSize> terminal_size() noexcept;
 
 // Bytes a RawTerminal keeps for the host's saved modes (termios is 60 bytes
@@ -41,7 +42,8 @@ class RawTerminal final {
 public:
     // Failures: unsupported with HostCode::not_a_terminal; limit_exceeded
     // with HostCode::busy; io_failure; unsupported (Windows, when the
-    // console refuses virtual-terminal mode).
+    // console refuses virtual-terminal mode); unsupported with
+    // HostCode::none where Capability::raw_terminal is false (Emscripten).
     [[nodiscard]] static Result<RawTerminal> enter() noexcept;
 
     RawTerminal() noexcept = default;

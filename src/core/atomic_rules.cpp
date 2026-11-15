@@ -33,6 +33,7 @@ static_assert(std::atomic<void*>::is_always_lock_free, "atomic of a pointer must
 
 static_assert(std::atomic_ref<std::uint8_t>::is_always_lock_free, "atomic_ref<uint8_t> must be lock-free");
 static_assert(std::atomic_ref<std::uint16_t>::is_always_lock_free, "atomic_ref<uint16_t> must be lock-free");
+static_assert(std::atomic_ref<std::uint32_t>::is_always_lock_free, "atomic_ref<uint32_t> must be lock-free");
 static_assert(std::atomic_ref<std::uint64_t>::is_always_lock_free, "atomic_ref<uint64_t> must be lock-free");
 static_assert(std::atomic_ref<std::uintptr_t>::is_always_lock_free, "atomic_ref<uintptr_t> must be lock-free");
 

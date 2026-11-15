@@ -378,6 +378,10 @@ void sleeping_and_host() {
     // C, K-1 and K-2: all processor groups on Windows, sysconf on POSIX).
     CHECK(stxlib::processor_count() == std::thread::hardware_concurrency());
     CHECK(stxlib::capability_supported(stxlib::Capability::threads));
+#if !defined(__EMSCRIPTEN__)
+    // Only a browser's pool fixes the number (threads.hpp).
+    CHECK(stxlib::thread_pool_limit() == 0);
+#endif
 }
 
 // Short sleeps are not held to the system tick (audit C, K-3): twenty 1 ms

@@ -31,7 +31,11 @@ namespace stxlib {
 // Ends the process with `status`: runs the exit tasks (newest first), then
 // the C and C++ library's own exit handling (static destructors, atexit),
 // which flushes standard streams. Call it only when no other thread can be
-// using the objects that static destructors destroy.
+// using the objects that static destructors destroy. Emscripten: only a
+// build linked with EXIT_RUNTIME ends the runtime (Capability::exit_tasks);
+// otherwise, and on a worker thread, exit unwinds to the JavaScript event
+// loop without running the exit tasks or the cleanups of the frames it
+// leaves, and the page lives on (src/hosted/c_library/c_library.cpp).
 [[noreturn]] void exit_process(u8 status) noexcept;
 
 inline constexpr usize maximum_exit_tasks = 32;
@@ -53,7 +57,8 @@ inline constexpr usize maximum_exit_tasks = 32;
 // GetCurrentProcessId on Windows; Capability::process_identity). The host
 // may reuse it once the process has ended, so it names a process only
 // while that process runs: for reports and logs, never as an identity of
-// ours (identity.hpp).
+// ours (identity.hpp). 0 where Capability::process_identity is false
+// (Emscripten, whose getpid answers a constant).
 [[nodiscard]] u64 process_id() noexcept;
 
 // One argument, borrowed from the ProcessArguments it came from. Its bytes
@@ -153,7 +158,8 @@ inline constexpr usize default_argument_limit = 4194304; // 4 MiB
 // The process's resident memory, in bytes (Capability::memory_report).
 struct ProcessMemory final {
     // Resident now: macOS task_info's resident_size, Linux /proc/self/statm,
-    // FreeBSD kinfo_proc's ki_rssize, Windows' working set.
+    // FreeBSD kinfo_proc's ki_rssize, Windows' working set, Emscripten's
+    // wasm memory size (which only grows, so it is also the peak).
     u64 resident_bytes{0};
     // The largest resident size the host has recorded, and at least
     // resident_bytes: hosts sample their peak (FreeBSD updates ru_maxrss

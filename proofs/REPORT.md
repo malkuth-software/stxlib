@@ -241,3 +241,23 @@ seat's machine; the integrator builds and runs it on the M4.
 
 None of these has been compiled or run except the Python checks named:
 the integrator builds and runs them on the M4.
+
+## stxlib::boundary, the Emscripten family (owner decision 2026-11-15)
+
+Hosted modules only: no pure core was added, so nothing here is in proof
+scope; each row is tested under Node (`tests/emscripten_tests.cpp`,
+`tests/platform_tests.cpp`, `tests/simd_tests.cpp`), and what Node cannot
+show waits for a browser run.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/core/capabilities.cpp` (Emscripten table, capabilities 30 to 33) | every capability answered; those a page lacks false; shared_memory, cross_origin_isolated and fixed_thread_pool as the runtime reports; native answers for 30 to 33 | not yet proved; tested under Node (no fixed pool there) and natively | `tests/platform_tests.cpp` |
+| `src/hosted/emscripten/clocks_emscripten.cpp` | never backwards within a thread; ElapsedTime reads the interval clock; the conversion clamps to [0, i64_max] (NaN to 0) | not yet proved; tested on one thread (100,000 reads), sampled. Order across threads unconfirmed | `tests/emscripten_tests.cpp` (`clocks`) |
+| `src/hosted/emscripten/wake_emscripten.cpp` | as the POSIX row above, without host handles (a list is refused with unsupported); the flag released once, after the channel lets go of it | not yet proved; tested (cross-thread wake at 20 ms, timeout at 30 ms, sampled) | `tests/emscripten_tests.cpp` (`wake_channel`) |
+| `src/hosted/emscripten/storage_*`, `src/hosted/posix/file_posix.cpp` (volume rules), `src/core/web.cpp` | memory volumes accept every level; IDBFS honours ordered and refuses durable; a durable replace refused before its rename where it cannot be durable; restore and persist refused on the main thread; mounts refused where the browser lacks the volume | not yet proved; under Node: memory volumes, the refusals, and persist from a thread with no IndexedDB volume. Not tested: IDBFS and OPFS themselves (absent in Node), the page-hide hook | `tests/emscripten_tests.cpp` |
+| `src/algorithms/simd.cpp` (SIMD128) | vector128 exactly when the module was compiled with SIMD128; the name "wasm-simd-128" | not yet proved; tested | `tests/simd_tests.cpp`, `tests/emscripten_tests.cpp` |
+| the math kernels on wasm | the frozen bit-identity hashes (scalar kernels; the dispatch is x86-64 only) | **not yet run**: the first wasm run is cross-architecture evidence for the bit identity | CTest `stxlib_bit_identity`, `stxlib_bit_identity_dekker` |
+
+Nothing in this section has been compiled or run: emsdk is not installed
+on the M4 (a download the owner approves first), and no compiler runs on
+the seat's machine.

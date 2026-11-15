@@ -16,6 +16,10 @@
 // success); wait polls the read end with the caller's descriptors.
 // Windows: a manual-reset event (CreateEventW); wake is SetEvent; wait is
 // WaitForMultipleObjects over the event and the caller's handles.
+// Emscripten: a 32-bit flag in wasm memory and Emscripten's futex; a page
+// has no descriptors, so wait takes no handles there (a non-empty list
+// fails with unsupported) and native_handle is the flag's address, which
+// no other wait can watch.
 //
 // Order: drain the channel before doing the work its wakes announce, so a
 // wake raised during the work is seen by the next wait, never lost.

@@ -32,12 +32,18 @@ find_package(Threads REQUIRED)
 # FreeBSD 15.2 joins with A1 platform-rest). Linux is glibc or musl by the C
 # library's own macro. FreeBSD is named by CMAKE_SYSTEM_NAME, which CMake
 # sets on a FreeBSD host and a cross toolchain file sets for a cross-build
-# (the integrator's aarch64-freebsd.cmake).
+# (the integrator's aarch64-freebsd.cmake). Emscripten (owner decision
+# 2026-11-15, in 1.0 after M3) is named by the same variable, which
+# Emscripten's own platform file sets (cmake/Modules/Platform/
+# Emscripten.cmake:17 at emscripten 6.0.13); cmake/emscripten.cmake is the
+# toolchain file that loads it.
 include(CheckCXXSourceCompiles)
 if(WIN32)
     set(STXLIB_HOST_FAMILY windows)
 elseif(APPLE)
     set(STXLIB_HOST_FAMILY macos)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Emscripten")
+    set(STXLIB_HOST_FAMILY emscripten)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     check_cxx_source_compiles("
         #include <features.h>
@@ -53,7 +59,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
     set(STXLIB_HOST_FAMILY freebsd)
 else()
-    message(FATAL_ERROR "STXlib supports macOS, Linux (glibc, musl), FreeBSD and Windows; ${CMAKE_SYSTEM_NAME} is not one")
+    message(FATAL_ERROR "STXlib supports macOS, Linux (glibc, musl), FreeBSD, Windows and Emscripten; ${CMAKE_SYSTEM_NAME} is not one")
 endif()
 message(STATUS "STXlib host family: ${STXLIB_HOST_FAMILY}")
 
@@ -197,7 +203,19 @@ endif()
 #
 # Since layout 5 it also owns the allocator (src/state/allocator.cpp), so a
 # block from stxlib::memory in one module may be released in another.
-option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)" ON)
+# Emscripten: a program is one wasm module (STXlib's family asks for no
+# dynamic linking; src/hosted/emscripten/images_emscripten.cpp), so the
+# state is static there and a shared one is refused.
+if(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+    set(stxlib_state_shared_default OFF)
+else()
+    set(stxlib_state_shared_default ON)
+endif()
+option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)"
+    ${stxlib_state_shared_default})
+if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND STXLIB_STATE_SHARED)
+    message(FATAL_ERROR "STXLIB_STATE_SHARED is not available for Emscripten: the program is one wasm module")
+endif()
 set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
 if(STXLIB_STATE_SHARED)
     add_library(stxlib_state SHARED ${STXLIB_STATE_SOURCES})
@@ -227,7 +245,13 @@ set_target_properties(stxlib_state PROPERTIES
 # which would halt on mimalloc's intended wrap-around) defaults to the host
 # backend, and src/state/allocator.cpp refuses mimalloc under address,
 # thread or memory sanitizers.
-if(stxlib_sanitized)
+#
+# Emscripten: the host backend over Emscripten's malloc (dlmalloc,
+# src/settings.js MALLOC at emscripten 6.0.13). mimalloc's Emscripten layer
+# takes its memory from emmalloc_memalign
+# (third_party/mimalloc/src/prim/emscripten/prim.c:61-88), a second
+# allocator under the first, so it is not admitted there.
+if(stxlib_sanitized OR STXLIB_HOST_FAMILY STREQUAL "emscripten")
     set(stxlib_allocator_default host)
 else()
     set(stxlib_allocator_default mimalloc)
@@ -236,6 +260,9 @@ set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator 
 set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host)
 if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
     message(FATAL_ERROR "STXLIB_ALLOCATOR must be mimalloc or host")
+endif()
+if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND STXLIB_ALLOCATOR STREQUAL "mimalloc")
+    message(FATAL_ERROR "STXLIB_ALLOCATOR=mimalloc is not admitted for Emscripten; use host")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
@@ -315,6 +342,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/trampoline.cpp
+    src/core/web.cpp
     src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
     src/hosted/cxx_runtime/clocks.cpp
@@ -351,6 +379,61 @@ set(STXLIB_HOSTED_LINUX_SOURCES
 set(STXLIB_HOSTED_FREEBSD_SOURCES
     src/hosted/elf/image_regions_elf.cpp
     src/hosted/freebsd/process_freebsd.cpp)
+# Emscripten (owner decision 2026-11-15): the POSIX modules that hold on
+# Emscripten's musl and file system, and emscripten/ for the services a page
+# provides differently (clocks, traces, the wake channel, the zone name, the
+# process, images) and its own (the runtime's thread facts, web storage).
+# children_posix.cpp and desktop_posix.cpp are kept: they link (posix_spawn
+# is Emscripten's stub answering ENOSYS, system/lib/libc/
+# emscripten_libc_stubs.c:187-193 at 6.0.13) and fail at run time, behind
+# capabilities that are false. One storage module per file system:
+# STXLIB_EMSCRIPTEN_FILESYSTEM js (Emscripten's JavaScript file system:
+# MEMFS and IDBFS) or wasmfs (WasmFS: memory and OPFS).
+set(STXLIB_HOSTED_EMSCRIPTEN_POSIX_SOURCES
+    src/hosted/posix/children_posix.cpp
+    src/hosted/posix/console_posix.cpp
+    src/hosted/posix/desktop_posix.cpp
+    src/hosted/posix/entropy_posix.cpp
+    src/hosted/posix/environment_posix.cpp
+    src/hosted/posix/events_posix.cpp
+    src/hosted/posix/file_posix.cpp
+    src/hosted/posix/home_posix.cpp
+    src/hosted/posix/pages_posix.cpp
+    src/hosted/posix/terminal_posix.cpp
+    src/hosted/posix/threads_posix.cpp)
+set(STXLIB_HOSTED_EMSCRIPTEN_SOURCES
+    src/hosted/emscripten/clocks_emscripten.cpp
+    src/hosted/emscripten/images_emscripten.cpp
+    src/hosted/emscripten/local_time_emscripten.cpp
+    src/hosted/emscripten/process_emscripten.cpp
+    src/hosted/emscripten/runtime_emscripten.cpp
+    src/hosted/emscripten/trace_emscripten.cpp
+    src/hosted/emscripten/wake_emscripten.cpp)
+set(STXLIB_EMSCRIPTEN_FILESYSTEM js CACHE STRING "Emscripten file system: js (MEMFS and IDBFS) or wasmfs (memory and OPFS)")
+set_property(CACHE STXLIB_EMSCRIPTEN_FILESYSTEM PROPERTY STRINGS js wasmfs)
+if(NOT STXLIB_EMSCRIPTEN_FILESYSTEM MATCHES "^(js|wasmfs)$")
+    message(FATAL_ERROR "STXLIB_EMSCRIPTEN_FILESYSTEM must be js or wasmfs")
+endif()
+# The pthread pool's size, which STXlib links with and reports
+# (threads.hpp, thread_pool_limit); the one count of Web Workers the
+# browser makes at start (src/settings.js, PTHREAD_POOL_SIZE).
+set(STXLIB_EMSCRIPTEN_POOL_SIZE 8 CACHE STRING "Emscripten pthread pool size (Web Workers made at start)")
+if(NOT STXLIB_EMSCRIPTEN_POOL_SIZE MATCHES "^[0-9]+$")
+    message(FATAL_ERROR "STXLIB_EMSCRIPTEN_POOL_SIZE must be a decimal count")
+endif()
+# EXIT_RUNTIME: without it, main's return and exit leave the runtime alive
+# and their status unreported (src/settings.js, EXIT_RUNTIME's comment), so
+# test builds need it on; a page keeps it off unless it wants exit tasks.
+option(STXLIB_EMSCRIPTEN_EXIT_RUNTIME "Emscripten: link with EXIT_RUNTIME, so exit runs atexit handlers (exit_tasks)"
+    ${STXLIB_TESTS})
+if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND STXLIB_TESTS AND NOT STXLIB_EMSCRIPTEN_EXIT_RUNTIME)
+    message(FATAL_ERROR "STXLIB_TESTS on Emscripten needs STXLIB_EMSCRIPTEN_EXIT_RUNTIME=ON: without it a test's status is lost")
+endif()
+if(STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
+    list(APPEND STXLIB_HOSTED_EMSCRIPTEN_SOURCES src/hosted/emscripten/storage_wasmfs_emscripten.cpp)
+else()
+    list(APPEND STXLIB_HOSTED_EMSCRIPTEN_SOURCES src/hosted/emscripten/storage_js_emscripten.cpp)
+endif()
 set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/children_windows.cpp
     src/hosted/windows/clocks_windows.cpp
@@ -376,6 +459,8 @@ elseif(STXLIB_HOST_FAMILY STREQUAL "macos")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_MACOS_SOURCES})
 elseif(STXLIB_HOST_FAMILY STREQUAL "freebsd")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_FREEBSD_SOURCES})
+elseif(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+    list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_EMSCRIPTEN_POSIX_SOURCES} ${STXLIB_HOSTED_EMSCRIPTEN_SOURCES})
 else()
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_LINUX_SOURCES})
 endif()
@@ -428,6 +513,45 @@ elseif(STXLIB_HOST_FAMILY STREQUAL "glibc")
     # image_regions_elf.cpp): libc itself from glibc 2.34; CMAKE_DL_LIBS
     # names libdl for older glibc and is empty where none is needed.
     target_link_libraries(stxlib_boundary PUBLIC ${CMAKE_DL_LIBS})
+elseif(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+    # Settings at emscripten 6.0.13 (src/settings.js, each setting's comment):
+    # - -pthread: threads as Web Workers over a SharedArrayBuffer.
+    # - PTHREAD_POOL_SIZE and PTHREAD_POOL_SIZE_STRICT=2: a fixed pool made at
+    #   start, and pthread_create failing with EAGAIN when it is used up
+    #   rather than waiting for a new worker, which a thread that blocks
+    #   without returning to the event loop would wait on forever.
+    # - ABORTING_MALLOC=0 and ALLOW_MEMORY_GROWTH=1: malloc returns null when
+    #   memory cannot grow (growMemory catches the failure,
+    #   src/lib/libcore.js:211-235, and emscripten_resize_heap reports it,
+    #   :252-262), so STXlib's allocator reports out_of_memory and never
+    #   aborts or unwinds (decisions/2026-11-15-early-exit-integrity.md:
+    #   "Allocators must not unwind"). ABORTING_MALLOC defaults on
+    #   (settings.js:165) and the default memory does not grow (:230).
+    # - FORCE_FILESYSTEM and -lidbfs.js (the js file system) or WASMFS.
+    # - EXIT_RUNTIME only when STXLIB_EMSCRIPTEN_EXIT_RUNTIME is on.
+    # A program linking these settings itself must use the same values
+    # (the pool's size is reported from STXLIB_EMSCRIPTEN_POOL_SIZE).
+    target_compile_definitions(stxlib_boundary PRIVATE
+        STXLIB_EMSCRIPTEN_POOL_SIZE=${STXLIB_EMSCRIPTEN_POOL_SIZE}
+        $<$<BOOL:${STXLIB_EMSCRIPTEN_EXIT_RUNTIME}>:STXLIB_EMSCRIPTEN_EXIT_RUNTIME>
+        $<$<STREQUAL:${STXLIB_EMSCRIPTEN_FILESYSTEM},wasmfs>:STXLIB_EMSCRIPTEN_WASMFS>)
+    target_compile_options(stxlib_boundary PUBLIC -pthread)
+    target_link_options(stxlib_boundary INTERFACE
+        -pthread
+        "SHELL:-s PTHREAD_POOL_SIZE=${STXLIB_EMSCRIPTEN_POOL_SIZE}"
+        "SHELL:-s PTHREAD_POOL_SIZE_STRICT=2"
+        "SHELL:-s ABORTING_MALLOC=0"
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s FORCE_FILESYSTEM=1")
+    if(STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
+        target_link_options(stxlib_boundary INTERFACE "SHELL:-s WASMFS=1")
+    else()
+        target_link_options(stxlib_boundary INTERFACE -lidbfs.js)
+    endif()
+    if(STXLIB_EMSCRIPTEN_EXIT_RUNTIME)
+        target_link_options(stxlib_boundary INTERFACE "SHELL:-s EXIT_RUNTIME=1")
+    endif()
+    target_compile_options(stxlib_state PUBLIC -pthread)
 endif()
 # musl and FreeBSD carry the dl* functions in libc (FreeBSD: lib/libc/gen/
 # dlfcn.c:65-149 at fb9033d2876d, the stubs rtld-elf replaces), and macOS in
@@ -558,24 +682,52 @@ if(STXLIB_TESTS)
     enable_testing()
     set(stxlib_test_warnings ${stxlib_warnings} ${stxlib_frame_pointers})
 
-    foreach(test_name IN ITEMS vocabulary gate memory trampoline shadow platform path files children threads thread_pool local_time
-                                images pages_wake rounding)
+    # Emscripten: every test runs under Node (CMAKE_CROSSCOMPILING_EMULATOR,
+    # cmake/emscripten.cmake) and is linked with EXIT_RUNTIME, so main's
+    # status is the process's (the reference conformance test below links
+    # no STXlib target, so the option is set for the directory). Tests of
+    # services a page lacks (child processes, loaded images, sealed pages,
+    # the process's own arguments, a second module) are not built there;
+    # tests/emscripten_tests.cpp checks that each of those answers
+    # unsupported. A death case runs under the same emulator
+    # (tests/death_check.cmake, EMULATOR, '|'-separated).
+    set(stxlib_web_tests OFF)
+    set(stxlib_emulator_text "")
+    if(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+        set(stxlib_web_tests ON)
+        add_link_options("SHELL:-s EXIT_RUNTIME=1")
+        string(JOIN "|" stxlib_emulator_text ${CMAKE_CROSSCOMPILING_EMULATOR})
+    endif()
+
+    set(stxlib_boundary_test_names vocabulary gate memory trampoline shadow platform path files threads thread_pool
+                                   local_time rounding)
+    if(stxlib_web_tests)
+        list(APPEND stxlib_boundary_test_names emscripten)
+    else()
+        list(APPEND stxlib_boundary_test_names children images pages_wake)
+    endif()
+    foreach(test_name IN LISTS stxlib_boundary_test_names)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::boundary)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
+        target_compile_definitions(stxlib_emscripten_tests PRIVATE STXLIB_TEST_WASMFS)
+    endif()
 
     # The process's own arguments, compared with argv: the test is started
     # with spaces, quotes, a trailing backslash, an empty argument and one
     # that is not ASCII; the test starts itself again as a child with an
     # argument that is not UTF-8 (POSIX) or holds a lone surrogate (Windows)
     # (tests/process_tests.cpp).
-    add_executable(stxlib_process_tests tests/process_tests.cpp)
-    target_link_libraries(stxlib_process_tests PRIVATE stxlib::boundary)
-    target_compile_options(stxlib_process_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_process_tests
-        COMMAND stxlib_process_tests "plain" "two words" "" "quote\"inside" "trailing\\" "café")
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_process_tests tests/process_tests.cpp)
+        target_link_libraries(stxlib_process_tests PRIVATE stxlib::boundary)
+        target_compile_options(stxlib_process_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_process_tests
+            COMMAND stxlib_process_tests "plain" "two words" "" "quote\"inside" "trailing\\" "café")
+    endif()
 
     if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
@@ -600,6 +752,11 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_case_folding_tests
         COMMAND stxlib_case_folding_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
+    # Under Node the test reads the host's file through NODERAWFS
+    # (src/settings.js: Node's file system in place of the in-memory one).
+    if(stxlib_web_tests)
+        target_link_options(stxlib_case_folding_tests PRIVATE "SHELL:-s NODERAWFS=1")
+    endif()
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
@@ -750,6 +907,9 @@ if(STXLIB_TESTS)
     target_compile_options(stxlib_voting_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_voting_tests
              COMMAND stxlib_voting_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference/prv_cases.txt)
+    if(stxlib_web_tests)
+        target_link_options(stxlib_voting_tests PRIVATE "SHELL:-s NODERAWFS=1")
+    endif()
 
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the
@@ -782,16 +942,20 @@ if(STXLIB_TESTS)
     endforeach()
 
     # Two modules, each with its own copy of stxlib::boundary, release each
-    # other's blocks through the one allocator in stxlib_state.
-    add_library(stxlib_allocator_two_module_library SHARED tests/allocator_two_module_library.cpp)
-    target_link_libraries(stxlib_allocator_two_module_library PRIVATE stxlib::boundary)
-    target_compile_definitions(stxlib_allocator_two_module_library PRIVATE STXLIB_ALLOCATOR_TWO_MODULE_BUILDING)
-    target_compile_options(stxlib_allocator_two_module_library PRIVATE ${stxlib_test_warnings})
-    set_target_properties(stxlib_allocator_two_module_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
-    add_executable(stxlib_allocator_two_module_tests tests/allocator_two_module_tests.cpp)
-    target_link_libraries(stxlib_allocator_two_module_tests PRIVATE stxlib::boundary stxlib_allocator_two_module_library)
-    target_compile_options(stxlib_allocator_two_module_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_allocator_two_module_tests COMMAND stxlib_allocator_two_module_tests)
+    # other's blocks through the one allocator in stxlib_state. Not on
+    # Emscripten, where a program is one module.
+    if(NOT stxlib_web_tests)
+        add_library(stxlib_allocator_two_module_library SHARED tests/allocator_two_module_library.cpp)
+        target_link_libraries(stxlib_allocator_two_module_library PRIVATE stxlib::boundary)
+        target_compile_definitions(stxlib_allocator_two_module_library PRIVATE STXLIB_ALLOCATOR_TWO_MODULE_BUILDING)
+        target_compile_options(stxlib_allocator_two_module_library PRIVATE ${stxlib_test_warnings})
+        set_target_properties(stxlib_allocator_two_module_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
+        add_executable(stxlib_allocator_two_module_tests tests/allocator_two_module_tests.cpp)
+        target_link_libraries(stxlib_allocator_two_module_tests PRIVATE stxlib::boundary
+                              stxlib_allocator_two_module_library)
+        target_compile_options(stxlib_allocator_two_module_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_allocator_two_module_tests COMMAND stxlib_allocator_two_module_tests)
+    endif()
 
     # The gates compiled without exceptions: direct calls (A1 design, 6).
     add_executable(stxlib_gate_no_exceptions_tests tests/gate_no_exceptions_tests.cpp)
@@ -821,6 +985,12 @@ if(STXLIB_TESTS)
         "reporter_nested|reporter entered.*stxlib: fail fast: stxlib\\.tests\\.callback: internal_failure"
         "foreign_free|ANY"
         "foreign_delete|ANY")
+    # Emscripten's malloc is not known to check a foreign free (dlmalloc,
+    # src/settings.js MALLOC; its checks were not read at the pin): the two
+    # cases that end in the host's own check are not run there.
+    if(stxlib_web_tests)
+        list(REMOVE_ITEM stxlib_death_cases "foreign_free|ANY" "foreign_delete|ANY")
+    endif()
     foreach(death_case IN LISTS stxlib_death_cases)
         string(FIND "${death_case}" "|" separator)
         string(SUBSTRING "${death_case}" 0 ${separator} case_name)
@@ -829,40 +999,45 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_death_${case_name}
             COMMAND ${CMAKE_COMMAND}
                 -DPROGRAM=$<TARGET_FILE:stxlib_death_tests>
+                "-DEMULATOR=${stxlib_emulator_text}"
                 -DCASE=${case_name}
                 "-DEXPECT=${case_expect}"
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
     endforeach()
 
-    # Sealed pages, one process each (tests/platform_rest_death_tests.cpp).
-    add_executable(stxlib_platform_rest_death_tests tests/platform_rest_death_tests.cpp)
-    target_link_libraries(stxlib_platform_rest_death_tests PRIVATE stxlib::boundary)
-    target_compile_options(stxlib_platform_rest_death_tests PRIVATE ${stxlib_test_warnings})
-    set(stxlib_platform_rest_death_cases
-        "sealed_writable|stxlib: requirement failed: PageBlock::writable: the pages are sealed"
-        "sealed_store|ANY")
-    foreach(death_case IN LISTS stxlib_platform_rest_death_cases)
-        string(FIND "${death_case}" "|" separator)
-        string(SUBSTRING "${death_case}" 0 ${separator} case_name)
-        math(EXPR expect_start "${separator} + 1")
-        string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
-        add_test(NAME stxlib_platform_rest_death_${case_name}
+    # Sealed pages, one process each (tests/platform_rest_death_tests.cpp),
+    # and the console and exit tasks seen from outside the process
+    # (a child process): neither exists on Emscripten.
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_platform_rest_death_tests tests/platform_rest_death_tests.cpp)
+        target_link_libraries(stxlib_platform_rest_death_tests PRIVATE stxlib::boundary)
+        target_compile_options(stxlib_platform_rest_death_tests PRIVATE ${stxlib_test_warnings})
+        set(stxlib_platform_rest_death_cases
+            "sealed_writable|stxlib: requirement failed: PageBlock::writable: the pages are sealed"
+            "sealed_store|ANY")
+        foreach(death_case IN LISTS stxlib_platform_rest_death_cases)
+            string(FIND "${death_case}" "|" separator)
+            string(SUBSTRING "${death_case}" 0 ${separator} case_name)
+            math(EXPR expect_start "${separator} + 1")
+            string(SUBSTRING "${death_case}" ${expect_start} -1 case_expect)
+            add_test(NAME stxlib_platform_rest_death_${case_name}
+                COMMAND ${CMAKE_COMMAND}
+                    -DPROGRAM=$<TARGET_FILE:stxlib_platform_rest_death_tests>
+                    -DCASE=${case_name}
+                    "-DEXPECT=${case_expect}"
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
+        endforeach()
+
+        # The console and exit tasks, seen from outside the process.
+        add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
+        target_link_libraries(stxlib_console_process_tests PRIVATE stxlib::boundary)
+        target_compile_options(stxlib_console_process_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_console_process_tests
             COMMAND ${CMAKE_COMMAND}
-                -DPROGRAM=$<TARGET_FILE:stxlib_platform_rest_death_tests>
-                -DCASE=${case_name}
-                "-DEXPECT=${case_expect}"
-                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/death_check.cmake)
-    endforeach()
-
-    # The console and exit tasks, seen from outside the process.
-    add_executable(stxlib_console_process_tests tests/console_process_tests.cpp)
-    target_link_libraries(stxlib_console_process_tests PRIVATE stxlib::boundary)
-    target_compile_options(stxlib_console_process_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_console_process_tests
-        COMMAND ${CMAKE_COMMAND}
-            -DPROGRAM=$<TARGET_FILE:stxlib_console_process_tests>
-            -DWORK=${CMAKE_CURRENT_BINARY_DIR}/console_process_work
-            -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/console_process_check.cmake)
+                -DPROGRAM=$<TARGET_FILE:stxlib_console_process_tests>
+                -DWORK=${CMAKE_CURRENT_BINARY_DIR}/console_process_work
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/console_process_check.cmake)
+    endif()
 
     # Two modules, one state (tests/two_module_tests.cpp): a shared library
     # with its own hidden copy of the boundary, and an executable with
@@ -930,9 +1105,11 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
+        # Under Emscripten the program runs under the emulator, named before it.
         set(stxlib_bit_identity_compare ${Python3_EXECUTABLE} -I
             ${CMAKE_CURRENT_SOURCE_DIR}/tools/compare_bit_identity.py
-            --expected ${CMAKE_CURRENT_SOURCE_DIR}/tests/bit_identity_expected.txt --run)
+            --expected ${CMAKE_CURRENT_SOURCE_DIR}/tests/bit_identity_expected.txt --run
+            ${CMAKE_CROSSCOMPILING_EMULATOR})
         add_test(NAME stxlib_bit_identity COMMAND ${stxlib_bit_identity_compare} $<TARGET_FILE:stxlib_bit_identity>)
         add_test(NAME stxlib_bit_identity_dekker
             COMMAND ${stxlib_bit_identity_compare} $<TARGET_FILE:stxlib_bit_identity_dekker>)

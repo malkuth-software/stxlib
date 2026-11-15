@@ -12,11 +12,24 @@
 // flush_descriptor), ordered F_BARRIERFSYNC; elsewhere both use fsync, the
 // only flush POSIX offers.
 //
+// Emscripten (owner decision 2026-11-15): the same calls over Emscripten's
+// file system, with each level decided by the volume holding the file
+// (hosted/web_backend.hpp, FlushRule; web.hpp has the table): memory
+// volumes accept every level as a native tmpfs does, IDBFS honours ordered
+// and refuses durable, and anything else is fsync. A durable replace is
+// refused before its rename where the rename cannot be made durable, so
+// the target is left as it was (early-exit rule 1: the refusal comes
+// before any change).
+//
 // Names are the host's bytes both ways (file_backend.hpp, "Names").
 
 #include "hosted/file_backend.hpp"
 
 #include "stxlib/environment.hpp"
+
+#if defined(__EMSCRIPTEN__)
+#include "hosted/web_backend.hpp"
+#endif
 
 #include <cerrno>
 #include <climits>
@@ -120,9 +133,20 @@ int open_retrying(const char* const name, const int flags, const mode_t permissi
 }
 
 // Flushes the descriptor's content as `level` says; Durability::none does
-// nothing.
+// nothing. Emscripten: the volume's rule first (the header comment); a
+// refusal is -1 with errno ENOTSUP, which status_of_errno reports as
+// unsupported.
 int flush_descriptor(const int fd, const Durability level) noexcept {
     if (level == Durability::none) return 0;
+#if defined(__EMSCRIPTEN__)
+    const web_backend::FlushRule rule = web_backend::flush_rule(fd);
+    if (rule == web_backend::FlushRule::vacuous) return 0;
+    if (rule == web_backend::FlushRule::snapshot) {
+        if (level == Durability::ordered) return 0;
+        errno = ENOTSUP;
+        return -1;
+    }
+#endif
 #if defined(F_FULLFSYNC)
     // Some filesystems (network volumes, RAM disks) refuse F_FULLFSYNC;
     // fsync is then the strongest flush they offer.
@@ -375,6 +399,9 @@ Outcome inspect(const char* const name, const LinkMode links, FileInformation& i
 }
 
 Outcome replace(const char* const from, const char* const to, const Durability level) noexcept {
+#if defined(__EMSCRIPTEN__)
+    if (level == Durability::durable && !web_backend::rename_can_be_durable(to)) return from_errno(ENOTSUP);
+#endif
     if (::rename(from, to) != 0) return from_errno(errno);
     if (level != Durability::durable) return success();
     // Make the rename itself durable by flushing the directory that holds

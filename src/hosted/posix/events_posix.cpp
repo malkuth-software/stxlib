@@ -10,7 +10,14 @@
 // earlier handlers live in stxlib_state. The handler reaches the recorded
 // events through a pointer this module stores before installing it, so it
 // calls nothing (not even the state accessor) inside the signal.
+//
+// Emscripten (owner decision 2026-11-15): a page receives no interrupt,
+// terminate, hangup, resize or suspend signals; watch asks
+// Capability::interrupt_events first, false there (core/capabilities.cpp),
+// and fails with unsupported before changing any state. On the other
+// POSIX families it is true and the check changes nothing.
 
+#include "stxlib/capabilities.hpp"
 #include "stxlib/events.hpp"
 
 #include "core/host_failure.hpp"
@@ -110,6 +117,10 @@ Result<EventWatch> EventWatch::watch(const EventSet events) noexcept {
         const ErrorRecord empty =
             host_failure::record(ErrorKind::invalid_argument, "stxlib.events.watch", HostCode::empty_request);
         return Result<EventWatch>::failure(empty);
+    }
+    if (!capability_supported(Capability::interrupt_events)) {
+        const ErrorRecord none = host_failure::record(ErrorKind::unsupported, "stxlib.events.watch", HostCode::none);
+        return Result<EventWatch>::failure(none);
     }
     state::ProcessState& process = state::current_process();
     if (process.event_watch_active.exchange(true, std::memory_order_acq_rel)) {

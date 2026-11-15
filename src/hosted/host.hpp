@@ -14,7 +14,9 @@
 //   src/hosted/windows/      Win32 and UCRT
 // Family directories hold services that differ whole between families
 // (A1 platform-rest): macos/ (macOS), linux/ (glibc and musl), freebsd/
-// (FreeBSD 15.2), and elf/ (the ELF hosts: glibc, musl and FreeBSD).
+// (FreeBSD 15.2), elf/ (the ELF hosts: glibc, musl and FreeBSD), and
+// emscripten/ (owner decision 2026-11-15: browsers and Node, over
+// Emscripten's musl and the POSIX modules that hold there).
 //
 // These are the first services, the ones the boundary core needs to report
 // and fail. Each is used only where a failure is already being reported, so

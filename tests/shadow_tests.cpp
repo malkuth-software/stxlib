@@ -12,6 +12,7 @@
 // Tested, not proved (proofs/REPORT.md).
 
 #include "stxlib/boundary.hpp"
+#include "stxlib/capabilities.hpp"
 
 #include "test_support.hpp"
 
@@ -102,7 +103,8 @@ void check_development_record(const ShownShadow& shown, const stxlib::ErrorRecor
         return;
     }
     CHECK(!record.exception_type().empty());
-    CHECK(shown.summary.trace_count > 0);
+    // A host that cannot walk its stack (Emscripten) records none.
+    CHECK(shown.summary.trace_count > 0 || !stxlib::capability_supported(stxlib::Capability::stack_trace));
 }
 
 // ---- targets ----------------------------------------------------------------

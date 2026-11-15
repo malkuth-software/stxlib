@@ -8,7 +8,7 @@ holds one line per item: the frozen `<item> <hash> <values hashed>`, or
 `<item> unfrozen` before the first freeze.
 
 Usage:
-  compare_bit_identity.py --expected FILE --run PROGRAM
+  compare_bit_identity.py --expected FILE --run [EMULATOR...] PROGRAM
       runs PROGRAM (with this process's environment, so STX_SIMD_LEVEL
       reaches it) and compares its output; the ctest form.
   compare_bit_identity.py --expected FILE OUTPUT...
@@ -158,14 +158,17 @@ def main(arguments):
     if len(arguments) >= 3 and arguments[0] == "--expected":
         expected = parse_expected(arguments[1])
         outputs = []
-        if arguments[2] == "--run" and len(arguments) == 4:
-            completed = subprocess.run([arguments[3]], stdout=subprocess.PIPE, universal_newlines=True)
+        if arguments[2] == "--run" and len(arguments) >= 4:
+            # The program is the last argument; any before it are the command
+            # that runs it (Emscripten: Node).
+            program = arguments[-1]
+            completed = subprocess.run(arguments[3:], stdout=subprocess.PIPE, universal_newlines=True)
             for line in completed.stdout.splitlines():
                 if line.startswith("#"):
                     print(line)
             if completed.returncode != 0:
-                return fail("%s exited with %d" % (arguments[3], completed.returncode))
-            outputs.append((arguments[3], parse_output(arguments[3], completed.stdout)))
+                return fail("%s exited with %d" % (program, completed.returncode))
+            outputs.append((program, parse_output(program, completed.stdout)))
         else:
             for path in arguments[2:]:
                 with open(path, encoding="utf-8") as handle:

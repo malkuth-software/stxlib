@@ -67,6 +67,16 @@ void yield_thread() noexcept;
 // The number of threads the host can run at once; at least 1 (when the host
 // reports none).
 [[nodiscard]] u32 processor_count() noexcept;
+// The most threads the program can have running at once, every thread of
+// it counted (STXlib's, the program's and any a library starts), when the
+// host fixes that number in advance; 0 when it does not. Only the
+// Emscripten family fixes it, in a browser: threads come from a pool of
+// Web Workers made at start (Capability::fixed_thread_pool), and
+// Thread::start fails with limit_exceeded (the host's EAGAIN as the
+// foreign code) once all are in use, rather than wait for a new one. A
+// program sizes its pools (thread_pool.hpp) within it. Node and the
+// native families answer 0.
+[[nodiscard]] u32 thread_pool_limit() noexcept;
 
 // Whether the calling thread is the process's initial thread, the one that
 // entered main (Capability::main_thread; replaces GUI.Forms' direct
@@ -76,7 +86,9 @@ void yield_thread() noexcept;
 // (the initial thread's identifier is the process identifier, gettid(2);
 // unconfirmed at a pin). Windows has no documented way to name the initial
 // thread, so it fails there with unsupported; a program that needs the
-// answer records its own main thread's ThreadIdentity on entry.
+// answer records its own main thread's ThreadIdentity on entry. Emscripten
+// answers unsupported too: under PROXY_TO_PTHREAD main runs on a worker
+// the runtime does not name (core/capabilities.cpp).
 [[nodiscard]] Result<bool> is_main_thread() noexcept;
 
 // D11's stack sizes, in bytes. A caller's size is rounded up to the host's

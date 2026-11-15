@@ -32,6 +32,18 @@ void features_are_consistent() {
 #elif defined(__aarch64__)
     CHECK(features.neon);
     CHECK(!features.avx && !features.avx2 && !features.fma);
+#elif defined(__wasm__)
+    CHECK(!features.sse2 && !features.neon && !features.avx && !features.avx2 && !features.fma);
+#if defined(__wasm_simd128__)
+    CHECK(features.simd128);
+    CHECK(simd::hardware_level() == simd::Level::vector128);
+#else
+    CHECK(!features.simd128);
+    CHECK(simd::hardware_level() == simd::Level::scalar);
+#endif
+#endif
+#if !defined(__wasm__)
+    CHECK(!features.simd128);
 #endif
     const simd::Level hardware = simd::hardware_level();
     const bool full = features.avx2 && features.fma;
@@ -39,16 +51,20 @@ void features_are_consistent() {
 #if defined(__x86_64__) || defined(__aarch64__)
     CHECK(hardware != simd::Level::scalar);
 #endif
-    std::printf("simd: sse2=%d neon=%d avx=%d avx2=%d fma=%d hardware=%s\n", features.sse2 ? 1 : 0,
+    std::printf("simd: sse2=%d neon=%d avx=%d avx2=%d fma=%d simd128=%d hardware=%s\n", features.sse2 ? 1 : 0,
                 features.neon ? 1 : 0, features.avx ? 1 : 0, features.avx2 ? 1 : 0, features.fma ? 1 : 0,
-                text_of(simd::level_name(hardware)).c_str());
+                features.simd128 ? 1 : 0, text_of(simd::level_name(hardware)).c_str());
 }
 
 void names() {
     CHECK(simd::level_name(simd::Level::scalar) == stxlib::TextView("scalar"));
     CHECK(simd::level_name(simd::Level::avx2_fma) == stxlib::TextView("avx2-fma-256"));
     const stxlib::TextView vector = simd::level_name(simd::Level::vector128);
+#if defined(__wasm__)
+    CHECK(vector == stxlib::TextView("wasm-simd-128"));
+#else
     CHECK(vector == stxlib::TextView("sse2-128") || vector == stxlib::TextView("neon-128"));
+#endif
 }
 
 void request_fixes_the_level() {
