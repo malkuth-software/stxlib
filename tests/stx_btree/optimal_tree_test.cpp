@@ -458,6 +458,40 @@ void check_edges() {
     expect_other_constructions(constant, take(OptimalTreeBuilder::knuth(constant.view())), take(OptimalTreeBuilder::knuth(constant.view())).cost, "constant");
 }
 
+// A construction refused for its size (maximum_table_cells), before it
+// allocates.
+[[nodiscard]] bool too_large(const stxlib::Result<SearchTree>& built) {
+    return !built.succeeded() && (*built.error()).kind() == stxlib::ErrorKind::limit_exceeded;
+}
+
+// Audit A, A1 and A2: bottom_up's chain is linked iteratively, so weights
+// that make its spines as long as the halves build a valid tree; Knuth's
+// triangle over 23,169 keys exceeds maximum_table_cells and both layouts
+// refuse it before allocating.
+void check_limits() {
+    const std::size_t key_count = 1500;
+    OwnedWeights ramp;
+    ramp.keys.assign(key_count, 0);
+    ramp.gaps.assign(key_count + 1, 0);
+    std::size_t key = 0;
+    for (key = 0; key < key_count; key += 1) {
+        const SearchWeight distance = static_cast<SearchWeight>(key_count - key);
+        ramp.keys[key] = distance * distance * distance;
+    }
+    const SearchTree by_knuth = take(OptimalTreeBuilder::knuth(ramp.view()));
+    const SearchTree joined = take(OptimalTreeBuilder::bottom_up(ramp.view()));
+    expect_valid(joined, ramp, "bottom_up ramp");
+    TestFailure::expect(joined.cost >= by_knuth.cost, "bottom_up ramp", "below the optimum");
+
+    OwnedWeights wide;
+    wide.keys.assign(23169, 1);
+    wide.gaps.assign(23170, 1);
+    TestFailure::expect(too_large(OptimalTreeBuilder::knuth(wide.view())), "limits", "knuth over the table limit");
+    TestFailure::expect(too_large(OptimalTreeBuilder::knuth_scattered(wide.view())), "limits",
+                        "knuth_scattered over the table limit");
+    std::printf("limits: bottom_up on a cubic ramp of %zu keys; knuth refused at 23169 keys\n", key_count);
+}
+
 // Garsia-Wachs at sizes the enumeration and cubic checks do not reach, on
 // gap weights with zeros, ties and wide ranges, against Knuth.
 void check_garsia_wachs(SplitMix64& random) {
@@ -503,6 +537,7 @@ int main() {
     check_against_cubic(random);
     check_larger(random);
     check_garsia_wachs(random);
+    check_limits();
     std::printf("optimal tree tests passed\n");
     return 0;
 }
