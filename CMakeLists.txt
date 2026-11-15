@@ -375,6 +375,10 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/require.cpp
     src/core/shadow_frames.cpp
     src/core/stack_trace.cpp
+    src/core/surface.cpp
+    src/core/surface_blit.cpp
+    src/core/surface_input.cpp
+    src/core/surface_keys.cpp
     src/core/text.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
@@ -503,6 +507,14 @@ elseif(STXLIB_HOST_FAMILY STREQUAL "emscripten")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_EMSCRIPTEN_POSIX_SOURCES} ${STXLIB_HOSTED_EMSCRIPTEN_SOURCES})
 else()
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_POSIX_SOURCES} ${STXLIB_HOSTED_LINUX_SOURCES})
+endif()
+# The display surface (surface.hpp): FreeBSD's framebuffer, terminal and
+# evdev where the family is FreeBSD's (phase II, the appliance); every
+# other family reports it unsupported.
+if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
+    list(APPEND STXLIB_BOUNDARY_SOURCES src/hosted/freebsd/surface_freebsd.cpp)
+else()
+    list(APPEND STXLIB_BOUNDARY_SOURCES src/hosted/surface_unsupported.cpp)
 endif()
 
 add_library(stxlib_boundary STATIC ${STXLIB_BOUNDARY_SOURCES})
@@ -979,6 +991,14 @@ if(STXLIB_TESTS)
                     --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_stx_minmallocpp_checked.dir
                     ${stxlib_stx_minmallocpp_sanitized})
     endif()
+
+    # The display surface's pure parts (core/surface_*.hpp) and its public
+    # API where the family has none.
+    add_executable(stxlib_surface_tests tests/surface_tests.cpp)
+    target_link_libraries(stxlib_surface_tests PRIVATE stxlib::boundary)
+    target_include_directories(stxlib_surface_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_surface_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_surface_tests COMMAND stxlib_surface_tests)
 
     # stxlib::algorithms.
     foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd)

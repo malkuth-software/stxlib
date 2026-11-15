@@ -94,6 +94,7 @@ bool emscripten_supported(const Capability capability) noexcept {
     case Capability::page_protection:
     case Capability::process_identity:
     case Capability::main_thread:
+    case Capability::display_surface:
         return false;
     }
     return false;
@@ -189,6 +190,12 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::fixed_thread_pool:
     case Capability::web_storage:
         return false; // the Emscripten family only
+    case Capability::display_surface:
+#if defined(__FreeBSD__)
+        return true; // hosted/freebsd/surface_freebsd.cpp; open_surface still fails without /dev/fb0
+#else
+        return false; // hosted/surface_unsupported.cpp
+#endif
     }
     return false;
 }
@@ -265,6 +272,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "fixed_thread_pool";
     case Capability::web_storage:
         return "web_storage";
+    case Capability::display_surface:
+        return "display_surface";
     }
     return "unknown";
 }
