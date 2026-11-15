@@ -140,7 +140,9 @@ public:
     // them. More than `limit` bytes: limit_exceeded with HostCode::too_long,
     // after the rest is drained and discarded. Read before waiting: a child
     // blocked on a full pipe never ends. Once only; HostCode::invalid_state
-    // unless started with capture.
+    // unless started with capture. The output is returned in a Buffer of its
+    // own (one read per child, bounded by `limit`; house style §6, audit A,
+    // X10), whose block may be up to twice its count (the read's growth).
     [[nodiscard]] Result<Buffer<Byte>> read_output(usize limit) noexcept;
 
 private:

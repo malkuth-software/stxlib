@@ -13,6 +13,13 @@
 //   (unsigned), so every host lists a directory in the same order.
 // - Times are WallTime (Unix time) on every host.
 //
+// Storage (house style §6; audit A, X10): read_file and list_directory
+// return storage of their own (a Buffer, a DirectoryListing) instead of
+// writing into storage the caller supplies. Each is a one-shot read whose
+// size the caller's limit bounds before anything is allocated, and its
+// result is the caller's to keep; no repeated hot path reads files, so no
+// caller-storage form is offered until one does.
+//
 // Owner decision D13, option a (notes decisions/2026-11-13-d13-files-paths.md,
 // "Carry losslessly"):
 // - Binary I/O only: files are bytes; text encodings are the caller's.

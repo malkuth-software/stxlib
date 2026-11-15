@@ -83,7 +83,9 @@ private:
 // of more than `limit` bytes (the line is consumed through its ending, so
 // the next call starts at the following line); invalid_argument with
 // HostCode::invalid_text for a line that is not UTF-8 (consumed);
-// out_of_memory; io_failure.
+// out_of_memory; io_failure. Each line is a string of its own, bounded by
+// `limit` (house style §6, audit A, X10): reading a console line is
+// interactive and never a hot path.
 [[nodiscard]] Result<ConsoleLine> read_console_line(usize limit) noexcept;
 
 } // namespace stxlib
