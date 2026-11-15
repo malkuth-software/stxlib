@@ -61,6 +61,11 @@ enum class Backend : u8 {
 // Releases a block from allocate; null is a no-op. A block from anywhere
 // else, or released twice, ends the process in the tag-checking mode and is
 // undefined behaviour otherwise.
+//
+// Both end the process through fail_fast (an internal_failure record,
+// operation stxlib.memory.heap) once the allocator has detected heap
+// corruption, in this call or an earlier one on any thread (mimalloc's
+// EFAULT; the host backend detects none).
 STXLIB_NO_UNWIND void release(void* address) noexcept;
 
 } // namespace stxlib::memory
