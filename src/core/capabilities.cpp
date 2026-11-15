@@ -58,7 +58,12 @@ bool capability_supported(const Capability capability) noexcept {
 #endif
     case Capability::threads:
     case Capability::local_time_zone:
-        return true; // batch 2c; D11 b (batch 3a); D12 a (batch 3b): compiled zones, the host names one
+        return true; // batch 2c; D11 b (batch 3a); D12 a (batch 3b): compiled zones, the host names one    case Capability::display_surface:
+#if defined(__FreeBSD__)
+        return true; // hosted/freebsd/surface_freebsd.cpp; open_surface still fails without /dev/fb0
+#else
+        return false; // hosted/surface_unsupported.cpp
+#endif
     }
     return false;
 }
@@ -103,6 +108,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "atomic_replace";
     case Capability::elapsed_clock:
         return "elapsed_clock";
+    case Capability::display_surface:
+        return "display_surface";
     }
     return "unknown";
 }

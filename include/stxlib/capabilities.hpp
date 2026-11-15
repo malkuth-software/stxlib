@@ -58,9 +58,13 @@ enum class Capability : u8 {
     // (value 10, stx_auxlib's monotonic clock) stops while the machine is
     // suspended; elapsed_clock continues through suspension.
     elapsed_clock = 18,
+    // One display surface with input and present (surface.hpp; owner
+    // decision 2026-11-15): FreeBSD's framebuffer, terminal and evdev, for
+    // the appliance's foreground target.
+    display_surface = 19,
 };
 
-inline constexpr usize capability_count = 19;
+inline constexpr usize capability_count = 20;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.
