@@ -279,12 +279,25 @@ void host_zone_by_tz() {
         }
     }
     // POSIX rule strings and unknown names are no database names.
+    // So is a path without "zoneinfo/" other than the host's own zone file.
     const stxlib::TextView refused[] = {"EST5EDT,M3.2.0,M11.1.0", "UTC0", "<+0530>-5:30", "Nowhere/Special",
-                                        "/etc/localtime"};
+                                        "/etc/other-localtime", ":/etc/localtime.bak", "/etc/localtime/"};
     for (const stxlib::TextView text : refused) {
         CHECK(stxlib::set_variable("TZ", text).succeeded());
         CHECK(kind_of(stxlib::host_zone()) == stxlib::ErrorKind::not_found);
         CHECK(kind_of(stxlib::local_time(winter)) == stxlib::ErrorKind::not_found);
+    }
+    // TZ naming the host's own zone file, with or without ':', reads the
+    // zone as an unset TZ does (A-stxlib-core-01-F6).
+    CHECK(stxlib::remove_variable("TZ").succeeded());
+    const Result<stxlib::Zone> unset = stxlib::host_zone();
+    const stxlib::TextView own_file[] = {"/etc/localtime", ":/etc/localtime"};
+    for (const stxlib::TextView text : own_file) {
+        CHECK(stxlib::set_variable("TZ", text).succeeded());
+        const Result<stxlib::Zone> zone = stxlib::host_zone();
+        CHECK(zone.succeeded() == unset.succeeded());
+        if (zone.succeeded() && unset.succeeded()) CHECK((*zone.value()).name() == (*unset.value()).name());
+        if (zone.failed() && unset.failed()) CHECK(kind_of(zone) == kind_of(unset));
     }
     if (had_zone) {
         CHECK(stxlib::set_variable("TZ", (*saved.value()).view()).succeeded());
