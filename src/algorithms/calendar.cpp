@@ -103,7 +103,18 @@ bool is_valid_civil_time(const CivilTime& time) noexcept {
     return result;
 }
 
+namespace {
+
+// The requirement weekday_of and day_of_year state (calendar.hpp).
+void require_valid_date(const CivilTime& time) noexcept {
+    STXLIB_REQUIRE(time.day >= 1 && time.day <= days_in_month(time.year, time.month),
+                   "calendar: the date does not exist");
+}
+
+} // namespace
+
 Weekday weekday_of(const CivilTime& time) noexcept {
+    require_valid_date(time);
     // 1970-01-01 was a Thursday (ISO 4).
     const i64 days = civil::days_from_civil(time.year, time.month, time.day);
     const Weekday result = static_cast<Weekday>(civil::floor_remainder(days + 3, 7) + 1);
@@ -111,6 +122,7 @@ Weekday weekday_of(const CivilTime& time) noexcept {
 }
 
 u16 day_of_year(const CivilTime& time) noexcept {
+    require_valid_date(time);
     const i64 days = civil::days_from_civil(time.year, time.month, time.day);
     const i64 first = civil::days_from_civil(time.year, 1, 1);
     const u16 result = static_cast<u16>(days - first + 1);
@@ -138,6 +150,9 @@ Result<WallTime> wall_from_civil(const CivilTime& time) noexcept {
 text::Formatted format_iso8601(const MutableView<char> output, const CivilTime& time, const i32 offset_seconds,
                                const Iso8601Format& format) noexcept {
     STXLIB_REQUIRE(static_cast<unsigned char>(format.separator) < 0x80U, "format_iso8601: the separator is not ASCII");
+    STXLIB_REQUIRE(is_valid_civil_time(time), "format_iso8601: the civil time is not valid");
+    STXLIB_REQUIRE(offset_seconds > -100 * 3600 && offset_seconds < 100 * 3600,
+                   "format_iso8601: the offset is 100 hours or more");
     // The year: four digits from 0 to 9999, else a sign and at least four.
     const bool plain_year = time.year >= 0 && time.year <= 9999;
     const i64 year = time.year;

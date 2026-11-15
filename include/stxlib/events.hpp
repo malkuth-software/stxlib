@@ -42,9 +42,11 @@ class EventSet final {
 public:
     constexpr EventSet() noexcept = default;
 
+    // The events whose bits are set; bits that name no ProcessEvent are
+    // dropped (audit A, X4), so a set holds only defined events.
     [[nodiscard]] static constexpr EventSet of_bits(const u8 bits) noexcept {
         EventSet result;
-        result.bits_ = bits;
+        result.bits_ = static_cast<u8>(bits & defined_bits);
         return result;
     }
     [[nodiscard]] constexpr bool contains(const ProcessEvent event) const noexcept {
@@ -59,6 +61,11 @@ public:
     [[nodiscard]] constexpr bool operator!=(const EventSet other) const noexcept { return bits_ != other.bits_; }
 
 private:
+    static constexpr u8 defined_bits =
+        static_cast<u8>(static_cast<u8>(ProcessEvent::interrupt) | static_cast<u8>(ProcessEvent::terminate) |
+                        static_cast<u8>(ProcessEvent::hangup) | static_cast<u8>(ProcessEvent::terminal_resized) |
+                        static_cast<u8>(ProcessEvent::suspend));
+
     u8 bits_{0};
 };
 
