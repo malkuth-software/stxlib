@@ -220,6 +220,28 @@ class Verifier final {
 public:
     explicit Verifier(const Anchor& anchor) noexcept : anchor_(anchor) {}
 
+    // A moved-from verifier knows the anchor's block only (its later roots
+    // went with the move), like every other move-only type here that is
+    // empty after a move (security audit 2026-11-15,
+    // A-stxlib-include-01-F6).
+    Verifier(Verifier&& other) noexcept
+        : anchor_(other.anchor_), later_roots_(static_cast<Buffer<hash::Digest>&&>(other.later_roots_)),
+          later_count_(other.later_count_) {
+        other.later_count_ = 0;
+    }
+    Verifier& operator=(Verifier&& other) noexcept {
+        if (this == &other) return *this;
+        const usize count = other.later_count_;
+        other.later_count_ = 0;
+        anchor_ = other.anchor_;
+        later_roots_ = static_cast<Buffer<hash::Digest>&&>(other.later_roots_);
+        later_count_ = count;
+        return *this;
+    }
+    Verifier(const Verifier&) = delete;
+    Verifier& operator=(const Verifier&) = delete;
+    ~Verifier() = default;
+
     // ok, invalid_certificate, unknown_block or out_of_memory. A verified
     // block-final certificate teaches the verifier the next block's key root.
     [[nodiscard]] PrecedenceStatus verify(const Certificate& certificate) noexcept;

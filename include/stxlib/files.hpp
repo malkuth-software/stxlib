@@ -42,10 +42,13 @@
 // Where std::filesystem behaviour was relied on, the host calls reproduce
 // it: remove takes a file, a link or an empty directory; remove_tree removes
 // without following links and counts what it removed, the top included;
-// copy_file copies the permission bits on POSIX hosts (st_mode & 07777: the
-// setuid, setgid and sticky bits included, as std::filesystem::copy_file
-// does, where cp(1) without -p clears setuid and setgid) and refuses to copy a
-// file onto itself (already_exists); temporary_directory reads TMPDIR, TMP,
+// copy_file copies the permission bits on POSIX hosts, by default the
+// ordinary ones only (st_mode & 0777, as cp(1) without -p does: a
+// privileged process copying a file a user controls must not make a setuid
+// copy; security audit 2026-11-15, A-stxlib-include-01-F9), the setuid,
+// setgid and sticky bits too (07777, as std::filesystem::copy_file does) when
+// the caller asks with CopyPermissions::with_special_bits; it refuses to
+// copy a file onto itself (already_exists); temporary_directory reads TMPDIR, TMP,
 // TEMP, TEMPDIR and then "/tmp" on POSIX hosts, GetTempPathW on Windows,
 // and must name a directory.
 //
@@ -300,7 +303,15 @@ enum class CopyMode : u8 {
     replace = 1,
 };
 
-[[nodiscard]] Status copy_file(const Path& from, const Path& to, CopyMode mode) noexcept;
+// Which permission bits copy_file carries on POSIX hosts (Windows has none
+// of these bits).
+enum class CopyPermissions : u8 {
+    ordinary = 0,          // st_mode & 0777
+    with_special_bits = 1, // st_mode & 07777: setuid, setgid and sticky too
+};
+
+[[nodiscard]] Status copy_file(const Path& from, const Path& to, CopyMode mode,
+                               CopyPermissions permissions = CopyPermissions::ordinary) noexcept;
 
 namespace detail {
 

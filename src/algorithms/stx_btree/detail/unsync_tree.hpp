@@ -53,18 +53,22 @@ public:
         other.entry_count = 0;
         other.out_of_memory_flag = false;
     }
+    // The source is taken into a local first: it may live inside a value
+    // that release_all() destroys (security audit 2026-11-15, the
+    // A-stxlib-include-01-F1 pattern).
     UnsyncTree& operator=(UnsyncTree&& other) noexcept {
         if (this != &other) {
+            UnsyncTree taken(std::move(other));
             release_all();
-            root_pointer = other.root_pointer;
-            rightmost_leaf = other.rightmost_leaf;
-            entry_count = other.entry_count;
-            page_allocator = std::move(other.page_allocator);
-            out_of_memory_flag = other.out_of_memory_flag;
-            other.root_pointer = NodePointer{};
-            other.rightmost_leaf = NodePointer{};
-            other.entry_count = 0;
-            other.out_of_memory_flag = false;
+            root_pointer = taken.root_pointer;
+            rightmost_leaf = taken.rightmost_leaf;
+            entry_count = taken.entry_count;
+            page_allocator = std::move(taken.page_allocator);
+            out_of_memory_flag = taken.out_of_memory_flag;
+            taken.root_pointer = NodePointer{};
+            taken.rightmost_leaf = NodePointer{};
+            taken.entry_count = 0;
+            taken.out_of_memory_flag = false;
         }
         return *this;
     }

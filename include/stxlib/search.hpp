@@ -231,15 +231,26 @@ template <bool Fold, typename Element>
 
 // ---- text ---------------------------------------------------------------
 
+namespace detail {
+
+// `from`, moved forward past continuation bytes to the next code point
+// boundary (or the end).
+[[nodiscard]] constexpr usize next_boundary(const TextView text, const usize from) noexcept {
+    usize start = from;
+    while (start < text.count() && (static_cast<unsigned char>(text.data()[start]) & 0xc0u) == 0x80u) {
+        start = start + 1;
+    }
+    return start;
+}
+
+} // namespace detail
+
 // The first position of `needle` in `haystack` at or after `from`, or
 // not_found. A `from` inside a code point counts from the next boundary.
 // An empty needle matches at that boundary. A `from` beyond the text finds
 // nothing. The result is a code point boundary.
 [[nodiscard]] constexpr usize find(const TextView haystack, const TextView needle, const usize from = 0) noexcept {
-    usize start = from;
-    while (start < haystack.count() && (static_cast<unsigned char>(haystack.data()[start]) & 0xc0u) == 0x80u) {
-        start = start + 1;
-    }
+    const usize start = detail::next_boundary(haystack, from);
     const usize result =
         detail::search_first<false>(haystack.data(), haystack.count(), needle.data(), needle.count(), start);
     return result;
@@ -270,11 +281,14 @@ template <bool Fold, typename Element>
     return result;
 }
 
-// The same, with ASCII letters compared without case.
+// The same, with ASCII letters compared without case: a `from` inside a
+// code point counts from the next boundary here too, so the result is
+// always a boundary (security audit 2026-11-15, A-stxlib-include-01-F5).
 [[nodiscard]] constexpr usize find_ignoring_ascii_case(const TextView haystack, const TextView needle,
                                                        const usize from = 0) noexcept {
+    const usize start = detail::next_boundary(haystack, from);
     const usize result =
-        detail::search_first<true>(haystack.data(), haystack.count(), needle.data(), needle.count(), from);
+        detail::search_first<true>(haystack.data(), haystack.count(), needle.data(), needle.count(), start);
     return result;
 }
 

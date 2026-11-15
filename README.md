@@ -78,7 +78,8 @@ ctest --test-dir build-web --output-on-failure
 Options: `STXLIB_EMSCRIPTEN_FILESYSTEM` (`js`, MEMFS and IDBFS, the
 default; or `wasmfs`, memory and OPFS), `STXLIB_EMSCRIPTEN_POOL_SIZE` (the
 pthread pool, 8), `STXLIB_EMSCRIPTEN_EXIT_RUNTIME` (on in test builds, off
-for pages). `stxlib_state` is static there and the allocator is the host's.
+for pages). `stxlib_state` is static there; the allocator is stx_minmallocpp, as
+elsewhere (`STXLIB_ALLOCATOR=host` is admitted, with the ownership tags on).
 CI: a web job is added after the first green web run on the M4; it will
 run the three commands above after installing emsdk 6.0.13 (`emsdk install
 6.0.13 && emsdk activate 6.0.13`), once per file system. What a page provides is in

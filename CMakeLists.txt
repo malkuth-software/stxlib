@@ -267,6 +267,16 @@ if(NOT STXLIB_ALLOCATOR MATCHES "^(host|stx_minmallocpp)$")
     message(FATAL_ERROR "STXLIB_ALLOCATOR must be stx_minmallocpp or host")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
+# With the host backend the ownership check exists only with the tags, so
+# AUTO turns them on whenever that backend is chosen, in every
+# configuration: a double or foreign release is refused whichever backend
+# a build has (stx_minmallocpp refuses one itself in every build; security
+# audit 2026-11-15, A-stxlib-include-01-F11; notes
+# decisions/2026-11-15-boundary-sideloading.md, consistency within). OFF
+# still turns them off.
+if(STXLIB_ALLOCATOR STREQUAL "host" AND STXLIB_ALLOCATION_TAGS STREQUAL "AUTO")
+    set(stxlib_tags_on "1")
+endif()
 if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
     # Its own allocator calls replace src/state/allocator.cpp: it needs no
     # tag header and no registry (src/state/stx_minmallocpp/state_calls.cpp).

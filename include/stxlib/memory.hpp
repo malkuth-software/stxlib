@@ -21,12 +21,14 @@
 // one heap, where each module linking the static C runtime has its own.
 //
 // Backend (STXLIB_ALLOCATOR, CMakeLists.txt): STXlib's own allocator,
-// stx_minmallocpp (src/state/stx_minmallocpp), by default; the host's C
-// library in sanitizer builds and on Emscripten. backend() says which is
-// linked.
+// stx_minmallocpp (src/state/stx_minmallocpp), by default, Emscripten
+// included; the host's C library in sanitizer builds, or when chosen.
+// backend() says which is linked.
 //
-// Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: on in Debug and
-// sanitizer builds): release ends the process with a report when given a
+// Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: by default on in
+// Debug and sanitizer builds and in every build with the host backend, so
+// a release is checked whichever backend is linked; security audit
+// 2026-11-15, A-stxlib-include-01-F11): release ends the process with a report when given a
 // block that is not from allocate or was already released, and a foreign
 // free of a block from allocate is handed an address no allocation starts
 // at. Release decides whether an address can be one of its blocks before it
@@ -67,8 +69,9 @@ enum class Backend : u8 {
 [[nodiscard]] STXLIB_NO_UNWIND void* allocate(usize size, usize alignment) noexcept;
 
 // Releases a block from allocate; null is a no-op. A block from anywhere
-// else, or released twice, ends the process in the tag-checking mode and is
-// undefined behaviour otherwise.
+// else, or released twice, ends the process with stx_minmallocpp and in the
+// tag-checking mode, which is every default build; it is undefined
+// behaviour only in a host-backend build whose tags were turned OFF.
 STXLIB_NO_UNWIND void release(void* address) noexcept;
 
 } // namespace stxlib::memory

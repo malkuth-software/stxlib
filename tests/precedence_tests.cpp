@@ -136,6 +136,19 @@ void lifecycle() {
     // A block-final certificate seen again is accepted and teaches nothing new.
     CHECK(fresh.verify(certificates[255]) == precedence::PrecedenceStatus::ok && fresh.known_blocks() == 2);
 
+    // A moved-from verifier knows the anchor's block only, and a later
+    // block's certificate is unknown to it, not a failed requirement
+    // (A-stxlib-include-01-F6).
+    precedence::Verifier taken(static_cast<precedence::Verifier&&>(fresh));
+    CHECK(taken.known_blocks() == 2);
+    CHECK(fresh.known_blocks() == 1);
+    CHECK(fresh.verify(certificates[300]) == precedence::PrecedenceStatus::unknown_block);
+    precedence::Verifier assigned(chain.anchor());
+    assigned = static_cast<precedence::Verifier&&>(taken);
+    CHECK(assigned.known_blocks() == 2 && taken.known_blocks() == 1);
+    CHECK(assigned.verify(certificates[300]) == precedence::PrecedenceStatus::ok);
+    CHECK(taken.verify(certificates[300]) == precedence::PrecedenceStatus::unknown_block);
+
     bool below_limit = true;
     for (usize index = 0; index < precedence::infos_per_epoch; ++index) {
         below_limit = below_limit &&

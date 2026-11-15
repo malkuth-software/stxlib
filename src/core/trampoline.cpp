@@ -9,8 +9,16 @@
 // Life of a slot generation g (g >= 1):
 //   free(g-1) --attach--> reserved(g) --publish--> attached(g)
 //   attached(g) --revoke--> revoked(g) --last leave or revoker--> free(g)
-// A slot whose generation reached generation_limit stays free and is never
-// reserved again (retired), so a handle is never reissued.
+// A slot whose generation reached its table's generation limit stays free
+// and is never reserved again (retired), so a handle is never reissued.
+//
+// Handles: a table packs a slot index in as few bits as its capacity needs
+// (1 to 16) and the generation in the rest of a context pointer, capped at
+// 2^48 - 1 (security audit 2026-11-15, A-stxlib-include-01-F10). On 64-bit
+// targets every table has the cap; on wasm32 a table of 16 slots has 2^28 -
+// 1 generations per slot instead of the 65535 a fixed 16-bit index left,
+// and only a table of more than 32768 slots is down to 65535
+// (trampoline_generation_limit, the least any table has).
 //
 // Why revoke cannot miss a running invocation (all four operations below are
 // sequentially consistent, so they fall in one total order S):
@@ -61,16 +69,39 @@ enum class Phase : u64 {
 
 constexpr u64 phase_mask = 3;
 constexpr unsigned generation_shift = 2;
-constexpr unsigned handle_index_bits = trampoline_index_bits;
-constexpr u64 handle_index_mask = (static_cast<u64>(1) << handle_index_bits) - 1;
-// Handles carry the rest of a pointer's bits as the generation (48 on
-// 64-bit targets, 16 on wasm32), so every handle survives as_context().
-constexpr u64 generation_limit = trampoline_generation_limit;
+constexpr unsigned pointer_bits = 8 * sizeof(void*);
+// The generation cap on every target (it keeps make_state's shift in u64).
+constexpr u64 generation_cap = (static_cast<u64>(1) << 48) - 1;
 
-static_assert(trampoline_capacity_limit <= handle_index_mask, "a slot index fits the handle's index bits");
-static_assert(((generation_limit << handle_index_bits) | handle_index_mask) <= static_cast<u64>(~static_cast<uptr>(0)),
-              "the largest handle fits a context pointer");
-static_assert(generation_limit >= 65535, "a slot accepts at least 65535 attachments");
+static_assert(trampoline_capacity_limit <= (static_cast<u64>(1) << trampoline_index_bits) - 1,
+              "a slot index fits the widest index");
+static_assert(trampoline_generation_limit <= generation_cap, "the least limit is within the cap");
+static_assert(((trampoline_generation_limit << trampoline_index_bits) |
+               ((static_cast<u64>(1) << trampoline_index_bits) - 1)) <= static_cast<u64>(~static_cast<uptr>(0)),
+              "the largest handle of the widest index fits a context pointer");
+static_assert(trampoline_generation_limit >= 65535, "a slot accepts at least 65535 attachments");
+
+// The index bits a table of `capacity` slots needs: the width of the
+// largest index, at least 1 and at most trampoline_index_bits.
+[[nodiscard]] constexpr unsigned index_bits_for(const usize capacity) noexcept {
+    unsigned bits = 1;
+    while (bits < trampoline_index_bits && (static_cast<u64>(1) << bits) < static_cast<u64>(capacity)) bits = bits + 1;
+    return bits;
+}
+
+// The generations a slot of a table with `index_bits` accepts: the rest of
+// a pointer's bits, capped.
+[[nodiscard]] constexpr u64 generation_limit_for(const unsigned index_bits) noexcept {
+    const unsigned bits = pointer_bits - index_bits;
+    if (bits >= 48) return generation_cap;
+    const u64 result = (static_cast<u64>(1) << bits) - 1;
+    return result;
+}
+
+static_assert(index_bits_for(1) == 1 && index_bits_for(2) == 1 && index_bits_for(3) == 2 && index_bits_for(16) == 4 &&
+              index_bits_for(17) == 5 && index_bits_for(trampoline_capacity_limit) == trampoline_index_bits);
+static_assert(generation_limit_for(trampoline_index_bits) == trampoline_generation_limit,
+              "the widest index leaves the least limit");
 
 [[nodiscard]] constexpr u64 make_state(const u64 generation, const Phase phase) noexcept {
     const u64 result = (generation << generation_shift) | static_cast<u64>(phase);
@@ -81,8 +112,9 @@ static_assert(generation_limit >= 65535, "a slot accepts at least 65535 attachme
 
 [[nodiscard]] constexpr u64 generation_of(const u64 state) noexcept { return state >> generation_shift; }
 
-[[nodiscard]] constexpr TrampolineHandle make_handle(const usize index, const u64 generation) noexcept {
-    const u64 value = (generation << handle_index_bits) | static_cast<u64>(index);
+[[nodiscard]] constexpr TrampolineHandle make_handle(const usize index, const u64 generation,
+                                                     const unsigned index_bits) noexcept {
+    const u64 value = (generation << index_bits) | static_cast<u64>(index);
     const TrampolineHandle result = TrampolineHandle::from_value(value);
     return result;
 }
@@ -99,6 +131,19 @@ class TrampolineSlots final {
 public:
     usize capacity{0};
     TrampolineSlot* slots{nullptr};
+    // This table's handle packing (index_bits_for, generation_limit_for).
+    unsigned index_bits{trampoline_index_bits};
+    u64 index_mask{0};
+    u64 generation_limit{trampoline_generation_limit};
+
+    [[nodiscard]] usize index_of(const TrampolineHandle handle) const noexcept {
+        const usize result = static_cast<usize>(handle.value() & index_mask);
+        return result;
+    }
+    [[nodiscard]] u64 generation_of_handle(const TrampolineHandle handle) const noexcept {
+        const u64 result = handle.value() >> index_bits;
+        return result;
+    }
 };
 
 namespace {
@@ -202,6 +247,9 @@ Result<TrampolineTable> TrampolineTable::create(const usize capacity) noexcept {
     detail::TrampolineSlots* const table = new (table_block) detail::TrampolineSlots();
     (*table).capacity = capacity;
     (*table).slots = slots;
+    (*table).index_bits = detail::index_bits_for(capacity);
+    (*table).index_mask = (static_cast<u64>(1) << (*table).index_bits) - 1;
+    (*table).generation_limit = detail::generation_limit_for((*table).index_bits);
     TrampolineTable result(table);
     return Result<TrampolineTable>::success(static_cast<TrampolineTable&&>(result));
 }
@@ -245,6 +293,11 @@ usize TrampolineTable::capacity() const noexcept {
     return (*slots_).capacity;
 }
 
+u64 TrampolineTable::generation_limit() const noexcept {
+    if (slots_ == nullptr) return 0;
+    return (*slots_).generation_limit;
+}
+
 Result<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
     STXLIB_REQUIRE(target != nullptr, "TrampolineTable::attach: null target");
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::attach on a moved-from table");
@@ -254,14 +307,14 @@ Result<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
         u64 state = slot.state.load(std::memory_order_seq_cst);
         if (detail::phase_of(state) != detail::Phase::free) continue;
         const u64 generation = detail::generation_of(state);
-        if (generation >= detail::generation_limit) continue; // retired
+        if (generation >= table.generation_limit) continue; // retired
         const u64 next = generation + 1;
         const bool reserved = slot.state.compare_exchange_strong(
             state, detail::make_state(next, detail::Phase::reserved), std::memory_order_seq_cst);
         if (!reserved) continue;
         slot.target.store(target, std::memory_order_relaxed);
         slot.state.store(detail::make_state(next, detail::Phase::attached), std::memory_order_seq_cst);
-        const TrampolineHandle handle = detail::make_handle(index, next);
+        const TrampolineHandle handle = detail::make_handle(index, next, table.index_bits);
         return Result<TrampolineHandle>::success(handle);
     }
     const ErrorRecord full = ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.trampoline.attach",
@@ -272,9 +325,9 @@ Result<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
 Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) noexcept {
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::enter on a moved-from table");
     detail::TrampolineSlots& table = *slots_;
-    const usize index = static_cast<usize>(handle.value() & detail::handle_index_mask);
-    const u64 generation = handle.value() >> detail::handle_index_bits;
-    if (generation == 0 || generation > detail::generation_limit || index >= table.capacity) {
+    const usize index = table.index_of(handle);
+    const u64 generation = table.generation_of_handle(handle);
+    if (generation == 0 || generation > table.generation_limit || index >= table.capacity) {
         return Result<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
     }
     state::ThreadState* const kept = state::current_thread_state();
@@ -328,17 +381,17 @@ void TrampolineTable::leave(const TrampolineEntry& entry) noexcept {
                    "TrampolineTable::leave out of order");
     thread.open_depth = thread.open_depth - 1;
     detail::TrampolineSlots& table = *slots_;
-    const usize index = static_cast<usize>(entry.handle.value() & detail::handle_index_mask);
-    const u64 generation = entry.handle.value() >> detail::handle_index_bits;
+    const usize index = table.index_of(entry.handle);
+    const u64 generation = table.generation_of_handle(entry.handle);
     detail::depart(table.slots[index], generation);
 }
 
 Result<Revocation> TrampolineTable::revoke(const TrampolineHandle handle) noexcept {
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::revoke on a moved-from table");
     detail::TrampolineSlots& table = *slots_;
-    const usize index = static_cast<usize>(handle.value() & detail::handle_index_mask);
-    const u64 generation = handle.value() >> detail::handle_index_bits;
-    if (generation == 0 || generation > detail::generation_limit || index >= table.capacity) {
+    const usize index = table.index_of(handle);
+    const u64 generation = table.generation_of_handle(handle);
+    if (generation == 0 || generation > table.generation_limit || index >= table.capacity) {
         return Result<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
     }
     detail::TrampolineSlot& slot = table.slots[index];

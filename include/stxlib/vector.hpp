@@ -107,13 +107,24 @@ public:
     }
 
     // A vector holding copies of `elements`, with capacity exactly their
-    // count. `elements` may borrow from any storage, another vector included.
+    // count (an exact allocation, not the growth policy; security audit
+    // 2026-11-15, A-stxlib-include-01-F4). `elements` may borrow from any
+    // storage, another vector included. Fails with limit_exceeded when the
+    // byte size is not representable, out_of_memory when the allocator
+    // refuses.
     [[nodiscard]] static Result<Vector> copy_of(const View<Element> elements) noexcept {
-        Result<Vector> made = with_capacity(elements.count());
-        if (made.failed()) return made;
-        Vector result = static_cast<Result<Vector>&&>(made).take_value();
+        const usize count = elements.count();
+        Vector result;
+        if (count == 0) return Result<Vector>::success(static_cast<Vector&&>(result));
+        if (count > usize_max / sizeof(Element)) {
+            return Result<Vector>::failure(not_representable("stxlib.vector.copy_of"));
+        }
+        Element* const block = allocate_block(count);
+        if (block == nullptr) return Result<Vector>::failure(exhausted("stxlib.vector.copy_of"));
+        result.elements_ = block;
+        result.capacity_ = count;
         result.construct_copies(result.elements_, elements);
-        result.count_ = elements.count();
+        result.count_ = count;
         return Result<Vector>::success(static_cast<Vector&&>(result));
     }
 
@@ -133,17 +144,29 @@ public:
         other.capacity_ = 0;
     }
 
-    // Destroys this vector's elements and frees its storage, then takes
-    // other's; other is the empty vector. Self-assignment changes nothing.
+    // Takes other's storage, then destroys this vector's old elements and
+    // frees its old storage; other is the empty vector. Self-assignment
+    // changes nothing. The source is taken first because it may live inside
+    // an element being destroyed (`node.children =
+    // move(node.children[0].children)`; security audit 2026-11-15,
+    // A-stxlib-include-01-F2). Both vectors hold their new storage before
+    // any old element's destructor runs (form 1).
     Vector& operator=(Vector&& other) noexcept {
         if (this == &other) return *this;
-        release();
-        elements_ = other.elements_;
-        count_ = other.count_;
-        capacity_ = other.capacity_;
+        Element* const elements = other.elements_;
+        const usize count = other.count_;
+        const usize capacity = other.capacity_;
         other.elements_ = nullptr;
         other.count_ = 0;
         other.capacity_ = 0;
+        Vector previous;
+        previous.elements_ = elements_;
+        previous.count_ = count_;
+        previous.capacity_ = capacity_;
+        elements_ = elements;
+        count_ = count;
+        capacity_ = capacity;
+        previous.release();
         return *this;
     }
 
@@ -247,16 +270,27 @@ public:
     }
 
     // Appends an element constructed in place from `arguments` (forwarded).
-    // Failure changes nothing and constructs nothing. An argument must not
-    // refer into this vector: construction may follow a reallocation.
+    // Failure changes nothing and constructs nothing. An argument may refer
+    // into this vector (`emplace(vector[0])`): when the vector grows, the
+    // element is built in the new block while the old storage is still
+    // live, as push_copy does (security audit 2026-11-15,
+    // A-stxlib-include-01-F3).
     template <typename... Arguments>
     [[nodiscard]] Status emplace(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Element, Arguments&&...),
                       "Vector::emplace needs a nothrow constructor for these arguments");
-        const Status reserved = reserve_one_more("stxlib.vector.emplace");
-        if (reserved.failed()) return reserved;
-        detail::construct<Element>(elements_ + count_, static_cast<Arguments&&>(arguments)...);
-        count_ = count_ + 1;
+        if (count_ < capacity_) {
+            detail::construct<Element>(elements_ + count_, static_cast<Arguments&&>(arguments)...);
+            count_ = count_ + 1;
+            return Status::success();
+        }
+        Element* block = nullptr;
+        usize next = 0;
+        const Status grown = block_for_one_more("stxlib.vector.emplace", block, next);
+        if (grown.failed()) return grown;
+        detail::construct<Element>(block + count_, static_cast<Arguments&&>(arguments)...);
+        move_into(block, elements_, count_);
+        adopt_block(block, next, count_ + 1);
         return Status::success();
     }
 
@@ -472,17 +506,6 @@ private:
         if (next == 0) return Status::failure(not_representable(operation));
         block = allocate_block(next);
         if (block == nullptr) return Status::failure(exhausted(operation));
-        return Status::success();
-    }
-
-    Status reserve_one_more(const Operation operation) noexcept {
-        if (count_ < capacity_) return Status::success();
-        Element* block = nullptr;
-        usize next = 0;
-        const Status grown = block_for_one_more(operation, block, next);
-        if (grown.failed()) return grown;
-        move_into(block, elements_, count_);
-        adopt_block(block, next, count_);
         return Status::success();
     }
 

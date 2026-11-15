@@ -611,14 +611,14 @@ Status rename(const Path& from, const Path& to) noexcept {
     return result;
 }
 
-Status copy_file(const Path& from, const Path& to, const CopyMode mode) noexcept {
+Status copy_file(const Path& from, const Path& to, const CopyMode mode, const CopyPermissions permissions) noexcept {
     const Operation operation = "stxlib.files.copy_file";
     Growable<char> source;
     Growable<char> target;
     Outcome converted = native_name(from, source);
     if (converted.ok()) converted = native_name(to, target);
     if (!converted.ok()) return failed(converted, operation);
-    const Status result = status_of(file_backend::copy_file(source.data(), target.data(), mode), operation);
+    const Status result = status_of(file_backend::copy_file(source.data(), target.data(), mode, permissions), operation);
     return result;
 }
 

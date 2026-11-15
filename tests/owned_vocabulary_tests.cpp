@@ -604,6 +604,157 @@ void unique_owners() {
     CHECK(ledger.constructed == constructed_before);
 }
 
+// ---- assignment from inside the owned object (security audit 2026-11-15) ----
+
+// A singly linked list of Unique nodes: popping the front is
+// `head = move((*head).next)`, whose source lives inside the object head
+// owns (A-stxlib-include-01-F1).
+struct ListNode final {
+    Tracked tracked;
+    stxlib::Unique<ListNode> next;
+    explicit ListNode(const int value) noexcept : tracked(value), next() {}
+};
+
+stxlib::Unique<ListNode> list_node(const int value) {
+    stxlib::Result<stxlib::Unique<ListNode>> made = stxlib::Unique<ListNode>::make(value);
+    STXLIB_REQUIRE(made.succeeded(), "making a list node");
+    stxlib::Unique<ListNode> result = static_cast<stxlib::Result<stxlib::Unique<ListNode>>&&>(made).take_value();
+    return result;
+}
+
+void unique_list_pop() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    const u64 released_before = stxlib::detail::vocabulary_blocks_released();
+    {
+        stxlib::Unique<ListNode> head = list_node(1);
+        (*head).next = list_node(2);
+        (*(*head).next).next = list_node(3);
+        CHECK(ledger.live == live_before + 3);
+
+        head = static_cast<stxlib::Unique<ListNode>&&>((*head).next);
+        // Only the old head is gone; the tail is kept, in order.
+        CHECK(ledger.live == live_before + 2);
+        CHECK(stxlib::detail::vocabulary_blocks_released() - released_before == 1);
+        CHECK(head.present() && (*head).tracked.value == 2);
+        CHECK((*head).next.present() && (*(*head).next).tracked.value == 3);
+        CHECK((*(*head).next).next.empty());
+
+        head = static_cast<stxlib::Unique<ListNode>&&>((*head).next);
+        CHECK(ledger.live == live_before + 1);
+        CHECK(head.present() && (*head).tracked.value == 3 && (*head).next.empty());
+
+        // Popping the last node leaves the list empty.
+        head = static_cast<stxlib::Unique<ListNode>&&>((*head).next);
+        CHECK(head.empty());
+        CHECK(ledger.live == live_before);
+    }
+    CHECK(stxlib::detail::vocabulary_blocks_released() - released_before == 3);
+    CHECK(ledger.errors == errors_before);
+}
+
+// An element that owns a separate Vector or Optional of its own type through
+// a pointer (the vocabulary's types need a complete element, so the nesting
+// goes through the heap), destroyed with the element: assigning the outer
+// container from the inner one has its source inside an element the
+// assignment destroys (A-stxlib-include-01-F2).
+struct VectorBox final {
+    Tracked tracked;
+    stxlib::Vector<VectorBox>* inner{nullptr};
+    explicit VectorBox(const int value) noexcept : tracked(value) {}
+    VectorBox(VectorBox&& other) noexcept : tracked(static_cast<Tracked&&>(other.tracked)), inner(other.inner) {
+        other.inner = nullptr;
+    }
+    VectorBox(const VectorBox&) = delete;
+    VectorBox& operator=(const VectorBox&) = delete;
+    VectorBox& operator=(VectorBox&&) = delete;
+    ~VectorBox();
+};
+
+VectorBox::~VectorBox() { delete inner; }
+
+struct OptionalBox final {
+    Tracked tracked;
+    stxlib::Optional<OptionalBox>* inner{nullptr};
+    explicit OptionalBox(const int value) noexcept : tracked(value) {}
+    OptionalBox(OptionalBox&& other) noexcept : tracked(static_cast<Tracked&&>(other.tracked)), inner(other.inner) {
+        other.inner = nullptr;
+    }
+    OptionalBox(const OptionalBox&) = delete;
+    OptionalBox& operator=(const OptionalBox&) = delete;
+    OptionalBox& operator=(OptionalBox&&) = delete;
+    ~OptionalBox();
+};
+
+OptionalBox::~OptionalBox() { delete inner; }
+
+void vector_from_inside_an_element() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        stxlib::Vector<VectorBox> outer;
+        CHECK(outer.push(VectorBox(1)).succeeded());
+        stxlib::Vector<VectorBox>* const inner = new stxlib::Vector<VectorBox>();
+        CHECK((*inner).push(VectorBox(10)).succeeded());
+        CHECK((*inner).push(VectorBox(11)).succeeded());
+        outer[0].inner = inner;
+        // Collapse a level: the outer vector takes the inner one's elements;
+        // destroying the old element 1 then deletes the emptied inner vector.
+        outer = static_cast<stxlib::Vector<VectorBox>&&>(*inner);
+        CHECK(outer.count() == 2 && outer[0].tracked.value == 10 && outer[1].tracked.value == 11);
+        CHECK(ledger.live == live_before + 2);
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+}
+
+void optional_from_inside_its_value() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        stxlib::Optional<OptionalBox> outer = stxlib::Optional<OptionalBox>::of(OptionalBox(1));
+        stxlib::Optional<OptionalBox>* const inner =
+            new stxlib::Optional<OptionalBox>(stxlib::Optional<OptionalBox>::of(OptionalBox(7)));
+        (*outer.value()).inner = inner;
+        outer = static_cast<stxlib::Optional<OptionalBox>&&>(*inner);
+        CHECK(outer.present() && (*outer.value()).tracked.value == 7 && (*outer.value()).inner == nullptr);
+        CHECK(ledger.live == live_before + 1);
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+}
+
+// emplace with an argument that refers into the vector, when it must grow
+// (A-stxlib-include-01-F3), and copies with exactly their count as capacity
+// (A-stxlib-include-01-F4).
+void vector_emplace_and_exact_copies() {
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        stxlib::Vector<Tracked> tracked;
+        CHECK(tracked.emplace(5).succeeded());
+        while (tracked.count() < tracked.capacity()) CHECK(tracked.emplace(6).succeeded());
+        const usize full = tracked.count();
+        CHECK(full == tracked.capacity());
+        const Tracked& first = tracked[0];
+        CHECK(tracked.emplace(first).succeeded());
+        CHECK(tracked.count() == full + 1 && tracked[full].value == 5 && tracked[0].value == 5);
+        CHECK(tracked.capacity() > full);
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+
+    stxlib::Vector<u64> numbers;
+    for (u64 value = 0; value < 5; ++value) CHECK(numbers.push_copy(value).succeeded());
+    CHECK(numbers.capacity() == 8);
+    stxlib::Result<stxlib::Vector<u64>> five = numbers.copy();
+    CHECK(five.succeeded() && (*five.value()).capacity() == 5 && *five.value() == numbers);
+    stxlib::Result<stxlib::Vector<u64>> one = stxlib::Vector<u64>::copy_of(numbers.view().first(1));
+    CHECK(one.succeeded() && (*one.value()).capacity() == 1 && (*one.value()).count() == 1);
+    stxlib::Result<stxlib::Vector<u64>> none = stxlib::Vector<u64>::copy_of(stxlib::View<u64>());
+    CHECK(none.succeeded() && (*none.value()).capacity() == 0 && (*none.value()).empty());
+}
+
 // ---- Shared and Weak: bounded exhaustive exploration ------------------------
 
 constexpr unsigned owner_slots = 3;
@@ -848,6 +999,10 @@ int main(const int argc, char** const argv) {
     vector_limits_and_moves();
     optional_exhaustive();
     unique_owners();
+    unique_list_pop();
+    vector_from_inside_an_element();
+    optional_from_inside_its_value();
+    vector_emplace_and_exact_copies();
     shared_exhaustive(depth);
     shared_self_and_casts();
     shared_threads();

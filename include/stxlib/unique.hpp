@@ -24,9 +24,9 @@
 // Early exits (owner, 2026-11-15, decisions/2026-11-15-early-exit-
 // integrity.md): the object's constructor and destructor are the
 // consumer's code. Form 1 at every call: make constructs into a block no
-// owner holds yet (an early exit leaks the block); reset and assignment
-// clear this owner's fields before the destructor runs, so the owner is
-// already empty during it.
+// owner holds yet (an early exit leaks the block); reset clears this
+// owner's fields, and assignment takes the source into them, before the old
+// object's destructor runs, so neither owner refers to it during it.
 
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
@@ -55,7 +55,10 @@ void destroy_unique_block(void* const block) noexcept {
 
 template <typename Value>
 class Unique final {
-    static_assert(detail::nothrow_destructible<Value>, "Unique's Value must be nothrow destructible");
+    // Value may be incomplete where Unique<Value> is named (a node that
+    // owns its successor: struct Node { Unique<Node> next; }), so the
+    // requirement on its destructor is checked where an object is made
+    // (make), not here.
 
 public:
     using DestroyFunction = void (*)(void* block) noexcept;
@@ -70,6 +73,7 @@ public:
     [[nodiscard]] static Result<Unique> make(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Value, Arguments&&...),
                       "Unique::make needs a nothrow constructor for these arguments");
+        static_assert(detail::nothrow_destructible<Value>, "Unique's Value must be nothrow destructible");
         void* const block = detail::vocabulary_allocate(sizeof(Value), alignof(Value));
         if (block == nullptr) {
             const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.unique.make");
@@ -103,16 +107,27 @@ public:
         other.destroy_ = nullptr;
     }
 
-    // Destroys what this owns, then takes other's object; other is empty.
+    // Takes other's object, then destroys what this owned; other is empty.
+    // The source is taken first, as std::unique_ptr's reset(u.release())
+    // does, because it may live inside the object this owns: `head =
+    // move((*head).next)` keeps the tail and destroys only the old head
+    // (security audit 2026-11-15, A-stxlib-include-01-F1). This owner and
+    // the source hold their new values before the old object's destructor
+    // runs (form 1).
     Unique& operator=(Unique&& other) noexcept {
         if (this == &other) return *this;
-        reset();
-        object_ = other.object_;
-        block_ = other.block_;
-        destroy_ = other.destroy_;
+        Value* const object = other.object_;
+        void* const block = other.block_;
+        const DestroyFunction destroy = other.destroy_;
         other.object_ = nullptr;
         other.block_ = nullptr;
         other.destroy_ = nullptr;
+        void* const previous_block = block_;
+        const DestroyFunction previous_destroy = destroy_;
+        object_ = object;
+        block_ = block;
+        destroy_ = destroy;
+        if (previous_block != nullptr) previous_destroy(previous_block);
         return *this;
     }
 

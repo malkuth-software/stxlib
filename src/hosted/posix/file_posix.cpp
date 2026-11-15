@@ -752,9 +752,12 @@ Outcome rename(const char* const from, const char* const to) noexcept {
     return success();
 }
 
-// Copies content and permission bits. Refuses to copy a file onto itself,
-// which O_TRUNC would empty (std::filesystem::copy_file reports it too).
-Outcome copy_file(const char* const from, const char* const to, const CopyMode mode) noexcept {
+// Copies content and permission bits (the ordinary ones, or with the setuid,
+// setgid and sticky bits when asked; files.hpp). Refuses to copy a file onto
+// itself, which O_TRUNC would empty (std::filesystem::copy_file reports it
+// too).
+Outcome copy_file(const char* const from, const char* const to, const CopyMode mode,
+                  const CopyPermissions carried) noexcept {
     Descriptor source(open_retrying(from, O_RDONLY | O_CLOEXEC, 0));
     if (source.get() < 0) return from_errno(errno);
     struct stat described{};
@@ -769,7 +772,8 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
         if (mode == CopyMode::fail_if_exists) return failure(FileStatus::already_exists);
     }
     const int flags = O_WRONLY | O_CREAT | O_CLOEXEC | (mode == CopyMode::replace ? O_TRUNC : O_EXCL);
-    const mode_t permissions = static_cast<mode_t>(described.st_mode & 07777);
+    const mode_t kept_bits = static_cast<mode_t>(carried == CopyPermissions::with_special_bits ? 07777 : 0777);
+    const mode_t permissions = static_cast<mode_t>(described.st_mode & kept_bits);
     Descriptor target(open_retrying(to, flags, permissions));
     if (target.get() < 0) return from_errno(errno);
     Byte chunk[16384]{};

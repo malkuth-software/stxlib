@@ -11,6 +11,7 @@
 // picks the calling thread's. The record numbers come from ThreadFlags in
 // both cases, so a reference never names a record of the other store.
 
+#include "stxlib/detail/utf8.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/shadow.hpp"
 
@@ -79,6 +80,18 @@ ShadowReference capture(Store& store, const CapturePoint point) noexcept {
 // Keeps what the store can hold: frames past its capacity are counted as
 // lost, and the trace is kept only where the store keeps one. Returns its
 // reference, or none when the thread's shadow sequence is exhausted.
+// A frame handed back through restore_shadow_from is input from its
+// carrier: its text counts are cut to the arrays and to their well-formed
+// UTF-8 prefix, since subject_text() and name_text() adopt the bytes as
+// validated text (security audit 2026-11-15, A-stxlib-include-01, "needs a
+// check": restored shadow frames keep the caller's text counts).
+inline void keep_text_whole(ShadowFrameRecord& frame) noexcept {
+    const usize subject = frame.subject_count < shadow_subject_capacity ? frame.subject_count : shadow_subject_capacity;
+    const usize name = frame.name_count < shadow_name_capacity ? frame.name_count : shadow_name_capacity;
+    frame.subject_count = static_cast<u32>(detail::utf8_prefix(frame.subject, subject, subject));
+    frame.name_count = static_cast<u32>(detail::utf8_prefix(frame.name, name, name));
+}
+
 template <typename Store>
 ShadowReference file_copy(Store& store, const CapturePoint point, const View<ShadowFrameRecord> frames,
                           const usize frames_lost, const View<uptr> trace) noexcept {
@@ -89,7 +102,10 @@ ShadowReference file_copy(Store& store, const CapturePoint point, const View<Sha
     record.sequence = sequence;
     record.point = point;
     const usize stored = frames.count() < Store::frame_capacity ? frames.count() : Store::frame_capacity;
-    for (usize index = 0; index < stored; ++index) record.frames[index] = frames[index];
+    for (usize index = 0; index < stored; ++index) {
+        record.frames[index] = frames[index];
+        keep_text_whole(record.frames[index]);
+    }
     record.frame_count = stored;
     record.frames_lost = frames_lost + (frames.count() - stored);
     if constexpr (Store::trace_capacity > 0) {
