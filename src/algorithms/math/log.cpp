@@ -51,12 +51,41 @@ double log_any(const double x) noexcept {
 }
 
 // Float inputs are normal doubles (or zero, negative, infinite, NaN): the
-// cheap path when its rounding is certain, otherwise the double result
-// rounded once to float (exhaustively checked to be correctly rounded).
-// The accurate float logarithm: the double result rounded once (exhaustively
-// checked correctly rounded), out of line for the fast path's tail call.
+// cheap path when its rounding is certain, otherwise the accurate path.
+//
+// The accurate float logarithm, out of line for the fast path's tail call.
+// A positive normal finite x takes the region kernel (region.cpp: a
+// double-double within 2^-62, rounded once; correctly rounded for every
+// positive normal float, proved by tools/math/region_exhaustive.py). Until
+// R3 this path rounded the double result to float, a second rounding: it
+// misrounded log at the five floats whose logarithm lies so near a float
+// midpoint that the double result rounded onto it or past it (0x1.827a74p-7, 0x1.2f1fd6p+3, 0x1.bacb4ap+25,
+// 0x1.b121a6p+76, 0x1.6351d8p+95; found by the hardened screens and the
+// region comparison on the M4), and modelled to misround log10 at
+// 0x1.fddcf4p-98 (tools/math/region_exhaustive.py --double-rounding; log2:
+// none). Zero, negative, infinite, NaN and subnormal
+// x keep the double result rounded once: exact or special there, except a
+// subnormal x (read unflushed only by the variant function; the public
+// function flushes it to -infinity).
+template <const LogBase& base>
+float region_log_float(const float x) noexcept {
+    float result = 0.0f;
+    if constexpr (&base == &natural) {
+        result = region::log(x);
+    } else if constexpr (&base == &binary) {
+        result = region::log2(x);
+    } else {
+        result = region::log10(x);
+    }
+    return result;
+}
+
 template <const LogBase& base>
 STXLIB_MATH_COLD float log_float_accurate(const float x) noexcept {
+    if (x >= 0x1p-126f && x <= std::numeric_limits<float>::max()) {
+        const float result = region_log_float<base>(x);
+        return result;
+    }
     const double result = log_any<base>(detail::widen(x));
     return static_cast<float>(result);
 }

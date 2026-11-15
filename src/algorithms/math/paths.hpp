@@ -6,21 +6,18 @@
 // functions take. CMake sets them (options STXLIB_MATH_REGION_*); a build
 // without CMake gets the defaults here, which must match CMakeLists.txt's.
 //
-// Default: the region path where it is proved and not slower by design,
-// today's kernel otherwise (seat sm1, R2 note section 6.1):
-//   - float hypot: region (correctly rounded by construction; a sqrt plus
-//     about 12 operations, no certify-and-fall-back);
-//   - sin, cos and tan of a double: region (the same proved 0.51 ulp; a
-//     shorter reduction and polynomial chains, no cold redo);
-//   - pow(double): today's (region proved 0.500097 ulp against 0.576, but
-//     about 18 more operations per call);
-//   - float log, log2, log10: today's (both correctly rounded for every
-//     float; region is one double-double pass, more operations than
-//     today's cheap path on the common input);
-//   - float pow: today's (region proved correctly rounded except within
-//     2^-94 of a midpoint, against 2^-52.7; its stage 1 is the double-double
-//     kernel, more than today's cheap path).
-// The bench (R2 run list) can overturn each default.
+// Default, by the owner's rule (the faster path at today's accuracy), from
+// the R2 bench on the M4 (main 45b275b; ns per call, today's against
+// region; seat sm1, R2 note sections 6.1 and 11):
+//   - sin, cos, sincos and tan of a double: region (sincos 5.56 against
+//     7.07, tan 7.27 against 8.03; the same proved 0.51 ulp);
+//   - float hypot: today's (2.36 against 5.00; both give identical results
+//     on every tested pair);
+//   - pow(double): today's (10.88 against 16.48);
+//   - float pow: today's (5.11 against 35.8);
+//   - float log, log2, log10: today's (region 1.25 to 1.5 times slower).
+//     Today's cold fallback calls the region kernel for a positive normal
+//     float, so both paths round the same way there.
 
 #ifndef STXLIB_ALGORITHMS_MATH_PATHS_HPP
 #define STXLIB_ALGORITHMS_MATH_PATHS_HPP
@@ -38,7 +35,7 @@
 #define STXLIB_MATH_REGION_LOG_FLOAT 0
 #endif
 #if !defined(STXLIB_MATH_REGION_HYPOT_FLOAT)
-#define STXLIB_MATH_REGION_HYPOT_FLOAT 1
+#define STXLIB_MATH_REGION_HYPOT_FLOAT 0
 #endif
 #if !defined(STXLIB_MATH_REGION_TRIG_DOUBLE)
 #define STXLIB_MATH_REGION_TRIG_DOUBLE 1
