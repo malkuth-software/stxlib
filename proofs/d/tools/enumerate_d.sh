@@ -26,7 +26,7 @@ while IFS=$'\t' read -r row harness mutants; do
         tag="$row-$name-$variant"
         mutant_flag=()
         if [ "$variant" != original ]; then mutant_flag=(--mutant "$variant"); fi
-        if ! python3 -B "$b1tools/lift.py" --sources "$sources" --harness "$harness" "${mutant_flag[@]}" \
+        if ! python3 -B "$b1tools/lift.py" --sources "$sources" --harness "$harness" ${mutant_flag[@]+"${mutant_flag[@]}"} \
                 --out "$out/$tag.cpp" --report "$out/$tag.lift.json"; then
             echo "$tag: lift-error"; status=1; continue
         fi
