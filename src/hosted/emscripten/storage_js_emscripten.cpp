@@ -31,8 +31,13 @@
 //   - A persist or restore waits on a PendingSync record taken from
 //     stxlib::memory. The completion (stxlib_web_sync_done, called from the
 //     syncfs callback, outside any catch so a trap inside it is not
-//     swallowed) writes the record and finishes the task once; a second
-//     call is ignored. If the wait ends without completion (the main
+//     swallowed) writes the record and finishes the task. It is called at
+//     most once per sync: the JavaScript side keeps its own `reported`
+//     flag, since the waiter releases the record as soon as the first
+//     completion wakes it, and a flag in the record would be read from
+//     released memory (A-stxlib-hosted-01-F7: FS.syncfs can throw after an
+//     asynchronous mount sync has started, and a mount's syncfs may call
+//     back twice). If the wait ends without completion (the main
 //     runtime thread exited, proxying.h:73-75), the record is left
 //     allocated, not released, so a late callback writes into memory still
 //     owned: a bounded leak in a runtime that is ending, chosen over a
@@ -65,7 +70,6 @@ struct PendingSync final {
     em_proxying_ctx* context{nullptr};
     int populate{0};
     int status{0};
-    int finished{0};
 };
 
 double address_number(const void* const address) {
@@ -80,8 +84,6 @@ double address_number(const void* const address) {
 extern "C" __attribute__((visibility("default"), export_name("stxlib_web_sync_done"))) EMSCRIPTEN_KEEPALIVE void
 stxlib_web_sync_done(const double pending, const int status) {
     PendingSync* const sync = reinterpret_cast<PendingSync*>(static_cast<stxlib::uptr>(pending));
-    if (sync->finished != 0) return;
-    sync->finished = 1;
     sync->status = status;
     emscripten_proxy_finish(sync->context);
 }
@@ -92,8 +94,11 @@ EM_JS_DEPS(stxlib_web_storage_js, "$UTF8ToString,$FS,$IDBFS,$MEMFS");
 EM_JS(void, stxlib_web_start_sync, (double pending, int populate, int io_error), {
     var code = 0;
     var started = false;
+    var reported = false;
     try {
         FS.syncfs(populate !== 0, function(error) {
+            if (reported) return;
+            reported = true;
             var result = 0;
             try {
                 if (error) result = (typeof error.errno === "number") ? error.errno : io_error;
@@ -106,7 +111,10 @@ EM_JS(void, stxlib_web_start_sync, (double pending, int populate, int io_error),
     } catch (error) {
         code = (error && typeof error.errno === "number") ? error.errno : io_error;
     }
-    if (!started) _stxlib_web_sync_done(pending, code);
+    if (!started && !reported) {
+        reported = true;
+        _stxlib_web_sync_done(pending, code);
+    }
 });
 // clang-format on
 
