@@ -8,8 +8,10 @@
 // measurements: the seat's dev/notes/planning/stages/M-region-kernels.md.
 //
 // "Flat": one pass per input class, no rounding test with an accurate
-// fallback, no cold path for hard inputs. The float functions the library
-// computes as "cheap path, certify, else the accurate path" (log, log2,
+// fallback, no cold path for hard inputs. Float pow is the exception
+// (decided 2026-11-15): no flat float pow is proved correctly rounded, so
+// it rounds, tests and decides. The float functions the library computes
+// as "cheap path, certify, else the accurate path" (log, log2,
 // log10, pow, hypot) are computed here accurately enough in one pass:
 //   - log, log2, log10 (float): a double-double good to 2^-62 of the
 //     result, rounded once (round to odd, then to float). Correctly rounded
@@ -20,10 +22,10 @@
 //     float, then the rounding decided exactly against the midpoint m
 //     (m^2 is exact, so the sign of a^2 + b^2 - m^2 is exact): correctly
 //     rounded for every pair, by construction, ties to even included.
-//   - pow (float): the region double kernel's double-double (2^-69.3 of
-//     the result over float's range), rounded once, with exact float midpoints
-//     (x^y = m with 25 significant bits, as for 257^2 ^ 1.5) snapped to m
-//     first, so they round to even.
+//   - pow (float): round, test, decide (see "float pow" below): the region
+//     double kernel rounded once unless it lies near a float midpoint, then
+//     exact results and midpoints detected exactly, else an accurate
+//     double-double stage of fixed precision (2^-94) rounded once.
 //   - pow (double): the region kernel of region_core.hpp, within 0.500097 ulp.
 
 #include "region_core.hpp"
@@ -160,25 +162,214 @@ STXLIB_MATH_COLD double region_pow_outside(const double x_argument, const double
 }
 
 // ---- float pow ------------------------------------------------------------
+//
+// Round, test, decide (the owner's choice for float pow, 2026-11-15: the
+// conservative path, bounded in effort and precision):
+//   1. the region double kernel's head + tail (within 2^-69.31 of x^y over
+//      float's range, proved: tools/math/region_certificate.py `pow`),
+//      rounded once, unless it lies within region_pow_float_test of a float
+//      midpoint (about 2^-42 of pairs);
+//   2. then, if x^y is exactly representable or exactly a midpoint
+//      (pow_float_exact: only y = n/2^k with k <= 3 and x a perfect 2^k-th
+//      power can give one), that value rounded exactly (ties to even);
+//   3. otherwise the accurate stage (pow_float_accurate: double-double
+//      throughout, within region_pow_float_accurate_error of x^y, proved:
+//      tools/math/pow_float_accurate_certificate.py) rounded once. It has a
+//      fixed precision and a bounded cost; no precision loop.
+// Correct rounding is proved at every pair except one whose x^y lies within
+// region_pow_float_accurate_error of a midpoint without being one: no such
+// pair is known (math.hpp states it). Every integer y in [1, 40] is proved
+// for every x (tools/math/pow_float_midpoints.py, exact sweep).
 
-// The proved relative error of head + tail for |p| <= 151 (float's range),
-// with room: tools/math/region_certificate.py (`pow`, the float line). A
-// computed value within this of a float midpoint m is taken as m.
-constexpr double region_pow_float_snap = 0x1p-67;
+// The test distance of stage 1, relative: above the proved 2^-69.31, with
+// room, so a value outside it is the correctly rounded float.
+constexpr double region_pow_float_test = 0x1p-67;
+
+// The accurate stage's proved relative error, stated in math.hpp: the
+// certificate's bound is 2^-94.10 for every pair with |y log2 x| <= 129
+// (the log side within 2^-100.58 of y log2 x, the worst at x just above
+// 1.0039; the exp side within 2^-102.65), rounded up here.
+constexpr double region_pow_float_accurate_error = 0x1p-94;
+
+// Double-double constants (hi the nearest double, lo the nearest double to
+// the rest; the certificate checks each).
+constexpr Wide pow_accurate_ln2{0x1.62e42fefa39efp-1, 0x1.abc9e3b39803fp-56};
+constexpr Wide pow_accurate_inverse_ln2{0x1.71547652b82fep+0, 0x1.777d0ffda0d24p-56};
+
+// log1p(r) = r (c1 + r (c2 + ... + r c13)), c_n = (-1)^(n+1)/n.
+constexpr Wide pow_accurate_log_coefficients[13] = {
+    {0x1.0000000000000p+0, 0.0},
+    {-0x1.0000000000000p-1, 0.0},
+    {0x1.5555555555555p-2, 0x1.5555555555555p-56},
+    {-0x1.0000000000000p-2, 0.0},
+    {0x1.999999999999ap-3, -0x1.999999999999ap-57},
+    {-0x1.5555555555555p-3, -0x1.5555555555555p-57},
+    {0x1.2492492492492p-3, 0x1.2492492492492p-57},
+    {-0x1.0000000000000p-3, 0.0},
+    {0x1.c71c71c71c71cp-4, 0x1.c71c71c71c71cp-58},
+    {-0x1.999999999999ap-4, 0x1.999999999999ap-58},
+    {0x1.745d1745d1746p-4, -0x1.745d1745d1746p-59},
+    {-0x1.5555555555555p-4, -0x1.5555555555555p-58},
+    {0x1.3b13b13b13b14p-4, -0x1.3b13b13b13b14p-58},
+};
+
+// e^u - 1 = u (d1 + u (d2 + ... + u d9)), d_n = 1/n!.
+constexpr Wide pow_accurate_exp_coefficients[9] = {
+    {0x1.0000000000000p+0, 0.0},
+    {0x1.0000000000000p-1, 0.0},
+    {0x1.5555555555555p-3, 0x1.5555555555555p-57},
+    {0x1.5555555555555p-5, 0x1.5555555555555p-59},
+    {0x1.1111111111111p-7, 0x1.1111111111111p-63},
+    {0x1.6c16c16c16c17p-10, -0x1.f49f49f49f49fp-65},
+    {0x1.a01a01a01a01ap-13, 0x1.a01a01a01a01ap-73},
+    {0x1.a01a01a01a01ap-16, 0x1.a01a01a01a01ap-76},
+    {0x1.71de3a556c734p-19, -0x1.c154f8ddc6c00p-73},
+};
+
+// Double-double arithmetic for the accurate stage. Each renormalizes with a
+// two-sum (no precondition); the certificate bounds every rounding.
+Wide wide_add(const Wide a, const Wide b) noexcept {
+    double sum = 0.0;
+    double sum_error = 0.0;
+    two_sum(a.hi, b.hi, sum, sum_error);
+    const double low = sum_error + (a.lo + b.lo);
+    Wide result{};
+    two_sum(sum, low, result.hi, result.lo);
+    return result;
+}
+
+// a times b, a.lo * b.lo dropped.
+Wide wide_multiply(const Wide a, const Wide b) noexcept {
+    double product = 0.0;
+    double product_error = 0.0;
+    two_product(a.hi, b.hi, product, product_error);
+    const double cross = a.hi * b.lo + a.lo * b.hi;
+    const double low = product_error + cross;
+    Wide result{};
+    two_sum(product, low, result.hi, result.lo);
+    return result;
+}
+
+Wide wide_multiply_double(const Wide a, const double b) noexcept {
+    double product = 0.0;
+    double product_error = 0.0;
+    two_product(a.hi, b, product, product_error);
+    const double low = product_error + a.lo * b;
+    Wide result{};
+    two_sum(product, low, result.hi, result.lo);
+    return result;
+}
+
+// x^y = (hi + lo) 2^exponent for positive normal float x and normal float y
+// (as doubles) with x^y in float's range, within
+// region_pow_float_accurate_error of x^y.
+//   log: x = 2^k z, r = z inv - 1 exact (z has 24 bits, inv 10, and |z inv -
+//   1| < 2^-7.6, so the product and the difference are exact), log x = k ln 2
+//   + logc + log1p(r) with log1p by Horner in double-double (13 terms);
+//   p = y log2 x as a double-double.
+//   exp: q = round(256 p), t = p - q/256 (exact head, two-sum with the low
+//   part), u = t ln 2, e^u - 1 by Horner (9 terms), 2^(j/256) from
+//   exp_table_256 as hi + lo.
+void pow_float_accurate(const double x, const double y, double& hi, double& lo, std::int64_t& exponent) noexcept {
+    const RegionReduction reduction = region_reduce(std::bit_cast<std::uint64_t>(x));
+    const RegionLogEntry& entry = region_log_table_128[reduction.index];
+    const double r = reduction.z * entry.inv - 1.0;  // exact
+    Wide series = pow_accurate_log_coefficients[12];
+    for (int n = 11; n >= 0; --n) {
+        series = wide_add(wide_multiply_double(series, r), pow_accurate_log_coefficients[n]);
+    }
+    const Wide log1p_r = wide_multiply_double(series, r);
+    const Wide log_z = wide_add(Wide{entry.logc_hi, entry.logc_lo}, log1p_r);
+    const Wide log2_z = wide_multiply(log_z, pow_accurate_inverse_ln2);
+    const Wide log2_x = wide_add(Wide{reduction.k, 0.0}, log2_z);
+    const Wide p = wide_multiply_double(log2_x, y);
+
+    const double shifted = p.hi * 256.0 + kernel_constants.rounding_shift;
+    const std::int64_t q_bits = std::bit_cast<std::int64_t>(shifted) -
+                                std::bit_cast<std::int64_t>(kernel_constants.rounding_shift);
+    const std::uint64_t j = static_cast<std::uint64_t>(q_bits) & exp_index_mask;
+    exponent = q_bits >> 8;
+    const double t_head = p.hi - (shifted - kernel_constants.rounding_shift) * (1.0 / 256.0);  // exact
+    Wide t{};
+    two_sum(t_head, p.lo, t.hi, t.lo);
+    const Wide u = wide_multiply(t, pow_accurate_ln2);
+    Wide expm1_series = pow_accurate_exp_coefficients[8];
+    for (int n = 7; n >= 0; --n) {
+        expm1_series = wide_add(wide_multiply(expm1_series, u), pow_accurate_exp_coefficients[n]);
+    }
+    const Wide expm1_u = wide_multiply(expm1_series, u);
+    const ExpEntry& power = exp_table_256[j];
+    const Wide table{power.hi, power.lo};
+    const Wide value = wide_add(table, wide_multiply(table, expm1_u));
+    hi = value.hi;
+    lo = value.lo;
+}
+
+// Whether x^y is exactly a float or a float midpoint, for positive normal
+// float x and normal float y (as doubles) with x^y in float's range; if so,
+// result is x^y rounded (ties to even). With x = X 2^f (X odd) and y =
+// n/2^k (n odd, or k = 0): for y < 0, x^y is a power of two or not dyadic;
+// for y > 0 it is dyadic only if X = t^(2^k) and 2^k divides f, and then x^y
+// = t^n 2^(f n/2^k), which has at most 25 significant bits only for t = 1,
+// or t >= 3 with 2^k <= 15 and n <= 15 (3^16 > 2^25). So y in (0, 16] with
+// 8y an integer covers every midpoint; the exact results it leaves out are
+// powers of two (t = 1), half a float ulp from every midpoint, which the
+// accurate stage rounds correctly.
+bool pow_float_exact(const double x, const double y, float& result) noexcept {
+    if (!(y > 0.0) || y > 16.0) return false;
+    const double scaled_y = y * 8.0;  // exact
+    std::int64_t n = static_cast<std::int64_t>(scaled_y);
+    if (static_cast<double>(n) != scaled_y) return false;
+    int k = 3;
+    while (k > 0 && (n & 1) == 0) {
+        n >>= 1;
+        --k;
+    }
+    // x = odd 2^f from its bits (normal: the implicit bit set, so odd > 0).
+    const std::uint64_t bits = std::bit_cast<std::uint64_t>(x);
+    const std::uint64_t significand = (bits & region_mantissa_mask) | region_implicit_bit;
+    const int trailing = std::countr_zero(significand);
+    std::uint64_t odd = significand >> trailing;
+    const std::int64_t f = static_cast<std::int64_t>((bits >> 52) & 0x7ff) - 1075 + trailing;
+    const std::int64_t root_degree = std::int64_t{1} << k;
+    if (f % root_degree != 0) return false;
+    for (int level = 0; level < k; ++level) {
+        // odd < 2^24: the square root of a perfect square is exact.
+        const std::uint64_t root = static_cast<std::uint64_t>(std::sqrt(static_cast<double>(odd)));
+        if (root * root != odd) return false;
+        odd = root;
+    }
+    std::uint64_t power = 1;
+    for (std::int64_t i = 0; i < n; ++i) {
+        power *= odd;  // below 2^25 times below 2^24: no wrap
+        if (power >= (std::uint64_t{1} << 25)) return false;  // more than 25 odd bits
+    }
+    const std::int64_t scale = (f / root_degree) * n;  // in [-152, 128] for a result in float's range
+    const double exact = static_cast<double>(power) * power_of_two(scale);  // exact
+    result = static_cast<float>(exact);  // ties to even
+    return true;
+}
+
+// Stages 2 and 3, out of line: about one call in 2^42.
+STXLIB_MATH_COLD float region_pow_float_decide(const double x, const double y) noexcept {
+    float exact = 0.0f;
+    if (pow_float_exact(x, y, exact)) return exact;
+    double hi = 0.0;
+    double lo = 0.0;
+    std::int64_t exponent = 0;
+    pow_float_accurate(x, y, hi, lo, exponent);
+    const double scale = power_of_two(exponent);  // exponent in [-128, 129]
+    const float result = round_wide_to_float(hi * scale, lo * scale);  // the scalings are exact
+    return result;
+}
 
 // x^y for positive normal float x and normal float y (as doubles), rounded
 // once to float, then flushed. Above 2^128.5 the float result is infinity;
 // below 2^-127 it is under the smallest normal float and flushed.
 //
-// Exact midpoints: x^y can equal a 25-bit number m, the midpoint of two
-// floats (257^2 ^ 1.5 = 257^3), where round to nearest must choose the even
-// float. head + tail lies within 2^-68 of x^y, so it may sit on either side
-// of m: rounding it would choose by the sign of the error. m is the nearest
-// point of the 2^(E-24) grid (E the exponent of hi): adding c = 1.5
-// 2^(E+28) rounds to that grid, and the sum's last bit is m's grid parity,
-// odd for a midpoint. Within the bound of an odd m the result is m rounded
-// (ties to even); a value that close to m without being m cannot be
-// decided at this precision either way (math.hpp states it).
+// The test: m is the nearest point of the 2^(E-24) grid (E the exponent of
+// hi): adding c = 1.5 2^(E+28) rounds to that grid, and the sum's last bit
+// is m's grid parity, odd for a midpoint.
 float region_pow_float_positive(const double x, const double y) noexcept {
     const RegionPower power = region_power(std::bit_cast<std::uint64_t>(x), y);
     if (power.p > 128.5) return std::numeric_limits<float>::infinity();
@@ -198,10 +389,10 @@ float region_pow_float_positive(const double x, const double y) noexcept {
     const bool odd = (std::bit_cast<std::uint64_t>(on_grid) & 1) != 0;
     const double midpoint = on_grid - grid;  // exact
     const double distance = (hi - midpoint) + lo;  // hi - midpoint exact
-    const bool snap = odd && std::fabs(distance) <= hi * region_pow_float_snap;
-    const float snapped = static_cast<float>(midpoint);
-    const float rounded = round_wide_to_float(hi, lo);
-    const float chosen = snap ? snapped : rounded;
+    float chosen = round_wide_to_float(hi, lo);
+    if (odd && std::fabs(distance) <= hi * region_pow_float_test) {
+        chosen = region_pow_float_decide(x, y);
+    }
     const float result = ::stxlib::detail::flush_subnormal(chosen);
     return result;
 }
@@ -475,6 +666,24 @@ float hypot(const float x_argument, const float y_argument) noexcept {
     if (a == 0.0) return 0.0f;
     const float result = detail::float_hypot_ordered(a, b);
     return result;
+}
+
+// Test hooks (tests/math_region_tests.cpp), for positive normal float x and
+// normal float y with x^y in float's normal range: stages 2 and 3 of float
+// pow on every pair, stage 1's test skipped (they are correctly rounded
+// wherever pow is), and the accurate stage's value, scaled.
+float pow_float_decided(const float x, const float y) noexcept {
+    const float chosen = detail::region_pow_float_decide(detail::widen(x), detail::widen(y));
+    const float result = ::stxlib::detail::flush_subnormal(chosen);
+    return result;
+}
+
+void pow_float_accurate_value(const float x, const float y, double& hi, double& lo) noexcept {
+    std::int64_t exponent = 0;
+    detail::pow_float_accurate(detail::widen(x), detail::widen(y), hi, lo, exponent);
+    const double scale = detail::power_of_two(exponent);  // exponent in [-128, 129]
+    hi *= scale;  // exact
+    lo *= scale;  // exact: lo stays a normal double for x^y >= 2^-126
 }
 
 } // namespace region

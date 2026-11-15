@@ -824,11 +824,11 @@ def main(arguments):
         require(region < current, 'the region pow bound does not beat the current one')
         require(region <= Fraction(5002, 10000), 'the region pow bound exceeds 0.5002 ulp')
         # Float pow: |p| <= 128.5 past the early returns (region.cpp); the
-        # snap threshold region_pow_float_snap must cover the bound.
+        # test distance region_pow_float_test must cover the bound.
         _, float_relative = pow_budget('region', Fraction(129), 'float')
-        snap = Fraction(1, 2 ** 67)
-        print('  float snap threshold 2^-67 against the bound 2^%.2f' % log2_of(float_relative))
-        require(float_relative * (1 + Fraction(1, 2 ** 40)) <= snap, 'float pow bound above the snap threshold')
+        test = Fraction(1, 2 ** 67)
+        print('  float test distance 2^-67 against the bound 2^%.2f' % log2_of(float_relative))
+        require(float_relative * (1 + Fraction(1, 2 ** 40)) <= test, 'float pow bound above the test distance')
     if step in ('logf', 'all'):
         logf_bounds()
     if failures:

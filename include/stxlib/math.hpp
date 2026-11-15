@@ -111,8 +111,14 @@ void sincos(double x, double& s, double& c) noexcept;
 // its sign (stx_auxlib's kernel rounded those on the subnormal grid, 1 ulp
 // off on 6 of 20 million); a subnormal x is read as zero of its sign (the
 // Annex F zero cases then apply: pow(subnormal, -1) = +infinity), and a
-// subnormal y as zero (pow(x, subnormal) = 1). Float: correctly rounded at
-// every sampled pair (the double result rounded once), then flushed.
+// subnormal y as zero (pow(x, subnormal) = 1). Float: a cheap double
+// kernel certified for rounding, else the double result (within 0.576 ulp)
+// rounded once, then flushed. By that analysis (argued, not machine
+// checked): correctly rounded at every pair whose x^y is not within 2^-52.7
+// (relative) of a float midpoint, at every exact result and exact
+// midpoint, and at every pair with integer y in [1, 40] (an exact sweep of
+// x^n near midpoints, tools/math/pow_float_midpoints.py). Not proved: the
+// other pairs within 2^-52.7 of a midpoint; correct at every sampled pair.
 [[nodiscard]] double pow(double x, double y) noexcept;
 [[nodiscard]] float pow(float x, float y) noexcept;
 

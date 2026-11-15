@@ -2,11 +2,13 @@
 """Near-midpoint search for float pow (the owner's proof item for the region
 float pow, 2026-11-15).
 
-The region float pow (src/algorithms/math/region.cpp) is correctly rounded
-for a pair (x, y) unless x^y lies within its error bound (2^-69.31
-relative, region_certificate.py) of a float midpoint without being one, and
-it snaps any value within 2^-67 of a midpoint to it. A proof of correct
-rounding for every pair needs the closest approach of x^y to a midpoint over
+The region float pow (src/algorithms/math/region.cpp) rounds, tests and
+decides: its double kernel (within 2^-69.31 relative, region_certificate.py)
+is rounded unless it lies within 2^-67 of a float midpoint; then exact
+results and midpoints are detected exactly, and otherwise an accurate stage
+within 2^-94 (pow_float_accurate_certificate.py) is rounded. It is
+correctly rounded for a pair (x, y) unless x^y lies within 2^-94 of a float
+midpoint without being one. A proof of correct rounding for every pair needs the closest approach of x^y to a midpoint over
 every float pair with a normal result, about 2^60 pairs. This tool:
 
   count    estimates that number of pairs (positive normal x, normal y,
@@ -19,8 +21,8 @@ every float pair with a normal result, about 2^60 pairs. This tool:
            replica of region_core.hpp's region_exp2) and counts the pairs
            within 2^-w of a midpoint for w = 36..60. The Lefevre-Muller
            heuristic predicts a fraction 2^(25-w) to 2^(26-w); the counts
-           test it, and the expected number of pairs within the snap
-           distance 2^-67 follows.
+           test it, and the expected numbers of pairs within the test
+           distance 2^-67 and the accurate stage's 2^-94 follow.
   integer  an exact sweep of x^n for every odd significand X < 2^24 and n
            in [3, N] (x^n = X^n 2^(ne) exactly): the closest non-exact
            approach to a midpoint, a complete search of those slices.
@@ -280,7 +282,7 @@ def integer_step(max_n):
             shift = value.bit_length() - 25
             if shift <= 0:
                 if shift == 0:
-                    exact += 1                # 25 bits, odd: X^n is a midpoint exactly (the kernel snaps it)
+                    exact += 1                # 25 bits, odd: X^n is a midpoint exactly (detected exactly: region.cpp, pow_float_exact)
                 continue                      # fewer: X^n is a float
             top = value >> shift
             low = value & ((1 << shift) - 1)
@@ -314,9 +316,9 @@ def main(arguments):
         usable = [w for w in WINDOWS if counts[w] >= 20]
         w = max(usable)
         fraction = counts[w] / evaluated * 2.0 ** (w - 67)
-        print('  extrapolated from w = %d: about 2^%.1f pairs within 2^-67 of a midpoint (the snap distance), '
-              '2^%.1f within 2^-69.31 (the bound)' % (w, math.log2(fraction * pairs),
-                                                      math.log2(fraction * pairs * 2.0 ** -2.31)))
+        print('  extrapolated from w = %d: about 2^%.1f pairs within 2^-67 of a midpoint (the test distance), '
+              '2^%.1f within 2^-94 (the accurate stage)' % (w, math.log2(fraction * pairs),
+                                                            math.log2(fraction * pairs * 2.0 ** -27)))
     if options.step in ('integer', 'all'):
         integer_step(options.max_n)
     return 0
