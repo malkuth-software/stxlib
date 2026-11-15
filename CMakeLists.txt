@@ -615,6 +615,8 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # rounding_tests' sample generator is marked STXLIB_MODULAR (core/checked.hpp).
+    target_include_directories(stxlib_rounding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
     # The process's own arguments, compared with argv: the test is started
     # with spaces, quotes, a trailing backslash, an empty argument and one

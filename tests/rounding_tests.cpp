@@ -20,6 +20,7 @@
 // sample, the ESBMC harness in proofs/esbmc/time_for_ui.cpp covers doubles
 // once run.
 
+#include "core/checked.hpp"
 #include "stxlib/rounding.hpp"
 
 #include "test_support.hpp"
@@ -133,6 +134,16 @@ double from_bits(const std::uint64_t bits) {
     return x;
 }
 
+// SplitMix64, arithmetic modulo 2^64 by definition.
+STXLIB_MODULAR std::uint64_t split_mix_64(std::uint64_t& state) {
+    state = state + 0x9e3779b97f4a7c15ULL;
+    std::uint64_t mixed = state;
+    mixed = (mixed ^ (mixed >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    mixed = (mixed ^ (mixed >> 27)) * 0x94d049bb133111ebULL;
+    mixed = mixed ^ (mixed >> 31);
+    return mixed;
+}
+
 void double_boundaries() {
     for (std::uint64_t biased = 0; biased <= 0x7ff; ++biased) {
         for (const std::uint64_t sign : {0ULL, 1ULL}) {
@@ -164,11 +175,7 @@ void double_boundaries() {
     // A fixed sequence of patterns (SplitMix64 from 1): a sample.
     std::uint64_t state = 1;
     for (int index = 0; index < 2000000; ++index) {
-        state = state + 0x9e3779b97f4a7c15ULL;
-        std::uint64_t mixed = state;
-        mixed = (mixed ^ (mixed >> 30)) * 0xbf58476d1ce4e5b9ULL;
-        mixed = (mixed ^ (mixed >> 27)) * 0x94d049bb133111ebULL;
-        mixed = mixed ^ (mixed >> 31);
+        const std::uint64_t mixed = split_mix_64(state);
         // Bias the exponent toward the interesting range [2^-2, 2^64].
         const std::uint64_t biased = 1021 + ((mixed >> 52) % 66);
         const std::uint64_t pattern = (mixed & 0x800fffffffffffffULL) | (biased << 52);
