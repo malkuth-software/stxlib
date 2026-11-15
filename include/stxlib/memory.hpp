@@ -20,7 +20,7 @@
 // the owner's model, 2026-11-13). On Windows that also keeps every block in
 // one heap, where each module linking the static C runtime has its own.
 //
-// Backend (STXLIB_ALLOCATOR, CMakeLists.txt): mimalloc v3.5.3 by default,
+// Backend (STXLIB_ALLOCATOR, CMakeLists.txt): mimalloc v3.6.1 by default,
 // the host's C library in sanitizer builds; backend() says which is linked.
 //
 // Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: on in Debug and

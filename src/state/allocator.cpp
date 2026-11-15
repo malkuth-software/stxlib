@@ -13,7 +13,7 @@
 // backend, the tags and the ownership check.
 //
 // Backends (STXLIB_ALLOCATOR, CMakeLists.txt):
-// - mimalloc v3.5.3 (third_party/mimalloc, PROVENANCE.md), compiled into
+// - mimalloc v3.6.1 (third_party/mimalloc, PROVENANCE.md), compiled into
 //   stxlib_state with hidden symbols and no override, so its heap holds
 //   STXlib's blocks only. The default, except in sanitizer builds.
 // - the host's C library (malloc, over-allocated for alignment, the base
@@ -37,10 +37,12 @@
 //
 // The ownership check, per backend:
 // - mimalloc: mi_is_in_heap_region(address), mimalloc's own query, which
-//   looks the address up in mimalloc's page map and returns whether it lies
-//   in a mimalloc page (third_party/mimalloc/src/page-map.c, lines 199-210
-//   for the flat map and 509-515 for the two-level map: `_mi_safe_ptr_page`
-//   "Return NULL for invalid pointers"; heap.c lines 276-289 make
+//   looks the address up in mimalloc's two-level page map and returns
+//   whether it lies in a mimalloc page (third_party/mimalloc/src/heap/
+//   page-map.c, lines 320-327: `_mi_safe_ptr_page` "Return NULL for invalid
+//   pointers", by `mi_checked_ptr_page` in include/mimalloc/heap/page-map.h,
+//   lines 78-87, which refuses an index past the committed part of the map
+//   and an absent sub-map; src/heap/heap.c lines 320-333 make
 //   mi_any_heap_contains and mi_check_owned the same test). It reads only
 //   the page map, never the address. The coordinator's choice (registry
 //   option 1, 2026-11-13) replaces the registry with it in mimalloc builds.
@@ -51,11 +53,17 @@
 //   so the 16 header bytes, which start on a 16-byte boundary, lie in one
 //   page, the one the query found in use; a page's memory is committed as
 //   a prefix from its start, extended as its blocks are first handed out
-//   (page.c, lines 844-866: `_mi_os_commit` from `slice_committed` up to
-//   what the page now needs), so the 16 bytes below any address inside or
-//   just past a block mimalloc ever handed out from that page are
-//   committed. An address no block ever contained, made by arithmetic into
-//   the unhanded tail of one of our pages, is outside this argument.
+//   (src/alloc/page.c, lines 865-887: `_mi_os_commit` from
+//   `slice_committed` up to what the page now needs), so the 16 bytes below
+//   any address inside or just past a block mimalloc ever handed out from
+//   that page are committed. An address no block ever contained, made by
+//   arithmetic into the unhanded tail of one of our pages, is outside this
+//   argument. So is a block aligned to 4 MiB or more: mimalloc puts it in a
+//   page of its own and enters at most about the first 4 MiB of that page
+//   in the map (page-map.c, `mi_page_map_get_idx`, "furthest interior
+//   pointer"), so the address, one alignment past the block's start, is not
+//   found and its release is refused (the mimalloc audit, smi/dev/
+//   mimalloc-audit.md, finding S1; argued from the source, not run).
 // - host: a registry of live addresses (an open-addressing hash set under
 //   one spin lock, in malloc storage), as the foreign-release fix made it:
 //   the host allocator gives no query, and reading below a foreign address

@@ -188,20 +188,31 @@ if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
-    # mimalloc v3.5.3 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
+    # mimalloc v3.6.1 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
     # its one translation unit (src/static.c) into stxlib_state, with the
     # definitions stx_auxlib b6e330a used (CMakeLists.txt there). It replaces
     # no C library function (MI_MALLOC_OVERRIDE stays undefined) and its
     # symbols are hidden, so its heap holds STXlib's blocks only. Compiled as
     # C++ (mimalloc's MI_USE_CXX): compiled as C it defines a weak fallback
     # std::get_new_handler that, hidden, would bind in place of the C++
-    # library's (stx_auxlib's finding). Vendored code: its warnings are
-    # upstream's (-w), and the integer checks do not apply to it.
+    # library's (stx_auxlib's finding). Since v3.6 its C++ new-handler path
+    # has no try/catch and its one throw is guarded by __cpp_exceptions
+    # (src/alloc/alloc.c, mi_try_new_handler), so it also compiles under
+    # -fno-exceptions; STXlib never calls that path (mi_new and kin).
+    # MI_PROFILE=0: v3.6 builds its pprof profiler by default (MI_PROFILE=1,
+    # include/mimalloc/types.h), which starts at process init when the
+    # MIMALLOC_PROFILE environment variable names a file and then writes
+    # profiles there (src/profile/pprof.c, _mi_pprof_profiler_init). Its
+    # setuid check needs MI_HAS_UNISTDH, which only upstream's CMake defines,
+    # so here it would pass in a setuid process; on FreeBSD it calls
+    # kinfo_getvmmap, which needs -lutil. STXlib uses no profiler, so the
+    # whole of it is left out. Vendored code: its warnings are upstream's
+    # (-w), and the integer checks do not apply to it.
     set_source_files_properties(third_party/mimalloc/src/static.c PROPERTIES LANGUAGE CXX)
     add_library(stxlib_mimalloc OBJECT third_party/mimalloc/src/static.c)
     set_target_properties(stxlib_mimalloc PROPERTIES POSITION_INDEPENDENT_CODE ON)
     target_include_directories(stxlib_mimalloc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
-    target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1)
+    target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1 MI_PROFILE=0)
     target_compile_options(stxlib_mimalloc PRIVATE -w -fvisibility=hidden -ftls-model=initial-exec -fno-sanitize=all)
     if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
