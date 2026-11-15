@@ -93,7 +93,7 @@ int exit_mode() {
     if (stxlib::register_exit_task(stxlib::CallbackTarget<void()>()).failed()) say("unbound task refused");
     static_cast<void>(stxlib::register_exit_task(stxlib::CallbackTarget<void()>::bind(first_task, nullptr)));
     static_cast<void>(stxlib::register_exit_task(stxlib::CallbackTarget<void()>::bind(second_task, nullptr)));
-    stxlib::exit_process(7);
+    return 7; // a return from main: the exit tasks run from atexit
 }
 
 int fail_mode() {

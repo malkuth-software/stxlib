@@ -113,7 +113,9 @@ Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.
 - Real per-thread state lives in records that `stxlib_state` owns explicitly (`include/stxlib/thread_records.hpp`; notes `planning/stages/E-thread-records.md`).
 - Those records are released by our thread-exit hook, never by the C or C++ runtime.
 
-**Our code never calls `exit` or `quick_exit`.** Fail-fast keeps `abort`.
+**Our code never calls `exit` or `quick_exit`.** Fail-fast keeps `abort`. STXlib offers no call that ends the process normally (`exit_process` was removed, owner 2026-11-15); a program returns from main or calls `exit` itself, and the exit tasks run from atexit.
+
+**Cancellation is acted on only outside STXlib's locked sections** (owner 2026-11-15): code that reaches a POSIX cancellation point while an STXlib lock is held keeps cancellation off with `detail::CancellationHold` (`include/stxlib/detail/cancellation.hpp`), declared before the lock. A gate that a forced unwind reaches fails fast.
 
 ## Verification
 

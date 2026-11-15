@@ -59,9 +59,8 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void sleep_briefly() noexcept
 // console output keeps its order with printf (console.cpp).
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void flush_c_stream(bool error) noexcept;
 
-// The C library's exit (normal termination: atexit handlers, static
-// destructors, stream flushing) and atexit (process.cpp).
-[[noreturn]] STXLIB_EARLY_EXIT_FOREIGN void exit_normally(int status) noexcept;
+// The C library's atexit (process.cpp). STXlib never calls exit itself
+// (AGENTS.md, rule 3).
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT bool register_at_exit(void (*handler)()) noexcept;
 
 // Writes up to `capacity` return addresses of the calling thread's stack,

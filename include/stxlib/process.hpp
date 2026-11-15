@@ -1,12 +1,10 @@
 #pragma once
 
-// Ending the process (Capability::exit_tasks), replacing exit and atexit.
+// Exit tasks (Capability::exit_tasks), replacing atexit.
 // Ported from stx_auxlib's include/stx_auxlib/process.hpp at b6e330a.
 //
-// Settled platform differences:
-// - Exit statuses are 0 to 255: POSIX hosts keep only the low eight bits of
-//   a wider status, so a wider one would read differently by host.
-// - Exit tasks take a context, which atexit's do not.
+// Settled platform difference: exit tasks take a context, which atexit's do
+// not.
 //
 // stx_auxlib's fail() and ensure() are not carried: STXlib's fault path is
 // STXLIB_REQUIRE (require.hpp) and fail_fast (fail_fast.hpp), which report
@@ -25,16 +23,15 @@
 
 namespace stxlib {
 
-// Ends the process with `status`: runs the exit tasks (newest first), then
-// the C and C++ library's own exit handling (static destructors, atexit),
-// which flushes standard streams. Call it only when no other thread can be
-// using the objects that static destructors destroy.
-[[noreturn]] void exit_process(u8 status) noexcept;
+// STXlib does not end the process normally (AGENTS.md, rule 3; owner
+// decision 2026-11-15, notes decisions/2026-11-15-audit-e-decisions.md, 3,
+// which removed exit_process). A program ends by returning from main or by
+// calling the C library's exit itself; either way the exit tasks run.
 
 inline constexpr usize maximum_exit_tasks = 32;
 
-// Registers `task` to run when the process exits normally (exit_process, or
-// returning from main), newest first. A task must not throw or longjmp out
+// Registers `task` to run when the process exits normally (returning from
+// main, or the C library's exit; from one atexit handler), newest first. A task must not throw or longjmp out
 // (AGENTS.md, early exits); it may
 // register further tasks, which run after it. Its context is borrowed until
 // it has run. Failures: invalid_argument for an unbound task;

@@ -54,7 +54,7 @@ string(CONCAT expected_output
 expect_equal("${output}" "${expected_output}" "read output")
 
 # exit: tasks run newest first, a task may register another, and the
-# status is the one given.
+# status is main's return value.
 execute_process(COMMAND "${PROGRAM}" exit ENCODING UTF8 RESULT_VARIABLE result OUTPUT_VARIABLE output)
 expect_equal("${result}" "7" "exit status")
 string(CONCAT expected_output
