@@ -493,7 +493,7 @@ constexpr std::uint64_t today_output_hash = 0x9cecbc587874960dULL;
 // The region path of sincos(double) (trig_region.cpp): its own value, not yet
 // frozen; it differs from today's (the polynomial chains round differently,
 // within the same bound). Float sincos has one path.
-constexpr std::uint64_t region_output_hash = 0;
+constexpr std::uint64_t region_output_hash = 0xa3564fda3e1d73c8ULL;
 constexpr std::uint64_t expected_output_hash = STXLIB_MATH_REGION_TRIG_DOUBLE ? region_output_hash
                                                                                : today_output_hash;
 
@@ -930,7 +930,7 @@ constexpr std::uint64_t today_log_output_hash = 0x2e4ea58329a77abcULL;
 // frozen; expected equal to today's (both correctly rounded for every float,
 // and a subnormal x takes today's kernel; math_region_tests --exhaustive
 // compares every float pattern).
-constexpr std::uint64_t region_log_output_hash = 0;
+constexpr std::uint64_t region_log_output_hash = 0x2e4ea58329a77abcULL;
 constexpr std::uint64_t expected_log_output_hash = STXLIB_MATH_REGION_LOG_FLOAT ? region_log_output_hash
                                                                                 : today_log_output_hash;
 
@@ -1375,7 +1375,7 @@ constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
 // pow(double) on the region kernel the hash differs (0.500097 ulp against
 // 0.576); with only pow(float) on round, test, decide it is expected equal
 // to today's (both correctly rounded at every sampled pair).
-constexpr std::uint64_t region_pow_output_hash = 0;
+constexpr std::uint64_t region_pow_output_hash = 0x9bc52c7be16de26fULL;
 constexpr bool pow_on_region = STXLIB_MATH_REGION_POW_DOUBLE || STXLIB_MATH_REGION_POW_FLOAT;
 constexpr std::uint64_t expected_pow_output_hash = pow_on_region ? region_pow_output_hash : today_pow_output_hash;
 
@@ -1598,7 +1598,7 @@ constexpr std::uint64_t today_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
 // frozen; expected equal to today's (region correctly rounded by
 // construction, today's at every sampled pair; subnormal operands take
 // today's kernel). A difference names a pair today's kernel misrounds.
-constexpr std::uint64_t region_hypot_output_hash = 0;
+constexpr std::uint64_t region_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
 constexpr std::uint64_t expected_hypot_output_hash = STXLIB_MATH_REGION_HYPOT_FLOAT ? region_hypot_output_hash
                                                                                     : today_hypot_output_hash;
 
@@ -2141,7 +2141,7 @@ constexpr std::uint64_t today_remaining_output_hash = 0x46fd05aac7dac755ULL;
 // The region path of tan(double) (trig_region.cpp): its own value, not yet
 // frozen; it differs from today's (Estrin's scheme rounds differently,
 // within the same bound).
-constexpr std::uint64_t region_remaining_output_hash = 0;
+constexpr std::uint64_t region_remaining_output_hash = 0x46fd05aac7dac755ULL;
 constexpr std::uint64_t expected_remaining_output_hash =
     STXLIB_MATH_REGION_TRIG_DOUBLE ? region_remaining_output_hash : today_remaining_output_hash;
 
