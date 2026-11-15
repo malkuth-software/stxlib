@@ -1655,6 +1655,11 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/stx_btree/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME stx_btree-NOTICE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tzdata/LICENSE
         DESTINATION ${stxlib_licence_directory} RENAME tzdata-LICENSE)
+# The Unicode License v3 for the case-folding table generated from
+# CaseFolding.txt (src/algorithms/case_folding_table.inc, compiled into
+# stxlib_algorithms in every configuration; PROVENANCE.md, M2 C7).
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/LICENSE
+        DESTINATION ${stxlib_licence_directory} RENAME unicode-LICENSE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/state/stx_minmallocpp/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME stx_minmallocpp-NOTICE)
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
