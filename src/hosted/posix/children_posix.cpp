@@ -155,6 +155,38 @@ public:
     int value{-1};
 };
 
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+    defined(__DragonFly__)
+#define STXLIB_HAS_PIPE2 1
+#endif
+
+// Opens the capture pipe with both ends closing on exec (audit A, H5): the
+// parent's ends must not leak into this or any other child (the child
+// receives the writer through dup2, which clears the flag). With pipe2 the
+// flag is set as the pipe is made. Without it (Apple hosts), pipe and the
+// two fcntl calls run under the environment lock, which every STXlib spawn
+// holds, so no STXlib child can inherit an end; a fork by foreign code in
+// another thread between pipe and fcntl still can, and its child then holds
+// the writer until it closes it or execs. Yields 0 or the errno.
+int open_capture_pipe(Descriptor& reader, Descriptor& writer) noexcept {
+    int ends[2] = {-1, -1};
+#if defined(STXLIB_HAS_PIPE2)
+    if (::pipe2(ends, O_CLOEXEC) != 0) return errno;
+    reader.value = ends[0];
+    writer.value = ends[1];
+    return 0;
+#else
+    state::ProcessState& process = state::current_process();
+    const spin::Guard lock(process.environment_lock);
+    if (::pipe(ends) != 0) return errno;
+    reader.value = ends[0];
+    writer.value = ends[1];
+    if (::fcntl(reader.value, F_SETFD, FD_CLOEXEC) != 0) return errno;
+    if (::fcntl(writer.value, F_SETFD, FD_CLOEXEC) != 0) return errno;
+    return 0;
+#endif
+}
+
 // Signals whose disposition the child resets to the default.
 constexpr int reset_signals[] = {SIGPIPE, SIGINT, SIGTERM, SIGHUP, SIGQUIT, SIGTSTP, SIGWINCH};
 
@@ -291,14 +323,8 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     Descriptor reader;
     Descriptor writer;
     if (request.streams == ChildStreams::capture) {
-        int ends[2] = {-1, -1};
-        if (::pipe(ends) != 0) return Result<Child>::failure(record_of_errno(errno, operation));
-        reader.value = ends[0];
-        writer.value = ends[1];
-        // The parent's ends must not leak into this or any other child; the
-        // child receives the writer through dup2, which clears the flag.
-        (void)::fcntl(reader.value, F_SETFD, FD_CLOEXEC);
-        (void)::fcntl(writer.value, F_SETFD, FD_CLOEXEC);
+        const int opened = open_capture_pipe(reader, writer);
+        if (opened != 0) return Result<Child>::failure(record_of_errno(opened, operation));
     }
     SpawnSetup setup;
     const int prepared = prepare(setup, request, writer.value);
