@@ -72,6 +72,49 @@ library's whole purpose:
 - This repository depends on nothing outside itself except its declared,
   pinned dependencies. It may be built on its own.
 
+## Early exits and termination (hard boundary)
+
+Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.md` and `decisions/2026-11-15-thread-local-exit-safety.md`. Audit E (notes `audits/E-early-exit.md`) classifies every site. Its section 1 defines the annotations that the shared check (template_harness) enforces.
+
+**Every call to code we do not control is a possible early exit.**
+- **Foreign code** is:
+  - host C and C++ libraries, including the C and C++ runtimes;
+  - operating-system and kernel interfaces;
+  - ICU;
+  - vendored code (`third_party/`);
+  - every consumer callback, whether it reaches us through a gate, a `CallbackTarget`, a pool task, a thread entry, a predicate, a reporter, an exit task or a thread-record callback.
+- **An early exit** is any of:
+  - a C++ exception;
+  - `longjmp`;
+  - a forced unwind, including glibc's `pthread_cancel` at any cancellation point, and `pthread_exit`;
+  - a callback that never returns.
+
+  Fail-fast and process exit are not early exits in this sense: they leave no observable state behind except durable disk state, which D13 governs.
+
+**At each foreign call site, exactly one of two forms holds, and the code says which** (audit E, section 1.3: `STXLIB_EARLY_EXIT_WHOLE`, `STXLIB_EARLY_EXIT_GUARDED`):
+1. **Whole:** every invariant is whole before the call. No lock is held, no counter or flag is half-updated, and no record is published but unfinished. Anything that could break is finished before the call or begun after it.
+2. **Guarded:** the partial state is safe to unwind through. A live guard object restores or completes it, and the state its destructor sees is consistent.
+   - Our own code is built with `-fno-exceptions`, so its frames have no landing pads. An unwind passes through them *without running destructors*, so form 2 exists only in frames compiled with exceptions: the gate templates and other code instantiated in a consumer's translation unit.
+   - No guard runs for `longjmp` (a longjmp past such a frame is undefined under [csetjmp.syn]), or for a callback that never returns. Against those, only form 1 protects, and every callback contract says "must not longjmp out".
+   - So a foreign call is never made while an STXlib lock is held, unless the callee provably cannot exit early.
+
+**Allocators must not unwind.**
+- The `stxlib_state` allocation path never throws, never `longjmp`s, and never calls code that can. That covers both backends, `memory::allocate` and the per-thread record allocation.
+- Exhaustion is a named `out_of_memory` (D8 = a), or fail-fast where the caller cannot take a result.
+- No new-handler is ever called. The mimalloc internals belong to smi.
+- Functions on the allocation path carry `STXLIB_NO_UNWIND` and are `noexcept`.
+
+**Termination frees nothing twice (rule 1, as the owner reworded it).**
+- An owner lets go of a resource, by clearing the pointer or marking the slot released, *before* it releases the resource. This includes destructors.
+- Process termination (`exit`, a return from `main`, fail-fast) releases none of our state: the operating system reclaims it.
+- Only a normal thread exit releases that thread's records, once, through our own hook.
+
+**Every thread_local is trivially destructible** (a pointer, an index or a flag).
+- Real per-thread state lives in records that `stxlib_state` owns explicitly (`include/stxlib/thread_records.hpp`; notes `planning/stages/E-thread-records.md`).
+- Those records are released by our thread-exit hook, never by the C or C++ runtime.
+
+**Our code never calls `exit` or `quick_exit`.** Fail-fast keeps `abort`.
+
 ## Verification
 
 - Correctness is proved, not sampled (owner, 2026-11-02). Random runs,
