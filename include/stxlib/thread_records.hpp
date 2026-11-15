@@ -94,15 +94,26 @@ private:
 };
 
 // Registers a type. Failures: invalid_argument (size or alignment out of
-// range), limit_exceeded (thread_record_type_capacity types exist).
-// Registration is permanent: the module holding the callbacks must stay
-// loaded for the process's life.
+// range), limit_exceeded (thread_record_type_capacity types exist),
+// disposed (the process is ending: on Windows, once ExitProcess has stopped
+// the other threads).
+//
+// Registration is permanent: there is no call to remove a type, and every
+// later thread exit, and every end_thread_records, may call its release.
+// The module holding the callbacks and the context must therefore never be
+// unloaded once it has registered; STXlib does not pin it. Unloading it
+// leaves a call into unmapped code for the next thread that ends with one
+// of its records, and loading it again registers again, using another of
+// the thread_record_type_capacity entries.
 [[nodiscard]] Result<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) noexcept;
 
 // The calling thread's record of `slot`, created on first access. Failures:
 // invalid_argument (an invalid slot, or a call from inside this slot's own
-// initialize), out_of_memory (the allocation failed; a later call tries
-// again), disposed (this thread's records are ending or have ended).
+// initialize); out_of_memory (the record's allocation failed, and a later
+// call tries again; or the thread's own block could not be allocated,
+// which holds for the thread's life); unsupported (the host gave the
+// thread no exit hook, for the thread's life); disposed (this thread's
+// records are ending or have ended, or the process is ending).
 [[nodiscard]] Result<void*> thread_record(ThreadRecordSlot slot) noexcept;
 
 // The calling thread's record of `slot` if it exists and has not been let

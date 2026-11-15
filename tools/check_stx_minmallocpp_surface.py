@@ -20,6 +20,8 @@ The host lists (os.hpp gives the reason for each call):
   posix    mmap mprotect munmap sched_yield sysconf pthread_key_create
            pthread_setspecific pthread_getspecific abort
   windows  VirtualAlloc VirtualFree GetSystemInfo SwitchToThread abort,
+           GetModuleHandleW GetProcAddress (ntdll's
+           RtlDllShutdownInProgress, looked up once at process attach),
            and _tls_used (the C runtime's TLS directory, named so that the
            thread-exit callback is kept)
   web      emscripten_builtin_memalign emscripten_builtin_free (the
@@ -81,6 +83,7 @@ HOST_CALLS = {
     }),
     'windows': frozenset({
         'VirtualAlloc', 'VirtualFree', 'GetSystemInfo', 'SwitchToThread', 'abort', 'tls_used',
+        'GetModuleHandleW', 'GetProcAddress',
     }),
     'web': frozenset({
         'emscripten_builtin_memalign', 'emscripten_builtin_free', 'sched_yield', 'sysconf',

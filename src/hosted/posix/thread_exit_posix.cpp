@@ -108,6 +108,13 @@ bool ended() noexcept {
     return result;
 }
 
+void* armed() noexcept {
+    if (key_phase.load(std::memory_order_acquire) != 2) return nullptr;
+    void* const value = ::pthread_getspecific(key);
+    void* const result = value == &ended_mark ? nullptr : value;
+    return result;
+}
+
 } // namespace thread_exit_backend
 
 namespace state {

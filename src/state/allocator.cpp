@@ -60,6 +60,15 @@
 // entropy. The value is a check against mistakes, not a defence against an
 // attacker.
 //
+// Process end (the security audit's A-stxlib-allocator-state-01-F2). On
+// Windows, ExitProcess stops every other thread where it stands before the
+// modules' DLL_PROCESS_DETACH code runs, and a stopped thread may hold the
+// registry's lock for ever. Once thread_exit_backend::process_ending() says
+// so, a tagged allocate returns null and a tagged release returns released
+// at once, leaving the block where it is and checking nothing (state.cpp,
+// "Process end"; rule 1: termination releases nothing). Without the tags
+// no lock of ours is taken; malloc and free keep the C runtime's own.
+//
 // A second release of an address that has since been allocated again is
 // indistinguishable from a release of the new block. Without the tags the
 // address is the backend block's own and nothing is checked.
@@ -67,6 +76,7 @@
 #include "state/state.hpp"
 
 #include "core/checked.hpp"
+#include "hosted/thread_exit_backend.hpp"
 
 #include <atomic>
 #include <cstddef>
@@ -179,7 +189,9 @@ constinit Registry registry{};
 // allocator's backend (AGENTS, "Hard boundaries"), so it cannot reach
 // host::yield_thread, and the registry serves only the host backend
 // (sanitizer builds and Emscripten). The cost, a waiter spinning through
-// another thread's rehash, is stated here rather than removed.
+// another thread's rehash, is stated here rather than removed. Not taken
+// from the process's end on ("Process end" above): allocate_block and
+// release_block test first.
 class STXLIB_EARLY_EXIT_LOCK RegistryGuard final {
 public:
     RegistryGuard() noexcept {
@@ -267,6 +279,8 @@ bool forget_block(const unsigned char* const address) noexcept {
 
 STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) noexcept {
     if (!power_of_two(alignment)) return nullptr;
+    // track_block takes the registry's lock (see "Process end" above).
+    if (thread_exit_backend::process_ending()) return nullptr;
     const usize offset = alignment < header_bytes ? header_bytes : alignment;
     if (size > std::numeric_limits<usize>::max() - offset) return nullptr;
     void* const block = backend_allocate(size + offset, offset);
@@ -285,6 +299,8 @@ STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) n
 
 STXLIB_NO_UNWIND ReleaseOutcome release_block(void* const block) noexcept {
     unsigned char* const address = static_cast<unsigned char*>(block);
+    // forget_block takes the registry's lock (see "Process end" above).
+    if (thread_exit_backend::process_ending()) return ReleaseOutcome::released;
     // Nothing of the block or around it is read unless it may be ours.
     if (!forget_block(address)) return ReleaseOutcome::refused;
     u64 tag = 0;

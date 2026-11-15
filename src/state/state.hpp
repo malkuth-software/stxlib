@@ -262,9 +262,10 @@ struct ThreadFlags final {
     // (fail_fast.hpp lists what a reporter may call).
     bool in_reporter{false};
     ThreadPhase phase{ThreadPhase::none};
-    // True once the block's allocation failed: degraded for the thread's
-    // life (a later block would pair a shadow leave with an unrecorded
-    // enter; E-thread-records.md, section 7).
+    // True once the block's allocation or its hook failed: degraded for the
+    // thread's life (a later block would pair a shadow leave with an
+    // unrecorded enter; E-thread-records.md, section 7). Which of the two is
+    // kept in stxlib_state's anchor (state.cpp), outside the layout.
     bool block_failed{false};
     // The thread's stack, [stack_low, stack_high), as STXlib found it on a
     // path that is not a failure (note_thread_stack;
@@ -444,9 +445,16 @@ enum class RecordStatus : u8 {
     layout_mismatch = 1,
     invalid_argument = 2, // a type out of range, an unknown slot, or a call from inside the slot's initialize
     limit_exceeded = 3,   // the type table is full
-    out_of_memory = 4,    // the record's allocation failed; a later call tries again
-    disposed = 5,         // this thread's records are ending or ended
-    no_hook = 6,          // the host gave no thread-exit hook (POSIX: no key), so nothing could be released
+    // The record's allocation failed, and a later call tries again; or the
+    // thread's block's allocation failed, which holds for the thread's life
+    // (ThreadFlags::block_failed).
+    out_of_memory = 4,
+    // This thread's records are ending or ended; or the process is ending
+    // (Windows: state.cpp, "Process end"), for register and get alike.
+    disposed = 5,
+    // The host gave no thread-exit hook (POSIX: no key), so nothing could be
+    // released; for the thread's life.
+    no_hook = 6,
 };
 
 // The calling thread's state (null in degraded mode or on a layout

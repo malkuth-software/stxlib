@@ -29,6 +29,20 @@
 // termination releases nothing. Not async-signal-safe. Not usable in the
 // child of a fork of a multithreaded process.
 //
+// Process end (Windows; the logic review's L-05, the security audit's
+// A-stxlib-allocator-state-01-F2). ExitProcess stops every other thread
+// where it stands and then runs the modules' DLL_PROCESS_DETACH code on
+// the exiting thread; a stopped thread may hold one of the allocator's
+// locks, which nothing will ever let go. Once os::process_ending() says so,
+// the allocator takes no lock: allocate still serves a block its common
+// path can take (it takes no lock) and returns null for anything else;
+// release finishes on its common path and otherwise returns released at
+// once, leaving the block where it is, and no longer refuses what it
+// cannot check; trim and end_thread return having given back nothing. The
+// memory goes with the process, as termination's rule says (rule 1:
+// termination releases nothing). Only the exiting thread runs then, so the
+// moment the answer turns true needs no ordering with other threads.
+//
 // Not yet built, run or proved (proofs/REPORT.md, stx_minmallocpp).
 
 #include "stxlib/types.hpp"

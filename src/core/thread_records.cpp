@@ -29,10 +29,10 @@ ErrorRecord failure_of(const state::RecordStatus status, const Operation operati
                                  ErrorDetail{.message = "thread_record_type_capacity record types exist"});
     case state::RecordStatus::out_of_memory:
         return ErrorRecord::make(ErrorKind::out_of_memory, operation,
-                                 ErrorDetail{.message = "the thread's record could not be allocated"});
+                                 ErrorDetail{.message = "the thread's record or its block could not be allocated"});
     case state::RecordStatus::disposed:
         return ErrorRecord::make(ErrorKind::disposed, operation,
-                                 ErrorDetail{.message = "this thread's records are ending or have ended"});
+                                 ErrorDetail{.message = "this thread's records or the process are ending or ended"});
     case state::RecordStatus::no_hook:
     case state::RecordStatus::ok:
         break;

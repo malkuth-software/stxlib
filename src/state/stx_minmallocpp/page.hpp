@@ -141,7 +141,12 @@ void interleave_blocked() noexcept;
 // each is stated where the lock is declared; a waiter's wait is the
 // holder's bound, not a constant. Waiters yield, which is not a
 // cancellation point. Not reentrant. Lock order, wherever both are held:
-// the orphan lock first, then the structure lock.
+// the orphan lock first, then the structure lock. From the process's end on
+// (os::process_ending), no path takes either: a holder may be a thread the
+// host has stopped for good (allocator.hpp, "Process end"), and the tests
+// are made at the entries (refill, allocate_singleton, allocate_general's
+// huge path, release_general, release_last, trim, end_thread,
+// thread_ending), before any lock.
 struct Lock final {
     std::atomic<u32> held{0};
 };
@@ -400,6 +405,17 @@ enum class Integrity : u32 {
 // caller owns the page as `owner`. The state is set back to "nothing
 // pending" first, so a release that sets its bit after its word is taken
 // announces again and is merged by a later collect. At most 64 words.
+//
+// The test of each remote word before its exchange is sequentially
+// consistent, as the state store before it and release_remote's fetch_or
+// and state load are (the security audit's
+// A-stxlib-allocator-state-01-F1). Relaxed, it could be satisfied before
+// the store on arm64: it would read 0 for a bit set just before the store,
+// while that release's state load, ordered after its own fetch_or, reads
+// the state from before the store and so does not announce again; the
+// block would stay unmerged until some later release announces. With both
+// sides sequentially consistent, either the test sees the bit or the
+// release sees the cleared state and announces.
 inline void collect(PageMeta& page, const u64 owner) noexcept {
     STX_MINMALLOCPP_CHECK(owner_of_state(page.state.load()) == owner);
     STX_MINMALLOCPP_STEP();
@@ -410,7 +426,7 @@ inline void collect(PageMeta& page, const u64 owner) noexcept {
     const usize words = page.words;
     for (usize word = 0; word < words; ++word) {
         STX_MINMALLOCPP_STEP();
-        if (remote_cells[word].load(std::memory_order_relaxed) == 0) continue;
+        if (remote_cells[word].load() == 0) continue;
         STX_MINMALLOCPP_STEP();
         const u64 released = remote_cells[word].exchange(0);
         const u64 known = free_cells[word].load(std::memory_order_relaxed);
