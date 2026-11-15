@@ -344,15 +344,16 @@ STXLIB_MATH_COLD float float_log_outside(const float x) noexcept {
     return x;  // +infinity
 }
 
-// True for positive normal finite floats.
-bool float_positive_normal(const float x) noexcept {
+// True for positive normal finite floats. Modular by design: the range
+// as one unsigned compare.
+STXLIB_MODULAR bool float_positive_normal(const float x) noexcept {
     const std::uint32_t bits = std::bit_cast<std::uint32_t>(x);
     const bool result = bits - 0x00800000U < 0x7f000000U;
     return result;
 }
 
-// True for normal finite floats of either sign.
-bool float_normal(const float x) noexcept {
+// True for normal finite floats of either sign (modular, as above).
+STXLIB_MODULAR bool float_normal(const float x) noexcept {
     const std::uint32_t magnitude = std::bit_cast<std::uint32_t>(x) & 0x7fffffffU;
     const bool result = magnitude - 0x00800000U < 0x7f000000U;
     return result;
