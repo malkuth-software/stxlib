@@ -172,7 +172,10 @@ if(STXLIB_TESTS)
         #error not libc++ 15 or later
         #endif
         int main() { return 0; }" STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
-    if(STXLIB_STANDARD_LIBRARY_IS_LIBCXX)
+    # Not under STXLIB_INTEGER_CHECKS: libc++'s shuffle steps a linear
+    # congruential generator modulo 2^64 (__algorithm/shuffle.h), which the
+    # integer sanitizer halts on; the other test builds shuffle.
+    if(STXLIB_STANDARD_LIBRARY_IS_LIBCXX AND NOT STXLIB_INTEGER_CHECKS)
         set(stxlib_randomize_default ON)
     endif()
 endif()
