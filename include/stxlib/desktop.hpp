@@ -7,7 +7,12 @@
 //
 // Sealing: open_with_desktop accepts only http, https and mailto links and
 // absolute paths, without control characters, so input can never become a
-// command-line option or an arbitrary protocol handler. The desktop's helper
+// command-line option or an arbitrary protocol handler. A link may not hold
+// '"', a space, '<', '>', '\\', '^', '`' or '|' (percent-encode them, as RFC
+// 3986 requires): Windows passes a link into its handler's command line,
+// where they could split it into further arguments. The rule holds on every
+// host. Windows starts the file manager by the shared Windows directory's
+// absolute explorer.exe, never by a search. The desktop's helper
 // (open on macOS, xdg-open elsewhere on POSIX, ShellExecuteW and explorer on
 // Windows) runs detached, with no shell and its output discarded; neither
 // function waits for the desktop to act.
@@ -15,7 +20,8 @@
 // Failures: invalid_argument with HostCode::invalid_value for a refused
 // target or a relative path; unsupported when the desktop's helper is
 // missing (a POSIX host without xdg-open) or, for current_executable, on a
-// host STXlib cannot ask; Child::start's failures otherwise; io_failure when
+// host STXlib cannot ask, or when the executable is on a UNC share (Windows:
+// a Path has no UNC form); Child::start's failures otherwise; io_failure when
 // ShellExecuteW refuses.
 
 #include "stxlib/path.hpp"

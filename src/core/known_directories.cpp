@@ -103,6 +103,11 @@ Result<Path> windows_directory(const KnownDirectory which) noexcept {
     Growable<char> text;
     const Status found = directories_backend::known_folder(which, text);
     if (found.failed()) return Result<Path>::failure(*found.error());
+    // The backend refuses a UNC name (A-stxlib-core-01-F1); checked again,
+    // since "//server/share" would parse as the local "/server/share".
+    if (text.count() >= 2 && text[0] == '/' && text[1] == '/') {
+        return failure_of(ErrorKind::unsupported, HostCode::none);
+    }
     Result<Path> parsed = Path::parse_wtf8(text.data(), text.count());
     if (parsed.failed()) {
         if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return parsed;

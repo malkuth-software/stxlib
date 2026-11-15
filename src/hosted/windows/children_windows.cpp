@@ -6,6 +6,29 @@
 // (PROC_THREAD_ATTRIBUTE_HANDLE_LIST). Windows has no zombies: closing the
 // process handle releases a child, which keeps running.
 //
+// The program (security audit 2026-11-15, A-stxlib-hosted-01-F1 and F2).
+// CreateProcessW is always given the program's absolute name as
+// lpApplicationName, never a null one: with a null name it searches for the
+// command line's first token in the application's directory, then the
+// current directory, then the system directories and PATH (Microsoft's
+// CreateProcessW page, lpCommandLine), so a file planted in the current
+// directory would run. A bare name (no '\', '/' or ':') is looked up with
+// SearchPathW over PATH's absolute entries only (a relative entry such as
+// "." would be read against the current directory); any other name is made
+// absolute with GetFullPathNameW. ".exe" is added to a last component with
+// no extension, as CreateProcessW does for the first token. A ':' anywhere
+// but after a leading drive letter (an alternate data stream, a device) is
+// refused.
+//
+// A program whose name ends in .bat or .cmd (any case, with the trailing
+// dots and spaces Windows ignores) is refused with invalid_argument:
+// CreateProcessW runs such a file through cmd.exe /c, which parses the
+// whole command line by its own rules (&, |, <, >, ^, %NAME% and quotes),
+// and the C runtime's quoting cannot make an argument safe there (the
+// "BatBadBut" advisories, CVE-2024-24576, Rust's standard library fixed it
+// by quoting for cmd.exe and refusing what cannot be quoted; STXlib refuses
+// the program instead). children.hpp states the rule.
+//
 // Changes from stx_auxlib: the child state is inline in Child (no heap
 // block, so no child is terminated for want of memory after it started);
 // the command line and attribute list are Growable buffers.
@@ -112,6 +135,128 @@ bool append_quoted(Growable<wchar_t>& line, const PathText argument) noexcept {
     return result;
 }
 
+// Whether `name`'s last component ends in ".bat" or ".cmd", ASCII case
+// ignored, after the trailing dots and spaces Windows drops from a file name.
+bool names_batch_file(const wchar_t* const name, const usize count) noexcept {
+    usize end = count;
+    while (end > 0 && (name[end - 1] == L'.' || name[end - 1] == L' ')) end = end - 1;
+    if (end < 4 || name[end - 4] != L'.') return false;
+    wchar_t lowered[3]{};
+    for (usize index = 0; index < 3; ++index) {
+        const wchar_t unit = name[end - 3 + index];
+        lowered[index] = unit >= L'A' && unit <= L'Z' ? static_cast<wchar_t>(unit - L'A' + L'a') : unit;
+    }
+    const bool bat = lowered[0] == L'b' && lowered[1] == L'a' && lowered[2] == L't';
+    const bool cmd = lowered[0] == L'c' && lowered[1] == L'm' && lowered[2] == L'd';
+    return bat || cmd;
+}
+
+// Whether `entry` (a PATH entry, unquoted) is absolute: a drive root
+// ("C:\", "C:/") or a UNC name ("\\server").
+bool absolute_entry(const wchar_t* const entry, const usize count) noexcept {
+    const bool drive = count >= 3 && ((entry[0] >= L'A' && entry[0] <= L'Z') || (entry[0] >= L'a' && entry[0] <= L'z')) &&
+                       entry[1] == L':' && (entry[2] == L'\\' || entry[2] == L'/');
+    const bool unc = count >= 2 && (entry[0] == L'\\' || entry[0] == L'/') && (entry[1] == L'\\' || entry[1] == L'/');
+    return drive || unc;
+}
+
+enum class Resolved : u8 {
+    ok = 0,
+    host_error = 1,     // GetLastError says why
+    refused = 2,        // a batch file or a ':' out of place
+    out_of_memory = 3,
+};
+
+// PATH's absolute entries, ';'-separated and terminated; empty (no
+// terminator) when there are none.
+Resolved absolute_search_path(Growable<wchar_t>& output) noexcept {
+    output.clear();
+    const DWORD needed = GetEnvironmentVariableW(L"PATH", nullptr, 0);
+    if (needed == 0) return Resolved::ok;
+    Growable<wchar_t> path;
+    if (!path.resize(static_cast<usize>(needed))) return Resolved::out_of_memory;
+    const DWORD got = GetEnvironmentVariableW(L"PATH", path.data(), needed);
+    if (got == 0 || got >= needed) return Resolved::ok;
+    usize start = 0;
+    const usize length = static_cast<usize>(got);
+    while (start <= length) {
+        usize stop = start;
+        while (stop < length && path[stop] != L';') stop = stop + 1;
+        usize first = start;
+        usize last = stop;
+        if (last - first >= 2 && path[first] == L'"' && path[last - 1] == L'"') {
+            first = first + 1;
+            last = last - 1;
+        }
+        if (absolute_entry(path.data() + first, last - first)) {
+            if (!output.empty() && !output.push(L';')) return Resolved::out_of_memory;
+            if (!output.append(path.data() + first, last - first)) return Resolved::out_of_memory;
+        }
+        start = stop + 1;
+    }
+    if (!output.empty() && !utf16::terminate(output)) return Resolved::out_of_memory;
+    return Resolved::ok;
+}
+
+// The program's absolute, terminated name for lpApplicationName (the file
+// comment says how it is found).
+Resolved resolve_program(const PathText program, Growable<wchar_t>& resolved) noexcept {
+    resolved.clear();
+    Growable<wchar_t> name;
+    if (!wtf8::to_utf16(program.data(), program.count(), name)) return Resolved::out_of_memory;
+    bool bare = true;
+    usize last_component = 0;
+    for (usize index = 0; index < name.count(); ++index) {
+        if (name[index] == L'/') name[index] = L'\\';
+        if (name[index] == L'\\') {
+            bare = false;
+            last_component = index + 1;
+        }
+        if (name[index] == L':') {
+            const wchar_t first = name[0];
+            const bool drive_letter = (first >= L'A' && first <= L'Z') || (first >= L'a' && first <= L'z');
+            if (index != 1 || !drive_letter) return Resolved::refused;
+            bare = false;
+            last_component = 2;
+        }
+    }
+    bool has_extension = false;
+    for (usize index = last_component; index < name.count(); ++index) {
+        if (name[index] == L'.') has_extension = true;
+    }
+    if (!has_extension && !name.append(L".exe", 4)) return Resolved::out_of_memory;
+    if (!utf16::terminate(name)) return Resolved::out_of_memory;
+    if (bare) {
+        Growable<wchar_t> search;
+        const Resolved listed = absolute_search_path(search);
+        if (listed != Resolved::ok) return listed;
+        if (search.empty()) {
+            SetLastError(ERROR_FILE_NOT_FOUND);
+            return Resolved::host_error;
+        }
+        const DWORD needed = SearchPathW(search.data(), name.data(), nullptr, 0, nullptr, nullptr);
+        if (needed == 0) return Resolved::host_error;
+        if (!resolved.resize(static_cast<usize>(needed))) return Resolved::out_of_memory;
+        const DWORD got = SearchPathW(search.data(), name.data(), nullptr, needed, resolved.data(), nullptr);
+        if (got == 0) return Resolved::host_error;
+        if (got >= needed) {
+            SetLastError(ERROR_FILE_NOT_FOUND); // PATH changed between the two calls
+            return Resolved::host_error;
+        }
+        if (!resolved.resize(static_cast<usize>(got))) return Resolved::out_of_memory;
+    } else {
+        const DWORD needed = GetFullPathNameW(name.data(), 0, nullptr, nullptr);
+        if (needed == 0) return Resolved::host_error;
+        if (!resolved.resize(static_cast<usize>(needed))) return Resolved::out_of_memory;
+        const DWORD got = GetFullPathNameW(name.data(), needed, resolved.data(), nullptr);
+        if (got == 0 || got >= needed) return Resolved::host_error;
+        if (!resolved.resize(static_cast<usize>(got))) return Resolved::out_of_memory;
+    }
+    if (names_batch_file(resolved.data(), resolved.count())) return Resolved::refused;
+    if (!utf16::terminate(resolved)) return Resolved::out_of_memory;
+    return Resolved::ok;
+}
+
 // Closes a handle on every exit; null holds none.
 class OwnedHandle final {
 public:
@@ -171,6 +316,13 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     const Status checked = children_detail::check_request(request);
     if (checked.failed()) return Result<Child>::failure(*checked.error());
     const ErrorRecord exhausted = host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none);
+    Growable<wchar_t> application;
+    const Resolved found = resolve_program(request.program, application);
+    if (found == Resolved::out_of_memory) return Result<Child>::failure(exhausted);
+    if (found == Resolved::host_error) return Result<Child>::failure(last_error(operation));
+    if (found == Resolved::refused) {
+        return Result<Child>::failure(host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value));
+    }
 
     SECURITY_ATTRIBUTES inheritable{};
     inheritable.nLength = sizeof inheritable;
@@ -198,15 +350,56 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     startup.StartupInfo.dwFlags = STARTF_USESTDHANDLES;
     startup.StartupInfo.hStdInput = null_input.value;
     const bool inherit = request.streams == ChildStreams::inherit;
-    const HANDLE child_output = inherit ? GetStdHandle(STD_OUTPUT_HANDLE) : output_writer.value;
-    const HANDLE child_error = inherit ? GetStdHandle(STD_ERROR_HANDLE) : output_writer.value;
+    // Inherit mode (A-stxlib-hosted-01-F3). With PROC_THREAD_ATTRIBUTE_HANDLE_LIST
+    // only the listed handles are inherited (Microsoft's
+    // UpdateProcThreadAttribute page), so the parent's output and error are
+    // duplicated as inheritable and listed, as Python's subprocess and Go's
+    // os/exec do; the duplicates are closed when start returns, the child
+    // having its own. A missing or unduplicable standard handle is passed
+    // as it is and not listed (the child then has none, as before).
+    OwnedHandle inherited_output;
+    OwnedHandle inherited_error;
+    HANDLE child_output = output_writer.value;
+    HANDLE child_error = output_writer.value;
+    if (inherit) {
+        const HANDLE own_output = GetStdHandle(STD_OUTPUT_HANDLE);
+        const HANDLE own_error = GetStdHandle(STD_ERROR_HANDLE);
+        child_output = own_output;
+        child_error = own_error;
+        const HANDLE self = GetCurrentProcess();
+        HANDLE duplicate = nullptr;
+        if (own_output != nullptr && own_output != INVALID_HANDLE_VALUE &&
+            DuplicateHandle(self, own_output, self, &duplicate, 0, TRUE, DUPLICATE_SAME_ACCESS)) {
+            inherited_output.value = duplicate;
+            child_output = duplicate;
+        }
+        if (own_error == own_output) {
+            child_error = child_output;
+        } else if (own_error != nullptr && own_error != INVALID_HANDLE_VALUE &&
+                   DuplicateHandle(self, own_error, self, &duplicate, 0, TRUE, DUPLICATE_SAME_ACCESS)) {
+            inherited_error.value = duplicate;
+            child_error = duplicate;
+        }
+    }
     startup.StartupInfo.hStdOutput = child_output;
     startup.StartupInfo.hStdError = child_error;
-    // Restrict inheritance to the child's own standard handles. In inherit
-    // mode only the null input is listed: the parent's own standard handles
-    // are passed as they are.
-    HANDLE handles[2] = {null_input.value, output_writer.value};
-    const usize handle_count = inherit ? 1 : 2;
+    // Restrict inheritance to the child's own standard handles, each listed
+    // once.
+    HANDLE handles[3] = {null_input.value, nullptr, nullptr};
+    usize handle_count = 1;
+    if (!inherit) {
+        handles[handle_count] = output_writer.value;
+        handle_count = handle_count + 1;
+    } else {
+        if (inherited_output.value != nullptr) {
+            handles[handle_count] = inherited_output.value;
+            handle_count = handle_count + 1;
+        }
+        if (inherited_error.value != nullptr) {
+            handles[handle_count] = inherited_error.value;
+            handle_count = handle_count + 1;
+        }
+    }
     AttributeList attributes;
     SIZE_T list_bytes = 0;
     (void)InitializeProcThreadAttributeList(nullptr, 1, 0, &list_bytes);
@@ -232,9 +425,9 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     DWORD flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT;
     if (request.detached) flags = flags | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
     PROCESS_INFORMATION information{};
-    // A null application name makes CreateProcessW search PATH for the first
-    // token of the (writable) command line.
-    if (!CreateProcessW(nullptr, command_line.data(), nullptr, nullptr, TRUE, flags, nullptr, nullptr,
+    // The resolved absolute name, so CreateProcessW searches nothing (the
+    // file comment); the command line still begins with the program as given.
+    if (!CreateProcessW(application.data(), command_line.data(), nullptr, nullptr, TRUE, flags, nullptr, nullptr,
                         &startup.StartupInfo, &information)) {
         return Result<Child>::failure(last_error(operation));
     }

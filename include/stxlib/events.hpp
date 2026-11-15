@@ -15,8 +15,11 @@
 // terminal_resized SIGWINCH, suspend SIGTSTP. Windows: interrupt
 // CTRL_C_EVENT and CTRL_BREAK_EVENT, terminate CTRL_CLOSE_EVENT and
 // CTRL_SHUTDOWN_EVENT, hangup CTRL_LOGOFF_EVENT; resize and suspend are not
-// signals there and are unsupported. A Windows close or shutdown still ends
-// the process a few seconds after the event, whatever the program does.
+// signals there and are unsupported. A Windows close, logoff or shutdown
+// still ends the process a few seconds after the event, whatever the
+// program does: STXlib holds the event until the watch is released or 4.5
+// seconds pass (the system allows 5), so the program has that long to
+// take() it and clean up; releasing the watch lets the process end at once.
 //
 // Modules: the watch's state (the recorded events, the one-watch flag and
 // the earlier handlers) lives in stxlib_state, so a watch made in one

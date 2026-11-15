@@ -89,13 +89,16 @@ bool batch_finished(const void* const address) noexcept {
 }
 
 // A call that would deadlock on run_lock, which this thread holds for its
-// open batch: a defect, recorded and failed fast (S2).
+// open batch, or for a batch run calls on it (a task run on the caller that
+// calls into its own pool, A-stxlib-core-01-F5): a defect, recorded and
+// failed fast (S2).
 void check_not_batch_owner(const AtomicPool::State& pool, const Operation operation) noexcept {
     if (pool.batch_owner.load(std::memory_order_relaxed) != current_thread().value()) return;
     const ErrorRecord record = ErrorRecord::make(
         ErrorKind::invalid_argument, operation,
         ErrorDetail{.code = static_cast<u32>(PoolFailure::batch_still_open),
-                    .message = "this thread's asynchronous batch is still open; call wait first"});
+                    .message = "this thread holds the pool's batch (an asynchronous batch still open, or a task "
+                               "of run's on this thread calling into its own pool)"});
     fail_fast(record);
 }
 
@@ -289,7 +292,13 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
     // in index order; waking workers would cost more than the batch.
     const u64 caller_limit = static_cast<u64>(pool.thread_count) * minimum_tasks_per_worker;
     if (pool.thread_count == 1 || static_cast<u64>(count) <= caller_limit) {
+        // The caller is the batch's owner while its tasks run here, so a task
+        // that calls run, begin or the destructor on this pool fails fast
+        // instead of locking run_lock a second time (A-stxlib-core-01-F5).
+        // batch_open stays false: wait from such a task releases nothing.
+        pool.batch_owner.store(current_thread().value(), std::memory_order_relaxed);
         for (u32 index = 0; index < count; ++index) tasks[index].function(tasks[index].argument);
+        pool.batch_owner.store(0, std::memory_order_relaxed);
         return Status::success();
     }
     ScopedLock sleep(pool.sleep_lock);
@@ -329,6 +338,16 @@ Status AtomicPool::wait() noexcept {
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
     if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
     State& pool = *state_;
+    // Only the thread that called begin may end its batch: it holds
+    // run_lock, and another thread unlocking that mutex is undefined for the
+    // host's mutex (A-stxlib-core-01-F5). batch_owner is atomic; batch_open
+    // is read only by the owner, which wrote it. A thread whose own task run
+    // is on the caller owns no open batch (batch_open false) and releases
+    // nothing.
+    const u64 caller = current_thread().value();
+    const u64 owner = pool.batch_owner.load(std::memory_order_relaxed);
+    if (owner != 0 && owner != caller) return Status::failure(refusal(PoolFailure::not_batch_owner, operation));
+    const bool owns_batch = owner == caller && pool.batch_open;
     {
         const detail::CancellationHold no_cancel;
         ScopedLock sleep(pool.sleep_lock);
@@ -338,7 +357,7 @@ Status AtomicPool::wait() noexcept {
     // Releases run_lock after sleep_lock, as the reference does. A wait with
     // no batch begun holds no run_lock and releases nothing (the reference
     // would unlock a mutex it does not hold).
-    if (pool.batch_open) {
+    if (owns_batch) {
         pool.batch_open = false;
         pool.batch_owner.store(0, std::memory_order_relaxed);
         const int cancellation = pool.batch_cancellation;

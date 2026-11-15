@@ -38,6 +38,33 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#if defined(__FreeBSD__)
+#include <sys/param.h> // __FreeBSD_version
+#endif
+
+// Descriptors past 2 are closed in the child where the C library can say so
+// (A-stxlib-hosted-01-F6):
+//   - Apple: POSIX_SPAWN_CLOEXEC_DEFAULT, which makes every descriptor the
+//     file actions do not name close-on-exec (posix_spawnattr_setflags(3),
+//     macOS 10.7 and later); inherit mode names 1 and 2 with
+//     posix_spawn_file_actions_addinherit_np.
+//   - glibc 2.34 and later, and FreeBSD 13.1 and later:
+//     posix_spawn_file_actions_addclosefrom_np(3) from descriptor 3.
+//   - elsewhere (musl, which has no version macro to test, older glibc and
+//     FreeBSD, Emscripten): only descriptors opened close-on-exec stay out
+//     of the child (children.hpp).
+#if defined(__APPLE__)
+#define STXLIB_SPAWN_CLOEXEC_DEFAULT 1
+#else
+#define STXLIB_SPAWN_CLOEXEC_DEFAULT 0
+#endif
+#if (defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))) || \
+    (defined(__FreeBSD__) && defined(__FreeBSD_version) && __FreeBSD_version >= 1301000)
+#define STXLIB_SPAWN_CLOSEFROM 1
+#else
+#define STXLIB_SPAWN_CLOSEFROM 0
+#endif
+
 #if defined(__APPLE__)
 #include <crt_externs.h>
 #else
@@ -209,6 +236,19 @@ int prepare(SpawnSetup& setup, const ChildRequest& request, const int output_wri
         error = posix_spawn_file_actions_adddup2(&setup.actions, output_writer, STDOUT_FILENO);
         if (error == 0) error = posix_spawn_file_actions_adddup2(&setup.actions, output_writer, STDERR_FILENO);
     }
+#if STXLIB_SPAWN_CLOEXEC_DEFAULT
+    // Under POSIX_SPAWN_CLOEXEC_DEFAULT the parent's output and error
+    // survive only when named.
+    if (error == 0 && request.streams == ChildStreams::inherit) {
+        error = posix_spawn_file_actions_addinherit_np(&setup.actions, STDOUT_FILENO);
+        if (error == 0) error = posix_spawn_file_actions_addinherit_np(&setup.actions, STDERR_FILENO);
+    }
+#endif
+#if STXLIB_SPAWN_CLOSEFROM
+    // After the dup2s above, so the pipe's writer (close-on-exec in any
+    // case) has already been copied to 1 and 2.
+    if (error == 0) error = posix_spawn_file_actions_addclosefrom_np(&setup.actions, STDERR_FILENO + 1);
+#endif
     if (error != 0) return error;
     sigset_t defaults{};
     (void)sigemptyset(&defaults);
@@ -219,6 +259,9 @@ int prepare(SpawnSetup& setup, const ChildRequest& request, const int output_wri
     if (error == 0) error = posix_spawnattr_setsigmask(&setup.attributes, &empty);
     if (error != 0) return error;
     short flags = POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
+#if STXLIB_SPAWN_CLOEXEC_DEFAULT
+    flags = static_cast<short>(flags | POSIX_SPAWN_CLOEXEC_DEFAULT);
+#endif
 #if defined(POSIX_SPAWN_SETSID)
     if (request.detached) flags = static_cast<short>(flags | POSIX_SPAWN_SETSID);
 #else
@@ -366,8 +409,15 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
         int status = 0;
         const pid_t reaped = ::waitpid(process_id(process_), &status, WNOHANG);
         if (reaped < 0) {
-            if (errno == EINTR) continue;
-            return Result<ChildEnd>::failure(record_of_errno(errno, operation));
+            const int error = errno;
+            if (error == EINTR) continue;
+            // ECHILD: the child was reaped elsewhere (SIGCHLD ignored,
+            // SA_NOCLDWAIT, or another waitpid), so its process id may
+            // already name another process. The Child leaves the running
+            // phase, its end unknown, so kill can never signal that id
+            // (A-stxlib-hosted-01-F5).
+            if (error == ECHILD) phase_ = Phase::waited;
+            return Result<ChildEnd>::failure(record_of_errno(error, operation));
         }
         if (reaped == process_id(process_)) {
             phase_ = Phase::waited;

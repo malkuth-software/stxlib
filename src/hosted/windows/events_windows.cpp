@@ -46,14 +46,38 @@ ProcessEvent event_of(const DWORD control) noexcept {
     return ProcessEvent::terminate;
 }
 
+// How long the handler holds a close, logoff or shutdown event: under the
+// 5,000 ms the system allows for each (Microsoft's HandlerRoutine page,
+// "Timeouts": CTRL_CLOSE_EVENT SPI_GETHUNGAPPTIMEOUT, 5000 ms; logoff and
+// shutdown SPI_GETWAITTOKILLTIMEOUT, 5000 ms; read 2026-11-15).
+constexpr ULONGLONG ending_hold_milliseconds = 4500;
+constexpr DWORD ending_poll_milliseconds = 10;
+
 // Records a watched event and reports it handled; an unwatched one falls
 // through to the next handler (by default, ending the process).
+//
+// For CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT and CTRL_SHUTDOWN_EVENT the
+// system terminates the process as soon as a handler returns TRUE (the same
+// page, Remarks: "Return TRUE. In this case, no other handler functions are
+// called and the system terminates the process"); the time to clean up runs
+// only while the handler has not returned. So for those three the handler
+// waits, polling, until the watch is released (the program has finished
+// with it) or the hold above passes, then returns TRUE. A program that ends
+// itself meanwhile ends this thread with it. Interrupts return at once:
+// they have no timeout and do not end the process.
 BOOL WINAPI record_event(const DWORD control) {
     state::ProcessState* const process = handler_state.load(std::memory_order_acquire);
     if (process == nullptr) return FALSE;
     const u8 bit = static_cast<u8>(event_of(control));
     if (((*process).watched_events.load(std::memory_order_acquire) & bit) == 0) return FALSE;
     (*process).pending_events.fetch_or(bit, std::memory_order_relaxed);
+    const bool ends_process = control == CTRL_CLOSE_EVENT || control == CTRL_LOGOFF_EVENT || control == CTRL_SHUTDOWN_EVENT;
+    if (!ends_process) return TRUE;
+    const ULONGLONG started = GetTickCount64();
+    while (((*process).watched_events.load(std::memory_order_acquire) & bit) != 0 &&
+           GetTickCount64() - started < ending_hold_milliseconds) {
+        Sleep(ending_poll_milliseconds);
+    }
     return TRUE;
 }
 

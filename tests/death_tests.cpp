@@ -52,6 +52,10 @@
 //                          gate sees the forced unwind and fails fast with
 //                          a record naming cancellation (owner decision
 //                          2026-11-15, audit E, 1); elsewhere skipped
+//   pool_caller_reentry    a task that run is running on the calling
+//                          thread calls run on its own pool: fails fast
+//                          (batch_still_open) instead of locking run_lock a
+//                          second time (A-stxlib-core-01-F5)
 //
 // foreign_free and foreign_delete are skipped under ThreadSanitizer: its
 // free and operator delete do not check that a pointer is the start of a
@@ -207,6 +211,25 @@ int foreign_unlock() {
     }
     stxlib::Mutex mutex{};
     mutex.unlock();
+    std::puts("survived");
+    return 0;
+}
+
+void reenter_own_pool(void* const address) noexcept {
+    stxlib::AtomicPool& pool = *static_cast<stxlib::AtomicPool*>(address);
+    static_cast<void>(pool.run(stxlib::View<stxlib::PoolTask>()));
+}
+
+int pool_caller_reentry() {
+    stxlib::Result<stxlib::AtomicPool> created = stxlib::AtomicPool::create(1);
+    if (created.failed()) {
+        std::puts("skipped");
+        return 0;
+    }
+    stxlib::AtomicPool pool = static_cast<stxlib::Result<stxlib::AtomicPool>&&>(created).take_value();
+    // A one-thread pool runs every batch on the caller.
+    const stxlib::PoolTask tasks[] = {stxlib::PoolTask{reenter_own_pool, &pool}};
+    static_cast<void>(pool.run(stxlib::View<stxlib::PoolTask>(tasks)));
     std::puts("survived");
     return 0;
 }
@@ -496,6 +519,7 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "foreign_free") == 0) return foreign_free();
     if (std::strcmp(name, "foreign_delete") == 0) return foreign_delete();
     if (std::strcmp(name, "gate_cancelled") == 0) return gate_cancelled();
+    if (std::strcmp(name, "pool_caller_reentry") == 0) return pool_caller_reentry();
     std::fprintf(stderr, "unknown case %s\n", name);
     return 2;
 }

@@ -291,6 +291,65 @@ void serialization() {
     CHECK(calls.load() == 10);
 }
 
+// A-stxlib-core-01-F5: wait on a thread other than begin's is refused while
+// that batch is open, and leaves it open for its owner's wait. A wait with
+// no batch open stays a no-op on any thread.
+struct StrayWaiter final {
+    AtomicPool* pool{nullptr};
+    std::atomic<bool> finished{false};
+    std::atomic<bool> refused{false};
+    std::atomic<bool> idle_wait_succeeded{false};
+    bool idle{false};
+};
+
+void stray_wait(const stxlib::StopSignal&, void* const address) noexcept {
+    StrayWaiter& waiter = *static_cast<StrayWaiter*>(address);
+    const Status status = (*waiter.pool).wait();
+    if (waiter.idle) {
+        waiter.idle_wait_succeeded.store(status.succeeded(), std::memory_order_relaxed);
+    } else {
+        waiter.refused.store(refused_with(status, PoolFailure::not_batch_owner), std::memory_order_relaxed);
+    }
+    waiter.finished.store(true, std::memory_order_release);
+}
+
+void wait_from_another_thread() {
+    AtomicPool pool = create_or_fail(2);
+    Gate gate{};
+    const PoolTask gated[] = {PoolTask{wait_at_gate, &gate}};
+    CHECK(pool.begin(View<PoolTask>(gated)).succeeded());
+    StrayWaiter waiter{};
+    waiter.pool = &pool;
+    Result<stxlib::Thread> started = stxlib::Thread::start(stray_wait, &waiter);
+    CHECK(started.succeeded());
+    if (started.succeeded()) {
+        stxlib::Thread thread = std::move(started).take_value();
+        CHECK(thread.join() == stxlib::JoinResult::joined);
+    }
+    CHECK(waiter.finished.load(std::memory_order_acquire));
+    CHECK(waiter.refused.load());
+    gate.open.store(true, std::memory_order_release);
+    CHECK(pool.wait().succeeded());
+    CHECK(gate.passed.load() == 1);
+
+    StrayWaiter idle{};
+    idle.pool = &pool;
+    idle.idle = true;
+    Result<stxlib::Thread> idle_started = stxlib::Thread::start(stray_wait, &idle);
+    CHECK(idle_started.succeeded());
+    if (idle_started.succeeded()) {
+        stxlib::Thread thread = std::move(idle_started).take_value();
+        CHECK(thread.join() == stxlib::JoinResult::joined);
+    }
+    CHECK(idle.idle_wait_succeeded.load());
+    // The pool still serves batches.
+    std::atomic<u32> calls{0};
+    const std::vector<PoolTask> tasks = counting_tasks(calls, 1000);
+    CHECK(pool.begin(view_of(tasks)).succeeded());
+    CHECK(pool.wait().succeeded());
+    CHECK(calls.load() == 1000);
+}
+
 } // namespace
 
 // Audit A, C6: run, begin and wait called on one of the pool's workers are
@@ -343,6 +402,7 @@ int main() {
     worker_path();
     asynchronous();
     serialization();
+    wait_from_another_thread();
     calls_from_a_worker();
     return stxlib_tests::finish("thread_pool");
 }

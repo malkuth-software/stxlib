@@ -140,6 +140,11 @@ enum class FileMode : u8 {
     append = 3,     // write at the end of a file, creating it if missing
 };
 
+namespace detail {
+// STXlib's own access to an open File's host handle (src/core/files.cpp).
+class FileAccess;
+} // namespace detail
+
 // An open file. Move-only; the destructor closes it and discards any close
 // failure, so call close() where that failure matters. A moved-from or
 // closed File fails with disposed, HostCode::closed_handle.
@@ -207,6 +212,8 @@ public:
     [[nodiscard]] Status set_size(u64 bytes) noexcept;
 
 private:
+    friend class detail::FileAccess;
+
     static constexpr i64 closed = -1;
 
     File(const i64 handle, const FileMode opened_mode) noexcept : handle_(handle), mode_(opened_mode) {}
@@ -227,6 +234,13 @@ private:
 // where Capability::atomic_replace is true. On failure the old file, if any,
 // is unchanged and the temporary file is removed. A path without a final
 // name ("/", ".") fails with invalid_argument, HostCode::invalid_name.
+// The replacement is a new file: on POSIX hosts it takes the replaced
+// regular file's permission bits (st_mode & 0777, read through a link;
+// setuid, setgid and sticky are dropped) before any content is written,
+// and is owned by the writer; ownership, ACLs, extended attributes and a
+// link at the name are not kept (a link is replaced by the file). On
+// Windows it takes the directory's inherited ACL, not the replaced file's
+// own.
 [[nodiscard]] Status write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class LinkMode : u8 {
@@ -383,12 +397,14 @@ enum class KnownDirectory : u8 {
 //     home/.cache. A variable that is empty or not an absolute path is
 //     ignored, as the specification requires.
 //   - Windows: SHGetKnownFolderPath with FOLDERID_Profile, RoamingAppData,
-//     RoamingAppData and LocalAppData, in order of the enumerators.
+//     RoamingAppData and LocalAppData, in order of the enumerators. A
+//     folder redirected to a UNC share ("\\server\share") is refused as
+//     unsupported: a Path has no UNC form, as with the file functions.
 // The variables are read through environment.hpp, under its lock. Failures:
 // not_found with HostCode::no_home when no home can be named; invalid_argument
 // for a value the variable holds that is not a Path; out_of_memory;
 // foreign_failure with the host's code (Windows); unsupported for a value
-// outside the set.
+// outside the set or a folder on a UNC share (Windows).
 [[nodiscard]] Result<Path> known_directory(KnownDirectory which) noexcept;
 // `path` made absolute against the working directory, lexically: no
 // symbolic link is followed and the path need not exist.

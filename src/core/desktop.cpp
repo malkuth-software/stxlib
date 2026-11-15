@@ -36,6 +36,27 @@ bool acceptable_path(const Path& path) noexcept {
     return result;
 }
 
+// Characters a link may not hold (A-stxlib-hosted-01-F10). Windows hands a
+// link to the scheme's registered command by putting it in place of "%1"
+// ("Registering an Application to a URI Scheme", Microsoft Learn), and that
+// command line is split again by the handler: a '"' or a space can end one
+// argument and start another in a handler that does not guard against it.
+// The rest are what cmd.exe and the C runtime's splitting treat specially
+// ('<', '>', '^', '|', '\\') and the backtick. None may appear unencoded in a
+// URI (RFC 3986 section 2: they are neither reserved nor unreserved), so a
+// well-formed link carries them percent-encoded and loses nothing. The rule
+// holds on every host, so a link accepted on one is accepted on all.
+bool has_link_separator(const TextView text) noexcept {
+    for (usize index = 0; index < text.count(); ++index) {
+        const char character = text.data()[index];
+        if (character == '"' || character == ' ' || character == '<' || character == '>' || character == '\\' ||
+            character == '^' || character == '`' || character == '|') {
+            return true;
+        }
+    }
+    return false;
+}
+
 Status refused(const Operation operation) noexcept {
     const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
     return result;
@@ -48,6 +69,7 @@ Status open_with_desktop(const TextView target) noexcept {
     if (has_control_character(target)) return refused(operation);
     if (starts_with_folded(target, "http://") || starts_with_folded(target, "https://") ||
         starts_with_folded(target, "mailto:")) {
+        if (has_link_separator(target)) return refused(operation);
         const Status opened = desktop_backend::open_target(target, true);
         return opened;
     }
@@ -78,6 +100,12 @@ Result<Path> current_executable() noexcept {
     Growable<char> text;
     const Status found = desktop_backend::executable_name(text);
     if (found.failed()) return Result<Path>::failure(*found.error());
+    // A host with drive roots never gives a UNC name here: its backend
+    // refuses one (A-stxlib-core-01-F1). Checked again, since "//server/x"
+    // would parse as the local "/server/x".
+    if (desktop_backend::drive_roots && text.count() >= 2 && text[0] == '/' && text[1] == '/') {
+        return Result<Path>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+    }
     // The host's name, losslessly (D13 a; desktop_backend.hpp).
     Result<Path> parsed = desktop_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
                                                       : Path::parse_wtf8(text.data(), text.count());

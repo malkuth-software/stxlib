@@ -6,6 +6,7 @@
 // a primitive of its own; see files.hpp, "Changes from stx_auxlib".
 
 #include "stxlib/files.hpp"
+#include "stxlib/text.hpp"
 
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
@@ -31,6 +32,15 @@ public:
         return result;
     }
 
+};
+
+class FileAccess final {
+public:
+    // The host handle of an open File (write_file's temporary).
+    [[nodiscard]] static i64 handle(const File& file) noexcept {
+        const i64 result = file.handle_;
+        return result;
+    }
 };
 
 } // namespace detail
@@ -122,18 +132,24 @@ Status status_of(const Outcome outcome, const Operation operation) noexcept {
 // POSIX hosts take the host bytes the path spells (they have no drive
 // roots, and a Path holding a surrogate that is not an escape spells none),
 // Windows takes the WTF-8 text. Where the file system keeps only UTF-8
-// names (file_backend::utf8_names_only), a path whose bytes are not UTF-8
-// (its text escapes them, so is not Unicode) is refused as invalid_name,
-// as APFS refuses it with EILSEQ.
+// names (file_backend::utf8_names_only), a path whose host bytes are not
+// UTF-8 is refused as invalid_name, as APFS refuses it with EILSEQ. The
+// bytes are checked, not the text: Path also escapes bytes that are UTF-8
+// (':' and '\'), so a text that is not Unicode can still spell a UTF-8
+// name (the second web run refused "back\slash" and "c:" when the text
+// was checked).
 Outcome native_name(const Path& path, Growable<char>& output) noexcept {
     output.clear();
     const PathText text = path.text();
     if constexpr (file_backend::byte_names) {
         if (path.drive() != 0) return file_backend::failure(FileStatus::unsupported);
-        if (file_backend::utf8_names_only && !text.is_unicode()) return file_backend::failure(FileStatus::invalid_name);
         const wtf8::Converted converted = wtf8::unescape_posix(text.data(), text.count(), output);
         if (converted == wtf8::Converted::not_representable) return file_backend::failure(FileStatus::invalid_name);
         if (converted != wtf8::Converted::ok) return file_backend::failure(FileStatus::out_of_memory);
+        if (file_backend::utf8_names_only && !text.is_unicode() &&
+            validate_utf8(output.data(), output.count()).failed()) {
+            return file_backend::failure(FileStatus::invalid_name);
+        }
     } else if (!output.append(text.data(), text.count())) {
         return file_backend::failure(FileStatus::out_of_memory);
     }
@@ -420,12 +436,14 @@ Status File::set_size(const u64 bytes) noexcept {
 // ---- whole files -------------------------------------------------------------
 
 // Reads into a growing buffer, toward `limit` as the file proves longer than
-// its reported size, and probes one byte at the limit to tell a file of
-// exactly `limit` bytes from a longer one (stx_auxlib's read_file). The
-// buffer is reserved at exactly the reported size and handed to the result
-// without a copy (audit A, X5), so a file that keeps its size costs one
-// block of its size; one that grows while it is read costs the doubling's
-// block, under twice the bytes read.
+// its reported size. When the buffer is full it probes one byte into a
+// local: none is the end (at the limit too, so a file of exactly `limit`
+// bytes is read, as in stx_auxlib's read_file); one at the limit is
+// too_large; one below it is growth, so the buffer grows and keeps the byte.
+// The buffer is reserved at exactly the reported size and handed to the
+// result without a copy (audit A, X5), so a file that keeps its size costs
+// one block of its size and one extra read; one that grows while it is
+// read costs the doubling's block, under twice the bytes read.
 Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const Operation operation = "stxlib.files.read_file";
     Result<File> opened = File::open(path, FileMode::read);
@@ -442,14 +460,15 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     usize filled = 0;
     for (;;) {
         if (filled == content.count()) {
+            // Full: one byte into a local tells the end of the file from
+            // growth, so a file that kept its reported size ends here with
+            // its exact block, never grown and copied (A-stxlib-core-01-F3).
+            Byte probe[1]{};
+            const Result<usize> extra = file.read(MutableView<Byte>(probe));
+            if (extra.failed()) return Result<Buffer<Byte>>::failure(*extra.error());
+            if (*extra.value() == 0) break;
             if (content.count() == limit) {
-                Byte probe[1]{};
-                const Result<usize> extra = file.read(MutableView<Byte>(probe));
-                if (extra.failed()) return Result<Buffer<Byte>>::failure(*extra.error());
-                if (*extra.value() != 0) {
-                    return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
-                }
-                break;
+                return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
             }
             const usize current = content.count();
             usize doubled = 4096;
@@ -457,6 +476,9 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
             if (!content.resize(doubled < limit ? doubled : limit)) {
                 return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
             }
+            content[filled] = probe[0];
+            filled = filled + 1;
+            continue;
         }
         const Result<usize> chunk = file.read(MutableView<Byte>(content.data() + filled, content.count() - filled));
         if (chunk.failed()) return Result<Buffer<Byte>>::failure(*chunk.error());
@@ -492,6 +514,13 @@ Result<File> open_temporary(const Path& directory, Growable<char>& temporary, co
 // renames it over the target. The file is closed on every path.
 Status write_and_replace(File& file, const View<Byte> content, const char* const temporary, const char* const target,
                          const Durability level, const Operation operation) noexcept {
+    // The replaced file's permission bits, before any content is written
+    // (A-stxlib-core-01-F4): a 0600 file stays 0600.
+    const Outcome carried = file_backend::carry_permissions(detail::FileAccess::handle(file), target);
+    if (!carried.ok()) {
+        (void)file.close();
+        return failed(carried, operation);
+    }
     const Status written = file.write_all(content);
     if (written.failed()) {
         (void)file.close();

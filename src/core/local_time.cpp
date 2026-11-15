@@ -71,16 +71,34 @@ Result<Zone> zone_of_text(const char* const bytes, const usize count) noexcept {
     return Result<Zone>::failure(record);
 }
 
+// True for TZ naming the host's own zone file, "/etc/localtime" with or
+// without zic's ':' (A-stxlib-core-01-F6). It is a common setting on Linux
+// (it spares glibc a stat of the file per call) and in container images,
+// and it holds no "zoneinfo/" to name the zone by, so host_zone reads the
+// zone as if TZ were unset: the same file, through the module's rule.
+bool names_host_zone_file(const char* const bytes, const usize count) noexcept {
+    usize start = 0;
+    if (count > 0 && bytes[0] == ':') start = 1;
+    constexpr char file[] = "/etc/localtime";
+    constexpr usize file_count = sizeof(file) - 1;
+    const bool result = count - start == file_count && starts_with(bytes + start, count - start, file, file_count);
+    return result;
+}
+
 } // namespace
 
 Result<Zone> host_zone() noexcept {
     const Result<Utf8String> tz = read_variable("TZ", tz_limit);
+    bool from_module = false;
     if (tz.succeeded()) {
         const TextView value = (*tz.value()).view();
-        Result<Zone> result = zone_of_text(value.data(), value.count());
-        return result;
+        from_module = names_host_zone_file(value.data(), value.count());
+        if (!from_module) {
+            Result<Zone> result = zone_of_text(value.data(), value.count());
+            return result;
+        }
     }
-    if ((*tz.error()).kind() != ErrorKind::not_found) return Result<Zone>::failure(*tz.error());
+    if (!from_module && (*tz.error()).kind() != ErrorKind::not_found) return Result<Zone>::failure(*tz.error());
     local_time_backend::ZoneText text{};
     const Status read = local_time_backend::system_zone_text(text);
     if (read.failed()) return Result<Zone>::failure(*read.error());

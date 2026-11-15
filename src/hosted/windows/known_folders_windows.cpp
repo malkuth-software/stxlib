@@ -68,9 +68,30 @@ Status known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
         return host_failure::failed(kind, operation, code,
                                     ForeignCode::of(ForeignFamily::windows_hresult, static_cast<i64>(status)));
     }
-    const usize count = path != nullptr ? static_cast<usize>(std::wcslen(path)) : 0;
+    usize count = path != nullptr ? static_cast<usize>(std::wcslen(path)) : 0;
+    const wchar_t* units = path;
+    // A folder redirected to a share comes back as "\\server\share\..."
+    // (folder redirection is the usual way to put AppData or the profile on a
+    // server). A Path has no UNC form, and re-rooting it as "/server/share"
+    // would name a local directory, so it is refused as unsupported, as the
+    // file backend refuses it (A-stxlib-core-01-F1). A "\\?\" prefix is
+    // removed, and "\\?\UNC\" is UNC.
+    if (count >= 4 && units[0] == L'\\' && units[1] == L'\\' && units[2] == L'?' && units[3] == L'\\') {
+        const bool unc = count >= 8 && (units[4] == L'U' || units[4] == L'u') &&
+                         (units[5] == L'N' || units[5] == L'n') && (units[6] == L'C' || units[6] == L'c') &&
+                         units[7] == L'\\';
+        if (unc) {
+            CoTaskMemFree(path);
+            return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
+        }
+        units = units + 4;
+        count = count - 4;
+    } else if (count >= 2 && units[0] == L'\\' && units[1] == L'\\') {
+        CoTaskMemFree(path);
+        return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
+    }
     // WTF-8, so an unpaired surrogate in the folder's name is carried (D13 a).
-    const bool converted = wtf8::from_utf16(path, count, text);
+    const bool converted = wtf8::from_utf16(units, count, text);
     CoTaskMemFree(path);
     if (!converted) {
         text.clear();

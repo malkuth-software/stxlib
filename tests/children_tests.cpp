@@ -8,6 +8,9 @@
 //   exit <status>         exits with that status
 //   sleep                 sleeps ten seconds
 //   sigpipe               prints whether SIGPIPE is ignored (POSIX)
+//   descriptor <n>        prints whether descriptor n is open (POSIX)
+//   relay                 starts "echo relayed" with ChildStreams::inherit
+//                         and exits with 0 when it ran and exited with 0
 // The desktop functions are checked only for what they refuse, so the tests
 // never open a browser or a file manager.
 //
@@ -46,7 +49,12 @@
 #include <windows.h>
 #include <shellapi.h>
 #else
+#include <fcntl.h>
 #include <signal.h>
+#include <unistd.h>
+#if defined(__FreeBSD__)
+#include <sys/param.h>
+#endif
 #endif
 
 namespace {
@@ -299,11 +307,108 @@ void children_reset_signals() {
     CHECK(child.wait(Duration::seconds(30)).succeeded());
     (void)::sigaction(SIGPIPE, &previous, nullptr);
 }
+
+// A descriptor the parent opened without close-on-exec does not reach the
+// child where the C library can close it (A-stxlib-hosted-01-F6; the hosts
+// children.hpp lists); elsewhere it is inherited, as documented.
+void descriptors_not_inherited() {
+#if defined(__APPLE__) || (defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))) || \
+    (defined(__FreeBSD__) && defined(__FreeBSD_version) && __FreeBSD_version >= 1301000)
+    const int leaked = ::open("/dev/null", O_RDONLY); // deliberately without O_CLOEXEC
+    CHECK(leaked > 2);
+    if (leaked <= 2) return;
+    Child child = start_self({"descriptor", std::to_string(leaked)}, ChildStreams::capture);
+    CHECK(output_text(child, 64) == "closed\n");
+    CHECK(exited_with(child.wait(Duration::seconds(30)), 0));
+    (void)::close(leaked);
+#endif
+}
+
+// A child reaped elsewhere leaves the running phase (A-stxlib-hosted-01-F5):
+// with SIGCHLD ignored the host reaps it, waitpid reports ECHILD, and kill
+// is refused rather than signalling a process id that may be reused.
+void child_reaped_elsewhere() {
+    struct sigaction ignore {};
+    ignore.sa_handler = SIG_IGN;
+    struct sigaction previous {};
+    CHECK(::sigaction(SIGCHLD, &ignore, &previous) == 0);
+    Child child = start_self({"exit", "0"}, ChildStreams::discard);
+    const Result<ChildEnd> end = child.wait(Duration::seconds(30));
+    CHECK(end.failed() && code_of(end) != HostCode::timed_out);
+    CHECK(code_of(child.kill()) == HostCode::invalid_state);
+    CHECK(code_of(child.wait(Duration())) == HostCode::invalid_state);
+    (void)::sigaction(SIGCHLD, &previous, nullptr);
+}
+#endif
+
+// A child started with ChildStreams::inherit writes to its parent's own
+// standard output (A-stxlib-hosted-01-F3: on Windows the handles must be
+// inheritable and in the handle list). The relay child is started with its
+// output captured, so the grandchild's line reaches this test only through
+// the relay's inherited handle.
+void inherited_streams() {
+    Child relay = start_self({"relay"}, ChildStreams::capture);
+    CHECK(output_text(relay, 256) == "relayed\n");
+    CHECK(exited_with(relay.wait(Duration::seconds(30)), 0));
+}
+
+#if defined(_WIN32)
+// Windows starts only programs it resolved itself (children.hpp).
+//   - A .bat or .cmd program would run through cmd.exe, whose parsing no
+//     quoting of the arguments survives (CVE-2024-24576, "BatBadBut"), so it
+//     is refused, whatever its case and with the trailing dots and spaces
+//     Windows strips from a name. Refused before the file is looked for.
+//   - A ':' past a drive letter (an alternate stream) is refused.
+//   - A bare name is searched for in PATH only, never in the current
+//     directory (A-stxlib-hosted-01-F2): a copy of this program planted in
+//     the current directory under a fresh name is not found.
+void windows_program_resolution() {
+    const TextView refused[] = {"C:/nonexistent-stxlib/probe.cmd", "C:/nonexistent-stxlib/PROBE.BAT",
+                                "C:/nonexistent-stxlib/probe.bat.", "C:/nonexistent-stxlib/probe.Cmd. .",
+                                "C:/nonexistent-stxlib/probe.bat ", "C:/nonexistent-stxlib/x.exe:stream",
+                                "x:y:z"};
+    for (const TextView program : refused) {
+        const ChildRequest request{.program = program};
+        const Result<Child> started = Child::start(request);
+        CHECK(kind_of(started) == ErrorKind::invalid_argument && code_of(started) == HostCode::invalid_value);
+    }
+
+    wchar_t self[32768];
+    const DWORD self_length = GetModuleFileNameW(nullptr, self, 32768);
+    CHECK(self_length > 0 && self_length < 32768);
+    wchar_t temporary[MAX_PATH + 1];
+    const DWORD temporary_length = GetTempPathW(MAX_PATH + 1, temporary);
+    CHECK(temporary_length > 0 && temporary_length <= MAX_PATH);
+    if (self_length == 0 || self_length >= 32768 || temporary_length == 0 || temporary_length > MAX_PATH) return;
+    const std::wstring directory = std::wstring(temporary, temporary_length) + L"stxlib-planted-" +
+                                   std::to_wstring(GetCurrentProcessId());
+    const std::wstring planted = directory + L"\\stxlib-planted-probe.exe";
+    CHECK(CreateDirectoryW(directory.c_str(), nullptr) != 0);
+    CHECK(CopyFileW(self, planted.c_str(), TRUE) != 0);
+    wchar_t previous[32768];
+    const DWORD previous_length = GetCurrentDirectoryW(32768, previous);
+    CHECK(previous_length > 0 && previous_length < 32768);
+    if (previous_length > 0 && previous_length < 32768 && SetCurrentDirectoryW(directory.c_str()) != 0) {
+        const ChildRequest bare{.program = "stxlib-planted-probe"};
+        const Result<Child> by_bare_name = Child::start(bare);
+        CHECK(kind_of(by_bare_name) == ErrorKind::not_found);
+        const ChildRequest with_extension{.program = "stxlib-planted-probe.exe"};
+        CHECK(kind_of(Child::start(with_extension)) == ErrorKind::not_found);
+        CHECK(SetCurrentDirectoryW(previous) != 0);
+    }
+    (void)DeleteFileW(planted.c_str());
+    (void)RemoveDirectoryW(directory.c_str());
+}
 #endif
 
 void desktop_refusals() {
+    // Links holding a character Windows' handler command line could split
+    // on are refused on every host (A-stxlib-hosted-01-F10).
     const TextView refused[] = {"-x", "--help", "file:///etc/passwd", "javascript:alert(1)",
-                                "relative/path", "https://example.com/\nsecond", ""};
+                                "relative/path", "https://example.com/\nsecond", "",
+                                "https://example.com/a b", "https://example.com/\" --new-window",
+                                "https://example.com/<x>", "https://example.com/a\\b", "https://example.com/a^b",
+                                "https://example.com/a`b", "https://example.com/a|b", "mailto:a@example.com?subject=a b"};
     for (const TextView target : refused) {
         const Status status = stxlib::open_with_desktop(target);
         CHECK(kind_of(status) == ErrorKind::invalid_argument && code_of(status) == HostCode::invalid_value);
@@ -391,7 +496,24 @@ int child_mode(const int argument_count, char** const arguments) {
         std::this_thread::sleep_for(std::chrono::seconds(10));
         return 0;
     }
+    if (mode == "relay") {
+        const std::string program = self_program();
+        const stxlib::PathText words[] = {TextView("echo"), TextView("relayed")};
+        const ChildRequest request{.program = view_of(program),
+                                   .arguments = stxlib::View<stxlib::PathText>(words),
+                                   .streams = ChildStreams::inherit};
+        Result<Child> started = Child::start(request);
+        if (started.failed()) return 4;
+        Child child = static_cast<Result<Child>&&>(started).take_value();
+        const Result<ChildEnd> end = child.wait(Duration::seconds(30));
+        return exited_with(end, 0) ? 0 : 5;
+    }
 #if !defined(_WIN32)
+    if (mode == "descriptor" && argument_count == 3) {
+        const int descriptor = std::atoi(arguments[2]);
+        std::printf("%s\n", ::fcntl(descriptor, F_GETFD) == -1 ? "closed" : "open");
+        return 0;
+    }
     if (mode == "sigpipe") {
         struct sigaction current {};
         (void)::sigaction(SIGPIPE, nullptr, &current);
@@ -413,6 +535,12 @@ int main(const int argument_count, char** const arguments) {
     timeouts_and_kill();
 #if !defined(_WIN32)
     children_reset_signals();
+    descriptors_not_inherited();
+    child_reaped_elsewhere();
+#endif
+    inherited_streams();
+#if defined(_WIN32)
+    windows_program_resolution();
 #endif
     desktop_refusals();
     return stxlib_tests::finish("stxlib children tests");

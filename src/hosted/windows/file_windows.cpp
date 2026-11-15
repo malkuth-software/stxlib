@@ -505,6 +505,17 @@ Outcome replace(const char* const from, const char* const to, const Durability l
     return success();
 }
 
+// Nothing to do: Windows has no permission bits to carry. The temporary
+// file takes the directory's inherited ACL, and MoveFileExW keeps the
+// moved file's own security descriptor ("MoveFileExW function", Microsoft
+// Learn: the moved file keeps its descriptor), so a replaced file's
+// explicit ACL is not carried (files.hpp, write_file).
+Outcome carry_permissions(const i64 handle, const char* const target) noexcept {
+    static_cast<void>(handle);
+    static_cast<void>(target);
+    return success();
+}
+
 Outcome create_directory(const char* const name) noexcept {
     Growable<wchar_t> wide;
     if (!wide_name(name, wide)) return no_memory();
@@ -874,7 +885,22 @@ Outcome list(const char* const name, const usize limit, Growable<char>& names, G
     WIN32_FIND_DATAW found{};
     const HANDLE search =
         FindFirstFileExW(pattern.data(), FindExInfoBasic, &found, FindExSearchNameMatch, nullptr, FIND_FIRST_EX_LARGE_FETCH);
-    if (search == INVALID_HANDLE_VALUE) return last_error();
+    if (search == INVALID_HANDLE_VALUE) {
+        const DWORD error = GetLastError();
+        // A volume's root has no "." or ".." entries (the audit's host
+        // fact, A-stxlib-hosted-01-F9; not confirmed on a host here), so an
+        // empty root matches nothing, and a search that matches nothing
+        // fails with ERROR_FILE_NOT_FOUND ("FindFirstFileExW function",
+        // Microsoft Learn, Return value). The name is then checked as a
+        // directory, so a missing one stays not_found.
+        if (error == ERROR_FILE_NOT_FOUND || error == ERROR_NO_MORE_FILES) {
+            pattern.shrink(separated ? pattern.count() - 2 : pattern.count() - 3);
+            if (!utf16::terminate(pattern)) return no_memory();
+            const DWORD attributes = GetFileAttributesW(pattern.data());
+            if (attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) != 0) return success();
+        }
+        return from_error(error);
+    }
     usize seen = 0;
     Outcome outcome = success();
     for (;;) {

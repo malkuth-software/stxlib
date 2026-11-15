@@ -20,7 +20,10 @@
 //     "right/" directory is dropped: both name the same zone here, leap
 //     seconds being absent). An empty TZ, or ":" alone, is UTC, as on
 //     POSIX hosts. A POSIX rule string ("EST5EDT,M3.2.0,M11.1.0") is not a
-//     name and is refused.
+//     name and is refused. TZ set to "/etc/localtime" (or ":/etc/localtime",
+//     a common Linux setting) is read as if unset, below, since it names
+//     the host's own zone file; another path without "zoneinfo/" is
+//     refused (not_found).
 //   - otherwise, on POSIX hosts, the target of the /etc/localtime link
 //     (read as a path, as above), else the first line of /etc/timezone;
 //     with neither, UTC, as POSIX hosts treat a missing zone;

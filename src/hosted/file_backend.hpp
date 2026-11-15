@@ -122,6 +122,12 @@ struct Outcome final {
 [[nodiscard]] Outcome set_modified(i64 handle, WallTime modified) noexcept;
 // Sets the file's length (at most 2^63 - 1, which core checks).
 [[nodiscard]] Outcome set_size(i64 handle, u64 bytes) noexcept;
+// Gives the open file `handle` the permission bits of the regular file
+// `target` names, if it names one (write_file's temporary, before the
+// rename; A-stxlib-core-01-F4). POSIX: stat (following a link) and fchmod
+// with st_mode & 0777; no file there is success. Windows: success, nothing
+// done (files.hpp says what the replacement keeps).
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome carry_permissions(i64 handle, const char* target) noexcept;
 
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome inspect(const char* name, LinkMode links, FileInformation& information) noexcept;
 // Renames `from` over `to`; for Durability::durable, also makes the rename
