@@ -512,6 +512,24 @@ if(STXLIB_TESTS)
         target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
         add_test(NAME ${math_test} COMMAND ${math_test})
     endforeach()
+    # The region kernels (src/algorithms/math/region.cpp), an experiment kept
+    # out of the library: the test compiles region.cpp as its own native
+    # variant, with the fused product where the target has it and, in the
+    # Dekker target, with Dekker's; both must print the same hash.
+    # `--exhaustive` (every float through the float logarithms) and
+    # `--bench` stay out of ctest.
+    add_executable(stxlib_math_region_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp)
+    target_compile_definitions(stxlib_math_region_tests PRIVATE STXLIB_MATH_VARIANT=native)
+    add_executable(stxlib_math_region_dekker_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp
+        ${STXLIB_MATH_SOURCES})
+    target_compile_definitions(stxlib_math_region_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
+    foreach(math_test IN ITEMS stxlib_math_region_tests stxlib_math_region_dekker_tests)
+        target_link_libraries(${math_test} PRIVATE stxlib::algorithms)
+        target_include_directories(${math_test} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
+        add_test(NAME ${math_test} COMMAND ${math_test})
+    endforeach()
     # Every variant on this machine: the forced levels run the same frozen
     # hashes through v128 and, where the CPU has it, avx2_fma.
     if(STXLIB_MATH_DISPATCH)
