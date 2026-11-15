@@ -68,7 +68,7 @@ ErrorKind kind_of(const Result<T>& result) {
 
 template <typename T>
 HostCode code_of(const Result<T>& result) {
-    const HostCode code = result.failed() ? static_cast<HostCode>((*result.error()).detail().code) : HostCode::none;
+    const HostCode code = result.failed() ? static_cast<HostCode>((*result.error()).code()) : HostCode::none;
     return code;
 }
 
