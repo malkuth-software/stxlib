@@ -35,7 +35,8 @@ namespace {
 using stxlib::u64;
 using stxlib::usize;
 
-u64 value_for(const u64 key) {
+// A value per key, modulo 2^64 by definition.
+STXLIB_MODULAR u64 value_for(const u64 key) {
     const u64 result = key * 0x9e3779b97f4a7c15ULL + 1;
     return result;
 }
