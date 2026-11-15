@@ -962,6 +962,7 @@ if(STXLIB_TESTS)
     # glyph_mask_tests.cpp).
     add_executable(stxlib_glyph_mask_tests tests/glyph_mask_tests.cpp)
     target_link_libraries(stxlib_glyph_mask_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_glyph_mask_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_mask_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_mask_tests COMMAND stxlib_glyph_mask_tests)
     # Simple case folding (C7): every code point against CaseFolding.txt,

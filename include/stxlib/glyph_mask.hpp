@@ -37,7 +37,7 @@
 //    included, rounded outward to whole pixels.
 // The arithmetic is in integers only, so the mask is the same bytes on
 // every host. S(p) is computed in units of 2^-33 of a pixel's area from
-// chords whose crossings of pixel edges are rounded down to 1/65536 of a
+// chords whose crossings of pixel edges are found to within 1/65536 of a
 // pixel, so it differs from the exact area under the chords by less than
 // 2^-14 of a pixel for each chord through the pixel (tests/
 // glyph_mask_tests.cpp checks the bound against exact areas).
@@ -53,7 +53,8 @@
 //
 // Bounds. An outline has at most Limits::points points; a mask is at most
 // Limits::width by Limits::height pixels; the working storage is 8 bytes
-// for each of (width + 2) * height cells, at most Limits::work_cells. The
+// for each of (width + 2) * height cells, at most Limits::work_cells, and
+// five kilobytes for the chords in hand. The
 // work is linear in the points, the chords (at most 2^16 a curve) and the
 // mask's area. No recursion.
 //
@@ -135,6 +136,8 @@ public:
 
 private:
     Vector<i64> cells_{};
+    // Chords in hand (src/algorithms/glyphs/chords.hpp).
+    Vector<i32> block_{};
 };
 
 } // namespace stxlib::glyphs

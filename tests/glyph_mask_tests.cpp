@@ -26,9 +26,24 @@
 //   M7  measure: the box of all points rounded outward; the offset moves
 //       it; empty outlines;
 //   M8  refusals: malformed outlines, points outside the box, limits, a
-//       mask of the wrong size.
+//       mask of the wrong size;
+//   M9  many contours: an outline of 784 contours that share no pixel
+//       gives the bytes each contour gives alone; and the rasterizer draws
+//       a small outline the same before and after it;
+//   M10 the tabled reciprocals: for every divisor the table holds, the
+//       multiplied quotient is the divided one at every dividend where the
+//       quotient changes and just before it, up to the greatest dividend
+//       the table is for. (The product does not decrease as the dividend
+//       grows, so right at both ends of a run of equal quotients is right
+//       all along it.)
+//   M11 the forms: chords of every form, drawn through the block and its
+//       loops, give every cell the integers the arithmetic in full gives
+//       (src/algorithms/glyphs/chords.hpp).
 
 #include "stxlib/glyph_mask.hpp"
+
+#include "algorithms/glyphs/chords.hpp"
+#include "algorithms/glyphs/reciprocal.hpp"
 
 #include "test_support.hpp"
 
@@ -302,6 +317,141 @@ void shared_edges() {
     CHECK(equal);
 }
 
+// M11.
+void forms() {
+    namespace detail = stxlib::glyphs::detail;
+    // A mask of 8 by 8 pixels; chord ends in 1/256 of a pixel.
+    constexpr i32 extent = 8 * 256;
+    constexpr usize stride = 8 + detail::spare_cells;
+    std::vector<stxlib::i64> by_forms(stride * 8, 0);
+    std::vector<stxlib::i64> in_full(stride * 8, 0);
+    std::vector<i32> words(detail::block_words, 0);
+    detail::Block block{.words = words.data(), .count = 0, .listed = {}};
+    const detail::Cells form_cells{.cells = by_forms.data(), .stride = stride};
+    const detail::Cells full_cells{.cells = in_full.data(), .stride = stride};
+    std::uint64_t drawn[detail::form_count] = {};
+    std::uint64_t level = 0;
+    bool equal = true;
+    for (int round = 0; round < 40000; ++round) {
+        for (int chord = 0; chord < 60; ++chord) {
+            // An end anywhere; the other near it or anywhere; some
+            // coordinates on cell edges.
+            detail::Fixed begin{.x = random_coordinate(extent + 1), .y = random_coordinate(extent + 1)};
+            detail::Fixed end{.x = random_coordinate(extent + 1), .y = random_coordinate(extent + 1)};
+            if (next_random() % 8 != 0) {
+                const i32 reach = 16 + random_coordinate(600);
+                end.x = begin.x + random_coordinate(2 * reach + 1) - reach;
+                end.y = begin.y + random_coordinate(2 * reach + 1) - reach;
+                if (next_random() % 6 == 0) end.x = begin.x;
+                if (next_random() % 12 == 0) end.y = begin.y;
+            }
+            if (next_random() % 4 == 0) begin.x = (begin.x / 256) * 256;
+            if (next_random() % 4 == 0) begin.y = (begin.y / 256) * 256;
+            if (next_random() % 4 == 0) end.x = (end.x / 256) * 256;
+            if (next_random() % 4 == 0) end.y = (end.y / 256) * 256;
+            end.x = end.x < 0 ? 0 : (end.x > extent ? extent : end.x);
+            end.y = end.y < 0 ? 0 : (end.y > extent ? extent : end.y);
+            if (block.count == detail::block_chords) {
+                for (usize form = 0; form < detail::form_count; ++form) drawn[form] = drawn[form] + block.listed[form];
+                detail::add_block(form_cells, block);
+            }
+            detail::put_chord(block, begin, end);
+            if (begin.y == end.y) {
+                level = level + 1;
+            } else if (begin.y < end.y) {
+                detail::add_any_chord(full_cells, begin, end, 1);
+            } else {
+                detail::add_any_chord(full_cells, end, begin, -1);
+            }
+        }
+        for (usize form = 0; form < detail::form_count; ++form) drawn[form] = drawn[form] + block.listed[form];
+        detail::add_block(form_cells, block);
+        if (by_forms != in_full) equal = false;
+    }
+    std::printf("forms: in a cell %llu, across two cells %llu, down two rows %llu, over four cells %llu, other %llu, along a row %llu\n",
+                static_cast<unsigned long long>(drawn[0]), static_cast<unsigned long long>(drawn[1]),
+                static_cast<unsigned long long>(drawn[2]), static_cast<unsigned long long>(drawn[3]),
+                static_cast<unsigned long long>(drawn[4]), static_cast<unsigned long long>(level));
+    CHECK(equal);
+    for (usize form = 0; form < detail::form_count; ++form) CHECK(drawn[form] > 100000);
+    CHECK(level > 1000);
+}
+
+// M10.
+void reciprocals() {
+    namespace detail = stxlib::glyphs::detail;
+    std::uint64_t compared = 0;
+    std::uint64_t wrong = 0;
+    for (stxlib::i64 divisor = 1; divisor < detail::brief_extent; ++divisor) {
+        const stxlib::u64 reciprocal = detail::reciprocals.of[divisor];
+        const stxlib::i64 greatest = static_cast<stxlib::i64>(detail::brief_dividend);
+        if (detail::quotient(0, divisor, reciprocal) != 0) wrong = wrong + 1;
+        if (detail::quotient(greatest, divisor, reciprocal) != greatest / divisor) wrong = wrong + 1;
+        const stxlib::i64 last = greatest / divisor;
+        for (stxlib::i64 expected = 1; expected <= last; ++expected) {
+            const stxlib::i64 dividend = expected * divisor;
+            wrong = wrong + (detail::quotient(dividend, divisor, reciprocal) != expected ? 1U : 0U);
+            wrong = wrong + (detail::quotient(dividend - 1, divisor, reciprocal) != expected - 1 ? 1U : 0U);
+        }
+        compared = compared + 2 * static_cast<std::uint64_t>(last) + 2;
+    }
+    std::printf("reciprocals: %llu quotients compared, %llu wrong\n", static_cast<unsigned long long>(compared),
+                static_cast<unsigned long long>(wrong));
+    CHECK(detail::reciprocals.of[0] == 0);
+    CHECK(wrong == 0);
+}
+
+// M9.
+void many_chords() {
+    // One triangle in each 4 by 4 pixel tile of a 28 by 28 grid: no pixel
+    // shared.
+    constexpr i32 tiles = 28;
+    constexpr i32 tile = 4 * 64;
+    Shape all{};
+    std::vector<Shape> each{};
+    for (i32 row = 0; row < tiles; ++row) {
+        for (i32 column = 0; column < tiles; ++column) {
+            std::vector<glyphs::Point> corners{};
+            for (int corner = 0; corner < 3; ++corner) {
+                corners.push_back(glyphs::Point{.x = column * tile + 1 + random_coordinate(tile - 2),
+                                                .y = row * tile + 1 + random_coordinate(tile - 2)});
+            }
+            add_polygon(all, corners);
+            Shape single{};
+            add_polygon(single, corners);
+            each.push_back(single);
+        }
+    }
+    const glyphs::Limits limits{};
+    const glyphs::Bounds bounds{.left = 0, .top = tiles * 4, .width = static_cast<u32>(tiles * 4), .height = static_cast<u32>(tiles * 4)};
+    const usize size = static_cast<usize>(bounds.width) * bounds.height;
+    glyphs::Rasterizer rasterizer{};
+    std::vector<u8> first(size, 0x5a);
+    std::vector<u8> together(size, 0x5a);
+    std::vector<u8> alone(size, 0x5a);
+    std::vector<u8> sum(size, 0);
+    bool rendered = rasterizer.render(outline_of(each[0]), glyphs::Point{}, bounds, limits, stxlib::MutableView<u8>(first.data(), size)).succeeded();
+    rendered = rendered &&
+               rasterizer.render(outline_of(all), glyphs::Point{}, bounds, limits, stxlib::MutableView<u8>(together.data(), size)).succeeded();
+    bool same_after = true;
+    bool disjoint = true;
+    for (usize index = 0; index < each.size(); ++index) {
+        rendered = rendered &&
+                   rasterizer.render(outline_of(each[index]), glyphs::Point{}, bounds, limits, stxlib::MutableView<u8>(alone.data(), size))
+                       .succeeded();
+        if (index == 0 && alone != first) same_after = false;
+        for (usize pixel = 0; pixel < size; ++pixel) {
+            if (alone[pixel] == 0) continue;
+            if (sum[pixel] != 0) disjoint = false;
+            sum[pixel] = alone[pixel];
+        }
+    }
+    CHECK(rendered);
+    CHECK(same_after);
+    CHECK(disjoint);
+    CHECK(together == sum);
+}
+
 // The chords the stated rule makes of a quadratic: integer arithmetic of
 // its own in 1/256 of a pixel from the mask's left and bottom edges, then
 // doubles in mask coordinates.
@@ -492,6 +642,9 @@ int main() {
     shared_edges();
     curves();
     bounds_and_refusals();
+    many_chords();
+    reciprocals();
+    forms();
     const int status = stxlib_tests::finish("stxlib_glyph_mask_tests");
     return status;
 }

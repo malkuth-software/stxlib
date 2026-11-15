@@ -9,20 +9,44 @@
 // and to the cell on its right
 //     (fa + fb) * c.
 // The first is twice the area to the right of the piece inside the cell,
-// the two together twice the area of the full cell's height c: so a
-// running sum along the row gives, at every pixel, twice its signed area
-// (in units of one * one, one being 65536). No pixel is visited per edge
-// beyond the cells the edge passes through; the mask is produced by one
-// pass that sums, takes the magnitude, shifts and clamps, with no decision
-// about edges in it.
+// the two together twice the area of the full cell's width over the height
+// c: so a running sum along the row gives, at every pixel, twice its
+// signed area (in units of one * one, one being 65536). No pixel is
+// visited per edge beyond the cells the edge passes through; the mask is
+// produced by one pass that sums, takes the magnitude, shifts and clamps,
+// with no decision about edges in it.
+//
+// Where a chord is cut. A chord's ends are in 1/256 of a pixel. The x at
+// which it crosses a row boundary is the exact x rounded down to 1/65536 of
+// a pixel. Inside a row, the height a piece has to the left of a cell's
+// edge is the distance from the piece's left end to that edge times the
+// chord's slope, rounded down to 1/65536, and never more than the piece's
+// height.
 //
 // Exactness of what must be exact. The heights given to the cells of one
-// row's piece are differences of a rounded-down running total, so they add
-// up to the piece's height exactly; the x at which a chord crosses a row
-// boundary is one value, used by the piece above and the piece below; and
-// a chord gives the same crossings whichever way it is traversed. So every
-// closed contour's heights cancel exactly in every row: nothing leaks to
-// the right of a shape, whatever the rounding of areas.
+// row's piece are differences of that running height, and the last cell
+// gets the rest, so they add up to the piece's height exactly; the x at
+// which a chord crosses a row boundary is one value, used by the piece
+// above and the piece below; products of fractions and heights are not
+// rounded at all; and a chord gives the same pieces whichever way it is
+// traversed. So every closed contour's heights cancel exactly in every
+// row: nothing leaks to the right of a shape.
+//
+// The chords' arithmetic is in chords.hpp: in full for any chord, and
+// again, with no decision in it, for each of the four forms most chords of
+// text have (in one cell, across two cells, down two rows, over four
+// cells). The outline's chords are written to a block, listed by form, and
+// each list is drawn by its own loop. The flattening of curves, the checks
+// and the pass that writes the mask are here.
+//
+// Divisions. Every quotient above is a rounded-down quotient of
+// non-negative integers. For a chord shorter than four pixels both ways
+// the divisor is below 1024 and the dividend at most 2^26 + 1024, and the
+// quotient is taken by multiplying with a tabled reciprocal, which gives
+// the same integer (reciprocal.hpp has the proof, its premise checked when
+// this file is compiled; tests/glyph_mask_tests.cpp compares the two at
+// every dividend where a quotient changes). Longer chords divide. The
+// result does not depend on which was used.
 //
 // Ranges. Mask coordinates are 16.16 fixed point in [0, 16384 * 65536], so
 // a difference of two is below 2^31, a product of a difference and a
@@ -32,12 +56,28 @@
 
 #include "stxlib/glyph_mask.hpp"
 
+#include "algorithms/glyphs/chords.hpp"
+
 namespace stxlib::glyphs {
 
 namespace {
 
-inline constexpr u32 fraction_bits = 16;
-inline constexpr i64 one = static_cast<i64>(1) << fraction_bits;
+using detail::add_block;
+using detail::Block;
+using detail::block_chords;
+using detail::block_words;
+using detail::Cells;
+using detail::Fixed;
+using detail::fraction_bits;
+using detail::frame_one;
+using detail::magnitude;
+using detail::put_chord;
+using detail::spare_cells;
+
+// well_formed counts points by a segment's number.
+static_assert(static_cast<u32>(Segment::move) == 0 && static_cast<u32>(Segment::line) == 1 &&
+              static_cast<u32>(Segment::quadratic) == 2 && static_cast<u32>(Segment::cubic) == 3);
+
 // A pixel's value is its doubled area (units of one * one) shifted by this.
 inline constexpr u32 value_shift = 2 * fraction_bits + 1 - 8;
 // A quadratic becomes at most 2^16 chords (the second difference of the
@@ -49,139 +89,16 @@ inline constexpr usize cubic_depth = 16;
 inline constexpr i64 quarter_pixel = 64;
 inline constexpr i64 half_pixel = 128;
 
-struct Fixed final {
-    i64 x{0};
-    i64 y{0};
-};
-
-// The working rows: `stride` cells a row (the mask's width and two more,
-// for a piece on the right edge and what it passes to its right).
+// The working rows, the chords in hand, and the frame points are in.
 struct Work final {
-    i64* cells{nullptr};
-    usize stride{0};
+    Cells cells{};
+    Block block{};
     // The mask's box in 26.6: x of the left edge, y of the bottom edge.
     i64 left{0};
     i64 bottom{0};
-    // The mask's height in 16.16.
+    // The mask's height in 1/256 of a pixel.
     i64 height{0};
 };
-
-// The quotient rounded toward minus infinity. Requirement: divisor > 0.
-[[nodiscard]] i64 floor_divide(const i64 dividend, const i64 divisor) noexcept {
-    i64 quotient = dividend / divisor;
-    if (dividend % divisor < 0) quotient = quotient - 1;
-    return quotient;
-}
-
-[[nodiscard]] i64 magnitude(const i64 value) noexcept {
-    const i64 result = value < 0 ? -value : value;
-    return result;
-}
-
-// A piece inside one cell: from fraction `enters` to fraction `leaves`
-// (each 0 to one), of signed height `cover`.
-void add_to_cell(const Work& work, const i64 row, const i64 cell, const i64 enters, const i64 leaves,
-                 const i64 cover) noexcept {
-    const i64 doubled_left = (enters + leaves) * cover;
-    i64* const at = work.cells + static_cast<usize>(row) * work.stride + static_cast<usize>(cell);
-    at[0] = at[0] + (cover * 2 * one - doubled_left);
-    at[1] = at[1] + doubled_left;
-}
-
-// A piece inside one row, from x `from` to x `to`, of signed height
-// `cover` (its magnitude at most one).
-void add_to_row(const Work& work, const i64 row, const i64 from, const i64 to, const i64 cover) noexcept {
-    const i64 first_cell = from >> fraction_bits;
-    const i64 last_cell = to >> fraction_bits;
-    const i64 from_fraction = from - (first_cell << fraction_bits);
-    const i64 to_fraction = to - (last_cell << fraction_bits);
-    if (first_cell == last_cell) {
-        add_to_cell(work, row, first_cell, from_fraction, to_fraction, cover);
-        return;
-    }
-    // The piece crosses cells: each gets the share of the height that its
-    // share of the run earns, as differences of a running total rounded
-    // down, so the shares add up to the height exactly.
-    const i64 sign = cover < 0 ? -1 : 1;
-    const i64 height = magnitude(cover);
-    const bool rightward = to > from;
-    const i64 run = rightward ? to - from : from - to;
-    const i64 step = rightward ? 1 : -1;
-    const i64 exit_side = rightward ? one : 0;
-    const i64 entry_side = rightward ? 0 : one;
-    // To the edge of the first cell.
-    const i64 first_run = rightward ? one - from_fraction : from_fraction;
-    const i64 first_product = height * first_run;
-    i64 total = first_product / run;
-    i64 remainder = first_product - total * run;
-    add_to_cell(work, row, first_cell, from_fraction, exit_side, sign * total);
-    i64 cell = first_cell + step;
-    if (cell != last_cell) {
-        // Whole cells: the same share each, with the remainder carried.
-        const i64 whole_product = height * one;
-        const i64 share = whole_product / run;
-        const i64 share_remainder = whole_product - share * run;
-        while (cell != last_cell) {
-            i64 piece = share;
-            remainder = remainder + share_remainder;
-            if (remainder >= run) {
-                remainder = remainder - run;
-                piece = piece + 1;
-            }
-            add_to_cell(work, row, cell, entry_side, exit_side, sign * piece);
-            total = total + piece;
-            cell = cell + step;
-        }
-    }
-    add_to_cell(work, row, last_cell, entry_side, to_fraction, sign * (height - total));
-}
-
-// A chord, in mask coordinates (y downward).
-void add_chord(const Work& work, const Fixed begin, const Fixed end) noexcept {
-    if (begin.y == end.y) return;
-    // Downward, with the sign remembered: a chord gives the same pieces
-    // whichever way it runs.
-    Fixed upper = begin;
-    Fixed lower = end;
-    i64 sign = 1;
-    if (begin.y > end.y) {
-        upper = end;
-        lower = begin;
-        sign = -1;
-    }
-    const i64 dy = lower.y - upper.y;
-    const i64 dx = lower.x - upper.x;
-    const i64 first_row = upper.y >> fraction_bits;
-    const i64 last_row = (lower.y - 1) >> fraction_bits;
-    if (first_row == last_row) {
-        add_to_row(work, first_row, upper.x, lower.x, sign * dy);
-        return;
-    }
-    // The first row, down to its lower boundary.
-    const i64 first_boundary = (first_row + 1) << fraction_bits;
-    const i64 first_height = first_boundary - upper.y;
-    const i64 first_product = first_height * dx;
-    const i64 first_quotient = floor_divide(first_product, dy);
-    i64 remainder = first_product - first_quotient * dy;
-    i64 crossing = upper.x + first_quotient;
-    add_to_row(work, first_row, upper.x, crossing, sign * first_height);
-    // Whole rows: the x advances by the same amount, the remainder carried,
-    // so each crossing is the exact x rounded down.
-    const i64 row_product = one * dx;
-    const i64 row_step = floor_divide(row_product, dy);
-    const i64 row_remainder = row_product - row_step * dy;
-    for (i64 row = first_row + 1; row < last_row; ++row) {
-        i64 next = crossing + row_step;
-        remainder = remainder + row_remainder;
-        if (remainder >= dy) {
-            remainder = remainder - dy;
-            next = next + 1;
-        }
-        add_to_row(work, row, crossing, next, sign * one);
-        crossing = next;
-    }
-    add_to_row(work, last_row, crossing, lower.x, sign * (lower.y - (last_row << fraction_bits)));
-}
 
 // Curves are flattened in the frame FreeType's smooth rasterizer uses, so
 // that the chords are the same ones: 24.8 fixed point (1/256 of a pixel),
@@ -194,12 +111,18 @@ void add_chord(const Work& work, const Fixed begin, const Fixed end) noexcept {
     return result;
 }
 
-// A chord between two points of the frame, added in mask coordinates (16.16,
-// y downward).
-void add_frame_chord(const Work& work, const Fixed begin, const Fixed end) noexcept {
-    const Fixed from{.x = begin.x << 8, .y = work.height - (begin.y << 8)};
-    const Fixed to{.x = end.x << 8, .y = work.height - (end.y << 8)};
-    add_chord(work, from, to);
+// Room in the block for `count` more chords (no more than block_chords):
+// the chords in hand are drawn first if there is not.
+void make_room(Work& work, const usize count) noexcept {
+    if (work.block.count + count > block_chords) add_block(work.cells, work.block);
+}
+
+// A chord between two points of the frame, to the block, in mask
+// coordinates (y downward). Requirement: room for it.
+void put_frame_chord(Work& work, const Fixed begin, const Fixed end) noexcept {
+    const Fixed from{.x = begin.x, .y = work.height - begin.y};
+    const Fixed to{.x = end.x, .y = work.height - end.y};
+    put_chord(work.block, from, to);
 }
 
 [[nodiscard]] i64 larger(const i64 a, const i64 b) noexcept {
@@ -212,7 +135,7 @@ void add_frame_chord(const Work& work, const Fixed begin, const Fixed end) noexc
 // axes, in 1/256 of a pixel) is quartered, rounding down, before it is at
 // most 64 (a quarter of a pixel). The chords' ends are the curve's points
 // rounded down to 1/256 of a pixel.
-void add_quadratic(const Work& work, const Fixed start, const Fixed control, const Fixed end) noexcept {
+void add_quadratic(Work& work, const Fixed start, const Fixed control, const Fixed end) noexcept {
     const i64 bx = control.x - start.x;
     const i64 by = control.y - start.y;
     const i64 ax = end.x - control.x - bx;
@@ -225,15 +148,22 @@ void add_quadratic(const Work& work, const Fixed start, const Fixed control, con
     }
     const i64 count = static_cast<i64>(1) << shift;
     Fixed previous = start;
-    for (i64 step = 1; step < count; ++step) {
-        // P0 + 2 t (P1 - P0) + t^2 (P0 - 2 P1 + P2) at t = step / count:
-        // the numerator over count^2, rounded down.
-        const Fixed point{.x = start.x + ((2 * step * count * bx + step * step * ax) >> (2 * shift)),
-                          .y = start.y + ((2 * step * count * by + step * step * ay) >> (2 * shift))};
-        add_frame_chord(work, previous, point);
-        previous = point;
+    i64 step = 1;
+    while (step < count) {
+        // Room is made for a run of chords, not for each.
+        const i64 stop = count - step > static_cast<i64>(block_chords) ? step + static_cast<i64>(block_chords) : count;
+        make_room(work, static_cast<usize>(stop - step));
+        for (; step < stop; ++step) {
+            // P0 + 2 t (P1 - P0) + t^2 (P0 - 2 P1 + P2) at t = step / count:
+            // the numerator over count^2, rounded down.
+            const Fixed point{.x = start.x + ((2 * step * count * bx + step * step * ax) >> (2 * shift)),
+                              .y = start.y + ((2 * step * count * by + step * step * ay) >> (2 * shift))};
+            put_frame_chord(work, previous, point);
+            previous = point;
+        }
     }
-    add_frame_chord(work, previous, end);
+    make_room(work, 1);
+    put_frame_chord(work, previous, end);
 }
 
 // One coordinate of a cubic arc, stored end first in arc[0..3], halved at
@@ -259,7 +189,7 @@ void halve(i64& p0, i64& p1, i64& p2, i64& p3, i64& p4, i64& p5, i64& p6) noexce
 // within a sixth of a pixel of where a straight chord would have it), and
 // is then drawn as its chord. The arcs still to draw are kept on a fixed
 // stack, the nearest to the start on top.
-void add_cubic(const Work& work, const Fixed start, const Fixed first, const Fixed second, const Fixed end) noexcept {
+void add_cubic(Work& work, const Fixed start, const Fixed first, const Fixed second, const Fixed end) noexcept {
     Fixed stack[cubic_depth * 3 + 7];
     stack[0] = end;
     stack[1] = second;
@@ -274,7 +204,8 @@ void add_cubic(const Work& work, const Fixed start, const Fixed first, const Fix
                           magnitude(a[0].x - 3 * a[2].x + 2 * a[3].x) <= half_pixel &&
                           magnitude(a[0].y - 3 * a[2].y + 2 * a[3].y) <= half_pixel;
         if (flat || arc >= cubic_depth * 3) {
-            add_frame_chord(work, current, a[0]);
+            make_room(work, 1);
+            put_frame_chord(work, current, a[0]);
             current = a[0];
             if (arc == 0) return;
             arc = arc - 3;
@@ -286,37 +217,121 @@ void add_cubic(const Work& work, const Fixed start, const Fixed first, const Fix
     }
 }
 
-// How many points a segment takes.
-[[nodiscard]] usize points_of(const Segment segment) noexcept {
-    if (segment == Segment::quadratic) return 2;
-    if (segment == Segment::cubic) return 3;
-    return 1;
-}
-
 [[nodiscard]] Status refuse(const ErrorKind kind, const Operation operation) noexcept {
     const Status result = Status::failure(ErrorRecord::make(kind, operation));
     return result;
 }
 
 // The outline's form: known segments, a move first, points for every
-// segment and none left over, no more than the limit.
+// segment and none left over, no more than the limit. One pass with no
+// decision in it: a segment's number is the points it takes, but for a
+// move, which takes one.
 [[nodiscard]] bool well_formed(const Outline& outline, const Limits& limits, bool& too_many) noexcept {
     too_many = outline.points.count() > limits.points;
     if (too_many) return false;
     const usize segment_count = outline.segments.count();
     const Segment* const segments = outline.segments.data();
     usize needed = 0;
+    usize moves = 0;
+    u32 every = 0;
     for (usize index = 0; index < segment_count; ++index) {
-        const Segment segment = segments[index];
-        if (segment != Segment::move && segment != Segment::line && segment != Segment::quadratic &&
-            segment != Segment::cubic) {
-            return false;
-        }
-        if (index == 0 && segment != Segment::move) return false;
-        needed = needed + points_of(segment);
+        const u32 number = static_cast<u32>(segments[index]);
+        every = every | number;
+        needed = needed + number;
+        moves = moves + (number == 0 ? 1U : 0U);
     }
+    // The known numbers are 0 to 3: every one of them is, if no bit above
+    // those is set in any.
+    if (every > static_cast<u32>(Segment::cubic)) return false;
+    needed = needed + moves;
+    if (segment_count != 0 && segments[0] != Segment::move) return false;
     const bool result = needed == outline.points.count();
     return result;
+}
+
+// The least and greatest coordinates of the points. Requirement: count > 0.
+struct Extent final {
+    i32 x_low{0};
+    i32 x_high{0};
+    i32 y_low{0};
+    i32 y_high{0};
+};
+
+[[nodiscard]] Extent extent_of(const Point* const points, const usize count) noexcept {
+    i32 x_low = points[0].x;
+    i32 x_high = x_low;
+    i32 y_low = points[0].y;
+    i32 y_high = y_low;
+    for (usize index = 1; index < count; ++index) {
+        const i32 x = points[index].x;
+        const i32 y = points[index].y;
+        x_low = x < x_low ? x : x_low;
+        x_high = x > x_high ? x : x_high;
+        y_low = y < y_low ? y : y_low;
+        y_high = y > y_high ? y : y_high;
+    }
+    const Extent result{.x_low = x_low, .x_high = x_high, .y_low = y_low, .y_high = y_high};
+    return result;
+}
+
+// Every chord of the outline into the cells. Requirement: the outline is
+// well formed and every point lies in the mask's box.
+void accumulate(Work& work, const Outline& outline, const Point offset) noexcept {
+    const usize segment_count = outline.segments.count();
+    const Segment* const segments = outline.segments.data();
+    const Point* const points = outline.points.data();
+    usize next_point = 0;
+    Fixed contour_start{};
+    Fixed current{};
+    bool open = false;
+    for (usize index = 0; index < segment_count; ++index) {
+        const Segment segment = segments[index];
+        if (segment == Segment::move) {
+            make_room(work, 1);
+            if (open) put_frame_chord(work, current, contour_start);
+            contour_start = to_frame(work, points[next_point], offset);
+            current = contour_start;
+            open = true;
+            next_point = next_point + 1;
+        } else if (segment == Segment::line) {
+            const Fixed end = to_frame(work, points[next_point], offset);
+            make_room(work, 1);
+            put_frame_chord(work, current, end);
+            current = end;
+            next_point = next_point + 1;
+        } else if (segment == Segment::quadratic) {
+            const Fixed control = to_frame(work, points[next_point], offset);
+            const Fixed end = to_frame(work, points[next_point + 1], offset);
+            add_quadratic(work, current, control, end);
+            current = end;
+            next_point = next_point + 2;
+        } else {
+            const Fixed first = to_frame(work, points[next_point], offset);
+            const Fixed second = to_frame(work, points[next_point + 1], offset);
+            const Fixed end = to_frame(work, points[next_point + 2], offset);
+            add_cubic(work, current, first, second, end);
+            current = end;
+            next_point = next_point + 3;
+        }
+    }
+    make_room(work, 1);
+    if (open) put_frame_chord(work, current, contour_start);
+    add_block(work.cells, work.block);
+}
+
+// The mask from the cells: along each row a running sum, its magnitude in
+// 256ths of a pixel, full coverage as 255.
+void write_mask(const i64* const cells, const usize stride, const usize width, const usize height, u8* const out) noexcept {
+    for (usize row = 0; row < height; ++row) {
+        const i64* const row_cells = cells + row * stride;
+        u8* const row_out = out + row * width;
+        i64 sum = 0;
+        for (usize x = 0; x < width; ++x) {
+            sum = sum + row_cells[x];
+            const i64 value = magnitude(sum) >> value_shift;
+            row_out[x] = static_cast<u8>(value > 255 ? 255 : value);
+        }
+    }
 }
 
 } // namespace
@@ -331,19 +346,11 @@ Status measure(const Outline& outline, const Point offset, const Limits& limits,
     bounds = Bounds{};
     const usize count = outline.points.count();
     if (count == 0) return Status::success();
-    const Point* const points = outline.points.data();
-    i64 x_low = static_cast<i64>(points[0].x) + offset.x;
-    i64 x_high = x_low;
-    i64 y_low = static_cast<i64>(points[0].y) + offset.y;
-    i64 y_high = y_low;
-    for (usize index = 1; index < count; ++index) {
-        const i64 x = static_cast<i64>(points[index].x) + offset.x;
-        const i64 y = static_cast<i64>(points[index].y) + offset.y;
-        if (x < x_low) x_low = x;
-        if (x > x_high) x_high = x;
-        if (y < y_low) y_low = y;
-        if (y > y_high) y_high = y;
-    }
+    const Extent extent = extent_of(outline.points.data(), count);
+    const i64 x_low = static_cast<i64>(extent.x_low) + offset.x;
+    const i64 x_high = static_cast<i64>(extent.x_high) + offset.x;
+    const i64 y_low = static_cast<i64>(extent.y_low) + offset.y;
+    const i64 y_high = static_cast<i64>(extent.y_high) + offset.y;
     // Outward to whole pixels.
     const i64 left = x_low >> 6;
     const i64 right = (x_high + 63) >> 6;
@@ -382,87 +389,47 @@ Status Rasterizer::render(const Outline& outline, const Point offset, const Boun
         // covers nothing.
         return Status::success();
     }
+    u8* const out = mask.data();
+    const usize point_count = outline.points.count();
+    if (point_count == 0) {
+        for (usize index = 0; index < width * height; ++index) out[index] = 0;
+        return Status::success();
+    }
     // Every point inside the box, checked once, before any arithmetic that
     // relies on it.
     const i64 box_left = static_cast<i64>(bounds.left) * 64;
     const i64 box_right = box_left + static_cast<i64>(width) * 64;
     const i64 box_top = static_cast<i64>(bounds.top) * 64;
     const i64 box_bottom = box_top - static_cast<i64>(height) * 64;
-    const usize point_count = outline.points.count();
-    const Point* const points = outline.points.data();
-    for (usize index = 0; index < point_count; ++index) {
-        const i64 x = static_cast<i64>(points[index].x) + offset.x;
-        const i64 y = static_cast<i64>(points[index].y) + offset.y;
-        if (x < box_left || x > box_right || y < box_bottom || y > box_top) return refuse(ErrorKind::invalid_argument, operation);
+    const Extent extent = extent_of(outline.points.data(), point_count);
+    if (static_cast<i64>(extent.x_low) + offset.x < box_left || static_cast<i64>(extent.x_high) + offset.x > box_right ||
+        static_cast<i64>(extent.y_low) + offset.y < box_bottom || static_cast<i64>(extent.y_high) + offset.y > box_top) {
+        return refuse(ErrorKind::invalid_argument, operation);
     }
-    const usize stride = width + 2;
+    const usize stride = width + spare_cells;
     const usize cell_count = stride * height;
     if (cell_count > limits.work_cells) return refuse(ErrorKind::limit_exceeded, operation);
     if (cells_.count() < cell_count) {
         if (cells_.resize(cell_count).failed()) return refuse(ErrorKind::out_of_memory, operation);
     }
+    if (block_.count() < block_words) {
+        if (block_.resize(block_words).failed()) return refuse(ErrorKind::out_of_memory, operation);
+    }
     i64* const cells = cells_.mutable_view().data();
     for (usize index = 0; index < cell_count; ++index) cells[index] = 0;
-    const Work work{.cells = cells,
-                    .stride = stride,
-                    .left = box_left,
-                    .bottom = box_bottom,
-                    .height = static_cast<i64>(height) << fraction_bits};
-
-    // The chords.
-    const usize segment_count = outline.segments.count();
-    const Segment* const segments = outline.segments.data();
-    usize next_point = 0;
-    Fixed contour_start{};
-    Fixed current{};
-    bool open = false;
-    for (usize index = 0; index < segment_count; ++index) {
-        const Segment segment = segments[index];
-        if (segment == Segment::move) {
-            if (open) add_frame_chord(work, current, contour_start);
-            contour_start = to_frame(work, points[next_point], offset);
-            current = contour_start;
-            open = true;
-            next_point = next_point + 1;
-        } else if (segment == Segment::line) {
-            const Fixed end = to_frame(work, points[next_point], offset);
-            add_frame_chord(work, current, end);
-            current = end;
-            next_point = next_point + 1;
-        } else if (segment == Segment::quadratic) {
-            const Fixed control = to_frame(work, points[next_point], offset);
-            const Fixed end = to_frame(work, points[next_point + 1], offset);
-            add_quadratic(work, current, control, end);
-            current = end;
-            next_point = next_point + 2;
-        } else {
-            const Fixed first = to_frame(work, points[next_point], offset);
-            const Fixed second = to_frame(work, points[next_point + 1], offset);
-            const Fixed end = to_frame(work, points[next_point + 2], offset);
-            add_cubic(work, current, first, second, end);
-            current = end;
-            next_point = next_point + 3;
-        }
-    }
-    if (open) add_frame_chord(work, current, contour_start);
-
-    // The mask: a running sum along each row, its magnitude in 256ths of a
-    // pixel, full coverage as 255.
-    u8* const out = mask.data();
-    for (usize row = 0; row < height; ++row) {
-        const i64* const row_cells = cells + row * stride;
-        u8* const row_out = out + row * width;
-        i64 sum = 0;
-        for (usize x = 0; x < width; ++x) {
-            sum = sum + row_cells[x];
-            const i64 size = sum < 0 ? -sum : sum;
-            const i64 value = size >> value_shift;
-            row_out[x] = static_cast<u8>(value > 255 ? 255 : value);
-        }
-    }
+    Work work{.cells = Cells{.cells = cells, .stride = stride},
+              .block = Block{.words = block_.mutable_view().data(), .count = 0, .listed = {}},
+              .left = box_left,
+              .bottom = box_bottom,
+              .height = static_cast<i64>(height) * frame_one};
+    accumulate(work, outline, offset);
+    write_mask(cells, stride, width, height, out);
     return Status::success();
 }
 
-void Rasterizer::release() noexcept { cells_.release(); }
+void Rasterizer::release() noexcept {
+    cells_.release();
+    block_.release();
+}
 
 } // namespace stxlib::glyphs
