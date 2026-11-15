@@ -61,6 +61,13 @@ void sincos(float angle, float& s, float& c) noexcept;
 // the bound above holds for the public function unchanged.
 void sincos(double x, double& s, double& c) noexcept;
 
+// sin and cos as single functions: the s and c of sincos above, with its
+// contracts and bits (fronts that call it; both are computed).
+[[nodiscard]] float sin(float angle) noexcept;
+[[nodiscard]] float cos(float angle) noexcept;
+[[nodiscard]] double sin(double x) noexcept;
+[[nodiscard]] double cos(double x) noexcept;
+
 // e^x for a float, correctly rounded for every float (exhaustively checked,
 // 4,278,190,080 finite floats), overflow to infinity included; a correctly
 // rounded result below 2^-126 (x below about -87.336) returns +0, and a
@@ -165,5 +172,31 @@ void sincos(double x, double& s, double& c) noexcept;
 [[nodiscard]] float acosh(float x) noexcept;
 [[nodiscard]] double atanh(double x) noexcept;
 [[nodiscard]] float atanh(float x) noexcept;
+
+// 2^x. Float: correctly rounded for every float (proved: the core's bound,
+// tools/math/r1_certificate.py, and an exhaustive screen of every float on
+// the fast path, tests/math_completion_tests.cpp --exhaustive). Double:
+// within 0.5000001 ulp, proved (the certificate: 2^-79.9 relative before the one rounding). 2^n is exact for every
+// integer n with a normal result. Owns every input: +infinity above the
+// range, +0 for -infinity and for results below the smallest normal (the
+// subnormal rule), NaN for NaN; a subnormal x gives 1.
+[[nodiscard]] double exp2(double x) noexcept;
+[[nodiscard]] float exp2(float x) noexcept;
+
+// e^x - 1, accurate for x near 0. Float: correctly rounded for every float
+// (proved as exp2's). Double: within 0.5012 ulp, proved (2^-62.8 relative before the one rounding, in the series region below 2^-5). Owns every
+// input: expm1(+-0) = +-0, -1 for x below -38 and for -infinity, +infinity
+// above ln(DBL_MAX) (ln(FLT_MAX) for float), NaN for NaN; a subnormal x is
+// read as zero of its sign and gives that zero.
+[[nodiscard]] double expm1(double x) noexcept;
+[[nodiscard]] float expm1(float x) noexcept;
+
+// log(1 + x), accurate for x near 0. Float: correctly rounded for every
+// float (proved as exp2's). Double: within 0.5000001 ulp, proved (2^-75.8 relative). Owns
+// every input: log1p(+-0) = +-0, log1p(-1) = -infinity, NaN below -1 and for
+// NaN, +infinity for +infinity; a subnormal x is read as zero of its sign
+// and gives that zero. No result is subnormal.
+[[nodiscard]] double log1p(double x) noexcept;
+[[nodiscard]] float log1p(float x) noexcept;
 
 } // namespace stxlib::math

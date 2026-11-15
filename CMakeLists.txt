@@ -361,6 +361,7 @@ endif()
 set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/atan.cpp
     src/algorithms/math/cbrt.cpp
+    src/algorithms/math/completions.cpp
     src/algorithms/math/exp.cpp
     src/algorithms/math/hyperbolic.cpp
     src/algorithms/math/hypot.cpp
@@ -509,6 +510,20 @@ if(STXLIB_TESTS)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
         # The test's inlined double-double reference (tests/reference/wide.hpp)
         # needs contraction off too: contracted, its own self-check fails.
+        target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
+        add_test(NAME ${math_test} COMMAND ${math_test})
+    endforeach()
+    # exp2, expm1, log1p, sin and cos (roadmap R1): accuracy against the
+    # references, the float screen (with `--exhaustive`, every float: with
+    # tools/math/r1_certificate.py the proof of correct rounding) and the
+    # fronts' identity with sincos; the Dekker target as for the math tests.
+    add_executable(stxlib_math_completion_tests tests/math_completion_tests.cpp)
+    add_executable(stxlib_math_completion_dekker_tests tests/math_completion_tests.cpp ${STXLIB_MATH_SOURCES})
+    target_compile_definitions(stxlib_math_completion_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
+    foreach(math_test IN ITEMS stxlib_math_completion_tests stxlib_math_completion_dekker_tests)
+        target_link_libraries(${math_test} PRIVATE stxlib::algorithms)
+        target_include_directories(${math_test} PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_compile_options(${math_test} PRIVATE ${stxlib_frame_pointers} ${stxlib_math_options})
         add_test(NAME ${math_test} COMMAND ${math_test})
     endforeach()

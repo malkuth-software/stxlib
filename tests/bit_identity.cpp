@@ -253,6 +253,11 @@ void math_items() {
         {"math.asinh.double", static_cast<DoubleFunction>(&math::asinh)},
         {"math.acosh.double", static_cast<DoubleFunction>(&math::acosh)},
         {"math.atanh.double", static_cast<DoubleFunction>(&math::atanh)},
+        {"math.exp2.double", static_cast<DoubleFunction>(&math::exp2)},
+        {"math.expm1.double", static_cast<DoubleFunction>(&math::expm1)},
+        {"math.log1p.double", static_cast<DoubleFunction>(&math::log1p)},
+        {"math.sin.double", static_cast<DoubleFunction>(&math::sin)},
+        {"math.cos.double", static_cast<DoubleFunction>(&math::cos)},
     };
     for (const UnaryDouble& entry : unary_doubles) {
         Digest digest;
@@ -303,6 +308,11 @@ void math_items() {
         {"math.asinh.float", static_cast<FloatFunction>(&math::asinh)},
         {"math.acosh.float", static_cast<FloatFunction>(&math::acosh)},
         {"math.atanh.float", static_cast<FloatFunction>(&math::atanh)},
+        {"math.exp2.float", static_cast<FloatFunction>(&math::exp2)},
+        {"math.expm1.float", static_cast<FloatFunction>(&math::expm1)},
+        {"math.log1p.float", static_cast<FloatFunction>(&math::log1p)},
+        {"math.sin.float", static_cast<FloatFunction>(&math::sin)},
+        {"math.cos.float", static_cast<FloatFunction>(&math::cos)},
     };
     for (const UnaryFloat& entry : unary_floats) {
         Digest digest;

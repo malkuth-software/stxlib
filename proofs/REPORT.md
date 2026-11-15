@@ -134,6 +134,15 @@ evidence, not proof.
 | `src/algorithms/math/` (exp, pow and hypot double, subnormal results; log double, subnormal arguments) | the flush is exact: +0 wherever the correctly rounded result is at least one subnormal ulp below 2^-1022 (+0 or 2^-1022 within that ulp); -infinity for subnormal log arguments of either sign | **not yet run;** sampled, not proved, at 20 million inputs per region in `--exhaustive`. This replaces the ulp measurement there, so the 6 of 20 million pow results one ulp off on the subnormal grid (stx_auxlib b6e330a's kernel, found by sbi) are no longer within the contract | `tests/math_tests.cpp` |
 | `src/algorithms/math/sincos_core.hpp` (the certificate) | the 0.51 ulp bound carries to the public sincos and tan | unchanged kernel. For 2^-27 <= abs(x) <= 2^32 the argument is normal, and so is every sine and cosine (none is below 2^-1022), so the flush never acts there. The certificate is still to be rerun on STXlib's build (batch 3c5 row) | `tools/math/sincos_certificate.py` |
 
+## stxlib::algorithms, roadmap R1 (math completions: exp2, expm1, log1p, sin, cos)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/math/completions_core.hpp` (exp2, expm1, log1p double) | within 0.5000001, 0.5012 and 0.5000001 ulp for normal results (owner decision D10: at most 0.51) | proved by `tools/math/r1_certificate.py` (interval error analysis over exact rationals, Python 3.15.2 fractions, references to 2^-380 from `tools/math/region_reference.py`; Neo, 2026-11-15): relative error before the one rounding 2^-79.92, 2^-62.80 and 2^-75.80. Builds on `region_core.hpp`'s region_exp2 and region_log1p, whose bounds `tools/math/region_certificate.py` proves. Sampled check against the references: not yet run | `tools/math/r1_certificate.py`, `tests/math_completion_tests.cpp` |
+| the same, float | correctly rounded for every float | **not yet run.** Proved once `stxlib_math_completion_tests --exhaustive` passes: the float screen checks every float's double-double against the certificate's bound (2^-79.92, 2^-62.80, 2^-75.80), so the exact value rounds to the same float, and decides any unsettled float against the reference | `tests/math_completion_tests.cpp` (`float_screen`) |
+| `src/algorithms/math/flush.cpp` (sin, cos) | sincos' s and c, bit for bit | by construction (fronts that call sincos); tested at 100,000 inputs per precision (10 million in `--exhaustive`), not yet run | `tests/math_completion_tests.cpp` (`fronts`) |
+| `src/algorithms/math/completions.cpp` (product forms) | the fused and Dekker forms give the same bits | argued: every two_product has operands in float_exact's exact range (x and the 1/ln 2 head with \|x\| in [2^-5, 745.2]; x^2 with \|x\| >= 2^-54; region_exp2's and region_log1p's products as in the region certificate); tested by the Dekker target's identical hash (not yet frozen) and `tests/bit_identity.cpp` (new items, unfrozen) | `tests/math_completion_tests.cpp`, `tests/bit_identity.cpp` |
+
 ## stxlib::algorithms, batch 3c9 (no subnormals in text and random)
 
 | Module | Property | Status | Evidence |

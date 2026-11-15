@@ -50,5 +50,11 @@ double acosh(double x) noexcept;
 float acosh(float x) noexcept;
 double atanh(double x) noexcept;
 float atanh(float x) noexcept;
+double exp2(double x) noexcept;
+float exp2(float x) noexcept;
+double expm1(double x) noexcept;
+float expm1(float x) noexcept;
+double log1p(double x) noexcept;
+float log1p(float x) noexcept;
 
 } // namespace stxlib::math::<variant>
