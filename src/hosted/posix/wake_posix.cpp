@@ -164,7 +164,12 @@ Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeo
                                                                           HostCode::none, errno_code(EBADF)));
                 }
                 if ((watched[index + 1].revents & readable) != 0) {
-                    return Result<WakeWait>::success(WakeWait::handle_ready(index));
+                    // macOS's poll reports a descriptor listed twice in one
+                    // entry only (the last), so the first entry with the
+                    // same handle is named: the first ready one.
+                    usize first = 0;
+                    while (handles[first] != handles[index]) ++first;
+                    return Result<WakeWait>::success(WakeWait::handle_ready(first));
                 }
             }
         }
