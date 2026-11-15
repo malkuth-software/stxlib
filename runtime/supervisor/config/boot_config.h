@@ -146,7 +146,6 @@ namespace stxconfig {
 constexpr std::size_t config_size_max = 16384;
 constexpr std::size_t line_length_max = 255;
 constexpr std::size_t name_length_max = 32;
-constexpr std::size_t sections_max = 16;
 constexpr std::size_t settings_max = 64;
 constexpr std::size_t init_commands_max = 64;
 // Words of one init command, its keyword and an if-present guard included.
@@ -156,6 +155,9 @@ constexpr std::size_t run_arguments_max = 16;
 constexpr std::uint32_t wait_ms_max = 60000;
 // Services and targets together.
 constexpr std::size_t services_max = 24;
+// Every section: each service and target is one, besides [system],
+// [network], [init] and [access].
+constexpr std::size_t sections_max = services_max + 4u;
 // The prefixes that make a section a service or a target definition.
 constexpr const char* service_section_prefix = "service-";
 constexpr const char* target_section_prefix = "target-";

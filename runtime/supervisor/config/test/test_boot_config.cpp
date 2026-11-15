@@ -115,16 +115,27 @@ void check_invariants(const char* test, std::span<const char> input, const Parse
         for (std::uint32_t argument = 0; valid && argument < service.argument_count; argument += 1) {
             valid = text_ref_valid(config, service.arguments[argument]);
         }
-        valid = valid && config.text(service.arguments[0])[0] == '/';
         valid = valid && (!service.directory.has_value() || text_ref_valid(config, *service.directory));
-        valid = valid && (!service.folder.has_value() || text_ref_valid(config, *service.folder));
-        valid = valid && !(service.folder.has_value() && service.directory.has_value());
-        valid = valid && service.device_count <= stxconfig::devices_max;
-        valid = valid && (service.folder.has_value() || (service.device_count == 0u &&
-                                                         service.network == stxconfig::NetworkAccess::none));
-        for (std::uint32_t device = 0; valid && device < service.device_count; device += 1) {
-            valid = text_ref_valid(config, service.devices[device]) && service.devices[device].length >= 1u &&
-                    service.devices[device].length <= stxconfig::device_pattern_length_max;
+        valid = valid && !(service.target.has_value() && service.directory.has_value());
+        if (!service.target.has_value()) {
+            // A service: its program by absolute path.
+            valid = valid && config.text(service.arguments[0])[0] == '/';
+        } else {
+            // A target: a file of its package, a folder, its ports and (only
+            // for the foreground) its devices.
+            const stxconfig::TargetSettings& target = *service.target;
+            const char* const file = config.text(service.arguments[0]);
+            valid = valid && stxconfig::package_path_valid(file, service.arguments[0].length);
+            valid = valid && text_ref_valid(config, target.program) && text_ref_valid(config, target.folder);
+            valid = valid && target.id >= 1u && target.id <= stxconfig::target_id_max;
+            valid = valid && target.port_count <= stxconfig::ports_max;
+            valid = valid && target.device_count <= stxconfig::devices_max;
+            valid = valid && (target.role == stxconfig::TargetRole::foreground || target.device_count == 0u);
+            for (std::uint32_t device = 0; valid && device < target.device_count; device += 1) {
+                valid = text_ref_valid(config, target.devices[device]) && target.devices[device].length >= 1u &&
+                        target.devices[device].length <= stxconfig::device_pattern_length_max;
+            }
+            valid = valid && (!target.update_url.has_value() || text_ref_valid(config, *target.update_url));
         }
         check(valid, test, "service well-formed");
     }
@@ -584,7 +595,8 @@ void test_limits() {
     }
     check(parse_checked("sections at limit", built_text()).is_success(), "sections at limit", "accepted");
     build_append("[zz]\n");
-    expect_refusal("sections past limit", 17, 1, ParseError::too_many_sections);
+    expect_refusal("sections past limit", static_cast<std::uint32_t>(stxconfig::sections_max + 1u), 1,
+                   ParseError::too_many_sections);
 
     // Settings.
     build_reset();
@@ -607,14 +619,15 @@ void test_limits() {
     build_append("start s\n");
     expect_refusal("commands past limit", 68, 1, ParseError::too_many_commands);
 
-    // Services: 16 accepted (with no other section), 17 refused.
+    // Services: services_max accepted (with no other section), one more
+    // refused.
     build_reset();
     for (std::size_t index = 0; index < stxconfig::services_max; index += 1) {
         build_append("[service-");
         build_two_letters(index);
         build_append("]\ncommand = /s\n");
     }
-    check(parse_checked("services at limit", built_text()).is_success() && config.service_count() == 16,
+    check(parse_checked("services at limit", built_text()).is_success() && config.service_count() == stxconfig::services_max,
           "services at limit", "accepted");
     build_reset();
     for (std::size_t index = 0; index < stxconfig::services_max - 1u; index += 1) {
@@ -625,6 +638,11 @@ void test_limits() {
     build_append("[service-zz]\ncommand = /s\n");
     check(parse_checked("services at limit, last named zz", built_text()).is_success(), "services at limit",
           "zz accepted");
+    // One service more than services_max: refused at its header (two lines
+    // per service).
+    build_append("[service-zy]\ncommand = /s\n");
+    expect_refusal("services past limit", static_cast<std::uint32_t>(2u * stxconfig::services_max + 1u), 1,
+                   ParseError::too_many_services);
 
     // A service command of 16 words is accepted; 17 refused at the 17th.
     build_reset();

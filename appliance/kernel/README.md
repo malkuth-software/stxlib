@@ -25,8 +25,11 @@
   evaluates the configuration as config(8) does, selects the files
   `conf/files*` would compile, and lists those that reach a generated
   `*_if.h` whose `.m` is not selected (the `clknode_if.h` failure). It
-  follows includes under `#if` too, so compare a cut with `STXLIB-GENERIC`
-  and read only the lines the cut adds. It does not find undeclared
+  follows includes under `#if` too, so compare a cut with its baseline
+  (`check_round.sh`; `STXLIB-GENERIC` for arm64, `amd64:GENERIC` for
+  `STXLIB-AMD64`) and read only the lines the cut adds. The architecture
+  comes from the configuration's own `machine` or `cpu` line, else an ident
+  ending in it (`STXLIB-AMD64`), else arm64. It does not find undeclared
   functions or missing link symbols. It finds the `ce5fa24` failure.
 - `../vm/c1_step2_kernel.sh [KERNCONF]`: makes a fresh VM `k-<kernconf>`,
   installs the kernel from the stock one, times up to three boots that must

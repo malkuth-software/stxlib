@@ -115,9 +115,11 @@ constexpr std::size_t config_text_header_bytes = 8;
 constexpr std::size_t response_payload_max = config_text_header_bytes + config_text_max;
 constexpr std::size_t response_frame_bytes_max = response_header_bytes + response_payload_max;
 constexpr std::size_t service_name_bytes_max = 32;
-// The configuration holds at most 16 services (config/boot_config.h,
-// services_max; checked by a static assertion in control_server.cpp).
-constexpr std::size_t services_listed_max = 16;
+// The configuration holds at most 24 services and targets together
+// (config/boot_config.h, services_max; checked by a static assertion in
+// control_server.cpp). The supervisor and the web service ship in the same
+// image, so the list grew from C2's first 16 with no older peer to serve.
+constexpr std::size_t services_listed_max = 24;
 constexpr std::size_t supervisor_state_record_bytes = 16;
 constexpr std::size_t service_record_bytes = 56;
 constexpr std::size_t service_list_header_bytes = 4;
@@ -372,7 +374,7 @@ private:
 //    8  4  restart_count; 0xffffffff when unknown (saturates below it)
 //   12  1  flags: bit 0 shim registered, 1 init done, 2 failsafe taken,
 //              3 boot marked good; other bits zero
-//   13  1  service_count, 0..16
+//   13  1  service_count, 0..24
 //   14  2  zero
 constexpr std::uint32_t restart_count_unknown = 0xffffffffu;
 struct SupervisorStateRecord {
@@ -423,7 +425,7 @@ struct ServiceRecord {
 [[nodiscard]] std::size_t encode_service_record(const ServiceRecord& record, std::span<std::uint8_t> out) noexcept;
 [[nodiscard]] std::optional<ServiceRecord> decode_service_record(std::span<const std::uint8_t> bytes) noexcept;
 
-// ServiceList: 1 byte count (0..16), 3 zero bytes, then count records.
+// ServiceList: 1 byte count (0..24), 3 zero bytes, then count records.
 // encode_service_list writes the header for count records; the caller
 // writes each record after it. decode_service_list_count checks the
 // header against the payload's size and returns the count.
