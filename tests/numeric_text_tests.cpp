@@ -4,7 +4,8 @@
 // needed, TextWriter) that STXlib's interface adds.
 //
 // Exact expectations come from the C++ standard's definitions. A
-// differential check compares fixed and scientific output with the host's
+// differential check compares fixed, scientific and general (%g) output with
+// the host's
 // snprintf, which is correctly rounded on the hosts tested here (macOS,
 // glibc; the Windows UCRT is too) and runs in the "C" locale because
 // nothing here calls setlocale; shortest output is checked by round trip.
@@ -140,6 +141,41 @@ void reals() {
     CHECK(real_text(12345.678, {.notation = text::Notation::scientific, .precision = 3}) == "1.235e+04");
     CHECK(real_text(1.5, {.sign = text::Sign::always}) == "+1.5");
     CHECK(real_text(std::numeric_limits<double>::infinity(), {.sign = text::Sign::always}) == "+inf");
+    // %g (M2 C3): precision significant digits, trailing zeros removed,
+    // scientific below 1e-4 or from 10^precision.
+    const text::RealFormat g6{.notation = text::Notation::general};
+    const text::RealFormat g17{.notation = text::Notation::general, .precision = 17};
+    const text::RealFormat g0{.notation = text::Notation::general, .precision = 0};
+    CHECK(real_text(0.1, g17) == "0.10000000000000001");
+    CHECK(real_text(1.0 / 3.0, g17) == "0.33333333333333331");
+    CHECK(real_text(1.0, g17) == "1");
+    CHECK(real_text(123456.0, g6) == "123456");
+    CHECK(real_text(1234567.0, g6) == "1.23457e+06");
+    CHECK(real_text(999999.5, g6) == "1e+06");
+    CHECK(real_text(0.0001, g6) == "0.0001");
+    CHECK(real_text(0.00001, g6) == "1e-05");
+    CHECK(real_text(0.000123456789, g6) == "0.000123457");
+    CHECK(real_text(1e21, g6) == "1e+21");
+    CHECK(real_text(-0.0, g6) == "-0");
+    CHECK(real_text(0.0, g17) == "0");
+    CHECK(real_text(100.0, g0) == "1e+02");
+    CHECK(real_text(0.5, g0) == "0.5");
+    CHECK(real_text(2.5, {.notation = text::Notation::general, .precision = 1}) == "2");
+    CHECK(real_text(9.9999, {.notation = text::Notation::general, .precision = 3}) == "10");
+    CHECK(real_text(1.5, {.notation = text::Notation::general, .sign = text::Sign::always}) == "+1.5");
+    CHECK(real_text(5e-324, g17) == "0");
+    CHECK(real_text(std::numeric_limits<double>::quiet_NaN(), g17) == "nan");
+    CHECK(real_text(-std::numeric_limits<double>::infinity(), g17) == "-inf");
+    CHECK(real_text(1.7976931348623157e308, g17) == "1.7976931348623157e+308");
+    CHECK(written(text::format_real(stxlib::MutableView<char>(storage), 0.1f,
+                                    {.notation = text::Notation::general, .precision = 9})) == "0.100000001");
+    // A precision above maximum_precision is maximum_precision, which
+    // covers every exact expansion; %g drops the trailing zeros, so the
+    // smallest normal comes out as its exact expansion (715 significant
+    // digits) in the scientific form.
+    const std::string longest =
+        real_text(2.2250738585072014e-308, {.notation = text::Notation::general, .precision = 1u << 20});
+    CHECK(longest.size() == 1 + 1 + 714 + 5);
     const std::string huge = real_text(1e308, {.notation = text::Notation::fixed, .precision = 1u << 20});
     CHECK(huge.size() == 309 + 1 + text::maximum_precision);
     const std::string huge_negative =
@@ -242,6 +278,17 @@ void round_trips_and_host_agreement() {
             if (fixed != host) std::fprintf(stderr, "fixed %s, host %s\n", fixed.c_str(), host);
             host_agrees = host_agrees && fixed == host;
         }
+        std::snprintf(host, sizeof host, "%.*g", precision, value);
+        const std::string general =
+            real_text(value, {.notation = text::Notation::general, .precision = static_cast<usize>(precision)});
+        if (general != host) std::fprintf(stderr, "general %s, host %s\n", general.c_str(), host);
+        host_agrees = host_agrees && general == host;
+        // %.17g round trips every double (17 = max_digits10).
+        const std::string seventeen = real_text(value, {.notation = text::Notation::general, .precision = 17});
+        const text::Parsed<double> again = text::parse_double(view_of(seventeen));
+        const bool same17 = again.succeeded() && std::bit_cast<u64>(*again.value()) == std::bit_cast<u64>(value);
+        if (!same17) std::fprintf(stderr, "no %%.17g round trip: %s\n", seventeen.c_str());
+        round_trips = round_trips && same17;
     }
     for (int sample = 0; sample < 100000; ++sample) {
         const float value = flushed(std::bit_cast<float>(static_cast<std::uint32_t>(next_bits(state))));
@@ -252,6 +299,15 @@ void round_trips_and_host_agreement() {
             back.succeeded() && std::bit_cast<std::uint32_t>(*back.value()) == std::bit_cast<std::uint32_t>(value);
         if (!same) std::fprintf(stderr, "no float round trip: %s\n", number(shortest).c_str());
         round_trips = round_trips && same;
+        if (sample % 4 != 0) continue;
+        // A float's %g is the %g of its exact double value.
+        const int precision = sample % 12;
+        std::snprintf(host, sizeof host, "%.*g", precision, static_cast<double>(value));
+        const std::string general = written(text::format_real(
+            stxlib::MutableView<char>(storage), value,
+            {.notation = text::Notation::general, .precision = static_cast<usize>(precision)}));
+        if (general != host) std::fprintf(stderr, "float general %s, host %s\n", general.c_str(), host);
+        host_agrees = host_agrees && general == host;
     }
     CHECK(round_trips);
     CHECK(host_agrees);

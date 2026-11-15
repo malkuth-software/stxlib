@@ -103,6 +103,14 @@ enum class Notation : u8 {
     // One digit, the point, `precision` digits, and a signed exponent of at
     // least two digits ("%.3e").
     scientific = 2,
+    // printf's %g in the C locale ("%.17g"; an ostream's default float
+    // field after setprecision): `precision` significant digits (0 counts
+    // as 1); scientific when the decimal exponent X of the rounded value is
+    // below -4 or at least the precision, fixed with precision - 1 - X
+    // digits after the point otherwise; trailing zeros, and a point left
+    // without digits, removed (std::to_chars with chars_format::general and
+    // a precision, which the standard defines by printf's %g). M2 C3.
+    general = 3,
 };
 
 struct RealFormat final {
