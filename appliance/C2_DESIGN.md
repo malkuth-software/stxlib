@@ -508,6 +508,17 @@ coordinator took sc2's Q2-Q4 as built.
    most 64 KiB per target per round. The web side is
    `GET /api/targets/<name>/log` (a session, as every GET), shown by the
    Output button on the Targets page.
+   The start of each run is also echoed to the console (coordinator's
+   call, 2026-11-15; `console_echo.h`). The first 512 bytes after each
+   start, newlines included, go out one line at a time as
+   `STXTARGET <name> out <text>`. Lines longer than 100 bytes are split
+   into 100-byte pieces, so a console line stays within 160 bytes. Bytes
+   outside printable ASCII (tab kept) are shown as `?`. The bound is per
+   start, and the registry's restart back-off bounds the starts, so a
+   chatty or crash-looping target cannot hold the serial line. Everything,
+   echoed or not, goes into the ring. The echo adds no setting: the console
+   is already the diagnostic channel, and the C2 scenario reads the
+   targets' proof lines there.
 10. **FAT32 owner.**
     - `/user` has one owner, the supervisor (root): the web service runs as
       root for now, and staged files are written there.

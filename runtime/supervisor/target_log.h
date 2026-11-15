@@ -9,7 +9,9 @@
 // ring of the newest log_ring_bytes per target (log_ring.h), in memory
 // only: no file on any partition, so a target that writes without end
 // cannot fill the disk, and nothing on disk can be swapped for a link. A
-// line "--- start pid=<n> slot=<s>" marks each start. The web page reads
+// line "--- start pid=<n> slot=<s>" marks each start. The first
+// console_echo_bytes of each start's output also go to the console, as
+// "STXTARGET <name> out <text>" lines (console_echo.h). The web page reads
 // the end through the control channel (target_log_tail). A supervisor
 // restart loses the rings; a target whose pipe has no reader any more
 // gets SIGPIPE on its next write (targets are not adopted by a restarted
@@ -26,6 +28,7 @@
 #include <span>
 
 #include "config/boot_config.h"
+#include "console_echo.h"
 #include "log_ring.h"
 
 namespace stxtargets {
@@ -39,7 +42,8 @@ constexpr int target_log_reads_per_round = 16;
 
 class TargetLogs final {
 public:
-    TargetLogs() noexcept;
+    // console: where each start's first output is echoed (-1: nowhere).
+    explicit TargetLogs(int console) noexcept;
     ~TargetLogs();
     TargetLogs(const TargetLogs&) = delete;
     TargetLogs& operator=(const TargetLogs&) = delete;
@@ -48,8 +52,11 @@ public:
     // read out and closed first): the write end, close-on-exec, for the
     // child to take as 1 and 2; -1 when no pipe can be made (the target
     // then writes to the console).
-    [[nodiscard]] int open_output(std::size_t service_index) noexcept;
-    // The start was abandoned: the read end is closed.
+    // name: the target's, for the console echo (at most name_length_max
+    // bytes are kept).
+    [[nodiscard]] int open_output(std::size_t service_index, std::span<const char> name) noexcept;
+    // The start was abandoned, or its output ended: the read end is
+    // closed, and text still pending for the console is written.
     void abandon(std::size_t service_index) noexcept;
     // A line into the service's ring (the start marker).
     void note(std::size_t service_index, std::span<const char> line) noexcept;
@@ -65,6 +72,10 @@ private:
 
     stxsupervisor::LogRing rings_[stxconfig::services_max];
     int read_ends_[stxconfig::services_max];
+    int console_;
+    stxsupervisor::ConsoleEcho echoes_[stxconfig::services_max];
+    char names_[stxconfig::services_max][stxconfig::name_length_max];
+    std::size_t name_lengths_[stxconfig::services_max];
 };
 
 }  // namespace stxtargets

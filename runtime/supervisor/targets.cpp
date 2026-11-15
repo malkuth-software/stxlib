@@ -130,7 +130,7 @@ Targets::Targets(int console, stxconfig::ServiceRegistry& registry, stxconfig::S
     : console_(console), registry_(registry), actions_(actions), config_(nullptr), entries_{}, entry_count_(0),
       job_(std::nullopt), system_slot_(std::nullopt), system_next_check_ms_(std::nullopt),
       system_interval_s_(stxconfig::update_interval_default_s), reboot_requested_(false),
-      last_operation_{OperationKind::none, false, false, 0, 0, 0, nullptr}, logs_() {}
+      last_operation_{OperationKind::none, false, false, 0, 0, 0, nullptr}, logs_(console) {}
 
 void Targets::load(const stxconfig::BootConfig& config, std::optional<stxboot::Slot> running_system_slot,
                    std::uint64_t now_ms) noexcept {
@@ -233,7 +233,14 @@ void Targets::target_started(std::size_t service_index, char slot, int pid) noex
 }
 
 int Targets::prepare_output(std::size_t service_index) noexcept {
-    return logs_.open_output(service_index);
+    // The name for the console echo (target_log.h); none without a
+    // configuration (nothing is started then).
+    std::span<const char> name;
+    if (config_ != nullptr && service_index < (*config_).service_count()) {
+        const char* const text = (*config_).text((*config_).service(service_index).name);
+        name = std::span<const char>(text, std::strlen(text));
+    }
+    return logs_.open_output(service_index, name);
 }
 
 void Targets::output_abandoned(std::size_t service_index) noexcept {

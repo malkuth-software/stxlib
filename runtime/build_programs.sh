@@ -99,7 +99,7 @@ build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/conf
     runtime/supervisor/targets.cpp runtime/supervisor/targets_plan.cpp \
     runtime/package/program_slots.cpp runtime/package/manifest.cpp runtime/package/store_layout.cpp \
     runtime/supervisor/config/user_config.cpp runtime/supervisor/config/access_keys.cpp \
-    runtime/supervisor/config/config_merge.cpp runtime/supervisor/target_log.cpp runtime/supervisor/log_ring.cpp \
+    runtime/supervisor/config/config_merge.cpp runtime/supervisor/target_log.cpp runtime/supervisor/log_ring.cpp runtime/supervisor/console_echo.cpp \
     runtime/supervisor/program_answers.cpp runtime/supervisor/config/target_ids.cpp \
     runtime/supervisor/target_id_files.cpp \
     runtime/supervisor/control/control_protocol.cpp runtime/supervisor/control/control_server.cpp \
