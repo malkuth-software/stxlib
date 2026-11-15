@@ -55,7 +55,7 @@ library's whole purpose:
     allocator (`malloc` and `free`, or the pinned mimalloc) from
     `src/state/`, outside `src/hosted/`, because the allocator lives in the
     state so that a block allocated in one module may be released in
-    another. It is the only host interface called from `src/state/`;
+    another. It is the only host interface called from `src/state/`. The thread-exit hook that releases each thread's records (`src/hosted/<family>/thread_exit_<family>.cpp`, layout 10) stays under `src/hosted/` but is compiled into `stxlib_state`, beside the state it releases;
   - a module may keep a documented write-once memo: a value derived from a
     state value that never changes once set, written at most once per
     module with the same result in every module, for example the math

@@ -102,8 +102,12 @@ namespace {
 // The calling thread's open invocations are in stxlib_state (state.hpp), so
 // a table entered through one module's copy of this file and revoked
 // through another's still sees a self-revocation.
+// A thread with no block (state.hpp, degraded mode) has no open invocation:
+// enter refuses there.
 [[nodiscard]] bool inside(const TrampolineSlots* const table, const u64 handle) noexcept {
-    const state::ThreadState& thread = state::current_thread();
+    const state::ThreadState* const kept = state::current_thread_state();
+    if (kept == nullptr) return false;
+    const state::ThreadState& thread = *kept;
     for (usize index = 0; index < thread.open_depth; ++index) {
         const state::OpenInvocation& entry = thread.open[index];
         if (entry.table == table && entry.handle == handle) return true;
@@ -112,7 +116,9 @@ namespace {
 }
 
 [[nodiscard]] bool inside_table(const TrampolineSlots* const table) noexcept {
-    const state::ThreadState& thread = state::current_thread();
+    const state::ThreadState* const kept = state::current_thread_state();
+    if (kept == nullptr) return false;
+    const state::ThreadState& thread = *kept;
     for (usize index = 0; index < thread.open_depth; ++index) {
         if (thread.open[index].table == table) return true;
     }
@@ -261,7 +267,21 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
     if (generation == 0 || index >= table.capacity) {
         return Result<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
     }
-    state::ThreadState& thread = state::current_thread();
+    state::ThreadState* const kept = state::current_thread_state();
+    if (kept == nullptr) {
+        // No block: the open-invocation stack is not in the failure reserve.
+        if (state::current_flags().phase == state::ThreadPhase::ended) {
+            const ErrorRecord ended = ErrorRecord::make(
+                ErrorKind::disposed, "stxlib.trampoline.enter",
+                ErrorDetail{.message = "this thread's state was released at its exit"});
+            return Result<TrampolineEntry>::failure(ended);
+        }
+        const ErrorRecord unallocated = ErrorRecord::make(
+            ErrorKind::out_of_memory, "stxlib.trampoline.enter",
+            ErrorDetail{.message = "this thread's state could not be allocated"});
+        return Result<TrampolineEntry>::failure(unallocated);
+    }
+    state::ThreadState& thread = *kept;
     if (thread.open_depth == trampoline_nesting_limit) {
         const ErrorRecord too_deep = ErrorRecord::make(
             ErrorKind::limit_exceeded, "stxlib.trampoline.enter",
@@ -289,7 +309,9 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
 
 void TrampolineTable::leave(const TrampolineEntry& entry) noexcept {
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::leave on a moved-from table");
-    state::ThreadState& thread = state::current_thread();
+    state::ThreadState* const kept = state::current_thread_state();
+    STXLIB_REQUIRE(kept != nullptr, "TrampolineTable::leave without an open invocation");
+    state::ThreadState& thread = *kept;
     STXLIB_REQUIRE(thread.open_depth > 0, "TrampolineTable::leave without an open invocation");
     const state::OpenInvocation& top = thread.open[thread.open_depth - 1];
     STXLIB_REQUIRE(top.table == slots_ && top.handle == entry.handle.value(),

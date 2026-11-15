@@ -168,6 +168,13 @@ message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 # block from stxlib::memory in one module may be released in another.
 option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)" ON)
 set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
+# The thread-exit hook that releases each thread's block (layout 10; notes
+# planning/stages/E-thread-records.md) lives with the state it releases.
+if(WIN32)
+    list(APPEND STXLIB_STATE_SOURCES src/hosted/windows/thread_exit_windows.cpp)
+else()
+    list(APPEND STXLIB_STATE_SOURCES src/hosted/posix/thread_exit_posix.cpp)
+endif()
 if(STXLIB_STATE_SHARED)
     add_library(stxlib_state SHARED ${STXLIB_STATE_SOURCES})
     target_compile_definitions(stxlib_state PUBLIC STXLIB_STATE_SHARED)
@@ -189,6 +196,12 @@ target_compile_definitions(stxlib_state PRIVATE
     $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>
     $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
 target_compile_options(stxlib_state PRIVATE ${stxlib_warnings} -fno-exceptions)
+target_link_libraries(stxlib_state PRIVATE Threads::Threads)
+# Never unloaded under a thread whose block it holds (thread_exit_windows.cpp
+# pins the DLL the same way).
+if(STXLIB_STATE_SHARED AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_options(stxlib_state PRIVATE "LINKER:-z,nodelete")
+endif()
 set_target_properties(stxlib_state PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
@@ -287,6 +300,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/text.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
+    src/core/thread_records.cpp
     src/core/trampoline.cpp
     src/core/zones.cpp
     src/hosted/c_library/c_library.cpp
@@ -505,7 +519,8 @@ if(STXLIB_TESTS)
     # thread-pool check harnesses, the death cases, the two-module case)
     # need exceptions and are left out of a build without them
     # (STXLIB_EXCEPTIONS above).
-    set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time)
+    set(stxlib_boundary_tests vocabulary memory platform path files children threads thread_pool local_time
+        thread_records)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()

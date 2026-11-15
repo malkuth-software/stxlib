@@ -20,10 +20,12 @@ namespace {
 // section 3). The counter is in stxlib_state, so every module's copy of
 // this code counts in one sequence per thread.
 u64 next_sequence() noexcept {
-    state::ThreadState& thread = state::current_thread();
-    if (thread.last_record_sequence == u64_max) return 0;
-    thread.last_record_sequence = thread.last_record_sequence + 1;
-    const u64 result = thread.last_record_sequence;
+    // In the anchor (state.hpp, ThreadFlags), so numbering needs no
+    // allocation and continues on the failure reserve.
+    state::ThreadFlags& flags = state::current_flags();
+    if (flags.last_record_sequence == u64_max) return 0;
+    flags.last_record_sequence = flags.last_record_sequence + 1;
+    const u64 result = flags.last_record_sequence;
     return result;
 }
 

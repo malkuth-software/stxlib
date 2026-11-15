@@ -127,12 +127,15 @@ void keep_recent(state::ThreadState& thread, const ErrorRecord& record) noexcept
 // taken here at the catch) and the recent ring.
 void finish_record(ErrorRecord& record, const StandardClass& standard) noexcept {
     detail::ErrorRecordWriter::copy_foreign_message(record, standard.what);
-    state::ThreadState& thread = state::current_thread();
-    const ShadowReference shadow = shadow_capture::take_for_handler(thread);
+    const ShadowReference shadow = shadow_capture::with_shadow(
+        [](auto& store) noexcept -> ShadowReference { return shadow_capture::take_for_handler(store); });
     detail::ErrorRecordWriter::set_shadow(record, shadow);
 #if defined(STXLIB_SHADOW)
     detail::ErrorRecordWriter::copy_exception_type(record, host::current_exception_type_name());
-    keep_recent(thread, record);
+    // The recent ring is the block's only: a thread on the failure reserve
+    // keeps none (state.hpp, ThreadFlags).
+    state::ThreadState* const thread = state::current_thread_state();
+    if (thread != nullptr) keep_recent(*thread, record);
 #endif
 }
 
@@ -169,28 +172,31 @@ ErrorRecord record_current_exception_classified(const Operation operation,
 #endif
 
 usize recent_failure_count() noexcept {
-    const state::ThreadState& thread = state::current_thread();
-    const usize result = thread.recent_count;
+    const state::ThreadState* const thread = state::current_thread_state();
+    if (thread == nullptr) return 0; // the failure reserve keeps no recent ring
+    const usize result = (*thread).recent_count;
     return result;
 }
 
 Result<ErrorRecord> recent_failure(const usize age) noexcept {
-    const state::ThreadState& thread = state::current_thread();
-    if (age >= thread.recent_count) {
+    const state::ThreadState* const kept_state = state::current_thread_state();
+    if (kept_state == nullptr || age >= (*kept_state).recent_count) {
         const ErrorRecord missing = ErrorRecord::make(
             ErrorKind::not_found, "stxlib.shadow.recent_failure",
             ErrorDetail{.message = "the thread keeps fewer recent failures than that"});
         return Result<ErrorRecord>::failure(missing);
     }
+    const state::ThreadState& thread = *kept_state;
     const usize slot = (thread.recent_newest + recent_failure_capacity - age) % recent_failure_capacity;
     const ErrorRecord kept = thread.recent[slot].record;
     return Result<ErrorRecord>::success(kept);
 }
 
 void clear_recent_failures() noexcept {
-    state::ThreadState& thread = state::current_thread();
-    thread.recent_count = 0;
-    thread.recent_newest = 0;
+    state::ThreadState* const thread = state::current_thread_state();
+    if (thread == nullptr) return;
+    (*thread).recent_count = 0;
+    (*thread).recent_newest = 0;
 }
 
 } // namespace stxlib

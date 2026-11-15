@@ -118,7 +118,7 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
         return Status::failure(unbound);
     }
 #if defined(STXLIB_SHADOW)
-    STXLIB_REQUIRE(!state::current_thread().in_reporter,
+    STXLIB_REQUIRE(!state::current_flags().in_reporter,
                    "a fail-fast reporter installed a reporter; fail_fast.hpp lists what a reporter may call");
 #endif
     state::ProcessState& process = state::current_process();
@@ -137,7 +137,8 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
 }
 
 void fail_fast(const ErrorRecord& record) noexcept {
-    state::ThreadState& thread = state::current_thread();
+    // The anchor, not the block: fail-fast needs no allocation (state.hpp).
+    state::ThreadFlags& thread = state::current_flags();
     thread.fail_fast_depth = thread.fail_fast_depth + 1;
     const state::ProcessState& process = state::current_process();
     const int phase = process.reporter_phase.load(std::memory_order_acquire);

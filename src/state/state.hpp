@@ -25,6 +25,14 @@
 // 4, each with its native trace; a release build keeps 1, frames only, with
 // no trace array. Release and development modules do not mix: the build
 // type is part of the layout key the accessors check (layout_key, below).
+// Layout 10 (decision 2026-11-15, notes
+// decisions/2026-11-15-thread-local-exit-safety.md, rule 2; notes
+// planning/stages/E-thread-records.md) moves ThreadState out of the
+// thread_local into a block stxlib_state allocates on first access and its
+// thread-exit hook releases; the only thread_local is a trivially
+// destructible ThreadFlags anchor (identity, fail-fast depth and flag, the
+// hook phase), and consumers register their own per-thread records
+// (include/stxlib/thread_records.hpp).
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -41,12 +49,17 @@
 // a release stxlib_state or the reverse, fails at its first access instead
 // of reading misplaced fields.
 //
-// Lifetime: the thread state is a thread_local of stxlib_state, trivially
-// destructible and constant-initialised, so it needs no thread-exit
-// handling (owner decision D11: no thread-local storage with a non-trivial
-// destructor). The process state is a static of stxlib_state with constant
-// initialisation. Neither ever allocates; the allocator is the one part of
-// stxlib_state that calls anything (its backend: mimalloc or malloc).
+// Lifetime (layout 10): the thread state is a block stxlib_state allocates
+// through its allocator on the thread's first access and releases from its
+// own thread-exit hook (src/hosted/<family>/thread_exit_<family>.cpp, part
+// of stxlib_state), once, at a normal thread exit; process termination
+// releases nothing (rule 1 as reworded). The only thread_local is the
+// trivially destructible ThreadFlags anchor (rule 2; D11). With no block
+// (the hook has run, or the first allocation failed) a thread runs in
+// degraded mode: current_thread_state() is null, the shadow facilities use
+// the anchor's failure reserve (ThreadFlags::reserve) and each other
+// facility says what it does without the block. The process state is a static of stxlib_state with
+// constant initialisation.
 
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"
@@ -72,7 +85,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 9;
+inline constexpr u32 layout_version = 10;
 
 // The build type's part of the layout: development builds (STXLIB_SHADOW)
 // lay ThreadState out differently from release builds, so the key the
@@ -91,18 +104,71 @@ inline constexpr u32 layout_key = layout_version | layout_build_type;
 // ProcessState::simd_selection before any request or selection.
 inline constexpr i32 simd_unset = -1;
 
-// One shadow record: the logical stack and native trace for one exception.
+// One shadow record: the logical stack and, when TraceCapacity is not 0,
+// the native trace for one exception.
+template <usize FrameCapacity, usize TraceCapacity>
 struct ShadowRecordData final {
     u64 sequence{0}; // 0: empty
     CapturePoint point{CapturePoint::gate};
     usize frame_count{0};
     usize frames_lost{0};
-    usize trace_count{0}; // 0 in a release build
-    ShadowFrameRecord frames[shadow_frame_capacity];
-#if defined(STXLIB_SHADOW)
-    uptr trace[shadow_trace_capacity]{};
-#endif
+    usize trace_count{0};
+    ShadowFrameRecord frames[FrameCapacity];
+    uptr trace[TraceCapacity]{};
 };
+
+template <usize FrameCapacity>
+struct ShadowRecordData<FrameCapacity, 0> final {
+    u64 sequence{0}; // 0: empty
+    CapturePoint point{CapturePoint::gate};
+    usize frame_count{0};
+    usize frames_lost{0};
+    usize trace_count{0}; // always 0: no trace is kept
+    ShadowFrameRecord frames[FrameCapacity];
+};
+
+// A shadow stack with its pending capture and its ring of shadow records
+// (shadow_frames.cpp, shadow_capture.hpp). `depth` counts every pushed and
+// unpopped frame, also those beyond the capacity, which are not stored;
+// `pushes` counts every push ever, so a capture can tell whether normal
+// execution has resumed since it was taken; `dropped` counts pushes past
+// the capacity. The pending capture is the shadow record of the exception
+// unwinding now, valid while `pushes` still equals `pending_pushes`. The
+// records are a ring, newest at `shadow_newest`; their numbers come from
+// ThreadFlags::last_shadow_sequence, one sequence per thread whichever
+// store holds the record.
+template <usize FrameCapacity, usize RecordsKept, usize TraceCapacity>
+struct ShadowStore final {
+    static constexpr usize frame_capacity = FrameCapacity;
+    static constexpr usize records_kept = RecordsKept;
+    static constexpr usize trace_capacity = TraceCapacity;
+    using Record = ShadowRecordData<FrameCapacity, TraceCapacity>;
+
+    u32 depth{0};
+    u64 pushes{0};
+    u64 dropped{0};
+    ShadowFrameRecord frames[FrameCapacity];
+    u64 pending_shadow{0};
+    u64 pending_pushes{0};
+    usize shadow_count{0};
+    usize shadow_newest{0};
+    Record shadows[RecordsKept];
+};
+
+#if defined(STXLIB_SHADOW)
+inline constexpr usize full_trace_capacity = shadow_trace_capacity;
+#else
+inline constexpr usize full_trace_capacity = 0;
+#endif
+// The block's store: shadow_frame_capacity frames, shadow_records_kept
+// records (4 with traces in a development build, 1 without in a release
+// build).
+using FullShadow = ShadowStore<shadow_frame_capacity, shadow_records_kept, full_trace_capacity>;
+// The anchor's failure reserve (decision 2026-11-15, owner option 2 of
+// E-thread-records.md section 7): an 8-frame stack and one record without
+// a trace, used when the thread has no block.
+inline constexpr usize reserve_frame_capacity = 8;
+using ReserveShadow = ShadowStore<reserve_frame_capacity, 1, 0>;
 
 // A kept error record. A union, so the array needs no ErrorRecord default
 // (a record always holds a failure); assigning a record to the inactive
@@ -125,31 +191,8 @@ struct OpenInvocation final {
 struct ThreadState final {
     u32 layout{layout_key};
 
-    // Error record sequence numbers (error.cpp).
-    u64 last_record_sequence{0};
-
-    // The shadow stack (shadow_frames.cpp). `depth` counts every pushed and
-    // unpopped frame, also those beyond the capacity, which are not stored.
-    // `pushes` counts every push ever, so a capture can tell whether normal
-    // execution has resumed since it was taken.
-    // `dropped` counts pushes past the capacity (read_shadow_stack).
-    u32 depth{0};
-    u64 pushes{0};
-    u64 dropped{0};
-    ShadowFrameRecord frames[shadow_frame_capacity];
-
-    // The pending capture: the shadow record of the exception unwinding now,
-    // valid while `pushes` still equals `pending_pushes`.
-    u64 pending_shadow{0};
-    u64 pending_pushes{0};
-
-    // Shadow records, a ring of shadow_records_kept (4 in a development
-    // build, 1 in a release build), newest at `shadow_newest`;
-    // `last_shadow_sequence` issues their numbers.
-    u64 last_shadow_sequence{0};
-    usize shadow_count{0};
-    usize shadow_newest{0};
-    ShadowRecordData shadows[shadow_records_kept];
+    // The shadow stack, its pending capture and its records.
+    FullShadow shadow{};
 
     // Recent gate records (exception_shadow.cpp), a ring.
     usize recent_count{0};
@@ -160,21 +203,64 @@ struct ThreadState final {
     usize open_depth{0};
     OpenInvocation open[trampoline_nesting_limit];
 
+};
+
+// The phase of a thread's records (ThreadFlags::phase; E-thread-records.md,
+// section 2).
+enum class ThreadPhase : u8 {
+    none = 0,   // no block yet
+    live = 1,   // the block exists; records may be created
+    ending = 2, // end_thread_records or the hook started: no record is created
+    ended = 3,  // the hook released the block: degraded mode
+};
+
+// The calling thread's anchor: stxlib_state's only thread_local (rule 2),
+// trivially destructible and constant-initialised, so it is usable before
+// any allocation, during and after the thread-exit hook, and on the
+// fail-fast path.
+//
+// Size (layout 10, by field arithmetic on a 64-bit host; the static_assert
+// in state.cpp bounds it): the three counters 24 bytes, the depth, flag and
+// phase bytes 8, the reserve 2,016 (its stack 24 + 8 x 120 frames + 32 of
+// pending capture and ring counters, its record 40 + 8 x 120): 2,048 bytes;
+// with the block pointer the anchor is 2,056 bytes of TLS per thread.
+//
+// What a thread on the reserve records, compared with a block's
+// ThreadState: error-record sequence numbers and shadow-record numbers are
+// the same (they live here in both cases); the shadow stack keeps 8 frames,
+// not 64 (deeper frames are counted, not stored); one shadow record of at
+// most 8 frames and no native trace is kept, not 4 traced records of 64
+// frames (development) or 1 of 64 (release); the recent-gate ring (8
+// records, development) is not kept; trampolines refuse to enter (their
+// open-invocation stack is not reserved).
+struct ThreadFlags final {
+    // The thread's identity (threads.cpp); 0 until issued. A Thread's host
+    // thread takes the identity its owner issued before its entry runs.
+    u64 thread_identity{0};
+    // Error record sequence numbers (error.cpp), and shadow record numbers
+    // (shadow_capture.hpp), per thread.
+    u64 last_record_sequence{0};
+    u64 last_shadow_sequence{0};
     // Entries into fail_fast (fail_fast.cpp); never reset.
-    int fail_fast_depth{0};
+    i32 fail_fast_depth{0};
     // True while this thread runs the installed fail-fast reporter; in a
     // development build a shadow frame opened then fails a requirement
     // (fail_fast.hpp lists what a reporter may call).
     bool in_reporter{false};
-    // The thread's identity (threads.cpp); 0 until issued. A Thread's host
-    // thread takes the identity its owner issued before its entry runs.
-    u64 thread_identity{0};
+    ThreadPhase phase{ThreadPhase::none};
+    // True once the block's allocation failed: degraded for the thread's
+    // life (a later block would pair a shadow leave with an unrecorded
+    // enter; E-thread-records.md, section 7).
+    bool block_failed{false};
+    // The failure reserve: the shadow stack and record of a thread with no
+    // block (its allocation failed, or the hook has released it).
+    ReserveShadow reserve{};
 };
 
 // The per-thread budget, per build type (house style §1, "account for peak
-// storage"; audit A, S3). ThreadState is a thread_local of stxlib_state, a
-// shared library loaded at start, so on every host it is static TLS: each
-// thread of the process carries it, foreign threads included. By field
+// storage"; audit A, S3). Since layout 10 ThreadState is a block allocated
+// on the thread's first touch of STXlib (threads that never touch it carry
+// only the 2,056-byte anchor, ThreadFlags with its failure reserve). By field
 // arithmetic on a 64-bit host:
 //                         development                  release
 //   frames            64 x 120          =  7,680       7,680
@@ -307,32 +393,83 @@ struct AllocatorCalls final {
     bool tags_checked;
 };
 
-// The calling thread's state, the process's and the allocator, from
-// stxlib_state. `expected_layout` is the caller's layout_key; on a
-// mismatch (another layout version, or the other build type) they return
-// null, and the caller's copy of STXlib reports it.
+// A per-thread record type (thread_records.hpp; E-thread-records.md). The
+// callbacks are foreign code: called on the record's thread with
+// stxlib_state's invariants whole (form 1).
+inline constexpr usize thread_record_type_capacity = 16;
+inline constexpr usize thread_record_size_limit = 1024 * 1024;
+inline constexpr usize thread_record_alignment_limit = 64;
+
+struct ThreadRecordTypeEntry final {
+    usize size{0};
+    usize alignment{0};
+    void (*initialize)(void* record, void* context) noexcept {nullptr};
+    void (*release)(void* record, void* context) noexcept {nullptr};
+    void* context{nullptr};
+};
+
+// What a record call did (thread_record_register, thread_record_get).
+enum class RecordStatus : u8 {
+    ok = 0,
+    layout_mismatch = 1,
+    invalid_argument = 2, // a type out of range, an unknown slot, or a call from inside the slot's initialize
+    limit_exceeded = 3,   // the type table is full
+    out_of_memory = 4,    // the record's allocation failed; a later call tries again
+    disposed = 5,         // this thread's records are ending or ended
+    no_hook = 6,          // the host gave no thread-exit hook (POSIX: no key), so nothing could be released
+};
+
+// The calling thread's state (null in degraded mode or on a layout
+// mismatch), its anchor (null only on a layout mismatch), the process's
+// state and the allocator, from stxlib_state. `expected_layout` is the
+// caller's layout_key; on a mismatch (another layout version, or the other
+// build type) they return null and the current_ accessors below refuse.
+// thread_state allocates the block on the thread's first call; it never
+// unwinds (AGENTS.md, "Allocators must not unwind").
 STXLIB_STATE_API ThreadState* thread_state(u32 expected_layout) noexcept;
+STXLIB_STATE_API ThreadFlags* thread_flags(u32 expected_layout) noexcept;
 STXLIB_STATE_API ProcessState* process_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API const AllocatorCalls* allocator(u32 expected_layout) noexcept;
 
-inline ThreadState& current_thread() noexcept {
+// Per-thread records (E-thread-records.md, section 6).
+STXLIB_STATE_API RecordStatus thread_record_register(u32 expected_layout, const ThreadRecordTypeEntry* type,
+                                                     u32* slot) noexcept;
+STXLIB_STATE_API RecordStatus thread_record_get(u32 expected_layout, u32 slot, void** record) noexcept;
+STXLIB_STATE_API void* thread_record_existing(u32 expected_layout, u32 slot) noexcept;
+STXLIB_STATE_API void thread_records_end(u32 expected_layout) noexcept;
+
+// Ends the process after a layout mismatch, writing `message` to the host's
+// error stream and aborting. It uses no thread state, so it cannot recurse
+// into an accessor (src/hosted/<family>/thread_exit_<family>.cpp).
+[[noreturn]] STXLIB_STATE_API void refuse_layout(const char* message) noexcept;
+
+inline constexpr char layout_refusal[] =
+    "stxlib: this module and stxlib_state were built with different state layouts or build types\n";
+
+// The calling thread's state, or null in degraded mode (E-thread-records.md,
+// section 2): every caller says what its facility does without it.
+inline ThreadState* current_thread_state() noexcept {
+    ThreadFlags* const flags = thread_flags(layout_key);
+    if (flags == nullptr) refuse_layout(layout_refusal);
     ThreadState* const thread = thread_state(layout_key);
-    STXLIB_REQUIRE(thread != nullptr,
-                   "this module and stxlib_state were built with different state layouts or build types");
-    return *thread;
+    return thread;
+}
+
+inline ThreadFlags& current_flags() noexcept {
+    ThreadFlags* const flags = thread_flags(layout_key);
+    if (flags == nullptr) refuse_layout(layout_refusal);
+    return *flags;
 }
 
 inline ProcessState& current_process() noexcept {
     ProcessState* const process = process_state(layout_key);
-    STXLIB_REQUIRE(process != nullptr,
-                   "this module and stxlib_state were built with different state layouts or build types");
+    if (process == nullptr) refuse_layout(layout_refusal);
     return *process;
 }
 
 inline const AllocatorCalls& current_allocator() noexcept {
     const AllocatorCalls* const calls = allocator(layout_key);
-    STXLIB_REQUIRE(calls != nullptr,
-                   "this module and stxlib_state were built with different state layouts or build types");
+    if (calls == nullptr) refuse_layout(layout_refusal);
     return *calls;
 }
 
