@@ -8,6 +8,7 @@ const state = {
   csrf: null,
   page: null,
   rebooting: false,
+  logTarget: null,
 };
 
 const pages = ['status', 'targets', 'updates', 'network', 'access', 'settings', 'reboot'];
@@ -358,6 +359,7 @@ function targetCard(target, programsSupported) {
     buttons.appendChild(actionButton('Stop', 'stop', target.name));
     buttons.appendChild(actionButton('Restart', 'restart', target.name));
   }
+  buttons.appendChild(actionButton('Output', 'log', target.name));
   buttons.appendChild(actionButton('Edit', 'edit', target.name));
   if (programsSupported) {
     buttons.appendChild(actionButton('Install uploaded package', 'install-upload', target.name));
@@ -401,6 +403,33 @@ async function loadTargets() {
   }
 }
 
+async function loadTargetLog() {
+  const name = state.logTarget;
+  if (!name) {
+    return;
+  }
+  const box = byId('target-log-box');
+  const text = byId('target-log');
+  byId('target-log-title').textContent = 'Output of ' + name;
+  box.hidden = false;
+  const result = await api('GET', '/api/targets/' + encodeURIComponent(name) + '/log');
+  if (result.status === 200 && result.data) {
+    if (!result.data.present || result.data.text === '') {
+      text.textContent = '(no output kept)';
+    } else {
+      text.textContent = (result.data.front_cut ? '...\n' : '') + result.data.text;
+    }
+    text.scrollTop = text.scrollHeight;
+  } else {
+    text.textContent = errorText(result);
+  }
+}
+
+function closeTargetLog() {
+  state.logTarget = null;
+  byId('target-log-box').hidden = true;
+}
+
 function editTarget(name) {
   for (let index = 0; index < targetsSeen.length; index += 1) {
     if (targetsSeen[index].name === name) {
@@ -428,6 +457,11 @@ async function onTargetAction(event) {
   let result = null;
   if (action === 'edit') {
     editTarget(name);
+    return;
+  }
+  if (action === 'log') {
+    state.logTarget = name;
+    loadTargetLog();
     return;
   }
   if (action === 'start' || action === 'stop' || action === 'restart') {
@@ -721,6 +755,8 @@ function start() {
   byId('status-refresh').addEventListener('click', loadStatus);
   byId('target-form').addEventListener('submit', onTargetSave);
   byId('target-clear').addEventListener('click', clearTargetForm);
+  byId('target-log-refresh').addEventListener('click', loadTargetLog);
+  byId('target-log-close').addEventListener('click', closeTargetLog);
   byId('upload-package-form').addEventListener('submit', onUploadPackage);
   byId('upload-system-form').addEventListener('submit', onUploadSystem);
   byId('system-update').addEventListener('click', onSystemUpdate);

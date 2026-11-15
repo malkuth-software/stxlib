@@ -15,7 +15,7 @@ failure stops the run.
           token refused; the web service's own stop refused; the user
           configuration written by turns (a stale base refused with 409, a
           factory name refused by the user rules); an upload streamed and
-          hashed; the targets page; then a reboot.
+          hashed; the targets page and a log tail; then a reboot.
   second  after that reboot: the same certificate, the configuration as
           written, a logout that ends the session.
 
@@ -187,6 +187,10 @@ def phase_first(client: Client, password: str) -> None:
           and uploaded.get('sha256') == hashlib.sha256(payload).hexdigest(), 'upload stored with its SHA-256')
     status, _, value = client.json_request('GET', '/api/targets')
     check(status == 200 and isinstance(value, dict) and isinstance(value.get('targets'), list), 'targets page read')
+    status, _, value = client.json_request('GET', '/api/targets/sleeper/log')
+    check(status == 200 and isinstance(value, dict) and isinstance(value.get('present'), bool), 'log tail read')
+    status, _, _ = client.json_request('GET', '/api/targets/absent/log')
+    check(status == 404, 'log tail of an unknown target is 404')
     status, _, _ = client.json_request('POST', '/api/reboot')
     check(status == 200, 'reboot accepted')
 

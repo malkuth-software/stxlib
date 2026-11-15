@@ -942,6 +942,43 @@ void Api::handle_program(stxcontrol::Command command, const stxcontrol::ServiceN
     respond_json(response, http_status_of(status));
 }
 
+void Api::handle_target_log(const stxcontrol::ServiceName& name, ApiResponse& response) noexcept {
+    // Read access in the supervisor's terms; the page needs only a session
+    // (a GET, so no CSRF token: it changes nothing).
+    const stxcontrol::Request request =
+        stxcontrol::request_for_service(stxcontrol::Command::target_log_tail, 0, name);
+    const std::optional<stxcontrol::ResponseView> answer = backend_.ask_supervisor(request);
+    if (!supervisor_ok(answer, stxcontrol::Command::target_log_tail, response)) {
+        return;
+    }
+    const std::optional<stxcontrol::BootLogTailView> tail = stxcontrol::decode_boot_log_tail((*answer).payload);
+    if (!tail.has_value()) {
+        respond_error(response, 503, "supervisor_unavailable");
+        return;
+    }
+    char name_text[stxcontrol::service_name_bytes_max + 1];
+    stxcontrol::service_name_c_string(name, name_text);
+    JsonWriter writer(std::span<char>(body_, sizeof(body_)));
+    writer.begin_object();
+    writer.key("name");
+    writer.string(name_text);
+    writer.key("present");
+    writer.boolean((*tail).present);
+    writer.key("front_cut");
+    writer.boolean((*tail).front_cut);
+    writer.key("text");
+    // The writer replaces bytes that are not UTF-8: a target's output is
+    // whatever it wrote.
+    writer.string(std::span<const char>(reinterpret_cast<const char*>((*tail).text.data()), (*tail).text.size()));
+    writer.end_object();
+    if (!writer.ok()) {
+        respond_error(response, 500, "internal");
+        return;
+    }
+    body_size_ = writer.size();
+    respond_json(response, 200);
+}
+
 void Api::handle_system_update(ApiResponse& response) noexcept {
     const stxcontrol::Request request = stxcontrol::request_without_name(stxcontrol::Command::system_update, 0);
     const std::optional<stxcontrol::ResponseView> answer = backend_.ask_supervisor(request);

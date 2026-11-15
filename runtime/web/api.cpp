@@ -207,6 +207,7 @@ enum class Route : std::uint8_t {
     target_delete,
     program,
     program_action,
+    target_log,
     upload,
     system_update,
     operation,
@@ -347,6 +348,11 @@ struct RouteMatch {
             match.action = stxcontrol::Command::program_state;
             return match;
         }
+        if (equals_exact(rest, "log")) {
+            match.route = Route::target_log;
+            match.method = Method::get;
+            return match;
+        }
         if (equals_exact(rest, "install")) {
             match.action = stxcontrol::Command::program_install;
         } else if (equals_exact(rest, "rollback")) {
@@ -426,6 +432,7 @@ struct RouteMatch {
     case Route::target_delete:
     case Route::program:
     case Route::program_action:
+    case Route::target_log:
     case Route::upload:
     case Route::system_update:
     case Route::operation:
@@ -866,6 +873,9 @@ void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
     case Route::program:
     case Route::program_action:
         handle_program(match.action, match.name, response);
+        return;
+    case Route::target_log:
+        handle_target_log(match.name, response);
         return;
     case Route::system_update:
         handle_system_update(response);

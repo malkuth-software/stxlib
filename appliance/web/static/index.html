@@ -67,6 +67,14 @@
       their settings take effect at the next reboot; start, stop and restart
       act now.</p>
     <div id="targets-list"></div>
+    <div id="target-log-box" hidden>
+      <h2 id="target-log-title">Output</h2>
+      <p class="hint">The newest output the target wrote (standard output and
+        error), as the supervisor keeps it in memory: about 4 KiB.</p>
+      <pre id="target-log" class="log"></pre>
+      <button type="button" id="target-log-refresh" class="secondary">Refresh</button>
+      <button type="button" id="target-log-close" class="secondary">Close</button>
+    </div>
     <h2 id="target-form-title">Add a target</h2>
     <form id="target-form">
       <label>Name <input type="text" id="target-name" required maxlength="31" pattern="[A-Za-z0-9_.\-]+"></label>

@@ -498,8 +498,9 @@ coordinator took sc2's Q2-Q4 as built.
    target), answers in the `boot_log_tail` layout; a service that is not a
    target, or a target that wrote nothing, answers with no text. The main
    loop wakes for output (the pipes join the control kqueue) and reads at
-   most 64 KiB per target per round. The web page's route for it is sc2's
-   to add.
+   most 64 KiB per target per round. The web side is
+   `GET /api/targets/<name>/log` (a session, as every GET), shown by the
+   Output button on the Targets page.
 10. **FAT32 owner.**
     - `/user` has one owner, the supervisor (root): the web service runs as
       root for now, and staged files are written there.

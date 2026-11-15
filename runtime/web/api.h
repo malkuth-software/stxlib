@@ -39,6 +39,8 @@
 //   POST /api/targets/<name> {settings, enabled}   add or replace one
 //   POST /api/targets/<name>/delete
 //   GET  /api/targets/<name>/program  its program's slots and versions
+//   GET  /api/targets/<name>/log      its output's newest lines (the
+//                                     supervisor's 4096-byte ring)
 //   POST /api/targets/<name>/install {source: "upload"|"url", url}
 //   POST /api/targets/<name>/rollback
 //   POST /api/targets/<name>/check-update
@@ -384,6 +386,7 @@ private:
     void handle_target_delete(const stxcontrol::ServiceName& name, ApiResponse& response) noexcept;
     void handle_program(stxcontrol::Command command, const stxcontrol::ServiceName& name,
                         ApiResponse& response) noexcept;
+    void handle_target_log(const stxcontrol::ServiceName& name, ApiResponse& response) noexcept;
     void handle_system_update(ApiResponse& response) noexcept;
     void handle_operation(ApiResponse& response) noexcept;
     void handle_network_write(ApiResponse& response) noexcept;

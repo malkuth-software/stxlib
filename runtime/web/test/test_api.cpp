@@ -45,7 +45,9 @@ const char* const factory_text =
     "control = operate\n"
     "[service-sleeper]\n"
     "command = /bin/sleep 3600\n"
-    "restart = always\n";
+    "restart = always\n"
+    "[service-plain]\n"
+    "command = /bin/sleep 3600\n";
 
 constexpr int web_pid = 100;
 const char* const valid_key =
@@ -272,6 +274,7 @@ void test_routes_guarded(Client& owner) {
         "/api/reboot",            "/api/settings",           "/api/settings/check",   "/api/targets",
         "/api/targets/player",    "/api/targets/player/delete", "/api/targets/player/program",
         "/api/targets/player/install", "/api/targets/player/rollback", "/api/targets/player/check-update",
+        "/api/targets/plain/log",
         "/api/system/update",     "/api/operation",          "/api/network",          "/api/access",
         "/api/logout",            "/api/password",           "/api/upload/package",   "/api/upload/system"};
     const Method methods[] = {Method::get, Method::head, Method::post};
@@ -381,6 +384,23 @@ void test_settings(Client& owner) {
           "settings", "check reports a parse error");
 }
 
+// The target log tail (K17): the supervisor's ring through
+// target_log_tail; the fake system keeps output for "plain" only, with its
+// front cut (control_fakes.h).
+void test_target_log(Client& owner) {
+    check(send(owner, Method::get, "/api/targets/plain/log") == 200u && body_has("\"name\":\"plain\"") &&
+              body_has("\"present\":true") && body_has("\"front_cut\":true") && body_has("whole one") &&
+              !body_has("half a line"),
+          "target_log", "whole lines of the kept output, the cut front dropped");
+    check(send(owner, Method::get, "/api/targets/sleeper/log") == 200u && body_has("\"present\":false"), "target_log",
+          "no output kept: present false");
+    check(send(owner, Method::head, "/api/targets/plain/log") == 200u, "target_log", "HEAD answered as GET");
+    check(send(owner, Method::get, "/api/targets/absent/log") == 404u, "target_log", "unknown target is 404");
+    check(send(owner, Method::post, "/api/targets/plain/log") == 405u, "target_log", "POST is 405");
+    Client stranger = client_at(78);
+    check(send(stranger, Method::get, "/api/targets/plain/log") == 401u, "target_log", "needs a session");
+}
+
 void test_pages(Client& owner) {
     check(send(owner, Method::post, "/api/targets/player",
                "{\"settings\":{\"command\":\"/bin/sleep 3600\",\"restart\":\"always\"},\"enabled\":true}") == 200u,
@@ -486,6 +506,7 @@ int main() {
     test_post_checks(owner);
     test_services(owner);
     test_settings(owner);
+    test_target_log(owner);
     test_pages(owner);
     test_uploads(owner);
     test_password_and_logout(owner, second);
