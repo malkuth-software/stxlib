@@ -209,7 +209,7 @@ static_assert(page_blocks_limit <= pending_base, "an owned page's count cannot r
 
 struct alignas(64) PageMeta final {
     std::atomic<u64> state{0};
-    // The block size, and ceil(2^42 / block_bytes) (0 for a page of one
+    // The block size, and ceil(2^42 / block_bytes) (1 for a page of one
     // block, which starts the page).
     u64 block_bytes{0};
     u64 divide_magic{0};
@@ -316,9 +316,28 @@ struct PagePlace final {
 // offset < 2^22 and 16 <= block_bytes <= 2^19: with
 // magic = ceil(2^42 / block_bytes), offset * (magic - 2^42 / block_bytes)
 // < 2^22 <= 2^42 / block_bytes, and offset * magic < 2^61. A page of one
-// block has magic 0, so the index is 0 for every offset.
+// block has magic 1 and offsets below 2^25, so its index is 0 for every
+// offset.
 [[nodiscard]] constexpr u64 block_index(const u64 offset, const u64 divide_magic) noexcept {
     const u64 result = (offset * divide_magic) >> divide_shift;
+    return result;
+}
+
+// Whether a byte offset is a block's first byte, from the same product
+// `scaled` = offset * magic: the low 42 bits are below the magic exactly
+// when block_bytes divides the offset. Why, with magic * block_bytes =
+// 2^42 + r, 0 <= r < block_bytes, and offset = q * block_bytes + s:
+// scaled = q * 2^42 + q * r + s * magic. For s = 0 the low bits are q * r,
+// below 2^22 and so below the magic (at least 2^23). For s > 0 they are at
+// least the magic and cannot wrap past 2^42 back below it, because
+// q * r + s * magic < 2^42 + (q + 1) * r and (q + 1) * r is below the
+// magic. A page of one block (magic 1): the low bits are the offset, below
+// 1 only at 0. tests/stx_minmallocpp_tests.cpp checks it against the
+// remainder for every class and every offset of its page.
+inline constexpr u64 divide_mask = (static_cast<u64>(1) << divide_shift) - 1;
+
+[[nodiscard]] constexpr bool block_starts_at(const u64 scaled, const u64 divide_magic) noexcept {
+    const bool result = (scaled & divide_mask) < divide_magic;
     return result;
 }
 
