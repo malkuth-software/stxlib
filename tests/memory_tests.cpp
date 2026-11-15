@@ -42,9 +42,9 @@ void zero_sizes_are_unique() {
 }
 
 // Zero-size and tiny blocks at large alignments, and the last block of a
-// filled page: the release ownership check asks mimalloc about the header
-// only, so none of these is refused (smi's mimalloc audit, A1 and A2; a
-// refusal would end the process in a tagged build).
+// filled page: none of these is refused (a refusal would end the process
+// in a tagged build). Kept from the C mimalloc backend's edge cases (smi's
+// mimalloc audit, A1 and A2) as edge cases of every backend.
 void edge_blocks_release() {
     for (stxlib::usize shift = 15; shift <= 21; ++shift) {
         const stxlib::usize alignment = static_cast<stxlib::usize>(1) << shift;
@@ -76,9 +76,7 @@ void refusals() {
     // would otherwise report the huge request itself).
     CHECK(stxlib::memory::allocate(stxlib::usize_max - 2, 4096) == nullptr);
     stxlib::memory::release(nullptr);
-#if defined(STXLIB_EXPECT_MIMALLOC)
-    CHECK(stxlib::memory::backend() == stxlib::memory::Backend::mimalloc);
-#elif defined(STXLIB_EXPECT_STX_MINMALLOCPP)
+#if defined(STXLIB_EXPECT_STX_MINMALLOCPP)
     CHECK(stxlib::memory::backend() == stxlib::memory::Backend::stx_minmallocpp);
 #else
     CHECK(stxlib::memory::backend() == stxlib::memory::Backend::host);

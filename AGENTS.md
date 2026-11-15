@@ -51,10 +51,9 @@ library's whole purpose:
   that links STXlib statically shares one copy. Two exceptions are recorded
   (decisions 2026-11-15, notes `decisions/2026-11-15-roadmap-choices.md`,
   choices 11 and 12):
-  - the allocator backend (`src/state/allocator.cpp`) calls the host C
-    allocator (`malloc` and `free`, or the pinned mimalloc) from
-    `src/state/`, outside `src/hosted/`, because the allocator lives in the
-    state so that a block allocated in one module may be released in
+  - the host allocator backend (`src/state/allocator.cpp`) calls the host C
+    allocator (`malloc` and `free`) from `src/state/`, outside
+    `src/hosted/`, because the allocator lives in the state so that a block allocated in one module may be released in
     another. It is the only host interface called from `src/state/`. The thread-exit hook that releases each thread's records (`src/hosted/<family>/thread_exit_<family>.cpp`, layout 10) stays under `src/hosted/` but is compiled into `stxlib_state`, beside the state it releases;
   - a module may keep a documented write-once memo: a value derived from a
     state value that never changes once set, written at most once per
@@ -69,18 +68,6 @@ library's whole purpose:
 - Third-party code is pinned and hashed in `PROVENANCE.md`, updated only by
   replacing it with another pinned, hashed release, never edited in place.
   Every download is the owner's approval first: file, source and size.
-- One exception, mimalloc (the owner, 2026-11-15; notes
-  `decisions/2026-11-15-mimalloc-audit-answers.md`): STXlib keeps its own
-  patched copy. `third_party/mimalloc/` is the pinned release that
-  `PROVENANCE.md` names, with STXlib's patch series applied. Each patch is a
-  numbered diff in `third_party/mimalloc-patches/`, listed in its `series`.
-  Its header states the defect it fixes (audit ID) and whether it is to be
-  reported upstream; its hash and the hashes of the files it changes are in
-  `PROVENANCE.md`. `tools/check_mimalloc_patches.py` (ctest
-  `stxlib_mimalloc_patches`) reverse-applies the series and requires exactly
-  the pinned release. A change to mimalloc is a new, audited patch, never an
-  unrecorded edit. A port forward rebases the series onto the new release.
-  Sending anything upstream is the owner's approval first.
 - This repository depends on nothing outside itself except its declared,
   pinned dependencies. It may be built on its own.
 
@@ -113,7 +100,7 @@ Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.
 **Allocators must not unwind.**
 - The `stxlib_state` allocation path never throws, never `longjmp`s, and never calls code that can. That covers both backends, `memory::allocate` and the per-thread record allocation.
 - Exhaustion is a named `out_of_memory` (D8 = a), or fail-fast where the caller cannot take a result.
-- No new-handler is ever called. The mimalloc internals belong to smi.
+- No new-handler is ever called.
 - Functions on the allocation path carry `STXLIB_NO_UNWIND` and are `noexcept`.
 
 **Termination frees nothing twice (rule 1, as the owner reworded it).**

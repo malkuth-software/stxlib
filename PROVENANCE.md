@@ -597,13 +597,13 @@ are STXlib's own code, written new on the owner's order of 2026-11-15 to
 convert mimalloc to house-style C++. No source line of mimalloc is copied.
 What is taken is design, with its source named:
 - from mimalloc v3 (v3.6.1, <https://github.com/microsoft/mimalloc>, MIT,
-  Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen; vendored
-  under `third_party/mimalloc/`): thread heaps, pages of one block size,
-  the separation of the owner's frees from other threads' frees, the rule
-  that a full page is abandoned and claimed again by a later free, arenas
-  cut into 64 KiB slices, and an address map consulted without touching
-  the address. The seat's design note lists what is kept and what is
-  reformulated;
+  Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen; vendored under
+  `third_party/mimalloc/` until 2026-11-15, no longer): thread heaps, pages
+  of one block size, the separation of the owner's frees from other threads'
+  frees, the rule that a full page is abandoned and claimed again by a later
+  free, arenas cut into 64 KiB slices, and an address map consulted without
+  touching the address. The seat's design note lists what is kept and what
+  is reformulated;
 - the two-level segregated index of free slice runs is TLSF (Masmano,
   Ripoll, Crespo and Real, "TLSF: a new dynamic memory allocator for
   real-time systems", ECRTS 2004), implemented from the paper's
@@ -611,163 +611,22 @@ What is taken is design, with its source named:
 By the owner's decision of 2026-11-15 (notes
 `decisions/2026-11-15-stx-minmallocpp.md`) stx_minmallocpp carries
 mimalloc's MIT notice and credits its design origin:
-`src/state/stx_minmallocpp/NOTICE`, whose licence text is
-`third_party/mimalloc/LICENSE` unchanged.
+`src/state/stx_minmallocpp/NOTICE`, whose licence text is mimalloc
+v3.6.1's `LICENSE` unchanged (Git blob
+`53315ebee557ac22f3396ea1781df0440c26bb15`, SHA-256
+`82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9`, as
+pinned while it was vendored).
 
 ## Third party
 
-### mimalloc v3.6.1 (ported forward from v3.5.3, 2026-11-15)
+### mimalloc (removed, 2026-11-15)
 
-`third_party/mimalloc/` is mimalloc v3.6.1, <https://github.com/microsoft/mimalloc>,
-MIT (`third_party/mimalloc/LICENSE`, Copyright (c) 2018-2025 Microsoft
-Corporation, Daan Leijen; the same blob as v3.5.3's). Upstream source: tag
-`v3.6.1` (tag object `07d6126055867a3c6c8977eb0066be27c0671054`, tagged
-2026-10-30, unsigned) naming commit
-`56dc5eb80145f9a3ba7ca23d47c6a248b9d8586c` (unsigned), released 2026-10-30.
-The owner approved the download on 2026-11-15 (the mimalloc thread; notes
-`decisions/2026-11-15-mimalloc.md`). Downloaded on 2026-11-15 by the
-mimalloc seat (`smi`): the release's source archive
-`mimalloc-v3.6.1-source.tar.gz`, 1,579,209 bytes, SHA-256
-`7321fbe8e3d2bb447cba127603c44450db0d8ef35e8240bb4a56a7455eba0a68`, from
-<https://github.com/microsoft/mimalloc/releases/download/v3.6.1/mimalloc-v3.6.1-source.tar.gz>
-(kept in the seat's `smi/dev/download/`). All 447 files of the archive were
-compared with the Git tree of tag `v3.6.1` as GitHub's API lists it
-(`git/trees/v3.6.1?recursive=1`): each file's blob SHA-1, computed with
-`git hash-object --no-filters`, equals the tree's, and no file is missing
-or extra. Kept, as for v3.5.3: `LICENSE` and the `.c` and `.h` files under
-`include/` and `src/`, without the override headers
-(`include/mimalloc-new-delete.h`, `include/mimalloc-override.h`), the
-`readme.md` files and the ETW manifest and profile; 75 files, copied
-unmodified (STXlib's patches are applied on top: "STXlib's patch series"
-below). Compiled into `stxlib_state` as its one translation unit,
-`src/static.c`, with stx_auxlib's definitions (CMakeLists.txt), plus
-`MI_MINGW_UCRT64` on MinGW (batch 3b) and `MI_PROFILE=0` (CMakeLists.txt
-gives the reasons).
-
-Why v3.6.1 replaces v3.5.3 (the seat's comparison,
-`smi/dev/mimalloc-audit.md`): v3.5.3's C++ new-handler path had an
-unguarded `try`/`catch` (`src/alloc.c` 792-797) that does not compile under
-`-fno-exceptions`; v3.6.1 has no `try` or `catch` anywhere (upstream commit
-`f2207e345`, "revise no_throw to not call a new_handler"), and its one
-`throw` keeps the `_CPPUNWIND || __cpp_exceptions` guard
-(`src/alloc/alloc.c` 814-816). v3.6.0 and v3.6.1 also bring upstream's
-fixes for huge-allocation rollback, a heap-destroy segfault, the heap
-visitor, fork and the Windows bcrypt dependency, and always use the
-two-level page map.
-
-v3.5.3's provenance, for the record: copied unmodified from stx_auxlib at
-`b6e330a`, tag `v3.5.3` (tag object
-`deac3dcf5f0614884013d411a5c07e16bec96c9f`) naming commit
-`d4881d338125e1cb7c47ba4cfb398d6f7c0c8d45`, 44 files; its table is in this
-file's history before this change.
-
-| File (under `third_party/mimalloc/`) | Git blob SHA-1 | SHA-256 |
-|---|---|---|
-| `LICENSE` | `53315ebee557ac22f3396ea1781df0440c26bb15` | `82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9` |
-| `include/mimalloc-profile.h` | `eea3a946afb984cd42d646b1b7b637205b8f0f1c` | `a41f2cdfc265439ee8024a8c782d0f69a1988944f14cca9f0f5bac997d227dc2` |
-| `include/mimalloc-stats.h` | `85198984aed127e388a52e3e6eebf7b8607c639f` | `a00649c2be6a14a2a5890c92af0fac61b457bb4b59f4926c27472d65eb05734d` |
-| `include/mimalloc.h` | `fbd1c256adbf8da6aba268b52016ab6b5c8ab54a` | `cb0ea5563aad14b2e367f69bcd50220c08dc193b561763e66eb474bcc7f48c2b` |
-| `include/mimalloc/alloc/alloc.h` | `314c5150dc8b25c5e097cc8531ad31ed17518868` | `129002d3195dc10d05136d74fd6823db713c8ee5efa897648d3180627153adec` |
-| `include/mimalloc/alloc/free.h` | `2f06ea861ee658c387db69c2f95cce42f2e7afc6` | `01e5f545769f058a4a857bb58ed46ca99205b0c10614f26b5bd2e5a77a7fa8a2` |
-| `include/mimalloc/alloc/page.h` | `0c0dde4039b64fc0141467d265796ec5221e4dd4` | `a00e502f7b09c568a44838df982f479f444edca37082e959e1962c74838133e1` |
-| `include/mimalloc/arena/arena-alloc.h` | `710f29cc902a11f4264a9bed0064cdd3ca9f08b9` | `bd7f43bb037310142f2a941bf8a5668c50971e69d2ba0e41119786874500dd42` |
-| `include/mimalloc/arena/arena-page.h` | `40715566b4653c2fa4c68be0cdfa2d56d773eba3` | `8ef812d720d2dcd4cfd8282340e26de4671270a04066d1ab05675fe480c6b000` |
-| `include/mimalloc/arena/arena.h` | `18d486a2eb42d1bf352227b596dd5602d2b0e602` | `0079609653ba8ea5418677374e103862c1d3d06674e8bef53f2d23f02f4666da` |
-| `include/mimalloc/atomic.h` | `f3ed906988fa0bb4364903fd72a71f0fc7803d1d` | `0523fa50a0fae17840cb600f3e1159970f6972d3da0dd2f94f06249bd48226a1` |
-| `include/mimalloc/bits.h` | `68202ba3a6ea3097c80f1d948d33f0b7ad957afb` | `21ff4c1341cc51eef6ba1df8ac1221fc1a82bbac9274b7ce40602c1e4cfcc526` |
-| `include/mimalloc/decl.h` | `35fb70ab1e74b54efdbd43c1c5dbbb858f4398d5` | `bc50fc01eeb8755fd0f461b23cfd6b9020e4ed986060fddbc2cf079a371ee587` |
-| `include/mimalloc/heap/heap.h` | `db756b4ec47fa8821c7dd1b9d20562767fef0d94` | `d9b53bbaeae61d1ec79df8d390d05c31925434dfa80d9673819025f7998aeb93` |
-| `include/mimalloc/heap/page-map.h` | `d9a10723869beaefeff1cd9a07baac53c4ee2671` | `984b69b504f76a75cc90a49c1482b6ef638793d8f1354fcfa9a7ce701f4e7705` |
-| `include/mimalloc/heap/process.h` | `e15bdd00f2c738f9616aa653cd5db74c81ca7a0f` | `52f75f65ec9676394ea764d9fe71379c062d65f242f9b06d0918aa1a18d391a0` |
-| `include/mimalloc/heap/subproc.h` | `9f0b5a4a2f639b5a4aa04163419e273b55c724f1` | `fe9fca1bd8cc5019ce6b2eca82564bfb23c955b4b80329c9089641154beca204` |
-| `include/mimalloc/heap/theap.h` | `3ba7464db3b71b6c3982082c4bcc4cc395e4cf94` | `6ae793742306dfee5dc9c11710c123ec42d6ade86ab50d2230f82b32e594b4ba` |
-| `include/mimalloc/internal.h` | `a2834db40681e68ba7fc383bffbb69ec8a154c72` | `f28e02ff6d670cf0e21682ae15a07bbf7f4aead55ddae11ad8ea48cf16c0debf` |
-| `include/mimalloc/prim.h` | `f82c886ccbaea2e8cc2b6ca35078c34ecc10337a` | `14120dfaa214a2128a150470c0198709dd63f95299c9454f5bc5d5c16642231f` |
-| `include/mimalloc/prim/os.h` | `f9013b744459cefaa71c765b682c37bb21650460` | `8ede6bd63a210fcd1ce235f07ec71213d9a9e85a224f83be5b7ff7a0cec5b5d8` |
-| `include/mimalloc/prim/prim-tls.h` | `4c8dcd6d6f7ab0620437d0cc1a575e2c5ba36f9c` | `82d667c44e968a8e4776ec0a0a7fb34dbd847bda828a140f0ceed4fc3ee12cf5` |
-| `include/mimalloc/profile/pprof.h` | `c2c641401e7a10ede8dc0012f50fb1507019a6c7` | `e050f8fe3160713de82ae5072b2de9c42e6ad3a7c775a867dfb71e857ab38697` |
-| `include/mimalloc/profile/sample-guarded.h` | `4e8cd06272bfbfdda7b3489188975f768f2e52ee` | `ef60e444b37a5b768a35dd4d727b5465048e8c61c78b82fab8518ac664a0826d` |
-| `include/mimalloc/profile/sample-profile.h` | `645089d0ae5434c0c5d0c0a4c3e41ad806079a2d` | `737f1c96b4341e6f3f3b46fd828c916aedc65a8c44f59e02bfce48cb99c1b9b9` |
-| `include/mimalloc/qsbr.h` | `fcce0fb21bbd2444627ef1b90fa58db921f53b74` | `1892e3b3c30c674f9034d2ebefeda62a4833af743e96b3f2a9a66103335d69cf` |
-| `include/mimalloc/track.h` | `f2a24aacfe617cbc7eb8ecc7a5833a4e16dbb85c` | `ec65a353e9ac472f94c59f8c540dd93cb109f9b6c687019bcd6a4fc6a64716e6` |
-| `include/mimalloc/types.h` | `933e580f831e336600a59086c32b7322e83388ac` | `103f4d85fbe11a4f634ad690282f042925b6d239ffc1a01e6c03a93f98cf521f` |
-| `include/mimalloc/util/libc.h` | `a062d1100f900a68ede67937998d90ca5a5fcb7e` | `a3babaaa1adaab50c80580cc657acd0159ef9c19f225483b500fbc21f074d8c6` |
-| `include/mimalloc/util/options.h` | `99873f1ea17e2772352ea3c354379230acc58b67` | `3855f7769a3f62eafc4a6e49d4afb0916a7f28ab18cd1bd037bb3c1d4cc1517c` |
-| `include/mimalloc/util/random.h` | `e1720c129e25f76eca6bc472b175a457b863dc5c` | `8798a2ac34108fd3a6a8f47dd32142edf1612ae43ce5ef36882433f4fbf39325` |
-| `include/mimalloc/util/stats.h` | `b46979d9c74453e484112c183785b7391ae4f569` | `fe30e9b5576dd25882f7069715761ab52f2328eb8cda279c062b8443b0e1191a` |
-| `include/mimalloc/util/threadlocal.h` | `f0207cdb5e6e5c4282cc20d0858afa871296a362` | `00466baf02fb5c0e3a47a151d0da88e07b3b05cba02f6fa7761ae5b0fb24eb14` |
-| `src/alloc/alloc-aligned.c` | `2511a81752e001ae7ea964213dca4a2c6d8cba33` | `a1562cf78fe2c20540dca5cfa30dbcfdedd2b6cdd8212250c6e7b20a367f97b9` |
-| `src/alloc/alloc-generic.c` | `230dacf90931ac624948455b28e0edb3e9df30cd` | `d341f4bb96ff29cd184def8857aa9e2871886ed053ade8644a00ec4dfa3c7446` |
-| `src/alloc/alloc-override.c` | `a490c031cd08012fcf32594137dd8435333864c4` | `2611871128c92da4bc67249c81e790746342205989a42ae764e8c51e544b810f` |
-| `src/alloc/alloc-posix.c` | `0b43df8cb0ce643add87056fdaaaf47bfb083239` | `89d63cda8a7bc9e184f9a7ec0038c26bfa305508b2d000dd641613f663fc0276` |
-| `src/alloc/alloc.c` | `1be26dc8666793d974faf7a5927d3337759702cd` | `427f087fc1916ac4480e6d7fed29543190205f3e0e7fb2647329830a67465b6c` |
-| `src/alloc/free.c` | `77cfa7e21a7906b3cd6b1c2e620565144a704ed5` | `b12d05bfe71b144c56d3b8e88f094d1a6c87113dc052f4c40919466c4ed3c881` |
-| `src/alloc/page-queue.c` | `986a48e7e10af37dfb846844bb8b4a5bcde09d3a` | `0422962929c81072ae7e2c1e10f5d1f23dbbd97958650450c097806f484a07c9` |
-| `src/alloc/page-queue.h` | `906c8cd41632e4cdb910c224a778eec60dd92f1b` | `c05ab20a8e7f1148a2fe909da075aaf8897e799f41f08f7bc60557dab0bc3e75` |
-| `src/alloc/page.c` | `90809d278255292216b9ac43293fc1d657ef864f` | `ad39fc9ee6626f90aed4623e627a13fb604312c4bf6dfa8369a62083fe2c6764` |
-| `src/alloc/page.h` | `ae2af1760b0f06ad6cad08639d6a0620840a9c87` | `001b23551a0fd80b7f60e722a62a30af6db4739f67d64f3a076ea90a602128f0` |
-| `src/arena/arena-alloc.c` | `004eedcec03bc9004ed02fa976b9bc02f29133f6` | `6c01cd55604b43efbd42f0be6e73621c0b1b6240ed4cf979cae698d60c71d860` |
-| `src/arena/arena-page.c` | `c8d397c254b85f9746962d11d09483352c50b427` | `cac200e735cc7573f1a9cdb9a82ebf6082b4f84b4948945ff59d899187e1121e` |
-| `src/arena/arena.c` | `16234037fb5284ab3bcb35b52f50f231d2eeac43` | `b3c87c6152e79441727ef7d896d2239a569d5d7e68b30ee444644035132b15f0` |
-| `src/arena/arena.h` | `b9957db244a1f63c1bb2b4a5c824b9b026f06637` | `50fa09ad82969e1300d129e2abe4fffc89a2b592ecddf585cd5afb82a04f0430` |
-| `src/arena/bitmap-chunk.c` | `32122ff1ab8719725e2ff4eb77abc5c9db31233f` | `79aeef7bd19217115600a031e0b427d8d510e701168bd880e47b782f97945833` |
-| `src/arena/bitmap-chunk.h` | `c5b3c4b206696d85ffe4afb8b015e0a1cf52b47a` | `c6b479b2c2ca1aa668a93f891a96de1c2ec103b8e2195344960fada29a4a7774` |
-| `src/arena/bitmap.c` | `800d349b81df82291c1210ea20b2b545f7c2aca8` | `bf1540128d2b2760bd8fbe0e03519860ca6be2e3280e5c71501ab7914e583b43` |
-| `src/arena/bitmap.h` | `3fe0ede55a8b7320efb1676525b3ef281a58adc4` | `88e9a16f6b063022c27dd0e2f3962786b8e21cead9be6cf21e0eb6cb8eede68a` |
-| `src/heap/heap.c` | `5d1c59bb6a81a5dd1571b9e98fc839d101a9424c` | `2efdbb2752a173fc721937e912c4015d56979531acb7e5cf3dc4b2e7923f9e3c` |
-| `src/heap/page-map.c` | `a0692b9d2bce27a75b673a4962ba7044a1e8e9de` | `926de8908d0eaed37aac63a2eb112286f3663983c3ec9013ce743567cb000715` |
-| `src/heap/process.c` | `2658ebd89fc5217e72d6622371d446c1fe9565a6` | `a522b4c6d6f20875ca77682c9e56d154d6b6b0a76899e3c918589be3f5ec73ea` |
-| `src/heap/subproc.c` | `3b8edb59ea9a896de6fb5ec04b3592e32eb09ad2` | `4d07960070eacc2228bf67ac945ef6183dd2afc63b3bbbbc86fa31fb7ce85b0a` |
-| `src/heap/theap.c` | `d52e89438394aa92df2e21228c458d10c5e945ce` | `27125073a8b90f3885f05b96a3d7be831d3230d5e9833282aabb5a5c05e0689d` |
-| `src/prim/emscripten/prim.c` | `d3dda4c638f90fa143f6e5b8aa43de33a6706619` | `bf695234747299d53b0682c11bd9671eb9ddbb78c5a9c508909a9e0011bd47bf` |
-| `src/prim/os.c` | `fdb3f0732c03b639b722cbb46b50c86c692b7b50` | `e89d94492d09f6abc75ba7a0e86cd2ce9dd32579e8daef69876bc5cb0edd4b55` |
-| `src/prim/osx/alloc-override-zone.c` | `6602efa64024ba54db917d062648e7ae5edb95d7` | `7f38bfa132d6d3dddce2a4067a78e2e73d8e943e87279e1dba1e58ce2942013b` |
-| `src/prim/osx/prim.c` | `8a2f4e8aa473165a1e61188012a7ca5a8ca1aea5` | `247a9952465eb105be03a9962e922b085ce5d52034775551a61cd8594275be73` |
-| `src/prim/prim-tls.c` | `3cb1e17cb875838306e16a5235afb5cb794697e1` | `545e5cc7e44f13172c90f49bbe08991c9c1d551dd09b8985f698ad626b159c0d` |
-| `src/prim/prim.c` | `1fc1a3a036923fd4935cfc54e1332af181940ec6` | `02af571ed6f9954e21a3d246b349004a4ee77ac5aa09ef86b9156e435fc49d81` |
-| `src/prim/unix/prim.c` | `d55d87fb3853ec560afaeed226997da7be10fbbe` | `e54792f8a7fd6adb9ad461aa38e5f12ffc567e89fcaa7238464715edeffa36cf` |
-| `src/prim/wasi/prim.c` | `f46ae2d2bb77627714c999215d1d8b14a400b51b` | `f80e7cf341c7af9f48e0888fc23332080ab705f1d7a0c38ed6c8f7aee2db5395` |
-| `src/prim/windows/etw.h` | `4e0a092a10f4ba96facb51781296dc32c8ff2f84` | `4f3110ef2054c95cb275be96cb279224d3d46a728c5117bd1435425f382de778` |
-| `src/prim/windows/prim.c` | `2ff305ee6540a13624a4af5c10ffc7b97aaf3a93` | `25418509761abd536d0ae8c6a6b3107274d442a858d64538a54a400564af8eca` |
-| `src/profile/pprof.c` | `97f16874e1a6fccd33112de46e3bc087152c2a5c` | `ef2c4a0392e8f916a1221486281ac32097fd751d5ecee017e3368a0ecad920c5` |
-| `src/profile/sample-guarded.c` | `e59b54d794bc6d73a2f34e186f463515938c6613` | `72370a9b1d0e60a52af387850e3fef2756841ab5c47dfff80be8d9bd00679c7d` |
-| `src/profile/sample-profile.c` | `4291493f4bd0753276911f0b4d9f12a6239c4575` | `77044c5c8d26f93efb793e735689ef23b93cbcb90e13eff13eb8f3a3bf62fce9` |
-| `src/static.c` | `5d1bed62bcc714df17b512a5bcd52ff18d32ac48` | `044129b62c76a14255931db2962dd19d37154ac396388ca321b6e38468562074` |
-| `src/util/libc.c` | `5242ab18cbda177831026b7b51659826818df972` | `51250c13e69a077ebd1ecadb0ddb5331c3b12aa08ed017afcaeebd82de32aac1` |
-| `src/util/options.c` | `2db2487688ca296902885b99b16a490685b21d58` | `ce278a4bdc3da50295615fd4e09969b21f31ac8c9785810f2763a84086b2f0ce` |
-| `src/util/random.c` | `9e49a00d9dc7487ae77c815f4e4f1f40b2c1aff6` | `d434f4cb4898c925d888aca6f784c5968efa657906c8b4c652b3288b6cbfb09e` |
-| `src/util/stats.c` | `33d9a173b80d2c810681f9756428fb3f51e3950a` | `3ec4fdef7a154c1c0511b2f45a12b100e95807547f7cf3dc2a462187840e1070` |
-| `src/util/threadlocal.c` | `208fab4e4db45aaf55fff173da148aebfb7ad297` | `4975ca0f00c185b422eff35af31108f18f02f18d24f723c30ed0993322ddebe4` |
-
-#### STXlib's patch series
-
-STXlib keeps its own patched copy of mimalloc (the owner, 2026-11-15; notes
-`decisions/2026-11-15-mimalloc-audit-answers.md`; AGENTS.md). The table
-above is the pinned release, v3.6.1, file by file. The tree is that release
-with the patches of `third_party/mimalloc-patches/` applied in the order of
-its `series` (its `README.md` gives the form of a patch). The patch table
-gives each patch's SHA-256, the defect it fixes (audit ID) and its upstream
-status. The patched-file table gives the SHA-256, in the tree, of every file
-a patch changes; every other file still has the release table's hashes.
-`tools/check_mimalloc_patches.py` (ctest `stxlib_mimalloc_patches`) checks
-all of this, and that reverse-applying the series gives back the release
-exactly.
-
-| Patch (under `third_party/mimalloc-patches/`) | SHA-256 | Fixes | Upstream |
-|---|---|---|---|
-| `0001-freebsd-overcommit-bits.patch` | `743986078953941e6be00e9c4f20e6fda3caed990ff818bcf185104754cf7d4d` | B4 | to report |
-| `0002-unix-yield-no-cancellation-point.patch` | `d9fb7687cd92ff9614842a9ebda06771d20db62440b87997f96b7982dcc053d4` | E1 | to report |
-| `0003-page-map-full-span.patch` | `ad516574471c083fc81a9147ac44294f0a608f9c80c5388a6503369214aabdfc` | S1, A2 | to report (clamp); count is 221e58feb, unreleased |
-| `0004-no-implicit-reinit-after-thread-done.patch` | `f9c7c50cfcb079a9e9b3b32ee2d4d8f33571fa75c6899b4ea9909d533cc3e55c` | A4, C2 | backport of 66b6fd4c2, unreleased |
-
-| Patched file (under `third_party/mimalloc/`) | SHA-256 |
-|---|---|
-| `include/mimalloc/heap/process.h` | `05f5135d92f8a7ec9741b3dd968bc61b2c104627e4a64335002f4ecde7783d95` |
-| `src/alloc/alloc-generic.c` | `5b2954a8b7cde7e20835d6b941ff37ba5c426eead9a7f061255f6201180533cb` |
-| `src/heap/heap.c` | `ac54337200785292547c979ef55a541bb784926a3a33b980c66f7fbaa9d08f76` |
-| `src/heap/page-map.c` | `0bc401eda64d17cb94f589da3b95c76edeb5d10296f9d0745f1b95061783b7f8` |
-| `src/heap/process.c` | `0b1263336522094c68172bcb12613cacb33a10087c8ea9075478585ad81e23fb` |
-| `src/prim/unix/prim.c` | `fefa6af0b9209775dd5de6a39f26f89eafd079f5553f9f11a41ace949b32d33d` |
+`third_party/mimalloc/` (mimalloc v3.6.1, MIT, with STXlib's patch series in
+`third_party/mimalloc-patches/`) and its check, `tools/check_mimalloc_patches.py`,
+are removed: the owner dropped the C mimalloc on 2026-11-15 (notes
+`decisions/2026-11-15-gui-forms-priority.md`). Its pins, hashes and patch
+table are in this file's history before that change. stx_minmallocpp
+(above) keeps mimalloc's notice in its own `NOTICE`.
 
 ### threadpool_atomic_fast, the pool's C reference (batch 3c)
 

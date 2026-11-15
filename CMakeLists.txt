@@ -245,26 +245,23 @@ endif()
 #   house-style C++ (the owner, 2026-11-15; the default by the owner's
 #   decision of the same day, notes decisions/2026-11-15-stx-minmallocpp.md).
 #   proofs/REPORT.md says what of it is proved, tested and measured.
-# - mimalloc: the vendored release (third_party/mimalloc), kept as an
-#   option.
-# - host: the host's C library. Sanitizers track the host allocator only,
-#   so a build with sanitizers or the integer checks defaults to it (their
-#   reports then name STXlib's own blocks), and src/state/allocator.cpp
-#   refuses mimalloc under address, thread or memory sanitizers.
+# - host: the host's C library (src/state/allocator.cpp). Sanitizers track
+#   the host allocator only, so a build with sanitizers or the integer
+#   checks defaults to it (their reports then name STXlib's own blocks).
+# The C mimalloc that was a third backend is gone (the owner, 2026-11-15;
+# notes decisions/2026-11-15-gui-forms-priority.md).
 # Emscripten: the host backend over Emscripten's malloc (dlmalloc,
 # src/settings.js MALLOC at emscripten 6.0.13), the only one admitted there:
-# mimalloc's Emscripten layer takes its memory from emmalloc_memalign
-# (third_party/mimalloc/src/prim/emscripten/prim.c), a second allocator
-# under the first, and stx_minmallocpp has no Emscripten host layer.
+# stx_minmallocpp has no Emscripten host layer.
 if(stxlib_sanitized OR STXLIB_HOST_FAMILY STREQUAL "emscripten")
     set(stxlib_allocator_default host)
 else()
     set(stxlib_allocator_default stx_minmallocpp)
 endif()
-set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: mimalloc, host or stx_minmallocpp")
-set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host stx_minmallocpp)
-if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host|stx_minmallocpp)$")
-    message(FATAL_ERROR "STXLIB_ALLOCATOR must be mimalloc, host or stx_minmallocpp")
+set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: stx_minmallocpp or host")
+set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS stx_minmallocpp host)
+if(NOT STXLIB_ALLOCATOR MATCHES "^(host|stx_minmallocpp)$")
+    message(FATAL_ERROR "STXLIB_ALLOCATOR must be stx_minmallocpp or host")
 endif()
 if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND NOT STXLIB_ALLOCATOR STREQUAL "host")
     message(FATAL_ERROR "STXLIB_ALLOCATOR=${STXLIB_ALLOCATOR} is not admitted for Emscripten; use host")
@@ -330,118 +327,6 @@ set_target_properties(stxlib_state PROPERTIES
 if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp" AND NOT WIN32)
     # The thread-exit hook is a pthread key (minmallocpp_os_posix.cpp).
     target_link_libraries(stxlib_state PRIVATE Threads::Threads)
-endif()
-
-if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
-    # mimalloc v3.6.1 with STXlib's patch series (third_party/mimalloc, MIT;
-    # third_party/mimalloc-patches; PROVENANCE.md), compiled as its one
-    # translation unit (src/static.c) into stxlib_state, with the
-    # definitions stx_auxlib b6e330a used (CMakeLists.txt there). It replaces
-    # no C library function (MI_MALLOC_OVERRIDE stays undefined) and its
-    # symbols are hidden, so its heap holds STXlib's blocks only. Compiled as
-    # C++ (mimalloc's MI_USE_CXX): compiled as C it defines a weak fallback
-    # std::get_new_handler that, hidden, would bind in place of the C++
-    # library's (stx_auxlib's finding). Since v3.6 its C++ new-handler path
-    # has no try/catch and its one throw is guarded by __cpp_exceptions
-    # (src/alloc/alloc.c, mi_try_new_handler), so it also compiles under
-    # -fno-exceptions; STXlib never calls that path (mi_new and kin).
-    # MI_PROFILE=0: v3.6 builds its pprof profiler by default (MI_PROFILE=1,
-    # include/mimalloc/types.h), which starts at process init when the
-    # MIMALLOC_PROFILE environment variable names a file and then writes
-    # profiles there (src/profile/pprof.c, _mi_pprof_profiler_init). Its
-    # setuid check needs MI_HAS_UNISTDH, which only upstream's CMake defines,
-    # so here it would pass in a setuid process; on FreeBSD it calls
-    # kinfo_getvmmap, which needs -lutil. STXlib uses no profiler, so the
-    # whole of it is left out. Vendored code: its warnings are upstream's
-    # (-w), and the integer checks do not apply to it.
-    set_source_files_properties(third_party/mimalloc/src/static.c PROPERTIES LANGUAGE CXX)
-    add_library(stxlib_mimalloc OBJECT third_party/mimalloc/src/static.c)
-    set_target_properties(stxlib_mimalloc PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    target_include_directories(stxlib_mimalloc PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
-    target_compile_definitions(stxlib_mimalloc PRIVATE MI_STATIC_LIB MI_BUILD_RELEASE NDEBUG=1 MI_PROFILE=0)
-    # The owner's choices on the mimalloc audit (2026-11-15; notes
-    # decisions/2026-11-15-mimalloc-audit-answers.md; the audit's IDs):
-    # - MI_NO_GETENV (Q1): mimalloc reads no environment. Unset, it reads up
-    #   to 62 MIMALLOC_* variables at load, setuid processes included, before
-    #   STXlib runs; they can make every allocation fail, write to stderr,
-    #   commit memory up front or crash at exit (D1, D3, D5, C3, C4, E3, B9).
-    #   src/util/libc.c, _mi_getenv, then returns "not set" for every name.
-    # - The memory settings (Q4), each avoiding a v3.6.1 defect that upstream
-    #   fixed after the release: MI_DEFAULT_PAGEMAP_COMMIT=1 commits the page
-    #   map's top level up front, so concurrent commits cannot lower its
-    #   committed count and make mi_is_in_heap_region miss a live block (A3,
-    #   B5; upstream 3e4c338a6). MI_DEFAULT_ARENA_MAX_OBJECT_SIZE=32768 (KiB)
-    #   sends blocks over 32 MiB straight to the OS, so a block of about
-    #   224-255 MiB no longer reserves an arena it cannot use and no arena
-    #   keeps an unusable multi-chunk tail (B2, B6; dfb9e5060, 202e2785c).
-    #   MI_NO_ALIGNED_HINT leaves arena placement to the kernel, so a first
-    #   allocation on a worker thread cannot leave later arenas at fixed low
-    #   addresses (B3; 24a5896da). On FreeBSD, MI_DEFAULT_ARENA_EAGER_COMMIT=0,
-    #   below: v3.6.1 reads vm.overcommit inverted (B4, unfixed upstream;
-    #   patch 0001 corrects the reading) and would commit whole arenas up
-    #   front under strict accounting. The
-    #   purge delay of 0 (B1) is an option set at start-up, not a definition.
-    target_compile_definitions(stxlib_mimalloc PRIVATE
-        MI_NO_GETENV
-        MI_DEFAULT_PAGEMAP_COMMIT=1
-        MI_DEFAULT_ARENA_MAX_OBJECT_SIZE=32768
-        MI_NO_ALIGNED_HINT)
-    if(CMAKE_SYSTEM_NAME STREQUAL "FreeBSD")
-        target_compile_definitions(stxlib_mimalloc PRIVATE MI_DEFAULT_ARENA_EAGER_COMMIT=0)
-    endif()
-    # -fno-exceptions: mimalloc throws only from its operator new path
-    # (mi_new and its kind, src/alloc/alloc.c, mi_try_new_handler), which STXlib
-    # never calls (src/state/allocator.cpp calls mi_malloc_aligned, mi_free
-    # and mi_is_in_heap_region); built without exceptions that path aborts
-    # instead, and the object refers to no exception runtime
-    # (stxlib_no_exception_symbols).
-    # -ftls-model=local-dynamic (the owner, Q2): with initial-exec the loader
-    # must place this module's whole TLS block in static TLS, so a dlopen of
-    # stxlib_state fails on musl always and on glibc and FreeBSD once their
-    # small reserve is used (audit C1), and sb3's thread-records design loads
-    # stxlib_state through dlopen too. Where the final link is an executable
-    # the linker relaxes the accesses to local-exec again.
-    target_compile_options(stxlib_mimalloc PRIVATE
-        -w -fvisibility=hidden -ftls-model=local-dynamic -fno-sanitize=all -fno-exceptions)
-    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-        target_compile_options(stxlib_mimalloc PRIVATE -mno-outline)
-    endif()
-    # On MinGW, mimalloc's Windows layer (src/prim/windows/prim.c, its default
-    # MI_WIN_INIT_USE_CRT_TLS) always registers its loader TLS callbacks, and
-    # unless MI_MINGW_UCRT64 is defined src/prim/prim.c also registers a
-    # constructor. Both call _mi_auto_process_init, and the second call's
-    # mi_add_stderr_output flushed the newline that the first left in
-    # mimalloc's delayed-output buffer (options.c, mi_out_buf_flush): one
-    # extra 0a at the start of every program's error stream (CI 43441112933).
-    # With MI_MINGW_UCRT64 the TLS and C runtime hooks are the only ones.
-    # Those hooks need the Universal C Runtime (MSYS2's CLANG64 and UCRT64);
-    # older MinGW C runtimes take the host backend.
-    if(MINGW)
-        check_cxx_source_compiles("#include <stdio.h>
-#ifndef _UCRT
-#error not the Universal C Runtime
-#endif
-int main() { return 0; }" stxlib_mingw_ucrt)
-        if(NOT stxlib_mingw_ucrt)
-            message(FATAL_ERROR "mimalloc on MinGW needs the Universal C Runtime; configure with -DSTXLIB_ALLOCATOR=host")
-        endif()
-        target_compile_definitions(stxlib_mimalloc PRIVATE MI_MINGW_UCRT64)
-    endif()
-    # On musl, MI_LIBC_MUSL=1 as upstream's CMake defines it, so mimalloc's
-    # thread id takes the path upstream tests on musl instead of
-    # __builtin_thread_pointer (include/mimalloc/prim-tls.h, the one use of
-    # the macro; smi's mimalloc audit, C11). Kept in its own block, apart from
-    # the definitions above, so it merges beside smi's settings
-    # (claude/mimalloc-settings).
-    if(STXLIB_HOST_FAMILY STREQUAL "musl")
-        target_compile_definitions(stxlib_mimalloc PRIVATE MI_LIBC_MUSL=1)
-    endif()
-    target_sources(stxlib_state PRIVATE $<TARGET_OBJECTS:stxlib_mimalloc>)
-    target_include_directories(stxlib_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
-    target_compile_definitions(stxlib_state PRIVATE STXLIB_ALLOCATOR_MIMALLOC)
-    if(WIN32)
-        target_link_libraries(stxlib_state PRIVATE psapi shell32 user32 advapi32 bcrypt)
-    endif()
 endif()
 
 # ---- stxlib::boundary -------------------------------------------------------
@@ -902,9 +787,7 @@ if(STXLIB_TESTS)
             COMMAND stxlib_process_tests "plain" "two words" "" "quote\"inside" "trailing\\" "café")
     endif()
 
-    if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
-        target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
-    elseif(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
+    if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_STX_MINMALLOCPP)
     endif()
 
@@ -1444,12 +1327,6 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
-        # STXlib's patched mimalloc (AGENTS.md): the tree is the pinned
-        # release with the series of third_party/mimalloc-patches applied,
-        # every hash as PROVENANCE.md records it.
-        add_test(NAME stxlib_mimalloc_patches
-            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_mimalloc_patches.py
-                    ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
         # Under Emscripten the program runs under the emulator, named before it.
@@ -1484,7 +1361,7 @@ if(STXLIB_TESTS)
         # the Ninja and Makefile generators lay them out.
         if(CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
             set(stxlib_exception_free_objects)
-            foreach(library IN ITEMS stxlib_state stxlib_mimalloc stxlib_boundary stxlib_algorithms stxlib_math_avx2_fma)
+            foreach(library IN ITEMS stxlib_state stxlib_boundary stxlib_algorithms stxlib_math_avx2_fma)
                 if(TARGET ${library})
                     list(APPEND stxlib_exception_free_objects
                         --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${library}.dir)
@@ -1567,7 +1444,7 @@ stxlib_check_float_flags()
 # can see them. stxlib_no_exception_symbols checks the objects themselves.
 function(stxlib_check_exception_flags)
     set(libraries stxlib_state stxlib_boundary stxlib_algorithms)
-    foreach(optional IN ITEMS stxlib_mimalloc stxlib_math_avx2_fma)
+    foreach(optional IN ITEMS stxlib_math_avx2_fma)
         if(TARGET ${optional})
             list(APPEND libraries ${optional})
         endif()

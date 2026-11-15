@@ -31,17 +31,12 @@ ReleaseOutcome release_block(void* const block) noexcept {
     return result;
 }
 
-// stx_minmallocpp has no heap-corruption report (state.hpp, AllocatorCalls):
-// it refuses a foreign release without reading the address, so this stays 0.
-constinit const std::atomic<u32> no_heap_failure{0};
-
 constinit const AllocatorCalls calls{
     // The same signature: the allocator's own function, with no step between.
     .allocate = stx_minmallocpp::allocate,
     .release = release_block,
     .backend = backend_value,
     .tags_checked = true,
-    .heap_failure = &no_heap_failure,
 };
 
 } // namespace

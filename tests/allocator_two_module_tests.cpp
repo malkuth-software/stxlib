@@ -32,7 +32,7 @@ void same_allocator() {
 
 void raw_blocks() {
     // Made in the library, released here; then the reverse. Sizes cross
-    // mimalloc's small, medium and large classes.
+    // stx_minmallocpp's classes (up to 512 KiB) and its singletons (3 MB).
     const usize sizes[] = {0, 1, 64, 1000, 70000, 3000000};
     for (const usize size : sizes) {
         void* const theirs = stxlib_allocator_two_module::library_allocate(size, 0xa5);
