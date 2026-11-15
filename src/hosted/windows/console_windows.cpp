@@ -46,6 +46,10 @@ void write_standard_error(const char* const bytes, const usize count) noexcept {
 
 void hold_cancellation() noexcept {} // Windows has no thread cancellation
 
+int cancellation_off() noexcept { return 0; } // Windows has no thread cancellation
+
+void restore_cancellation(const int previous) noexcept { static_cast<void>(previous); }
+
 void yield_thread() noexcept { static_cast<void>(SwitchToThread()); }
 
 void sleep_briefly() noexcept { Sleep(1); }

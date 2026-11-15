@@ -37,6 +37,17 @@ void hold_cancellation() noexcept {
     static_cast<void>(::pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &previous));
 }
 
+int cancellation_off() noexcept {
+    int previous = PTHREAD_CANCEL_ENABLE;
+    static_cast<void>(::pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &previous));
+    return previous;
+}
+
+void restore_cancellation(const int previous) noexcept {
+    int ignored = 0;
+    static_cast<void>(::pthread_setcancelstate(previous, &ignored));
+}
+
 void yield_thread() noexcept { static_cast<void>(::sched_yield()); }
 
 void sleep_briefly() noexcept {

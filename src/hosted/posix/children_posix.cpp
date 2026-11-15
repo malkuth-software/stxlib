@@ -18,6 +18,8 @@
 
 #include "stxlib/children.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
 #include "core/spin_lock.hpp"
@@ -91,6 +93,7 @@ pid_t process_id(const i64 process) noexcept {
 // Reaps every abandoned child that has ended, without blocking.
 void reap_abandoned() noexcept {
     state::ProcessState& process = state::current_process();
+    const detail::CancellationHold no_cancel; // waitpid is a cancellation point (audit E, 4.2)
     const spin::Guard lock(process.children_lock);
     usize kept = 0;
     for (usize index = 0; index < process.abandoned_child_count; ++index) {
@@ -334,6 +337,8 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     int error = 0;
     {
         state::ProcessState& process = state::current_process();
+        // POSIX lets posix_spawn be a cancellation point (audit E, 4.2).
+        const detail::CancellationHold no_cancel;
         const spin::Guard lock(process.environment_lock);
         char* const* const environment = environment_block();
         if (contains_slash(request.program)) {

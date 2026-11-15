@@ -40,6 +40,22 @@
 // Modules: a Thread's shared state is a block of STXlib's allocator, which
 // every module shares (memory.hpp), so a Thread may be started in one of
 // STXlib's modules and joined or destroyed in another.
+//
+// POSIX thread cancellation (owner decision 2026-11-15, notes
+// decisions/2026-11-15-audit-e-decisions.md, 2): STXlib acts on a
+// cancellation only outside its locked sections. Inside them (the console,
+// spawning and reaping children, a thread pool's run, its begin-to-wait
+// window, its workers and its destruction, and a trampoline invocation in a
+// unit built without exceptions) cancellation is held off, and a
+// cancellation requested meanwhile takes effect at the thread's next
+// cancellation point after the section. The waits and joins on this page
+// stay cancellation points, as POSIX makes them, when the caller holds no
+// STXlib lock of its own making: a wait cancelled with the caller's Mutex
+// held re-takes it, and the caller's ScopedLock releases it as the stack
+// unwinds in a unit built with exceptions (in a check build the lock
+// checks then report the release as a defect and fail fast). A gate that
+// a cancellation unwinds into fails fast (gate.hpp). Windows has no thread
+// cancellation.
 
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/clocks.hpp"

@@ -8,6 +8,8 @@
 
 #include "stxlib/threads.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "hosted/host.hpp"
 #include "hosted/thread_backend.hpp"
 #include "state/state.hpp"
@@ -243,6 +245,18 @@ WaitResult ConditionVariable::wait_for(ScopedLock& lock, const WaitPredicate pre
 void ConditionVariable::notify_one() noexcept { thread_backend::condition_notify_one(storage_); }
 
 void ConditionVariable::notify_all() noexcept { thread_backend::condition_notify_all(storage_); }
+
+// stxlib/detail/cancellation.hpp: the boundary's entry to the host's switch.
+namespace detail {
+
+int cancellation_off() noexcept {
+    const int result = host::cancellation_off();
+    return result;
+}
+
+void restore_cancellation(const int previous) noexcept { host::restore_cancellation(previous); }
+
+} // namespace detail
 
 // The first caller to take the mutex runs `entry`; later callers wait on the
 // mutex and then see done_. (call_once's inline acquire load lets finished

@@ -27,6 +27,8 @@
 // begin must call wait. Tasks stay borrowed until run or wait returns. A
 // task must not call into its own pool: run, begin and wait called on one
 // of the pool's workers are refused (PoolFailure::called_from_worker).
+// POSIX thread cancellation is held off during run, from begin until wait
+// returns, and on the workers (threads.hpp, "POSIX thread cancellation").
 //
 // Reductions (STXlib's floating-point discipline, F5 = 1, 2026-11-13): a
 // reduction STXlib spreads over a pool partitions its terms into fixed

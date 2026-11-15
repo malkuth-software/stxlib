@@ -40,6 +40,7 @@
 // handle and waits for running invocations; it must not be destroyed from
 // inside one of its own invocations.
 
+#include "stxlib/detail/cancellation.hpp"
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/gate.hpp"
@@ -198,6 +199,12 @@ public:
         Result<TrampolineEntry> entered = table_.enter(handle);
         if (entered.failed()) return Return::failure(*entered.error());
         const TrampolineEntry entry = *entered.value();
+#if !defined(__cpp_exceptions)
+        // Without exceptions the visit guard does not run on a forced
+        // unwind, which would leave the visit open and revocation waiting
+        // for ever: cancellation stays off for the visit (audit E, 3).
+        const detail::CancellationHold no_cancel;
+#endif
         const TrampolineVisit visit(table_, entry);
         Target& target = *static_cast<Target*>(entry.target);
         Return result = call_gate(operation_, target, arguments...);

@@ -14,6 +14,8 @@
 
 #include "stxlib/thread_pool.hpp"
 
+#include "stxlib/detail/cancellation.hpp"
+
 #include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
@@ -56,6 +58,9 @@ struct AtomicPool::State final {
     // run_lock in begin and before releasing it in wait; read by any thread,
     // which finds its own identity there only if it holds the batch.
     std::atomic<u64> batch_owner{0};
+    // The batch owner's cancellation state before begin, restored by wait
+    // (cancellation stays off while run_lock is held; audit E, 4.4).
+    int batch_cancellation{0};
 };
 
 namespace {
@@ -102,6 +107,9 @@ ErrorRecord refusal(const PoolFailure failure, const Operation operation) noexce
 
 void run_worker(const StopSignal& stop, void* const address) noexcept {
     static_cast<void>(stop); // the pool stops its workers through `terminate`
+    // A worker is STXlib's thread and waits under sleep_lock: it never acts
+    // on a cancellation (audit E, 4.4).
+    const detail::CancellationHold no_cancel;
     AtomicPool::State& pool = *static_cast<AtomicPool::State*>(address);
     for (;;) {
         {
@@ -190,6 +198,7 @@ void destroy_state(AtomicPool::State* const state) noexcept {
         fail_fast(record);
     }
     {
+        const detail::CancellationHold no_cancel; // the joins are cancellation points (audit E, 4.4)
         const ScopedLock run(owned.run_lock);
         stop_workers(owned);
     }
@@ -267,6 +276,10 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
 
+    // Cancellation stays off while run_lock is held: the batch wait is a
+    // cancellation point, and caller-run tasks run under the lock (audit E,
+    // section 3 and 4.4).
+    const detail::CancellationHold no_cancel;
     const ScopedLock run_hold(pool.run_lock);
     // Small batches, and every batch of a one-thread pool, run on the caller
     // in index order; waking workers would cost more than the batch.
@@ -293,8 +306,11 @@ Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
 
-    // Held until wait, which releases it.
+    // Held until wait, which releases it; cancellation stays off until then
+    // (audit E, 4.4).
+    const int cancellation = detail::cancellation_off();
     pool.run_lock.lock();
+    pool.batch_cancellation = cancellation;
     {
         const ScopedLock sleep(pool.sleep_lock);
         publish_batch(pool, tasks.data(), count);
@@ -310,6 +326,7 @@ Status AtomicPool::wait() noexcept {
     if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
     State& pool = *state_;
     {
+        const detail::CancellationHold no_cancel;
         ScopedLock sleep(pool.sleep_lock);
         pool.done_cv.wait(sleep, batch_finished, &pool);
         pool.tasks = nullptr;
@@ -320,7 +337,9 @@ Status AtomicPool::wait() noexcept {
     if (pool.batch_open) {
         pool.batch_open = false;
         pool.batch_owner.store(0, std::memory_order_relaxed);
+        const int cancellation = pool.batch_cancellation;
         pool.run_lock.unlock();
+        detail::restore_cancellation(cancellation);
     }
     return Status::success();
 }

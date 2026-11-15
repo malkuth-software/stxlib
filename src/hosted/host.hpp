@@ -38,6 +38,12 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void write_standard_error(con
 // (audit E, section 4.9).
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void hold_cancellation() noexcept;
 
+// Turns POSIX thread cancellation off for the calling thread and returns
+// the previous state; restore_cancellation puts it back. Windows: nothing,
+// and 0 (include/stxlib/detail/cancellation.hpp).
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT int cancellation_off() noexcept;
+STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void restore_cancellation(int previous) noexcept;
+
 // Offers the processor to another thread (a spin-wait's pause).
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void yield_thread() noexcept;
 

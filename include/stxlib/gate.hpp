@@ -3,6 +3,11 @@
 // Gates: the only places STXlib-based code catches exceptions (A1 design,
 // notes planning/stages/A1-shadowing.md).
 //
+// Cancellation (owner decision 2026-11-15, audit E, 1): on glibc with
+// libstdc++, a thread cancellation or pthread_exit unwinds as the foreign
+// exception abi::__forced_unwind. A gate that catches it fails fast with an
+// interrupted record naming cancellation; it is never turned into a result.
+//
 // call_gate(operation, target, arguments...)
 //   For a boundary that recovers (a C ABI slot, a trampoline entry, an
 //   interface module's call into the host's C++ library). Calls
