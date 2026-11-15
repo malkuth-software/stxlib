@@ -182,8 +182,11 @@ target_include_directories(stxlib_state
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_compile_features(stxlib_state PUBLIC cxx_std_20)
+# STXLIB_SHADOW as the boundary has it: the thread state's layout depends on
+# the build type (state.hpp, layout 9), and the layout key refuses a mix.
 target_compile_definitions(stxlib_state PRIVATE
     STXLIB_STATE_BUILDING
+    $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>
     $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
 target_compile_options(stxlib_state PRIVATE ${stxlib_warnings} -fno-exceptions)
 set_target_properties(stxlib_state PROPERTIES
@@ -447,6 +450,9 @@ set_target_properties(stxlib_algorithms PROPERTIES
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON)
 target_link_libraries(stxlib_algorithms PUBLIC stxlib_boundary)
+# simd.cpp reaches stxlib_state, whose layout key carries the build type
+# (state.hpp, layout 9), so this target has STXLIB_SHADOW as the boundary does.
+target_compile_definitions(stxlib_algorithms PRIVATE $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>)
 target_compile_options(stxlib_algorithms PRIVATE ${stxlib_math_options})
 if(STXLIB_MATH_DISPATCH)
     target_compile_definitions(stxlib_algorithms PRIVATE STXLIB_MATH_VARIANT=v128 STXLIB_MATH_DISPATCH_X86=1)

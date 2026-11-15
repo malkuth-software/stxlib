@@ -15,13 +15,13 @@ constinit ProcessState process_state_instance{};
 } // namespace
 
 ThreadState* thread_state(const u32 expected_layout) noexcept {
-    if (expected_layout != layout_version) return nullptr;
+    if (expected_layout != layout_key) return nullptr;
     ThreadState* const result = &thread_state_instance;
     return result;
 }
 
 ProcessState* process_state(const u32 expected_layout) noexcept {
-    if (expected_layout != layout_version) return nullptr;
+    if (expected_layout != layout_key) return nullptr;
     ProcessState* const result = &process_state_instance;
     return result;
 }

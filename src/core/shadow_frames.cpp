@@ -31,7 +31,7 @@ namespace shadow_capture {
 ShadowReference capture(state::ThreadState& thread, const CapturePoint point) noexcept {
     if (thread.last_shadow_sequence == u64_max) return ShadowReference{};
     thread.last_shadow_sequence = thread.last_shadow_sequence + 1;
-    const usize slot = thread.shadow_count == 0 ? 0 : (thread.shadow_newest + 1) % shadow_record_capacity;
+    const usize slot = thread.shadow_count == 0 ? 0 : (thread.shadow_newest + 1) % state::shadow_records_kept;
     state::ShadowRecordData& record = thread.shadows[slot];
     record.sequence = thread.last_shadow_sequence;
     record.point = point;
@@ -46,7 +46,7 @@ ShadowReference capture(state::ThreadState& thread, const CapturePoint point) no
     record.trace_count = 0; // a release build takes no trace (S5 = 1)
 #endif
     thread.shadow_newest = slot;
-    if (thread.shadow_count < shadow_record_capacity) thread.shadow_count = thread.shadow_count + 1;
+    if (thread.shadow_count < state::shadow_records_kept) thread.shadow_count = thread.shadow_count + 1;
     thread.pending_shadow = record.sequence;
     thread.pending_pushes = thread.pushes;
     const ShadowReference result{record.sequence};
@@ -194,8 +194,12 @@ Result<ShadowSummary> read_shadow(const ShadowReference reference, const Mutable
     const state::ShadowRecordData& record = *found;
     const usize frame_copies = record.frame_count < frames.count() ? record.frame_count : frames.count();
     for (usize index = 0; index < frame_copies; ++index) frames[index] = record.frames[index];
+#if defined(STXLIB_SHADOW)
     const usize trace_copies = record.trace_count < trace.count() ? record.trace_count : trace.count();
     for (usize index = 0; index < trace_copies; ++index) trace[index] = record.trace[index];
+#else
+    static_cast<void>(trace); // a release record has no trace (layout 9)
+#endif
     const ShadowSummary summary{record.point, record.frame_count, record.frames_lost, record.trace_count};
     return Result<ShadowSummary>::success(summary);
 }

@@ -54,7 +54,7 @@ constexpr EventSignal event_signals[state::watched_signal_count] = {
 // file) and a lock-free fetch_or; a layout mismatch, which the module would
 // have reported at its first access, records nothing.
 void record_event(const int signal_number) {
-    state::ProcessState* const process = state::process_state(state::layout_version);
+    state::ProcessState* const process = state::process_state(state::layout_key);
     if (process == nullptr) return;
     for (const EventSignal& mapping : event_signals) {
         if (mapping.signal_number == signal_number) {

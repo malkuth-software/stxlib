@@ -19,7 +19,12 @@
 // Layout 8 (the A2 swap-in) stores frames as ShadowFrameRecords (kind,
 // numbers, sequence and copied texts, 120 bytes) in the stack and the
 // shadow records, counts dropped frames, and marks a thread running the
-// fail-fast reporter.
+// fail-fast reporter. Layout 9 (decision 2026-11-15, notes
+// decisions/2026-11-15-hand-in-questions.md, "S3"; audit A, S3) sizes the
+// shadow records by build type: a development build (STXLIB_SHADOW) keeps
+// 4, each with its native trace; a release build keeps 1, frames only, with
+// no trace array. Release and development modules do not mix: the build
+// type is part of the layout key the accessors check (layout_key, below).
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -31,8 +36,10 @@
 //
 // The structures are plain data with layouts this header defines. Every
 // module is built from the same STXlib commit (one pin, decision M3), and
-// the accessors check `layout_version` so a module built from a different
-// layout fails at its first access instead of reading misplaced fields.
+// the accessors check `layout_key` (the layout version and the build type)
+// so a module built from a different layout, or a development module with
+// a release stxlib_state or the reverse, fails at its first access instead
+// of reading misplaced fields.
 //
 // Lifetime: the thread state is a thread_local of stxlib_state, trivially
 // destructible and constant-initialised, so it needs no thread-exit
@@ -65,7 +72,21 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 8;
+inline constexpr u32 layout_version = 9;
+
+// The build type's part of the layout: development builds (STXLIB_SHADOW)
+// lay ThreadState out differently from release builds, so the key the
+// accessors compare carries it in its top bit. stxlib_state is compiled with
+// the same STXLIB_SHADOW setting as the boundary (CMakeLists.txt).
+#if defined(STXLIB_SHADOW)
+inline constexpr u32 layout_build_type = static_cast<u32>(1) << 31;
+// Shadow records each thread keeps, and whether each carries a native trace.
+inline constexpr usize shadow_records_kept = shadow_record_capacity;
+#else
+inline constexpr u32 layout_build_type = 0;
+inline constexpr usize shadow_records_kept = 1;
+#endif
+inline constexpr u32 layout_key = layout_version | layout_build_type;
 
 // ProcessState::simd_selection before any request or selection.
 inline constexpr i32 simd_unset = -1;
@@ -76,9 +97,11 @@ struct ShadowRecordData final {
     CapturePoint point{CapturePoint::gate};
     usize frame_count{0};
     usize frames_lost{0};
-    usize trace_count{0};
+    usize trace_count{0}; // 0 in a release build
     ShadowFrameRecord frames[shadow_frame_capacity];
+#if defined(STXLIB_SHADOW)
     uptr trace[shadow_trace_capacity]{};
+#endif
 };
 
 // A kept error record. A union, so the array needs no ErrorRecord default
@@ -100,7 +123,7 @@ struct OpenInvocation final {
 };
 
 struct ThreadState final {
-    u32 layout{layout_version};
+    u32 layout{layout_key};
 
     // Error record sequence numbers (error.cpp).
     u64 last_record_sequence{0};
@@ -120,12 +143,13 @@ struct ThreadState final {
     u64 pending_shadow{0};
     u64 pending_pushes{0};
 
-    // Shadow records, a ring of shadow_record_capacity, newest at
-    // `shadow_newest`; `last_shadow_sequence` issues their numbers.
+    // Shadow records, a ring of shadow_records_kept (4 in a development
+    // build, 1 in a release build), newest at `shadow_newest`;
+    // `last_shadow_sequence` issues their numbers.
     u64 last_shadow_sequence{0};
     usize shadow_count{0};
     usize shadow_newest{0};
-    ShadowRecordData shadows[shadow_record_capacity];
+    ShadowRecordData shadows[shadow_records_kept];
 
     // Recent gate records (exception_shadow.cpp), a ring.
     usize recent_count{0};
@@ -147,20 +171,28 @@ struct ThreadState final {
     u64 thread_identity{0};
 };
 
-// The per-thread budget (house style §1, "account for peak storage"; audit
-// A, S3). ThreadState is a thread_local of stxlib_state, a shared library
-// loaded at start, so on every host it is static TLS: each thread of the
-// process carries it, foreign threads included. By field arithmetic on a
-// 64-bit host it is about 43,000 bytes:
-//   frames            64 x 120                          =  7,680
-//   shadows            4 x (40 + 64 x 120 + 32 x 8)     = 31,904
-//   recent             8 x ErrorRecord (about 340)      =  2,720
-//   open              32 x 16                           =    512
-//   counters and flags                                  about 100
-// The shadow records dominate. The budget leaves about 5 KiB of margin for
-// padding and for growth of ErrorRecord; a layout that needs more raises
-// the budget here, with its reason, in the same change.
+// The per-thread budget, per build type (house style §1, "account for peak
+// storage"; audit A, S3). ThreadState is a thread_local of stxlib_state, a
+// shared library loaded at start, so on every host it is static TLS: each
+// thread of the process carries it, foreign threads included. By field
+// arithmetic on a 64-bit host:
+//                         development                  release
+//   frames            64 x 120          =  7,680       7,680
+//   shadows            4 x (40 + 64 x 120 + 32 x 8)    1 x (40 + 64 x 120)
+//                                       = 31,904       7,720
+//   recent             8 x ErrorRecord (about 340)
+//                                       =  2,720       2,720
+//   open              32 x 16           =    512         512
+//   counters and flags                    about 100   about 100
+//   total                                about 42,900 about 18,700
+// Each budget leaves about 5 KiB of margin for padding and for growth of
+// ErrorRecord; a layout that needs more raises the budget here, with its
+// reason, in the same change.
+#if defined(STXLIB_SHADOW)
 inline constexpr usize thread_state_budget = 48 * 1024;
+#else
+inline constexpr usize thread_state_budget = 24 * 1024;
+#endif
 static_assert(sizeof(ThreadState) <= thread_state_budget,
               "ThreadState exceeds its stated per-thread budget; see the arithmetic above");
 
@@ -190,7 +222,7 @@ enum class ReporterPhase : int {
 };
 
 struct ProcessState final {
-    u32 layout{layout_version};
+    u32 layout{layout_key};
     // Publishes `reporter`: written while installing, read after an acquire
     // load of installed (fail_fast.cpp).
     std::atomic<int> reporter_phase{static_cast<int>(ReporterPhase::none)};
@@ -276,27 +308,31 @@ struct AllocatorCalls final {
 };
 
 // The calling thread's state, the process's and the allocator, from
-// stxlib_state. `expected_layout` is the caller's layout_version; on a
-// mismatch they return null, and the caller's copy of STXlib reports it.
+// stxlib_state. `expected_layout` is the caller's layout_key; on a
+// mismatch (another layout version, or the other build type) they return
+// null, and the caller's copy of STXlib reports it.
 STXLIB_STATE_API ThreadState* thread_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API ProcessState* process_state(u32 expected_layout) noexcept;
 STXLIB_STATE_API const AllocatorCalls* allocator(u32 expected_layout) noexcept;
 
 inline ThreadState& current_thread() noexcept {
-    ThreadState* const thread = thread_state(layout_version);
-    STXLIB_REQUIRE(thread != nullptr, "this module and stxlib_state were built with different state layouts");
+    ThreadState* const thread = thread_state(layout_key);
+    STXLIB_REQUIRE(thread != nullptr,
+                   "this module and stxlib_state were built with different state layouts or build types");
     return *thread;
 }
 
 inline ProcessState& current_process() noexcept {
-    ProcessState* const process = process_state(layout_version);
-    STXLIB_REQUIRE(process != nullptr, "this module and stxlib_state were built with different state layouts");
+    ProcessState* const process = process_state(layout_key);
+    STXLIB_REQUIRE(process != nullptr,
+                   "this module and stxlib_state were built with different state layouts or build types");
     return *process;
 }
 
 inline const AllocatorCalls& current_allocator() noexcept {
-    const AllocatorCalls* const calls = allocator(layout_version);
-    STXLIB_REQUIRE(calls != nullptr, "this module and stxlib_state were built with different state layouts");
+    const AllocatorCalls* const calls = allocator(layout_key);
+    STXLIB_REQUIRE(calls != nullptr,
+                   "this module and stxlib_state were built with different state layouts or build types");
     return *calls;
 }
 

@@ -70,7 +70,9 @@ namespace stxlib {
 
 inline constexpr usize shadow_frame_capacity = 64;
 inline constexpr usize shadow_trace_capacity = 32;
-// Shadow records each thread keeps; an older one is overwritten.
+// Shadow records each thread keeps in a development build (STXLIB_SHADOW);
+// a release build keeps 1, frames only (decision 2026-11-15, "S3"). An
+// older record is overwritten.
 inline constexpr usize shadow_record_capacity = 4;
 // Error records from gates each thread keeps (development builds).
 inline constexpr usize recent_failure_capacity = 8;
@@ -343,7 +345,8 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
 // Copies the shadow record `reference` names: up to frames.count() frames,
 // outermost first, and up to trace.count() return addresses, innermost
 // first (none in a release build). not_found when it is empty or has been
-// overwritten (each thread keeps shadow_record_capacity).
+// overwritten (each thread keeps shadow_record_capacity in a development
+// build, 1 in a release build).
 [[nodiscard]] Result<ShadowSummary> read_shadow(ShadowReference reference, MutableView<ShadowFrameRecord> frames,
                                                 MutableView<uptr> trace) noexcept;
 

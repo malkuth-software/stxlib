@@ -393,7 +393,7 @@ constinit const AllocatorCalls calls{
 } // namespace
 
 const AllocatorCalls* allocator(const u32 expected_layout) noexcept {
-    if (expected_layout != layout_version) return nullptr;
+    if (expected_layout != layout_key) return nullptr;
     const AllocatorCalls* const result = &calls;
     return result;
 }
