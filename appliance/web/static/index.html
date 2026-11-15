@@ -79,7 +79,12 @@
     <form id="target-form">
       <label>Name <input type="text" id="target-name" required maxlength="31" pattern="[A-Za-z0-9_.\-]+"></label>
       <label>Settings, one <code>name = value</code> per line
-        <textarea id="target-settings" rows="6" spellcheck="false"></textarea></label>
+        <textarea id="target-settings" rows="6" spellcheck="false"
+          placeholder="role = server&#10;id = 1&#10;command = bin/radiod --port 8000&#10;folder = /data/targets/radio&#10;ports = tcp/8000"></textarea></label>
+      <p class="hint">Required: <code>role</code> (server or foreground), <code>id</code> (1 to 999, never reused),
+        <code>command</code> (a path inside the package) and <code>folder</code> (below /data/targets).
+        Optional: program, ports, devices, restart, update-url, update-interval, healthy-after.
+        Whether it starts at boot is the box below, not a setting.</p>
       <label class="inline"><input type="checkbox" id="target-enabled" checked> Start at boot</label>
       <button type="submit">Save the target</button>
       <button type="button" id="target-clear" class="secondary">Clear</button>
