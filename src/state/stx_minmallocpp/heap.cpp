@@ -52,7 +52,7 @@ constinit thread_local Heap* current_heap = &unbound_heap;
 
 namespace {
 
-constinit Heap orphan_heap{.owner = owner_orphan};
+constinit Heap orphan_heap{.owner = owner_orphan, .clean_state = owned_state(owner_orphan)};
 constinit Lock orphan_lock{};
 constinit std::atomic<u32> integrity_found{static_cast<u32>(Integrity::whole)};
 // Where a failed check was (check_failed): the file name's address and the
@@ -469,6 +469,7 @@ void claim_into(Heap& heap, PageMeta& page) noexcept {
     const uptr address = reinterpret_cast<uptr>(structure.heap_table) + slot * sizeof(Heap);
     Heap* const made = new (reinterpret_cast<void*>(address)) Heap{};
     (*made).owner = structure.next_heap_owner;
+    (*made).clean_state = owned_state(structure.next_heap_owner);
     structure.next_heap_owner = structure.next_heap_owner + 1;
     return made;
 }
@@ -584,7 +585,7 @@ void* allocate_singleton(const usize bytes, const usize alignment) noexcept {
     const PagePlan plan{
         .slices = slices,
         .block_bytes = slices * slice_bytes,
-        .divide_magic = 0,
+        .divide_magic = 1,
         .capacity = 1,
         .words = 1,
         .class_index = singleton_class,

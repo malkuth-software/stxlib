@@ -18,20 +18,22 @@ namespace {
 
 constexpr u8 backend_value = 3; // memory::Backend::stx_minmallocpp
 
-void* allocate_block(const usize size, const usize alignment) noexcept {
-    void* const result = stx_minmallocpp::allocate(size, alignment);
-    return result;
-}
+// The two result types name the same two outcomes with the same values, so
+// the conversion below is the value itself and the call can be the
+// function's last step.
+static_assert(static_cast<u8>(stx_minmallocpp::Release::released) == static_cast<u8>(ReleaseOutcome::released) &&
+                  static_cast<u8>(stx_minmallocpp::Release::refused) == static_cast<u8>(ReleaseOutcome::refused),
+              "stx_minmallocpp's release outcomes are stxlib_state's");
 
 ReleaseOutcome release_block(void* const block) noexcept {
     const stx_minmallocpp::Release outcome = stx_minmallocpp::release(block);
-    const ReleaseOutcome result =
-        outcome == stx_minmallocpp::Release::released ? ReleaseOutcome::released : ReleaseOutcome::refused;
+    const ReleaseOutcome result = static_cast<ReleaseOutcome>(static_cast<u8>(outcome));
     return result;
 }
 
 constinit const AllocatorCalls calls{
-    .allocate = allocate_block,
+    // The same signature: the allocator's own function, with no step between.
+    .allocate = stx_minmallocpp::allocate,
     .release = release_block,
     .backend = backend_value,
     .tags_checked = true,

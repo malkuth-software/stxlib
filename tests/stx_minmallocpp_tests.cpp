@@ -9,7 +9,10 @@
 //               rounding stays within the classes, the class of the rounded
 //               size has a block size that is a multiple of the alignment;
 //   index       for every class and every byte offset of its page, the
-//               multiply-and-shift block index equals the division;
+//               multiply-and-shift block index equals the division, and
+//               the product's low bits say exactly whether the offset is a
+//               block's first byte; the same for a page of one block over
+//               every offset up to 32 MiB;
 //   run lists   for every run length from 1 to 16,383, the list that holds
 //               it starts at or below it and the next list starts above it,
 //               and list floors increase.
@@ -55,17 +58,25 @@ void rounded_sizes_are_aligned() {
 
 void block_index_is_the_division() {
     bool exact = true;
+    bool starts = true;
     for (usize index = 0; index < class_count; ++index) {
         const ClassShape& shape = class_table.shapes[index];
         const u64 page_bytes = static_cast<u64>(shape.page_slices) * slice_bytes;
         for (u64 offset = 0; offset < page_bytes; ++offset) {
+            const u64 scaled = offset * shape.divide_magic;
             if (block_index(offset, shape.divide_magic) != offset / shape.block_bytes) exact = false;
+            if (block_starts_at(scaled, shape.divide_magic) != (offset % shape.block_bytes == 0)) starts = false;
         }
     }
     CHECK(exact);
-    // A page of one block: every offset is in block 0.
-    CHECK(block_index(0, 0) == 0);
-    CHECK(block_index(static_cast<u64>(huge_threshold) - 1, 0) == 0);
+    CHECK(starts);
+    // A page of one block (magic 1): every offset is in block 0, and only
+    // offset 0 is a block's first byte.
+    bool alone = true;
+    for (u64 offset = 0; offset < static_cast<u64>(huge_threshold); ++offset) {
+        if (block_index(offset, 1) != 0 || block_starts_at(offset, 1) != (offset == 0)) alone = false;
+    }
+    CHECK(alone);
 }
 
 // The list after `list`, in the order the index is searched.

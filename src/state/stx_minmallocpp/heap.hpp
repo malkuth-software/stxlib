@@ -81,6 +81,9 @@ struct alignas(64) Heap final {
     // The identity pages name as their owner: owner_unbound for the two
     // sentinels, owner_orphan, or an identity issued by acquire (heap.cpp).
     u64 owner{owner_unbound};
+    // owned_state(owner): the state of a page that is this heap's with
+    // nothing pending, kept so that release compares one loaded value.
+    u64 clean_state{owned_state(owner_unbound)};
     ClassEntry entries[class_count]{};
     ClassQueue queues[class_count]{};
 };
@@ -89,21 +92,27 @@ extern constinit Heap unbound_heap;
 extern constinit Heap ended_heap;
 extern constinit thread_local Heap* current_heap;
 
-// The lowest free block of the entry's current word, or null when that word
-// is zero. The whole allocate fast path after the thread's heap is known:
-// one load, one test, one store, a count of trailing zeros, an increment of
-// the page's live count and a multiply; no lock and no atomic
-// read-modify-write.
-[[nodiscard]] inline void* take_block(ClassEntry& entry) noexcept {
-    std::atomic<u64>& cell = *entry.word;
-    const u64 word = cell.load(std::memory_order_relaxed);
-    if (word == 0) return nullptr;
+// The lowest free block of `word`, the non-zero value just loaded from
+// `cell`, the entry's current free word: stores the word back without that
+// bit, counts the block live, and returns its address. One store, an
+// increment and a multiply; no lock and no atomic read-modify-write.
+[[nodiscard]] inline void* take_from(ClassEntry& entry, std::atomic<u64>& cell, const u64 word) noexcept {
     cell.store(word & (word - 1), std::memory_order_relaxed);
     PageMeta& page = *entry.page;
     page.live = page.live + 1;
     const uptr bit = static_cast<uptr>(std::countr_zero(word));
     const uptr address = entry.word_base + bit * entry.block_bytes;
     void* const block = reinterpret_cast<void*>(address);
+    return block;
+}
+
+// The lowest free block of the entry's current word, or null when that word
+// is zero.
+[[nodiscard]] inline void* take_block(ClassEntry& entry) noexcept {
+    std::atomic<u64>& cell = *entry.word;
+    const u64 word = cell.load(std::memory_order_relaxed);
+    if (word == 0) return nullptr;
+    void* const block = take_from(entry, cell, word);
     return block;
 }
 

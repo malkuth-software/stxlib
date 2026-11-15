@@ -60,6 +60,10 @@ block's memory.
 A null result leaves every table as it was, except that a region, a commit
 or a heap slot made on the way stays (it is whole and will be used).
 
+As compiled, `allocate` is one short common path (A2, and the hand-over to
+A3) that calls nothing else; A1, A4, A5 and every request with an
+alignment above 16 or a size of zero go to `allocate_general`, out of line.
+
 ### 3.2 `release`
 
 | Exit | Condition | Writes before it | Result |
@@ -73,6 +77,12 @@ or a heap slot made on the way stays (it is whole and will be used).
 | R7 | mine; block already free | none; or, if releases were pending, their merge (and the page freed if that emptied it) | refused |
 | R8 | mine; block live; page still has live blocks | the `free` bit, the `summary` bit, `live` - 1 (after a merge if releases were pending) | released |
 | R9 | mine; that was the page's last live block | as R8, then sub-graph `release_emptied`: the page kept, or unlinked and freed | released |
+
+As compiled, `release` is one short common path that finishes R1, R4, R5
+and R8 itself and hands R2, R3, R6, R7 and R9 to `release_general` (or
+`release_last` for R9), out of line. `release_general` decides everything
+again from the address, so the hand-over carries no state and the table
+above describes both.
 
 **No write lies on any path to R1, R2, R4 or R5**, nor to the refusals
 inside R3 and R6. That is "a refusal touches nothing" for every address
