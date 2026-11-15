@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+// devfs.h uses TAILQ_ENTRY without including sys/queue.h itself.
+#include <sys/queue.h>
 #include <fs/devfs/devfs.h>
 
 #include "../common/console_line.h"
