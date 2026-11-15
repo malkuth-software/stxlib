@@ -31,21 +31,32 @@ yet built.
 
 ## Normal running
 
+Before the init section, the supervisor mounts `/user` itself
+(`boot_slots_system.h`, `mount_user_partition`; already mounted counts as
+done) and chooses the configuration it runs (K18, "The supervisor
+interface", item 3): the factory configuration merged with the newest valid
+turn of the user configuration, or the factory configuration alone. The
+init section always comes from the factory configuration; the user's own
+`[init]` only says which of their targets start at boot.
+
 The factory configuration (`disk/appliance.conf`) runs these steps, in this
 order:
 1. The init section sets the shutdown sysctl and the vt keyboard sysctls
    (`kbd_halt`, `kbd_poweroff`, `kbd_reboot`, `kbd_debug`, `kbd_panic` set
    to 0, only when `/dev/ttyv0` exists). The keyboard belongs to the
    foreground target and cannot reboot the unit or enter the debugger.
-2. It mounts `/user` (FAT32), runs `fsck_ffs -p` on `STXDATA`, and mounts
-   `/data` (UFS2 with soft updates).
+2. It mounts `/user` (FAT32; the supervisor has mounted it already, and the
+   mount step takes the same device on the same folder as done), runs
+   `fsck_ffs -p` on `STXDATA`, and mounts `/data` (UFS2 with soft updates).
 3. It mounts a 32 MiB tmpfs on `/var`.
 4. It sets up sshd's files:
    - the host key in `/data/ssh` (made once; its fingerprint is printed every
      boot);
    - `authorized_keys`, copied from `/user/stx/ssh/authorized_keys` each boot
      by a copy and a rename, so a power loss never leaves half a file.
-5. It runs `stxnet` (Ethernet by DHCP or static, from `[network]`).
+5. It runs `stxnet` (Ethernet by DHCP or static, from `[network]`). stxnet
+   makes the same K18 choice from the same files, so the user's `[system]`
+   and `[network]` apply.
 6. It starts the services `sshd` (`-D`, key login only, no forwarding, files
    under `/data/ssh`) and `clock`.
 7. It sets `kern.securelevel=1`, last.
@@ -57,9 +68,15 @@ At securelevel 1:
   level 1).
 
 After the init section, the supervisor:
-1. applies the device ruleset ("Devices");
-2. registers with the shim ("Orphan registration");
-3. starts the boot targets, the foreground target first.
+1. writes `/data/ssh/authorized_keys.access` from the chosen configuration's
+   `[access]` keys (a new file, write, fsync, rename, then an fsync of the
+   folder; mode 0600, never through a link). sshd reads it as its second
+   `AuthorizedKeysFile`;
+2. applies the device ruleset ("Devices");
+3. registers with the shim ("Orphan registration");
+4. starts the boot targets, the foreground target first. Each target's
+   standard output and error go into a pipe the supervisor reads (K17,
+   item 9 of "The supervisor interface").
 
 Accounts are generated, not taken from the base system: `disk/master.passwd`
 and `disk/group`, run through `pwd_mkdb` at build. There are three accounts:
@@ -83,6 +100,16 @@ smi owns the mimalloc side of that choice.
 A target is a `[target-<name>]` section (`runtime/supervisor/config/boot_config.h`
 has the keys). Each target is a registered program from a signed package in
 the program store.
+
+The web configuration writes its targets as `[service-<name>]` sections
+(sc2's spelling). Such a section becomes a target at its first key that only
+a target has (`role`, `id`, `program`, `folder`, `ports`, `devices`,
+`start`, `update-url`, `update-interval`, `healthy-after`). The section is
+refused (`target_setting_in_service`) when a service-only key (`directory`,
+`control`) came before it. Whether the command's first word must be a
+package path (target) or an absolute path (service) is decided when the
+section closes. A user configuration holds targets only: a section that
+stays a service is refused by `check_user_config` (rule 5).
 
 - **Roles.** `foreground` (at most one: it holds the screen, keyboard and
   pointer) or `server`.
@@ -382,53 +409,78 @@ This is the agreement with sc2, point by point from sc2's
 `stages/C2-web.md` section 7 (`claude/appliance-web` e61a9df). The
 coordinator took sc2's Q2-Q4 as built.
 
-1. **Descriptor 3.**
-   - In the supervisor, descriptor 3 is the shim's file (close-on-exec).
-   - Every child the supervisor starts (services, targets, jobs) calls
-     `closefrom(3)` after its signal mask is reset
-     (`config/system_actions.cpp`, `targets.cpp` `start_job`).
-   - sc2's control channel will dup2 its descriptor to 3 in the child, then
-     call `closefrom(4)`.
-   - So in any child, descriptor 3 is the control channel or nothing.
-2. **SpawnRequest.** sc2 adds the field `ControlAccess control` to
-   `SpawnRequest` when it folds. There is no separate argument, and
-   confinement is gone (owner answer).
-3. **User configuration at boot (K18).**
-   - The boot choice is the host side's: the newest of
-     `/user/stx/config.{0,1}` that parses and passes `check_user_config`,
-     then the older one, then the factory configuration, then the failsafe
-     configuration.
-   - The merge rule: the user's targets and services join the factory's,
-     with their `start` lines, and `[system]`, `[network]` and `[access]`
-     apply as K4 says.
-   - The supervisor-side code is written after both branches fold, against
-     sc2's turn reader and `check_user_config`, which is the one shared rule.
-   - Until then the unit runs the factory configuration.
-4. **Syntax.** The parser accepts K11's target keys (`boot_config.h`). The
-   other names in sc2's section 3.3 are sc2's to propose and are accepted as
-   proposed:
-   - `[system] hostname` (stxnet reads it today);
-   - `[network] mode/address/gateway/dns` (the parser and stxnet read them today);
-   - `[access] ssh-key-1..8` (to add with item 3).
-5. **Program and system commands.** These map onto `Targets`
-   (`runtime/supervisor/targets.h`):
+1. **Descriptor 3.** Settled with sc2's b57f926 (C2-web.md section 7):
+   - in the supervisor, descriptor 3 is the shim's file (close-on-exec);
+   - a service whose definition grants control gets its channel as
+     descriptor 3 (dup2, or the close-on-exec flag cleared when the channel
+     already is 3), then `closefrom(4)`; a service without one calls
+     `closefrom(3)` (`config/system_actions.cpp`, `become_service`);
+   - init programs, targets and jobs call `closefrom(3)`
+     (`become_target`, `targets.cpp` `start_job`); a target's descriptors 1
+     and 2 are its output pipe (item 9).
+   So in any child, descriptor 3 is the control channel or nothing.
+2. **SpawnRequest.** `SpawnRequest` carries `ControlAccess control`, set by
+   the registry from the definition (none for targets: a target section
+   refuses `control`). There is no separate argument, and confinement is
+   gone (owner answer).
+3. **User configuration at boot (K18).** Built in
+   `runtime/supervisor/config/config_merge.h`, used by the supervisor
+   (`choose_effective_config`) and by stxnet alike.
+   - The choice: the newest of `/user/stx/config.{0,1}` (sc2's turn files,
+     `store/turn_file.h`), then the older one, then the factory configuration
+     alone. Each turn is tried in order: it parses, it keeps
+     `check_user_config`, it merges, the merged text parses. The first that
+     passes all four is used; the console says which, and why any other was
+     passed over. A failsafe boot reads no user configuration.
+   - The merge, line by line: the factory's `[system]` with the user's
+     settings replacing it key by key; the user's `[network]` and `[access]`
+     in place of the factory's when the user has them; the factory's
+     `[init]` and services; then the user's targets, each given
+     `start = boot` when the user's `[init]` holds `start <name>`, else
+     `start = manual`. The user's `[init]` is dropped.
+   - `check_user_config` gains three rules, appended so the wire codes stay:
+     5 `service_not_target` (a user section must be a target), 6
+     `target_start_not_allowed` (enabled is said only by the `[init]` start
+     line), 7 `access_setting_not_allowed` (`[access]` holds only
+     `ssh-key-1`..`ssh-key-8`, each an OpenSSH public key line of a type sshd
+     takes).
+   - `config_write` is checked against the factory configuration alone,
+     never the merged one, so the user's own targets are never "taken".
+4. **Syntax.** The parser accepts K11's target keys in `[service-*]`
+   sections ("Targets"), so the targets page no longer answers 422. sc2's
+   other names in its section 3.3 are accepted as proposed:
+   - `[system] hostname` (stxnet reads it);
+   - `[network] mode/address/gateway/dns` (the parser and stxnet read them;
+     static mode without an interface uses the first Ethernet interface);
+   - `[access] ssh-key-1..8` (item 3; written for sshd after the init
+     section, "Normal running").
+5. **Program and system commands.** `SystemControl`
+   (`runtime/supervisor/control_channels.h`) maps them onto `Targets`
+   (`runtime/supervisor/targets.h`); `program_answers.h` holds the mapping:
 
    | sc2 command | Supervisor call |
    |---|---|
    | `program_state` | `status()` |
-   | `program_install` (staged file) | `request_install()` |
+   | `program_install` (staged file) | `request_install()`, after the staged file is checked to be a regular file |
    | `program_install` (https URL) | `request_update_from()` |
    | `program_rollback` | `rollback()` |
    | `program_check` | `request_update()` |
    | `system_update` (staged image) | `request_system_install()` |
-   | a system check | `request_system_update()` |
+   | `operation_state` | `last_operation()` |
 
-   The results are `accepted`, `unknown_target`, `busy`, `nothing_to_do` and
-   `failed`. sc2 maps them onto its records.
-   - URLs are https only, at most 255 bytes (`url_length_max`, the
-     downloader's limit). sc2 lowers its 1024-byte limit to match.
-   - `signature_refused` and `source_unavailable` come from the job's exit
-     status (4, and 5 or 7), which the targets layer prints and keeps.
+   - Results: `accepted` is ok; `unknown_target` is `unknown_service`;
+     `busy` is busy; `nothing_to_do` is `source_unavailable` for a URL
+     install and `unavailable` otherwise; `failed` is `unavailable`. A
+     staged file that is absent is `source_unavailable`.
+   - A finished job's result, from stxpkg's exit status: 0 ok; 3 or 6 ok
+     for a look and `unavailable` for an install; 4 `signature_refused`; 7
+     `source_unavailable`; anything else, or a signal, `unavailable`.
+   - The ProgramRecord: active is the running slot, else the slot the state
+     runs next; last good is the good slot; on trial when the active slot is
+     the trial's; failed starts are the trial's early exits; versions are
+     decimal; `update_available` is always false.
+   - URLs are https only, at most 255 bytes (the downloader's limit); a
+     longer one answers `source_unavailable`.
 6. **Staging paths.** `/user/stx/staging/program.pkg` (at most 64 MiB) and
    `/user/stx/staging/system.img` (at most 128 MiB). stxpkg verifies them as
    it reads, with the same format as a download, and never trusts sc2's
@@ -437,9 +489,17 @@ coordinator took sc2's Q2-Q4 as built.
    `reboot(RB_AUTOBOOT)`, or `_exit` so that PID 1 takes over.
 8. **A stop by request is healthy.** Built by sc2; the good-boot rule
    accepts it.
-9. **Per-target log tail (K17).** Later. Target output goes to the console
-   today. The tail needs a per-target file first, and that waits for the log
-   decision.
+9. **Per-target log tail (K17).** Each target's standard output and error
+   go into a pipe; the supervisor keeps the newest 4096 bytes per target in
+   memory (`target_log.h`, `log_ring.h`), with a line
+   `--- start pid=<n> slot=<s>` at each start. No file is written, so no
+   log decision is needed and a target cannot fill a disk. The control
+   protocol's command 18, `target_log_tail` (read access, names the
+   target), answers in the `boot_log_tail` layout; a service that is not a
+   target, or a target that wrote nothing, answers with no text. The main
+   loop wakes for output (the pipes join the control kqueue) and reads at
+   most 64 KiB per target per round. The web page's route for it is sc2's
+   to add.
 10. **FAT32 owner.**
     - `/user` has one owner, the supervisor (root): the web service runs as
       root for now, and staged files are written there.
@@ -478,11 +538,28 @@ unwinds. Memory that libufs and OpenSSL allocate is left to process exit.
 | `tries=0`, then the slot file | W/U | The slot file is the commit point. Before it: the old slot boots and the new slot is unused. After it: the new slot is tried with the count from 0. Three failed boots return to `good`. |
 | The slot file write | W | It is rewritten in place, 14 bytes in one sector, with no directory or FAT change ("System updates"). |
 | User configuration turns | U | sc2's two-turn files: a torn newest turn fails to parse, and the older one or the factory configuration is used (item 3). |
+| The supervisor's `/user` mount (`mount_user_partition`) | W | It only reads afterwards. A failure means no user configuration: the factory configuration runs, and the init section's own mount line tries again. |
+| Reading the turns (`read_turns`) and the K18 choice | W | Reads only, into static buffers; nothing is written. A death here is a supervisor restart that makes the same choice from the same files. stxnet makes the same choice independently. |
+| `authorized_keys.access` write | W | A new file (O_NOFOLLOW, 0600), write, fsync, rename, then an fsync of `/data/ssh`. It is the old file or the new one; any failure leaves the old one and says so on the console. |
+| A target's output pipe | W | The pipe holds no state. When the target dies the read end sees end of file and is closed. When the supervisor dies the target's next write gets SIGPIPE (an exit, modelled like any other); the ring's contents are lost. |
+| Control commands (program, system, log tail) | W | Each answer is computed from state the supervisor already holds; a job is recorded only after fork returns. A death mid-request is EOF for the web service. |
 | `authorized_keys` copy | U | Copy to `.new`, then rename. A loss leaves the old file or none, and the user partition keeps the source. |
 | Surface open | U | `undo_open` reverses each step in order. Modes are set, not toggled, so the next open restores a terminal left in graphics mode. |
 | OpenSSL, libufs and resolver calls in stxpkg and stxsntp | U | They run in short-lived processes that write nothing until their checks pass, so an early exit is a failed job. |
 
 ## Known limits
+
+- A merged configuration larger than 16384 bytes (`config_size_max`) is not
+  used: the older turn, or the factory configuration, runs instead, and the
+  console says so.
+- Target output is kept in memory only, the newest 4096 bytes per target. A
+  supervisor restart loses it, and a target that outlives the old
+  supervisor's pipe gets SIGPIPE on its next write.
+- A target that writes faster than the supervisor reads (64 KiB per round)
+  waits on its full pipe; without the control kqueue the pipes are read
+  once a second.
+- `update_available` in the ProgramRecord is always false: the supervisor
+  looks for updates only by installing them.
 
 - Services are not adopted after a supervisor restart: the new supervisor
   starts them again, and the old processes are PID 1's to reap.

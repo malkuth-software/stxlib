@@ -103,6 +103,18 @@ public:
     [[nodiscard]] OperationRecord operation_state() noexcept override {
         return operation_;
     }
+    // "plain" has output that does not fit (its front cut); every other
+    // service has none.
+    [[nodiscard]] BootLogRead read_target_log(const ServiceName& target, std::span<char> destination) noexcept override {
+        const char plain[] = {'p', 'l', 'a', 'i', 'n'};
+        if (target.length != sizeof(plain) || std::memcmp(target.bytes, plain, sizeof(plain)) != 0) {
+            return BootLogRead::absent();
+        }
+        const char* const log = "half a line\nwhole one\n";
+        const std::size_t size = std::strlen(log) <= destination.size() ? std::strlen(log) : destination.size();
+        std::memcpy(destination.data(), log, size);
+        return BootLogRead::text(size, true);
+    }
 
     void set_fail_writes(bool fail) noexcept {
         fail_writes_ = fail;

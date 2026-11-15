@@ -57,6 +57,10 @@
 //                                empty otherwise
 //   slot_status                  SlotRecord (8 bytes)
 //   boot_log_tail                BootLogTail: flags, then text
+//   target_log_tail              BootLogTail's layout for the named
+//                                target's output (flag bit 0: output
+//                                kept; status unknown_service for a
+//                                name that is no service)
 //   config_read                  ConfigText: header, then the user
 //                                configuration's text
 //   config_write                 ConfigWritten (8 bytes) with ok;
@@ -170,9 +174,12 @@ enum class Command : std::uint16_t {
     system_update = 16,
     // The long operation running or last finished (install, check, update).
     operation_state = 17,
+    // The end of a target's own output (K17, sb2): standard output and
+    // error, kept by the supervisor in memory (target_log.h). Read access.
+    target_log_tail = 18,
 };
 constexpr std::uint16_t command_first = 1;
-constexpr std::uint16_t command_last = 17;
+constexpr std::uint16_t command_last = 18;
 
 // What a command's request carries after its header.
 enum class PayloadRule : std::uint8_t {

@@ -58,6 +58,17 @@
 // sigtimedwait alone: the signals stay blocked, the kqueue reports their
 // arrival, and they are then taken with a zero-time sigtimedwait.
 //
+// The user configuration (C2, K18; config/config_merge.h): on the boot's
+// first start, once the factory configuration has loaded, the supervisor
+// mounts the user partition, reads the user configuration's two turn
+// files and runs the effective configuration: the newest turn that
+// parses, keeps the user rules and merges with the factory configuration,
+// then the older, then the factory configuration alone. stxnet makes the
+// same choice from the same files for [system] and [network]. After the
+// init section (which mounts /data) the supervisor writes the effective
+// [access] keys for sshd (config/access_keys.h). Changes made on the web
+// page take effect at the next boot.
+//
 // stxinit starts it in its own session with the console as standard input,
 // output and error, and passes "--restart-count=<n>".
 //
@@ -70,6 +81,9 @@
 //   STXSUPERVISOR config path=<p> sections=<n> settings=<n> commands=<n>
 //   STXSUPERVISOR config path=<p> absent | too-large | errno=<n>
 //   STXSUPERVISOR config path=<p> refused line=<n> column=<n> error=<name>
+//   STXSUPERVISOR config user-turn file=<0|1> sequence=<n> refused=<parse|rule|too-large|merged-parse> code=<n> line=<n> column=<n>
+//   STXSUPERVISOR config user file=<0|1> sequence=<n> | user=none | user=unavailable step=<s> errno=<n>
+//   STXSUPERVISOR access keys=<n> written | access failed step=<s> errno=<n>
 //   STXSUPERVISOR init line=<n> <keyword> <outcome> ... ms=<n>   (one per command)
 //   STXSUPERVISOR init done commands=<n> skipped=<n> failed=<n> ms=<n>
 //   STXSUPERVISOR init not-run restart_count=<n|unknown>
@@ -94,7 +108,9 @@
 #include <optional>
 #include <span>
 
+#include <fcntl.h>
 #include <signal.h>
+#include <stdio.h>
 #include <sys/reboot.h>
 #include <sys/wait.h>
 #include <time.h>
@@ -103,8 +119,13 @@
 #include "../common/console_line.h"
 #include "boot_slots.h"
 #include "boot_slots_system.h"
+#include "../store/turn_file.h"
+#include "../store/turn_file_system.h"
+#include "config/access_keys.h"
 #include "config/boot_config.h"
+#include "config/config_merge.h"
 #include "config/init_executor.h"
+#include "config/user_config.h"
 #include "config/service_registry.h"
 #include "config/system_actions.h"
 #include "device_rules.h"
@@ -131,7 +152,17 @@ extern "C" void note_signal(int signal_number) noexcept {
 // needs exactly one of each.
 
 char config_text[stxconfig::config_size_max];
+std::size_t config_text_length = 0;
+// The configuration the boot runs: the factory configuration, or the
+// failsafe one, or the factory merged with a user turn (config_merge.h).
 stxconfig::BootConfig boot_config;
+// C2: the factory configuration on its own (what config_write checks a
+// new user configuration against, and what a user turn merges with), the
+// user turn's own parse, the effective text, and the turn files' bytes.
+stxconfig::BootConfig factory_config;
+stxconfig::BootConfig user_work;
+char effective_text[stxconfig::config_size_max];
+char turn_text[2][stxstore::turn_file_bytes_max + 1u];
 stxconfig::InitWorkspace init_workspace;
 // Borrows boot_config, which is static too.
 stxconfig::ServiceRegistry service_registry;
@@ -144,9 +175,10 @@ bool reboot_asked = false;
 // spawn (static too).
 ControlChannels control_channels(STDOUT_FILENO);
 SystemControl control_system;
-// config_write checks target names against the configuration this boot
-// loaded (boot_config: the factory configuration, or the failsafe one).
-stxcontrol::ControlServer control_server(service_registry, service_actions, control_system, boot_config);
+// config_write checks a user configuration against the factory
+// configuration alone (factory_config: empty on a failsafe boot), never
+// against the merged one, which holds the user's own targets.
+stxcontrol::ControlServer control_server(service_registry, service_actions, control_system, factory_config);
 // The signals the main loop takes; the kqueue watches the same ones.
 const int handled_signals[] = {SIGTERM, SIGINT, SIGHUP, SIGCHLD, SIGUSR1};
 
@@ -195,6 +227,7 @@ void begin_config_line(LineText& line, const char* path) noexcept {
         return file.is_absent() ? stxboot::ConfigState::absent : stxboot::ConfigState::unreadable;
     }
     const std::span<const char> text(config_text, (*read).size);
+    config_text_length = (*read).size;
     const stxconfig::ParseOutcome parsed = stxconfig::parse_boot_config(text, boot_config);
     const stxconfig::ParseFailed* const refusal = parsed.as_failure();
     if (refusal != nullptr) {
@@ -217,6 +250,157 @@ void begin_config_line(LineText& line, const char* path) noexcept {
     stxruntime::append_text(line, "\n");
     stxruntime::write_line(console, line);
     return stxboot::ConfigState::loaded;
+}
+
+// Prints "STXSUPERVISOR config user=unavailable step=<s> errno=<n>".
+void report_user_unavailable(int console, const char* step, int error_number) noexcept {
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR config user=unavailable step=");
+    stxruntime::append_text(line, step);
+    stxruntime::append_text(line, " errno=");
+    stxruntime::append_decimal(line, static_cast<std::uint64_t>(static_cast<unsigned int>(error_number)));
+    stxruntime::append_text(line, "\n");
+    stxruntime::write_line(console, line);
+}
+
+// The effective configuration (config_merge.h): boot_config holds the
+// factory configuration on entry and the configuration to run on return.
+// Foreign calls: nmount (the user partition), open/read (the turn files);
+// each failure leaves boot_config as the factory configuration, whole.
+void choose_effective_config(int console) noexcept {
+    const std::span<const char> factory_text(config_text, config_text_length);
+    if (stxconfig::parse_boot_config(factory_text, factory_config).as_failure() != nullptr) {
+        // Cannot happen (the same bytes parsed into boot_config); the
+        // factory configuration then runs alone, and config_write checks
+        // against an empty one.
+        factory_config.clear();
+        report_user_unavailable(console, "factory-parse", 0);
+        return;
+    }
+    const int mounted = stxboot::mount_user_partition();
+    if (mounted != 0) {
+        report_user_unavailable(console, "mount-user", mounted);
+        return;
+    }
+    const stxstore::TurnPaths paths{stxconfig::user_config_directory,
+                                    {stxconfig::user_config_path_0, stxconfig::user_config_path_1}};
+    const stxstore::TurnState turns =
+        stxstore::read_turns(paths, stxconfig::config_size_max, std::span<char>(turn_text[0], sizeof(turn_text[0])),
+                             std::span<char>(turn_text[1], sizeof(turn_text[1])));
+    for (std::size_t file = 0; file < 2u; file += 1) {
+        if (turns.errors[file] != 0) {
+            report_user_unavailable(console, file == 0u ? "read-config.0" : "read-config.1", turns.errors[file]);
+        }
+    }
+    const std::optional<stxconfig::BootChoice> chosen =
+        stxconfig::choose_boot_config(factory_text, factory_config, turns.turns, turns.choice, user_work, boot_config,
+                                      std::span<char>(effective_text, sizeof(effective_text)));
+    if (!chosen.has_value()) {
+        // Only when the factory text no longer parses: it parsed above, so
+        // this is a fallback; run it alone.
+        (void)stxconfig::parse_boot_config(factory_text, boot_config);
+        report_user_unavailable(console, "choose", 0);
+        return;
+    }
+    for (std::size_t index = 0; index < (*chosen).passed_over_count && index < 2u; index += 1) {
+        const stxconfig::TurnTried& tried = (*chosen).passed_over[index];
+        LineText line = stxruntime::empty_line();
+        stxruntime::append_text(line, "STXSUPERVISOR config user-turn file=");
+        stxruntime::append_decimal(line, tried.file_index);
+        stxruntime::append_text(line, " sequence=");
+        stxruntime::append_decimal(line, tried.sequence);
+        stxruntime::append_text(line, " refused=");
+        stxruntime::append_text(line, stxconfig::turn_refusal_name(tried.refusal));
+        stxruntime::append_text(line, " code=");
+        stxruntime::append_decimal(line, tried.code);
+        stxruntime::append_text(line, " line=");
+        stxruntime::append_decimal(line, tried.line);
+        stxruntime::append_text(line, " column=");
+        stxruntime::append_decimal(line, tried.column);
+        stxruntime::append_text(line, "\n");
+        stxruntime::write_line(console, line);
+    }
+    LineText line = stxruntime::empty_line();
+    if ((*chosen).file_index.has_value()) {
+        stxruntime::append_text(line, "STXSUPERVISOR config user file=");
+        stxruntime::append_decimal(line, *(*chosen).file_index);
+        stxruntime::append_text(line, " sequence=");
+        stxruntime::append_decimal(line, (*chosen).sequence);
+    } else {
+        stxruntime::append_text(line, "STXSUPERVISOR config user=none");
+    }
+    stxruntime::append_text(line, " services=");
+    stxruntime::append_decimal(line, boot_config.service_count());
+    stxruntime::append_text(line, "\n");
+    stxruntime::write_line(console, line);
+}
+
+// Prints "STXSUPERVISOR access failed step=<s> errno=<n>".
+void report_access_failed(int console, const char* step, int error_number) noexcept {
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR access failed step=");
+    stxruntime::append_text(line, step);
+    stxruntime::append_text(line, " errno=");
+    stxruntime::append_decimal(line, static_cast<std::uint64_t>(static_cast<unsigned int>(error_number)));
+    stxruntime::append_text(line, "\n");
+    stxruntime::write_line(console, line);
+}
+
+// The effective [access] keys into access_keys_path for sshd: a new file,
+// written whole and fsynced, then renamed over the old one and the folder
+// fsynced (early exits: the old file or the new one, never half of one;
+// C2_DESIGN.md, "Early exits"). No keys: an empty file, so that a key
+// removed on the web page stops working at the next boot.
+void write_access_keys(int console) noexcept {
+    static char text[stxconfig::access_keys_text_max];
+    const std::optional<std::size_t> length = stxconfig::access_keys_text(boot_config, std::span<char>(text, sizeof(text)));
+    if (!length.has_value()) {
+        report_access_failed(console, "size", 0);
+        return;
+    }
+    const int file = open(stxconfig::access_keys_temporary_path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                          0600);
+    if (file < 0) {
+        report_access_failed(console, "open", errno);
+        return;
+    }
+    std::size_t written = 0;
+    int interrupted = 0;
+    while (written < *length && interrupted < 16) {
+        const ssize_t part = write(file, &text[written], *length - written);
+        if (part > 0) {
+            written += static_cast<std::size_t>(part);
+        } else if (part < 0 && errno == EINTR) {
+            interrupted += 1;
+        } else {
+            break;
+        }
+    }
+    const bool whole = written == *length && fsync(file) == 0;
+    const int write_error = errno;
+    (void)close(file);
+    if (!whole) {
+        report_access_failed(console, "write", write_error);
+        return;
+    }
+    if (rename(stxconfig::access_keys_temporary_path, stxconfig::access_keys_path) != 0) {
+        report_access_failed(console, "rename", errno);
+        return;
+    }
+    const int folder = open("/data/ssh", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+    if (folder >= 0) {
+        (void)fsync(folder);
+        (void)close(folder);
+    }
+    std::size_t keys = 0;
+    for (std::size_t index = 0; index < *length; index += 1) {
+        keys += text[index] == '\n' ? 1u : 0u;
+    }
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR access keys=");
+    stxruntime::append_decimal(line, keys);
+    stxruntime::append_text(line, " written\n");
+    stxruntime::write_line(console, line);
 }
 
 void run_init(int console) noexcept {
@@ -289,10 +473,13 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
         return;
     }
     if (config == stxboot::ConfigState::loaded) {
+        choose_effective_config(console);
         service_registry.load(boot_config);
         service_actions.set_target_hooks(&targets);
+        control_system.set_targets(&targets);
         targets.load(boot_config, boot_facts_now.slot, stxconfig::monotonic_milliseconds());
         run_init(console);
+        write_access_keys(console);
         (void)stxdevices::apply_device_plan(console, stxdevices::plan_device_rules(boot_config));
         targets.start_boot_targets(stxconfig::monotonic_milliseconds());
         init_done = true;
@@ -398,6 +585,8 @@ void reap_children() noexcept {
 
 // When nothing is due the loop still wakes hourly, harmlessly.
 constexpr std::uint64_t idle_wait_ms = 3600000;
+// Without the control queue: how often a target's open output pipe is read.
+constexpr std::uint64_t log_poll_ms = 1000;
 // Stopping: how often to look, and for how long at most (the registry's
 // SIGTERM grace, its SIGKILL, and time to reap). Inside stxinit's own 1 s
 // grace at shutdown.
@@ -535,13 +724,20 @@ void take_pending_signals(const sigset_t& blocked, const ShimRegistration& shim)
             const std::uint64_t good_wait_ms = *good_check_due_ms > now_ms ? *good_check_due_ms - now_ms : 0u;
             wait_ms = good_wait_ms < wait_ms ? good_wait_ms : wait_ms;
         }
+        // The targets' output pipes (K17, target_log.h): read what waits,
+        // then wake for more.
+        targets.drain_logs();
+        int log_descriptors[stxconfig::services_max] = {};
+        const std::size_t log_count = targets.log_descriptors(std::span<int>(log_descriptors));
         if (control_channels.is_open()) {
-            // C2: wait for a signal, a request or the time-out; then take
-            // the signals, reap, serve the channels and drop the channels
-            // of services that no longer run.
+            // C2: wait for a signal, a request, a target's output or the
+            // time-out; then take the signals, reap, serve the channels and
+            // drop the channels of services that no longer run.
+            control_channels.watch(std::span<const int>(log_descriptors, log_count));
             control_channels.wait(wait_ms);
             take_pending_signals(blocked, shim);
             reap_children();
+            targets.drain_logs();
             const stxcontrol::ControlFacts facts = control_facts();
             control_channels.serve(control_server, facts, stxconfig::monotonic_milliseconds(), service_registry);
             control_channels.sweep(service_registry);
@@ -550,6 +746,11 @@ void take_pending_signals(const sigset_t& blocked, const ShimRegistration& shim)
                 stop(blocked, true);
             }
             continue;
+        }
+        // Without the queue nothing wakes for output: a target's pipe is
+        // read at least every log_poll_ms while one is open.
+        if (log_count > 0u && wait_ms > log_poll_ms) {
+            wait_ms = log_poll_ms;
         }
         const timespec timeout = timeout_of(wait_ms);
         siginfo_t information{};

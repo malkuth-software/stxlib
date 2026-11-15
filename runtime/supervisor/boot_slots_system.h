@@ -50,6 +50,11 @@ void mark_boot_good(int console, const BootFacts& facts) noexcept;
 // stxinit to reboot.
 [[nodiscard]] bool arm_system_update(int console, Slot running, Slot target) noexcept;
 
+// Mounts the user partition read-write at user_directory (C2: before the
+// init section, to read the user configuration's turns, config_merge.h).
+// 0 when it is mounted (EBUSY, mounted already, counts), else errno.
+[[nodiscard]] int mount_user_partition() noexcept;
+
 // Appends "uptime_ms=<n> slot=<s> tries=<n> fallback=<0|1> event=<event>\n"
 // to the boot log, mounting the user partition first when it is not yet
 // mounted. Prints one line.

@@ -527,6 +527,9 @@ enum class ParseError : std::uint8_t {
     network_value_malformed,
     folder_repeated,
     service_control_unknown,
+    // A target setting in a [service-<name>] section after a service-only
+    // setting (directory, control).
+    target_setting_in_service,
 };
 
 // The error's name as printed on the console ("line_too_long", ...).

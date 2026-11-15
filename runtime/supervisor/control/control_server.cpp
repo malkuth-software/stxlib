@@ -98,6 +98,41 @@ ProgramAnswer program_answer(Status status) noexcept {
 // ---------------------------------------------------------------------------
 // Pure helpers.
 
+namespace {
+
+// The text area of a log tail's payload, behind its header. char may alias
+// any object's bytes, so the bytes can be filled as characters.
+[[nodiscard]] std::span<char> log_text_area(std::span<std::uint8_t> payload) noexcept {
+    const std::span<std::uint8_t> text_area = payload.subspan(boot_log_header_bytes, boot_log_text_max);
+    return std::span<char>(reinterpret_cast<char*>(text_area.data()), text_area.size());
+}
+
+// A log tail's payload from what the system read into destination (the
+// payload's text area): whole lines moved to the area's front behind the
+// header; status unavailable when the read failed.
+[[nodiscard]] std::size_t log_tail_payload(const BootLogRead& read, std::span<char> destination,
+                                           std::span<std::uint8_t> payload, Status& status) noexcept {
+    const BootLogText* const text = read.as_text();
+    if (text != nullptr && (*text).size <= destination.size()) {
+        const std::span<const char> window(destination.data(), (*text).size);
+        const std::span<const char> lines = whole_lines_of_end(window, (*text).began_inside);
+        // Move the whole lines to the area's front (overlapping, forwards:
+        // each byte is read before it is overwritten).
+        const std::size_t skip = window.size() - lines.size();
+        for (std::size_t index = 0; index < lines.size(); index += 1) {
+            destination[index] = destination[skip + index];
+        }
+        return encode_boot_log_header(true, (*text).began_inside, payload) + lines.size();
+    }
+    if (read.is_absent()) {
+        return encode_boot_log_header(false, false, payload);
+    }
+    status = Status::unavailable;
+    return 0;
+}
+
+}  // namespace
+
 std::span<const char> whole_lines_of_end(std::span<const char> window, bool began_inside) noexcept {
     if (!began_inside) {
         return window;
@@ -518,27 +553,19 @@ ControlHandled ControlServer::handle(std::span<const std::uint8_t> frame, int re
         }
         case Command::boot_log_tail: {
             // Read into the payload behind its header, then keep whole lines.
-            const std::span<std::uint8_t> text_area = payload.subspan(boot_log_header_bytes, boot_log_text_max);
-            // char may alias any object's bytes, so the bytes can be filled
-            // as characters.
-            const std::span<char> destination(reinterpret_cast<char*>(text_area.data()), text_area.size());
+            const std::span<char> destination = log_text_area(payload);
             const BootLogRead read = system_.read_boot_log_end(destination);
-            const BootLogText* const text = read.as_text();
-            if (text != nullptr && (*text).size <= destination.size()) {
-                const std::span<const char> window(destination.data(), (*text).size);
-                const std::span<const char> lines = whole_lines_of_end(window, (*text).began_inside);
-                // Move the whole lines to the area's front (overlapping,
-                // forwards: each byte is read before it is overwritten).
-                const std::size_t skip = window.size() - lines.size();
-                for (std::size_t index = 0; index < lines.size(); index += 1) {
-                    destination[index] = destination[skip + index];
-                }
-                payload_size = encode_boot_log_header(true, (*text).began_inside, payload) + lines.size();
-            } else if (read.is_absent()) {
-                payload_size = encode_boot_log_header(false, false, payload);
-            } else {
-                header.status = Status::unavailable;
+            payload_size = log_tail_payload(read, destination, payload, header.status);
+            break;
+        }
+        case Command::target_log_tail: {
+            if (!target.has_value()) {
+                header.status = Status::unknown_service;
+                break;
             }
+            const std::span<char> destination = log_text_area(payload);
+            const BootLogRead read = system_.read_target_log((*request).name, destination);
+            payload_size = log_tail_payload(read, destination, payload, header.status);
             break;
         }
         case Command::config_read:
@@ -576,7 +603,7 @@ ControlHandled ControlServer::handle(std::span<const std::uint8_t> frame, int re
         }
         // Commands about one service answer with its record when it exists.
         if (command_takes_name((*request).command) && !is_program_command((*request).command) &&
-            status_carries_record(header.status)) {
+            (*request).command != Command::target_log_tail && status_carries_record(header.status)) {
             const std::optional<std::size_t> after = registry_.find(name);
             if (after.has_value()) {
                 payload_size = encode_record_of(*after, now_ms, payload);

@@ -332,6 +332,11 @@ bool arm_system_update(int console, Slot running, Slot target) noexcept {
     return true;
 }
 
+int mount_user_partition() noexcept {
+    const int mounted = mount_read_write("msdosfs", user_device, user_directory);
+    return mounted == EBUSY ? 0 : mounted;
+}
+
 void append_boot_log(int console, const BootFacts& facts, const char* event, std::uint64_t uptime_ms) noexcept {
     const char* const prefix = "STXSUPERVISOR boot-log failed step=";
     const int mounted = mount_read_write("msdosfs", user_device, user_directory);

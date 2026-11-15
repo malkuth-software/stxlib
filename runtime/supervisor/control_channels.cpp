@@ -17,6 +17,7 @@
 #include "../store/turn_file_system.h"
 #include "boot_slots_system.h"
 #include "config/user_config.h"
+#include "program_answers.h"
 
 namespace stxsupervisor {
 
@@ -185,6 +186,27 @@ void ControlChannels::close_channel(std::size_t index) noexcept {
     // Keep the table dense: the last entry takes the closed one's place.
     channels_[index] = channels_[channel_count_ - 1u];
     channel_count_ -= 1;
+}
+
+void ControlChannels::watch(std::span<const int> descriptors) noexcept {
+    if (queue_ < 0 || descriptors.empty()) {
+        return;
+    }
+    struct kevent changes[control_channels_max]{};
+    std::size_t count = 0;
+    for (std::size_t index = 0; index < descriptors.size() && count < control_channels_max; index += 1) {
+        if (descriptors[index] < 0) {
+            continue;
+        }
+        EV_SET(&changes[count], static_cast<uintptr_t>(descriptors[index]), EVFILT_READ, EV_ADD, 0, 0, nullptr);
+        count += 1;
+    }
+    if (count == 0u) {
+        return;
+    }
+    // A failure leaves those pipes unwatched: their output then waits for
+    // the next wake, and a target that fills its pipe (64 KiB) waits too.
+    (void)kevent(queue_, changes, static_cast<int>(count), nullptr, 0, nullptr);
 }
 
 void ControlChannels::wait(std::uint64_t timeout_ms) noexcept {
@@ -392,7 +414,7 @@ const stxstore::TurnPaths user_config_paths = {
 
 }  // namespace
 
-SystemControl::SystemControl() noexcept : reboot_requested_(false), turn_buffers_{} {}
+SystemControl::SystemControl() noexcept : reboot_requested_(false), targets_(nullptr), turn_buffers_{} {}
 
 stxcontrol::UserConfigRead SystemControl::read_user_config(std::span<char> destination) noexcept {
     const stxstore::TurnState state =
@@ -447,36 +469,133 @@ bool SystemControl::reboot_requested() const noexcept {
     return reboot_requested_;
 }
 
-// The host side's part (sb2's C2 note: targets K11, packages K12 and K13,
-// downloads K14, the system updater K5) replaces these.
+// The host side's part: the targets layer (targets.h) carries the program
+// commands out; program_answers.h says what they answer.
+void SystemControl::set_targets(stxtargets::Targets* targets) noexcept {
+    targets_ = targets;
+}
+
+namespace {
+
+// Whether path names a regular file (not a link): the staged package or
+// image the web page stored (runtime/web/api.h, begin_upload).
+[[nodiscard]] bool staged_file_present(const char* path) noexcept {
+    struct stat status{};
+    return lstat(path, &status) == 0 && S_ISREG(status.st_mode);
+}
+
+}  // namespace
+
+stxcontrol::ProgramAnswer SystemControl::answer_for(const stxcontrol::ServiceName& target,
+                                                    stxcontrol::Status status) const noexcept {
+    stxcontrol::ProgramAnswer answer = stxcontrol::program_answer(status);
+    if (targets_ == nullptr) {
+        return answer;
+    }
+    char name[stxcontrol::service_name_bytes_max + 1] = {};
+    stxcontrol::service_name_c_string(target, name);
+    const std::optional<stxtargets::TargetStatus> found = (*targets_).status(name);
+    if (found.has_value()) {
+        answer.record = program_record(target, *found);
+    }
+    return answer;
+}
+
 stxcontrol::ProgramAnswer SystemControl::program_state(const stxcontrol::ServiceName& target) noexcept {
-    (void)target;
-    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+    if (targets_ == nullptr) {
+        return stxcontrol::program_answer(stxcontrol::Status::unavailable);
+    }
+    const stxcontrol::ProgramAnswer answer = answer_for(target, stxcontrol::Status::ok);
+    if (!answer.record.has_value()) {
+        return stxcontrol::program_answer(stxcontrol::Status::unknown_service);
+    }
+    return answer;
 }
 
 stxcontrol::ProgramAnswer SystemControl::program_install(const stxcontrol::ServiceName& target,
                                                          const stxcontrol::InstallSource& source) noexcept {
-    (void)target;
-    (void)source;
-    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+    if (targets_ == nullptr) {
+        return stxcontrol::program_answer(stxcontrol::Status::unavailable);
+    }
+    char name[stxcontrol::service_name_bytes_max + 1] = {};
+    stxcontrol::service_name_c_string(target, name);
+    const std::uint64_t now_ms = stxconfig::monotonic_milliseconds();
+    if (source.kind == stxcontrol::InstallKind::staged) {
+        if (!(*targets_).status(name).has_value()) {
+            return stxcontrol::program_answer(stxcontrol::Status::unknown_service);
+        }
+        if (!staged_file_present(stxcontrol::staged_package_path)) {
+            return answer_for(target, stxcontrol::Status::source_unavailable);
+        }
+        const stxtargets::RequestResult result =
+            (*targets_).request_install(name, stxcontrol::staged_package_path, now_ms);
+        return answer_for(target, request_status(result, ProgramCommand::install_staged));
+    }
+    if (source.kind != stxcontrol::InstallKind::url || source.url.size() > stxcontrol::install_url_bytes_max) {
+        return stxcontrol::program_answer(stxcontrol::Status::malformed);
+    }
+    char url[stxcontrol::install_url_bytes_max + 1] = {};
+    for (std::size_t index = 0; index < source.url.size(); index += 1) {
+        url[index] = source.url[index];
+    }
+    url[source.url.size()] = '\0';
+    const stxtargets::RequestResult result = (*targets_).request_update_from(name, url, now_ms);
+    return answer_for(target, request_status(result, ProgramCommand::install_url));
 }
 
 stxcontrol::ProgramAnswer SystemControl::program_rollback(const stxcontrol::ServiceName& target) noexcept {
-    (void)target;
-    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+    if (targets_ == nullptr) {
+        return stxcontrol::program_answer(stxcontrol::Status::unavailable);
+    }
+    char name[stxcontrol::service_name_bytes_max + 1] = {};
+    stxcontrol::service_name_c_string(target, name);
+    const stxtargets::RequestResult result = (*targets_).rollback(name, stxconfig::monotonic_milliseconds());
+    return answer_for(target, request_status(result, ProgramCommand::rollback));
 }
 
 stxcontrol::ProgramAnswer SystemControl::program_check(const stxcontrol::ServiceName& target) noexcept {
-    (void)target;
-    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+    if (targets_ == nullptr) {
+        return stxcontrol::program_answer(stxcontrol::Status::unavailable);
+    }
+    char name[stxcontrol::service_name_bytes_max + 1] = {};
+    stxcontrol::service_name_c_string(target, name);
+    const stxtargets::RequestResult result = (*targets_).request_update(name, stxconfig::monotonic_milliseconds());
+    return answer_for(target, request_status(result, ProgramCommand::check));
 }
 
 stxcontrol::Status SystemControl::system_update() noexcept {
-    return stxcontrol::Status::unsupported;
+    if (targets_ == nullptr) {
+        return stxcontrol::Status::unavailable;
+    }
+    if (!staged_file_present(stxcontrol::staged_system_path)) {
+        return stxcontrol::Status::source_unavailable;
+    }
+    const stxtargets::RequestResult result =
+        (*targets_).request_system_install(stxcontrol::staged_system_path, stxconfig::monotonic_milliseconds());
+    return request_status(result, ProgramCommand::system_update);
 }
 
 stxcontrol::OperationRecord SystemControl::operation_state() noexcept {
-    return stxcontrol::operation_none();
+    if (targets_ == nullptr) {
+        return stxcontrol::operation_none();
+    }
+    return operation_record((*targets_).last_operation(), stxconfig::monotonic_milliseconds());
+}
+
+stxcontrol::BootLogRead SystemControl::read_target_log(const stxcontrol::ServiceName& target,
+                                                       std::span<char> destination) noexcept {
+    if (targets_ == nullptr) {
+        return stxcontrol::BootLogRead::absent();
+    }
+    char name[stxcontrol::service_name_bytes_max + 1] = {};
+    stxcontrol::service_name_c_string(target, name);
+    // What is waiting in the pipe first, so the answer is current.
+    (*targets_).drain_logs();
+    const std::optional<stxtargets::TargetLogEnd> end = (*targets_).log_end(name, destination);
+    if (!end.has_value() || ((*end).size == 0u && !(*end).began_inside)) {
+        return stxcontrol::BootLogRead::absent();
+    }
+    return stxcontrol::BootLogRead::text((*end).size, (*end).began_inside);
 }
 
 }  // namespace stxsupervisor

@@ -129,7 +129,8 @@ void begin_target_line(LineText& line, const char* name) noexcept {
 Targets::Targets(int console, stxconfig::ServiceRegistry& registry, stxconfig::ServiceActions& actions) noexcept
     : console_(console), registry_(registry), actions_(actions), config_(nullptr), entries_{}, entry_count_(0),
       job_(std::nullopt), system_slot_(std::nullopt), system_next_check_ms_(std::nullopt),
-      system_interval_s_(stxconfig::update_interval_default_s), reboot_requested_(false) {}
+      system_interval_s_(stxconfig::update_interval_default_s), reboot_requested_(false),
+      last_operation_{OperationKind::none, false, false, 0, 0, 0, nullptr}, logs_() {}
 
 void Targets::load(const stxconfig::BootConfig& config, std::optional<stxboot::Slot> running_system_slot,
                    std::uint64_t now_ms) noexcept {
@@ -217,6 +218,26 @@ void Targets::target_started(std::size_t service_index, char slot, int pid) noex
         return;
     }
     entries_[*found].running = Running{*started, pid, stxconfig::monotonic_milliseconds()};
+    // A marker in the target's output ring, so a reader sees where each
+    // start begins (target_log.h).
+    LineText marker = stxruntime::empty_line();
+    stxruntime::append_text(marker, "--- start pid=");
+    stxruntime::append_decimal(marker, static_cast<std::uint64_t>(pid));
+    const char letter[2] = {slot, '\0'};
+    stxruntime::append_text(marker, " slot=");
+    stxruntime::append_text(marker, letter);
+    stxruntime::append_text(marker, "\n");
+    if (!marker.truncated) {
+        logs_.note(service_index, std::span<const char>(marker.bytes, marker.length));
+    }
+}
+
+int Targets::prepare_output(std::size_t service_index) noexcept {
+    return logs_.open_output(service_index);
+}
+
+void Targets::output_abandoned(std::size_t service_index) noexcept {
+    logs_.abandon(service_index);
 }
 
 void Targets::service_event(const stxconfig::ServiceEvent& event) noexcept {
@@ -336,7 +357,6 @@ RequestResult Targets::request_update(const char* target_name_text, std::uint64_
 
 RequestResult Targets::request_install(const char* target_name_text, const char* package_path,
                                        std::uint64_t now_ms) noexcept {
-    (void)now_ms;
     const std::optional<std::size_t> found = entry_of_name(target_name_text);
     if (!found.has_value()) {
         return RequestResult::unknown_target;
@@ -351,12 +371,13 @@ RequestResult Targets::request_install(const char* target_name_text, const char*
     const char letter[2] = {stxpackage::slot_letter(stxpackage::install_slot((*entry.stored).state)), '\0'};
     const char* const arguments[] = {stxpackage::stxpkg_path, "install", program(entry), letter, package_path,
                                      nullptr};
-    return start_job(JobKind::install, *found, arguments) ? RequestResult::accepted : RequestResult::failed;
+    return start_job(JobKind::install, *found, arguments, OperationKind::program_install, true, now_ms)
+               ? RequestResult::accepted
+               : RequestResult::failed;
 }
 
 RequestResult Targets::request_update_from(const char* target_name_text, const char* url,
                                            std::uint64_t now_ms) noexcept {
-    (void)now_ms;
     const std::optional<std::size_t> found = entry_of_name(target_name_text);
     if (!found.has_value()) {
         return RequestResult::unknown_target;
@@ -375,7 +396,9 @@ RequestResult Targets::request_update_from(const char* target_name_text, const c
     }
     const char letter[2] = {stxpackage::slot_letter(stxpackage::install_slot((*entry.stored).state)), '\0'};
     const char* const arguments[] = {stxpackage::stxpkg_path, "update", program(entry), letter, url, nullptr};
-    return start_job(JobKind::update, *found, arguments) ? RequestResult::accepted : RequestResult::failed;
+    return start_job(JobKind::update, *found, arguments, OperationKind::program_install, true, now_ms)
+               ? RequestResult::accepted
+               : RequestResult::failed;
 }
 
 RequestResult Targets::request_system_update(std::uint64_t now_ms) noexcept {
@@ -391,7 +414,6 @@ RequestResult Targets::request_system_update(std::uint64_t now_ms) noexcept {
 }
 
 RequestResult Targets::request_system_install(const char* package_path, std::uint64_t now_ms) noexcept {
-    (void)now_ms;
     if (!system_slot_.has_value() || reboot_requested_ || package_path == nullptr || package_path[0] != '/') {
         return RequestResult::nothing_to_do;
     }
@@ -401,7 +423,9 @@ RequestResult Targets::request_system_install(const char* package_path, std::uin
     const stxboot::Slot inactive = *system_slot_ == stxboot::Slot::a ? stxboot::Slot::b : stxboot::Slot::a;
     const char letter[2] = {inactive == stxboot::Slot::a ? 'a' : 'b', '\0'};
     const char* const arguments[] = {stxpackage::stxpkg_path, "system-install", letter, package_path, nullptr};
-    return start_job(JobKind::system_update, 0, arguments) ? RequestResult::accepted : RequestResult::failed;
+    return start_job(JobKind::system_update, 0, arguments, OperationKind::system_update, true, now_ms)
+               ? RequestResult::accepted
+               : RequestResult::failed;
 }
 
 RequestResult Targets::rollback(const char* target_name_text, std::uint64_t now_ms) noexcept {
@@ -442,6 +466,30 @@ std::optional<TargetStatus> Targets::status(const char* target_name_text) const 
     result.next_check_ms = entry.next_check_ms;
     const std::optional<TargetStatus> answer = result;
     return answer;
+}
+
+OperationStatus Targets::last_operation() const noexcept {
+    return last_operation_;
+}
+
+std::optional<TargetLogEnd> Targets::log_end(const char* target_name_text, std::span<char> destination) const noexcept {
+    if (target_name_text == nullptr) {
+        return std::nullopt;
+    }
+    const std::optional<std::size_t> found = entry_of_name(target_name_text);
+    if (!found.has_value()) {
+        return std::nullopt;
+    }
+    const std::optional<TargetLogEnd> end = logs_.read_end(entries_[*found].service_index, destination);
+    return end;
+}
+
+void Targets::drain_logs() noexcept {
+    logs_.drain();
+}
+
+std::size_t Targets::log_descriptors(std::span<int> out) const noexcept {
+    return logs_.descriptors(out);
 }
 
 std::size_t Targets::target_count() const noexcept {
@@ -542,7 +590,8 @@ bool Targets::store(Entry& entry) noexcept {
     return true;
 }
 
-bool Targets::start_job(JobKind kind, std::size_t entry_index, const char* const* arguments) noexcept {
+bool Targets::start_job(JobKind kind, std::size_t entry_index, const char* const* arguments,
+                        OperationKind operation, bool install, std::uint64_t now_ms) noexcept {
     const pid_t child = fork();
     if (child < 0) {
         return false;
@@ -558,6 +607,8 @@ bool Targets::start_job(JobKind kind, std::size_t entry_index, const char* const
         _exit(127);
     }
     job_ = Job{kind, static_cast<int>(child), entry_index};
+    last_operation_ = OperationStatus{operation, install, true, 0, now_ms, now_ms,
+                                      kind == JobKind::system_update ? nullptr : name(entries_[entry_index])};
     LineText line = stxruntime::empty_line();
     if (kind == JobKind::system_update) {
         stxruntime::append_text(line, "STXSUPERVISOR system job=update");
@@ -582,7 +633,7 @@ void Targets::start_update(std::size_t entry_index, std::uint64_t now_ms) noexce
     const char letter[2] = {stxpackage::slot_letter(stxpackage::install_slot((*entry.stored).state)), '\0'};
     const char* const arguments[] = {stxpackage::stxpkg_path, "update", program(entry), letter,
                                      (*config_).text(*target.update_url), nullptr};
-    if (!start_job(JobKind::update, entry_index, arguments)) {
+    if (!start_job(JobKind::update, entry_index, arguments, OperationKind::program_check, false, now_ms)) {
         entry.next_check_ms = next_check_ms(JobOutcome::failed, now_ms, target.update_interval_s);
     }
 }
@@ -597,12 +648,15 @@ void Targets::start_system_update(std::uint64_t now_ms) noexcept {
     const char letter[2] = {inactive == stxboot::Slot::a ? 'a' : 'b', '\0'};
     const char* const arguments[] = {stxpackage::stxpkg_path, "system-update", letter, (*config_).text(*url),
                                      nullptr};
-    if (!start_job(JobKind::system_update, 0, arguments)) {
+    if (!start_job(JobKind::system_update, 0, arguments, OperationKind::system_update, false, now_ms)) {
         system_next_check_ms_ = next_check_ms(JobOutcome::failed, now_ms, system_interval_s_);
     }
 }
 
 void Targets::finish_job(const Job& job, int wait_status, std::uint64_t now_ms) noexcept {
+    last_operation_.running = false;
+    last_operation_.wait_status = wait_status;
+    last_operation_.ended_ms = now_ms < last_operation_.started_ms ? last_operation_.started_ms : now_ms;
     const JobOutcome outcome = job_outcome(wait_status);
     LineText line = stxruntime::empty_line();
     if (job.kind == JobKind::system_update) {

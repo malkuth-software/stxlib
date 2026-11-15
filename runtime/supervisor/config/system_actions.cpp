@@ -213,6 +213,14 @@ constexpr std::size_t mount_message_bytes = 128;
     return "unknown";
 }
 
+[[nodiscard]] bool c_strings_equal(const char* left, const char* right) noexcept {
+    std::size_t index = 0;
+    while (left[index] != '\0' && left[index] == right[index]) {
+        index += 1;
+    }
+    return left[index] == right[index];
+}
+
 [[nodiscard]] std::size_t c_string_bytes(const char* text) noexcept {
     std::size_t length = 0;
     while (text[length] != '\0') {
@@ -252,6 +260,14 @@ StepOutcome SystemActions::mount(FileSystemKind file_system, const char* device,
         return StepOutcome::done();
     }
     const int error_number = errno;
+    // Already mounted there from that device (C2: the supervisor mounts the
+    // user partition itself before the init section, to read the user
+    // configuration; config_merge.h): the step's purpose holds.
+    struct statfs mounted{};
+    if (error_number == EBUSY && statfs(directory, &mounted) == 0 &&
+        c_strings_equal(mounted.f_mntonname, directory) && c_strings_equal(mounted.f_mntfromname, device)) {
+        return StepOutcome::done();
+    }
     message[mount_message_bytes - 1u] = '\0';
     if (message[0] != '\0') {
         stxruntime::LineText line = stxruntime::empty_line();
@@ -545,8 +561,13 @@ namespace {
 // which it can never give up again (setuid from root to a non-root uid sets
 // all three uids). Only async-signal-safe calls.
 [[noreturn]] void become_target(const char* const* arguments, const char* const* environment, const char* directory,
-                                std::uint32_t identity) noexcept {
+                                std::uint32_t identity, int output) noexcept {
     (void)setsid();
+    // Standard output and error into the supervisor's pipe (K17,
+    // ../target_log.h); the pipe's own descriptor goes with closefrom.
+    if (output >= 0 && (dup2(output, 1) < 0 || dup2(output, 2) < 0)) {
+        _exit(126);
+    }
     const gid_t group = static_cast<gid_t>(identity);
     const uid_t user = static_cast<uid_t>(identity);
     if (setgroups(1, &group) != 0 || setgid(group) != 0 || setuid(user) != 0) {
@@ -690,12 +711,23 @@ SpawnOutcome SystemServiceActions::spawn_target(const SpawnRequest& request, con
     if (access(target_launcher_path, X_OK) != 0) {
         return SpawnOutcome::spawn_failed(errno);
     }
+    const int output = (*target_hooks_).prepare_output(request.service_index);
     const pid_t child = fork();
     if (child < 0) {
-        return SpawnOutcome::spawn_failed(errno);
+        const int error = errno;
+        if (output >= 0) {
+            (void)close(output);
+            (*target_hooks_).output_abandoned(request.service_index);
+        }
+        return SpawnOutcome::spawn_failed(error);
     }
     if (child == 0) {
-        become_target(words, request.environment, target.folder, target.identity);
+        become_target(words, request.environment, target.folder, target.identity, output);
+    }
+    // The write end now lives only in the child: the read end sees end of
+    // file when the target and everything it started have exited.
+    if (output >= 0) {
+        (void)close(output);
     }
     (*target_hooks_).target_started(request.service_index, *slot, static_cast<int>(child));
     return SpawnOutcome::spawned(static_cast<int>(child));

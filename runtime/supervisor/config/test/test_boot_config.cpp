@@ -380,6 +380,17 @@ const Refusal refusals[] = {
     // A target never gets a control channel (C2_DESIGN.md, "The supervisor
     // interface", item 2).
     {"[target-a]\ncontrol = read\n", 2, 1, ParseError::service_setting_unknown},
+    // A [service-<name>] section becomes a target at its first target
+    // setting (the web configuration's spelling): then its command is a
+    // package path, wherever the command line stands, and service-only
+    // settings before the first target setting are refused.
+    {"[service-a]\ncommand = /bin/a\nrole = server\nid = 1\nfolder = /data/targets/a\n", 2, 11,
+     ParseError::program_path_malformed},
+    {"[service-a]\ndirectory = /x\nrole = server\n", 3, 1, ParseError::target_setting_in_service},
+    {"[service-a]\ncontrol = read\nid = 1\n", 3, 1, ParseError::target_setting_in_service},
+    {"[service-a]\nrole = server\ndirectory = /x\n", 3, 1, ParseError::service_setting_unknown},
+    {"[service-a]\ncommand = bin/a\nrestart = always\n", 2, 11, ParseError::program_not_absolute},
+    {"[service-a]\ncommand = bin/a\nstart = boot\n", 1, 2, ParseError::target_setting_missing},
     {"[service-a]\ncommand = /w\nfolder = /data/targets/a\n", 3, 1, ParseError::service_setting_unknown},
     {"[service-a]\ncommand = /w\nid = 1\n", 3, 1, ParseError::service_setting_unknown},
     {"[target-a]\nfolder = /w\n", 2, 10, ParseError::folder_outside_data},
@@ -853,6 +864,37 @@ void test_target_definition() {
     }
 }
 
+// A [service-<name>] section with target settings is a target, read back
+// as [target-<name>] would be; the command may come first (C2: the web
+// configuration's spelling, appliance/C2_DESIGN.md, "Targets").
+void test_target_in_service_section() {
+    const char* const test = "target in a service section";
+    const char* const text =
+        "[service-show]\n"
+        "command = bin/viewer --full\n"
+        "role = foreground\n"
+        "id = 7\n"
+        "folder = /data/targets/show\n"
+        "devices = fb0\n"
+        "[service-web]\n"
+        "command = /sbin/webd\n"
+        "control = operate\n";
+    const ParseOutcome outcome = parse_checked(test, text_of(text));
+    check(outcome.is_success() && config.service_count() == 2u, test, "parses");
+    if (!outcome.is_success() || config.service_count() != 2u) {
+        return;
+    }
+    const stxconfig::ServiceDefinition& show = config.service(0);
+    check(show.target.has_value() && (*show.target).role == stxconfig::TargetRole::foreground &&
+              (*show.target).id == 7u && same_text(config.text((*show.target).program), "show") &&
+              (*show.target).device_count == 1u,
+          test, "show is a target");
+    check(show.control == stxconfig::ControlAccess::none && same_text(config.text(show.arguments[0]), "bin/viewer"),
+          test, "no control; the command a package path");
+    const stxconfig::ServiceDefinition& web = config.service(1);
+    check(!web.target.has_value() && web.control == stxconfig::ControlAccess::operate, test, "web stays a service");
+}
+
 // The folder rule, exhaustive: every value made of a prefix (none,
 // "/data/target", "/data/targets", "/data/targets/", "/data/targetsx/") and
 // 0 to 5 bytes over "/", ".", "a", " ", "-", "$" (5 x 9,331 = 46,655
@@ -1080,6 +1122,7 @@ void test_control_access() {
 int main() {
     test_full_example();
     test_target_definition();
+    test_target_in_service_section();
     test_exhaustive_folders();
     test_exhaustive_package_paths();
     test_exhaustive_ipv4();

@@ -188,6 +188,7 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::network_value_malformed: return "network_value_malformed";
     case ParseError::folder_repeated: return "folder_repeated";
     case ParseError::service_control_unknown: return "service_control_unknown";
+    case ParseError::target_setting_in_service: return "target_setting_in_service";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -517,6 +518,11 @@ struct ServiceDraft {
     std::uint32_t line;
     std::uint32_t name_column;
     std::optional<ServiceCommandWords> command;
+    // Where the command's first word is: checked when the section closes,
+    // as a package path (target) or an absolute path (service), because a
+    // [service-<name>] section becomes a target at its first target
+    // setting, which may follow the command.
+    std::optional<SettingPlace> program_place;
     std::optional<TextRef> directory;
     std::optional<RestartPolicy> restart;
     // Present for a target section.
@@ -600,6 +606,17 @@ using LineResult = std::optional<ParseFailed>;
 
 // Closes the current service or target section, if any: each needs a
 // command, a target its required settings.
+// Whether the command's first word suits the section's final kind: a
+// package path for a target, an absolute path for a service.
+[[nodiscard]] bool program_word_valid(const ConfigBuilder& builder, const ServiceDraft& draft) noexcept {
+    const TextRef program = (*draft.command).arguments[0];
+    const char* const text = builder.text(program);
+    if (draft.target.has_value()) {
+        return package_path_valid(text, program.length);
+    }
+    return program.length != 0u && text[0] == '/';
+}
+
 [[nodiscard]] LineResult finish_service(ConfigBuilder& builder, ParseState& state) noexcept {
     if (!state.service.has_value()) {
         return std::nullopt;
@@ -608,6 +625,12 @@ using LineResult = std::optional<ParseFailed>;
     state.service.reset();
     if (!draft.command.has_value()) {
         return refuse_at(draft.line, draft.name_column, ParseError::service_command_missing);
+    }
+    if (draft.program_place.has_value() && !program_word_valid(builder, draft)) {
+        const SettingPlace place = *draft.program_place;
+        return refuse_at(place.line, place.column,
+                         draft.target.has_value() ? ParseError::program_path_malformed
+                                                  : ParseError::program_not_absolute);
     }
     ServiceDefinition service{};
     service.name = draft.name;
@@ -1444,14 +1467,9 @@ private:
     if (words.count > run_arguments_max) {
         return refuse(line, words.words[run_arguments_max].index, ParseError::too_many_run_arguments);
     }
-    const Word& program = words.words[0];
-    if (is_target) {
-        if (!package_path_valid(builder.text(program.text), program.text.length)) {
-            return refuse(line, program.index, program_error);
-        }
-    } else if (program.text.length == 0u || builder.text(program.text)[0] != '/') {
-        return refuse(line, program.index, program_error);
-    }
+    // The first word's form is checked when the section closes
+    // (program_word_valid), once the section's kind is known.
+    draft.program_place = SettingPlace{line.number, column_of(words.words[0].index)};
     ServiceCommandWords command{};
     command.count = static_cast<std::uint32_t>(words.count);
     for (std::size_t index = 0; index < words.count; index += 1) {
@@ -1607,6 +1625,20 @@ private:
     return refuse(line, begin, ParseError::service_setting_unknown);
 }
 
+// The settings only a target has (boot_config.h, the target section).
+constexpr const char* const target_setting_names[] = {
+    "role", "id", "program", "folder", "ports", "devices", "start", "update-url", "update-interval", "healthy-after",
+};
+
+[[nodiscard]] bool is_target_setting_name(const LineView& line, std::size_t begin, std::size_t end_of_name) noexcept {
+    for (const char* const name : target_setting_names) {
+        if (bytes_are(line, begin, end_of_name, name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 [[nodiscard]] LineResult parse_service_setting(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
                                                std::size_t begin) noexcept {
     // parse_setting accepted the line, so this layout holds: name, blanks,
@@ -1632,6 +1664,17 @@ private:
             return refuse(line, value_begin, ParseError::service_restart_unknown);
         }
         return std::nullopt;
+    }
+    // A [service-<name>] section that names a target setting is a target
+    // (C2: the web configuration writes targets so, sc2's C2-web.md section
+    // 3.3 and section 7 item 4; appliance/C2_DESIGN.md, "Targets"). Its
+    // first such line makes the draft a target's, provided the section has
+    // set no service-only setting so far.
+    if (!draft.target.has_value() && is_target_setting_name(line, begin, end_of_name)) {
+        if (draft.directory.has_value() || draft.control.has_value()) {
+            return refuse(line, begin, ParseError::target_setting_in_service);
+        }
+        draft.target = TargetDraft{};
     }
     if (draft.target.has_value()) {
         return parse_target_setting(builder, *draft.target, line, begin, end_of_name, value_begin, value_end);

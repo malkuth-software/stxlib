@@ -40,6 +40,7 @@
 #include "../store/turn_file.h"
 #include "control/control_protocol.h"
 #include "control/control_server.h"
+#include "targets.h"
 
 namespace stxsupervisor {
 
@@ -66,6 +67,12 @@ public:
     [[nodiscard]] int prepare_channel() noexcept override;
     void channel_started(int pid) noexcept override;
     void channel_abandoned() noexcept override;
+
+    // Adds descriptors (the targets' output pipes, target_log.h) to what
+    // wait() wakes for, as readable. Adding one already there changes
+    // nothing; a descriptor leaves the queue when it is closed. At most
+    // control_channels_max per call; the rest are left out.
+    void watch(std::span<const int> descriptors) noexcept;
 
     // Returns when a registered signal arrives, a channel is readable or
     // timeout_ms has passed (whichever is first; an interrupted wait
@@ -108,9 +115,11 @@ private:
 
 // The control server's system: the boot log on the user partition
 // (boot_slots_system.h, boot_log_path), the user configuration's turn
-// files (config/user_config.h), the reboot request, and, until the host
-// side implements them (sb2's C2 note), unsupported program and
-// system-update commands. Large (two turn-file buffers): static storage.
+// files (config/user_config.h), the reboot request, and the program and
+// system-update commands and each target's output, which the targets layer
+// carries out (targets.h; answers in program_answers.h). Until set_targets
+// those answer unavailable (the log tail: absent). Large (two turn-file
+// buffers): static storage.
 class SystemControl final : public stxcontrol::ControlSystem {
 public:
     SystemControl() noexcept;
@@ -126,12 +135,22 @@ public:
     [[nodiscard]] stxcontrol::ProgramAnswer program_check(const stxcontrol::ServiceName& target) noexcept override;
     [[nodiscard]] stxcontrol::Status system_update() noexcept override;
     [[nodiscard]] stxcontrol::OperationRecord operation_state() noexcept override;
+    [[nodiscard]] stxcontrol::BootLogRead read_target_log(const stxcontrol::ServiceName& target,
+                                                          std::span<char> destination) noexcept override;
 
     // Whether a reboot was asked for (the main loop reboots).
     [[nodiscard]] bool reboot_requested() const noexcept;
+    // The targets layer the program commands go to; borrowed, must outlive
+    // this system or be reset to null first.
+    void set_targets(stxtargets::Targets* targets) noexcept;
 
 private:
+    // status, with the target's ProgramRecord when it is a target.
+    [[nodiscard]] stxcontrol::ProgramAnswer answer_for(const stxcontrol::ServiceName& target,
+                                                       stxcontrol::Status status) const noexcept;
+
     bool reboot_requested_;
+    stxtargets::Targets* targets_;
     char turn_buffers_[2][stxstore::turn_file_bytes_max + 1u];
 };
 

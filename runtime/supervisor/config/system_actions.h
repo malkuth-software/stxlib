@@ -125,6 +125,12 @@ public:
     virtual void target_started(std::size_t service_index, char slot, int pid) noexcept = 0;
     // Every event the registry reports, after its console line.
     virtual void service_event(const ServiceEvent& event) noexcept = 0;
+    // The target's output (K17, ../target_log.h): the write end of a new
+    // pipe, close-on-exec, which the child takes as descriptors 1 and 2;
+    // -1 when none can be made (the child then keeps the console).
+    [[nodiscard]] virtual int prepare_output(std::size_t service_index) noexcept = 0;
+    // The start failed after prepare_output: the read end is closed.
+    virtual void output_abandoned(std::size_t service_index) noexcept = 0;
 
 protected:
     ~TargetHooks() = default;

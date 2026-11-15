@@ -11,7 +11,8 @@
 #                           control_channels.cpp) and runtime/store/*.cpp
 #   stxpkg                  runtime/package/*.cpp and runtime/net/{url,http_head,fetch}.cpp,
 #                           with the base system's libssl, libcrypto and libufs (static)
-#   stxnet                  runtime/net/stxnet.cpp with the configuration parser
+#   stxnet                  runtime/net/stxnet.cpp with the configuration parser,
+#                           the user rules, the merge and the turn files
 #   stxsntp                 runtime/net/stxsntp.cpp, sntp.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
 #   stxweb                  runtime/web/*.cpp with the supervisor's pure
@@ -97,7 +98,9 @@ build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/conf
     runtime/supervisor/device_rules.cpp runtime/supervisor/device_rules_system.cpp \
     runtime/supervisor/targets.cpp runtime/supervisor/targets_plan.cpp \
     runtime/package/program_slots.cpp runtime/package/manifest.cpp runtime/package/store_layout.cpp \
-    runtime/supervisor/config/user_config.cpp runtime/supervisor/target_log.cpp \
+    runtime/supervisor/config/user_config.cpp runtime/supervisor/config/access_keys.cpp \
+    runtime/supervisor/config/config_merge.cpp runtime/supervisor/target_log.cpp runtime/supervisor/log_ring.cpp \
+    runtime/supervisor/program_answers.cpp \
     runtime/supervisor/control/control_protocol.cpp runtime/supervisor/control/control_server.cpp \
     runtime/supervisor/control_channels.cpp runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp
 build stxpkg runtime/package/stxpkg.cpp runtime/package/manifest.cpp runtime/package/container.cpp \
@@ -105,7 +108,9 @@ build stxpkg runtime/package/stxpkg.cpp runtime/package/manifest.cpp runtime/pac
     runtime/net/url.cpp runtime/net/http_head.cpp runtime/net/fetch.cpp \
     runtime/supervisor/config/boot_config.cpp runtime/supervisor/config/service_registry.cpp \
     -- -lufs -lssl -lcrypto -lpthread
-build stxnet runtime/net/stxnet.cpp runtime/supervisor/config/boot_config.cpp
+build stxnet runtime/net/stxnet.cpp runtime/supervisor/config/boot_config.cpp \
+    runtime/supervisor/config/user_config.cpp runtime/supervisor/config/config_merge.cpp \
+    runtime/store/turn_file.cpp runtime/store/turn_file_system.cpp
 build stxsntp runtime/net/stxsntp.cpp runtime/net/sntp.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
 build stxweb runtime/web/stxweb.cpp runtime/web/tls_server.cpp runtime/web/system_backend.cpp \

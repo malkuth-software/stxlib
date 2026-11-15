@@ -193,7 +193,10 @@ void test_user_config() {
               (*refusal).code == static_cast<std::uint8_t>(stxconfig::UserRule::command_not_allowed),
           "user_config", "an init command other than start refused");
 
-    const char* const good = "[system]\nhostname = stx\n\n[service-player]\ncommand = /bin/sleep 1\n\n[init]\nstart player\n";
+    // A user configuration's services are targets (user_config.h, rule 5).
+    const char* const good =
+        "[system]\nhostname = stx\n\n[service-player]\ncommand = bin/player\nrole = server\nid = 1\n"
+        "folder = /data/targets/player\n\n[init]\nstart player\n";
     answer = ask(config_write_of(good), web_pid);
     const std::optional<ConfigWritten> written =
         answer.has_value() ? decode_config_written((*answer).payload) : std::nullopt;
@@ -321,6 +324,30 @@ void test_last_good() {
 
 }  // namespace
 
+// The target log tail (K17): whole lines only when the front was cut, the
+// flags, unknown names refused, read access enough, and no service record
+// pasted over the text.
+void test_target_log_tail() {
+    std::optional<ResponseView> answer = ask(request_of(Command::target_log_tail, "plain"), reader_pid);
+    std::optional<BootLogTailView> tail =
+        answer.has_value() ? decode_boot_log_tail((*answer).payload) : std::nullopt;
+    const char* const expected = "whole one\n";
+    check(answer.has_value() && (*answer).status == Status::ok && tail.has_value() && (*tail).present &&
+              (*tail).front_cut && (*tail).text.size() == std::strlen(expected) &&
+              std::memcmp((*tail).text.data(), expected, std::strlen(expected)) == 0,
+          "target_log_tail", "whole lines after a cut front, read access enough");
+    answer = ask(request_of(Command::target_log_tail, "sleeper"), reader_pid);
+    tail = answer.has_value() ? decode_boot_log_tail((*answer).payload) : std::nullopt;
+    check(answer.has_value() && (*answer).status == Status::ok && tail.has_value() && !(*tail).present &&
+              (*tail).text.empty(),
+          "target_log_tail", "nothing kept: absent");
+    answer = ask(request_of(Command::target_log_tail, "absent"), reader_pid);
+    check(answer.has_value() && (*answer).status == Status::unknown_service, "target_log_tail", "unknown name");
+    answer = ask(request_of(Command::target_log_tail, "plain"), plain_pid);
+    check(answer.has_value() && (*answer).status == Status::not_permitted, "target_log_tail",
+          "a service without control refused");
+}
+
 int main() {
     const stxconfig::ParseOutcome parsed = stxconfig::parse_boot_config(text_of(factory_text), factory);
     check(parsed.as_failure() == nullptr, "setup", "factory configuration parses");
@@ -338,6 +365,7 @@ int main() {
     test_user_config();
     test_reboot();
     test_programs();
+    test_target_log_tail();
     test_operation();
     test_whole_lines();
     test_last_good();

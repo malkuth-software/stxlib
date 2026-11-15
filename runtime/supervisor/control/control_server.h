@@ -166,6 +166,12 @@ public:
     [[nodiscard]] virtual Status system_update() noexcept = 0;
     [[nodiscard]] virtual OperationRecord operation_state() noexcept = 0;
 
+    // The end of a target's own output (K17): its last destination.size()
+    // bytes, or all of it when shorter, into the front of destination;
+    // began_inside when older output was dropped. Absent when the service
+    // is no target or has written nothing yet.
+    [[nodiscard]] virtual BootLogRead read_target_log(const ServiceName& target, std::span<char> destination) noexcept = 0;
+
 protected:
     ~ControlSystem() = default;
 };

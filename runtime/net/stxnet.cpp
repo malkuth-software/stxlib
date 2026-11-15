@@ -15,6 +15,17 @@
 // /var/run/resolv.conf with one "nameserver" line per dns address.
 // The hostname, when set, is applied first (sethostname).
 //
+// The user configuration (C2, K18; supervisor/config/config_merge.h): the
+// file named is the factory configuration; stxnet then reads the user
+// configuration's turn files on the user partition (the supervisor mounted
+// it before the init section) and applies the same effective
+// configuration the supervisor chose, so a [system] hostname or a
+// [network] section set on the web page takes effect at the next boot. A
+// static address without an interface goes to the first Ethernet
+// interface (the web page offers no interface field). Prints
+// "STXNET config user file=<0|1> sequence=<n> ok" or
+// "STXNET config user=none ok" first.
+//
 // Each command it runs has the init executor's time limit around stxnet
 // as a whole (run_timeout_ms); dhclient -b returns at once. Prints one line
 // per action, "STXNET <action> <detail> <outcome>", and exits 0 when every
@@ -38,7 +49,11 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "../store/turn_file.h"
+#include "../store/turn_file_system.h"
 #include "../supervisor/config/boot_config.h"
+#include "../supervisor/config/config_merge.h"
+#include "../supervisor/config/user_config.h"
 
 extern char** environ;
 
@@ -48,6 +63,12 @@ using stxconfig::BootConfig;
 using stxconfig::TextRef;
 
 BootConfig config;
+// C2: the factory configuration, a user turn's parse, the effective text,
+// the turn files' bytes (static: about 150 KiB together).
+BootConfig factory;
+BootConfig user_work;
+char effective_text[stxconfig::config_size_max];
+char turn_text[2][stxstore::turn_file_bytes_max + 1u];
 char file_text[stxconfig::config_size_max + 1u];
 
 constexpr std::size_t interfaces_max = 8;
@@ -176,6 +197,29 @@ int main(int argument_count, char** arguments) {
         report("parse", arguments[1], false);
         return 2;
     }
+    // The effective configuration: config holds the factory one now.
+    const std::span<const char> factory_text(file_text, static_cast<std::size_t>(got));
+    if (stxconfig::parse_boot_config(factory_text, factory).is_success()) {
+        const stxstore::TurnPaths paths{stxconfig::user_config_directory,
+                                        {stxconfig::user_config_path_0, stxconfig::user_config_path_1}};
+        const stxstore::TurnState turns = stxstore::read_turns(
+            paths, stxconfig::config_size_max, std::span<char>(turn_text[0], sizeof(turn_text[0])),
+            std::span<char>(turn_text[1], sizeof(turn_text[1])));
+        const std::optional<stxconfig::BootChoice> chosen =
+            stxconfig::choose_boot_config(factory_text, factory, turns.turns, turns.choice, user_work, config,
+                                          std::span<char>(effective_text, sizeof(effective_text)));
+        if (!chosen.has_value()) {
+            (void)stxconfig::parse_boot_config(factory_text, config);
+            report("config", "user=unavailable", false);
+        } else if ((*chosen).file_index.has_value()) {
+            char detail[64] = {};
+            (void)std::snprintf(detail, sizeof(detail), "user file=%zu sequence=%u", *(*chosen).file_index,
+                                static_cast<unsigned int>((*chosen).sequence));
+            report("config", detail, true);
+        } else {
+            report("config", "user=none", true);
+        }
+    }
     bool all = true;
     char value[stxconfig::line_length_max + 1u] = {};
     if (setting("system", "hostname", value)) {
@@ -189,9 +233,17 @@ int main(int argument_count, char** arguments) {
     const bool has_interface = setting("network", "interface", interface);
     if (std::strcmp(mode, "static") == 0) {
         char address[stxconfig::line_length_max + 1u] = {};
-        if (!has_interface || !setting("network", "address", address)) {
-            report("static", "needs interface and address", false);
+        if (!setting("network", "address", address)) {
+            report("static", "needs an address", false);
             return 1;
+        }
+        if (!has_interface) {
+            const InterfaceList list = ethernet_interfaces();
+            if (list.count == 0u) {
+                report("static", "no-ethernet-interface", false);
+                return 1;
+            }
+            (void)std::snprintf(interface, sizeof(interface), "%s", list.names[0]);
         }
         const char* const up[] = {"/sbin/ifconfig", interface, "inet", address, "up", nullptr};
         const bool configured = run(up);

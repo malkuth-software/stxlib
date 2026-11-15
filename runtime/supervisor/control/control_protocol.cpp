@@ -180,6 +180,7 @@ const char* command_name(Command command) noexcept {
     case Command::program_check: return "program-check";
     case Command::system_update: return "system-update";
     case Command::operation_state: return "operation-state";
+    case Command::target_log_tail: return "target-log-tail";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -196,6 +197,7 @@ bool command_takes_name(Command command) noexcept {
     case Command::program_install:
     case Command::program_rollback:
     case Command::program_check:
+    case Command::target_log_tail:
         return true;
     case Command::supervisor_state:
     case Command::list_services:
@@ -234,6 +236,7 @@ bool command_operates(Command command) noexcept {
     case Command::config_read:
     case Command::program_state:
     case Command::operation_state:
+    case Command::target_log_tail:
         return false;
     default:
         break;
@@ -264,6 +267,7 @@ PayloadRule command_payload(Command command) noexcept {
     case Command::program_check:
     case Command::system_update:
     case Command::operation_state:
+    case Command::target_log_tail:
         return PayloadRule::none;
     default:
         break;
