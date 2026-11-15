@@ -11,8 +11,10 @@
 // Debug, UBSan and integer-check builds, while ASan and TSan builds
 // returned frames; the cause is unconfirmed. The walk does not involve the
 // unwinder at all, so it is the same inside a cleanup as anywhere else.
-// _Unwind_Backtrace remains the fallback when the walk finds nothing (no
-// stack bounds, or a first frame without a frame record).
+// _Unwind_Backtrace remains the fallback when the walk finds at most one
+// record (no stack bounds, a first frame without a frame record, or a chain
+// broken at the first caller; CI 43700804309, glibc Release without
+// exceptions, captured one address).
 //
 // The frame record. AArch64: "The lowest addressed double-word shall point
 // to the previous frame record", and "the highest addressed double-word
@@ -172,9 +174,15 @@ usize unwind_frames(uptr* const addresses, const usize capacity) noexcept {
 
 usize capture_return_addresses(uptr* const addresses, const usize capacity) noexcept {
     if (addresses == nullptr || capacity == 0) return 0;
+    // A walk of one record means the chain broke at the first caller (code
+    // built without frame pointers, such as an optimised Linux build); the
+    // unwinder then reads the unwind tables instead, and the walk is kept
+    // only when the unwinder finds less.
     const usize walked = walk_frames(addresses, capacity);
-    if (walked != 0) return walked;
-    const usize result = unwind_frames(addresses, capacity);
+    if (walked >= 2 || walked == capacity) return walked;
+    const usize unwound = unwind_frames(addresses, capacity);
+    if (unwound >= walked) return unwound;
+    const usize result = walk_frames(addresses, capacity);
     return result;
 }
 
