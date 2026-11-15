@@ -4,6 +4,8 @@
 
 #include <cassert>
 
+#include "api_internal.h"
+
 namespace stxweb {
 
 // ---------------------------------------------------------------------------
@@ -194,8 +196,22 @@ enum class Route : std::uint8_t {
     slots,
     boot_log,
     network,
+    network_write,
     config,
-    config_check,
+    reboot,
+    settings,
+    settings_write,
+    settings_check,
+    targets,
+    target_write,
+    target_delete,
+    program,
+    program_action,
+    upload,
+    system_update,
+    operation,
+    access,
+    access_write,
     not_found,
 };
 
@@ -225,6 +241,28 @@ struct RouteMatch {
     return length;
 }
 
+// A path below prefix: "<name>" or "<name>/<rest>". Sets name and rest
+// (empty for none, with has_rest false); false when the name is not one.
+[[nodiscard]] bool named_path(std::span<const char> path, const char* prefix, stxcontrol::ServiceName& name,
+                              std::span<const char>& rest, bool& has_rest) noexcept {
+    if (!starts_with(path, prefix)) {
+        return false;
+    }
+    const std::span<const char> after = path.subspan(c_length(prefix));
+    std::size_t slash = 0;
+    while (slash < after.size() && after[slash] != '/') {
+        slash += 1;
+    }
+    const std::optional<stxcontrol::ServiceName> found = stxcontrol::service_name_of(after.subspan(0, slash));
+    if (!found.has_value()) {
+        return false;
+    }
+    name = *found;
+    has_rest = slash < after.size();
+    rest = has_rest ? after.subspan(slash + 1u) : after.subspan(after.size());
+    return true;
+}
+
 [[nodiscard]] RouteMatch route_of(std::span<const char> path) noexcept {
     RouteMatch match{};
     match.route = Route::not_found;
@@ -236,6 +274,9 @@ struct RouteMatch {
         Route route;
         Method method;
     };
+    // A path that two routes share (GET and POST) is listed once per
+    // method; the first entry with the request's method wins, and a path
+    // known only under the other method answers 405.
     static const Fixed fixed[] = {
         {"/api/session", Route::session, Method::get},
         {"/api/login", Route::login, Method::post},
@@ -247,8 +288,19 @@ struct RouteMatch {
         {"/api/slots", Route::slots, Method::get},
         {"/api/boot-log", Route::boot_log, Method::get},
         {"/api/network", Route::network, Method::get},
+        {"/api/network", Route::network_write, Method::post},
         {"/api/config", Route::config, Method::get},
-        {"/api/config/check", Route::config_check, Method::post},
+        {"/api/reboot", Route::reboot, Method::post},
+        {"/api/settings", Route::settings, Method::get},
+        {"/api/settings", Route::settings_write, Method::post},
+        {"/api/settings/check", Route::settings_check, Method::post},
+        {"/api/targets", Route::targets, Method::get},
+        {"/api/upload/package", Route::upload, Method::post},
+        {"/api/upload/system", Route::upload, Method::post},
+        {"/api/system/update", Route::system_update, Method::post},
+        {"/api/operation", Route::operation, Method::get},
+        {"/api/access", Route::access, Method::get},
+        {"/api/access", Route::access_write, Method::post},
     };
     for (const Fixed& item : fixed) {
         if (equals_exact(path, item.path)) {
@@ -257,38 +309,94 @@ struct RouteMatch {
             return match;
         }
     }
-    const char* const prefix = "/api/services/";
-    if (!starts_with(path, prefix)) {
+    std::span<const char> rest;
+    bool has_rest = false;
+    if (named_path(path, "/api/services/", match.name, rest, has_rest)) {
+        if (!has_rest) {
+            match.route = Route::service;
+            match.method = Method::get;
+            return match;
+        }
+        if (equals_exact(rest, "start")) {
+            match.action = stxcontrol::Command::start;
+        } else if (equals_exact(rest, "stop")) {
+            match.action = stxcontrol::Command::stop;
+        } else if (equals_exact(rest, "restart")) {
+            match.action = stxcontrol::Command::restart;
+        } else {
+            return match;
+        }
+        match.route = Route::service_action;
+        match.method = Method::post;
         return match;
     }
-    const std::span<const char> rest = path.subspan(c_length(prefix));
-    std::size_t slash = 0;
-    while (slash < rest.size() && rest[slash] != '/') {
-        slash += 1;
-    }
-    const std::optional<stxcontrol::ServiceName> name = stxcontrol::service_name_of(rest.subspan(0, slash));
-    if (!name.has_value()) {
+    if (named_path(path, "/api/targets/", match.name, rest, has_rest)) {
+        if (!has_rest) {
+            match.route = Route::target_write;
+            match.method = Method::post;
+            return match;
+        }
+        if (equals_exact(rest, "delete")) {
+            match.route = Route::target_delete;
+            match.method = Method::post;
+            return match;
+        }
+        if (equals_exact(rest, "program")) {
+            match.route = Route::program;
+            match.method = Method::get;
+            match.action = stxcontrol::Command::program_state;
+            return match;
+        }
+        if (equals_exact(rest, "install")) {
+            match.action = stxcontrol::Command::program_install;
+        } else if (equals_exact(rest, "rollback")) {
+            match.action = stxcontrol::Command::program_rollback;
+        } else if (equals_exact(rest, "check-update")) {
+            match.action = stxcontrol::Command::program_check;
+        } else {
+            return match;
+        }
+        match.route = Route::program_action;
+        match.method = Method::post;
         return match;
     }
-    match.name = *name;
-    if (slash == rest.size()) {
-        match.route = Route::service;
-        match.method = Method::get;
-        return match;
-    }
-    const std::span<const char> action = rest.subspan(slash + 1u);
-    if (equals_exact(action, "start")) {
-        match.action = stxcontrol::Command::start;
-    } else if (equals_exact(action, "stop")) {
-        match.action = stxcontrol::Command::stop;
-    } else if (equals_exact(action, "restart")) {
-        match.action = stxcontrol::Command::restart;
-    } else {
-        return match;
-    }
-    match.route = Route::service_action;
-    match.method = Method::post;
     return match;
+}
+
+// The route for path under method, when a route of that path takes it;
+// else the path's first route (its method then differs: 405).
+[[nodiscard]] RouteMatch route_for(std::span<const char> path, Method method) noexcept {
+    const RouteMatch first = route_of(path);
+    if (first.route == Route::not_found) {
+        return first;
+    }
+    const Method wanted = method == Method::head ? Method::get : method;
+    if (first.method == wanted) {
+        return first;
+    }
+    // The fixed table lists a shared path's GET route before its POST
+    // route; the named routes have one method each.
+    if (wanted == Method::post) {
+        if (first.route == Route::network) {
+            RouteMatch second = first;
+            second.route = Route::network_write;
+            second.method = Method::post;
+            return second;
+        }
+        if (first.route == Route::settings) {
+            RouteMatch second = first;
+            second.route = Route::settings_write;
+            second.method = Method::post;
+            return second;
+        }
+        if (first.route == Route::access) {
+            RouteMatch second = first;
+            second.route = Route::access_write;
+            second.method = Method::post;
+            return second;
+        }
+    }
+    return first;
 }
 
 [[nodiscard]] bool route_needs_session(Route route) noexcept {
@@ -307,8 +415,22 @@ struct RouteMatch {
     case Route::slots:
     case Route::boot_log:
     case Route::network:
+    case Route::network_write:
     case Route::config:
-    case Route::config_check:
+    case Route::reboot:
+    case Route::settings:
+    case Route::settings_write:
+    case Route::settings_check:
+    case Route::targets:
+    case Route::target_write:
+    case Route::target_delete:
+    case Route::program:
+    case Route::program_action:
+    case Route::upload:
+    case Route::system_update:
+    case Route::operation:
+    case Route::access:
+    case Route::access_write:
         return true;
     default:
         break;
@@ -342,7 +464,19 @@ struct RouteMatch {
     return true;
 }
 
-[[nodiscard]] std::uint16_t http_status_of(stxcontrol::Status status) noexcept {
+[[nodiscard]] std::uint32_t seconds_up(std::uint64_t milliseconds) noexcept {
+    const std::uint64_t seconds = (milliseconds + 999u) / 1000u;
+    return seconds < 0xffffffffu ? static_cast<std::uint32_t>(seconds) : 0xffffffffu;
+}
+
+}  // namespace
+
+// ---------------------------------------------------------------------------
+// Shared with api_pages.cpp (api_internal.h).
+
+namespace api_detail {
+
+std::uint16_t http_status_of(stxcontrol::Status status) noexcept {
     switch (status) {
     case stxcontrol::Status::ok: return 200;
     case stxcontrol::Status::unknown_service: return 404;
@@ -353,15 +487,16 @@ struct RouteMatch {
     case stxcontrol::Status::not_permitted: return 403;
     case stxcontrol::Status::malformed: return 500;
     case stxcontrol::Status::unavailable: return 503;
+    case stxcontrol::Status::config_refused: return 422;
+    case stxcontrol::Status::unsupported: return 501;
+    case stxcontrol::Status::store_failed: return 500;
+    case stxcontrol::Status::busy: return 409;
+    case stxcontrol::Status::signature_refused: return 422;
+    case stxcontrol::Status::source_unavailable: return 502;
     default: break;
     }
     // Fallback: an unknown status is the supervisor being unavailable.
     return 503;
-}
-
-[[nodiscard]] std::uint32_t seconds_up(std::uint64_t milliseconds) noexcept {
-    const std::uint64_t seconds = (milliseconds + 999u) / 1000u;
-    return seconds < 0xffffffffu ? static_cast<std::uint32_t>(seconds) : 0xffffffffu;
 }
 
 void write_slot(JsonWriter& writer, stxcontrol::SlotCode code) noexcept {
@@ -386,6 +521,8 @@ void write_service_record(JsonWriter& writer, const stxcontrol::ServiceRecord& r
     writer.string(stxcontrol::access_code_name(record.control));
     writer.key("restart_pending");
     writer.boolean(record.restart_pending);
+    writer.key("stopped_by_request");
+    writer.boolean(record.stopped_by_request);
     writer.key("pid");
     writer.integer(record.pid);
     writer.key("restart_count");
@@ -397,6 +534,40 @@ void write_service_record(JsonWriter& writer, const stxcontrol::ServiceRecord& r
 
 const char empty_object[] = "{}";
 
+ApiResponse blank_response(std::span<const char> body) noexcept {
+    ApiResponse response{};
+    response.status = 500;
+    response.kind = ContentKind::json;
+    response.body = body;
+    response.cacheable = false;
+    response.set_cookie = nullptr;
+    response.retry_after_s = std::nullopt;
+    response.allow = nullptr;
+    response.event.kind = ApiEventKind::none;
+    response.event.detail = "";
+    response.event.service[0] = '\0';
+    response.event.status = "";
+    return response;
+}
+
+std::size_t copy_empty_object(std::span<char> body) noexcept {
+    std::size_t size = 0;
+    for (std::size_t index = 0; empty_object[index] != '\0' && index < body.size(); index += 1) {
+        body[index] = empty_object[index];
+        size += 1;
+    }
+    return size;
+}
+
+}  // namespace api_detail
+
+namespace {
+
+using api_detail::empty_object;
+using api_detail::http_status_of;
+using api_detail::write_service_record;
+using api_detail::write_slot;
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -404,7 +575,24 @@ const char empty_object[] = "{}";
 
 Api::Api(ApiBackend& backend) noexcept
     : backend_(backend), sessions_(), gates_(), setup_code_(), document_(), body_{}, body_size_(0), set_cookie_{},
-      password_{}, second_password_{}, config_text_{}, check_config_(), addresses_{} {}
+      password_{}, second_password_{}, config_text_{}, check_config_(), factory_config_(), addresses_{}, editor_(),
+      user_source_(stxcontrol::ConfigSource::none), user_sequence_(0), user_written_since_start_(false),
+      fetch_failure_(), request_payload_{} {}
+
+std::optional<std::size_t> Api::session_of(const ApiRequest& request) noexcept {
+    if (!request.cookie.has_value()) {
+        return std::nullopt;
+    }
+    const std::optional<std::span<const char>> token = cookie_value(*request.cookie, session_cookie_name);
+    if (!token.has_value()) {
+        return std::nullopt;
+    }
+    return sessions_.find(*token, request.now_ms);
+}
+
+bool Api::origin_acceptable(const ApiRequest& request) noexcept {
+    return !request.origin.has_value() || origin_matches(*request.origin, request.host);
+}
 
 void Api::set_setup_code(const std::optional<SetupCode>& code) noexcept {
     setup_code_ = code;
@@ -506,18 +694,7 @@ std::optional<std::span<const char>> Api::body_string(const char* key, std::span
 }
 
 ApiResponse Api::handle(const ApiRequest& request) noexcept {
-    ApiResponse response{};
-    response.status = 500;
-    response.kind = ContentKind::json;
-    response.body = std::span<const char>(body_, 0);
-    response.cacheable = false;
-    response.set_cookie = nullptr;
-    response.retry_after_s = std::nullopt;
-    response.allow = nullptr;
-    response.event.kind = ApiEventKind::none;
-    response.event.detail = "";
-    response.event.service[0] = '\0';
-    response.event.status = "";
+    ApiResponse response = api_detail::blank_response(std::span<const char>(body_, 0));
     body_size_ = 0;
     if (starts_with(request.path, "/api/") || equals_exact(request.path, "/api")) {
         route_api(request, response);
@@ -550,7 +727,7 @@ void Api::route_static(const ApiRequest& request, ApiResponse& response) noexcep
 }
 
 void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
-    const RouteMatch match = route_of(request.path);
+    const RouteMatch match = route_for(request.path, request.method);
     if (match.route == Route::not_found) {
         respond_error(response, 404, "not_found");
         return;
@@ -562,14 +739,14 @@ void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
         response.allow = match.method == Method::get ? "GET, HEAD" : "POST";
         return;
     }
-
-    std::optional<std::size_t> session;
-    if (request.cookie.has_value()) {
-        const std::optional<std::span<const char>> token = cookie_value(*request.cookie, session_cookie_name);
-        if (token.has_value()) {
-            session = sessions_.find(*token, request.now_ms);
-        }
+    // An upload's body is streamed, never handed here (begin_upload); a
+    // request that reaches here on an upload route is refused.
+    if (match.route == Route::upload) {
+        respond_error(response, 400, "upload_not_streamed");
+        return;
     }
+
+    const std::optional<std::size_t> session = session_of(request);
 
     if (request.method == Method::post) {
         if (!request.content_type.has_value() || !content_type_is_json(*request.content_type)) {
@@ -578,7 +755,7 @@ void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
             response.event.detail = "content-type";
             return;
         }
-        if (request.origin.has_value() && !origin_matches(*request.origin, request.host)) {
+        if (!origin_acceptable(request)) {
             respond_error(response, 403, "origin_refused");
             response.event.kind = ApiEventKind::refused;
             response.event.detail = "origin";
@@ -659,12 +836,50 @@ void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
     case Route::network:
         handle_network(response);
         return;
+    case Route::network_write:
+        handle_network_write(response);
+        return;
     case Route::config:
         handle_config(response);
         return;
-    case Route::config_check:
-        handle_config_check(response);
+    case Route::reboot:
+        handle_reboot(response);
         return;
+    case Route::settings:
+        handle_settings_read(response);
+        return;
+    case Route::settings_write:
+        handle_settings_write(response);
+        return;
+    case Route::settings_check:
+        handle_settings_check(response);
+        return;
+    case Route::targets:
+        handle_targets(response);
+        return;
+    case Route::target_write:
+        handle_target_write(match.name, response);
+        return;
+    case Route::target_delete:
+        handle_target_delete(match.name, response);
+        return;
+    case Route::program:
+    case Route::program_action:
+        handle_program(match.action, match.name, response);
+        return;
+    case Route::system_update:
+        handle_system_update(response);
+        return;
+    case Route::operation:
+        handle_operation(response);
+        return;
+    case Route::access:
+        handle_access(response);
+        return;
+    case Route::access_write:
+        handle_access_write(response);
+        return;
+    case Route::upload:
     case Route::not_found:
         break;
     default:
@@ -796,11 +1011,7 @@ void Api::handle_setup(const ApiRequest& request, ApiResponse& response) noexcep
 
 void Api::handle_logout(std::size_t session, ApiResponse& response) noexcept {
     sessions_.remove(session);
-    body_size_ = 0;
-    for (std::size_t index = 0; empty_object[index] != '\0'; index += 1) {
-        body_[index] = empty_object[index];
-        body_size_ += 1;
-    }
+    body_size_ = api_detail::copy_empty_object(std::span<char>(body_, sizeof(body_)));
     respond_json(response, 200);
     clear_session_cookie(response);
     response.event.kind = ApiEventKind::logout;
@@ -851,11 +1062,7 @@ void Api::handle_password(const ApiRequest& request, std::size_t session, ApiRes
         return;
     }
     sessions_.remove_all_except(session);
-    body_size_ = 0;
-    for (std::size_t index = 0; empty_object[index] != '\0'; index += 1) {
-        body_[index] = empty_object[index];
-        body_size_ += 1;
-    }
+    body_size_ = api_detail::copy_empty_object(std::span<char>(body_, sizeof(body_)));
     respond_json(response, 200);
     response.event.kind = ApiEventKind::password_changed;
 }
@@ -1024,47 +1231,6 @@ void Api::handle_service(stxcontrol::Command command, const stxcontrol::ServiceN
     respond_json(response, http_status_of(status));
 }
 
-void Api::handle_network(ApiResponse& response) noexcept {
-    const std::optional<std::size_t> count =
-        backend_.list_addresses(std::span<NetworkAddress>(addresses_, network_addresses_max));
-    if (!count.has_value() || *count > network_addresses_max) {
-        respond_error(response, 503, "network_unavailable");
-        return;
-    }
-    JsonWriter writer(std::span<char>(body_, sizeof(body_)));
-    writer.begin_object();
-    writer.key("addresses");
-    writer.begin_array();
-    for (std::size_t index = 0; index < *count; index += 1) {
-        const NetworkAddress& address = addresses_[index];
-        char text[address_text_bytes_max];
-        (void)format_address(address.family, std::span<const std::uint8_t, 16>(address.bytes), text);
-        // The backend NUL-terminates the name; a longer one is cut.
-        char name[interface_name_bytes_max + 1];
-        for (std::size_t position = 0; position <= interface_name_bytes_max; position += 1) {
-            name[position] = position < interface_name_bytes_max ? address.interface_name[position] : '\0';
-        }
-        writer.begin_object();
-        writer.key("interface");
-        writer.string(name);
-        writer.key("family");
-        writer.string(address.family == AddressFamily::ipv4 ? "inet" : "inet6");
-        writer.key("address");
-        writer.string(text);
-        writer.key("prefix");
-        writer.unsigned_integer(address.prefix_length);
-        writer.end_object();
-    }
-    writer.end_array();
-    writer.end_object();
-    if (!writer.ok()) {
-        respond_error(response, 500, "internal");
-        return;
-    }
-    body_size_ = writer.size();
-    respond_json(response, 200);
-}
-
 void Api::handle_config(ApiResponse& response) noexcept {
     const ConfigOutcome outcome =
         backend_.read_config(std::span<char>(config_text_, stxconfig::config_size_max));
@@ -1091,47 +1257,16 @@ void Api::handle_config(ApiResponse& response) noexcept {
     respond_json(response, 200);
 }
 
-void Api::handle_config_check(ApiResponse& response) noexcept {
-    const std::optional<std::size_t> member = document_.member(0, "text");
-    if (!member.has_value() || document_.token(*member).kind != JsonKind::string) {
-        respond_error(response, 400, "text_missing");
+void Api::handle_reboot(ApiResponse& response) noexcept {
+    const stxcontrol::Request request = stxcontrol::request_without_name(stxcontrol::Command::reboot, 0);
+    const std::optional<stxcontrol::ResponseView> answer = backend_.ask_supervisor(request);
+    response.event.kind = ApiEventKind::operated;
+    response.event.detail = "reboot";
+    response.event.status = answer.has_value() ? stxcontrol::status_name((*answer).status) : "unavailable";
+    if (!supervisor_ok(answer, stxcontrol::Command::reboot, response)) {
         return;
     }
-    // One byte more than the format allows: a longer text is refused by
-    // the parser as file_too_large, as the supervisor would refuse it.
-    const std::optional<std::size_t> size =
-        document_.decode_string(*member, std::span<char>(config_text_, stxconfig::config_size_max + 1u));
-    const std::size_t text_size = size.has_value() ? *size : stxconfig::config_size_max + 1u;
-    const stxconfig::ParseOutcome outcome =
-        stxconfig::parse_boot_config(std::span<const char>(config_text_, text_size), check_config_);
-    JsonWriter writer(std::span<char>(body_, sizeof(body_)));
-    writer.begin_object();
-    writer.key("ok");
-    writer.boolean(outcome.is_success());
-    const stxconfig::ParseFailed* const failure = outcome.as_failure();
-    if (failure != nullptr) {
-        writer.key("line");
-        writer.unsigned_integer((*failure).line);
-        writer.key("column");
-        writer.unsigned_integer((*failure).column);
-        writer.key("error");
-        writer.string(stxconfig::parse_error_name((*failure).error));
-    } else {
-        writer.key("sections");
-        writer.unsigned_integer(check_config_.section_count());
-        writer.key("settings");
-        writer.unsigned_integer(check_config_.setting_count());
-        writer.key("commands");
-        writer.unsigned_integer(check_config_.init_command_count());
-        writer.key("services");
-        writer.unsigned_integer(check_config_.service_count());
-    }
-    writer.end_object();
-    if (!writer.ok()) {
-        respond_error(response, 500, "internal");
-        return;
-    }
-    body_size_ = writer.size();
+    body_size_ = api_detail::copy_empty_object(std::span<char>(body_, sizeof(body_)));
     respond_json(response, 200);
 }
 

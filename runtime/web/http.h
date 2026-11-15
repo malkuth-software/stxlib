@@ -11,7 +11,9 @@
 //   head at most http_head_bytes_max bytes, else 431
 //   at most http_header_count_max header fields, else 431
 //   request-target at most http_target_bytes_max bytes, else 414
-//   body (Content-Length) at most http_body_bytes_max bytes, else 413
+//   body (Content-Length) at most http_body_bytes_max bytes, else 413;
+//     below http_stream_path_prefix, at most http_stream_bytes_max (the
+//     server streams such a body instead of holding it: uploads)
 //   method GET, HEAD or POST; another valid token, 501; else 400
 //   version HTTP/1.1; another HTTP/x.y, 505; else 400
 //   lines end in CRLF; a bare LF or CR is refused (400); no empty line may
@@ -52,6 +54,11 @@ constexpr std::size_t http_header_count_max = 32;
 constexpr std::size_t http_target_bytes_max = 2048;
 // The largest request body: a JSON document (json.h).
 constexpr std::size_t http_body_bytes_max = json_document_bytes_max;
+// Requests below this path carry bodies the server streams to a file (the
+// upload routes, api.h), up to http_stream_bytes_max bytes; the assembler
+// stops after their head (AssemblyState::streaming).
+constexpr const char* http_stream_path_prefix = "/api/upload/";
+constexpr std::uint32_t http_stream_bytes_max = 128u * 1024u * 1024u;
 constexpr std::size_t http_request_bytes_max = http_head_bytes_max + http_body_bytes_max;
 // A response head never exceeds this (the fixed fields plus the variable
 // ones the writer accepts).
@@ -121,7 +128,14 @@ enum class AssemblyState : std::uint8_t {
     receiving,
     complete,
     refused,
+    // The head of a request below http_stream_path_prefix is complete;
+    // its body is the server's to read (streamed_prefix() holds the part
+    // that arrived with the head).
+    streaming,
 };
+
+// Whether a request-target's path is below http_stream_path_prefix.
+[[nodiscard]] bool is_stream_path(std::span<const char> path) noexcept;
 
 // Owns one request's bytes (http_request_bytes_max). Not copyable; a
 // connection owns one and resets it per request.
@@ -143,9 +157,13 @@ public:
     AssemblyState commit(std::size_t count) noexcept;
 
     [[nodiscard]] AssemblyState state() const noexcept;
-    // Complete: the head and the body. Refused: the refusal.
+    // Complete or streaming: the head; complete: the body. Refused: the
+    // refusal.
     [[nodiscard]] const RequestHead* head() const noexcept;
     [[nodiscard]] std::span<const char> body() const noexcept;
+    // Streaming: the body's bytes that arrived with the head (at most the
+    // body's length).
+    [[nodiscard]] std::span<const char> streamed_prefix() const noexcept;
     [[nodiscard]] const HeadRefused* refusal() const noexcept;
     // The bytes received so far (the head's ranges index into them).
     [[nodiscard]] std::span<const char> bytes() const noexcept;

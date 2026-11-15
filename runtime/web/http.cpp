@@ -431,10 +431,21 @@ HeadOutcome parse_request_head(std::span<const char> head) noexcept {
     if (request.method != Method::post && request.content_length != 0u) {
         return HeadOutcome::refused(400, "body_not_allowed");
     }
-    if (request.content_length > http_body_bytes_max) {
+    const bool streamed = is_stream_path(range_text(head, request.path));
+    if (request.content_length > (streamed ? http_stream_bytes_max : http_body_bytes_max)) {
         return HeadOutcome::refused(413, "body_too_large");
     }
     return HeadOutcome::parsed(request);
+}
+
+bool is_stream_path(std::span<const char> path) noexcept {
+    std::size_t index = 0;
+    for (; http_stream_path_prefix[index] != '\0'; index += 1) {
+        if (index >= path.size() || path[index] != http_stream_path_prefix[index]) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -534,6 +545,10 @@ AssemblyState RequestAssembler::commit(std::size_t count) noexcept {
             return state_;
         }
     }
+    if (is_stream_path(range_text(std::span<const char>(buffer_, received_), (*head_).path))) {
+        state_ = AssemblyState::streaming;
+        return state_;
+    }
     const std::size_t need = static_cast<std::size_t>((*head_).head_length) + (*head_).content_length;
     if (received_ >= need) {
         state_ = AssemblyState::complete;
@@ -546,10 +561,20 @@ AssemblyState RequestAssembler::state() const noexcept {
 }
 
 const RequestHead* RequestAssembler::head() const noexcept {
-    if (state_ != AssemblyState::complete || !head_.has_value()) {
+    if ((state_ != AssemblyState::complete && state_ != AssemblyState::streaming) || !head_.has_value()) {
         return nullptr;
     }
     return &*head_;
+}
+
+std::span<const char> RequestAssembler::streamed_prefix() const noexcept {
+    if (state_ != AssemblyState::streaming || !head_.has_value()) {
+        return std::span<const char>(buffer_, 0);
+    }
+    const std::size_t begin = (*head_).head_length;
+    const std::size_t available = received_ - begin;
+    const std::size_t length = available < (*head_).content_length ? available : (*head_).content_length;
+    return std::span<const char>(buffer_ + begin, length);
 }
 
 std::span<const char> RequestAssembler::body() const noexcept {
@@ -627,10 +652,12 @@ const char* status_reason(std::uint16_t status) noexcept {
     case 414: return "URI Too Long";
     case 415: return "Unsupported Media Type";
     case 417: return "Expectation Failed";
+    case 422: return "Unprocessable Content";
     case 429: return "Too Many Requests";
     case 431: return "Request Header Fields Too Large";
     case 500: return "Internal Server Error";
     case 501: return "Not Implemented";
+    case 502: return "Bad Gateway";
     case 503: return "Service Unavailable";
     case 505: return "HTTP Version Not Supported";
     default: break;
