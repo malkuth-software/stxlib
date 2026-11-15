@@ -38,6 +38,24 @@
 // refuses anything that is not a live block of its own, in every build.
 // tags_checked() says whether this build checks.
 //
+// Process end (Windows; the security audit's A-stxlib-allocator-state-01-F2,
+// confirmed on Windows hardware at 03a7630). Once ExitProcess has stopped
+// the other threads (DLL_PROCESS_DETACH time), the allocator takes none of
+// its locks, which a stopped thread may hold for ever. What allocate and
+// release then do depends on the backend:
+// - host (always tagged by default): every allocation returns null and
+//   every release returns at once, whatever the size, leaving the block in
+//   place (src/state/allocator.cpp, "Process end");
+// - stx_minmallocpp (the default): an allocation its lock-free common path
+//   can serve from the thread's own cached blocks still succeeds, any other
+//   returns null; a release its common path can finish still frees the
+//   block, any other returns at once and leaves the block in place
+//   (src/state/stx_minmallocpp/allocator.hpp, "Process end");
+// - host with the tags turned OFF: no lock of STXlib's is taken, and malloc
+//   and free behave as the C runtime makes them.
+// Either way nothing waits, and nothing more is given back: termination
+// releases nothing. On POSIX hosts and Emscripten none of this happens.
+//
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.
 
