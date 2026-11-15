@@ -5,6 +5,8 @@
 
 #include "sincos_core.hpp"
 
+#include <bit>
+#include <cstdint>
 #include <limits>
 
 #include "variant_functions.hpp"
@@ -30,12 +32,44 @@ double float_remainder(const double x, std::uint64_t& index) noexcept {
     return r;
 }
 
+// Floats at which the double kernel below cannot round correctly: sin or
+// cos lies closer to a float midpoint than the kernel's error (2^-52.65
+// absolute), on the far side from the kernel's double. The proof
+// (tools/math/sincos_float_screen.py) checks every float 2^-27 <= |x| <=
+// 2^32 and finds exactly these. Each entry holds |x|'s bits and the
+// correctly rounded sin and cos of |x| (sin(-x) = -sin x, cos(-x) = cos x).
+struct FloatSinCosException final {
+    std::uint32_t magnitude_bits;
+    float s;
+    float c;
+};
+
+inline constexpr FloatSinCosException float_sincos_exceptions[] = {
+    // |x| = 9830.3984375: sin x lies 2^-54 (relative) past the midpoint
+    // -0x1.63f4bbp-2, which the kernel's double equals exactly.
+    {0x46199998u, -0x1.63f4bap-2f, -0x1.e01216p-1f},
+};
+
+// Replaces s and c with the stored values at an exception; a compare per
+// entry, no branch the kernel's chain waits for.
+void float_sincos_exception(const float angle, float& s, float& c) noexcept {
+    const std::uint32_t bits = std::bit_cast<std::uint32_t>(angle);
+    const std::uint32_t magnitude = bits & 0x7fffffffu;
+    for (const FloatSinCosException& entry : float_sincos_exceptions) {
+        if (magnitude == entry.magnitude_bits) {
+            s = (bits >> 31) != 0 ? -entry.s : entry.s;
+            c = entry.c;
+        }
+    }
+}
+
 } // namespace
 } // namespace detail
 
 // sin and cos of a float (contract in stxlib/math.hpp). Double
-// intermediate: the polynomials leave ~1e-17 of truncation error, far below
-// float rounding.
+// intermediate within 2^-52.65 absolute (tools/math/sincos_float_screen.py
+// step 1), rounded once to float; correctly rounded at every float but the
+// exceptions above, which return their stored values.
 void sincos(const float angle, float& s, float& c) noexcept {
     const double x = detail::widen(angle);
     if (!detail::sincos_fast_path(x) && !detail::sincos_medium_path(x)) {
@@ -61,6 +95,7 @@ void sincos(const float angle, float& s, float& c) noexcept {
     const double cos_correction = entry.c * cos_r_minus_1 - entry.s * sin_r;
     s = static_cast<float>(entry.s + sin_correction);
     c = static_cast<float>(entry.c + cos_correction);
+    detail::float_sincos_exception(angle, s, c);
 }
 
 // sin and cos of a double (contract in stxlib/math.hpp).

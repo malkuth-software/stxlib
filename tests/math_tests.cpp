@@ -111,6 +111,27 @@ constexpr double inverse_trig_ulp_limit = 0.5005;
 constexpr double tan_ulp_limit = sincos_worst_cases::stated_bound_ulps;
 constexpr double remaining_ulp_limit = 0.5005;
 
+// Whether a float screen may trust the C++ library's double rounded to
+// float as the correctly rounded float: not when that double lies within
+// the library's own error of a float midpoint, where rounding twice can land
+// on the wrong side. (The screens passed sincos(float) at +-9830.3984375 so:
+// the library's sin, correctly rounded to double, is the midpoint itself,
+// and so was the kernel's double; tools/math/sincos_float_screen.py found
+// it.) Within 2^-50 of a midpoint (relative; the library is within an ulp,
+// 2^-52), the reference decides.
+bool screen_holds(const double library_value) {
+    if (!std::isfinite(library_value) || library_value == 0.0) return true;
+    const float rounded = static_cast<float>(library_value);
+    if (!std::isfinite(rounded)) return true;
+    const double value = static_cast<double>(rounded);
+    const double up = static_cast<double>(std::nextafter(rounded, std::numeric_limits<float>::infinity()));
+    const double down = static_cast<double>(std::nextafter(rounded, -std::numeric_limits<float>::infinity()));
+    const double distance = std::min(std::fabs(library_value - (value + up) * 0.5),
+                                     std::fabs(library_value - (value + down) * 0.5));
+    const bool result = distance > std::fabs(library_value) * 0x1p-50;
+    return result;
+}
+
 // hi + lo rounded once to float.
 float correctly_rounded_float(const wide::Wide exact) {
     const float rounded = static_cast<float>(exact.hi);
@@ -383,10 +404,12 @@ void float_rounding(const std::uint32_t stride) {
             float c = 0.0f;
             unflushed::sincos(x, s, c);
             const double xd = static_cast<double>(x);
-            const float screen_s = static_cast<float>(std::sin(xd));
-            const float screen_c = static_cast<float>(std::cos(xd));
+            const double library_s = std::sin(xd);
+            const double library_c = std::cos(xd);
+            const float screen_s = static_cast<float>(library_s);
+            const float screen_c = static_cast<float>(library_c);
             checked += 1;
-            if (s == screen_s && c == screen_c) continue;
+            if (s == screen_s && c == screen_c && screen_holds(library_s) && screen_holds(library_c)) continue;
             const wide::WideSinCos exact = wide::reference(xd);
             require(s == correctly_rounded_float(exact.s) && c == correctly_rounded_float(exact.c),
                     "sincos(float): result is not correctly rounded");
@@ -394,6 +417,26 @@ void float_rounding(const std::uint32_t stride) {
     }
     std::printf("sincos(float) correctly rounded at %llu floats (stride %u)\n",
                 static_cast<unsigned long long>(checked), stride);
+}
+
+// The float the double kernel misrounds, which sincos.cpp's exception table
+// corrects (tools/math/sincos_float_screen.py found it; the screen above
+// had passed it, see screen_holds): sin(9830.3984375) lies 2^-54 past a float
+// midpoint.
+void float_exceptions() {
+    const float magnitude = 0x1.33333p13f;
+    const float signs[2] = {magnitude, -magnitude};
+    for (const float x : signs) {
+        float s = 0.0f;
+        float c = 0.0f;
+        unflushed::sincos(x, s, c);
+        const wide::WideSinCos exact = wide::reference(static_cast<double>(x));
+        require(s == correctly_rounded_float(exact.s) && c == correctly_rounded_float(exact.c),
+                "sincos(float): the exception at 9830.3984375 is not correctly rounded");
+        require(std::bit_cast<std::uint32_t>(s) == (x > 0.0f ? 0xbeb1fa5du : 0x3eb1fa5du),
+                "sincos(float): the exception at 9830.3984375 returned other bits");
+    }
+    std::printf("sincos(float) exception at +-9830.3984375 correct\n");
 }
 
 // FNV-1a over double and float outputs at fixed inputs, all on the fast or
@@ -613,9 +656,10 @@ void exp_float_rounding(const std::uint32_t stride) {
         for (const float x : signs) {
             const float y = unflushed::exp(x);
             const double xd = static_cast<double>(x);
-            const float screen = static_cast<float>(std::exp(xd));
+            const double library = std::exp(xd);
+            const float screen = static_cast<float>(library);
             checked += 1;
-            if (y == screen) continue;
+            if (y == screen && screen_holds(library)) continue;
             // Beyond these, float results are infinity or zero with margin.
             require(xd >= -110.0 && xd <= 90.0, "exp(float): wrong overflow or underflow");
             require(y == exp_correctly_rounded_float(wide::exp_reference(xd)),
@@ -824,9 +868,10 @@ void log_float_rounding(const std::vector<LogKernel>& kernels, const std::uint32
             const float x = std::bit_cast<float>(static_cast<std::uint32_t>(pattern));
             const float y = (*kernel.owned_float)(x);
             const double xd = static_cast<double>(x);
-            const float screen = static_cast<float>((*kernel.library_double)(xd));
+            const double library = (*kernel.library_double)(xd);
+            const float screen = static_cast<float>(library);
             checked += 1;
-            if (y == screen) continue;
+            if (y == screen && screen_holds(library)) continue;
             require(y == correctly_rounded_float(log_exact(kernel, xd)),
                     "log(float): result is not correctly rounded");
         }
@@ -1713,9 +1758,10 @@ void inverse_trig_float_rounding(const std::uint32_t stride) {
             for (const float x : signs) {
                 const float y = (*kernel.owned_float)(x);
                 const double xd = static_cast<double>(x);
-                const float screen = static_cast<float>((*kernel.library_double)(xd));
+                const double library = (*kernel.library_double)(xd);
+                const float screen = static_cast<float>(library);
                 checked += 1;
-                if (y == screen) continue;
+                if (y == screen && screen_holds(library)) continue;
                 require(y == correctly_rounded_float((*kernel.exact)(xd)),
                         "inverse trig (float): result is not correctly rounded");
             }
@@ -2009,9 +2055,10 @@ void remaining_float_rounding(const std::uint32_t stride) {
                 const float x = signs[sign];
                 const float y = (*kernel.owned_float)(x);
                 const double xd = static_cast<double>(x);
-                const float screen = static_cast<float>((*kernel.library_double)(xd));
+                const double library = (*kernel.library_double)(xd);
+                const float screen = static_cast<float>(library);
                 checked += 1;
-                if (same_bits(y, screen)) continue;
+                if (same_bits(y, screen) && screen_holds(library)) continue;
                 require(std::isfinite(y) && y == correctly_rounded_float((*kernel.exact)(xd)),
                         "tan/cbrt/hyperbolic (float): result is not correctly rounded");
             }
@@ -2653,6 +2700,7 @@ int main(const int argument_count, char** const arguments) {
         sincos_certified_worst_cases();
         double_accuracy(exhaustive ? 20000000 : 200000);
         sincos_hard_reduction(exhaustive ? 20000000 : 200000);
+        float_exceptions();
         float_rounding(exhaustive ? 1 : 97);
         exp_check_reference();
         exp_special_values();

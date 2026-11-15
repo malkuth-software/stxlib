@@ -45,8 +45,10 @@ namespace stxlib::math {
 // reset itself or use its own reduction.
 //
 // sin and cos of a float, correctly rounded for every float with
-// 2^-27 <= |x| <= 2^20 (exhaustively checked, 788,529,154 floats); below
-// 2^-27 sin = x and cos = 1, also correctly rounded. A subnormal angle
+// 2^-27 <= |x| <= 2^32, proved (tools/math/sincos_float_screen.py: a proved
+// error bound, every one of the 989,855,746 floats screened against it, the
+// 44 it leaves decided exactly); below 2^-27 sin = x and cos = 1, also
+// correctly rounded. A subnormal angle
 // gives sin = zero of its sign and cos = 1.
 void sincos(float angle, float& s, float& c) noexcept;
 

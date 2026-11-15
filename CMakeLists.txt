@@ -533,10 +533,11 @@ if(STXLIB_TESTS)
     # Dekker target, with Dekker's; both must print the same hash.
     # `--exhaustive` (every float through the float logarithms) and
     # `--bench` stay out of ctest.
-    add_executable(stxlib_math_region_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp)
+    add_executable(stxlib_math_region_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp
+        src/algorithms/math/trig_region.cpp)
     target_compile_definitions(stxlib_math_region_tests PRIVATE STXLIB_MATH_VARIANT=native)
     add_executable(stxlib_math_region_dekker_tests tests/math_region_tests.cpp src/algorithms/math/region.cpp
-        ${STXLIB_MATH_SOURCES})
+        src/algorithms/math/trig_region.cpp ${STXLIB_MATH_SOURCES})
     target_compile_definitions(stxlib_math_region_dekker_tests PRIVATE STXLIB_MATH_DEKKER STXLIB_MATH_VARIANT=native)
     foreach(math_test IN ITEMS stxlib_math_region_tests stxlib_math_region_dekker_tests)
         target_link_libraries(${math_test} PRIVATE stxlib::algorithms)

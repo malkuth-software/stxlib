@@ -1,4 +1,5 @@
-// Tests of the region kernels (src/algorithms/math/region.cpp), an
+// Tests of the region kernels (src/algorithms/math/region.cpp and
+// trig_region.cpp), an
 // experiment kept apart from the library's kernels: each is checked against
 // the double-double references of tests/reference/wide.hpp and compared with
 // the library's current function of stxlib/math.hpp, which stays as it is.
@@ -16,6 +17,7 @@
 
 #include "stxlib/math.hpp"
 
+#include "reference/sincos_worst_cases.hpp"
 #include "reference/wide.hpp"
 #include "core/checked.hpp"
 
@@ -568,6 +570,122 @@ void hypot_float_special_values() {
     std::printf("hypot(float) special cases agree (%d pairs)\n", checked);
 }
 
+// ---- sincos and tan (double), trig_region.cpp ----------------------------------
+
+// The library's stated bound for sin, cos and tan (0.51 ulp), which the
+// region kernels keep (tools/math/trig_region_certificate.py proves it).
+constexpr double trig_ulp_limit = sincos_worst_cases::stated_bound_ulps;
+
+double trig_ulps(const double approx, const wide::Wide exact) {
+    const double rounded = std::fabs(exact.hi + exact.lo);
+    const double ulp = std::nextafter(rounded, std::numeric_limits<double>::infinity()) - rounded;
+    const wide::Wide difference = wide::add(wide::Wide{approx, 0.0}, wide::negate(exact));
+    const double result = std::fabs(difference.hi + difference.lo) / ulp;
+    return result;
+}
+
+struct TrigRegion final {
+    const char* name{nullptr};
+    double low{0.0};
+    double high{0.0};
+};
+
+constexpr TrigRegion trig_regions[] = {
+    {"[-2 pi, 2 pi]", -6.283185307179586, 6.283185307179586},
+    {"[-64, 64]", -64.0, 64.0},
+    {"2^-27 .. 2^-6", 0x1p-27, 0x1p-6},
+    {"[64, 1e6]", 64.0, 1e6},
+    {"[1e6, 2^32]", 1e6, 0x1p32},
+};
+
+// Sampled accuracy against the references, and how often the bits differ
+// from the library's (both are within the bound; the region kernel rounds
+// differently in a few last bits).
+void trig_accuracy(const int per_region) {
+    for (const TrigRegion& region_entry : trig_regions) {
+        Lcg lcg{2027};
+        double worst_sin = 0.0;
+        double worst_cos = 0.0;
+        double worst_tan = 0.0;
+        int differ = 0;
+        for (int i = 0; i < per_region; ++i) {
+            const double x = region_entry.low + (region_entry.high - region_entry.low) * lcg.unit();
+            double s = 0.0;
+            double c = 0.0;
+            region::sincos(x, s, c);
+            const double t = region::tan(x);
+            const wide::WideSinCos exact = wide::reference(x);
+            worst_sin = std::max(worst_sin, trig_ulps(s, exact.s));
+            worst_cos = std::max(worst_cos, trig_ulps(c, exact.c));
+            worst_tan = std::max(worst_tan, trig_ulps(t, wide::tan_reference(x)));
+            double current_s = 0.0;
+            double current_c = 0.0;
+            stxlib::math::sincos(x, current_s, current_c);
+            const double current_t = stxlib::math::tan(x);
+            if (!same_bits(s, current_s) || !same_bits(c, current_c) || !same_bits(t, current_t)) differ += 1;
+        }
+        std::printf("sincos/tan(double) %-14s worst sin %.6f cos %.6f tan %.6f ulp; %d of %d differ from current\n",
+                    region_entry.name, worst_sin, worst_cos, worst_tan, differ, per_region);
+        require(worst_sin <= trig_ulp_limit && worst_cos <= trig_ulp_limit && worst_tan <= trig_ulp_limit,
+                "region sincos/tan(double): error above the stated bound");
+    }
+}
+
+// The certified worst cases (tests/reference/sincos_worst_cases.hpp): the
+// double nearest a multiple of pi/128 in every binade and residue class,
+// and its negation, against the exact values the certificate computed.
+void trig_worst_cases() {
+    int checked = 0;
+    for (const sincos_worst_cases::Case& entry : sincos_worst_cases::cases) {
+        for (int sign = 0; sign < 2; ++sign) {
+            const double flip = sign == 0 ? 1.0 : -1.0;
+            const double x = flip * entry.x;
+            double s = 0.0;
+            double c = 0.0;
+            region::sincos(x, s, c);
+            const double t = region::tan(x);
+            const double sin_error = trig_ulps(s, wide::Wide{flip * entry.sin_hi, flip * entry.sin_lo});
+            const double cos_error = trig_ulps(c, wide::Wide{entry.cos_hi, entry.cos_lo});
+            const double tan_error = trig_ulps(t, wide::Wide{flip * entry.tan_hi, flip * entry.tan_lo});
+            if (sin_error > trig_ulp_limit || cos_error > trig_ulp_limit || tan_error > trig_ulp_limit) {
+                std::fprintf(stderr, "x = %a: sin %.6f cos %.6f tan %.6f ulp\n", x, sin_error, cos_error, tan_error);
+            }
+            require(sin_error <= trig_ulp_limit && cos_error <= trig_ulp_limit && tan_error <= trig_ulp_limit,
+                    "region sincos/tan(double): a certified worst case above the bound");
+            checked += 1;
+        }
+    }
+    std::printf("sincos/tan(double) certified worst cases within the bound (%d)\n", checked);
+}
+
+// Zeros, subnormals, the tiny path, the ends of the supported range and the
+// refusals: the same bits as the library's public functions.
+void trig_special_values() {
+    const double values[] = {0.0, -0.0, 0x1p-1074, -0x1p-1074, 0x1p-1022, -0x1.8p-1023, 0x1p-28, 0x1.fffffffffffffp-28,
+                             0x1p-27, -0x1p-27, 0x1.fffffffffffffp5, 0x1p6, -0x1p6, 0x1p20, 0x1.0000000000001p20,
+                             0x1p32, -0x1p32, 0x1.0000000000001p32, 1e300,
+                             std::numeric_limits<double>::infinity(), -std::numeric_limits<double>::infinity(),
+                             std::numeric_limits<double>::quiet_NaN()};
+    int checked = 0;
+    for (const double x : values) {
+        double s = 0.0;
+        double c = 0.0;
+        region::sincos(x, s, c);
+        double current_s = 0.0;
+        double current_c = 0.0;
+        stxlib::math::sincos(x, current_s, current_c);
+        const bool nan_agrees = (s != s) == (current_s != current_s) && (c != c) == (current_c != current_c);
+        const bool bits_agree = (s != s || same_bits(s, current_s)) && (c != c || same_bits(c, current_c));
+        require(nan_agrees && bits_agree, "region sincos(double): a special case differs from the current");
+        const double t = region::tan(x);
+        const double current_t = stxlib::math::tan(x);
+        require((t != t) == (current_t != current_t) && (t != t || same_bits(t, current_t)),
+                "region tan(double): a special case differs from the current");
+        checked += 1;
+    }
+    std::printf("sincos/tan(double) special cases agree (%d)\n", checked);
+}
+
 // ---- determinism ----------------------------------------------------------------
 
 STXLIB_MODULAR void hash_word(std::uint64_t& hash, const std::uint64_t word) {
@@ -592,6 +710,17 @@ std::uint64_t region_output_hash() {
             const float yf = static_cast<float>(y);
             hash_word(hash, std::bit_cast<std::uint32_t>(region::pow(xf, yf)));
             hash_word(hash, std::bit_cast<std::uint32_t>(region::hypot(xf, yf)));
+        }
+    }
+    for (const TrigRegion& region_entry : trig_regions) {
+        for (int i = 0; i < 200000; ++i) {
+            const double x = region_entry.low + (region_entry.high - region_entry.low) * lcg.unit();
+            double s = 0.0;
+            double c = 0.0;
+            region::sincos(x, s, c);
+            hash_word(hash, std::bit_cast<std::uint64_t>(s));
+            hash_word(hash, std::bit_cast<std::uint64_t>(c));
+            hash_word(hash, std::bit_cast<std::uint64_t>(region::tan(x)));
         }
     }
     for (std::uint64_t pattern = 0; pattern <= 0xffffffffULL; pattern += 4099) {
@@ -625,6 +754,7 @@ struct BenchBuffers final {
     std::vector<float> xf{};
     std::vector<float> yf{};
     std::vector<float> outf{};
+    std::vector<double> out2{};
 };
 
 using BenchKernel = void (*)(BenchBuffers& buffers);
@@ -647,6 +777,22 @@ void unary_float(BenchBuffers& b) {
     for (std::size_t i = 0; i < count; ++i) b.outf[i] = Function(b.xf[i]);
 }
 
+template <double (*Function)(double)>
+void unary_double(BenchBuffers& b) {
+    const std::size_t count = b.x.size();
+    for (std::size_t i = 0; i < count; ++i) b.out[i] = Function(b.x[i]);
+}
+
+template <void (*Function)(double, double&, double&)>
+void pair_double(BenchBuffers& b) {
+    const std::size_t count = b.x.size();
+    for (std::size_t i = 0; i < count; ++i) Function(b.x[i], b.out[i], b.out2[i]);
+}
+
+void region_sincos_d(const double x, double& s, double& c) { region::sincos(x, s, c); }
+void current_sincos_d(const double x, double& s, double& c) { stxlib::math::sincos(x, s, c); }
+double region_tan_d(const double x) { return region::tan(x); }
+double current_tan_d(const double x) { return stxlib::math::tan(x); }
 double region_pow_d(const double x, const double y) { return region::pow(x, y); }
 double current_pow_d(const double x, const double y) { return stxlib::math::pow(x, y); }
 float region_pow_f(const float x, const float y) { return region::pow(x, y); }
@@ -692,6 +838,15 @@ void bench() {
         {"hypot(float) [-8, 8]", -8.0, 8.0, -8.0, 8.0, binary_float<region_hypot_f>, binary_float<current_hypot_f>},
         {"hypot(float) [1e-20, 1e20]", 1e-20, 1e20, 1e-20, 1e20, binary_float<region_hypot_f>,
          binary_float<current_hypot_f>},
+        {"sincos(double) [-pi, pi]", -3.141592653589793, 3.141592653589793, 0.0, 0.0,
+         pair_double<region_sincos_d>, pair_double<current_sincos_d>},
+        {"sincos(double) [-64, 64]", -64.0, 64.0, 0.0, 0.0, pair_double<region_sincos_d>,
+         pair_double<current_sincos_d>},
+        {"sincos(double) [-1e6, 1e6]", -1e6, 1e6, 0.0, 0.0, pair_double<region_sincos_d>,
+         pair_double<current_sincos_d>},
+        {"tan(double) [-pi, pi]", -3.141592653589793, 3.141592653589793, 0.0, 0.0, unary_double<region_tan_d>,
+         unary_double<current_tan_d>},
+        {"tan(double) [-64, 64]", -64.0, 64.0, 0.0, 0.0, unary_double<region_tan_d>, unary_double<current_tan_d>},
     };
     const std::size_t count = std::size_t{1} << 20;
     std::printf("region kernels against the current ones, ns per call, %zu inputs, best of 15\n", count);
@@ -705,6 +860,7 @@ void bench() {
         b.xf.resize(count);
         b.yf.resize(count);
         b.outf.resize(count);
+        b.out2.resize(count);
         for (std::size_t i = 0; i < count; ++i) {
             b.x[i] = row.x_low + (row.x_high - row.x_low) * lcg.unit();
             b.y[i] = row.y_low + (row.y_high - row.y_low) * lcg.unit();
@@ -735,6 +891,9 @@ int main(const int argument_count, char** const arguments) {
         log_float_rounding(exhaustive ? 1 : 997);
         hypot_float_special_values();
         hypot_float_rounding(exhaustive ? 100000000 : 300000);
+        trig_special_values();
+        trig_worst_cases();
+        trig_accuracy(exhaustive ? 20000000 : 200000);
         region_determinism();
     } catch (const std::exception& failure) {
         std::fprintf(stderr, "math region tests failed: %s\n", failure.what());
