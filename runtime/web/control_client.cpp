@@ -49,6 +49,11 @@ int ControlClient::inherited_descriptor() noexcept {
     return channel_descriptor;
 }
 
+void ControlClient::adopt(int descriptor) noexcept {
+    descriptor_ = descriptor;
+    closed_ = descriptor < 0;
+}
+
 int ControlClient::descriptor() const noexcept {
     return descriptor_;
 }

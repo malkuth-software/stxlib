@@ -42,6 +42,9 @@ public:
     // Descriptor 3 when it is a SOCK_SEQPACKET socket (made close-on-exec),
     // else -1.
     [[nodiscard]] static int inherited_descriptor() noexcept;
+    // Takes descriptor as the channel (for a client made, with static
+    // storage, before the descriptor was checked).
+    void adopt(int descriptor) noexcept;
 
     // Sends request (its request_id replaced by the client's next) and
     // waits for its response. The view borrows the client's storage until
