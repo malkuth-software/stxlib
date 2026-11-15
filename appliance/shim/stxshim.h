@@ -1,17 +1,25 @@
 /*
  * stxshim.h -- the interface of the STXlib kernel shim (appliance/shim/),
- * shared by the kernel module (stxshim.c) and the supervisor
- * (runtime/supervisor/shim_client.cpp). C, usable from C++.
+ * shared by the kernel module (stxshim.c), PID 1 (runtime/init/stxinit.cpp)
+ * and the supervisor (runtime/supervisor/shim_client.cpp). C, usable from
+ * C++.
  *
- * The shim is a character device, /dev/stxshim (root, mode 0600), with two
- * requests:
+ * The shim is a character device, /dev/stxshim (root, mode 0600). The
+ * kernel remembers, per open file, whether PID 1 opened it. Two requests:
  *
- *   STXSHIM_REGISTER   the caller becomes the registered supervisor. It
- *                      must be a child of PID 1; another live registered
- *                      supervisor makes it EBUSY, a caller that is not
- *                      PID 1's child EPERM. Registering again from the same
- *                      process succeeds. The shim marks the process
- *                      protected from the out-of-memory killer
+ *   STXSHIM_REGISTER   the caller becomes the registered supervisor. The
+ *                      request must come on an open file that PID 1 opened
+ *                      and handed to the caller (stxinit opens one per
+ *                      supervisor start and passes it as descriptor
+ *                      STXSHIM_SUPERVISOR_DESCRIPTOR), at most once per such
+ *                      file, from a child of PID 1 (EPERM otherwise);
+ *                      another live registered supervisor makes it EBUSY.
+ *                      The same process asking again on the same file
+ *                      succeeds. C1 accepted any child of PID 1, which let
+ *                      an orphan PID 1 adopted register between a
+ *                      supervisor's death and its restart; an orphan holds
+ *                      no such file (stxshim_register.h). The shim marks the
+ *                      process protected from the out-of-memory killer
  *                      (P_PROTECTED, the flag procctl(PROC_SPROTECT) sets),
  *                      for that process only, not its children. When the
  *                      registered process exits, by any cause, the
@@ -42,6 +50,8 @@
 #include <sys/ioccom.h>
 
 #define STXSHIM_DEVICE_PATH "/dev/stxshim"
+/* The descriptor on which the supervisor finds the file PID 1 opened. */
+#define STXSHIM_SUPERVISOR_DESCRIPTOR 3
 
 /* What one terminate did. */
 struct stxshim_terminate_result {

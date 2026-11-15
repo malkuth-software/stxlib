@@ -50,6 +50,11 @@ CommandAction CommandAction::run(const RunCommand& command) noexcept {
     return action;
 }
 
+CommandAction CommandAction::sysctl(const SysctlCommand& command) noexcept {
+    const CommandAction action(Alternatives(std::in_place_type<SysctlCommand>, command));
+    return action;
+}
+
 const MountCommand* CommandAction::as_mount() const noexcept {
     return std::get_if<MountCommand>(&alternatives_);
 }
@@ -70,6 +75,10 @@ const RunCommand* CommandAction::as_run() const noexcept {
     return std::get_if<RunCommand>(&alternatives_);
 }
 
+const SysctlCommand* CommandAction::as_sysctl() const noexcept {
+    return std::get_if<SysctlCommand>(&alternatives_);
+}
+
 const char* CommandAction::keyword() const noexcept {
     if (std::holds_alternative<MountCommand>(alternatives_)) {
         return "mount";
@@ -85,6 +94,9 @@ const char* CommandAction::keyword() const noexcept {
     }
     if (std::holds_alternative<RunCommand>(alternatives_)) {
         return "run";
+    }
+    if (std::holds_alternative<SysctlCommand>(alternatives_)) {
+        return "sysctl";
     }
     // Fallback: a variant left valueless (impossible here: every
     // alternative is trivially copyable, so no assignment can throw).
@@ -152,6 +164,14 @@ const char* parse_error_name(ParseError error) noexcept {
     case ParseError::directory_not_absolute: return "directory_not_absolute";
     case ParseError::too_many_services: return "too_many_services";
     case ParseError::start_unknown_service: return "start_unknown_service";
+    case ParseError::folder_malformed: return "folder_malformed";
+    case ParseError::folder_outside_user: return "folder_outside_user";
+    case ParseError::folder_with_directory: return "folder_with_directory";
+    case ParseError::confinement_without_folder: return "confinement_without_folder";
+    case ParseError::device_pattern_malformed: return "device_pattern_malformed";
+    case ParseError::too_many_devices: return "too_many_devices";
+    case ParseError::service_network_unknown: return "service_network_unknown";
+    case ParseError::sysctl_malformed: return "sysctl_malformed";
     default: break;
     }
     // Fallback: a value outside the enumeration.
@@ -440,6 +460,18 @@ struct ServiceCommandWords {
     TextRef arguments[run_arguments_max];
 };
 
+// A service's device patterns, as read from its setting.
+struct ServiceDeviceWords {
+    std::uint32_t count;
+    TextRef patterns[devices_max];
+};
+
+// Where a setting was, for a refusal found when the section closes.
+struct SettingPlace {
+    std::uint32_t line;
+    std::uint32_t column;
+};
+
 // The service section being read; it becomes a ServiceDefinition when the
 // next header or the end of the text closes it.
 struct ServiceDraft {
@@ -448,6 +480,13 @@ struct ServiceDraft {
     std::uint32_t name_column;
     std::optional<ServiceCommandWords> command;
     std::optional<TextRef> directory;
+    std::optional<SettingPlace> directory_place;
+    std::optional<TextRef> folder;
+    std::optional<SettingPlace> folder_place;
+    std::optional<ServiceDeviceWords> devices;
+    std::optional<SettingPlace> devices_place;
+    std::optional<NetworkAccess> network;
+    std::optional<SettingPlace> network_place;
     std::optional<RestartPolicy> restart;
 };
 
@@ -486,6 +525,18 @@ using LineResult = std::optional<ParseFailed>;
     if (!draft.command.has_value()) {
         return refuse_at(draft.line, draft.name_column, ParseError::service_command_missing);
     }
+    // Confinement settings need a folder; a folder excludes a directory
+    // (the working directory of a confined service is /srv). Refused at the
+    // offending setting.
+    if (draft.folder.has_value() && draft.directory.has_value()) {
+        const SettingPlace place = draft.folder_place.has_value() ? *draft.folder_place : SettingPlace{draft.line, 1};
+        return refuse_at(place.line, place.column, ParseError::folder_with_directory);
+    }
+    if (!draft.folder.has_value() && (draft.devices.has_value() || draft.network.has_value())) {
+        const std::optional<SettingPlace> first = draft.devices.has_value() ? draft.devices_place : draft.network_place;
+        const SettingPlace place = first.has_value() ? *first : SettingPlace{draft.line, 1};
+        return refuse_at(place.line, place.column, ParseError::confinement_without_folder);
+    }
     ServiceDefinition service{};
     service.name = draft.name;
     service.argument_count = (*draft.command).count;
@@ -493,6 +544,15 @@ using LineResult = std::optional<ParseFailed>;
         service.arguments[index] = (*draft.command).arguments[index];
     }
     service.directory = draft.directory;
+    service.folder = draft.folder;
+    service.device_count = 0;
+    if (draft.devices.has_value()) {
+        service.device_count = (*draft.devices).count;
+        for (std::uint32_t index = 0; index < (*draft.devices).count; index += 1) {
+            service.devices[index] = (*draft.devices).patterns[index];
+        }
+    }
+    service.network = draft.network.has_value() ? *draft.network : NetworkAccess::none;
     service.restart = draft.restart.has_value() ? *draft.restart : RestartPolicy::on_failure;
     service.line = draft.line;
     // Room was checked when the section began.
@@ -973,6 +1033,43 @@ private:
     return ActionResult::action(CommandAction::run(command));
 }
 
+[[nodiscard]] bool is_sysctl_name_byte(char byte) noexcept {
+    return (byte >= 'A' && byte <= 'Z') || is_lower_letter(byte) || is_digit(byte) || byte == '_' || byte == '-' ||
+           byte == '%' || byte == '.';
+}
+
+// sysctl name=value. The name: bytes of [A-Za-z0-9_%.-], at least one,
+// neither starting nor ending with '.', no empty component (".."). The
+// value: anything after the first '=' (possibly empty), read by the
+// variable's type when the command runs.
+[[nodiscard]] ActionResult read_sysctl(const ConfigBuilder& builder, const LineView& line,
+                                       const CommandSpan& span) noexcept {
+    if (span_length(span) != 2u) {
+        return refuse_action(line, span_word(span, 0).index, ParseError::command_arguments_wrong);
+    }
+    const Word& setting = span_word(span, 1);
+    const char* const text = builder.text(setting.text);
+    std::uint32_t equals = 0;
+    while (equals < setting.text.length && text[equals] != '=') {
+        equals += 1;
+    }
+    if (equals == 0u || equals >= setting.text.length) {
+        return refuse_action(line, setting.index, ParseError::sysctl_malformed);
+    }
+    if (text[0] == '.' || text[equals - 1u] == '.') {
+        return refuse_action(line, setting.index, ParseError::sysctl_malformed);
+    }
+    for (std::uint32_t index = 0; index < equals; index += 1) {
+        if (!is_sysctl_name_byte(text[index]) || (text[index] == '.' && index + 1u < equals && text[index + 1u] == '.')) {
+            return refuse_action(line, setting.index, ParseError::sysctl_malformed);
+        }
+    }
+    SysctlCommand command{};
+    command.setting = setting.text;
+    command.name_length = equals;
+    return ActionResult::action(CommandAction::sysctl(command));
+}
+
 [[nodiscard]] ActionResult read_action(const ConfigBuilder& builder, const LineView& line,
                                        const CommandSpan& span) noexcept {
     const Word& keyword = span_word(span, 0);
@@ -990,6 +1087,9 @@ private:
     }
     if (word_is(builder, keyword, "run")) {
         return read_run(builder, line, span);
+    }
+    if (word_is(builder, keyword, "sysctl")) {
+        return read_sysctl(builder, line, span);
     }
     if (word_is(builder, keyword, "if-present")) {
         // Reached only for a guarded command (parse_command takes an
@@ -1091,6 +1191,109 @@ private:
     return std::nullopt;
 }
 
+[[nodiscard]] bool is_folder_byte(char byte) noexcept {
+    return (byte >= 'A' && byte <= 'Z') || is_lower_letter(byte) || is_digit(byte) || byte == '.' || byte == '_' ||
+           byte == '-' || byte == '/';
+}
+
+// Whether bytes [begin, end) are a path's component "." or "..".
+[[nodiscard]] bool is_dot_component(const char* bytes, std::size_t begin, std::size_t end) noexcept {
+    const std::size_t length = end - begin;
+    if (length == 1u) {
+        return bytes[begin] == '.';
+    }
+    if (length == 2u) {
+        return bytes[begin] == '.' && bytes[begin + 1u] == '.';
+    }
+    return false;
+}
+
+// A folder: an absolute path of folder bytes with no empty, "." or ".."
+// component and no trailing '/'. Returns the refusal, or nothing.
+[[nodiscard]] std::optional<ParseError> folder_error(const char* bytes, std::size_t length) noexcept {
+    if (length < 2u || bytes[0] != '/' || bytes[length - 1u] == '/') {
+        return ParseError::folder_malformed;
+    }
+    std::size_t component_begin = 1;
+    for (std::size_t index = 1; index <= length; index += 1) {
+        if (index < length && !is_folder_byte(bytes[index])) {
+            return ParseError::folder_malformed;
+        }
+        if (index == length || bytes[index] == '/') {
+            if (index == component_begin || is_dot_component(bytes, component_begin, index)) {
+                return ParseError::folder_malformed;
+            }
+            component_begin = index + 1u;
+        }
+    }
+    // Below the user part: "/user/" and at least one more component.
+    const std::size_t parent_length = c_string_length(service_folder_parent);
+    if (length <= parent_length + 1u || bytes[parent_length] != '/') {
+        return ParseError::folder_outside_user;
+    }
+    for (std::size_t index = 0; index < parent_length; index += 1) {
+        if (bytes[index] != service_folder_parent[index]) {
+            return ParseError::folder_outside_user;
+        }
+    }
+    return std::nullopt;
+}
+
+[[nodiscard]] bool is_pattern_byte(char byte) noexcept {
+    return (byte >= 'A' && byte <= 'Z') || is_lower_letter(byte) || is_digit(byte) || byte == '.' || byte == '_' ||
+           byte == '/' || byte == '*' || byte == '?' || byte == '+' || byte == '-';
+}
+
+// A device pattern: 1..device_pattern_length_max pattern bytes, not
+// starting with '/', with no ".." component.
+[[nodiscard]] bool pattern_is_valid(const char* bytes, std::size_t length) noexcept {
+    if (length == 0u || length > device_pattern_length_max || bytes[0] == '/') {
+        return false;
+    }
+    std::size_t component_begin = 0;
+    for (std::size_t index = 0; index <= length; index += 1) {
+        if (index < length && !is_pattern_byte(bytes[index])) {
+            return false;
+        }
+        if (index == length || bytes[index] == '/') {
+            if (index - component_begin == 2u && bytes[component_begin] == '.' && bytes[component_begin + 1u] == '.') {
+                return false;
+            }
+            component_begin = index + 1u;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] LineResult read_service_devices(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
+                                              std::size_t value_begin, std::size_t value_end) noexcept {
+    LineView value_line = line;
+    value_line.length = value_end;
+    CommandWords words{};
+    const LineResult split = split_words(builder, value_line, value_begin, words);
+    if (split.has_value()) {
+        return split;
+    }
+    if (words.count == 0u) {
+        return refuse(line, value_begin, ParseError::device_pattern_malformed);
+    }
+    if (words.count > devices_max) {
+        return refuse(line, words.words[devices_max].index, ParseError::too_many_devices);
+    }
+    ServiceDeviceWords devices{};
+    devices.count = static_cast<std::uint32_t>(words.count);
+    for (std::size_t index = 0; index < words.count; index += 1) {
+        const Word& word = words.words[index];
+        if (!pattern_is_valid(builder.text(word.text), word.text.length)) {
+            return refuse(line, word.index, ParseError::device_pattern_malformed);
+        }
+        devices.patterns[index] = word.text;
+    }
+    draft.devices = devices;
+    draft.devices_place = SettingPlace{line.number, column_of(value_begin)};
+    return std::nullopt;
+}
+
 [[nodiscard]] LineResult parse_service_setting(ConfigBuilder& builder, ServiceDraft& draft, const LineView& line,
                                                std::size_t begin) noexcept {
     // parse_setting accepted the line, so this layout holds: name, blanks,
@@ -1112,6 +1315,31 @@ private:
         // The value parse_setting has just stored.
         const BootConfig& config = builder.config();
         draft.directory = config.setting(config.setting_count() - 1u).value;
+        draft.directory_place = SettingPlace{line.number, column_of(begin)};
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "folder")) {
+        const std::optional<ParseError> error = folder_error(&line.bytes[value_begin], value_end - value_begin);
+        if (error.has_value()) {
+            return refuse(line, value_begin, *error);
+        }
+        const BootConfig& config = builder.config();
+        draft.folder = config.setting(config.setting_count() - 1u).value;
+        draft.folder_place = SettingPlace{line.number, column_of(begin)};
+        return std::nullopt;
+    }
+    if (bytes_are(line, begin, end_of_name, "devices")) {
+        return read_service_devices(builder, draft, line, value_begin, value_end);
+    }
+    if (bytes_are(line, begin, end_of_name, "network")) {
+        if (bytes_are(line, value_begin, value_end, "none")) {
+            draft.network = NetworkAccess::none;
+        } else if (bytes_are(line, value_begin, value_end, "inherit")) {
+            draft.network = NetworkAccess::inherit;
+        } else {
+            return refuse(line, value_begin, ParseError::service_network_unknown);
+        }
+        draft.network_place = SettingPlace{line.number, column_of(begin)};
         return std::nullopt;
     }
     if (bytes_are(line, begin, end_of_name, "restart")) {

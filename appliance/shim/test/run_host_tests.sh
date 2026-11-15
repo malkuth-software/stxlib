@@ -14,9 +14,15 @@ mkdir -p "$out"
 "$compiler" --version | head -1
 flags="-std=c11 -O1 -g -fno-omit-frame-pointer -fsanitize=address,undefined -fno-sanitize-recover=all
        -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror"
-# shellcheck disable=SC2086
-"$compiler" $flags -o "$out/test_stxshim_terminate" "$here/test_stxshim_terminate.c"
 status=0
-"$out/test_stxshim_terminate" || status=1
+for name in terminate register; do
+	# shellcheck disable=SC2086
+	if "$compiler" $flags -o "$out/test_stxshim_$name" "$here/test_stxshim_$name.c"; then
+		"$out/test_stxshim_$name" || status=1
+	else
+		echo "test_stxshim_$name: build failed"
+		status=1
+	fi
+done
 echo "run_host_tests (shim): status=$status"
 exit $status

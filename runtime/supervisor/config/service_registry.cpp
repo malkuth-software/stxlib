@@ -223,9 +223,26 @@ void ServiceRegistry::spawn_entry(Entry& item, std::uint64_t now_ms, ServiceActi
         arguments[index] = (*config_).text(definition.arguments[index]);
     }
     arguments[definition.argument_count] = nullptr;
-    const char* const directory = definition.directory.has_value() ? (*config_).text(*definition.directory) : "/";
+    SpawnRequest request{};
+    request.name = (*config_).text(definition.name);
+    request.arguments = arguments;
+    request.environment = environment_;
+    request.directory = definition.directory.has_value() ? (*config_).text(*definition.directory) : "/";
+    request.confinement = std::nullopt;
+    if (definition.folder.has_value()) {
+        SpawnConfinement confinement{};
+        confinement.service_index = item.definition_index;
+        confinement.folder = (*config_).text(*definition.folder);
+        confinement.device_count = definition.device_count;
+        for (std::uint32_t index = 0; index < definition.device_count && index < devices_max; index += 1) {
+            confinement.devices[index] = (*config_).text(definition.devices[index]);
+        }
+        confinement.network = definition.network;
+        request.directory = confined_working_directory;
+        request.confinement = confinement;
+    }
     const bool is_restart = item.state.as_waiting() != nullptr;
-    const SpawnOutcome outcome = actions.spawn(arguments, environment_, directory);
+    const SpawnOutcome outcome = actions.spawn(request);
     const Spawned* const spawned = outcome.as_spawned();
     if (spawned != nullptr) {
         item.state = ServiceState::running((*spawned).pid, now_ms);

@@ -71,25 +71,21 @@ const TerminateFailed* TerminateOutcome::as_failed() const noexcept {
     return std::get_if<TerminateFailed>(&alternatives_);
 }
 
-namespace {
-
-constexpr int interrupted_retries_max = 16;
-
-}  // namespace
-
 ShimRegistration register_with_shim() noexcept {
-    int descriptor = -1;
-    for (int attempt = 0; attempt <= interrupted_retries_max; attempt += 1) {
-        descriptor = open(STXSHIM_DEVICE_PATH, O_RDWR | O_CLOEXEC);
-        if (descriptor >= 0 || errno != EINTR) {
-            break;
-        }
+    // stxinit hands the file it opened as descriptor
+    // STXSHIM_SUPERVISOR_DESCRIPTOR, without close-on-exec so that it
+    // survives the supervisor's execve. A closed descriptor means stxinit
+    // had no shim to open (a kernel without it, or the open failed): absent.
+    const int descriptor = STXSHIM_SUPERVISOR_DESCRIPTOR;
+    if (fcntl(descriptor, F_GETFD) < 0) {
+        return ShimRegistration::absent();
     }
-    if (descriptor < 0) {
+    // No service or program the supervisor starts may inherit it: the shim
+    // accepts one registration per file, and the file is the supervisor's
+    // authority.
+    if (fcntl(descriptor, F_SETFD, FD_CLOEXEC) != 0) {
         const int error_number = errno;
-        if (error_number == ENOENT) {
-            return ShimRegistration::absent();
-        }
+        (void)close(descriptor);
         return ShimRegistration::refused(error_number);
     }
     if (ioctl(descriptor, STXSHIM_REGISTER) != 0) {

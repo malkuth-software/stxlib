@@ -27,7 +27,7 @@
 // appliance/vm/bootstages.py and appliance/vm/scenario.py:
 //
 //   STXINIT uptime_ns=<n> cntvct=<n> cntfrq=<n>       the boot marker
-//   STXINIT supervisor started pid=<n> restart_count=<n>
+//   STXINIT supervisor started pid=<n> restart_count=<n> shim=<0|1>
 //   STXINIT supervisor exited pid=<n> status=<n> ran_ms=<n> next_in_ms=<n>
 //   STXINIT shutdown <power-off|halt|power-cycle|reboot>
 //   STXINIT: <message>                                a failure
@@ -206,10 +206,49 @@ struct RestartAccount {
 // ---------------------------------------------------------------------------
 // Starting the supervisor.
 
+// The shim's device (appliance/shim/stxshim.h, STXSHIM_DEVICE_PATH) and the
+// descriptor the supervisor finds it on (STXSHIM_SUPERVISOR_DESCRIPTOR).
+// PID 1 opens the device before each start and hands the open file to that
+// child alone: the shim accepts a registration only on a file PID 1 opened,
+// once per file, which closes C1's window in which an orphan PID 1 adopted
+// could register between a supervisor's death and its restart
+// (appliance/C2_DESIGN.md, "Orphan registration"). Spelled here rather than
+// included, so that PID 1 needs no kernel header; the supervisor's
+// shim_client.cpp includes stxshim.h and checks both values.
+constexpr char shim_path[] = "/dev/stxshim";
+constexpr int shim_descriptor = 3;
+// Where the child parks the shim's file while it sets up descriptors 0-2.
+constexpr int shim_parking_min = 10;
+
+// Opens the shim for the next supervisor, close-on-exec in PID 1 (only the
+// child's copy at shim_descriptor survives its execve). -1 when the kernel
+// has no shim or the open failed; the supervisor then starts without one
+// and reports it (shim_client.h).
+[[nodiscard]] int open_shim_for_supervisor() noexcept {
+    int descriptor = -1;
+    for (int attempt = 0; attempt < 16; attempt += 1) {
+        descriptor = open(shim_path, O_RDWR | O_CLOEXEC);
+        if (descriptor >= 0 || errno != EINTR) {
+            break;
+        }
+    }
+    return descriptor;
+}
+
 // The child's side of the fork: a new session, the console as standard input,
-// output and error, no blocked signals, then the supervisor. Never returns.
-[[noreturn]] void become_supervisor(char* const argument_vector[]) noexcept {
+// output and error, the shim's file (if any) at shim_descriptor, no blocked
+// signals, then the supervisor. Never returns.
+[[noreturn]] void become_supervisor(char* const argument_vector[], int shim) noexcept {
     (void)setsid();
+    // The shim's file first goes above every descriptor the console setup
+    // can touch, so that neither dup2 below overwrites the other.
+    int parked = -1;
+    if (shim >= 0) {
+        parked = fcntl(shim, F_DUPFD_CLOEXEC, shim_parking_min);
+        if (parked != shim) {
+            (void)close(shim);
+        }
+    }
     const int console = open("/dev/console", O_RDWR | O_NOCTTY);
     if (console >= 0) {
         (void)dup2(console, STDIN_FILENO);
@@ -218,6 +257,12 @@ struct RestartAccount {
         if (console > STDERR_FILENO) {
             (void)close(console);
         }
+    }
+    // dup2 gives the new descriptor no close-on-exec flag, so it survives
+    // the execve; the parked copy keeps its flag and is closed.
+    if (parked >= 0) {
+        (void)dup2(parked, shim_descriptor);
+        (void)close(parked);
     }
     sigset_t none{};
     sigemptyset(&none);
@@ -248,9 +293,15 @@ struct RestartAccount {
     char* const argument_vector[] = {path_text, argument_text, nullptr};
 
     const std::uint64_t now_ms = monotonic_ms(console);
+    const int shim = open_shim_for_supervisor();
     const pid_t child = fork();
     if (child == 0) {
-        become_supervisor(argument_vector);
+        become_supervisor(argument_vector, shim);
+    }
+    // PID 1 keeps no copy: the child's is the only one, so no later child
+    // of PID 1 (an adopted orphan included) can hold this file.
+    if (shim >= 0) {
+        (void)close(shim);
     }
     if (child < 0) {
         write_message(console, "fork failed; retrying the supervisor after the longest back-off");
@@ -262,7 +313,7 @@ struct RestartAccount {
     stxruntime::append_decimal(line, static_cast<std::uint64_t>(child));
     stxruntime::append_text(line, " restart_count=");
     stxruntime::append_decimal(line, account.restart_count);
-    stxruntime::append_text(line, "\n");
+    stxruntime::append_text(line, shim >= 0 ? " shim=1\n" : " shim=0\n");
     stxruntime::write_line(console, line);
     return SupervisorState::running(child, now_ms);
 }

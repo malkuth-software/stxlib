@@ -1,13 +1,17 @@
 // shim_client.h: the supervisor's side of the STXlib kernel shim (C1 step
-// S5; the interface is appliance/shim/stxshim.h).
+// S5, changed in C2; the interface is appliance/shim/stxshim.h).
 //
-// The supervisor opens /dev/stxshim once (close-on-exec, so that no service
-// inherits it) and registers; a kernel without the shim has no such device,
-// and the supervisor then runs as before (the "absent" outcome). The
+// stxinit opens /dev/stxshim before each supervisor start and hands the open
+// file to the new supervisor as descriptor STXSHIM_SUPERVISOR_DESCRIPTOR
+// (3); the shim accepts a registration only on such a file, once
+// (appliance/shim/stxshim_register.h). The supervisor marks the descriptor
+// close-on-exec at once, so that no service inherits it, and registers. A
+// kernel without the shim gives stxinit nothing to open; descriptor 3 is
+// then closed and the supervisor runs as before (the "absent" outcome). The
 // descriptor stays open for the supervisor's life; the registration ends
 // when the supervisor exits, by any cause, through the shim's death watch.
 //
-// System calls: open(2), ioctl(2). Hosted on FreeBSD's libc for C1.
+// System calls: fcntl(2), ioctl(2). Hosted on FreeBSD's libc.
 
 #ifndef STXLIB_RUNTIME_SUPERVISOR_SHIM_CLIENT_H
 #define STXLIB_RUNTIME_SUPERVISOR_SHIM_CLIENT_H
@@ -43,7 +47,8 @@ private:
     Alternatives alternatives_;
 };
 
-// Opens the shim and registers the calling process as the supervisor.
+// Registers the calling process as the supervisor on the file stxinit
+// handed it.
 [[nodiscard]] ShimRegistration register_with_shim() noexcept;
 
 struct TerminateDone {

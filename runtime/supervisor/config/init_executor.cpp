@@ -239,6 +239,23 @@ namespace {
     return actions.run_program(arguments, workspace.environment());
 }
 
+// The name is the stored word's first name_length bytes, copied out with a
+// NUL; the value is the word after the '=', NUL-terminated in the store.
+[[nodiscard]] StepOutcome perform_sysctl(const BootConfig& config, const SysctlCommand& command,
+                                         InitActions& actions) noexcept {
+    // The parser's guarantee: 1 <= name_length < the word's length, and a
+    // word is at most a line.
+    assert(command.name_length >= 1u && command.name_length < command.setting.length);
+    assert(command.setting.length <= line_length_max);
+    char name[line_length_max + 1u];
+    const char* const word = config.text(command.setting);
+    for (std::uint32_t index = 0; index < command.name_length; index += 1) {
+        name[index] = word[index];
+    }
+    name[command.name_length] = '\0';
+    return actions.set_sysctl(name, word + command.name_length + 1u);
+}
+
 [[nodiscard]] StepOutcome perform_action(const BootConfig& config, const CommandAction& action, InitActions& actions,
                                          InitWorkspace& workspace) noexcept {
     const MountCommand* const mount = action.as_mount();
@@ -262,6 +279,10 @@ namespace {
     const RunCommand* const run = action.as_run();
     if (run != nullptr) {
         return perform_run(config, *run, actions, workspace);
+    }
+    const SysctlCommand* const sysctl = action.as_sysctl();
+    if (sysctl != nullptr) {
+        return perform_sysctl(config, *sysctl, actions);
     }
     // Fallback: an action of no known kind is reported as unavailable and
     // the init section goes on.

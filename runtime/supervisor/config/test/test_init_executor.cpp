@@ -94,6 +94,14 @@ public:
         append("\n");
         return run_outcome_;
     }
+    [[nodiscard]] StepOutcome set_sysctl(const char* name, const char* value) noexcept override {
+        append("sysctl [");
+        append(name);
+        append("] [");
+        append(value);
+        append("]\n");
+        return StepOutcome::done();
+    }
     void report(const stxconfig::StepReport& step) noexcept override {
         reports_ += 1;
         char number[16];
@@ -260,8 +268,39 @@ void test_outcome_names() {
 
 }  // namespace
 
+void test_sysctl() {
+    const char* const test = "sysctl";
+    const bool parsed = parse(
+        "[init]\n"
+        "sysctl kern.shutdown.poweroff_delay=0\n"
+        "sysctl kern.hostname=\n"
+        "sysctl \"kern.x=a=b c\"\n"
+        "if-present file /absent sysctl a.b=1\n");
+    check(parsed, test, "parses");
+    if (!parsed) {
+        return;
+    }
+    Recorder recorder;
+    const InitSummary summary = stxconfig::run_init_section(config, recorder, workspace);
+    const char* const expected =
+        "sysctl [kern.shutdown.poweroff_delay] [0]\n"
+        "report 2 sysctl ok\n"
+        "sysctl [kern.hostname] []\n"
+        "report 3 sysctl ok\n"
+        "sysctl [kern.x] [a=b c]\n"
+        "report 4 sysctl ok\n"
+        "present? file /absent\n"
+        "report 5 sysctl skipped\n";
+    check(same_text(recorder.log(), expected), test, "name split at the first '=', value as written");
+    if (!same_text(recorder.log(), expected)) {
+        std::printf("--- log\n%s---\n", recorder.log());
+    }
+    check(summary.commands == 4 && summary.skipped == 1 && summary.failed == 0, test, "summary");
+}
+
 int main() {
     test_order_and_outcomes();
+    test_sysctl();
     test_exit_status_counting();
     test_environment_limits();
     test_empty_and_absent_init();

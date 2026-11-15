@@ -10,7 +10,9 @@
  * the sleep, the clock and the sync.
  *
  * In this form the shim
- *   - registers the supervisor and protects it from the out-of-memory
+ *   - registers the supervisor, on a file PID 1 opened and only once per
+ *     such file (stxshim_register.h, C2's orphan fix), and protects it from
+ *     the out-of-memory
  *     killer (P_PROTECTED, sys/sys/proc.h:847, the flag that
  *     procctl(PROC_SPROTECT) sets, sys/kern/kern_procctl.c:56-71);
  *   - watches it: the process_exit event (sys/kern/kern_exit.c:410) ends the
@@ -38,6 +40,7 @@
 #include <sys/eventhandler.h>
 #include <sys/kernel.h>
 #include <sys/lock.h>
+#include <sys/malloc.h>
 #include <sys/module.h>
 #include <sys/mutex.h>
 #include <sys/priv.h>
@@ -49,7 +52,22 @@
 #include <sys/time.h>
 
 #include "stxshim.h"
+#include "stxshim_register.h"
 #include "stxshim_terminate.h"
+
+static MALLOC_DEFINE(M_STXSHIM, "stxshim", "STXlib kernel shim");
+
+/*
+ * An open file of /dev/stxshim (devfs per-file data). Its owner is the open
+ * file: devfs calls stxshim_file_destroy when the last reference to the
+ * file is closed, which is the end of its lifetime. The fields after
+ * opened_by_init are protected by stxshim_mtx.
+ */
+struct stxshim_file {
+	int opened_by_init;			/* PID 1 opened it; set once at open */
+	int registered_before;			/* REGISTER succeeded on it */
+	uint32_t registered_pid;		/* who registered on it */
+};
 
 /*
  * State. stxshim_mtx protects all of it; stxshim_supervisor_pid is also
@@ -98,29 +116,32 @@ stxshim_process_exit(void *arg __unused, struct proc *p)
 }
 
 static int
-stxshim_register(struct thread *td)
+stxshim_register(struct thread *td, struct stxshim_file *file)
 {
 	struct proc *p;
-	u_int current;
-	int parent_is_init;
+	u_int pid;
+	int error, parent_is_init;
 
 	p = td->td_proc;
+	pid = (u_int)p->p_pid;
 	sx_slock(&proctree_lock);
 	parent_is_init = p->p_pptr == initproc;
 	sx_sunlock(&proctree_lock);
-	if (parent_is_init == 0)
-		return (EPERM);
 
 	mtx_lock(&stxshim_mtx);
-	current = stxshim_supervisor_pid;
-	if (current != 0 && current != (u_int)p->p_pid) {
+	error = stxshim_may_register(parent_is_init, file->opened_by_init,
+	    file->registered_before, pid, file->registered_pid,
+	    stxshim_supervisor_pid);
+	if (error != 0) {
 		mtx_unlock(&stxshim_mtx);
-		return (EBUSY);
+		return (error);
 	}
-	if (current == 0) {
-		atomic_store_int(&stxshim_supervisor_pid, (u_int)p->p_pid);
+	if (stxshim_supervisor_pid != pid) {
+		atomic_store_int(&stxshim_supervisor_pid, pid);
 		stxshim_registrations++;
 	}
+	file->registered_before = 1;
+	file->registered_pid = pid;
 	mtx_unlock(&stxshim_mtx);
 
 	PROC_LOCK(p);
@@ -234,18 +255,48 @@ stxshim_terminate(struct thread *td, struct stxshim_terminate_result *result)
 	return (0);
 }
 
-static int
-stxshim_ioctl(struct cdev *dev __unused, u_long cmd, caddr_t data,
-    int fflag __unused, struct thread *td)
+/* The device. */
+
+static void
+stxshim_file_destroy(void *data)
 {
+	free(data, M_STXSHIM);
+}
+
+static int
+stxshim_open(struct cdev *dev __unused, int oflags __unused,
+    int devtype __unused, struct thread *td)
+{
+	struct stxshim_file *file;
 	int error;
 
 	error = priv_check(td, PRIV_DRIVER);
 	if (error != 0)
 		return (error);
+	file = malloc(sizeof(*file), M_STXSHIM, M_WAITOK | M_ZERO);
+	file->opened_by_init = td->td_proc == initproc;
+	error = devfs_set_cdevpriv(file, stxshim_file_destroy);
+	if (error != 0)
+		free(file, M_STXSHIM);
+	return (error);
+}
+
+static int
+stxshim_ioctl(struct cdev *dev __unused, u_long cmd, caddr_t data,
+    int fflag __unused, struct thread *td)
+{
+	struct stxshim_file *file;
+	int error;
+
+	error = priv_check(td, PRIV_DRIVER);
+	if (error != 0)
+		return (error);
+	error = devfs_get_cdevpriv((void **)&file);
+	if (error != 0)
+		return (error);
 	switch (cmd) {
 	case STXSHIM_REGISTER:
-		return (stxshim_register(td));
+		return (stxshim_register(td, file));
 	case STXSHIM_TERMINATE:
 		return (stxshim_terminate(td,
 		    (struct stxshim_terminate_result *)(void *)data));
@@ -256,6 +307,7 @@ stxshim_ioctl(struct cdev *dev __unused, u_long cmd, caddr_t data,
 
 static struct cdevsw stxshim_cdevsw = {
 	.d_version =	D_VERSION,
+	.d_open =	stxshim_open,
 	.d_ioctl =	stxshim_ioctl,
 	.d_name =	"stxshim",
 };

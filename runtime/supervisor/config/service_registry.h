@@ -51,6 +51,8 @@ constexpr std::uint64_t service_stable_run_ms = 30000;
 constexpr std::uint32_t service_quick_exits_counted_max = 16;
 // Between SIGTERM and SIGKILL when the registry stops a service.
 constexpr std::uint64_t service_stop_grace_ms = 500;
+// A confined service's working directory, inside its jail: its folder.
+constexpr const char* confined_working_directory = "/srv";
 
 // ---------------------------------------------------------------------------
 // What the registry asks of the system.
@@ -102,16 +104,41 @@ struct ServiceEvent {
     std::optional<std::uint64_t> next_in_ms;
 };
 
+// A confined service's confinement (boot_config.h, "folder"; C2): what the
+// system side turns into a jail (confinement.h plans it).
+struct SpawnConfinement {
+    // The service's index in the configuration: the jail's devfs ruleset
+    // and its name are derived from it and the service's name.
+    std::size_t service_index;
+    const char* folder;
+    std::uint32_t device_count;
+    const char* devices[devices_max];
+    NetworkAccess network;
+};
+
+// One start of a service. Every pointer is borrowed for the call.
+struct SpawnRequest {
+    // The service's name (from its section).
+    const char* name;
+    // arguments[0] is the program's absolute path (inside the jail for a
+    // confined service); null-terminated, as is environment.
+    const char* const* arguments;
+    const char* const* environment;
+    // The working directory: the service's directory, "/" without one, and
+    // "/srv" (inside the jail) for a confined service.
+    const char* directory;
+    // Present for a confined service.
+    std::optional<SpawnConfinement> confinement;
+};
+
 class ServiceActions {
 public:
     ServiceActions() noexcept = default;
     ServiceActions(const ServiceActions&) = delete;
     ServiceActions& operator=(const ServiceActions&) = delete;
 
-    // Starts arguments[0] (absolute) with that argument vector and
-    // environment (both null-terminated) in directory.
-    [[nodiscard]] virtual SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
-                                             const char* directory) noexcept = 0;
+    // Starts the request's program as the service.
+    [[nodiscard]] virtual SpawnOutcome spawn(const SpawnRequest& request) noexcept = 0;
     virtual void signal(int pid, ServiceSignal which) noexcept = 0;
     virtual void report(const ServiceEvent& event) noexcept = 0;
 

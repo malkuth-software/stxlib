@@ -22,6 +22,8 @@
 //   environment starts with PATH and HOME (base_environment below).
 // - start asks the services registry (service_registry.h) to start a
 //   service the file defines, with the environment as it is at that line.
+// - sysctl sets a kernel variable: the system side reads the variable's
+//   kind and writes the value sysctl_value.h makes of the text (C2).
 
 #ifndef STXLIB_RUNTIME_SUPERVISOR_CONFIG_INIT_EXECUTOR_H
 #define STXLIB_RUNTIME_SUPERVISOR_CONFIG_INIT_EXECUTOR_H
@@ -122,6 +124,9 @@ public:
     // be started) or timed_out.
     [[nodiscard]] virtual StepOutcome run_program(const char* const* arguments,
                                                   const char* const* environment) noexcept = 0;
+    // Sets the kernel variable name to value (sysctl_value.h says how the
+    // text is read). Returns done or failed.
+    [[nodiscard]] virtual StepOutcome set_sysctl(const char* name, const char* value) noexcept = 0;
     // Called once per step, after it, in order.
     virtual void report(const StepReport& step) noexcept = 0;
 

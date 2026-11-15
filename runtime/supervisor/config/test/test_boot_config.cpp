@@ -75,6 +75,12 @@ BootConfig config;
         }
         return parsed.text((*run).arguments[0])[0] == '/';
     }
+    const stxconfig::SysctlCommand* const sysctl = action.as_sysctl();
+    if (sysctl != nullptr) {
+        return text_ref_valid(parsed, (*sysctl).setting) && (*sysctl).name_length >= 1u &&
+               (*sysctl).name_length < (*sysctl).setting.length &&
+               parsed.text((*sysctl).setting)[(*sysctl).name_length] == '=';
+    }
     return false;
 }
 
@@ -110,6 +116,15 @@ void check_invariants(const char* test, std::span<const char> input, const Parse
         }
         valid = valid && config.text(service.arguments[0])[0] == '/';
         valid = valid && (!service.directory.has_value() || text_ref_valid(config, *service.directory));
+        valid = valid && (!service.folder.has_value() || text_ref_valid(config, *service.folder));
+        valid = valid && !(service.folder.has_value() && service.directory.has_value());
+        valid = valid && service.device_count <= stxconfig::devices_max;
+        valid = valid && (service.folder.has_value() || (service.device_count == 0u &&
+                                                         service.network == stxconfig::NetworkAccess::none));
+        for (std::uint32_t device = 0; valid && device < service.device_count; device += 1) {
+            valid = text_ref_valid(config, service.devices[device]) && service.devices[device].length >= 1u &&
+                    service.devices[device].length <= stxconfig::device_pattern_length_max;
+        }
         check(valid, test, "service well-formed");
     }
     for (std::size_t index = 0; index < config.init_command_count(); index += 1) {
@@ -338,6 +353,39 @@ const Refusal refusals[] = {
     {"[init]\nif-present file /a if-present file /b run /c\n", 2, 20, ParseError::guard_nested},
     {"[init]\nif-present file /a\n", 2, 1, ParseError::command_arguments_wrong},
     {"[init]\nif-present dir /a run /b\n", 2, 12, ParseError::presence_kind_unknown},
+    // C2: confined services.
+    {"[service-web]\ncommand = /w\nfolder = /w\n", 3, 10, ParseError::folder_outside_user},
+    {"[service-web]\ncommand = /w\nfolder = user/x\n", 3, 10, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user\n", 3, 10, ParseError::folder_outside_user},
+    {"[service-web]\ncommand = /w\nfolder = /user/\n", 3, 10, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/a/../b\n", 3, 10, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user//a\n", 3, 10, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/a b\n", 3, 10, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /users/a\n", 3, 10, ParseError::folder_outside_user},
+    {"[service-web]\ncommand = /w\nfolder =\n", 3, 9, ParseError::folder_malformed},
+    {"[service-web]\ncommand = /w\ndirectory = /d\nfolder = /user/w\n", 4, 1, ParseError::folder_with_directory},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndirectory = /d\n", 3, 1, ParseError::folder_with_directory},
+    {"[service-web]\ncommand = /w\ndevices = bpf0\n", 3, 11, ParseError::confinement_without_folder},
+    {"[service-web]\ncommand = /w\nnetwork = none\n", 3, 1, ParseError::confinement_without_folder},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\nnetwork = some\n", 4, 11, ParseError::service_network_unknown},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = /dev/x\n", 4, 11,
+     ParseError::device_pattern_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = a/../b\n", 4, 11,
+     ParseError::device_pattern_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = ok tty[0]\n", 4, 14,
+     ParseError::device_pattern_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices =\n", 4, 10, ParseError::device_pattern_malformed},
+    {"[service-web]\ncommand = /w\nfolder = /user/w\ndevices = a b c d e f g h i\n", 4, 27,
+     ParseError::too_many_devices},
+    // C2: sysctl.
+    {"[init]\nsysctl a\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl =1\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl .a=1\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl a.=1\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl a..b=1\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl a$=1\n", 2, 8, ParseError::sysctl_malformed},
+    {"[init]\nsysctl a=1 b=2\n", 2, 1, ParseError::command_arguments_wrong},
+    {"[init]\nsysctl\n", 2, 1, ParseError::command_arguments_wrong},
 };
 
 void test_refusals() {
@@ -643,8 +691,126 @@ void test_exhaustive_tokens() {
 
 }  // namespace
 
+// A confined service read back field by field, and an unconfined one.
+void test_confined_service() {
+    const char* const test = "confined service";
+    const char* const text =
+        "[service-web]\n"
+        "command = /srv/bin/webd --port 8443\n"
+        "folder = /user/services/web\n"
+        "devices = bpf0 \"usb/*\" tty?\n"
+        "network = inherit\n"
+        "[service-plain]\n"
+        "command = /bin/sleep 1\n";
+    const ParseOutcome outcome = parse_checked(test, text_of(text));
+    check(outcome.is_success(), test, "parses");
+    if (!outcome.is_success() || config.service_count() != 2u) {
+        return;
+    }
+    const stxconfig::ServiceDefinition& web = config.service(0);
+    check(web.folder.has_value() && same_text(config.text(*web.folder), "/user/services/web"), test, "folder");
+    check(!web.directory.has_value(), test, "no directory");
+    check(web.device_count == 3u && same_text(config.text(web.devices[0]), "bpf0") &&
+              same_text(config.text(web.devices[1]), "usb/*") && same_text(config.text(web.devices[2]), "tty?"),
+          test, "devices, quoted or bare");
+    check(web.network == stxconfig::NetworkAccess::inherit, test, "network inherit");
+    const stxconfig::ServiceDefinition& plain = config.service(1);
+    check(!plain.folder.has_value() && plain.device_count == 0u && plain.network == stxconfig::NetworkAccess::none,
+          test, "a service without a folder is unconfined");
+    const char* const defaulted = "[service-a]\ncommand = /w\nfolder = /user/a\n";
+    const ParseOutcome second = parse_checked(test, text_of(defaulted));
+    check(second.is_success() && config.service(0).network == stxconfig::NetworkAccess::none &&
+              config.service(0).device_count == 0u,
+          test, "network defaults to none, no devices");
+}
+
+// The folder rule, exhaustive: every value made of a prefix (none, "/u",
+// "/user", "/user/", "/users/") and 0 to 5 bytes over "/", ".", "a", " ",
+// "-", "$" (5 x 9,331 = 46,655 values), against a reference that splits
+// the trimmed value into components.
+[[nodiscard]] bool reference_folder_valid(const char* value) {
+    std::size_t begin = 0;
+    std::size_t end = stxtest::c_length(value);
+    while (begin < end && value[begin] == ' ') {
+        begin += 1;
+    }
+    while (end > begin && value[end - 1u] == ' ') {
+        end -= 1;
+    }
+    if (end - begin < 7u || std::strncmp(&value[begin], "/user/", 6) != 0) {
+        return false;
+    }
+    std::size_t component_begin = begin + 1u;
+    std::size_t components = 0;
+    for (std::size_t index = begin + 1u; index <= end; index += 1) {
+        if (index == end || value[index] == '/') {
+            const std::size_t length = index - component_begin;
+            if (length == 0u) {
+                return false;
+            }
+            if (length == 1u && value[component_begin] == '.') {
+                return false;
+            }
+            if (length == 2u && value[component_begin] == '.' && value[component_begin + 1u] == '.') {
+                return false;
+            }
+            components += 1;
+            component_begin = index + 1u;
+            continue;
+        }
+        const char byte = value[index];
+        const bool allowed = (byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') ||
+                             (byte >= '0' && byte <= '9') || byte == '.' || byte == '_' || byte == '-';
+        if (!allowed) {
+            return false;
+        }
+    }
+    return components >= 2u;
+}
+
+void test_exhaustive_folders() {
+    const char* const prefixes[] = {"", "/u", "/user", "/user/", "/users/"};
+    const char alphabet[] = {'/', '.', 'a', ' ', '-', '$'};
+    constexpr std::size_t symbols = sizeof(alphabet);
+    std::size_t values = 0;
+    char value[16];
+    for (const char* const prefix : prefixes) {
+        const std::size_t prefix_length = stxtest::c_length(prefix);
+        for (std::size_t length = 0; length <= 5u; length += 1) {
+            std::size_t total = 1;
+            for (std::size_t position = 0; position < length; position += 1) {
+                total *= symbols;
+            }
+            for (std::size_t index = 0; index < total; index += 1) {
+                std::memcpy(value, prefix, prefix_length);
+                std::size_t rest = index;
+                for (std::size_t position = 0; position < length; position += 1) {
+                    value[prefix_length + position] = alphabet[rest % symbols];
+                    rest /= symbols;
+                }
+                value[prefix_length + length] = '\0';
+                build_reset();
+                build_append("[service-a]\ncommand = /w\nfolder = ");
+                build_append(value);
+                build_append("\n");
+                const ParseOutcome outcome = parse_checked("exhaustive folders", built_text());
+                const bool expected = reference_folder_valid(value);
+                check(outcome.is_success() == expected, "exhaustive folders", "accepted exactly per the reference");
+                if (outcome.is_success() != expected) {
+                    std::printf("  value \"%s\"\n", value);
+                }
+                values += 1;
+            }
+        }
+    }
+    std::printf("exhaustive folders: %zu values\n", values);
+    check(values == 46655u, "exhaustive folders", "the stated domain was covered");
+}
+
 int main() {
     test_full_example();
+    test_confined_service();
+    test_exhaustive_folders();
     test_line_ends_and_empty();
     test_failure_empties_previous();
     test_refusals();

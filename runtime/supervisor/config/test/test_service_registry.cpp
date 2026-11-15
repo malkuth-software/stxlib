@@ -32,18 +32,36 @@ constexpr std::size_t events_max = 64;
 class FakeServiceActions final : public stxconfig::ServiceActions {
 public:
     FakeServiceActions() noexcept
-        : next_pid_(100), fail_spawns_(false), spawns_(0), last_pid_(0), last_directory_{}, last_environment_first_{},
+        : next_pid_(100), fail_spawns_(false), spawns_(0), last_pid_(0), last_directory_{}, last_name_{},
+          last_program_{}, last_folder_{}, last_devices_joined_{}, last_confinement_(std::nullopt),
+          last_environment_first_{},
           signals_(0), last_signal_pid_(0), last_signal_(ServiceSignal::terminate), events_{}, event_count_(0) {}
 
     void set_fail_spawns(bool fail) noexcept {
         fail_spawns_ = fail;
     }
 
-    [[nodiscard]] SpawnOutcome spawn(const char* const* arguments, const char* const* environment,
-                                     const char* directory) noexcept override {
-        (void)arguments;
-        copy(last_directory_, directory);
-        copy(last_environment_first_, environment[0] != nullptr ? environment[0] : "");
+    [[nodiscard]] SpawnOutcome spawn(const stxconfig::SpawnRequest& request) noexcept override {
+        copy(last_name_, request.name);
+        copy(last_program_, request.arguments[0]);
+        copy(last_directory_, request.directory);
+        copy(last_environment_first_, request.environment[0] != nullptr ? request.environment[0] : "");
+        last_confinement_ = request.confinement;
+        last_devices_joined_[0] = '\0';
+        if (request.confinement.has_value()) {
+            copy(last_folder_, (*request.confinement).folder);
+            std::size_t used = 0;
+            for (std::uint32_t index = 0; index < (*request.confinement).device_count; index += 1) {
+                const int written = std::snprintf(&last_devices_joined_[used], sizeof(last_devices_joined_) - used,
+                                                  index == 0u ? "%s" : " %s", (*request.confinement).devices[index]);
+                if (written < 0 || static_cast<std::size_t>(written) >= sizeof(last_devices_joined_) - used) {
+                    break;
+                }
+                used += static_cast<std::size_t>(written);
+            }
+        } else {
+            last_folder_[0] = '\0';
+        }
         if (fail_spawns_) {
             return SpawnOutcome::spawn_failed(12);
         }
@@ -72,6 +90,21 @@ public:
     }
     [[nodiscard]] const char* last_directory() const noexcept {
         return last_directory_;
+    }
+    [[nodiscard]] const char* last_name() const noexcept {
+        return last_name_;
+    }
+    [[nodiscard]] const char* last_program() const noexcept {
+        return last_program_;
+    }
+    [[nodiscard]] const char* last_folder() const noexcept {
+        return last_folder_;
+    }
+    [[nodiscard]] const char* last_devices_joined() const noexcept {
+        return last_devices_joined_;
+    }
+    [[nodiscard]] const std::optional<stxconfig::SpawnConfinement>& last_confinement() const noexcept {
+        return last_confinement_;
     }
     [[nodiscard]] const char* last_environment_first() const noexcept {
         return last_environment_first_;
@@ -105,6 +138,11 @@ private:
     std::size_t spawns_;
     int last_pid_;
     char last_directory_[64];
+    char last_name_[64];
+    char last_program_[64];
+    char last_folder_[64];
+    char last_devices_joined_[64];
+    std::optional<stxconfig::SpawnConfinement> last_confinement_;
     char last_environment_first_[64];
     std::size_t signals_;
     int last_signal_pid_;
@@ -397,7 +435,46 @@ void test_exhaustive() {
 
 }  // namespace
 
+// A confined service's start carries its folder, devices and network, its
+// index, and /srv as its directory; an unconfined one carries none.
+void test_confined_request() {
+    const char* const test = "confined request";
+    const char* const text =
+        "[service-plain]\n"
+        "command = /bin/plain\n"
+        "[service-jailed]\n"
+        "command = /srv/bin/app -v\n"
+        "folder = /user/apps/jailed\n"
+        "devices = bpf0 \"usb/*\"\n"
+        "network = inherit\n";
+    BootConfig confined_config;
+    const bool parsed = stxconfig::parse_boot_config(text_of(text), confined_config).is_success();
+    check(parsed, test, "parses");
+    if (!parsed) {
+        return;
+    }
+    ServiceRegistry registry;
+    registry.load(confined_config);
+    FakeServiceActions actions;
+    check(registry.start("jailed", 10, actions) == StartResult::started, test, "starts");
+    const std::optional<stxconfig::SpawnConfinement>& confinement = actions.last_confinement();
+    check(confinement.has_value(), test, "confined");
+    if (confinement.has_value()) {
+        check((*confinement).service_index == 1u, test, "its index");
+        check((*confinement).device_count == 2u && (*confinement).network == stxconfig::NetworkAccess::inherit,
+              test, "its devices and network");
+    }
+    check(same_text(actions.last_name(), "jailed") && same_text(actions.last_program(), "/srv/bin/app") &&
+              same_text(actions.last_directory(), "/srv") && same_text(actions.last_folder(), "/user/apps/jailed") &&
+              same_text(actions.last_devices_joined(), "bpf0 usb/*"),
+          test, "name, program, /srv, folder, devices");
+    check(registry.start("plain", 20, actions) == StartResult::started, test, "the plain one starts");
+    check(!actions.last_confinement().has_value() && same_text(actions.last_directory(), "/"), test,
+          "unconfined, in /");
+}
+
 int main() {
+    test_confined_request();
     test_start_and_lookup();
     test_backoff_sequence();
     test_policies();
