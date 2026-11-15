@@ -539,6 +539,84 @@ void predicates(const int count) {
 
 } // namespace
 
+// ---- The ranges' overflow edges (M5 counterexamples) -----------------------------
+
+// The ranges exclude the inputs the M5 proofs refuted (ESBMC and z3: a NaN or
+// infinite error term with a finite sum or product), and admit the largest
+// operands they state, where the primitives stay exact (checked in double,
+// where these float sums and products are exact). Cases chosen by hand;
+// D01 and the ESBMC harness prove the float forms over the whole range.
+void range_edges() {
+    const float flt_max = std::numeric_limits<float>::max();
+    const double dbl_max = std::numeric_limits<double>::max();
+    // two_sum: a = 0x767e0000, b = -FLT_MAX gave a NaN error.
+    CHECK(!fe::in_sum_range(-flt_max));
+    CHECK(!fe::in_sum_range(std::bit_cast<float>(0x7f000001U)));
+    CHECK(fe::in_sum_range(0x1p127f) && fe::in_sum_range(-0x1p127f));
+    CHECK(!fe::in_sum_range(dbl_max) && fe::in_sum_range(0x1p1023));
+    const float sum_edges[][2] = {{0x1p127f, -0x1.fffffep126f},
+                                  {std::bit_cast<float>(0x767e0000U), -0x1p127f},
+                                  {0x1p127f, 0x1.fffffep125f},
+                                  {-0x1p127f, -0x1p-102f}};
+    bool sums_ok = true;
+    for (const float (&pair)[2] : sum_edges) {
+        const fe::Pair<float> sum = fe::two_sum(pair[0], pair[1]);
+        const double exact = static_cast<double>(pair[0]) + static_cast<double>(pair[1]);
+        if (!fe::finite(sum.value) || !fe::finite(sum.error) ||
+            static_cast<double>(sum.error) != exact - static_cast<double>(sum.value)) {
+            sums_ok = false;
+        }
+    }
+    CHECK(sums_ok);
+    // two_product: a = -0, b = -FLT_MAX gave NaN (Dekker's split of b); a =
+    // 0x5edbbe36, b = 0x60151e43 (exponents 62 and 65) gave an infinite error.
+    CHECK(!fe::in_product_range(-0.0f, -flt_max));
+    CHECK(!fe::in_product_range(std::bit_cast<float>(0x5edbbe36U), std::bit_cast<float>(0x60151e43U)));
+    CHECK(fe::in_product_range(0.0f, 0x1p115f));
+    CHECK(!fe::in_product_range(-0.0, -dbl_max));
+    const float product_edges[][2] = {{0x1.fffffep62f, 0x1.fffffep62f},
+                                      {-0x1.fffffep62f, 0x1.fffffep63f},
+                                      {std::bit_cast<float>(0x5edbbe36U), 0x1.0a3c86p62f},
+                                      {0.0f, -0x1p115f}};
+    bool products_ok = true;
+    bool forms_agree = true;
+    for (const float (&pair)[2] : product_edges) {
+        if (!fe::in_product_range(pair[0], pair[1])) {
+            products_ok = false;
+            continue;
+        }
+        const fe::Pair<float> product = fe::two_product(pair[0], pair[1]);
+        const double exact = static_cast<double>(pair[0]) * static_cast<double>(pair[1]);
+        if (!fe::finite(product.value) || !fe::finite(product.error) ||
+            static_cast<double>(product.error) != exact - static_cast<double>(product.value)) {
+            products_ok = false;
+        }
+#if defined(STXLIB_FLOAT_EXACT_FUSED)
+        const fe::Pair<float> dekker = fe::raw::two_product_dekker(pair[0], pair[1]);
+        const fe::Pair<float> fused = fe::raw::two_product_fused(pair[0], pair[1]);
+        if (std::bit_cast<std::uint32_t>(dekker.error) != std::bit_cast<std::uint32_t>(fused.error)) {
+            forms_agree = false;
+        }
+#endif
+    }
+    // The double edge: exponents 510 and 511 (sum 1021 = emax - 2).
+    const double a = 0x1.fffffffffffffp510;
+    const double b = -0x1.fffffffffffffp511;
+    CHECK(fe::in_product_range(a, b));
+    const fe::Pair<double> wide = fe::two_product(a, b);
+    if (!fe::finite(wide.value) || !fe::finite(wide.error)) products_ok = false;
+#if defined(STXLIB_FLOAT_EXACT_FUSED)
+    const fe::Pair<double> wide_dekker = fe::raw::two_product_dekker(a, b);
+    const fe::Pair<double> wide_fused = fe::raw::two_product_fused(a, b);
+    if (std::bit_cast<std::uint64_t>(wide_dekker.error) != std::bit_cast<std::uint64_t>(wide_fused.error)) {
+        forms_agree = false;
+    }
+#endif
+    CHECK(products_ok);
+    CHECK(forms_agree);
+    std::printf("float_exact range edges: checked\n");
+}
+
 int main(const int argument_count, char** const arguments) {
     const bool exhaustive = argument_count == 2 && std::strcmp(arguments[1], "--exhaustive") == 0;
     float_split(exhaustive);
@@ -547,5 +625,6 @@ int main(const int argument_count, char** const arguments) {
     expansions(exhaustive ? 2000000 : 20000);
     compensated(exhaustive ? 20000 : 200);
     predicates(exhaustive ? 2000000 : 20000);
+    range_edges();
     return stxlib_tests::finish("stxlib float_exact");
 }

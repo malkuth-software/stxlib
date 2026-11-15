@@ -6,7 +6,11 @@
 //   esbmc proofs/esbmc/float_exact_float.cpp --std c++20 -I src -I include \
 //     --floatbv --function <harness>
 //
-// for each harness below. Each assumes the primitive's range (and, for the
+// for each harness below. Each assumes the primitive's range as
+// float_exact.hpp's predicates state it (since claude/float-exact-edges:
+// sums at most 2^127 in magnitude; products with both operands in split's
+// range, a zero included, and exponent(a) + exponent(b) <= 125, which
+// exclude the M5 counterexamples) (and, for the
 // sum, an exponent gap of at most 28, so the check in double is exact) and
 // asserts exactness checked in double, where every value involved is
 // exactly representable: a float sum within that gap, a float product (48
