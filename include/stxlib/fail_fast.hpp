@@ -23,8 +23,12 @@
 //   exception_type_for_display (which allocates and frees one block),
 //   write_console and write_console_line (STXlib never fails fast while a
 //   thread holds the console's output lock, so these cannot deadlock on
-//   their own thread), ErrorRecord's accessors, and plain code of its own
-//   that does not throw.
+//   their own thread), capture_stack_trace and write_stack_trace
+//   (stack_trace.hpp) and describe_address (images.hpp), which allocate
+//   nothing in STXlib's code and take no STXlib lock (those headers state
+//   what the host's unwinder and loader do beneath them),
+//   ErrorRecord's accessors, and plain code of its own that does not
+//   throw.
 // - It must not open a shadow frame (no gate, no in_shadow_frame), install
 //   a reporter, or throw. In a development build (STXLIB_SHADOW) opening a
 //   frame from the reporter fails a requirement, which ends the process

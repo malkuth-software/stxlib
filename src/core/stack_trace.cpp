@@ -26,7 +26,7 @@ usize capture_stack_trace(const MutableView<uptr> addresses) noexcept {
     const usize wanted = addresses.count() < maximum_stack_trace_addresses ? addresses.count()
                                                                            : maximum_stack_trace_addresses;
     if (wanted == 0) return 0;
-    const usize result = host::capture_return_addresses(addresses.data(), wanted);
+    const usize result = host::capture_report_addresses(addresses.data(), wanted);
     return result;
 }
 
@@ -34,6 +34,11 @@ void write_stack_trace(const View<uptr> addresses) noexcept {
     char image_room[image_name_room_bytes]{};
     char symbol_room[symbol_name_room_bytes]{};
     char line[stack_trace_line_capacity]{};
+    // write(2) is a POSIX cancellation point. A cancellation acted on there
+    // would unwind through this noexcept function and terminate, so it is
+    // held off for the writes and restored after (fail_fast has already
+    // turned it off for good before its reporter runs, fail_fast.cpp).
+    const int cancellation = host::cancellation_off();
     for (usize index = 0; index < addresses.count(); ++index) {
         const uptr address = addresses[index];
         stack_line::Frame frame{};
@@ -59,6 +64,7 @@ void write_stack_trace(const View<uptr> addresses) noexcept {
         const usize count = stack_line::format(frame, MutableView<char>(line, stack_trace_line_capacity));
         host::write_standard_error(line, count);
     }
+    host::restore_cancellation(cancellation);
 }
 
 } // namespace stxlib

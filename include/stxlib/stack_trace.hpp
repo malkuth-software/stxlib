@@ -5,17 +5,33 @@
 // (core/failure/fail_fast.cpp at 491156eac; A0 inventory, section 2).
 // A1 platform-rest.
 //
-// capture_stack_trace takes return addresses through the same walk the
-// shadow records use (src/hosted/posix/trace_posix.cpp: the frame-pointer
-// chain bounded by the thread's stack, then _Unwind_Backtrace;
-// src/hosted/windows/trace_windows.cpp: RtlCaptureStackBackTrace). Frames
-// compiled without frame pointers can end the walk early on Linux and
-// FreeBSD (trace_posix.cpp states where frame pointers are kept).
+// capture_stack_trace takes return addresses by the host's report-safe
+// walk (src/hosted/host.hpp, capture_report_addresses): on macOS the
+// frame-pointer chain bounded by the thread's stack, then _Unwind_Backtrace
+// when the chain breaks at once (src/hosted/posix/trace_posix.cpp); on
+// Linux and FreeBSD _Unwind_Backtrace only, since the stack bounds the walk
+// needs come there only from calls that allocate and lock; on Windows
+// RtlCaptureStackBackTrace (src/hosted/windows/trace_windows.cpp); on
+// Emscripten none.
 //
 // write_stack_trace writes them to standard error, one line each, with the
-// image and nearest symbol describe_address (images.hpp) finds. Neither
-// allocates, so a fault report can call them; neither is safe in a signal
-// handler (the loader's locks, images.hpp).
+// image and nearest symbol describe_address (images.hpp) finds, holding
+// POSIX thread cancellation off for the writes.
+//
+// In a fail-fast reporter (fail_fast.hpp lists them among its calls):
+// - Neither allocates in STXlib's code, and neither takes an STXlib lock,
+//   on any family. Below STXlib, the host's unwinder and loader do the
+//   work; trace_posix.cpp and images.hpp state what each was read to do,
+//   and where it can still allocate or lock (libgcc's first lookup in
+//   frames registered with __register_frame_info; the loader's lock, as
+//   for any dladdr).
+// - Neither is async-signal-safe (the loader's locks), and neither needs to
+//   be: STXlib never fails fast from a signal handler (its only handler,
+//   src/hosted/posix/events_posix.cpp, records the event and returns).
+// - Early exits: the only state either changes is the caller's array and
+//   the stream, so an early exit at any host call leaves nothing to undo
+//   (form 2); the host calls are not cancellation points except write,
+//   which runs with cancellation held off.
 
 #include "stxlib/types.hpp"
 #include "stxlib/view.hpp"

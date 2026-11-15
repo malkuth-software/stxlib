@@ -5,7 +5,9 @@
 // message sink, consumer frames with texts (cut at a whole UTF-8
 // sequence), a frame opened by hand (GUI.Forms' ShadowFrameCall), the live
 // stack read back, a trampoline entry, a parked and rethrown exception
-// (GUI.Forms' class tables, A1 design 3.3), a stale capture after an
+// (GUI.Forms' class tables, A1 design 3.3), the same with the frames
+// parked into the carrier and captures in between (M1 option 2), the room
+// park_shadow_into refuses, a stale capture after an
 // ordinary handler, and a stack deeper than the capacity. The callback
 // gate's record is shown by the must-end case callback_frames
 // (death_tests.cpp), and the two-module cases by two_module_tests.cpp.
@@ -495,6 +497,161 @@ void a_parked_exception_keeps_its_throw_site() {
     CHECK(stxlib::shadow_depth() == 0);
 }
 
+// The same carrier with the frames copied out (park_shadow_into, M1
+// option 2): later captures on the thread overwrite every kept record
+// before the rethrow (one in a release build, shadow_record_capacity in a
+// development build), and the outer gate still files the throw's frames
+// from the carrier's copy (restore_shadow_from).
+struct OtherFailure final {
+    stxlib::Status operator()() const { throw std::length_error("filed in between"); }
+};
+
+struct CopiedShadow final {
+    stxlib::ParkedShadow parked{};
+    stxlib::ShadowFrameRecord frames[stxlib::parked_shadow_frame_room]{};
+    stxlib::uptr trace[stxlib::parked_shadow_trace_room]{};
+    bool park_failed{false};
+};
+
+struct CopyingBaseCall final {
+    std::exception_ptr* parked{nullptr};
+    CopiedShadow* copy{nullptr};
+
+    void operator()() const {
+        try {
+            ThrowsUnderBase thrower;
+            stxlib::in_shadow_frame("test.base", 2, 0, thrower);
+        } catch (...) {
+            *parked = std::current_exception();
+            const stxlib::Result<stxlib::ParkedShadow> kept =
+                stxlib::park_shadow_into(stxlib::MutableView<stxlib::ShadowFrameRecord>((*copy).frames),
+                                         stxlib::MutableView<stxlib::uptr>((*copy).trace));
+            if (kept.succeeded()) {
+                (*copy).parked = *kept.value();
+            } else {
+                (*copy).park_failed = true;
+            }
+        }
+    }
+};
+
+struct CopyingClientEntry final {
+    CopyingBaseCall base;
+
+    void operator()() const { stxlib::in_shadow_frame("test.entry", 1, 0, base); }
+};
+
+struct CopyingRaise final {
+    CopiedShadow* copy{nullptr};
+    bool* old_reference_lost{nullptr};
+
+    stxlib::Status operator()() const {
+        std::exception_ptr parked{};
+        CopyingClientEntry entry{CopyingBaseCall{&parked, copy}};
+        stxlib::in_shadow_frame("test.client_entry_call", 0, 0, entry);
+        if (parked) {
+            // Failures filed between the park and the rethrow, one more than
+            // a development build keeps.
+            for (usize round = 0; round <= stxlib::shadow_record_capacity; ++round) {
+                OtherFailure other;
+                const stxlib::Status filed = stxlib::call_gate("test.in_between", other);
+                static_cast<void>(filed);
+            }
+            stxlib::ShadowFrameRecord probe[1]{};
+            const stxlib::Result<stxlib::ShadowSummary> old =
+                stxlib::read_shadow((*copy).parked.reference, stxlib::MutableView<stxlib::ShadowFrameRecord>(probe),
+                                    stxlib::MutableView<stxlib::uptr>());
+            *old_reference_lost = old.failed() && (*old.error()).kind() == stxlib::ErrorKind::not_found;
+            const stxlib::ShadowReference restored = stxlib::restore_shadow_from(
+                (*copy).parked, stxlib::View<stxlib::ShadowFrameRecord>((*copy).frames, (*copy).parked.frame_count),
+                stxlib::View<stxlib::uptr>((*copy).trace, (*copy).parked.trace_count));
+            static_cast<void>(restored);
+            std::rethrow_exception(parked);
+        }
+        return stxlib::Status::success();
+    }
+};
+
+void a_copied_park_survives_later_captures() {
+    CopiedShadow copy{};
+    bool old_reference_lost = false;
+    CopyingRaise raise{&copy, &old_reference_lost};
+    const stxlib::Status status = stxlib::call_gate("test.raise", raise);
+    const stxlib::ErrorRecord record = *status.error();
+    const ShownShadow shown = show("parked into the carrier, captures in between, rethrown", record);
+    CHECK(!copy.park_failed);
+    CHECK(copy.parked.reference.present());
+    CHECK(copy.parked.point == stxlib::CapturePoint::throw_site);
+    CHECK(copy.parked.frame_count == 4); // test.raise > test.client_entry_call > test.entry > test.base
+    CHECK(copy.parked.frames_lost == 0);
+    CHECK(old_reference_lost); // the plain reference would have named nothing
+    CHECK(record.kind() == stxlib::ErrorKind::out_of_range);
+    CHECK(record.message() == stxlib::TextView("row 12"));
+    CHECK(shown.present);
+    if (shown.present) {
+        // The frames at the throw, from the carrier's copy.
+        CHECK(shown.summary.point == stxlib::CapturePoint::throw_site);
+        CHECK(shown.summary.frame_count == 4);
+        CHECK(frame_is(shown, 0, "test.raise", 0, 0));
+        CHECK(frame_is(shown, 1, "test.client_entry_call", 0, 0));
+        CHECK(frame_is(shown, 2, "test.entry", 1, 0));
+        CHECK(frame_is(shown, 3, "test.base", 2, 0));
+        CHECK(shown.summary.trace_count == copy.parked.trace_count);
+        if (!stxlib::shadowing_enabled()) CHECK(shown.summary.trace_count == 0);
+    }
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
+// park_shadow_into checks the room against the stated size before it parks:
+// too small a room parks nothing, so the capture is still pending for the
+// next park.
+struct ParksWithTooLittleRoom final {
+    stxlib::ErrorKind* frames_refusal{nullptr};
+    stxlib::ErrorKind* trace_refusal{nullptr};
+    stxlib::ParkedShadow* parked{nullptr};
+
+    void operator()() const {
+        try {
+            ThrowsUnderBase thrower;
+            stxlib::in_shadow_frame("test.small_room", 5, 0, thrower);
+        } catch (...) {
+            stxlib::ShadowFrameRecord short_frames[stxlib::parked_shadow_frame_room - 1]{};
+            stxlib::ShadowFrameRecord frames[stxlib::parked_shadow_frame_room]{};
+            stxlib::uptr short_trace[1]{};
+            const stxlib::Result<stxlib::ParkedShadow> too_few_frames = stxlib::park_shadow_into(
+                stxlib::MutableView<stxlib::ShadowFrameRecord>(short_frames), stxlib::MutableView<stxlib::uptr>());
+            if (too_few_frames.failed()) *frames_refusal = (*too_few_frames.error()).kind();
+            const stxlib::Result<stxlib::ParkedShadow> too_short_trace = stxlib::park_shadow_into(
+                stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>(short_trace));
+            if (too_short_trace.failed()) *trace_refusal = (*too_short_trace.error()).kind();
+            const stxlib::Result<stxlib::ParkedShadow> kept = stxlib::park_shadow_into(
+                stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>());
+            if (kept.succeeded()) *parked = *kept.value();
+        }
+    }
+};
+
+void a_park_into_too_little_room_parks_nothing() {
+    stxlib::ErrorKind frames_refusal = stxlib::ErrorKind::internal_failure;
+    stxlib::ErrorKind trace_refusal = stxlib::ErrorKind::internal_failure;
+    stxlib::ParkedShadow parked{};
+    ParksWithTooLittleRoom target{&frames_refusal, &trace_refusal, &parked};
+    target();
+    CHECK(frames_refusal == stxlib::ErrorKind::limit_exceeded);
+    CHECK(trace_refusal == stxlib::ErrorKind::limit_exceeded);
+    // The third call found the throw's capture still pending.
+    CHECK(parked.reference.present());
+    CHECK(parked.point == stxlib::CapturePoint::throw_site);
+    CHECK(parked.frame_count == 1);
+    CHECK(parked.trace_count == 0); // no trace room given
+    // A carrier that parked nothing restores nothing.
+    const stxlib::ShadowReference none =
+        stxlib::restore_shadow_from(stxlib::ParkedShadow{}, stxlib::View<stxlib::ShadowFrameRecord>(),
+                                    stxlib::View<stxlib::uptr>());
+    CHECK(!none.present());
+    CHECK(stxlib::shadow_depth() == 0);
+}
+
 // An exception an ordinary handler consumed must not lend its capture to
 // the next one.
 struct ConsumesThenThrows final {
@@ -578,6 +735,8 @@ int main() {
     a_hand_frame_and_the_live_stack();
     a_trampoline_entry_records_the_target_stack();
     a_parked_exception_keeps_its_throw_site();
+    a_copied_park_survives_later_captures();
+    a_park_into_too_little_room_parks_nothing();
     a_consumed_capture_is_not_reused();
     a_deep_stack_counts_what_it_cannot_keep();
     const int status = stxlib_tests::finish("stxlib shadowing");

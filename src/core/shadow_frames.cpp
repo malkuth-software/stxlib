@@ -215,4 +215,69 @@ void restore_shadow(const ShadowReference reference) noexcept {
     }
 }
 
+namespace {
+
+// park_shadow_into on one store: the room was checked by the caller, so
+// the record (at most Store::frame_capacity <= shadow_frame_capacity
+// frames, Store::trace_capacity <= shadow_trace_capacity addresses) fits.
+template <typename Store>
+Result<ParkedShadow> park_into_on(Store& store, const MutableView<ShadowFrameRecord> frames,
+                                  const MutableView<uptr> trace) noexcept {
+    const ShadowReference reference = shadow_capture::take_for_handler(store);
+    const Result<ShadowSummary> read = read_record_of(store, reference, frames, trace);
+    if (read.failed()) {
+        const ErrorRecord missing = ErrorRecord::make(
+            ErrorKind::not_found, "stxlib.shadow.park_into",
+            ErrorDetail{.message = "no shadow record could be filed (the thread's shadow sequence is exhausted)"});
+        return Result<ParkedShadow>::failure(missing);
+    }
+    const ShadowSummary& summary = *read.value();
+    const usize traced = summary.trace_count < trace.count() ? summary.trace_count : trace.count();
+    const ParkedShadow parked{.reference = reference,
+                              .point = summary.point,
+                              .frame_count = summary.frame_count,
+                              .frames_lost = summary.frames_lost,
+                              .trace_count = traced};
+    return Result<ParkedShadow>::success(parked);
+}
+
+} // namespace
+
+Result<ParkedShadow> park_shadow_into(const MutableView<ShadowFrameRecord> frames,
+                                      const MutableView<uptr> trace) noexcept {
+    static_assert(state::FullShadow::frame_capacity <= parked_shadow_frame_room &&
+                      state::ReserveShadow::frame_capacity <= parked_shadow_frame_room,
+                  "a shadow record never holds more frames than parked_shadow_frame_room");
+    static_assert(state::FullShadow::trace_capacity <= parked_shadow_trace_room &&
+                      state::ReserveShadow::trace_capacity <= parked_shadow_trace_room,
+                  "a shadow record never holds more return addresses than parked_shadow_trace_room");
+    const bool frames_fit = frames.count() >= parked_shadow_frame_room;
+    const bool trace_fits = trace.empty() || trace.count() >= parked_shadow_trace_room;
+    if (!frames_fit || !trace_fits) {
+        const TextView trace_small("the trace room is smaller than parked_shadow_trace_room");
+        const TextView frames_small("the frame room is smaller than parked_shadow_frame_room");
+        const ErrorRecord small = ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.shadow.park_into",
+                                                    ErrorDetail{.message = frames_fit ? trace_small : frames_small});
+        return Result<ParkedShadow>::failure(small);
+    }
+    state::ThreadState* const thread = state::current_thread_state();
+    if (thread != nullptr) return park_into_on((*thread).shadow, frames, trace);
+    return park_into_on(state::current_flags().reserve, frames, trace);
+}
+
+ShadowReference restore_shadow_from(const ParkedShadow& parked, const View<ShadowFrameRecord> frames,
+                                    const View<uptr> trace) noexcept {
+    if (!parked.reference.present()) return ShadowReference{};
+    const usize frame_count = parked.frame_count < frames.count() ? parked.frame_count : frames.count();
+    const usize trace_count = parked.trace_count < trace.count() ? parked.trace_count : trace.count();
+    const View<ShadowFrameRecord> kept_frames(frames.data(), frame_count);
+    const View<uptr> kept_trace(trace.data(), trace_count);
+    state::ThreadState* const thread = state::current_thread_state();
+    if (thread != nullptr) {
+        return shadow_capture::file_copy((*thread).shadow, parked.point, kept_frames, parked.frames_lost, kept_trace);
+    }
+    return shadow_capture::file_copy(state::current_flags().reserve, parked.point, kept_frames, parked.frames_lost,
+                                     kept_trace);
+}
+
 } // namespace stxlib

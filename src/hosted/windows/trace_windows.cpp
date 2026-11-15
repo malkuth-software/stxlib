@@ -24,4 +24,10 @@ usize capture_return_addresses(uptr* const addresses, const usize capacity) noex
     return count;
 }
 
+// RtlCaptureStackBackTrace is the whole capture; it takes no bounds query.
+usize capture_report_addresses(uptr* const addresses, const usize capacity) noexcept {
+    const usize result = capture_return_addresses(addresses, capacity);
+    return result;
+}
+
 } // namespace stxlib::host
