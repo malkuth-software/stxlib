@@ -79,6 +79,9 @@ for program in $(grep -E '^/(s?bin|usr/s?bin|usr/libexec)/' "$list"); do
     ldd -f '%p\n' "$program" 2>/dev/null || true
 done | sort -u | grep '^/' >> "$list"
 tar -cf - -C / $(sed 's|^/||' "$list") | tar -xpf - -C "$mnt/a"
+# C1 keeps the base's accounts as they are (C2's build_image.sh generates
+# its own from appliance/disk/master.passwd and group).
+cp -p /etc/passwd /etc/master.passwd /etc/group /etc/pwd.db /etc/spwd.db "$mnt/a/etc/"
 mkdir -p "$mnt/a/boot/kernel" "$mnt/a/sbin" "$mnt/a/etc/stx" "$mnt/a/dev" "$mnt/a/var" "$mnt/a/tmp" \
          "$mnt/a/user" "$mnt/a/stx/bootctl" "$mnt/a/stx/esp" "$mnt/a/root"
 cp "$work/kernel" "$mnt/a/boot/kernel/kernel"

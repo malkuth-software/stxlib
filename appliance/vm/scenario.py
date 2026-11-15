@@ -253,7 +253,11 @@ def main(argv: List[str]) -> int:
     arguments.hang_dump = True
     arguments.monitor_socket = monitor_socket(layout, arguments.name)
     command = qemu_command(arguments, layout)
-    for required_path in (arguments.qemu, layout.vm_disk(arguments.name), layout.vm_vars(arguments.name)):
+    # The appliance disk alone needs no stock disk (the amd64 image has none).
+    required_paths = [command[0], layout.vm_vars(arguments.name)]
+    if not arguments.appliance_only:
+        required_paths.append(layout.vm_disk(arguments.name))
+    for required_path in required_paths:
         if not os.path.isfile(required_path):
             print(f'scenario: not found: {required_path}', file=sys.stderr)
             return 1

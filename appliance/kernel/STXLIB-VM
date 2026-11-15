@@ -313,6 +313,18 @@ nooptions LINUX_BOOT_ABI # booted through UEFI, never U-Boot's booti
 nooptions IEEE80211_SUPPORT_MESH # no wlan device in this kernel
 
 # ==========================================================================
+# Batch 3 (C2, owner: hardening is subtraction; no jails, Capsicum policy
+# or rctl of our own): kernel frameworks the appliance never uses. MAC: no
+# policy module is loaded (NO_MODULES) or compiled in. AUDIT: no auditd.
+# RACCT and RCTL: resource limits are not used (owner, C2). KDB, DDB, GDB:
+# a panic reboots the unit; nobody sits at a debugger prompt on the
+# console. CAPABILITY_MODE and CAPABILITIES stay: the base system's sshd
+# and dhclient enter capability mode themselves.
+# ==========================================================================
+nooptions MAC,AUDIT,RACCT,RCTL # frameworks without a user on the appliance
+nooptions KDB,KDB_TRACE,DDB,GDB # no kernel debugger: a panic reboots
+
+# ==========================================================================
 # The STXlib kernel shim (appliance/shim/, C1 step S5), compiled in. config(8)
 # reads the extra files list named here (usr.sbin/config/config.y:145) from
 # an include directory; build_kernel.sh writes it, naming the shim's source

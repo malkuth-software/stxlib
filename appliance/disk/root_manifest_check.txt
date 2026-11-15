@@ -1,0 +1,5 @@
+# root_manifest_check.txt -- added to a test image's root only (payload
+# root_manifest_extra.txt; appliance/vm/c2_m4.sh), never to a board's:
+# what surface.sh needs to list the listening sockets for the run-time
+# half of the surface inventory (appliance/vm/check_surface.py).
+/usr/bin/sockstat

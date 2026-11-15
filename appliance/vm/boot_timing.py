@@ -53,8 +53,8 @@ import re
 
 from bootstages import (APPLIANCE_INTERVALS, INTERVALS, Stage, StageTracker, appliance_stage_list,
                         default_stage_list, pid1_marker_values)
-from vmlayout import (ApplianceLayout, QEMU_BINARY_DEFAULT, STORAGE_ROOT_DEFAULT,
-                      UEFI_CODE_DEFAULT, check_vm_name)
+from vmlayout import (ApplianceLayout, QEMU_BINARY_DEFAULT, QEMU_X86_BINARY_DEFAULT, STORAGE_ROOT_DEFAULT,
+                      UEFI_CODE_DEFAULT, UEFI_X86_CODE_DEFAULT, check_vm_name)
 
 READ_CHUNK_BYTES: int = 65536
 STOP_GRACE_SECONDS: float = 5.0
@@ -75,10 +75,27 @@ def firmware_path(layout: ApplianceLayout, vm_name: str, requested: Optional[str
 
 def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List[str]:
     """The exact command line, built in one place so command.txt records it."""
+    x86 = getattr(arguments, 'arch', 'aarch64') == 'x86_64'
     cpu_model = 'host'
-    if arguments.accel != 'hvf':
+    if arguments.accel != 'hvf' or x86:
         cpu_model = 'max'
     code_path = firmware_path(layout, arguments.name, arguments.uefi_code)
+    qemu = arguments.qemu
+    machine = arguments.machine
+    accel = arguments.accel
+    if x86:
+        # The amd64 image (C2): q35 with OVMF, emulated (TCG) on the M4.
+        # The variable store is the VM directory's copy of OVMF's
+        # (amd64_image.sh makes it); defaults change only where the caller
+        # left them.
+        if qemu == QEMU_BINARY_DEFAULT:
+            qemu = QEMU_X86_BINARY_DEFAULT
+        if machine == 'virt':
+            machine = 'q35'
+        if accel == 'hvf':
+            accel = 'tcg'
+        if arguments.uefi_code is None:
+            code_path = UEFI_X86_CODE_DEFAULT
     monitor = 'none'
     if getattr(arguments, 'hang_dump', False):
         # A monitor socket, used only when a boot times out (hang_dump()).
@@ -90,9 +107,9 @@ def qemu_command(arguments: argparse.Namespace, layout: ApplianceLayout) -> List
     if ssh_port is not None:
         netdev += f',hostfwd=tcp:127.0.0.1:{int(ssh_port)}-:22'
     command: List[str] = [
-        arguments.qemu,
-        '-machine', arguments.machine,
-        '-accel', arguments.accel,
+        qemu,
+        '-machine', machine,
+        '-accel', accel,
         '-cpu', cpu_model,
         '-m', str(arguments.memory_mib),
         '-smp', str(arguments.cpus),
@@ -403,6 +420,8 @@ def add_vm_arguments(parser: argparse.ArgumentParser) -> None:
                         help='boot the appliance disk alone (C1 S4)')
     parser.add_argument('--ssh-forward-port', type=int, default=None,
                         help='forward 127.0.0.1:PORT on the host to the guest port 22')
+    parser.add_argument('--arch', default='aarch64', choices=('aarch64', 'x86_64'),
+                        help='x86_64: the amd64 appliance image on q35 + OVMF under TCG (C2)')
 
 
 def main(argv: List[str]) -> int:

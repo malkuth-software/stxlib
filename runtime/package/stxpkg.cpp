@@ -568,10 +568,50 @@ PackageReader package_reader;
     return exit_done;
 }
 
+// A system image must not carry a root slot's UFS label while it is being
+// written: from the moment its superblock is whole on the inactive slot
+// until relabel() runs, the unit would have two file systems of one label,
+// and the kernel's root name (ufs:/dev/ufs/STXROOTA) could find either, on
+// this boot's retaste or after a power loss (C2_DESIGN.md, "Early exits",
+// system update). Images therefore carry a neutral label (the build gives
+// them STXROOTNEW), and the copy refuses an image whose standard UFS2
+// superblock names a slot, before writing the bytes that complete that
+// superblock's magic (the label lies before the magic in struct fs, so it
+// has been seen by then). An image is ours and signed: this guards a build
+// mistake, not an attack.
+constexpr std::uint64_t image_label_offset = SBLOCK_UFS2 + offsetof(struct fs, fs_volname);
+constexpr std::uint64_t image_magic_end = SBLOCK_UFS2 + offsetof(struct fs, fs_magic) + sizeof(std::int32_t);
+static_assert(image_label_offset + MAXVOLLEN <= image_magic_end, "the label precedes the magic");
+
+struct ImageLabelGuard {
+    char label[MAXVOLLEN];
+    bool checked;
+};
+
+// Captures the label's bytes found in [chunk_offset, chunk_offset +
+// length); false when this chunk completes the superblock's magic and the
+// label seen is a root slot's.
+[[nodiscard]] bool image_label_safe(ImageLabelGuard& guard, std::uint64_t chunk_offset, const char* bytes,
+                                    std::size_t length) noexcept {
+    for (std::size_t index = 0; index < MAXVOLLEN; index += 1) {
+        const std::uint64_t at = image_label_offset + index;
+        if (at >= chunk_offset && at < chunk_offset + length) {
+            guard.label[index] = bytes[at - chunk_offset];
+        }
+    }
+    if (guard.checked || chunk_offset + length < image_magic_end) {
+        return true;
+    }
+    guard.checked = true;
+    return std::strncmp(guard.label, "STXROOTA", MAXVOLLEN) != 0 && std::strncmp(guard.label, "STXROOTB", MAXVOLLEN) != 0;
+}
+
 // Copies size bytes from the reader to output (a descriptor, or -1 for
-// none), hashing them; the digest into digest. exit_done or a failure.
+// none), hashing them; the digest into digest. With a guard (system images
+// only), refuses as image_label_safe says before writing the chunk.
+// exit_done or a failure.
 [[nodiscard]] int copy_hashed(PackageReader& reader, std::uint64_t size, int output,
-                              std::uint8_t (&digest)[stxpackage::sha256_size]) noexcept {
+                              std::uint8_t (&digest)[stxpackage::sha256_size], ImageLabelGuard* guard) noexcept {
     Sha256 hash;
     std::uint64_t remaining = size;
     while (remaining > 0u) {
@@ -584,6 +624,10 @@ PackageReader package_reader;
         const std::size_t take = held < want ? held : want;
         const std::span<const char> bytes = reader.held();
         hash.add(bytes.data(), take);
+        if (guard != nullptr && !image_label_safe(*guard, size - remaining, bytes.data(), take)) {
+            say("refused", "image-carries-a-slot-label");
+            return exit_refused;
+        }
         if (output >= 0 && !write_all(output, bytes.data(), take)) {
             say("write-failed", "");
             return exit_io;
@@ -650,7 +694,7 @@ PackageReader package_reader;
             return exit_io;
         }
         std::uint8_t digest[stxpackage::sha256_size] = {};
-        const int copied = copy_hashed(reader, file.size, output, digest);
+        const int copied = copy_hashed(reader, file.size, output, digest, nullptr);
         const bool closed = copied == exit_done && fsync(output) == 0 &&
                             fchmod(output, static_cast<mode_t>(file.mode)) == 0;
         (void)close(output);
@@ -1157,7 +1201,8 @@ void url_text(const stxnet::HttpsUrl& url, char (&out)[stxnet::url_length_max + 
         return exit_refused;
     }
     std::uint8_t digest[stxpackage::sha256_size] = {};
-    int result = copy_hashed(reader, manifest.files[0].size, device, digest);
+    ImageLabelGuard guard{};
+    int result = copy_hashed(reader, manifest.files[0].size, device, digest, &guard);
     if (result == exit_done && fsync(device) != 0) {
         say("write-failed", device_path);
         result = exit_io;

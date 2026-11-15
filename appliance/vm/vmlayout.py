@@ -42,6 +42,12 @@ STORAGE_ROOT_DEFAULT: str = '/Volumes/Storage/stxlib_workers'
 QEMU_BINARY_DEFAULT: str = '/opt/homebrew/bin/qemu-system-aarch64'
 QEMU_IMG_DEFAULT: str = '/opt/homebrew/bin/qemu-img'
 UEFI_CODE_DEFAULT: str = '/opt/homebrew/share/qemu/edk2-aarch64-code.fd'
+# The amd64 image (C2): Homebrew's QEMU ships OVMF as edk2-x86_64-code.fd
+# with its variable template edk2-i386-vars.fd (to be confirmed on the M4
+# by the first amd64 run, as the aarch64 files were).
+QEMU_X86_BINARY_DEFAULT: str = '/opt/homebrew/bin/qemu-system-x86_64'
+UEFI_X86_CODE_DEFAULT: str = '/opt/homebrew/share/qemu/edk2-x86_64-code.fd'
+UEFI_X86_VARS_TEMPLATE: str = '/opt/homebrew/share/qemu/edk2-i386-vars.fd'
 
 
 @dataclass(frozen=True)

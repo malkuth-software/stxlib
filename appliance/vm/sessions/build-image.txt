@@ -1,0 +1,6 @@
+# Build an appliance image (appliance/disk/build_image.sh) on the second
+# disk, vtbd1, which is the image file itself, from the host's payload
+# directory, for the board {board}.
+fetch -q -o /tmp/build_image.sh {http}/build_image.sh
+test "$(sha256 -q /tmp/build_image.sh)" = "{build_sha256}"
+sh /tmp/build_image.sh {http} vtbd1 {board}

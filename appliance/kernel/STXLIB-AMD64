@@ -1,0 +1,48 @@
+#
+# STXLIB-AMD64 -- the appliance kernel for x86-64 UEFI machines: QEMU q35
+# with OVMF (the scenario, appliance/vm/amd64_image.sh) and the x86 boards
+# of appliance/boards/x86.md, booted by FreeBSD's loader.efi as
+# EFI/BOOT/BOOTX64.EFI.
+#
+# Method: as STXLIB-VM, FreeBSD's amd64 GENERIC (releng/15.2 at
+# fb9033d2876d) minus what the appliance does not need, each cut with its
+# reason. Unlike the VM's, this kernel keeps GENERIC's device drivers: x86
+# boards differ in their Ethernet, storage and graphics, and the board
+# checklist names what each needs. The cuts are the option batches of
+# STXLIB-VM (batch 1d, 2 and 3) in their amd64 spelling.
+#
+# Before the first build: run check_config.py against the pinned amd64
+# GENERIC (it lists a nooptions line that names an option GENERIC does
+# not set, and missing generated headers), as for every new configuration.
+#
+include 	"GENERIC"
+ident		STXLIB-AMD64
+
+# --- As STXLIB-VM batch 1d: protocols and debug messages
+nooptions	INET6		# the appliance is IPv4 only (C design notes)
+nooptions	USB_DEBUG	# debug messages
+nooptions	HID_DEBUG	# debug messages
+nooptions	IEEE80211_DEBUG	# debug messages
+
+# --- As STXLIB-VM batch 2
+nooptions KDTRACE_HOOKS,KDTRACE_FRAME,DDB_CTF # no DTrace on the appliance
+nomakeoptions WITH_CTF # CTF type data serves only DTrace and DDB_CTF
+nooptions COMPAT_FREEBSD32,COMPAT_FREEBSD4,COMPAT_FREEBSD5,COMPAT_FREEBSD6,COMPAT_FREEBSD7,COMPAT_FREEBSD9,COMPAT_FREEBSD10,COMPAT_FREEBSD11,COMPAT_FREEBSD12,COMPAT_FREEBSD13,COMPAT_FREEBSD14 # the appliance runs only binaries built for it
+nooptions NFSCL,NFSD,NFSLOCKD,NFS_ROOT # no network file systems; root is local
+nooptions CD9660,PROCFS,PSEUDOFS,UFS_GJOURNAL,QUOTA,UFS_ACL,GEOM_RAID,MD_ROOT # file system features the appliance does not use
+nooptions VIMAGE,IPSEC_SUPPORT,IPSEC_OFFLOAD,SCTP_SUPPORT,KERN_TLS,TCP_OFFLOAD,TCP_BLACKBOX,TCP_HHOOK,TCP_RFC7413,ROUTE_MPATH,FIB_ALGO # network features beyond a plain IPv4 host
+nooptions SYSVSHM,SYSVMSG,SYSVSEM # no System V IPC users
+nooptions GZIO,ZSTDIO,EKCD,DEBUGNET,NETDUMP # crash-dump compression, encryption and network dumps
+nodevice vlan,tuntap,gif,md,netmap,uinput # pseudo devices nothing on the appliance uses
+nooptions PCI_HP,PCI_IOV # no PCIe hot plug or SR-IOV
+nooptions IEEE80211_SUPPORT_MESH # no mesh networking
+
+# --- As STXLIB-VM batch 3 (hardening is subtraction)
+nooptions MAC,AUDIT,RACCT,RCTL # frameworks without a user on the appliance
+nooptions KDB,KDB_TRACE,DDB,GDB # no kernel debugger: a panic reboots
+
+# ==========================================================================
+# The STXlib kernel shim (appliance/shim/), compiled in, as on arm64.
+# ==========================================================================
+files		"files.stxlib"
+device		stxshim

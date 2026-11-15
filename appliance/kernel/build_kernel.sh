@@ -1,7 +1,8 @@
 #!/bin/sh
 # build_kernel.sh [KERNCONF] -- build an appliance kernel on the M4 (macOS host).
 #
-# Builds appliance/kernel/<KERNCONF> (default STXLIB-VM) for arm64 from the
+# Builds appliance/kernel/<KERNCONF> (default STXLIB-VM) for arm64, or amd64
+# when the name says AMD64 (STXLIB-AMD64), from the
 # FreeBSD source at the pinned commit with the toolchain named in
 # appliance/toolchain.env (the one toolchain variable, owner P2 = 1), using
 # FreeBSD's tools/build/make.py, which bootstraps bmake and the host tools on
@@ -24,6 +25,12 @@ set -eu
 kernconf=${1:-STXLIB-VM}
 case $kernconf in
 *[!A-Za-z0-9_-]*|'') echo "build_kernel: bad KERNCONF: $kernconf" >&2; exit 2 ;;
+esac
+# The architecture follows the configuration's name: STXLIB-AMD64 (and any
+# name with AMD64 in it) is amd64; every other is arm64.
+case $kernconf in
+*AMD64*) target=amd64 target_arch=amd64 ;;
+*) target=arm64 target_arch=aarch64 ;;
 esac
 here=$(cd "$(dirname "$0")" && pwd)
 appliance=$(cd "$here/.." && pwd)
@@ -80,7 +87,7 @@ status=0
     cd "$src"
     MAKEOBJDIRPREFIX="$storage/appliance/obj" XLD="$STXLIB_LLD_BINDIR/ld.lld" \
         python3 tools/build/make.py --cross-bindir="$STXLIB_LLVM_BINDIR" \
-        TARGET=arm64 TARGET_ARCH=aarch64 \
+        TARGET="$target" TARGET_ARCH="$target_arch" \
         KERNCONF="$kernconf" KERNCONFDIR="$here" NO_MODULES=yes \
         CONFIGARGS="-I$confextra" \
         -j"$jobs" kernel-toolchain buildkernel
@@ -96,7 +103,7 @@ if [ "$status" -ne 0 ]; then
     exit "$status"
 fi
 
-built=$(find "$storage/appliance/obj" -path "*/arm64.aarch64/sys/$kernconf/kernel" -type f | head -1)
+built=$(find "$storage/appliance/obj" -path "*/$target.$target_arch/sys/$kernconf/kernel" -type f | head -1)
 [ -n "$built" ] || { echo "build_kernel: make succeeded but no kernel found under obj/" >&2; exit 1; }
 mkdir -p "$outdir"
 cp "$built" "$outdir/kernel"

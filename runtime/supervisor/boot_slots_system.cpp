@@ -139,6 +139,21 @@ void unmount_quietly(const char* directory) noexcept {
     return error_number;
 }
 
+// The slot file on the ESP (FAT32): rewritten in place when it already has
+// the canonical size, so that a power loss mid-write touches one sector of
+// file data and no directory entry or FAT chain (msdosfs's rename changes
+// both, and a cut between them can leave no slot file at all, which
+// local.lua reads as "boot A"). A file of another size (edited by hand) is
+// replaced as before. 0 or errno.
+[[nodiscard]] int write_slot_file(std::span<const char> text) noexcept {
+    const char* const path = "/stx/esp/stx/slots.conf";
+    struct stat facts{};
+    if (stat(path, &facts) == 0 && S_ISREG(facts.st_mode) && facts.st_size == static_cast<off_t>(text.size())) {
+        return overwrite_start(path, text);
+    }
+    return replace_file(path, "/stx/esp/stx/slots.new", text);
+}
+
 void print_failure(int console, const char* prefix, const char* step, int error_number) noexcept {
     LineText line = stxruntime::empty_line();
     stxruntime::append_text(line, prefix);
@@ -257,8 +272,7 @@ void mark_boot_good(int console, const BootFacts& facts) noexcept {
     }
     if (failed_step == nullptr && plan.new_slot_file.has_value()) {
         const std::array<char, slot_file_text_size> text = format_slot_file(*plan.new_slot_file);
-        error_number = replace_file("/stx/esp/stx/slots.conf", "/stx/esp/stx/slots.new",
-                                    std::span<const char>(text.data(), text.size()));
+        error_number = write_slot_file(std::span<const char>(text.data(), text.size()));
         if (error_number != 0) {
             failed_step = "write-slot-file";
         }
@@ -304,8 +318,7 @@ bool arm_system_update(int console, Slot running, Slot target) noexcept {
     file.good = running;
     file.try_slot = target;
     const std::array<char, slot_file_text_size> text = format_slot_file(file);
-    error_number = replace_file("/stx/esp/stx/slots.conf", "/stx/esp/stx/slots.new",
-                                std::span<const char>(text.data(), text.size()));
+    error_number = write_slot_file(std::span<const char>(text.data(), text.size()));
     unmount_quietly(esp_directory);
     if (error_number != 0) {
         print_failure(console, prefix, "write-slot-file", error_number);

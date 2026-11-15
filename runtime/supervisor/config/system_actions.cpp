@@ -317,6 +317,10 @@ namespace {
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
+    // control channel, when it folds, is dup2'd to 3 before this becomes
+    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
+    closefrom(3);
     // execve's declaration takes char* const[]; it does not modify them.
     (void)execve(arguments[0], const_cast<char* const*>(arguments), const_cast<char* const*>(environment));
     _exit(127);
@@ -504,6 +508,10 @@ namespace {
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
+    // control channel, when it folds, is dup2'd to 3 before this becomes
+    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
+    closefrom(3);
     if (chdir(directory) != 0) {
         _exit(126);
     }
@@ -525,6 +533,10 @@ namespace {
     sigset_t none{};
     sigemptyset(&none);
     (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+    // Descriptor 3 and above: nothing reaches a child but 0-2 (sc2's
+    // control channel, when it folds, is dup2'd to 3 before this becomes
+    // closefrom(4): C2_DESIGN.md, "The supervisor interface").
+    closefrom(3);
     if (chdir(directory) != 0) {
         _exit(126);
     }

@@ -93,12 +93,22 @@ public:
     // asks stxinit to reboot.
     [[nodiscard]] bool reboot_requested() const noexcept;
 
-    // The control channel's requests (sc2, appliance/C2_DESIGN.md,
-    // "Supervisor interface").
+    // The control channel's requests (sc2, appliance/C2_DESIGN.md, "The
+    // supervisor interface").
     [[nodiscard]] RequestResult request_update(const char* name, std::uint64_t now_ms) noexcept;
     [[nodiscard]] RequestResult request_install(const char* name, const char* package_path,
                                                 std::uint64_t now_ms) noexcept;
     [[nodiscard]] RequestResult rollback(const char* name, std::uint64_t now_ms) noexcept;
+    // An update from a URL the request names (sc2's program_install with an
+    // https source): https://, at most url_length_max bytes (stxpkg
+    // validates it fully, runtime/net/url.h); nothing_to_do otherwise.
+    [[nodiscard]] RequestResult request_update_from(const char* name, const char* url, std::uint64_t now_ms) noexcept;
+    // The system image: an update check now ([system] update-url), or the
+    // install of a staged system package (sc2's system_update from
+    // /user/stx/staging/system.img). Either, when it installs, arms the
+    // inactive slot and asks for the reboot, as the update service does.
+    [[nodiscard]] RequestResult request_system_update(std::uint64_t now_ms) noexcept;
+    [[nodiscard]] RequestResult request_system_install(const char* package_path, std::uint64_t now_ms) noexcept;
     [[nodiscard]] std::optional<TargetStatus> status(const char* name) const noexcept;
     [[nodiscard]] std::size_t target_count() const noexcept;
     // The name of the index-th target (index below target_count).

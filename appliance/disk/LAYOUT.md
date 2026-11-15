@@ -11,19 +11,37 @@ from the loader's abilities at the pin (below).
 
 ## Partitions
 
-| # | VM (GPT, edk2) | Pi 4 (MBR, U-Boot) | Type | Size | Written by |
+| # | VM and x86 (GPT, UEFI) | Pi 4 (MBR, U-Boot) | Type | Size | Written by |
 |---|---|---|---|---|---|
 | 1 | `gpt/stxesp` | slice 1 | FAT32 ESP | 64 MB | updater only (the slot file); never the loader |
 | 2 | `gpt/stxbootctl` | slice 2, part `a` | UFS2 | 4 MB | loader (try count, in place); supervisor |
 | 3 | `gpt/stxroota` | slice 2, part `d` | UFS2, mounted read-only | 64 MB | updater, as raw sectors |
 | 4 | `gpt/stxrootb` | slice 2, part `e` | UFS2, mounted read-only | 64 MB | updater, as raw sectors |
-| 5 | `gpt/stxuser` | slice 3 | FAT32 (UFS2 selectable) | rest | the system and the user |
+| 5 | `gpt/stxuser` | slice 3 | FAT32 | 128 MB | the user (any computer); the system (boot log, keys in) |
+| 6 | `gpt/stxdata` | slice 4 | UFS2, soft updates, label `STXDATA` | the rest | the supervisor and stxpkg (program store), targets (their folders), sshd's host key |
+
+The data partition (C2, owner 2026-11-15, Q5 option 1 for `/data`): the
+program store (`/data/programs/<program>/`, two slots per program and the
+state file the supervisor alone writes) and every target's folder
+(`/data/targets/<name>`, its own uid and gid, mode 0700). It is UFS2
+because FAT32 keeps one owner and one mode for a whole mount: stxpkg checks
+every package file's owner and mode before each start, and targets are kept
+apart by their uids. `/user` stays FAT32 with one owner, the supervisor
+(Q5), so the owner can edit it from any computer. Sizes are the build's
+(`build_image.sh`); the data partition is not grown to the medium yet (an
+open choice in `appliance/C2_DESIGN.md`).
 
 The Pi boot ROM and U-Boot read FAT from an MBR slice, so the Pi uses MBR
-with the three UFS partitions in one BSD-labelled slice (four primaries are
-not enough for five partitions). Each UFS file system carries a UFS label
-(`STXBOOTCTL`, `STXROOTA`, `STXROOTB`) so that the kernel's root name,
-`ufs:/dev/ufs/STXROOTA`, is the same on both layouts.
+with the boot control and both roots in one BSD-labelled slice (four
+primaries are not enough for six partitions); the data partition is UFS2
+directly in slice 4. Each UFS file system carries a UFS label
+(`STXBOOTCTL`, `STXROOTA`, `STXROOTB`, `STXDATA`) so that the kernel's root
+name, `ufs:/dev/ufs/STXROOTA`, and the configuration's `/dev/ufs/STXDATA`
+are the same on every layout. The system updater writes a slot by its raw
+device, named per board in `/etc/stx/root-devices` (`root-devices.gpt`:
+`/dev/gpt/stxroota`, `/dev/gpt/stxrootb`; `root-devices.pi4`:
+`/dev/mmcsd0s2d`, `/dev/mmcsd0s2e`), then sets the written file system's UFS
+label to its slot's.
 
 Root sizes are measured (`appliance/disk/root_manifest.txt`,
 `measure_root.sh`); the owner expects under 64 MB.
@@ -86,11 +104,18 @@ where `tried-last-event` is the last event the tried slot itself wrote to the
 log (its failsafe entry, read from the log's last 4 KiB), or `none` when it
 wrote none: it failed before its supervisor ran (kernel or mount failure).
 
-## Updates (the updater, later in C2)
+## Updates (C2)
 
-Write the new root image to the inactive slot's sectors, verify its hash by
-reading it back, set `try` to that slot in the slot file, write `tries=0`,
-reboot. Three failed boots return the unit to `good`.
+`stxpkg system-update` (or `system-install` for a staged package) writes
+the signed system image to the inactive slot's raw device, reads it back
+against the signed SHA-256, and sets its UFS label to the slot's. The
+supervisor then writes `tries=0` (boot control), rewrites the slot file
+with `good` the running slot and `try` the new one (ESP), and asks stxinit
+to reboot. Three failed boots return the unit to `good`. A power loss at
+any point leaves either the old slot file (the old slot boots; the
+half-written slot is never named) or the new one (the new slot is tried,
+with the count from 0); `appliance/C2_DESIGN.md`, "Early exits", has each
+point.
 
 ## The failsafe path
 
@@ -128,35 +153,39 @@ script exits.
 ## The Raspberry Pi 4 image
 
 `appliance/vm/pi4_image.sh` (host) has a stock VM run
-`appliance/disk/build_pi4_image.sh`, which writes a 384 MiB raw image,
-`/Volumes/Storage/stxlib_workers/appliance/pi4/stxlib-pi4.img`, with its
-SHA-256 beside it (`stxlib-pi4.img.sha256`). Every partition starts on a
-4 MiB boundary:
+`appliance/disk/build_image.sh` with board `pi4`, which writes a 512 MiB
+raw image, `/Volumes/Storage/stxlib_workers/appliance/pi4/stxlib-pi4.img`,
+with its SHA-256 beside it (`stxlib-pi4.img.sha256`). Every slice starts on
+a 4 MiB boundary:
 
 | Slice | Offset | Size | Contents |
 |---|---|---|---|
-| s1, type 0x0c, active | 4 MiB | 64 MiB | FAT32 `STXESP`: the FAT partition of FreeBSD's RPI image at the pin's release, unchanged (Pi firmware `start4.elf`/`fixup4.dat`, `armstub8-gic.bin`, U-Boot `u-boot.bin`, device trees, overlays, `config.txt`), with the pinned `loader.efi` as `EFI/BOOT/BOOTAA64.EFI`, `efi/freebsd/loader.env` (`appliance/boot/loader.env.pi4`) and `stx/slots.conf` (`good=A`, `try=A`) |
+| s1, type 0x0c, active | 4 MiB | 64 MiB | FAT32 `STXESP`: the FAT partition of FreeBSD's RPI image at the pin's release, unchanged (Pi firmware, `armstub8-gic.bin`, U-Boot, device trees, overlays, `config.txt`), with the pinned `loader.efi` as `EFI/BOOT/BOOTAA64.EFI`, `efi/freebsd/loader.env` (`appliance/boot/loader.env.pi4`) and `stx/slots.conf` (`good=A`, `try=A`) |
 | s2, FreeBSD, BSD label | 68 MiB | 136 MiB | `a` boot control (4 MiB), `d` root A, `e` root B (64 MiB each) |
-| s3, type 0x0c | 204 MiB | 180 MiB | FAT32 `STXUSER`, with an empty `stx/ssh/` |
+| s3, type 0x0c | 204 MiB | 128 MiB | FAT32 `STXUSER`, with an empty `stx/ssh/` |
+| s4, FreeBSD | 332 MiB | 180 MiB | UFS2 `STXDATA`: `programs/`, `targets/` |
 
-The boot runs: Pi firmware, U-Boot (UEFI), `loader.efi`, `local.lua`, the
-slot's kernel `STXLIB-PI4` (`appliance/kernel/STXLIB-PI4`: GENERIC with the
-Pi 4's drivers and the VM's cuts that are safe on the Pi). Both roots carry
-`appliance/disk/pi4-appliance.conf`: DHCP and the base system's sshd, key
-login only, keys on the user partition. The console is the Pi's PL011
-UART on GPIO 14/15, 115200 baud, 8N1: `config.txt` keeps the RPI image's
-`dtoverlay=disable-bt` (the build stops without it) and states
-`enable_uart=1`.
+The amd64 image (`appliance/vm/amd64_image.sh`, board `amd64`) has the VM's
+GPT layout in 1 GiB, with the amd64 loader as `EFI/BOOT/BOOTX64.EFI`, the
+`STXLIB-AMD64` kernel and the release's amd64 base programs; the board
+checklist is `appliance/boards/x86.md`.
 
-Not yet proven: the image is written and checked in the VM, but no Pi has
-booted it. Known gaps: the loader names the SD card `disk0` (another USB
-disk attached at power-on could take that name); the user partition is
-180 MiB and is not grown to the card; there is no clock (no RTC, no NTP).
+Both roots of every image carry the factory configuration,
+`appliance/disk/appliance.conf`: the user and data partitions, a memory
+`/var`, DHCP on every Ethernet interface (stxnet), the base system's sshd
+with key login only (the host key on `/data/ssh`, the owner's
+`authorized_keys` copied from the user partition at every boot), one SNTP
+query at boot, then securelevel 1. The console is the Pi's PL011 UART on
+GPIO 14/15, 115200 baud, 8N1.
+
+Not yet proven: no Pi has booted an image. The board checklist,
+`appliance/boards/pi4.md`, is the procedure and the list of what the first
+boot must show.
 
 What the owner does by hand:
 1. Check the image: its SHA-256 must equal the one in `stxlib-pi4.img.sha256`
    (`shasum -a 256 stxlib-pi4.img`).
-2. Write it to a microSD card of at least 512 MB, whole card, as a raw
+2. Write it to a microSD card of at least 1 GB, whole card, as a raw
    image: Raspberry Pi Imager ("Use custom"), balenaEtcher, or on macOS
    `diskutil unmountDisk /dev/diskN` then
    `sudo dd if=stxlib-pi4.img of=/dev/rdiskN bs=4m`, where `diskN` is the
@@ -172,6 +201,6 @@ What the owner does by hand:
 5. Ethernet: a cable to a network with a DHCP server.
 6. Power: insert the card, then connect the official 5 V 3 A USB-C supply.
    The console shows U-Boot, `STXLOADER slot=A tries=0 fallback=0
-   reason=good`, the kernel, the host key fingerprint `(ED25519)` and,
-   about 6 s after start, the addresses from DHCP. Then
-   `ssh root@<address>`, checking the fingerprint against the console.
+   reason=good`, the kernel, the host key fingerprint `(ED25519)`,
+   `STXNET dhcp genet0 ok` and, after 60 s, `STXSUPERVISOR boot good`.
+   Then `ssh root@<address>`, checking the fingerprint against the console.

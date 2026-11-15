@@ -1,0 +1,6 @@
+# /etc/dhclient-enter-hooks on the appliance (C2), sourced by the base
+# system's dhclient-script before it acts: resolvconf(8) is not in the
+# root, so the script writes /etc/resolv.conf itself, which is a link to
+# /var/run/resolv.conf (the root is read-only; /var is a memory file
+# system).
+resolvconf_enable="NO"

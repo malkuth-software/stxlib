@@ -38,6 +38,9 @@ const char* request_result_name(RequestResult result) noexcept {
 namespace {
 
 constexpr int interrupted_retries_max = 16;
+// The longest URL a request may name: runtime/net/url.h's url_length_max
+// (sc2's channel allows up to 1024; the downloader refuses more than this).
+constexpr std::size_t url_request_max = 255;
 const char* const job_environment[] = {"PATH=/sbin:/bin:/usr/sbin:/usr/bin", nullptr};
 
 [[nodiscard]] const char* outcome_name(JobOutcome outcome) noexcept {
@@ -351,6 +354,56 @@ RequestResult Targets::request_install(const char* target_name_text, const char*
     return start_job(JobKind::install, *found, arguments) ? RequestResult::accepted : RequestResult::failed;
 }
 
+RequestResult Targets::request_update_from(const char* target_name_text, const char* url,
+                                           std::uint64_t now_ms) noexcept {
+    (void)now_ms;
+    const std::optional<std::size_t> found = entry_of_name(target_name_text);
+    if (!found.has_value()) {
+        return RequestResult::unknown_target;
+    }
+    const char prefix[] = "https://";
+    const std::size_t length = url == nullptr ? 0u : std::strlen(url);
+    if (length <= sizeof(prefix) - 1u || length > url_request_max || std::strncmp(url, prefix, sizeof(prefix) - 1u) != 0) {
+        return RequestResult::nothing_to_do;
+    }
+    if (job_.has_value()) {
+        return RequestResult::busy;
+    }
+    Entry& entry = entries_[*found];
+    if (!entry.stored.has_value()) {
+        return RequestResult::failed;
+    }
+    const char letter[2] = {stxpackage::slot_letter(stxpackage::install_slot((*entry.stored).state)), '\0'};
+    const char* const arguments[] = {stxpackage::stxpkg_path, "update", program(entry), letter, url, nullptr};
+    return start_job(JobKind::update, *found, arguments) ? RequestResult::accepted : RequestResult::failed;
+}
+
+RequestResult Targets::request_system_update(std::uint64_t now_ms) noexcept {
+    if (config_ == nullptr || !(*config_).find_setting("system", "update-url").has_value() ||
+        !system_slot_.has_value() || reboot_requested_) {
+        return RequestResult::nothing_to_do;
+    }
+    if (job_.has_value()) {
+        return RequestResult::busy;
+    }
+    start_system_update(now_ms);
+    return job_.has_value() ? RequestResult::accepted : RequestResult::failed;
+}
+
+RequestResult Targets::request_system_install(const char* package_path, std::uint64_t now_ms) noexcept {
+    (void)now_ms;
+    if (!system_slot_.has_value() || reboot_requested_ || package_path == nullptr || package_path[0] != '/') {
+        return RequestResult::nothing_to_do;
+    }
+    if (job_.has_value()) {
+        return RequestResult::busy;
+    }
+    const stxboot::Slot inactive = *system_slot_ == stxboot::Slot::a ? stxboot::Slot::b : stxboot::Slot::a;
+    const char letter[2] = {inactive == stxboot::Slot::a ? 'a' : 'b', '\0'};
+    const char* const arguments[] = {stxpackage::stxpkg_path, "system-install", letter, package_path, nullptr};
+    return start_job(JobKind::system_update, 0, arguments) ? RequestResult::accepted : RequestResult::failed;
+}
+
 RequestResult Targets::rollback(const char* target_name_text, std::uint64_t now_ms) noexcept {
     (void)now_ms;
     const std::optional<std::size_t> found = entry_of_name(target_name_text);
@@ -499,6 +552,7 @@ bool Targets::start_job(JobKind kind, std::size_t entry_index, const char* const
         sigset_t none{};
         sigemptyset(&none);
         (void)sigprocmask(SIG_SETMASK, &none, nullptr);
+        closefrom(3);
         (void)chdir("/");
         (void)execve(arguments[0], const_cast<char* const*>(arguments), const_cast<char* const*>(job_environment));
         _exit(127);
