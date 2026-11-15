@@ -41,7 +41,7 @@ MATH = ROOT / 'src' / 'algorithms' / 'math'
 HEX = r'(-?0x[0-9a-fA-F.]+p[+-]?\d+)'
 
 LOG_OFFSET_BITS = np.uint64(0x3fe6000000000000 - (1 << 44))
-EXPONENT_FIELD = np.uint64(0x7ff0000000000000)
+EXPONENT_FIELD = np.uint64(0xfff0000000000000)  # as log_core.hpp: the sign bit too, for k < 0
 CUT_26_MASK = np.uint64(~((1 << 27) - 1) & 0xffffffffffffffff)
 BOUND = 2.0 ** -62                      # certified relative bound, all three
 SCREEN = BOUND * (1 + 2.0 ** -40)       # with room for the screen's own rounding
