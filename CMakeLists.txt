@@ -674,23 +674,52 @@ if(STXLIB_TESTS)
     target_compile_features(stxlib_stx_minmallocpp_tests PRIVATE cxx_std_20)
     target_compile_options(stxlib_stx_minmallocpp_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_stx_minmallocpp_tests COMMAND stxlib_stx_minmallocpp_tests)
-    set(stxlib_stx_minmallocpp_direct_sources
-        tests/stx_minmallocpp_direct_tests.cpp
+    # The allocator's sources, compiled as stxlib_state compiles them
+    # (warnings, no exceptions, hidden visibility) with its entry and exit
+    # checks on (page.hpp, STX_MINMALLOCPP_CHECK).
+    set(stxlib_stx_minmallocpp_sources
         src/state/stx_minmallocpp/allocator.cpp
         src/state/stx_minmallocpp/heap.cpp
         src/state/stx_minmallocpp/region.cpp)
     if(WIN32)
-        list(APPEND stxlib_stx_minmallocpp_direct_sources src/hosted/windows/minmallocpp_os_windows.cpp)
+        list(APPEND stxlib_stx_minmallocpp_sources src/hosted/windows/minmallocpp_os_windows.cpp)
     else()
-        list(APPEND stxlib_stx_minmallocpp_direct_sources src/hosted/posix/minmallocpp_os_posix.cpp)
+        list(APPEND stxlib_stx_minmallocpp_sources src/hosted/posix/minmallocpp_os_posix.cpp)
     endif()
-    add_executable(stxlib_stx_minmallocpp_direct_tests ${stxlib_stx_minmallocpp_direct_sources})
+    add_library(stxlib_stx_minmallocpp_checked OBJECT ${stxlib_stx_minmallocpp_sources})
+    target_include_directories(stxlib_stx_minmallocpp_checked PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_stx_minmallocpp_checked PRIVATE cxx_std_20)
+    target_compile_options(stxlib_stx_minmallocpp_checked PRIVATE ${stxlib_warnings} ${stxlib_frame_pointers} -fno-exceptions)
+    target_compile_definitions(stxlib_stx_minmallocpp_checked PRIVATE STXLIB_STX_MINMALLOCPP_CHECKS)
+    set_target_properties(stxlib_stx_minmallocpp_checked PROPERTIES
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN ON
+        POSITION_INDEPENDENT_CODE ON)
+    add_executable(stxlib_stx_minmallocpp_direct_tests tests/stx_minmallocpp_direct_tests.cpp
+        $<TARGET_OBJECTS:stxlib_stx_minmallocpp_checked>)
     target_include_directories(stxlib_stx_minmallocpp_direct_tests PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_features(stxlib_stx_minmallocpp_direct_tests PRIVATE cxx_std_20)
     target_compile_options(stxlib_stx_minmallocpp_direct_tests PRIVATE ${stxlib_test_warnings})
     target_link_libraries(stxlib_stx_minmallocpp_direct_tests PRIVATE Threads::Threads)
     add_test(NAME stxlib_stx_minmallocpp_direct_tests COMMAND stxlib_stx_minmallocpp_direct_tests)
+    # The allocator's leaves: every symbol its objects leave undefined is a
+    # listed host call or a toolchain helper (tools/
+    # check_stx_minmallocpp_surface.py). The objects are the checked
+    # library's, laid out as the Ninja and Makefile generators do.
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND AND CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+        if(WIN32)
+            set(stxlib_stx_minmallocpp_family windows)
+        else()
+            set(stxlib_stx_minmallocpp_family posix)
+        endif()
+        add_test(NAME stxlib_stx_minmallocpp_surface
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_stx_minmallocpp_surface.py
+                    --nm ${CMAKE_NM} --family ${stxlib_stx_minmallocpp_family}
+                    --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_stx_minmallocpp_checked.dir)
+    endif()
 
     # stxlib::algorithms.
     foreach(test_name IN ITEMS calendar hash numeric_text precedence random simd)

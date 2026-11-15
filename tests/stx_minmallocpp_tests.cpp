@@ -69,7 +69,7 @@ void block_index_is_the_division() {
 }
 
 // The list after `list`, in the order the index is searched.
-RunList next_list(const RunList list) {
+[[nodiscard]] RunList next_list(const RunList list) {
     RunList result = list;
     const usize seconds = list.first < 2 ? (static_cast<usize>(1) << list.first) : run_second_levels;
     result.second = result.second + 1;

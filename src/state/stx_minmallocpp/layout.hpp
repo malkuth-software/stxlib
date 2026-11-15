@@ -10,7 +10,7 @@
 //
 // Address space. Memory is reserved from the host in regions of 1 GiB,
 // aligned to 1 GiB, and cut into slices of 64 KiB. A region's first 288
-// slices hold its metadata (region.hpp gives the table); the rest are data.
+// slices hold its metadata (page.hpp gives the table); the rest are data.
 // Data is committed in units of 1 MiB (16 slices). A directory with one
 // cell per GiB of a 48-bit address space says which GiBs are ours.
 //
@@ -21,8 +21,9 @@
 //
 // Size classes. 56 of them: 16 * (i + 1) for i < 8 (16 to 128), then for
 // each k from 7 to 18 the four sizes 2^(k-2) * {5, 6, 7, 8} (160 to
-// 524,288). Every class size is a multiple of 16, and the worst internal
-// waste is 25%, just above a power of two.
+// 524,288). Every class size is a multiple of 16. Above 128 bytes a block
+// is at most 25% larger than the request (just above a power of two);
+// below, the 16-byte step decides (a request of 17 bytes gets 32).
 //
 // Alignment (DESIGN.md, section 5.2, with the proof): for a power of two A
 // from 16 to 65,536 and a request n, the class of round_up(n, A) has a size

@@ -21,7 +21,9 @@
 // one heap, where each module linking the static C runtime has its own.
 //
 // Backend (STXLIB_ALLOCATOR, CMakeLists.txt): mimalloc v3.6.1 by default,
-// the host's C library in sanitizer builds; backend() says which is linked.
+// the host's C library in sanitizer builds, or STXlib's own allocator,
+// stx_minmallocpp (src/state/stx_minmallocpp), when chosen by name;
+// backend() says which is linked.
 //
 // Ownership tags (STXLIB_ALLOCATION_TAGS, CMakeLists.txt: on in Debug and
 // sanitizer builds): release ends the process with a report when given a
@@ -31,7 +33,9 @@
 // reads any byte at or around it, so a foreign address is refused without
 // touching that memory: by mimalloc's page-map query with mimalloc, by a
 // registry of live blocks with the host backend (allocator.cpp states the
-// argument for each). tags_checked() says whether this build checks.
+// argument for each). stx_minmallocpp needs no tag: it refuses anything
+// that is not a live block of its own, in every build. tags_checked() says
+// whether this build checks.
 //
 // The block contents are indeterminate; Buffer (buffer.hpp) is the owner
 // that initialises them.

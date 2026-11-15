@@ -5,9 +5,14 @@
 // huge mappings, and the abandoned-page lists.
 //
 // Everything in Structure is guarded by Structure::lock unless it is an
-// atomic. Holders make constant-time edits and at most one host call per
-// commit unit touched (os.hpp: a host call cannot unwind or be cancelled),
-// so every table is whole whenever control leaves this module.
+// atomic. What a holder does while holding it: table edits of a fixed
+// number of steps, and host calls (os.hpp: none can unwind or be
+// cancelled), which are: three commits per contiguous range of
+// uncommitted units a run touches; one decommit per contiguous range of
+// units that go idle past the limit; one region reservation with one
+// commit when no run fits; and, in trim only, one decommit per idle unit
+// of every region. Every table is whole whenever control leaves this
+// module.
 //
 // Bounded costs (the owner, 2026-11-15: no slow path with an unpredictable
 // cost). Free runs of slices are filed by length in a two-level segregated
@@ -19,8 +24,8 @@
 //   first level   floor(log2(length)), 0 to 13 (a run has 1 to 16,096
 //                 slices);
 //   second level  for lengths of 4 and more, the next two bits of the
-//                 length (4 lists); for lengths 1 and 2 to 3, the length
-//                 itself.
+//                 length (4 lists); below that one list per length (1; 2
+//                 and 3).
 //
 // A request is rounded up to the next list's smallest length, so any run in
 // the list found is long enough and no list is searched. Pages of 1, 8 and
@@ -53,24 +58,44 @@ inline constexpr u32 cell_region = 1;
 inline constexpr u32 cell_huge_first = 2;
 
 // One cell per GiB below 2^48. Written with release after what it names is
-// ready; read with acquire.
-extern constinit std::atomic<u32> directory[directory_cells];
+// ready; read with acquire. The cells are plain integers reached through
+// std::atomic_ref: an array of 262,144 std::atomic objects costs the
+// compiler one constructor evaluation per element, which passes Clang's
+// limit for a constant initialiser with libc++, and the array must be
+// constant-initialised (a run-time initialiser could zero cells already
+// set).
+extern constinit u32 directory[directory_cells];
+
+static_assert(std::atomic_ref<u32>::is_always_lock_free && std::atomic_ref<u32>::required_alignment <= alignof(u32),
+              "stx_minmallocpp: a directory cell is a lock-free atomic in place");
+
+[[nodiscard]] inline u32 directory_cell(const usize index) noexcept {
+    const std::atomic_ref<u32> cell(directory[index]);
+    const u32 result = cell.load(std::memory_order_acquire);
+    return result;
+}
+
+inline void set_directory_cell(const usize index, const u32 value) noexcept {
+    const std::atomic_ref<u32> cell(directory[index]);
+    cell.store(value, std::memory_order_release);
+}
 
 // ---- regions ---------------------------------------------------------------------
 
 inline constexpr usize region_capacity = 1024; // 1 TiB of regions
 inline constexpr u32 idle_unit_limit = 8;
 
-// Slice 0 of a region. Zero pages from the host are its initial value.
+// Slice 0 of a region. It is never constructed: zero pages from the host
+// are its initial value, which is what the initialisers below say.
 struct RegionHeader final {
     // Allocated slices in each unit, 0 to 16.
-    u8 unit_used[region_units];
+    u8 unit_used[region_units]{};
     // Bit set: the unit's data is committed.
-    u64 unit_committed[region_units / word_bits];
+    u64 unit_committed[region_units / word_bits]{};
     // Committed units with no slice allocated.
-    u32 idle_units;
+    u32 idle_units{0};
     // This region's index in Structure::region_bases.
-    u32 index;
+    u32 index{0};
 };
 
 static_assert(sizeof(RegionHeader) <= slice_bytes, "the region header fits its slice");
@@ -140,9 +165,13 @@ inline constexpr usize huge_capacity = 4096;
 struct HugeRecord final {
     std::atomic<uptr> block{0};
     usize reserved_bytes{0};
-    // The next free record's index + 1 (0: none), while this one is free.
-    u32 next_free{0};
 };
+
+// ---- heaps ---------------------------------------------------------------------------
+
+// Thread heaps alive at once (heap.hpp). A thread beyond this is served by
+// the orphan heap.
+inline constexpr usize heap_capacity = 1024;
 
 // ---- the structure -------------------------------------------------------------------
 
@@ -174,14 +203,21 @@ struct Structure final {
     std::atomic<u32> abandoned_count[class_count]{};
 
     // Thread heaps (heap.cpp): the table's reservation, how many slots were
-    // ever handed out, and the free slots.
+    // ever committed, the free slots (a stack of slot indices), and the
+    // next owner identity. An identity is issued once and never again; at
+    // owner_unbound there are no more, and a new thread gets no heap.
     Heap* heap_table{nullptr};
     usize heap_slots_made{0};
-    Heap* free_heap{nullptr};
+    u16 free_heap_slots[heap_capacity]{};
+    usize free_heap_count{0};
+    u64 next_heap_owner{first_heap_owner};
 
+    // Huge mappings: the records, how many were ever used, and the free
+    // ones (a stack of record indices).
     HugeRecord huge[huge_capacity]{};
-    u32 huge_made{0};
-    u32 huge_free{0};
+    usize huge_made{0};
+    u16 free_huge_records[huge_capacity]{};
+    usize free_huge_count{0};
 };
 
 extern constinit Structure structure;
@@ -192,17 +228,19 @@ extern constinit Structure structure;
 // `alignment_slices` (a power of two; 1 for no alignment), committing the
 // units they touch and making a new region if no run fits. The structure
 // lock is held. A RunPlace with base 0 when the host refuses memory or
-// address space. A fixed number of steps, plus one host commit per
-// uncommitted unit touched (count / 16 + 1 at most).
+// address space. A fixed number of table steps plus count / 16 + 1 unit
+// steps, and three host commits per contiguous range of uncommitted units
+// (one range for a run in fresh address space).
 [[nodiscard]] RunPlace take_run(usize count, usize alignment_slices) noexcept;
 
 // Gives back a run taken by take_run, whole. The structure lock is held.
-// A fixed number of steps per unit touched, plus at most one host decommit
-// per unit that goes idle past the limit.
+// A fixed number of steps per unit touched, plus one host decommit per
+// contiguous range of units that go idle past the limit.
 void give_run(uptr base, usize slice, usize count) noexcept;
 
 // Decommits every idle unit of every region. The structure lock is held.
-// Proportional to the number of regions; called only by trim.
+// Proportional to the number of regions and their idle units; called only
+// by trim.
 void decommit_idle_units() noexcept;
 
 // A block of `bytes` in a mapping of its own, aligned to 1 GiB; null when

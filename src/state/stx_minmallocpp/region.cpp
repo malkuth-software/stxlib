@@ -10,7 +10,7 @@
 
 namespace stxlib::stx_minmallocpp {
 
-constinit std::atomic<u32> directory[directory_cells]{};
+constinit u32 directory[directory_cells]{};
 constinit Structure structure{};
 
 namespace {
@@ -32,6 +32,7 @@ namespace {
     return result;
 }
 
+// The region and the first slice a run's name stands for.
 [[nodiscard]] uptr base_of_run(const u32 name) noexcept {
     const uptr result = structure.region_bases[name >> run_slice_bits];
     return result;
@@ -42,20 +43,32 @@ namespace {
     return result;
 }
 
+// Sets the run that follows, or precedes, the free run `name` in its list.
+void set_run_next(const u32 name, const u32 following) noexcept {
+    u32* const nexts = run_nexts(base_of_run(name));
+    nexts[slice_of_run(name)] = following;
+}
+
+void set_run_previous(const u32 name, const u32 preceding) noexcept {
+    u32* const previouses = run_previouses(base_of_run(name));
+    previouses[slice_of_run(name)] = preceding;
+}
+
 // ---- the index -------------------------------------------------------------------
 
 // Files the free run [slice, slice + length) of the region at `base`:
 // writes its two boundary tags and puts it first in its list.
 void insert_run(const uptr base, const usize slice, const usize length) noexcept {
+    STX_MINMALLOCPP_CHECK(slice >= first_data_slice && length >= 1 && slice + length <= region_slices);
     u16* const lengths = run_lengths(base);
     lengths[slice] = static_cast<u16>(length);
     lengths[slice + length - 1] = static_cast<u16>(length);
     const RunList list = run_list_of(length);
     const u32 name = (header_of(base).index << run_slice_bits) | static_cast<u32>(slice);
     const u32 following = structure.run_heads[list.first][list.second];
-    run_nexts(base)[slice] = following;
-    run_previouses(base)[slice] = no_run;
-    if (following != no_run) run_previouses(base_of_run(following))[slice_of_run(following)] = name;
+    set_run_next(name, following);
+    set_run_previous(name, no_run);
+    if (following != no_run) set_run_previous(following, name);
     structure.run_heads[list.first][list.second] = name;
     structure.run_second_level[list.first] =
         static_cast<u8>(structure.run_second_level[list.first] | (static_cast<u32>(1) << list.second));
@@ -65,15 +78,16 @@ void insert_run(const uptr base, const usize slice, const usize length) noexcept
 // Takes the free run [slice, slice + length) out of its list. Its tags are
 // left for the caller to overwrite.
 void remove_run(const uptr base, const usize slice, const usize length) noexcept {
+    STX_MINMALLOCPP_CHECK(run_lengths(base)[slice] == length && run_lengths(base)[slice + length - 1] == length);
     const RunList list = run_list_of(length);
     const u32 before = run_previouses(base)[slice];
     const u32 after = run_nexts(base)[slice];
     if (before != no_run) {
-        run_nexts(base_of_run(before))[slice_of_run(before)] = after;
+        set_run_next(before, after);
     } else {
         structure.run_heads[list.first][list.second] = after;
     }
-    if (after != no_run) run_previouses(base_of_run(after))[slice_of_run(after)] = before;
+    if (after != no_run) set_run_previous(after, before);
     if (structure.run_heads[list.first][list.second] != no_run) return;
     structure.run_second_level[list.first] =
         static_cast<u8>(structure.run_second_level[list.first] & ~(static_cast<u32>(1) << list.second));
@@ -85,6 +99,7 @@ void remove_run(const uptr base, const usize slice, const usize length) noexcept
 // first == run_first_levels when there is none. Requires
 // 1 <= need < 2^14. No list is walked: two bitmap tests.
 [[nodiscard]] RunList fitting_list(const usize need) noexcept {
+    STX_MINMALLOCPP_CHECK(need >= 1 && need < region_slices);
     const RunList none{.first = run_first_levels, .second = 0};
     RunList list = run_list_of(need);
     if (run_list_floor(list) < need) {
@@ -132,6 +147,7 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
 
 // ---- commit units ----------------------------------------------------------------
 
+// `address` rounded down, and up, to the host's page size.
 [[nodiscard]] uptr floor_to_page(const uptr address) noexcept {
     const uptr result = address & ~static_cast<uptr>(structure.os_page - 1);
     return result;
@@ -143,28 +159,36 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
     return result;
 }
 
-// Commits a unit's data and the free and remote words of its 16 slices.
-// The word ranges are rounded outward to host pages; they stay inside their
-// tables, which start and end on slices. A range that is already committed
-// is committed again, which changes nothing.
-[[nodiscard]] bool commit_unit(const uptr base, const usize unit) noexcept {
+// Commits the data of `count` consecutive units from `unit`, and the free
+// and remote words of their slices: three host calls. The word ranges are
+// rounded outward to host pages; they stay inside their tables, which
+// start and end on slices. A range that is already committed is committed
+// again, which changes nothing.
+[[nodiscard]] bool commit_units(const uptr base, const usize unit, const usize count) noexcept {
     const usize words_bytes = unit_slices * page_words * sizeof(u64);
     const uptr free_first = base + free_words_slice * slice_bytes + unit * words_bytes;
     const uptr remote_first = base + remote_words_slice * slice_bytes + unit * words_bytes;
     const uptr free_start = floor_to_page(free_first);
     const uptr remote_start = floor_to_page(remote_first);
-    const usize free_length = static_cast<usize>(ceiling_to_page(free_first + words_bytes) - free_start);
-    const usize remote_length = static_cast<usize>(ceiling_to_page(remote_first + words_bytes) - remote_start);
+    const usize free_length = static_cast<usize>(ceiling_to_page(free_first + count * words_bytes) - free_start);
+    const usize remote_length = static_cast<usize>(ceiling_to_page(remote_first + count * words_bytes) - remote_start);
     if (!os::commit(reinterpret_cast<void*>(free_start), free_length)) return false;
     if (!os::commit(reinterpret_cast<void*>(remote_start), remote_length)) return false;
-    const bool data = os::commit(reinterpret_cast<void*>(base + unit * unit_bytes), unit_bytes);
+    const bool data = os::commit(reinterpret_cast<void*>(base + unit * unit_bytes), count * unit_bytes);
     return data;
 }
 
+// Whether the unit's data is committed.
 [[nodiscard]] bool unit_committed(const RegionHeader& header, const usize unit) noexcept {
     const u64 word = header.unit_committed[unit / word_bits];
     const bool result = ((word >> (unit % word_bits)) & 1) != 0;
     return result;
+}
+
+void set_unit_committed(RegionHeader& header, const usize unit, const bool committed) noexcept {
+    const u64 bit = static_cast<u64>(1) << (unit % word_bits);
+    const u64 word = header.unit_committed[unit / word_bits];
+    header.unit_committed[unit / word_bits] = committed ? (word | bit) : (word & ~bit);
 }
 
 // The slices of [first, end) that lie in `unit`.
@@ -178,24 +202,34 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
 }
 
 // Commits what [first, first + count) needs and counts its slices as used.
-// On a refused commit nothing is counted; units committed before the
-// refusal stay committed and idle.
+// Each contiguous range of uncommitted units is committed in one step. On a
+// refused commit nothing is counted; ranges committed before the refusal
+// stay committed and idle.
 [[nodiscard]] bool commit_run(const uptr base, const usize first, const usize count) noexcept {
     RegionHeader& header = header_of(base);
     const usize end = first + count;
     const usize first_unit = first / unit_slices;
     const usize last_unit = (end - 1) / unit_slices;
-    for (usize unit = first_unit; unit <= last_unit; ++unit) {
-        if (unit_committed(header, unit)) continue;
-        if (!commit_unit(base, unit)) return false;
-        header.unit_committed[unit / word_bits] =
-            header.unit_committed[unit / word_bits] | (static_cast<u64>(1) << (unit % word_bits));
-        header.idle_units = header.idle_units + 1;
+    usize unit = first_unit;
+    while (unit <= last_unit) {
+        if (unit_committed(header, unit)) {
+            unit = unit + 1;
+            continue;
+        }
+        usize range_end = unit + 1;
+        while (range_end <= last_unit && !unit_committed(header, range_end)) range_end = range_end + 1;
+        if (!commit_units(base, unit, range_end - unit)) return false;
+        for (usize committed = unit; committed < range_end; ++committed) {
+            set_unit_committed(header, committed, true);
+            header.idle_units = header.idle_units + 1;
+        }
+        unit = range_end;
     }
-    for (usize unit = first_unit; unit <= last_unit; ++unit) {
-        if (header.unit_used[unit] == 0) header.idle_units = header.idle_units - 1;
-        const usize used = static_cast<usize>(header.unit_used[unit]) + slices_in_unit(first, end, unit);
-        header.unit_used[unit] = static_cast<u8>(used);
+    for (usize used_unit = first_unit; used_unit <= last_unit; ++used_unit) {
+        if (header.unit_used[used_unit] == 0) header.idle_units = header.idle_units - 1;
+        const usize used = static_cast<usize>(header.unit_used[used_unit]) + slices_in_unit(first, end, used_unit);
+        STX_MINMALLOCPP_CHECK(used <= unit_slices);
+        header.unit_used[used_unit] = static_cast<u8>(used);
     }
     return true;
 }
@@ -203,7 +237,8 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
 // ---- regions ----------------------------------------------------------------------
 
 // Reserves a region, commits its eager metadata, enters it in the
-// directory and files its data as one free run. Two host calls.
+// directory and files its data as one free run. One reservation (several
+// host calls inside os::reserve) and one commit.
 [[nodiscard]] bool add_region() noexcept {
     if (structure.region_count == region_capacity) return false;
     void* const reserved = os::reserve(region_bytes, region_bytes);
@@ -219,7 +254,7 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
     structure.region_bases[structure.region_count] = base;
     structure.region_count = structure.region_count + 1;
     insert_run(base, first_data_slice, region_slices - first_data_slice);
-    directory[base >> region_shift].store(cell_region, std::memory_order_release);
+    set_directory_cell(static_cast<usize>(base >> region_shift), cell_region);
     return true;
 }
 
@@ -228,6 +263,7 @@ void coalesce_and_insert(const uptr base, const usize slice, const usize count) 
 // ---- taking and giving runs ---------------------------------------------------------
 
 RunPlace take_run(const usize count, const usize alignment_slices) noexcept {
+    STX_MINMALLOCPP_CHECK(count >= 1 && std::has_single_bit(alignment_slices));
     const RunPlace none{};
     const usize need = count + alignment_slices - 1;
     RunList list = fitting_list(need);
@@ -245,6 +281,7 @@ RunPlace take_run(const usize count, const usize alignment_slices) noexcept {
     const usize first = (start + alignment_slices - 1) & ~(alignment_slices - 1);
     const usize taken_end = first + count;
     const usize end = start + length;
+    STX_MINMALLOCPP_CHECK(taken_end <= end);
     // An allocated run's two boundary tags are 0 (region.hpp).
     lengths[first] = 0;
     lengths[taken_end - 1] = 0;
@@ -259,21 +296,41 @@ RunPlace take_run(const usize count, const usize alignment_slices) noexcept {
 }
 
 void give_run(const uptr base, const usize slice, const usize count) noexcept {
+    STX_MINMALLOCPP_CHECK(slice >= first_data_slice && count >= 1 && slice + count <= region_slices);
     RegionHeader& header = header_of(base);
     const usize end = slice + count;
     const usize first_unit = slice / unit_slices;
     const usize last_unit = (end - 1) / unit_slices;
+    // Units that go idle past the limit are decommitted, each contiguous
+    // range of them in one host call.
+    usize range_first = 0;
+    usize range_count = 0;
     for (usize unit = first_unit; unit <= last_unit; ++unit) {
-        const usize used = static_cast<usize>(header.unit_used[unit]) - slices_in_unit(slice, end, unit);
+        const usize in_unit = slices_in_unit(slice, end, unit);
+        STX_MINMALLOCPP_CHECK(header.unit_used[unit] >= in_unit);
+        const usize used = static_cast<usize>(header.unit_used[unit]) - in_unit;
         header.unit_used[unit] = static_cast<u8>(used);
-        if (used != 0) continue;
-        if (header.idle_units < idle_unit_limit) {
-            header.idle_units = header.idle_units + 1;
+        bool drop = false;
+        if (used == 0) {
+            if (header.idle_units < idle_unit_limit) {
+                header.idle_units = header.idle_units + 1;
+            } else {
+                drop = true;
+            }
+        }
+        if (drop) {
+            if (range_count == 0) range_first = unit;
+            range_count = range_count + 1;
+            set_unit_committed(header, unit, false);
             continue;
         }
-        os::decommit(reinterpret_cast<void*>(base + unit * unit_bytes), unit_bytes);
-        header.unit_committed[unit / word_bits] =
-            header.unit_committed[unit / word_bits] & ~(static_cast<u64>(1) << (unit % word_bits));
+        if (range_count != 0) {
+            os::decommit(reinterpret_cast<void*>(base + range_first * unit_bytes), range_count * unit_bytes);
+            range_count = 0;
+        }
+    }
+    if (range_count != 0) {
+        os::decommit(reinterpret_cast<void*>(base + range_first * unit_bytes), range_count * unit_bytes);
     }
     coalesce_and_insert(base, slice, count);
 }
@@ -286,8 +343,7 @@ void decommit_idle_units() noexcept {
         for (usize unit = first_data_slice / unit_slices; unit < region_units; ++unit) {
             if (header.unit_used[unit] != 0 || !unit_committed(header, unit)) continue;
             os::decommit(reinterpret_cast<void*>(base + unit * unit_bytes), unit_bytes);
-            header.unit_committed[unit / word_bits] =
-                header.unit_committed[unit / word_bits] & ~(static_cast<u64>(1) << (unit % word_bits));
+            set_unit_committed(header, unit, false);
         }
         header.idle_units = 0;
     }
@@ -295,43 +351,63 @@ void decommit_idle_units() noexcept {
 
 // ---- huge mappings -------------------------------------------------------------------
 
+namespace {
+
+// The index of a free huge record, taken; huge_capacity when all are in
+// use. Takes the lock.
+[[nodiscard]] usize take_huge_record() noexcept {
+    const LockScope scope(structure.lock);
+    if (structure.free_huge_count != 0) {
+        structure.free_huge_count = structure.free_huge_count - 1;
+        const usize reused = structure.free_huge_records[structure.free_huge_count];
+        return reused;
+    }
+    if (structure.huge_made == huge_capacity) return huge_capacity;
+    const usize made = structure.huge_made;
+    structure.huge_made = made + 1;
+    return made;
+}
+
+void give_huge_record(const usize index) noexcept {
+    const LockScope scope(structure.lock);
+    structure.free_huge_records[structure.free_huge_count] = static_cast<u16>(index);
+    structure.free_huge_count = structure.free_huge_count + 1;
+}
+
+} // namespace
+
 void* allocate_huge(const usize bytes) noexcept {
+    // The record first, so that the host calls are made outside the lock
+    // and only when the mapping can be recorded.
+    const usize index = take_huge_record();
+    if (index == huge_capacity) return nullptr;
     const usize committed = round_up(bytes, structure.os_page);
     const usize reserved = round_up(committed, region_bytes);
     void* const block = os::reserve(reserved, region_bytes);
-    if (block == nullptr) return nullptr;
+    if (block == nullptr) {
+        give_huge_record(index);
+        return nullptr;
+    }
     const uptr address = reinterpret_cast<uptr>(block);
     const bool below_limit = (address >> address_bits) == 0 && ((address + reserved - 1) >> address_bits) == 0;
     if (!below_limit || !os::commit(block, committed)) {
         os::release(block, reserved);
-        return nullptr;
-    }
-    const LockScope scope(structure.lock);
-    u32 index = 0;
-    if (structure.huge_free != 0) {
-        index = structure.huge_free - 1;
-        structure.huge_free = structure.huge[index].next_free;
-    } else if (structure.huge_made < huge_capacity) {
-        index = structure.huge_made;
-        structure.huge_made = structure.huge_made + 1;
-    } else {
-        os::release(block, reserved);
+        give_huge_record(index);
         return nullptr;
     }
     HugeRecord& record = structure.huge[index];
     record.reserved_bytes = reserved;
-    record.next_free = 0;
     record.block.store(address);
     const usize first_cell = static_cast<usize>(address >> region_shift);
     const usize cells = reserved >> region_shift;
     for (usize cell = 0; cell < cells; ++cell) {
-        directory[first_cell + cell].store(cell_huge_first + index, std::memory_order_release);
+        set_directory_cell(first_cell + cell, cell_huge_first + static_cast<u32>(index));
     }
     return block;
 }
 
 bool release_huge(const u32 cell, const uptr address) noexcept {
-    const u32 index = cell - cell_huge_first;
+    const usize index = static_cast<usize>(cell - cell_huge_first);
     if (index >= huge_capacity) return false;
     HugeRecord& record = structure.huge[index];
     // Taking the address out of the record is the release: a second one, or
@@ -342,12 +418,10 @@ bool release_huge(const u32 cell, const uptr address) noexcept {
     const usize first_cell = static_cast<usize>(address >> region_shift);
     const usize cells = reserved >> region_shift;
     for (usize cell_index = 0; cell_index < cells; ++cell_index) {
-        directory[first_cell + cell_index].store(cell_none, std::memory_order_release);
+        set_directory_cell(first_cell + cell_index, cell_none);
     }
     os::release(reinterpret_cast<void*>(address), reserved);
-    const LockScope scope(structure.lock);
-    record.next_free = structure.huge_free;
-    structure.huge_free = index + 1;
+    give_huge_record(index);
     return true;
 }
 

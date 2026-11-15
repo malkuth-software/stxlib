@@ -1,12 +1,16 @@
 // stx_minmallocpp's host layer on POSIX hosts (src/state/stx_minmallocpp/
 // os.hpp): macOS, glibc, musl and FreeBSD. The whole host surface of the
-// allocator is here: mmap, mprotect, munmap, sched_yield, sysconf, and a
-// pthread key for the thread-exit hook.
+// allocator is here: mmap, mprotect, munmap, sched_yield, sysconf, abort,
+// and a pthread key for the thread-exit hook (pthread_key_create,
+// pthread_setspecific, pthread_getspecific).
 //
 // Reserving. mmap with PROT_NONE, MAP_PRIVATE | MAP_ANON and no file maps
 // address space with no access (MAP_ANON: pages_posix.cpp cites it for
 // each host). An aligned reservation maps alignment bytes more and unmaps
-// what lies before and after the aligned part.
+// what lies before and after the aligned part: three host calls at most.
+// Where the host has PROT_MAX (FreeBSD), the mapping states that it may
+// later become readable and writable; without that, a host run with
+// vm.imply_prot_max would refuse every commit (unconfirmed until run).
 //
 // Committing is mprotect to PROT_READ | PROT_WRITE. A private anonymous
 // mapping reads as zero until written. Under strict memory accounting
@@ -21,13 +25,19 @@
 // 1 MiB units only (region.cpp), which bounds the number of mappings.
 //
 // Cancellation. mmap, mprotect, munmap and sched_yield are in neither list
-// of POSIX.1-2024, XSH 2.9.5.2 (read 2026-11-15). pthread_key_create and
-// pthread_setspecific were not looked up there; unconfirmed. None of the
-// calls here can unwind.
+// of POSIX.1-2024, XSH 2.9.5.2 (read 2026-11-15). sysconf and the pthread
+// key calls were not looked up there; unconfirmed. None of the calls here
+// can unwind.
 //
 // The thread-exit hook is a pthread key whose destructor the host runs for
 // every thread that returns from its start routine or calls pthread_exit,
 // with the value the thread set. The key is made once, on the first heap.
+// The key's value is the truth about the thread: null (nothing armed), the
+// context it armed, or the ended mark, which the destructor leaves behind
+// so that an allocation later in the thread's exit sees that the hook has
+// run. The host clears a value before it calls the destructor and runs
+// destructors again for values set meanwhile, a fixed number of rounds
+// (PTHREAD_DESTRUCTOR_ITERATIONS); the mark is set again each round.
 
 #include "state/stx_minmallocpp/os.hpp"
 
@@ -43,15 +53,38 @@ namespace stxlib::stx_minmallocpp::os {
 
 namespace {
 
-inline constexpr u32 key_unmade = 0;
-inline constexpr u32 key_being_made = 1;
-inline constexpr u32 key_made = 2;
-inline constexpr u32 key_refused = 3;
+constexpr u32 key_unmade = 0;
+constexpr u32 key_being_made = 1;
+constexpr u32 key_made = 2;
+constexpr u32 key_refused = 3;
+
+// What a reservation is mapped with: no access now, readable and writable
+// later where the host wants that said up front.
+#if defined(PROT_MAX)
+constexpr int reserved_protection = PROT_NONE | PROT_MAX(PROT_READ | PROT_WRITE);
+#else
+constexpr int reserved_protection = PROT_NONE;
+#endif
 
 constinit std::atomic<u32> key_state{key_unmade};
 pthread_key_t exit_key{};
 
-void exit_destructor(void* const context) { thread_ending(context); }
+// Its address is the key's value for a thread whose hook has run.
+constinit char ended_mark{0};
+
+// The key's destructor: gives up what the thread armed, once, and leaves
+// the mark.
+void exit_destructor(void* const context) {
+    if (context != &ended_mark) thread_ending(context);
+    static_cast<void>(::pthread_setspecific(exit_key, &ended_mark));
+}
+
+// The calling thread's value of the key; null before the key exists.
+[[nodiscard]] void* key_value() noexcept {
+    if (key_state.load(std::memory_order_acquire) != key_made) return nullptr;
+    void* const result = ::pthread_getspecific(exit_key);
+    return result;
+}
 
 // Makes the key once. The first caller makes it; a caller that arrives
 // while it is being made yields until it is settled.
@@ -80,7 +113,7 @@ usize page_bytes() noexcept {
 void* reserve(const usize bytes, const usize alignment) noexcept {
     if (bytes > usize_max - alignment) return nullptr;
     const usize span = bytes + alignment;
-    void* const mapped = ::mmap(nullptr, span, PROT_NONE, MAP_PRIVATE | MAP_ANON, -1, 0);
+    void* const mapped = ::mmap(nullptr, span, reserved_protection, MAP_PRIVATE | MAP_ANON, -1, 0);
     if (mapped == MAP_FAILED) return nullptr;
     const uptr start = reinterpret_cast<uptr>(mapped);
     const uptr aligned = (start + (alignment - 1)) & ~static_cast<uptr>(alignment - 1);
@@ -100,7 +133,7 @@ bool commit(void* const address, const usize bytes) noexcept {
 
 void decommit(void* const address, const usize bytes) noexcept {
     // On failure (the host's limit on mappings) the range stays as it was.
-    static_cast<void>(::mmap(address, bytes, PROT_NONE, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0));
+    static_cast<void>(::mmap(address, bytes, reserved_protection, MAP_PRIVATE | MAP_ANON | MAP_FIXED, -1, 0));
 }
 
 void release(void* const address, const usize bytes) noexcept { static_cast<void>(::munmap(address, bytes)); }
@@ -112,6 +145,17 @@ void stop() noexcept { std::abort(); }
 bool arm_thread_exit(void* const context) noexcept {
     if (!ensure_exit_key()) return false;
     const bool result = ::pthread_setspecific(exit_key, context) == 0;
+    return result;
+}
+
+void* armed_context() noexcept {
+    void* const value = key_value();
+    void* const result = value == &ended_mark ? nullptr : value;
+    return result;
+}
+
+bool thread_has_ended() noexcept {
+    const bool result = key_value() == &ended_mark;
     return result;
 }
 

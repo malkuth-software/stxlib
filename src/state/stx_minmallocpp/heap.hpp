@@ -15,32 +15,45 @@
 //   - a heap of the table: the thread's own, from its first allocation to
 //     its exit hook;
 //   - ended_heap: the thread's exit hook has run, or the thread could not
-//     be given a heap. From then on the thread shares the orphan heap,
-//     under a lock. Nothing is initialised again and nothing leaks (the
-//     mimalloc audit's A4/C2).
+//     be given a heap. From then on the thread allocates from the orphan
+//     heap, under a lock. Nothing is initialised again and nothing leaks
+//     (the mimalloc audit's A4/C2).
 // unbound_heap and ended_heap own nothing and are never written.
 //
 // Heaps live in a table of their own that is never unmapped. A slot is
-// reused by a later thread, with the same owner identity; that is sound
-// because a heap gives up every page before its slot is freed, so no page
-// names an identity from a slot's earlier life.
+// used again by a later thread, with a new owner identity: an identity is
+// issued once and never again.
 //
-// The ownership rule is mimalloc v3's: a page is owned only while its
-// owner will visit it. A page with no free block is abandoned by its owner
-// the moment the owner finds it so; whoever next releases a block into an
-// abandoned page claims it and keeps it. Thread exit abandons every page.
+// Ownership (mimalloc v3's rule: a page is owned only while its owner will
+// visit it).
+//   - A heap owns the pages it allocates from: fresh ones, and abandoned
+//     ones it adopts when it needs a page of the class.
+//   - A page with no free block is abandoned by its owner the moment the
+//     owner finds it so. Thread exit abandons every page.
+//   - A release into an abandoned page claims it for the releasing
+//     thread's heap only if that heap is allocating that class and holds
+//     fewer than keep_limit pages of it; then the thread's later releases
+//     into the page take the fast path. Otherwise the release leaves the
+//     page abandoned: it sets the block's remote bit, counts the release in
+//     the page's state, puts the page on its class's abandoned list if it
+//     was full, and frees the page if that release was its last.
+//   So a thread that only releases owns nothing and takes no lock, and what
+//   a heap holds without visiting is at most keep_limit pages per class.
 //
 // Bounds (region.hpp gives the structure's): refill looks at no more than
 // 64 words of one page, takes the first page of a queue, pops at most
 // adopt_attempts pages from an abandoned list, or takes one run from the
-// index. Thread exit and trim are proportional to the pages the heap owns.
+// index. Its retries, and those of abandon and claim, happen only when
+// another thread completed a step on the same page in between. Thread exit
+// and trim are proportional to the pages the heap owns.
 
+#include "state/stx_minmallocpp/allocator.hpp"
 #include "state/stx_minmallocpp/region.hpp"
 
 namespace stxlib::stx_minmallocpp {
 
-inline constexpr usize heap_capacity = 1024;
 inline constexpr u32 adopt_attempts = 4;
+inline constexpr u32 keep_limit = 8;
 
 // All the allocate fast path reads for a class. With no current page the
 // entry names the empty word and the empty page.
@@ -57,14 +70,13 @@ struct ClassEntry final {
 struct ClassQueue final {
     PageMeta* first{nullptr};
     PageMeta* last{nullptr};
+    u32 pages{0};
 };
 
 struct alignas(64) Heap final {
     // The identity pages name as their owner: owner_unbound for the two
-    // sentinels, owner_orphan, or first_heap_owner + the slot's index.
-    u32 owner{owner_unbound};
-    // The next free slot, while this one is free (structure lock).
-    Heap* next_free{nullptr};
+    // sentinels, owner_orphan, or an identity issued by acquire (heap.cpp).
+    u64 owner{owner_unbound};
     ClassEntry entries[class_count]{};
     ClassQueue queues[class_count]{};
 };
@@ -73,15 +85,11 @@ extern constinit Heap unbound_heap;
 extern constinit Heap ended_heap;
 extern constinit thread_local Heap* current_heap;
 
-enum class Released : u8 {
-    released = 0,
-    // The address is not the start of a live block of this allocator.
-    refused = 1,
-};
-
 // The lowest free block of the entry's current word, or null when that word
-// is zero. The whole allocate fast path: one load, one test, one store, an
-// increment and a multiply; no lock, no atomic read-modify-write, no call.
+// is zero. The whole allocate fast path after the thread's heap is known:
+// one load, one test, one store, a count of trailing zeros, an increment of
+// the page's live count and a multiply; no lock and no atomic
+// read-modify-write.
 [[nodiscard]] inline void* take_block(ClassEntry& entry) noexcept {
     std::atomic<u64>& cell = *entry.word;
     const u64 word = cell.load(std::memory_order_relaxed);
@@ -102,7 +110,7 @@ enum class Released : u8 {
 
 // A block of `bytes` in a page of its own inside a region, aligned to
 // `alignment` (a power of two up to huge_threshold). Requires
-// bytes <= huge_threshold. Null when the host refuses memory.
+// 1 <= bytes <= huge_threshold. Null when the host refuses memory.
 [[nodiscard]] void* allocate_singleton(usize bytes, usize alignment) noexcept;
 
 // False until the first slow path has read the host's page size and
@@ -110,17 +118,23 @@ enum class Released : u8 {
 [[nodiscard]] bool ensure_started() noexcept;
 
 // Releases block `bit` of the word pair (free_cell, remote_cell) of a page
-// the calling heap does not own. Claims the page if it was abandoned.
-[[nodiscard]] Released release_remote(Heap& heap, PageMeta& page, std::atomic<u64>& free_cell,
-                                      std::atomic<u64>& remote_cell, u64 bit) noexcept;
+// the calling heap does not own (heap.hpp's ownership rules say what
+// follows). Refused when the block is already free or already released.
+[[nodiscard]] Release release_remote(Heap& heap, PageMeta& page, std::atomic<u64>& free_cell,
+                                     std::atomic<u64>& remote_cell, u64 bit) noexcept;
 
-// The owner released a page's last live block. Frees the page unless it is
-// a one-slice page still current for its class.
+// The owner found that a page of its own has no live block. Frees the page
+// unless it is the current page of its class and no longer than a medium
+// page (512 KiB), which stays for the next allocation.
 void release_emptied(Heap& heap, PageMeta& page) noexcept;
 
 // Merges remote releases into every page of the heap and frees its empty
-// pages, the current ones included. Proportional to the pages owned.
+// pages, the current ones included, then returns idle memory to the host.
+// Proportional to the pages owned and to the number of regions.
 void trim_heap(Heap& heap) noexcept;
+
+// The same for the orphan heap, under its lock: for a thread without a heap.
+void trim_orphan() noexcept;
 
 // Abandons every page of the heap and frees its slot. The thread's exit.
 void retire_heap(Heap& heap) noexcept;

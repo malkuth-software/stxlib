@@ -6,8 +6,10 @@
 // allocate, for a block of up to 512 KiB aligned to at most 64 KiB: round
 // the size to the alignment, take its class by arithmetic, load the class's
 // current free word, and if it is not zero store it back without its
-// lowest bit and return word_base + bit * block size. One thread_local
-// read; no lock; no atomic read-modify-write; no call.
+// lowest bit, count the block live, and return word_base + bit * block
+// size. No lock and no atomic read-modify-write. One thread_local read,
+// which in a shared library is a call into the host's loader unless the
+// build chooses otherwise (DESIGN.md 8, item 1); nothing else is called.
 //
 // release, of a block of a page the calling thread owns: one directory
 // cell, one slice_head entry, the block's index by a multiply and a shift
@@ -54,7 +56,7 @@ void* allocate(const usize size, const usize alignment) noexcept {
 Release release(void* const address) noexcept {
     const uptr value = reinterpret_cast<uptr>(address);
     if ((value >> address_bits) != 0) return Release::refused;
-    const u32 cell = directory[value >> region_shift].load(std::memory_order_acquire);
+    const u32 cell = directory_cell(static_cast<usize>(value >> region_shift));
     if (cell != cell_region) {
         if (cell == cell_none) return Release::refused;
         const Release huge = release_huge(cell, value) ? Release::released : Release::refused;
@@ -75,21 +77,24 @@ Release release(void* const address) noexcept {
     const u64 bit = static_cast<u64>(1) << (index % word_bits);
     std::atomic<u64>& free_cell = free_words(base, head)[word];
     Heap& heap = *current_heap;
-    const u32 state = page.state.load(std::memory_order_relaxed);
+    const u64 state = page.state.load(std::memory_order_relaxed);
     // One test for the fast path: the page is mine and nothing is pending.
-    if (state != state_of_owner(heap.owner)) {
+    if (state != owned_state(heap.owner)) {
         if (owner_of_state(state) != heap.owner) {
-            const Released remote = release_remote(heap, page, free_cell, remote_words(base, head)[word], bit);
-            const Release outcome = remote == Released::released ? Release::released : Release::refused;
-            return outcome;
+            const Release remote = release_remote(heap, page, free_cell, remote_words(base, head)[word], bit);
+            return remote;
         }
         // Mine, with releases from other threads pending: merge them first,
         // so that a block another thread already released is seen as free
         // below and its second release is refused.
-        collect(page);
+        collect(page, heap.owner);
     }
     const u64 known = free_cell.load(std::memory_order_relaxed);
-    if ((known & bit) != 0) return Release::refused;
+    if ((known & bit) != 0) {
+        // Refused. The merge above may have emptied the page.
+        if (page.live == 0) release_emptied(heap, page);
+        return Release::refused;
+    }
     free_cell.store(known | bit, std::memory_order_relaxed);
     page.summary = page.summary | (static_cast<u64>(1) << word);
     page.live = page.live - 1;
@@ -99,16 +104,23 @@ Release release(void* const address) noexcept {
 
 void trim() noexcept {
     Heap& heap = *current_heap;
-    if (heap.owner == owner_unbound) return;
+    if (heap.owner == owner_unbound) {
+        trim_orphan();
+        return;
+    }
     trim_heap(heap);
 }
 
 void thread_ending(void* const context) noexcept {
     // The host layer passes the heap the thread armed, or null where the
     // host's hook runs for every thread (Windows); then the thread's
-    // pointer says whether it has one.
+    // pointer says whether it has one. A thread with no heap of its own
+    // has nothing to give up.
     Heap* const heap = context != nullptr ? static_cast<Heap*>(context) : current_heap;
-    if ((*heap).owner == owner_unbound) return;
+    if ((*heap).owner == owner_unbound) {
+        current_heap = &ended_heap;
+        return;
+    }
     current_heap = &ended_heap;
     retire_heap(*heap);
 }

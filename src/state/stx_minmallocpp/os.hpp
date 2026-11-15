@@ -7,12 +7,19 @@
 // only places that name a host interface (AGENTS.md, "Hard boundaries").
 //
 // Early exit (AGENTS.md; the owner, 2026-11-15: "allocators must not
-// unwind"). None of these calls can unwind, call back into STXlib, or act
-// on a thread cancellation: on POSIX hosts they are mmap, mprotect, munmap
-// and sched_yield, none of which is a cancellation point (POSIX.1-2024, XSH
-// 2.9.5.2, read 2026-11-15: in neither list), and on Windows VirtualAlloc,
-// VirtualFree and SwitchToThread. The allocator therefore makes each call
-// with its tables whole and needs no cancellation guard.
+// unwind"). The host functions behind this interface are, on POSIX hosts,
+// mmap, mprotect, munmap, sched_yield and sysconf, the pthread key calls
+// pthread_key_create, pthread_setspecific and pthread_getspecific, and
+// abort; on Windows, VirtualAlloc, VirtualFree, GetSystemInfo,
+// SwitchToThread and abort. None can unwind. mmap, mprotect, munmap and
+// sched_yield are in neither list of cancellation points (POSIX.1-2024,
+// XSH 2.9.5.2, read 2026-11-15); sysconf and the three pthread key calls
+// were not looked up there (unconfirmed). abort is called only by stop,
+// which ends the process; it raises SIGABRT, so a handler the program
+// installed runs first. The allocator makes each call with its tables
+// whole and needs no cancellation guard.
+// tools/check_stx_minmallocpp_surface.py checks this list against the
+// compiled objects.
 //
 // Nothing here reads the environment, writes to a stream, draws entropy or
 // reads the clock.
@@ -55,21 +62,35 @@ void yield() noexcept;
 [[noreturn]] void stop() noexcept;
 
 // The thread-exit hook. arm_thread_exit asks the host to call
-// thread_ending(context), on this thread, when it exits normally; false
-// when the host cannot (the thread then never gets a heap of its own).
-// Process termination calls nothing (the owner's rule: termination frees
-// nothing). thread_ending is the allocator's (allocator.cpp).
+// thread_ending, on this thread, when it exits normally; false when the
+// host cannot (the thread then never gets a heap of its own). On POSIX
+// hosts thread_ending receives `context`; on Windows the host's hook runs
+// for every thread and passes null. Process termination calls nothing (the
+// owner's rule: termination frees nothing). thread_ending is the
+// allocator's (allocator.cpp).
 //
 // To be replaced by one call from stxlib_state's own thread-exit hook once
 // the thread records land (notes planning/stages/E-thread-records.md).
 [[nodiscard]] bool arm_thread_exit(void* context) noexcept;
 
+// What the calling thread armed and has not yet given up, or null. The
+// allocator's thread_local pointer is a cache of this: on a host that
+// frees a thread's thread_local storage before its exit hook runs
+// (suspected of macOS), the pointer reads as fresh again while the thread
+// still has a heap, and this says so.
+[[nodiscard]] void* armed_context() noexcept;
+
+// True once the calling thread's exit hook has run, for as long as the
+// host keeps saying so. Such a thread is given no new heap.
+[[nodiscard]] bool thread_has_ended() noexcept;
+
 } // namespace stxlib::stx_minmallocpp::os
 
 namespace stxlib::stx_minmallocpp {
 
-// Called by the host layer at a thread's normal exit with the context that
-// thread armed. Abandons the thread's pages and frees its heap slot.
+// Called by the host layer at a thread's normal exit, with the context the
+// thread armed or null (os::arm_thread_exit). Abandons the thread's pages
+// and frees its heap slot.
 void thread_ending(void* context) noexcept;
 
 } // namespace stxlib::stx_minmallocpp

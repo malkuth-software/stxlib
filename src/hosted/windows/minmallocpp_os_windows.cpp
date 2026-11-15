@@ -1,7 +1,7 @@
 // stx_minmallocpp's host layer on Windows (src/state/stx_minmallocpp/
 // os.hpp). The whole host surface of the allocator is here: VirtualAlloc,
-// VirtualFree, GetSystemInfo, SwitchToThread, and a TLS callback for the
-// thread-exit hook. kernel32 only.
+// VirtualFree, GetSystemInfo, SwitchToThread, abort, and a TLS callback for
+// the thread-exit hook. kernel32 and the C runtime's abort only.
 //
 // Reserving. VirtualAlloc with MEM_RESERVE and PAGE_NOACCESS. Windows
 // cannot trim a reservation, so an aligned one is made by reserving
@@ -24,6 +24,12 @@
 // termination and TerminateThread send no DLL_THREAD_DETACH, which is the
 // owner's rule that termination frees nothing.
 //
+// Open (the logic review's L-05, suspected): when a process ends, Windows
+// stops every other thread where it stands, and one of them may hold an
+// allocator lock; a release or slow-path allocation made after that, during
+// process detach, would then wait for ever. Not handled here; to be
+// settled on a Windows run.
+//
 // Not yet built. The MinGW form of the callback (MSYS2 CLANG64) is the one
 // written; no other Windows toolchain is supported.
 
@@ -31,14 +37,19 @@
 
 #include <cstdlib>
 
+#if !defined(WIN32_LEAN_AND_MEAN)
 #define WIN32_LEAN_AND_MEAN
+#endif
+#if !defined(NOMINMAX)
+#define NOMINMAX
+#endif
 #include <windows.h>
 
 namespace stxlib::stx_minmallocpp::os {
 
 namespace {
 
-inline constexpr u32 reserve_attempts = 8;
+constexpr u32 reserve_attempts = 8;
 
 void NTAPI thread_callback(PVOID module, const DWORD reason, PVOID reserved) {
     static_cast<void>(module);
@@ -92,6 +103,12 @@ bool arm_thread_exit(void* const context) noexcept {
     static_cast<void>(context);
     return true;
 }
+
+// The allocator's thread_local pointer is reliable here until the callback
+// has run, so there is nothing more to say about a thread.
+void* armed_context() noexcept { return nullptr; }
+
+bool thread_has_ended() noexcept { return false; }
 
 } // namespace stxlib::stx_minmallocpp::os
 

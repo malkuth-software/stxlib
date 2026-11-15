@@ -4,8 +4,9 @@
 // proved (proofs/REPORT.md, stx_minmallocpp).
 //
 // What they exercise:
-//   - every size class and the page kinds, with alignments on both sides
-//     of 64 KiB, pages of one block, and mappings of one block;
+//   - every size class (one block of each class's size and of one byte
+//     more than the class before it), the page kinds, alignments on both
+//     sides of 64 KiB, pages of one block, and mappings of one block;
 //   - blocks are distinct, do not overlap, and keep what was written;
 //   - a page filled past its capacity (full pages abandoned, claimed again
 //     by the release that follows);
@@ -26,6 +27,7 @@
 #include <atomic>
 #include <cstdint>
 #include <cstring>
+#include <functional>
 #include <thread>
 #include <vector>
 
@@ -36,7 +38,7 @@ using stxlib::stx_minmallocpp::allocate;
 using stxlib::stx_minmallocpp::Release;
 using stxlib::stx_minmallocpp::release;
 
-bool aligned_to(const void* const block, const usize alignment) {
+[[nodiscard]] bool aligned_to(const void* const block, const usize alignment) {
     const std::uintptr_t address = reinterpret_cast<std::uintptr_t>(block);
     const bool result = (address & static_cast<std::uintptr_t>(alignment - 1)) == 0;
     return result;
@@ -70,6 +72,31 @@ void round_trips() {
     CHECK(all_released);
 }
 
+void every_class() {
+    using stxlib::stx_minmallocpp::class_count;
+    using stxlib::stx_minmallocpp::class_table;
+    bool all_good = true;
+    usize previous = 0;
+    for (usize index = 0; index < class_count; ++index) {
+        const usize block_bytes = class_table.shapes[index].block_bytes;
+        // The class's largest and smallest request.
+        unsigned char* const largest = static_cast<unsigned char*>(allocate(block_bytes, 16));
+        unsigned char* const smallest = static_cast<unsigned char*>(allocate(previous + 1, 16));
+        if (largest == nullptr || smallest == nullptr || largest == smallest) {
+            all_good = false;
+        } else {
+            largest[0] = 1;
+            largest[block_bytes - 1] = 2;
+            smallest[previous] = 3;
+            if (largest[0] != 1 || largest[block_bytes - 1] != 2 || smallest[previous] != 3) all_good = false;
+        }
+        if (largest != nullptr && release(largest) != Release::released) all_good = false;
+        if (smallest != nullptr && release(smallest) != Release::released) all_good = false;
+        previous = block_bytes;
+    }
+    CHECK(all_good);
+}
+
 // Allocates `count` blocks of `size`, checks they are distinct and do not
 // overlap, fills each with its own byte, checks the fill, and releases
 // them in the order `step` gives (a stride coprime to count).
@@ -86,11 +113,16 @@ void fill_and_drain(const usize size, const usize count, const usize step) {
     }
     CHECK(all_allocated);
     if (!all_allocated) return;
-    std::vector<unsigned char*> sorted = blocks;
+    // As integers: ordering and subtracting pointers into different blocks
+    // is not defined.
+    std::vector<std::uintptr_t> sorted(count, 0);
+    for (usize index = 0; index < count; ++index) {
+        sorted[index] = reinterpret_cast<std::uintptr_t>(blocks[index]);
+    }
     std::sort(sorted.begin(), sorted.end());
     bool apart = true;
     for (usize index = 1; index < count; ++index) {
-        if (static_cast<usize>(sorted[index] - sorted[index - 1]) < size) apart = false;
+        if (sorted[index] - sorted[index - 1] < size) apart = false;
     }
     CHECK(apart);
     bool kept = true;
@@ -225,8 +257,11 @@ void release_batch(const Batch& batch, ReleaseTally& tally) {
 }
 
 void released_by_another_thread() {
-    // This thread allocates; another releases; this one allocates again
-    // (its pages come back through the remote words).
+    // This thread allocates; another, which has no heap of its own,
+    // releases. The pages that had filled were abandoned: the releases
+    // leave them so, list each when its first block comes back, and free
+    // each when its last does. The page still current here gets remote
+    // bits, merged when this thread releases or allocates again.
     Batch batch{};
     allocate_batch(batch, 64, 20000);
     CHECK(batch.allocated);
@@ -284,14 +319,14 @@ void thread_exits_leaving_part_used_pages() {
     allocate_batch(mine, 512, 2000);
     CHECK(mine.allocated);
     // Nothing handed to this thread is a block the worker still holds.
-    std::vector<void*> held{};
+    std::vector<std::uintptr_t> held{};
     for (void* const block : left.blocks) {
-        if (block != nullptr) held.push_back(block);
+        if (block != nullptr) held.push_back(reinterpret_cast<std::uintptr_t>(block));
     }
     std::sort(held.begin(), held.end());
     bool disjoint = true;
     for (void* const block : mine.blocks) {
-        if (std::binary_search(held.begin(), held.end(), block)) disjoint = false;
+        if (std::binary_search(held.begin(), held.end(), reinterpret_cast<std::uintptr_t>(block))) disjoint = false;
     }
     CHECK(disjoint);
     ReleaseTally tally{};
@@ -365,6 +400,7 @@ void trim_then_use() {
 
 int main() {
     round_trips();
+    every_class();
     pages_fill_and_drain();
     refusals();
     bad_requests();
