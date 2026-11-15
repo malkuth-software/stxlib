@@ -232,11 +232,16 @@ template <bool Fold, typename Element>
 // ---- text ---------------------------------------------------------------
 
 // The first position of `needle` in `haystack` at or after `from`, or
-// not_found. An empty needle matches at `from`. A `from` beyond the text
-// finds nothing. The result is a code point boundary.
+// not_found. A `from` inside a code point counts from the next boundary.
+// An empty needle matches at that boundary. A `from` beyond the text finds
+// nothing. The result is a code point boundary.
 [[nodiscard]] constexpr usize find(const TextView haystack, const TextView needle, const usize from = 0) noexcept {
+    usize start = from;
+    while (start < haystack.count() && (static_cast<unsigned char>(haystack.data()[start]) & 0xc0u) == 0x80u) {
+        start = start + 1;
+    }
     const usize result =
-        detail::search_first<false>(haystack.data(), haystack.count(), needle.data(), needle.count(), from);
+        detail::search_first<false>(haystack.data(), haystack.count(), needle.data(), needle.count(), start);
     return result;
 }
 

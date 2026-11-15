@@ -287,7 +287,9 @@ void utf8_search_exhaustive() {
             const stxlib::TextView n = view_of(needle);
             for (usize from = 0; from <= haystack.size(); ++from) {
                 const usize found = stxlib::find(h, n, from);
-                CHECK(found == naive_find(haystack, needle, from, false));
+                usize boundary = from;
+                while (!on_boundary(haystack, boundary)) boundary = boundary + 1;
+                CHECK(found == naive_find(haystack, needle, boundary, false));
                 if (found != stxlib::not_found) CHECK(on_boundary(haystack, found) && on_boundary(haystack, found + needle.size()));
             }
             const usize last = stxlib::find_last(h, n);
