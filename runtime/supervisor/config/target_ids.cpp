@@ -314,7 +314,7 @@ std::optional<std::size_t> TargetIdLedger::format(std::span<char> out) const noe
 
 IdIssueOutcome issue_target_ids(const BootConfig& user, const BootConfig& factory, std::span<const char> text,
                                 TargetIdLedger& ledger, std::span<char> out) noexcept {
-    IdIssueOutcome outcome{IdIssueKind::refused, 0, 0, 0};
+    IdIssueOutcome outcome{IdIssueKind::refused, 0, 0, 0, false};
     // 1. A given id must be the one the ledger gives that name, active.
     for (std::size_t index = 0; index < user.service_count(); index += 1) {
         const ServiceDefinition& service = user.service(index);
@@ -344,6 +344,7 @@ IdIssueOutcome issue_target_ids(const BootConfig& user, const BootConfig& factor
         }
         if (target_named(user, entry_name(item)) == nullptr) {
             ledger.set_state(index, LedgerState::deleted);
+            outcome.ledger_changed = true;
         }
     }
     // 3. New ids, in file order: the lowest never used.
@@ -377,6 +378,7 @@ IdIssueOutcome issue_target_ids(const BootConfig& user, const BootConfig& factor
                 outcome.kind = IdIssueKind::ledger_full;
                 return outcome;
             }
+            outcome.ledger_changed = true;
         }
         issued_ids[issued_count] = id;
         issued_lines[issued_count] = service.line;

@@ -489,8 +489,11 @@ stxcontrol::IdsIssued SystemControl::issue_target_ids(const stxconfig::BootConfi
         return answer;
     }
     // The ledger first: an id issued for a write that then fails is spent.
-    if (!ensure_target_id_directory() ||
-        !write_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_)))) {
+    // Unchanged, it is not written (a configuration without targets needs
+    // no /data).
+    if (outcome.ledger_changed &&
+        (!ensure_target_id_directory() ||
+         !write_target_id_ledger(ledger_, std::span<char>(ledger_text_, sizeof(ledger_text_))))) {
         return answer;
     }
     answer.kind = stxcontrol::IdsIssuedKind::issued;

@@ -43,6 +43,7 @@ TargetIdLedger copy;
 char text[4096];
 char out[stxconfig::config_size_max + 64];
 char ledger_text[stxconfig::target_id_ledger_text_max];
+char ledger_before[stxconfig::target_id_ledger_text_max];
 stxconfig::BootIdPlan plan;
 
 const char* const names[3] = {"a", "b", "c"};
@@ -120,10 +121,16 @@ void test_sequences() {
                     expected[name] = held[name] != 0u ? held[name] : next++;
                 }
                 good = parse_into(user, std::span<const char>(text, length));
+                const std::optional<std::size_t> before = ledger.format(ledger_before);
                 const IdIssueOutcome outcome = stxconfig::issue_target_ids(
                     user, factory, std::span<const char>(text, length), ledger, std::span<char>(out, sizeof(out)));
                 good = good && outcome.kind == IdIssueKind::issued &&
                        parse_into(reparsed, std::span<const char>(out, outcome.length));
+                // ledger_changed exactly when the file text would change.
+                const std::optional<std::size_t> after = ledger.format(ledger_text);
+                good = good && before.has_value() && after.has_value() &&
+                       outcome.ledger_changed ==
+                           (*before != *after || std::memcmp(ledger_before, ledger_text, *after) != 0);
                 for (std::size_t name = 0; good && name < 3u; name += 1) {
                     good = id_in(reparsed, names[name]) == expected[name];
                     held[name] = expected[name];

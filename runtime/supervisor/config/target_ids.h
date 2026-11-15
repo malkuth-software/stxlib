@@ -111,6 +111,9 @@ struct IdIssueOutcome {
     std::size_t length;
     std::uint32_t line;
     std::uint32_t column;
+    // On issued: whether the ledger gained an entry or an entry changed state
+    // (the caller writes the file only then).
+    bool ledger_changed;
 };
 
 // config_write's part. user is text parsed (and passed check_user_config);
