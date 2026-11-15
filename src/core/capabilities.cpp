@@ -1,10 +1,8 @@
 // The capability table (include/stxlib/capabilities.hpp). stx_auxlib
 // answered capability_available in each desktop backend
 // (src/hosted/desktop_<host>.cpp at b6e330a); the answers are gathered here
-// for every family, with the ones whose modules are not ported yet
-// (threads, the local time zone) reported unsupported until their batch
-// lands. A desktop capability reported here can still fail at run time
-// when the desktop's helper program is missing (desktop.hpp).
+// for every family. A desktop capability reported here can still fail at
+// run time when the desktop's helper program is missing (desktop.hpp).
 
 #include "stxlib/capabilities.hpp"
 

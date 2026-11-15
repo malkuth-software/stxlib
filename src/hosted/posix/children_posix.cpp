@@ -393,7 +393,7 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const int descriptor = static_cast<int>(output_);
     Growable<Byte> output;
     bool over_limit = false;
-    Byte chunk[4096];
+    Byte chunk[4096]{};
     int failed_errno = 0;
     bool exhausted = false;
     for (;;) {

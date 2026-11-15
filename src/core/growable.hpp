@@ -30,6 +30,10 @@ public:
     [[nodiscard]] const Element* data() const noexcept { return elements_; }
     [[nodiscard]] usize count() const noexcept { return count_; }
     [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
+    // Requirement: index < the reserved room. Unchecked, unlike View's and
+    // Buffer's (audit A, C5): this is internal storage, and some callers
+    // read elements a host call wrote through data() into reserved room
+    // beyond count() (console_windows.cpp's read_line).
     [[nodiscard]] Element& operator[](const usize index) noexcept { return elements_[index]; }
     [[nodiscard]] const Element& operator[](const usize index) const noexcept { return elements_[index]; }
 
@@ -100,7 +104,7 @@ public:
         return true;
     }
 
-    // Requirement: smaller <= count().
+    // Requirement: smaller <= count() (unchecked, internal; audit A, C5).
     void shrink(const usize smaller) noexcept { count_ = smaller; }
     void clear() noexcept { count_ = 0; }
 

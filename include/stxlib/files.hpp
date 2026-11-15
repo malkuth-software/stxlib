@@ -42,7 +42,9 @@
 // Where std::filesystem behaviour was relied on, the host calls reproduce
 // it: remove takes a file, a link or an empty directory; remove_tree removes
 // without following links and counts what it removed, the top included;
-// copy_file copies the permission bits on POSIX hosts and refuses to copy a
+// copy_file copies the permission bits on POSIX hosts (st_mode & 07777: the
+// setuid, setgid and sticky bits included, as std::filesystem::copy_file
+// does, where cp(1) without -p clears setuid and setgid) and refuses to copy a
 // file onto itself (already_exists); temporary_directory reads TMPDIR, TMP,
 // TEMP, TEMPDIR and then "/tmp" on POSIX hosts, GetTempPathW on Windows,
 // and must name a directory.

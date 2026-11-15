@@ -372,7 +372,7 @@ Outcome copy_file(const char* const from, const char* const to, const CopyMode m
     const mode_t permissions = static_cast<mode_t>(described.st_mode & 07777);
     Descriptor target(open_retrying(to, flags, permissions));
     if (target.get() < 0) return from_errno(errno);
-    Byte chunk[16384];
+    Byte chunk[16384]{};
     for (;;) {
         usize got = 0;
         const Outcome taken = read(static_cast<i64>(source.get()), chunk, sizeof chunk, got);

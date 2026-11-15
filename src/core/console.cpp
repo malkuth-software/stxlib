@@ -130,7 +130,7 @@ bool console_is_terminal(const ConsoleStream stream) noexcept {
 Result<ConsoleLine> read_console_line(const usize limit) noexcept {
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.console_input_lock);
-    char chunk[read_chunk_bytes];
+    char chunk[read_chunk_bytes]{};
     bool over_limit = false;
     usize length = 0;
     for (;;) {

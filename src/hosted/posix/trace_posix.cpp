@@ -70,7 +70,7 @@ bool current_stack(StackBounds& bounds) noexcept {
     bounds.high = top;
     return true;
 #else
-    pthread_attr_t attributes;
+    pthread_attr_t attributes{};
     if (::pthread_getattr_np(::pthread_self(), &attributes) != 0) return false;
     void* address = nullptr;
     size_t size = 0;

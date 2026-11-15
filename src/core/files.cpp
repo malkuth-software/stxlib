@@ -176,7 +176,9 @@ void append_hexadecimal(char* const output, const u64 value) noexcept {
 // A name for write_file's temporary file (".stx-write-<stamp>-<serial>",
 // stx_auxlib's), unique within this process and unlikely to collide with
 // another's: the interval clock and a serial in stxlib_state. The serial
-// wraps after 2^64 writes, which only risks a collision create_new detects.
+// wraps after 2^64 writes, which only risks a collision create_new detects;
+// it is part of a name, not an identity, so house style §3's rule that
+// identity counters never wrap does not apply (audit A, C4).
 struct TemporaryName final {
     char text[11 + 16 + 1 + 16]{};
 };

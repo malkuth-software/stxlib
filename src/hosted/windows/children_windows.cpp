@@ -290,7 +290,7 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const HANDLE pipe = handle_of(output_);
     Growable<Byte> output;
     bool over_limit = false;
-    Byte chunk[4096];
+    Byte chunk[4096]{};
     DWORD failed_error = 0;
     bool exhausted = false;
     for (;;) {
