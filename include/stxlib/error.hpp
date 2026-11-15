@@ -163,7 +163,13 @@ public:
     [[nodiscard]] bool message_truncated() const noexcept { return message_truncated_; }
 
     // The exception's mangled type name when a gate recorded an exception in
-    // a development build; empty otherwise. Borrowed from this record.
+    // a development build; empty otherwise. Borrowed from this record. For
+    // a standard exception (one the gate's classification catches as a
+    // std::exception) it is the dynamic type, from the exception's own RTTI,
+    // on every C++ runtime. For any other it is the runtime's record of the
+    // exception being handled (the Itanium ABI's
+    // __cxa_current_exception_type: libc++abi, and FreeBSD's libcxxrt), and
+    // empty where the runtime gives none.
     [[nodiscard]] TextView exception_type() const& noexcept {
         const TextView result = detail::TextViewAccess::adopt_validated(exception_type_, exception_type_count_);
         return result;
