@@ -733,7 +733,7 @@ exactly.
 |---|---|---|---|
 | `0001-freebsd-overcommit-bits.patch` | `743986078953941e6be00e9c4f20e6fda3caed990ff818bcf185104754cf7d4d` | B4 | to report |
 | `0002-unix-yield-no-cancellation-point.patch` | `d9fb7687cd92ff9614842a9ebda06771d20db62440b87997f96b7982dcc053d4` | E1 | to report |
-| `0003-page-map-full-span.patch` | `5ccb963c052127f0acbc4113413ab0faefb8ee1d66f8f415a4261a6edd768b28` | S1, A2 | to report (clamp); count is 221e58feb, unreleased |
+| `0003-page-map-full-span.patch` | `ad516574471c083fc81a9147ac44294f0a608f9c80c5388a6503369214aabdfc` | S1, A2 | to report (clamp); count is 221e58feb, unreleased |
 | `0004-no-implicit-reinit-after-thread-done.patch` | `f9c7c50cfcb079a9e9b3b32ee2d4d8f33571fa75c6899b4ea9909d533cc3e55c` | A4, C2 | backport of 66b6fd4c2, unreleased |
 
 | Patched file (under `third_party/mimalloc/`) | SHA-256 |

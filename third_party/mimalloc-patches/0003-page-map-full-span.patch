@@ -13,8 +13,15 @@ v3.6.1 had two faults there:
    Debug builds therefore refused to release their own blocks aligned at
    4 MiB or more (audit S1). The clamp is removed: the whole block area is
    entered. Cost: one entry per slice, about 16,000 per GiB, written on a
-   huge page's allocation and again on its free. The sub-maps it needs
-   (64 KiB each, covering 512 MiB) are committed on demand, as before.
+   huge page's allocation and again on its free; and the sub-maps it needs
+   (64 KiB each, covering 512 MiB of address range) are committed on demand
+   and kept until exit, as all sub-maps are. That is about 128 KiB per GiB
+   of address range that huge blocks have used, 1/8192 of it (review
+   F-0003-1; a successful 1 TiB block commits about 128 MiB of page map).
+   The alternative, a clamp at 256 MiB + 64 KiB (mimalloc refuses
+   alignments of 256 MiB or more), would cover every address STXlib's
+   tagged release asks about, but would leave mi_is_in_heap_region wrong
+   for deeper addresses; the patch keeps it right for all of them.
    mi_page_map_set_range_prim already walks across sub-maps, and its
    failure path resets what it set (set_range, unchanged).
 2. It counted slices as _mi_slice_count_of_size(page_size) plus
