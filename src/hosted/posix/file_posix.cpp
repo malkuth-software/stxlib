@@ -151,7 +151,10 @@ public:
     Descriptor(const Descriptor&) = delete;
     Descriptor& operator=(const Descriptor&) = delete;
     ~Descriptor() {
-        if (fd_ >= 0) (void)::close(fd_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const int held = fd_;
+        fd_ = -1;
+        if (held >= 0) (void)::close(held);
     }
 
     [[nodiscard]] int get() const noexcept { return fd_; }

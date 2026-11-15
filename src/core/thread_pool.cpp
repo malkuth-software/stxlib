@@ -200,16 +200,19 @@ void destroy_state(AtomicPool::State* const state) noexcept {
 
 } // namespace
 
+// Each owner lets go of its state before destroying it (AGENTS.md, rule 1).
 AtomicPool::~AtomicPool() {
-    destroy_state(state_);
+    State* const held = state_;
     state_ = nullptr;
+    destroy_state(held);
 }
 
 AtomicPool& AtomicPool::operator=(AtomicPool&& other) noexcept {
     if (this == &other) return *this;
-    destroy_state(state_);
+    State* const held = state_;
     state_ = other.state_;
     other.state_ = nullptr;
+    destroy_state(held);
     return *this;
 }
 

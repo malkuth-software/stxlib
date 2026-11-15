@@ -348,10 +348,12 @@ bool make_room() noexcept {
         const uptr address = registry.slots[index];
         if (address != empty_slot && address != removed_slot) place(slots, capacity, address);
     }
-    if (registry.slots != nullptr) backend_release(registry.slots);
+    // Let go before releasing (AGENTS.md, rule 1).
+    uptr* const previous = registry.slots;
     registry.slots = slots;
     registry.capacity = capacity;
     registry.removed = 0;
+    if (previous != nullptr) backend_release(previous);
     return true;
 }
 

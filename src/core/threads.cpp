@@ -300,18 +300,19 @@ void finish_thread(Thread& thread) noexcept {
 Thread::~Thread() {
     if (state_ == nullptr) return;
     finish_thread(*this);
-    release_state(state_);
+    // Let go before releasing (AGENTS.md, rule 1).
+    State* const held = state_;
     state_ = nullptr;
+    release_state(held);
 }
 
 Thread& Thread::operator=(Thread&& other) noexcept {
     if (this == &other) return *this;
-    if (state_ != nullptr) {
-        finish_thread(*this);
-        release_state(state_);
-    }
+    if (state_ != nullptr) finish_thread(*this);
+    State* const held = state_;
     state_ = other.state_;
     other.state_ = nullptr;
+    if (held != nullptr) release_state(held);
     return *this;
 }
 

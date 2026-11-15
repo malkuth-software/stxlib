@@ -26,10 +26,10 @@ struct BufferAdoption;
 } // namespace detail
 } // namespace stxlib
 //@ model-end
-//@ lift source=stxlib path=src/core/growable.hpp lines=16-128 namespace=stxlib sha256=56134bcf2ac9747f5c3d8ae89deaa63ad06d60746725c37faaa1513cf02d188c
-//@ subst source=stxlib path=src/core/growable.hpp line=23 from="memory::release(elements_)" to="std::free(elements_)" reason="STXlib's allocator modelled by the tool's malloc and free, which may refuse (out_of_memory paths are explored)"
-//@ subst source=stxlib path=src/core/growable.hpp line=116 from="memory::allocate(next * sizeof(Element), alignof(Element))" to="std::malloc(next * sizeof(Element))" reason="STXlib's allocator modelled by the tool's malloc"
-//@ subst source=stxlib path=src/core/growable.hpp line=119 from="memory::release(elements_)" to="std::free(elements_)" reason="STXlib's allocator modelled by the tool's free"
+//@ lift source=stxlib path=src/core/growable.hpp lines=16-135 namespace=stxlib sha256=220990226a949df693d389e7b15c248db3374c03555f046893a6501a798d4f65
+//@ subst source=stxlib path=src/core/growable.hpp line=28 from="memory::release(held)" to="std::free(held)" reason="STXlib's allocator modelled by the tool's malloc and free, which may refuse (out_of_memory paths are explored)"
+//@ subst source=stxlib path=src/core/growable.hpp line=122 from="memory::allocate(next * sizeof(Element), alignof(Element))" to="std::malloc(next * sizeof(Element))" reason="STXlib's allocator modelled by the tool's malloc"
+//@ subst source=stxlib path=src/core/growable.hpp line=128 from="memory::release(previous)" to="std::free(previous)" reason="STXlib's allocator modelled by the tool's free"
 //@ lift source=stxlib path=include/stxlib/detail/utf8.hpp lines=30-71 namespace=stxlib::detail sha256=114b432b16110af4be99580d8b7f3a335e09622a7d9ef8f15dc70735e44e73ff
 //@ lift source=stxlib path=src/core/wtf8.hpp lines=45-241 namespace=stxlib::wtf8 sha256=33331acebd911cc031c421f1a13a4e790f5d6a2641ca413c68daaef9af4b60b5
 //@ mutant id=m1 source=stxlib path=src/core/wtf8.hpp line=209 from="low <= 0xdfffU" to="low <= 0xdbffU"

@@ -278,8 +278,10 @@ void sleep_for(const Duration interval) noexcept {
 } // namespace
 
 void Child::release() noexcept {
-    if (output_ != none) (void)::close(static_cast<int>(output_));
+    // Lets go of each handle before closing or reaping it (AGENTS.md, rule 1).
+    const i64 output = output_;
     output_ = none;
+    if (output != none) (void)::close(static_cast<int>(output));
     const i64 process = process_;
     const Phase phase = phase_;
     process_ = none;

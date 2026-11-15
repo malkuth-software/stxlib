@@ -20,7 +20,13 @@ class Growable final {
 
 public:
     Growable() noexcept = default;
-    ~Growable() { memory::release(elements_); }
+    // Lets go before releasing (AGENTS.md, rule 1): an early exit from the
+    // release leaves nothing that would release the block again.
+    ~Growable() {
+        Element* const held = elements_;
+        elements_ = nullptr;
+        memory::release(held);
+    }
     Growable(const Growable&) = delete;
     Growable& operator=(const Growable&) = delete;
     Growable(Growable&&) = delete;
@@ -116,9 +122,10 @@ private:
         void* const block = memory::allocate(next * sizeof(Element), alignof(Element));
         if (block == nullptr) return false;
         if (count_ != 0) std::memcpy(block, elements_, count_ * sizeof(Element));
-        memory::release(elements_);
+        Element* const previous = elements_;
         elements_ = static_cast<Element*>(block);
         capacity_ = next;
+        memory::release(previous);
         return true;
     }
 

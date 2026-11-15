@@ -153,11 +153,14 @@ public:
 } // namespace
 
 void Child::release() noexcept {
-    if (output_ != none) (void)CloseHandle(handle_of(output_));
-    if (process_ != none) (void)CloseHandle(handle_of(process_));
+    // Lets go of each handle before closing it (AGENTS.md, rule 1).
+    const i64 output = output_;
+    const i64 process = process_;
     output_ = none;
     process_ = none;
     phase_ = Phase::empty;
+    if (output != none) (void)CloseHandle(handle_of(output));
+    if (process != none) (void)CloseHandle(handle_of(process));
 }
 
 Result<Child> Child::start(const ChildRequest& request) noexcept {

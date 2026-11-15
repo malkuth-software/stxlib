@@ -187,7 +187,10 @@ public:
     OwnedHandle(const OwnedHandle&) = delete;
     OwnedHandle& operator=(const OwnedHandle&) = delete;
     ~OwnedHandle() {
-        if (handle_ != INVALID_HANDLE_VALUE && handle_ != nullptr) (void)CloseHandle(handle_);
+        // Lets go before closing (AGENTS.md, rule 1).
+        const HANDLE held = handle_;
+        handle_ = nullptr;
+        if (held != INVALID_HANDLE_VALUE && held != nullptr) (void)CloseHandle(held);
     }
 
     [[nodiscard]] HANDLE get() const noexcept { return handle_; }

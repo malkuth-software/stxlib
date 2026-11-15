@@ -112,9 +112,11 @@ public:
     // Frees the storage; the buffer is empty afterwards. Borrows of it end.
     void release() noexcept {
         if (elements_ == nullptr) return;
-        memory::release(elements_);
+        // Lets go before releasing (AGENTS.md, rule 1).
+        Element* const held = elements_;
         elements_ = nullptr;
         count_ = 0;
+        memory::release(held);
     }
 
 private:

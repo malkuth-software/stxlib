@@ -262,17 +262,22 @@ bool child_name(const char* const directory, const char* const name, const usize
 
 // ---- File --------------------------------------------------------------------
 
+// Each owner lets go of its handle before closing it (AGENTS.md, rule 1):
+// close is a cancellation point on POSIX.
 File::~File() {
-    if (handle_ != closed) (void)file_backend::close(handle_);
+    const i64 held = handle_;
+    handle_ = closed;
+    if (held != closed) (void)file_backend::close(held);
 }
 
 File::File(File&& other) noexcept : handle_(other.handle_) { other.handle_ = closed; }
 
 File& File::operator=(File&& other) noexcept {
     if (this == &other) return *this;
-    if (handle_ != closed) (void)file_backend::close(handle_);
+    const i64 held = handle_;
     handle_ = other.handle_;
     other.handle_ = closed;
+    if (held != closed) (void)file_backend::close(held);
     return *this;
 }
 

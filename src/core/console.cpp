@@ -55,9 +55,11 @@ bool reserve_pending(state::ProcessState& process, const usize wanted) noexcept 
     if (process.console_pending_count != 0) {
         std::memcpy(block, process.console_pending, process.console_pending_count);
     }
-    memory::release(process.console_pending);
+    // Let go before releasing (AGENTS.md, rule 1).
+    char* const previous = process.console_pending;
     process.console_pending = static_cast<char*>(block);
     process.console_pending_capacity = next;
+    memory::release(previous);
     return true;
 }
 

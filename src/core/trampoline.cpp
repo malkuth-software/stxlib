@@ -223,11 +223,17 @@ TrampolineTable::~TrampolineTable() {
             detail::wait_until_freed(slot, detail::generation_of(slot.state.load(std::memory_order_seq_cst)));
         }
     }
-    for (usize index = 0; index < table.capacity; ++index) table.slots[index].~TrampolineSlot();
-    memory::release(table.slots);
-    table.~TrampolineSlots();
-    memory::release(slots_);
+    // Let go before releasing (AGENTS.md, rule 1).
+    detail::TrampolineSlots* const held = slots_;
     slots_ = nullptr;
+    detail::TrampolineSlot* const slots = table.slots;
+    const usize capacity = table.capacity;
+    table.slots = nullptr;
+    table.capacity = 0;
+    for (usize index = 0; index < capacity; ++index) slots[index].~TrampolineSlot();
+    memory::release(slots);
+    table.~TrampolineSlots();
+    memory::release(held);
 }
 
 usize TrampolineTable::capacity() const noexcept {
