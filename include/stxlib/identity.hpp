@@ -50,7 +50,9 @@ public:
 
     // An issuer continuing after `last_issued`, a counter read from storage.
     // It is input: any value is accepted here, and an issuer resumed at the
-    // maximum issues nothing more.
+    // maximum issues nothing more. Checking it against the identities
+    // restored beside it (house style §3: no restored identity may exceed
+    // it) is the caller's, who holds them (audit A, I1).
     [[nodiscard]] static constexpr IdentityIssuer resume(const u64 last_issued) noexcept {
         IdentityIssuer result;
         result.last_issued_ = last_issued;

@@ -84,6 +84,9 @@ private:
         return fitted > parent_prefix ? fitted : parent_prefix;
     }
 
+    // Recursion bounded by the tree's height (house style §1; audit A, T1):
+    // a B-tree's height grows with the logarithm of its key count, a few
+    // levels for every tree the tests build.
     void check_node(NodePointer node, const Key* low, const Key* high, std::size_t depth, bool is_root,
                            std::size_t parent_prefix, Report& report) {
         if (node.is_leaf()) {

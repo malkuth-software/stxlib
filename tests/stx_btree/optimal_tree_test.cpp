@@ -137,6 +137,9 @@ public:
         std::vector<KeyIndex> right;
     };
 
+    // Recursion bounded by the interval's key count (house style §1; audit A,
+    // T1): each level drops at least one key, and the caller enumerates at
+    // most 8 keys.
     [[nodiscard]] static std::vector<Fragment> all_trees(KeyIndex first, KeyIndex end, std::size_t width) {
         std::vector<Fragment> trees;
         if (first == end) {

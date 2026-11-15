@@ -141,12 +141,21 @@ void depart(TrampolineSlot& slot, const u64 generation) noexcept {
     if (before == 1) static_cast<void>(try_free(slot, generation));
 }
 
-// Waits until revoked(generation) has no invocation in flight and is freed.
+// Waits until revoked(generation) has no invocation in flight and is freed,
+// with spin::lock's waiting policy (spin_lock.hpp; audit A, C8): yield 64
+// times, then sleep about a millisecond between attempts, so a long callback
+// does not have the revoking thread burning a core.
 void wait_until_freed(TrampolineSlot& slot, const u64 generation) noexcept {
+    u32 attempts = 0;
     for (;;) {
         const bool done = try_free(slot, generation);
         if (done) return;
-        host::yield_thread();
+        if (attempts < 64) {
+            attempts = attempts + 1;
+            host::yield_thread();
+        } else {
+            host::sleep_briefly();
+        }
     }
 }
 
