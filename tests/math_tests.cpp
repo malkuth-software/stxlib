@@ -17,6 +17,7 @@
 #include "reference/sincos_worst_cases.hpp"
 #include "reference/wide.hpp"
 #include "core/checked.hpp"
+#include "algorithms/math/paths.hpp"
 // The certified worst-case test calls the reduction directly. src/algorithms/math/
 // compiles once per kernel variant (src/algorithms/math/variant.hpp); this test compiles
 // its own copy as the native variant, which every variant matches bit for bit.
@@ -55,6 +56,21 @@ namespace {
 
 void require(const bool condition, const char* const message) {
     if (!condition) throw std::runtime_error(message);
+}
+
+// A frozen output hash per kernel path (src/algorithms/math/paths.hpp):
+// `expected` is the value for the paths this build's switches choose; 0
+// means not frozen yet for those paths (printed with today's frozen value,
+// to freeze from the first M4 run), so it does not fail.
+void check_frozen(const char* const name, const std::uint64_t hash, const std::uint64_t expected,
+                  const std::uint64_t today_value, const char* const message) {
+    std::printf("%s output hash %016llx\n", name, static_cast<unsigned long long>(hash));
+    if (expected == 0) {
+        std::printf("%s output hash not frozen yet for this build's region paths (today's paths: %016llx)\n", name,
+                    static_cast<unsigned long long>(today_value));
+        return;
+    }
+    require(hash == expected, message);
 }
 
 // Deterministic inputs: a 64-bit LCG.
@@ -110,6 +126,27 @@ constexpr double inverse_trig_ulp_limit = 0.5005;
 // measured 0.500000 ulp, sampled only.
 constexpr double tan_ulp_limit = sincos_worst_cases::stated_bound_ulps;
 constexpr double remaining_ulp_limit = 0.5005;
+
+// Whether a float screen may trust the C++ library's double rounded to
+// float as the correctly rounded float: not when that double lies within
+// the library's own error of a float midpoint, where rounding twice can land
+// on the wrong side. (The screens passed sincos(float) at +-9830.3984375 so:
+// the library's sin, correctly rounded to double, is the midpoint itself,
+// and so was the kernel's double; tools/math/sincos_float_screen.py found
+// it.) Within 2^-50 of a midpoint (relative; the library is within an ulp,
+// 2^-52), the reference decides.
+bool screen_holds(const double library_value) {
+    if (!std::isfinite(library_value) || library_value == 0.0) return true;
+    const float rounded = static_cast<float>(library_value);
+    if (!std::isfinite(rounded)) return true;
+    const double value = static_cast<double>(rounded);
+    const double up = static_cast<double>(std::nextafter(rounded, std::numeric_limits<float>::infinity()));
+    const double down = static_cast<double>(std::nextafter(rounded, -std::numeric_limits<float>::infinity()));
+    const double distance = std::min(std::fabs(library_value - (value + up) * 0.5),
+                                     std::fabs(library_value - (value + down) * 0.5));
+    const bool result = distance > std::fabs(library_value) * 0x1p-50;
+    return result;
+}
 
 // hi + lo rounded once to float.
 float correctly_rounded_float(const wide::Wide exact) {
@@ -383,10 +420,12 @@ void float_rounding(const std::uint32_t stride) {
             float c = 0.0f;
             unflushed::sincos(x, s, c);
             const double xd = static_cast<double>(x);
-            const float screen_s = static_cast<float>(std::sin(xd));
-            const float screen_c = static_cast<float>(std::cos(xd));
+            const double library_s = std::sin(xd);
+            const double library_c = std::cos(xd);
+            const float screen_s = static_cast<float>(library_s);
+            const float screen_c = static_cast<float>(library_c);
             checked += 1;
-            if (s == screen_s && c == screen_c) continue;
+            if (s == screen_s && c == screen_c && screen_holds(library_s) && screen_holds(library_c)) continue;
             const wide::WideSinCos exact = wide::reference(xd);
             require(s == correctly_rounded_float(exact.s) && c == correctly_rounded_float(exact.c),
                     "sincos(float): result is not correctly rounded");
@@ -394,6 +433,26 @@ void float_rounding(const std::uint32_t stride) {
     }
     std::printf("sincos(float) correctly rounded at %llu floats (stride %u)\n",
                 static_cast<unsigned long long>(checked), stride);
+}
+
+// The float the double kernel misrounds, which sincos.cpp's exception table
+// corrects (tools/math/sincos_float_screen.py found it; the screen above
+// had passed it, see screen_holds): sin(9830.3984375) lies 2^-54 past a float
+// midpoint.
+void float_exceptions() {
+    const float magnitude = 0x1.33333p13f;
+    const float signs[2] = {magnitude, -magnitude};
+    for (const float x : signs) {
+        float s = 0.0f;
+        float c = 0.0f;
+        unflushed::sincos(x, s, c);
+        const wide::WideSinCos exact = wide::reference(static_cast<double>(x));
+        require(s == correctly_rounded_float(exact.s) && c == correctly_rounded_float(exact.c),
+                "sincos(float): the exception at 9830.3984375 is not correctly rounded");
+        require(std::bit_cast<std::uint32_t>(s) == (x > 0.0f ? 0xbeb1fa5du : 0x3eb1fa5du),
+                "sincos(float): the exception at 9830.3984375 returned other bits");
+    }
+    std::printf("sincos(float) exception at +-9830.3984375 correct\n");
 }
 
 // FNV-1a over double and float outputs at fixed inputs, all on the fast or
@@ -430,12 +489,18 @@ STXLIB_MODULAR std::uint64_t output_hash() {
 // adopted 2026-11-02; 46/8M sincos and 64/4M tan outputs differ, all within
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_output_hash = 0x9cecbc587874960dULL;
+constexpr std::uint64_t today_output_hash = 0x9cecbc587874960dULL;
+// The region path of sincos(double) (trig_region.cpp): its own value, not yet
+// frozen; it differs from today's (the polynomial chains round differently,
+// within the same bound). Float sincos has one path.
+constexpr std::uint64_t region_output_hash = 0;
+constexpr std::uint64_t expected_output_hash = STXLIB_MATH_REGION_TRIG_DOUBLE ? region_output_hash
+                                                                               : today_output_hash;
 
 void determinism() {
     const std::uint64_t hash = output_hash();
-    std::printf("output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_output_hash, "sincos: outputs differ from the frozen bits");
+    check_frozen("sincos", hash, expected_output_hash, today_output_hash,
+                 "sincos: outputs differ from the frozen bits");
 }
 
 // ---- exp ----------------------------------------------------------------------
@@ -613,9 +678,10 @@ void exp_float_rounding(const std::uint32_t stride) {
         for (const float x : signs) {
             const float y = unflushed::exp(x);
             const double xd = static_cast<double>(x);
-            const float screen = static_cast<float>(std::exp(xd));
+            const double library = std::exp(xd);
+            const float screen = static_cast<float>(library);
             checked += 1;
-            if (y == screen) continue;
+            if (y == screen && screen_holds(library)) continue;
             // Beyond these, float results are infinity or zero with margin.
             require(xd >= -110.0 && xd <= 90.0, "exp(float): wrong overflow or underflow");
             require(y == exp_correctly_rounded_float(wide::exp_reference(xd)),
@@ -824,9 +890,10 @@ void log_float_rounding(const std::vector<LogKernel>& kernels, const std::uint32
             const float x = std::bit_cast<float>(static_cast<std::uint32_t>(pattern));
             const float y = (*kernel.owned_float)(x);
             const double xd = static_cast<double>(x);
-            const float screen = static_cast<float>((*kernel.library_double)(xd));
+            const double library = (*kernel.library_double)(xd);
+            const float screen = static_cast<float>(library);
             checked += 1;
-            if (y == screen) continue;
+            if (y == screen && screen_holds(library)) continue;
             require(y == correctly_rounded_float(log_exact(kernel, xd)),
                     "log(float): result is not correctly rounded");
         }
@@ -858,12 +925,19 @@ STXLIB_MODULAR std::uint64_t log_output_hash(const std::vector<LogKernel>& kerne
 }
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
-constexpr std::uint64_t expected_log_output_hash = 0x2e4ea58329a77abcULL;
+constexpr std::uint64_t today_log_output_hash = 0x2e4ea58329a77abcULL;
+// The region path of the float logs (region.cpp): its own value, not yet
+// frozen; expected equal to today's (both correctly rounded for every float,
+// and a subnormal x takes today's kernel; math_region_tests --exhaustive
+// compares every float pattern).
+constexpr std::uint64_t region_log_output_hash = 0;
+constexpr std::uint64_t expected_log_output_hash = STXLIB_MATH_REGION_LOG_FLOAT ? region_log_output_hash
+                                                                                : today_log_output_hash;
 
 void log_determinism(const std::vector<LogKernel>& kernels) {
     const std::uint64_t hash = log_output_hash(kernels);
-    std::printf("log output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_log_output_hash, "log: outputs differ from the frozen bits");
+    check_frozen("log", hash, expected_log_output_hash, today_log_output_hash,
+                 "log: outputs differ from the frozen bits");
 }
 
 // ---- pow ----------------------------------------------------------------------
@@ -1296,12 +1370,19 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
 // (owner's experiment, adopted 2026-11-02); 6/400k near-overflow inputs
 // differ, both within bound. Same value at the scalar, vector128 and
 // avx2_fma levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_pow_output_hash = 0x3a845b9bad3d2534ULL;
+constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
+// The region paths (region.cpp): their own values, not yet frozen. With
+// pow(double) on the region kernel the hash differs (0.500097 ulp against
+// 0.576); with only pow(float) on round, test, decide it is expected equal
+// to today's (both correctly rounded at every sampled pair).
+constexpr std::uint64_t region_pow_output_hash = 0;
+constexpr bool pow_on_region = STXLIB_MATH_REGION_POW_DOUBLE || STXLIB_MATH_REGION_POW_FLOAT;
+constexpr std::uint64_t expected_pow_output_hash = pow_on_region ? region_pow_output_hash : today_pow_output_hash;
 
 void pow_determinism() {
     const std::uint64_t hash = pow_output_hash();
-    std::printf("pow output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_pow_output_hash, "pow: outputs differ from the frozen bits");
+    check_frozen("pow", hash, expected_pow_output_hash, today_pow_output_hash,
+                 "pow: outputs differ from the frozen bits");
 }
 
 // ---- hypot ------------------------------------------------------------------
@@ -1512,12 +1593,19 @@ STXLIB_MODULAR std::uint64_t hypot_output_hash() {
 }
 
 // Frozen on 2026-10-31 (Apple arm64, fma and Dekker builds, -O0 and -O2).
-constexpr std::uint64_t expected_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
+constexpr std::uint64_t today_hypot_output_hash = 0x1c19c8b2f3910d6cULL;
+// The region path of float hypot (region.cpp): its own value, not yet
+// frozen; expected equal to today's (region correctly rounded by
+// construction, today's at every sampled pair; subnormal operands take
+// today's kernel). A difference names a pair today's kernel misrounds.
+constexpr std::uint64_t region_hypot_output_hash = 0;
+constexpr std::uint64_t expected_hypot_output_hash = STXLIB_MATH_REGION_HYPOT_FLOAT ? region_hypot_output_hash
+                                                                                    : today_hypot_output_hash;
 
 void hypot_determinism() {
     const std::uint64_t hash = hypot_output_hash();
-    std::printf("hypot output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_hypot_output_hash, "hypot: outputs differ from the frozen bits");
+    check_frozen("hypot", hash, expected_hypot_output_hash, today_hypot_output_hash,
+                 "hypot: outputs differ from the frozen bits");
 }
 
 // ---- atan, atan2, asin, acos ------------------------------------------------------
@@ -1713,9 +1801,10 @@ void inverse_trig_float_rounding(const std::uint32_t stride) {
             for (const float x : signs) {
                 const float y = (*kernel.owned_float)(x);
                 const double xd = static_cast<double>(x);
-                const float screen = static_cast<float>((*kernel.library_double)(xd));
+                const double library = (*kernel.library_double)(xd);
+                const float screen = static_cast<float>(library);
                 checked += 1;
-                if (y == screen) continue;
+                if (y == screen && screen_holds(library)) continue;
                 require(y == correctly_rounded_float((*kernel.exact)(xd)),
                         "inverse trig (float): result is not correctly rounded");
             }
@@ -2009,9 +2098,10 @@ void remaining_float_rounding(const std::uint32_t stride) {
                 const float x = signs[sign];
                 const float y = (*kernel.owned_float)(x);
                 const double xd = static_cast<double>(x);
-                const float screen = static_cast<float>((*kernel.library_double)(xd));
+                const double library = (*kernel.library_double)(xd);
+                const float screen = static_cast<float>(library);
                 checked += 1;
-                if (same_bits(y, screen)) continue;
+                if (same_bits(y, screen) && screen_holds(library)) continue;
                 require(std::isfinite(y) && y == correctly_rounded_float((*kernel.exact)(xd)),
                         "tan/cbrt/hyperbolic (float): result is not correctly rounded");
             }
@@ -2047,12 +2137,18 @@ STXLIB_MODULAR std::uint64_t remaining_output_hash() {
 // adopted 2026-11-02; 46/8M sincos and 64/4M tan outputs differ, all within
 // the unchanged bound. Same value at the scalar, vector128 and avx2_fma
 // levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t expected_remaining_output_hash = 0x46fd05aac7dac755ULL;
+constexpr std::uint64_t today_remaining_output_hash = 0x46fd05aac7dac755ULL;
+// The region path of tan(double) (trig_region.cpp): its own value, not yet
+// frozen; it differs from today's (Estrin's scheme rounds differently,
+// within the same bound).
+constexpr std::uint64_t region_remaining_output_hash = 0;
+constexpr std::uint64_t expected_remaining_output_hash =
+    STXLIB_MATH_REGION_TRIG_DOUBLE ? region_remaining_output_hash : today_remaining_output_hash;
 
 void remaining_determinism() {
     const std::uint64_t hash = remaining_output_hash();
-    std::printf("tan/cbrt/hyperbolic output hash %016llx\n", static_cast<unsigned long long>(hash));
-    require(hash == expected_remaining_output_hash, "tan/cbrt/hyperbolic: outputs differ from the frozen bits");
+    check_frozen("tan/cbrt/hyperbolic", hash, expected_remaining_output_hash, today_remaining_output_hash,
+                 "tan/cbrt/hyperbolic: outputs differ from the frozen bits");
 }
 
 // ---- the subnormal rule (STXlib batch 3c8) ------------------------------------
@@ -2653,6 +2749,7 @@ int main(const int argument_count, char** const arguments) {
         sincos_certified_worst_cases();
         double_accuracy(exhaustive ? 20000000 : 200000);
         sincos_hard_reduction(exhaustive ? 20000000 : 200000);
+        float_exceptions();
         float_rounding(exhaustive ? 1 : 97);
         exp_check_reference();
         exp_special_values();

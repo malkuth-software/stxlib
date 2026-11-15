@@ -89,6 +89,12 @@ struct Kernels final {
     float (*acosh_f)(float) noexcept = nullptr;
     double (*atanh_d)(double) noexcept = nullptr;
     float (*atanh_f)(float) noexcept = nullptr;
+    double (*exp2_d)(double) noexcept = nullptr;
+    float (*exp2_f)(float) noexcept = nullptr;
+    double (*expm1_d)(double) noexcept = nullptr;
+    float (*expm1_f)(float) noexcept = nullptr;
+    double (*log1p_d)(double) noexcept = nullptr;
+    float (*log1p_f)(float) noexcept = nullptr;
 };
 
 constexpr Kernels v128_kernels = {
@@ -130,6 +136,12 @@ constexpr Kernels v128_kernels = {
     v128::acosh,
     v128::atanh,
     v128::atanh,
+    v128::exp2,
+    v128::exp2,
+    v128::expm1,
+    v128::expm1,
+    v128::log1p,
+    v128::log1p,
 };
 
 constexpr Kernels avx2_fma_kernels = {
@@ -171,6 +183,12 @@ constexpr Kernels avx2_fma_kernels = {
     avx2_fma::acosh,
     avx2_fma::atanh,
     avx2_fma::atanh,
+    avx2_fma::exp2,
+    avx2_fma::exp2,
+    avx2_fma::expm1,
+    avx2_fma::expm1,
+    avx2_fma::log1p,
+    avx2_fma::log1p,
 };
 
 const Kernels* select_kernels() noexcept {
@@ -371,6 +389,36 @@ float resolve_atanh_f(const float x) noexcept {
     return result;
 }
 
+double resolve_exp2_d(const double x) noexcept {
+    const double result = (*(*resolve()).exp2_d)(x);
+    return result;
+}
+
+float resolve_exp2_f(const float x) noexcept {
+    const float result = (*(*resolve()).exp2_f)(x);
+    return result;
+}
+
+double resolve_expm1_d(const double x) noexcept {
+    const double result = (*(*resolve()).expm1_d)(x);
+    return result;
+}
+
+float resolve_expm1_f(const float x) noexcept {
+    const float result = (*(*resolve()).expm1_f)(x);
+    return result;
+}
+
+double resolve_log1p_d(const double x) noexcept {
+    const double result = (*(*resolve()).log1p_d)(x);
+    return result;
+}
+
+float resolve_log1p_f(const float x) noexcept {
+    const float result = (*(*resolve()).log1p_f)(x);
+    return result;
+}
+
 constexpr Kernels resolving_kernels = {
     resolve_sincos_f,
     resolve_sincos_d,
@@ -410,6 +458,12 @@ constexpr Kernels resolving_kernels = {
     resolve_acosh_f,
     resolve_atanh_d,
     resolve_atanh_f,
+    resolve_exp2_d,
+    resolve_exp2_f,
+    resolve_expm1_d,
+    resolve_expm1_f,
+    resolve_log1p_d,
+    resolve_log1p_f,
 };
 
 std::atomic<const Kernels*> active{&resolving_kernels};
@@ -612,6 +666,36 @@ float atanh(const float x) noexcept {
     return result;
 }
 
+double exp2(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).exp2_d)(x);
+    return result;
+}
+
+float exp2(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).exp2_f)(x);
+    return result;
+}
+
+double expm1(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).expm1_d)(x);
+    return result;
+}
+
+float expm1(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).expm1_f)(x);
+    return result;
+}
+
+double log1p(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).log1p_d)(x);
+    return result;
+}
+
+float log1p(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).log1p_f)(x);
+    return result;
+}
+
 } // namespace unflushed
 
 } // namespace stxlib::math
@@ -811,6 +895,36 @@ double atanh(const double x) noexcept {
 
 float atanh(const float x) noexcept {
     const float result = native::atanh(x);
+    return result;
+}
+
+double exp2(const double x) noexcept {
+    const double result = native::exp2(x);
+    return result;
+}
+
+float exp2(const float x) noexcept {
+    const float result = native::exp2(x);
+    return result;
+}
+
+double expm1(const double x) noexcept {
+    const double result = native::expm1(x);
+    return result;
+}
+
+float expm1(const float x) noexcept {
+    const float result = native::expm1(x);
+    return result;
+}
+
+double log1p(const double x) noexcept {
+    const double result = native::log1p(x);
+    return result;
+}
+
+float log1p(const float x) noexcept {
+    const float result = native::log1p(x);
     return result;
 }
 

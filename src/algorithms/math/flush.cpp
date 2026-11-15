@@ -51,6 +51,36 @@ void sincos(const double x, double& s, double& c) noexcept {
     c = flush(kernel_c);
 }
 
+// sin and cos as single functions (roadmap R1): fronts over sincos above,
+// so their bits and contracts are sincos'.
+float sin(const float angle) noexcept {
+    float s = 0.0f;
+    float c = 0.0f;
+    sincos(angle, s, c);
+    return s;
+}
+
+float cos(const float angle) noexcept {
+    float s = 0.0f;
+    float c = 0.0f;
+    sincos(angle, s, c);
+    return c;
+}
+
+double sin(const double x) noexcept {
+    double s = 0.0;
+    double c = 0.0;
+    sincos(x, s, c);
+    return s;
+}
+
+double cos(const double x) noexcept {
+    double s = 0.0;
+    double c = 0.0;
+    sincos(x, s, c);
+    return c;
+}
+
 float exp(const float x) noexcept {
     const float result = flush(unflushed::exp(flush(x)));
     return result;
@@ -228,6 +258,36 @@ double atanh(const double x) noexcept {
 
 float atanh(const float x) noexcept {
     const float result = flush(unflushed::atanh(flush(x)));
+    return result;
+}
+
+double exp2(const double x) noexcept {
+    const double result = flush(unflushed::exp2(flush(x)));
+    return result;
+}
+
+float exp2(const float x) noexcept {
+    const float result = flush(unflushed::exp2(flush(x)));
+    return result;
+}
+
+double expm1(const double x) noexcept {
+    const double result = flush(unflushed::expm1(flush(x)));
+    return result;
+}
+
+float expm1(const float x) noexcept {
+    const float result = flush(unflushed::expm1(flush(x)));
+    return result;
+}
+
+double log1p(const double x) noexcept {
+    const double result = flush(unflushed::log1p(flush(x)));
+    return result;
+}
+
+float log1p(const float x) noexcept {
+    const float result = flush(unflushed::log1p(flush(x)));
     return result;
 }
 

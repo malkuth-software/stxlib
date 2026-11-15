@@ -56,6 +56,9 @@
 
 #include "variant_functions.hpp"
 
+#include "paths.hpp"
+#include "region_functions.hpp"
+
 STXLIB_MATH_TARGET_PUSH
 
 namespace stxlib::math::STXLIB_MATH_VARIANT {
@@ -295,6 +298,8 @@ double pow_zero_or_infinite_base(const double x, const double y) noexcept {
 } // namespace
 } // namespace detail
 
+namespace today {
+
 double pow(const double x, const double y) noexcept {
     // The common case in one test: x positive, normal and finite; y in the
     // kernel's range (2^-80 <= |y| < 2^64).
@@ -333,14 +338,17 @@ double pow(const double x, const double y) noexcept {
     return magnitude;
 }
 
+} // namespace today
+
 namespace detail {
 namespace {
 
 // The accurate float power: the double result rounded once to float (which
 // also rounds float overflow and underflow correctly), out of line so the
 // cheap path's tail call needs no stack frame.
+// Today's double kernel by name: the double switch must not reach this path.
 STXLIB_MATH_COLD float pow_float_accurate(const float x, const float y) noexcept {
-    const double result = pow(detail::widen(x), detail::widen(y));
+    const double result = today::pow(detail::widen(x), detail::widen(y));
     return static_cast<float>(result);
 }
 
@@ -350,6 +358,8 @@ STXLIB_MATH_COLD float pow_float_accurate(const float x, const float y) noexcept
 // Float pow: first 2^(y log2 x) in plain double (pow_float_cheap),
 // certified with float_if_certain; otherwise the double result rounded once
 // (pow_float_accurate).
+namespace today {
+
 float pow(const float x, const float y) noexcept {
     const double xd = detail::widen(x);
     const double yd = detail::widen(y);
@@ -360,6 +370,34 @@ float pow(const float x, const float y) noexcept {
         if (detail::pow_float_cheap(xd, yd, fast)) return fast;
     }
     const float result = detail::pow_float_accurate(x, y);
+    return result;
+}
+
+} // namespace today
+
+// The variant functions: the path paths.hpp's switches choose. The region
+// path serves arguments that are not subnormal and results it does not
+// flush (a region zero from nonzero arguments is a flushed underflow);
+// today's kernel serves the rest, so the unflushed contract holds on both.
+double pow(const double x, const double y) noexcept {
+#if STXLIB_MATH_REGION_POW_DOUBLE
+    if (paths::not_subnormal(x) && paths::not_subnormal(y)) {
+        const double region_result = region::pow(x, y);
+        if (region_result != 0.0) return region_result;
+    }
+#endif
+    const double result = today::pow(x, y);
+    return result;
+}
+
+float pow(const float x, const float y) noexcept {
+#if STXLIB_MATH_REGION_POW_FLOAT
+    if (paths::not_subnormal(x) && paths::not_subnormal(y)) {
+        const float region_result = region::pow(x, y);
+        if (region_result != 0.0f) return region_result;
+    }
+#endif
+    const float result = today::pow(x, y);
     return result;
 }
 

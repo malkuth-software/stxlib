@@ -14,6 +14,9 @@
 
 #include "variant_functions.hpp"
 
+#include "paths.hpp"
+#include "region_functions.hpp"
+
 STXLIB_MATH_TARGET_PUSH
 
 namespace stxlib::math::STXLIB_MATH_VARIANT {
@@ -169,6 +172,8 @@ double hypot(const double x, const double y) noexcept {
 // ~1e-32 result r + r_lo is rounded once, directly to float (rounding it to
 // double first could round twice). In the float range (r + r_lo) * 2^e
 // scales exactly into normal doubles.
+namespace today {
+
 float hypot(const float x, const float y) noexcept {
     const double xd = detail::widen(x);
     const double yd = detail::widen(y);
@@ -193,6 +198,21 @@ float hypot(const float x, const float y) noexcept {
     detail::hypot_wide(a, b, r, r_lo, exponent);
     const double scale = detail::power_of_two(exponent);
     const float result = detail::round_wide_to_float(r * scale, r_lo * scale);
+    return result;
+}
+
+} // namespace today
+
+// The float variant function: the path STXLIB_MATH_REGION_HYPOT_FLOAT
+// chooses (paths.hpp). A subnormal operand takes today's kernel, which
+// reads it unflushed; with a normal operand no result is subnormal. Both
+// paths are correctly rounded at every pair checked (region: proved by
+// construction; today's: sampled), so they are expected to agree.
+float hypot(const float x, const float y) noexcept {
+#if STXLIB_MATH_REGION_HYPOT_FLOAT
+    if (paths::not_subnormal(x) && paths::not_subnormal(y)) return region::hypot(x, y);
+#endif
+    const float result = today::hypot(x, y);
     return result;
 }
 

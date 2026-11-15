@@ -39,27 +39,48 @@
 
 namespace stxlib::math {
 
+// Kernel paths. pow, the float logarithms, float hypot, and sin, cos and tan
+// of a double each have two kernels in every build: today's and a region
+// kernel. A build switch chooses the one these functions take (CMake options
+// STXLIB_MATH_REGION_POW_DOUBLE, _POW_FLOAT, _LOG_FLOAT, _HYPOT_FLOAT,
+// _TRIG_DOUBLE; defaults: region for float hypot and for sin, cos and tan of
+// a double, today's for the rest). The contracts below state each path's
+// accuracy where they differ; everything else (special values, the
+// subnormal rule, refusals) is the same on both paths.
+
 // Angles for sin, cos and tan are supported up to |x| = 2^32 radians;
 // larger angles, infinities and NaN are refused with NaN. No GUI.Forms use
 // needs more (a full turn is 6.28): a phase that grows without bound must
 // reset itself or use its own reduction.
 //
 // sin and cos of a float, correctly rounded for every float with
-// 2^-27 <= |x| <= 2^20 (exhaustively checked, 788,529,154 floats); below
-// 2^-27 sin = x and cos = 1, also correctly rounded. A subnormal angle
+// 2^-27 <= |x| <= 2^32, proved (tools/math/sincos_float_screen.py: a proved
+// error bound, every one of the 989,855,746 floats screened against it, the
+// 44 it leaves decided exactly); below 2^-27 sin = x and cos = 1, also
+// correctly rounded. A subnormal angle
 // gives sin = zero of its sign and cos = 1.
 void sincos(float angle, float& s, float& c) noexcept;
 
 // sin and cos of a double, within 0.51 ulp for every double 2^-27 <= |x| <=
-// 2^32: proved, not sampled (tools/math/sincos_certificate.py: the worst-case
-// remainders of every binade, the rotation's interval error analysis and
-// the reduction's exact error bound). The largest error measured over 120
-// million sampled inputs is 0.500415 ulp; about 1 in 18,000 results is not
-// the correctly rounded double. Below 2^-27 sin = x and cos = 1 (correctly
+// 2^32 on both paths: proved, not sampled. Today's kernel:
+// tools/math/sincos_certificate.py (the worst-case remainders of every
+// binade, the rotation's interval error analysis and the reduction's exact
+// error bound); the largest error measured over 120 million sampled inputs
+// is 0.500415 ulp, and about 1 in 18,000 results is not the correctly
+// rounded double. Region kernel (the default): the same proof with its own
+// reduction below 2^6 and polynomial chains,
+// tools/math/trig_region_certificate.py; not yet measured. Below 2^-27 sin = x and cos = 1 (correctly
 // rounded, sign of zero kept); a subnormal x gives sin = zero of its sign
 // and cos = 1. No angle in [2^-27, 2^32] has a subnormal sine or cosine, so
 // the bound above holds for the public function unchanged.
 void sincos(double x, double& s, double& c) noexcept;
+
+// sin and cos as single functions: the s and c of sincos above, with its
+// contracts and bits (fronts that call it; both are computed).
+[[nodiscard]] float sin(float angle) noexcept;
+[[nodiscard]] float cos(float angle) noexcept;
+[[nodiscard]] double sin(double x) noexcept;
+[[nodiscard]] double cos(double x) noexcept;
 
 // e^x for a float, correctly rounded for every float (exhaustively checked,
 // 4,278,190,080 finite floats), overflow to infinity included; a correctly
@@ -76,7 +97,13 @@ void sincos(double x, double& s, double& c) noexcept;
 [[nodiscard]] double exp(double x) noexcept;
 
 // Natural, binary and decimal logarithms. Float: correctly rounded for every
-// positive finite float (exhaustively checked, 2,139,095,039 floats each).
+// positive finite float on both paths, so both give the same bits. Today's
+// kernel (the default): exhaustively checked, 2,139,095,039 floats each.
+// Region kernel: proved, a double-double within 2^-62 rounded once, every
+// positive normal float screened against that bound
+// (tools/math/region_exhaustive.py, a replica of the kernel's operations;
+// the compiled kernel's agreement is checked on every float pattern by
+// tests/math_region_tests.cpp --exhaustive).
 // Double: within 0.500012 ulp (240 million inputs measured per function;
 // about 1 in 24 million results is not the correctly rounded double).
 // Own every input: +0 and -0 give -infinity, negative x and -infinity give
@@ -96,14 +123,30 @@ void sincos(double x, double& s, double& c) noexcept;
 // otherwise) and takes the sign of the integer's parity; zero and infinite
 // x and infinite y give the Annex F zeros and infinities. Exactly
 // representable results (2^n, 3^2, 10^n for n <= 22, x^1, ...) are exact.
-// Double: within 0.5 + 0.076 ulp by analysis of every rounding, for normal
-// results; measured 0.5027 ulp at worst over 2 million inputs, the same bits
-// at every SIMD level. A result below the smallest normal returns zero of
+// Double, today's kernel (the default): within 0.5 + 0.076 ulp by analysis
+// of every rounding, for normal results; measured 0.5027 ulp at worst over 2
+// million inputs, the same bits at every SIMD level. Double, region kernel:
+// within 0.500097 ulp for normal results, proved (tools/math/
+// region_certificate.py, exact rational accounting of every rounding). A result below the smallest normal returns zero of
 // its sign (stx_auxlib's kernel rounded those on the subnormal grid, 1 ulp
 // off on 6 of 20 million); a subnormal x is read as zero of its sign (the
 // Annex F zero cases then apply: pow(subnormal, -1) = +infinity), and a
-// subnormal y as zero (pow(x, subnormal) = 1). Float: correctly rounded at
-// every sampled pair (the double result rounded once), then flushed.
+// subnormal y as zero (pow(x, subnormal) = 1). Float, today's kernel (the
+// default): a cheap double kernel certified for rounding, else the double
+// result (within 0.576 ulp) rounded once, then flushed. By that analysis
+// (argued, not machine checked): correctly rounded at every pair whose x^y
+// is not within 2^-52.7 (relative) of a float midpoint, at every exact
+// result and exact midpoint, and at every pair with integer y in [1, 40]
+// (an exact sweep of x^n near midpoints, tools/math/pow_float_midpoints.py).
+// Not proved: the other pairs within 2^-52.7 of a midpoint; correct at
+// every sampled pair. Float, region kernel (round, test, decide): proved
+// (tools/math/region_certificate.py, tools/math/
+// pow_float_accurate_certificate.py, exact rational arithmetic) correctly
+// rounded at every pair whose x^y is not within 2^-94 of a float midpoint,
+// at every exact result and exact midpoint (detected exactly), and at every
+// integer y in [1, 40]. Not proved: a pair within 2^-94 of a midpoint
+// without being one; none is known (no published complete list of binary32
+// pow's hard cases exists to check against).
 [[nodiscard]] double pow(double x, double y) noexcept;
 [[nodiscard]] float pow(float x, float y) noexcept;
 
@@ -111,7 +154,10 @@ void sincos(double x, double& s, double& c) noexcept;
 // input: an infinite operand gives +infinity even when the other is NaN
 // (Annex F), otherwise NaN gives NaN; hypot(x, +-0) = |x|. Subnormal
 // operands are read as zero: hypot of two subnormals is +0. Accuracy: see
-// tests/math_tests.cpp.
+// tests/math_tests.cpp. Float, region kernel (the default): correctly
+// rounded for every pair, by construction (the exact a^2 + b^2, its square
+// root rounded, and the rounding decided exactly against the midpoint);
+// today's kernel: correctly rounded at every sampled pair (100,000,000).
 [[nodiscard]] double hypot(double x, double y) noexcept;
 [[nodiscard]] float hypot(float x, float y) noexcept;
 
@@ -133,9 +179,11 @@ void sincos(double x, double& s, double& c) noexcept;
 [[nodiscard]] float acos(float x) noexcept;
 
 // tan x for |x| <= 2^32 (refused above, as for sincos). Below 2^-27
-// tan x = x (sign of zero kept); a subnormal x gives zero of its sign. Double: within 0.51 ulp for every double
-// 2^-27 <= |x| <= 2^32, proved as for sincos (measured worst 0.500154 ulp
-// over the sampled regions). Float: correctly rounded, checked exhaustively
+// tan x = x (sign of zero kept); a subnormal x gives zero of its sign.
+// Double: within 0.51 ulp for every double 2^-27 <= |x| <= 2^32 on both
+// paths, proved as for sincos (today's kernel measured worst 0.500154 ulp
+// over the sampled regions; the region kernel, the default, not yet
+// measured). Float: correctly rounded, checked exhaustively
 // against the test reference for |x| <= 2^20, sampled above.
 [[nodiscard]] double tan(double x) noexcept;
 [[nodiscard]] float tan(float x) noexcept;
@@ -165,5 +213,31 @@ void sincos(double x, double& s, double& c) noexcept;
 [[nodiscard]] float acosh(float x) noexcept;
 [[nodiscard]] double atanh(double x) noexcept;
 [[nodiscard]] float atanh(float x) noexcept;
+
+// 2^x. Float: correctly rounded for every float (proved: the core's bound,
+// tools/math/r1_certificate.py, and an exhaustive screen of every float on
+// the fast path, tests/math_completion_tests.cpp --exhaustive). Double:
+// within 0.5000001 ulp, proved (the certificate: 2^-79.9 relative before the one rounding). 2^n is exact for every
+// integer n with a normal result. Owns every input: +infinity above the
+// range, +0 for -infinity and for results below the smallest normal (the
+// subnormal rule), NaN for NaN; a subnormal x gives 1.
+[[nodiscard]] double exp2(double x) noexcept;
+[[nodiscard]] float exp2(float x) noexcept;
+
+// e^x - 1, accurate for x near 0. Float: correctly rounded for every float
+// (proved as exp2's). Double: within 0.5012 ulp, proved (2^-62.8 relative before the one rounding, in the series region below 2^-5). Owns every
+// input: expm1(+-0) = +-0, -1 for x below -38 and for -infinity, +infinity
+// above ln(DBL_MAX) (ln(FLT_MAX) for float), NaN for NaN; a subnormal x is
+// read as zero of its sign and gives that zero.
+[[nodiscard]] double expm1(double x) noexcept;
+[[nodiscard]] float expm1(float x) noexcept;
+
+// log(1 + x), accurate for x near 0. Float: correctly rounded for every
+// float (proved as exp2's). Double: within 0.5000001 ulp, proved (2^-75.8 relative). Owns
+// every input: log1p(+-0) = +-0, log1p(-1) = -infinity, NaN below -1 and for
+// NaN, +infinity for +infinity; a subnormal x is read as zero of its sign
+// and gives that zero. No result is subnormal.
+[[nodiscard]] double log1p(double x) noexcept;
+[[nodiscard]] float log1p(float x) noexcept;
 
 } // namespace stxlib::math

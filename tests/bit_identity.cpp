@@ -23,6 +23,7 @@
 #include "core/float_reduce.hpp"
 
 #include "core/checked.hpp"
+#include "algorithms/math/paths.hpp"
 #include "stxlib/math.hpp"
 #include "stxlib/numeric_text.hpp"
 #include "stxlib/random.hpp"
@@ -211,6 +212,36 @@ std::vector<float> float_inputs(const std::uint64_t seed) {
 
 // ---- Math -----------------------------------------------------------------------
 
+// The functions with two kernel paths (src/algorithms/math/paths.hpp) print
+// under the path the build's switches choose: `<item>` for today's kernel,
+// `<item>@region` for the region kernel. Each path has its own frozen line;
+// tools/compare_bit_identity.py accepts either path of an item.
+#if STXLIB_MATH_REGION_POW_DOUBLE
+#define STXLIB_POW_DOUBLE_ITEM "math.pow.double@region"
+#else
+#define STXLIB_POW_DOUBLE_ITEM "math.pow.double"
+#endif
+#if STXLIB_MATH_REGION_POW_FLOAT
+#define STXLIB_POW_FLOAT_ITEM "math.pow.float@region"
+#else
+#define STXLIB_POW_FLOAT_ITEM "math.pow.float"
+#endif
+#if STXLIB_MATH_REGION_LOG_FLOAT
+#define STXLIB_LOG_FLOAT_PATH "@region"
+#else
+#define STXLIB_LOG_FLOAT_PATH ""
+#endif
+#if STXLIB_MATH_REGION_HYPOT_FLOAT
+#define STXLIB_HYPOT_FLOAT_ITEM "math.hypot.float@region"
+#else
+#define STXLIB_HYPOT_FLOAT_ITEM "math.hypot.float"
+#endif
+#if STXLIB_MATH_REGION_TRIG_DOUBLE
+#define STXLIB_TRIG_DOUBLE_PATH "@region"
+#else
+#define STXLIB_TRIG_DOUBLE_PATH ""
+#endif
+
 struct UnaryDouble final {
     const char* item;
     double (*function)(double) noexcept;
@@ -245,7 +276,7 @@ void math_items() {
         {"math.atan.double", static_cast<DoubleFunction>(&math::atan)},
         {"math.asin.double", static_cast<DoubleFunction>(&math::asin)},
         {"math.acos.double", static_cast<DoubleFunction>(&math::acos)},
-        {"math.tan.double", static_cast<DoubleFunction>(&math::tan)},
+        {"math.tan.double" STXLIB_TRIG_DOUBLE_PATH, static_cast<DoubleFunction>(&math::tan)},
         {"math.cbrt.double", static_cast<DoubleFunction>(&math::cbrt)},
         {"math.sinh.double", static_cast<DoubleFunction>(&math::sinh)},
         {"math.cosh.double", static_cast<DoubleFunction>(&math::cosh)},
@@ -253,6 +284,11 @@ void math_items() {
         {"math.asinh.double", static_cast<DoubleFunction>(&math::asinh)},
         {"math.acosh.double", static_cast<DoubleFunction>(&math::acosh)},
         {"math.atanh.double", static_cast<DoubleFunction>(&math::atanh)},
+        {"math.exp2.double", static_cast<DoubleFunction>(&math::exp2)},
+        {"math.expm1.double", static_cast<DoubleFunction>(&math::expm1)},
+        {"math.log1p.double", static_cast<DoubleFunction>(&math::log1p)},
+        {"math.sin.double" STXLIB_TRIG_DOUBLE_PATH, static_cast<DoubleFunction>(&math::sin)},
+        {"math.cos.double" STXLIB_TRIG_DOUBLE_PATH, static_cast<DoubleFunction>(&math::cos)},
     };
     for (const UnaryDouble& entry : unary_doubles) {
         Digest digest;
@@ -268,10 +304,10 @@ void math_items() {
             digest.real(sine);
             digest.real(cosine);
         }
-        print("math.sincos.double", digest);
+        print("math.sincos.double" STXLIB_TRIG_DOUBLE_PATH, digest);
     }
     const BinaryDouble binary_doubles[] = {
-        {"math.pow.double", static_cast<DoublePair>(&math::pow)},
+        {STXLIB_POW_DOUBLE_ITEM, static_cast<DoublePair>(&math::pow)},
         {"math.hypot.double", static_cast<DoublePair>(&math::hypot)},
         {"math.atan2.double", static_cast<DoublePair>(&math::atan2)},
     };
@@ -289,9 +325,9 @@ void math_items() {
 
     const UnaryFloat unary_floats[] = {
         {"math.exp.float", static_cast<FloatFunction>(&math::exp)},
-        {"math.log.float", static_cast<FloatFunction>(&math::log)},
-        {"math.log2.float", static_cast<FloatFunction>(&math::log2)},
-        {"math.log10.float", static_cast<FloatFunction>(&math::log10)},
+        {"math.log.float" STXLIB_LOG_FLOAT_PATH, static_cast<FloatFunction>(&math::log)},
+        {"math.log2.float" STXLIB_LOG_FLOAT_PATH, static_cast<FloatFunction>(&math::log2)},
+        {"math.log10.float" STXLIB_LOG_FLOAT_PATH, static_cast<FloatFunction>(&math::log10)},
         {"math.atan.float", static_cast<FloatFunction>(&math::atan)},
         {"math.asin.float", static_cast<FloatFunction>(&math::asin)},
         {"math.acos.float", static_cast<FloatFunction>(&math::acos)},
@@ -303,6 +339,11 @@ void math_items() {
         {"math.asinh.float", static_cast<FloatFunction>(&math::asinh)},
         {"math.acosh.float", static_cast<FloatFunction>(&math::acosh)},
         {"math.atanh.float", static_cast<FloatFunction>(&math::atanh)},
+        {"math.exp2.float", static_cast<FloatFunction>(&math::exp2)},
+        {"math.expm1.float", static_cast<FloatFunction>(&math::expm1)},
+        {"math.log1p.float", static_cast<FloatFunction>(&math::log1p)},
+        {"math.sin.float", static_cast<FloatFunction>(&math::sin)},
+        {"math.cos.float", static_cast<FloatFunction>(&math::cos)},
     };
     for (const UnaryFloat& entry : unary_floats) {
         Digest digest;
@@ -321,8 +362,8 @@ void math_items() {
         print("math.sincos.float", digest);
     }
     const BinaryFloat binary_floats[] = {
-        {"math.pow.float", static_cast<FloatPair>(&math::pow)},
-        {"math.hypot.float", static_cast<FloatPair>(&math::hypot)},
+        {STXLIB_POW_FLOAT_ITEM, static_cast<FloatPair>(&math::pow)},
+        {STXLIB_HYPOT_FLOAT_ITEM, static_cast<FloatPair>(&math::hypot)},
         {"math.atan2.float", static_cast<FloatPair>(&math::atan2)},
     };
     for (const BinaryFloat& entry : binary_floats) {
