@@ -126,6 +126,7 @@
 #endif
 #include <mimalloc.h>
 #if !defined(_WIN32)
+// std-rules: allow(pthread) the mimalloc backend's POSIX cancellation guard (E1), compiled on POSIX hosts only
 #include <pthread.h>
 #endif
 #endif
