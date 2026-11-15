@@ -19,6 +19,15 @@
 // when the process is terminating), as " shutdown=<at detach>,<in destructor>
 // reserved=<0|1>". The STXlib fix for L-05 assumes the first value is 1
 // during a normal ExitProcess.
+//
+// The warm case (arm_detach_check's `warm`; the STXlib coordinator's account
+// of the refusals, sb3 c45750a: a thread with cached blocks is still served
+// at process end, and only a request that needs the slow path is refused):
+// before the loop above, the destructor asks for each of warm_sizes, which
+// the main thread cached before returning from main, and for one
+// warm_large_size block, and appends
+// " warm=<served>/<asked> large=<null|served>". The cold case appends
+// " warm=-".
 
 #include "allocator_exit.hpp"
 
@@ -92,6 +101,7 @@ void worker(const u32 seed) noexcept {
 
 struct DetachCheck final {
     char marker[marker_capacity] = {};
+    bool warm = false;
 
     DetachCheck() noexcept = default;
     DetachCheck(const DetachCheck&) = delete;
@@ -100,6 +110,19 @@ struct DetachCheck final {
     ~DetachCheck() {
         if (marker[0] == '\0') return;
         const int shutdown_in_destructor = shutdown_in_progress();
+        // The warm check first, so that nothing below changes the cache.
+        u32 warm_served = 0;
+        bool large_refused = false;
+        if (warm) {
+            for (const usize size : stxlib_allocator_exit::warm_sizes) {
+                void* const block = stxlib::memory::allocate(size, 16);
+                if (block != nullptr) warm_served = warm_served + 1;
+                stxlib::memory::release(block);
+            }
+            void* const large = stxlib::memory::allocate(stxlib_allocator_exit::warm_large_size, 16);
+            large_refused = large == nullptr;
+            stxlib::memory::release(large);
+        }
         u32 refused = 0;
         for (const usize size : worker_sizes) {
             void* const block = stxlib::memory::allocate(size, 64);
@@ -110,6 +133,13 @@ struct DetachCheck final {
         if (file == nullptr) std::abort();
         static_cast<void>(std::fprintf(file, "ok %u shutdown=%d,%d reserved=%d", refused, shutdown_at_detach,
                                        shutdown_in_destructor, reserved_at_detach));
+        if (warm) {
+            static_cast<void>(std::fprintf(file, " warm=%u/%u large=%s", warm_served,
+                                           static_cast<u32>(stxlib_allocator_exit::warm_size_count),
+                                           large_refused ? "null" : "served"));
+        } else {
+            static_cast<void>(std::fputs(" warm=-", file));
+        }
         static_cast<void>(std::fclose(file));
     }
 };
@@ -152,10 +182,11 @@ u32 start_workers(const u32 count) noexcept {
     return started;
 }
 
-void arm_detach_check(const char* const path) noexcept {
+void arm_detach_check(const char* const path, const bool warm) noexcept {
     const usize length = std::strlen(path);
     if (length >= marker_capacity) std::abort();
     std::memcpy(detach_check.marker, path, length + 1);
+    detach_check.warm = warm;
 }
 
 } // namespace stxlib_allocator_exit

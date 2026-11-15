@@ -12,14 +12,24 @@
 // (tests/allocator_exit_library.cpp); the run prints those values.
 // Sampled, not proved: a run that passes says only that no round met it.
 //
-// Usage: stxlib_allocator_exit_tests [rounds]     (the check; 20 rounds)
+// Two cases, `rounds` children each:
+//   cold  the main thread never allocates before returning, so every
+//         request at detach needs the slow path and may be refused;
+//   warm  the main thread allocates and releases warm_sizes blocks just
+//         before returning, so at detach (on that thread) those sizes must
+//         be served from its cache, while warm_large_size is still refused
+//         (the STXlib coordinator's account, sb3 c45750a).
+//
+// Usage: stxlib_allocator_exit_tests [rounds]     (the check; 20 rounds of each)
 //        stxlib_allocator_exit_tests child <marker-path>
+//        stxlib_allocator_exit_tests child-warm <marker-path>
 
 #include "allocator_exit.hpp"
 
 #include "stxlib/children.hpp"
 #include "stxlib/clocks.hpp"
 #include "stxlib/desktop.hpp"
+#include "stxlib/memory.hpp"
 #include "stxlib/path.hpp"
 #include "stxlib/text.hpp"
 
@@ -42,11 +52,14 @@ using stxlib::Duration;
 using stxlib::Result;
 using stxlib::TextView;
 using stxlib::u32;
+using stxlib::usize;
 
 constexpr u32 default_rounds = 20;
 constexpr u32 worker_count = 8;
 constexpr int child_run_milliseconds = 30;
 constexpr stxlib::i64 child_deadline_seconds = 10;
+// Blocks of each warm size the main thread allocates, then releases.
+constexpr usize warm_blocks_per_size = 4;
 
 TextView view_of(const std::string& text) {
     Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
@@ -54,23 +67,54 @@ TextView view_of(const std::string& text) {
     return result;
 }
 
-int run_child(const char* const marker) {
-    stxlib_allocator_exit::arm_detach_check(marker);
+// Fills the main thread's cache: blocks of every warm size, allocated and
+// then released by this thread, so they go back to its own pages.
+bool warm_main_thread() {
+    void* blocks[stxlib_allocator_exit::warm_size_count][warm_blocks_per_size] = {};
+    bool allocated = true;
+    for (usize kind = 0; kind < stxlib_allocator_exit::warm_size_count; ++kind) {
+        for (usize index = 0; index < warm_blocks_per_size; ++index) {
+            blocks[kind][index] = stxlib::memory::allocate(stxlib_allocator_exit::warm_sizes[kind], 16);
+            allocated = allocated && blocks[kind][index] != nullptr;
+        }
+    }
+    for (usize kind = 0; kind < stxlib_allocator_exit::warm_size_count; ++kind) {
+        for (usize index = 0; index < warm_blocks_per_size; ++index) stxlib::memory::release(blocks[kind][index]);
+    }
+    return allocated;
+}
+
+int run_child(const char* const marker, const bool warm) {
+    stxlib_allocator_exit::arm_detach_check(marker, warm);
     const u32 started = stxlib_allocator_exit::start_workers(worker_count);
     if (started != worker_count) return 2;
     std::this_thread::sleep_for(std::chrono::milliseconds(child_run_milliseconds));
+    if (warm && !warm_main_thread()) return 3;
     return 0;
 }
 
-bool marker_written(const std::string& marker) {
+// What a child's marker says: whether it was written ("ok ..."), and for the
+// warm case whether every warm size was served and the large request refused.
+struct MarkerReading final {
+    bool written{false};
+    bool warm_as_expected{false};
+};
+
+MarkerReading read_marker(const std::string& marker, const bool warm) {
+    MarkerReading reading{};
     std::FILE* const file = std::fopen(marker.c_str(), "rb");
-    if (file == nullptr) return false;
-    char content[64] = {};
+    if (file == nullptr) return reading;
+    char content[128] = {};
     const std::size_t count = std::fread(content, 1, sizeof(content) - 1, file);
     static_cast<void>(std::fclose(file));
-    const bool result = count >= 2 && std::strncmp(content, "ok", 2) == 0;
-    if (result && count > 2) std::printf("detach marker:%s\n", content + 2);
-    return result;
+    reading.written = count >= 2 && std::strncmp(content, "ok", 2) == 0;
+    if (reading.written && count > 2) std::printf("detach marker (%s):%s\n", warm ? "warm" : "cold", content + 2);
+    char expected[64] = {};
+    static_cast<void>(std::snprintf(expected, sizeof(expected), " warm=%u/%u large=null",
+                                    static_cast<u32>(stxlib_allocator_exit::warm_size_count),
+                                    static_cast<u32>(stxlib_allocator_exit::warm_size_count)));
+    reading.warm_as_expected = std::strstr(content, expected) != nullptr;
+    return reading;
 }
 
 // The library's DLL_PROCESS_DETACH writes `<marker>.detach` before it
@@ -86,7 +130,7 @@ void print_early_detach(const std::string& marker) {
     std::fprintf(stderr, "the hung child's detach began with: %s\n", content);
 }
 
-void rounds_end_cleanly(const u32 rounds) {
+void rounds_end_cleanly(const u32 rounds, const bool warm) {
     Result<stxlib::Path> self = stxlib::current_executable();
     CHECK(self.succeeded());
     if (self.failed()) return;
@@ -96,9 +140,10 @@ void rounds_end_cleanly(const u32 rounds) {
     u32 hung = 0;
     u32 unmarked = 0;
     u32 bad_status = 0;
+    u32 warm_unexpected = 0;
     for (u32 round = 0; round < rounds; ++round) {
         static_cast<void>(std::remove(marker.c_str()));
-        const std::string mode = "child";
+        const std::string mode = warm ? "child-warm" : "child";
         const stxlib::PathText argument_texts[] = {view_of(mode), view_of(marker)};
         const ChildRequest request{.program = view_of(program),
                                    .arguments = stxlib::View<stxlib::PathText>(argument_texts, 2),
@@ -122,26 +167,35 @@ void rounds_end_cleanly(const u32 rounds) {
             bad_status = bad_status + 1;
             std::fprintf(stderr, "round %u: the child ended with status %u\n", round, status == nullptr ? 0xffffffffu : *status);
         }
-        if (!marker_written(marker)) unmarked = unmarked + 1;
+        const MarkerReading reading = read_marker(marker, warm);
+        if (!reading.written) unmarked = unmarked + 1;
+        if (warm && reading.written && !reading.warm_as_expected) warm_unexpected = warm_unexpected + 1;
     }
     static_cast<void>(std::remove(marker.c_str()));
-    std::printf("allocator_exit: %u rounds, %u hung, %u bad status, %u without the detach marker\n", rounds, hung,
-                bad_status, unmarked);
+    std::printf("allocator_exit (%s): %u rounds, %u hung, %u bad status, %u without the detach marker, "
+                "%u warm markers not as expected\n",
+                warm ? "warm" : "cold", rounds, hung, bad_status, unmarked, warm_unexpected);
     CHECK(hung == 0);
     CHECK(bad_status == 0);
     CHECK(unmarked == 0);
+    CHECK(warm_unexpected == 0);
 }
 
 } // namespace
 
 int main(const int argument_count, const char* const* const arguments) {
     if (argument_count == 3 && std::strcmp(arguments[1], "child") == 0) {
-        const int status = run_child(arguments[2]);
+        const int status = run_child(arguments[2], false);
+        return status;
+    }
+    if (argument_count == 3 && std::strcmp(arguments[1], "child-warm") == 0) {
+        const int status = run_child(arguments[2], true);
         return status;
     }
     u32 rounds = default_rounds;
     if (argument_count == 2) rounds = static_cast<u32>(std::strtoul(arguments[1], nullptr, 10));
-    rounds_end_cleanly(rounds);
+    rounds_end_cleanly(rounds, false);
+    rounds_end_cleanly(rounds, true);
     const int status = stxlib_tests::finish("allocator_exit");
     return status;
 }
