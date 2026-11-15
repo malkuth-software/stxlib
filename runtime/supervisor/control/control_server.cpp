@@ -5,10 +5,13 @@
 
 #include <cassert>
 
+#include "../config/user_config.h"
+
 namespace stxcontrol {
 
 static_assert(stxconfig::services_max == services_listed_max, "a list response holds every service");
 static_assert(stxconfig::name_length_max == service_name_bytes_max, "wire names hold every configuration name");
+static_assert(stxconfig::config_size_max == config_text_max, "a configuration fits one request and one response");
 
 // ---------------------------------------------------------------------------
 // BootLogRead.
@@ -45,6 +48,51 @@ bool BootLogRead::is_absent() const noexcept {
 
 const BootLogFailed* BootLogRead::as_failed() const noexcept {
     return std::get_if<BootLogFailed>(&alternatives_);
+}
+
+// ---------------------------------------------------------------------------
+// UserConfigRead and ProgramAnswer.
+
+UserConfigRead::UserConfigRead(const Alternatives& alternatives) noexcept : alternatives_(alternatives) {}
+
+UserConfigRead UserConfigRead::text(ConfigSource source, std::uint32_t sequence, std::size_t size) noexcept {
+    UserConfigText state{};
+    state.source = source;
+    state.sequence = sequence;
+    state.size = size;
+    const UserConfigRead read(Alternatives(std::in_place_type<UserConfigText>, state));
+    return read;
+}
+
+UserConfigRead UserConfigRead::absent() noexcept {
+    const UserConfigRead read(Alternatives(std::in_place_type<UserConfigAbsent>));
+    return read;
+}
+
+UserConfigRead UserConfigRead::failed(int error_number) noexcept {
+    UserConfigFailed state{};
+    state.error_number = error_number;
+    const UserConfigRead read(Alternatives(std::in_place_type<UserConfigFailed>, state));
+    return read;
+}
+
+const UserConfigText* UserConfigRead::as_text() const noexcept {
+    return std::get_if<UserConfigText>(&alternatives_);
+}
+
+bool UserConfigRead::is_absent() const noexcept {
+    return std::holds_alternative<UserConfigAbsent>(alternatives_);
+}
+
+const UserConfigFailed* UserConfigRead::as_failed() const noexcept {
+    return std::get_if<UserConfigFailed>(&alternatives_);
+}
+
+ProgramAnswer program_answer(Status status) noexcept {
+    ProgramAnswer answer{};
+    answer.status = status;
+    answer.record = std::nullopt;
+    return answer;
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +215,38 @@ namespace {
     return Status::unavailable;
 }
 
+// Whether a program command's status carries the program's record.
+[[nodiscard]] bool status_carries_program(Status status) noexcept {
+    switch (status) {
+    case Status::ok:
+    case Status::busy:
+    case Status::signature_refused:
+    case Status::source_unavailable:
+        return true;
+    case Status::malformed:
+    case Status::not_permitted:
+    case Status::unknown_service:
+    case Status::already_running:
+    case Status::not_running:
+    case Status::spawn_failed:
+    case Status::refused_self:
+    case Status::unavailable:
+    case Status::config_refused:
+    case Status::unsupported:
+    case Status::store_failed:
+        return false;
+    default:
+        break;
+    }
+    // Fallback: an unknown status carries nothing.
+    return false;
+}
+
+[[nodiscard]] bool is_program_command(Command command) noexcept {
+    return command == Command::program_state || command == Command::program_install ||
+           command == Command::program_rollback || command == Command::program_check;
+}
+
 // Whether a status about an existing service carries its record.
 [[nodiscard]] bool status_carries_record(Status status) noexcept {
     switch (status) {
@@ -180,6 +260,12 @@ namespace {
     case Status::not_permitted:
     case Status::unknown_service:
     case Status::unavailable:
+    case Status::config_refused:
+    case Status::unsupported:
+    case Status::store_failed:
+    case Status::busy:
+    case Status::signature_refused:
+    case Status::source_unavailable:
         return false;
     default:
         break;
@@ -194,8 +280,112 @@ namespace {
 // ControlServer.
 
 ControlServer::ControlServer(stxconfig::ServiceRegistry& registry, stxconfig::ServiceActions& actions,
-                             ControlSystem& system) noexcept
-    : registry_(registry), actions_(actions), system_(system), payload_{} {}
+                             ControlSystem& system, const stxconfig::BootConfig& factory) noexcept
+    : registry_(registry), actions_(actions), system_(system), factory_(factory), written_since_start_(false),
+      payload_{}, check_() {}
+
+Status ControlServer::read_config(std::size_t& payload_size) noexcept {
+    const std::span<std::uint8_t> payload(payload_, sizeof(payload_));
+    const std::span<std::uint8_t> text_area = payload.subspan(config_text_header_bytes, config_text_max);
+    // char may alias the bytes.
+    const std::span<char> destination(reinterpret_cast<char*>(text_area.data()), text_area.size());
+    const UserConfigRead read = system_.read_user_config(destination);
+    const UserConfigText* const text = read.as_text();
+    if (text != nullptr && (*text).size <= destination.size() && (*text).source != ConfigSource::none &&
+        (*text).sequence != 0u) {
+        payload_size =
+            encode_config_text_header((*text).source, written_since_start_, (*text).sequence, payload) + (*text).size;
+        return Status::ok;
+    }
+    if (read.is_absent()) {
+        payload_size = encode_config_text_header(ConfigSource::none, false, 0u, payload);
+        return Status::ok;
+    }
+    payload_size = 0;
+    return Status::unavailable;
+}
+
+Status ControlServer::write_config(std::span<const std::uint8_t> text, std::size_t& payload_size) noexcept {
+    const std::span<std::uint8_t> payload(payload_, sizeof(payload_));
+    // char may alias the bytes.
+    const std::span<const char> characters(reinterpret_cast<const char*>(text.data()), text.size());
+    const stxconfig::ParseOutcome parsed = stxconfig::parse_boot_config(characters, check_);
+    const stxconfig::ParseFailed* const failure = parsed.as_failure();
+    if (failure != nullptr) {
+        ConfigRefusal refusal{};
+        refusal.line = (*failure).line;
+        refusal.column = (*failure).column;
+        refusal.kind = RefusalKind::parse;
+        refusal.code = static_cast<std::uint8_t>((*failure).error);
+        payload_size = encode_config_refusal(refusal, payload);
+        return Status::config_refused;
+    }
+    const std::optional<stxconfig::UserRuleBroken> broken = stxconfig::check_user_config(check_, factory_);
+    if (broken.has_value()) {
+        ConfigRefusal refusal{};
+        refusal.line = (*broken).line;
+        refusal.column = (*broken).column;
+        refusal.kind = RefusalKind::user_rule;
+        refusal.code = static_cast<std::uint8_t>((*broken).rule);
+        payload_size = encode_config_refusal(refusal, payload);
+        return Status::config_refused;
+    }
+    ConfigWritten written{};
+    const Status status = system_.write_user_config(characters, written);
+    if (status != Status::ok) {
+        payload_size = 0;
+        return Status::store_failed;
+    }
+    written_since_start_ = true;
+    payload_size = encode_config_written(written, payload);
+    return Status::ok;
+}
+
+Status ControlServer::program(const Request& request, std::size_t& payload_size) noexcept {
+    const std::span<std::uint8_t> payload(payload_, sizeof(payload_));
+    ProgramAnswer answer = program_answer(Status::unsupported);
+    switch (request.command) {
+    case Command::program_state:
+        answer = system_.program_state(request.name);
+        break;
+    case Command::program_install: {
+        const std::optional<InstallSource> source = decode_install_source(request.payload);
+        // Decoding the request already checked the payload.
+        if (!source.has_value()) {
+            payload_size = 0;
+            return Status::malformed;
+        }
+        answer = system_.program_install(request.name, *source);
+        break;
+    }
+    case Command::program_rollback:
+        answer = system_.program_rollback(request.name);
+        break;
+    case Command::program_check:
+        answer = system_.program_check(request.name);
+        break;
+    default:
+        // Fallback: only program commands come here.
+        payload_size = 0;
+        return Status::malformed;
+    }
+    payload_size = 0;
+    if (answer.record.has_value() && status_carries_program(answer.status)) {
+        // A record about another target is the host side's fault: the
+        // answer is withheld rather than passed on.
+        if (!service_names_equal((*answer.record).name, request.name)) {
+            return Status::unavailable;
+        }
+        payload_size = encode_program_record(*answer.record, payload);
+        // The same rules decoding keeps; a record that breaks them is
+        // withheld.
+        if (!decode_program_record(std::span<const std::uint8_t>(payload_, payload_size)).has_value()) {
+            payload_size = 0;
+            return Status::unavailable;
+        }
+    }
+    return answer.status;
+}
 
 std::size_t ControlServer::encode_record_of(std::size_t index, std::uint64_t now_ms,
                                             std::span<std::uint8_t> out) const noexcept {
@@ -215,6 +405,7 @@ std::size_t ControlServer::encode_record_of(std::size_t index, std::uint64_t now
     record.control = access_code_of(definition.control);
     record.restart_count = saturate_u32(registry_.account(index).restart_count);
     record.restart_pending = false;
+    record.stopped_by_request = state.is_stopped_by_request();
     record.pid = 0;
     record.state_ms = 0;
     record.state = ServiceStateCode::stopped;
@@ -350,13 +541,42 @@ ControlHandled ControlServer::handle(std::span<const std::uint8_t> frame, int re
             }
             break;
         }
+        case Command::config_read:
+            header.status = read_config(payload_size);
+            break;
+        case Command::config_write:
+            header.status = write_config((*request).payload, payload_size);
+            break;
+        case Command::reboot:
+            system_.request_reboot();
+            break;
+        case Command::program_state:
+        case Command::program_install:
+        case Command::program_rollback:
+        case Command::program_check:
+            header.status = program(*request, payload_size);
+            break;
+        case Command::system_update:
+            header.status = system_.system_update();
+            break;
+        case Command::operation_state: {
+            const OperationRecord record = system_.operation_state();
+            if (operation_record_valid(record)) {
+                payload_size = encode_operation_record(record, payload);
+            } else {
+                // The host side's record breaks the format: withheld.
+                header.status = Status::unavailable;
+            }
+            break;
+        }
         default:
             // Fallback: decoding admits only known commands.
             header.status = Status::malformed;
             break;
         }
         // Commands about one service answer with its record when it exists.
-        if (command_takes_name((*request).command) && status_carries_record(header.status)) {
+        if (command_takes_name((*request).command) && !is_program_command((*request).command) &&
+            status_carries_record(header.status)) {
             const std::optional<std::size_t> after = registry_.find(name);
             if (after.has_value()) {
                 payload_size = encode_record_of(*after, now_ms, payload);

@@ -18,7 +18,8 @@
 // ps_sigignore and td_sigmask checks; read 2026-11-13, line to cite).
 //
 // System calls: kqueue, kevent, socketpair, fcntl, recv, send, close,
-// open, fstat, pread. Hosted on FreeBSD's libc for C2's first form.
+// open, fstat, pread, and the turn files' (store/turn_file_system.h).
+// Hosted on FreeBSD's libc for C2's first form.
 //
 // Console lines:
 //   STXSUPERVISOR control queue failed errno=<n>
@@ -36,6 +37,7 @@
 
 #include "config/service_registry.h"
 #include "config/system_actions.h"
+#include "../store/turn_file.h"
 #include "control/control_protocol.h"
 #include "control/control_server.h"
 
@@ -97,18 +99,40 @@ private:
     // Between prepare_channel and channel_started or channel_abandoned.
     int pending_parent_;
     int pending_child_;
-    // One received packet: a request is 48 bytes; anything larger arrives
-    // cut to this size and is refused as malformed.
-    std::uint8_t request_[2u * stxcontrol::request_frame_bytes];
+    // One received packet: a request is at most request_frame_bytes_max
+    // bytes; a larger one arrives cut to this size (SOCK_SEQPACKET
+    // discards the rest) and is refused as malformed.
+    std::uint8_t request_[stxcontrol::request_frame_bytes_max + 1u];
     std::uint8_t response_[stxcontrol::response_frame_bytes_max];
 };
 
-// The boot log on the user partition (boot_slots_system.h,
-// boot_log_path), read for the control server.
+// The control server's system: the boot log on the user partition
+// (boot_slots_system.h, boot_log_path), the user configuration's turn
+// files (config/user_config.h), the reboot request, and, until the host
+// side implements them (sb2's C2 note), unsupported program and
+// system-update commands. Large (two turn-file buffers): static storage.
 class SystemControl final : public stxcontrol::ControlSystem {
 public:
-    SystemControl() noexcept = default;
+    SystemControl() noexcept;
     [[nodiscard]] stxcontrol::BootLogRead read_boot_log_end(std::span<char> destination) noexcept override;
+    [[nodiscard]] stxcontrol::UserConfigRead read_user_config(std::span<char> destination) noexcept override;
+    [[nodiscard]] stxcontrol::Status write_user_config(std::span<const char> text,
+                                                       stxcontrol::ConfigWritten& written) noexcept override;
+    void request_reboot() noexcept override;
+    [[nodiscard]] stxcontrol::ProgramAnswer program_state(const stxcontrol::ServiceName& target) noexcept override;
+    [[nodiscard]] stxcontrol::ProgramAnswer program_install(const stxcontrol::ServiceName& target,
+                                                            const stxcontrol::InstallSource& source) noexcept override;
+    [[nodiscard]] stxcontrol::ProgramAnswer program_rollback(const stxcontrol::ServiceName& target) noexcept override;
+    [[nodiscard]] stxcontrol::ProgramAnswer program_check(const stxcontrol::ServiceName& target) noexcept override;
+    [[nodiscard]] stxcontrol::Status system_update() noexcept override;
+    [[nodiscard]] stxcontrol::OperationRecord operation_state() noexcept override;
+
+    // Whether a reboot was asked for (the main loop reboots).
+    [[nodiscard]] bool reboot_requested() const noexcept;
+
+private:
+    bool reboot_requested_;
+    char turn_buffers_[2][stxstore::turn_file_bytes_max + 1u];
 };
 
 }  // namespace stxsupervisor

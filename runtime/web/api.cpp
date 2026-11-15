@@ -571,7 +571,6 @@ void Api::route_api(const ApiRequest& request, ApiResponse& response) noexcept {
         }
     }
 
-    document_ = {};
     if (request.method == Method::post) {
         if (!request.content_type.has_value() || !content_type_is_json(*request.content_type)) {
             respond_error(response, 415, "unsupported_media_type");

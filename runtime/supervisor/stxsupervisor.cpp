@@ -67,6 +67,8 @@
 //   STXSUPERVISOR service <name> started | exited | ...   (system_actions.h)
 //   STXSUPERVISOR terminate done ... | failed errno=<n> | unavailable   (shim_client.h)
 //   STXSUPERVISOR stop services=<stopped|left-running>
+//   STXSUPERVISOR reboot services=<stopped|left-running>   (asked on the control channel)
+//   STXSUPERVISOR reboot failed errno=<n>
 //   STXSUPERVISOR control ...   (control_channels.h)
 //
 // Signals stay blocked and are taken with sigwaitinfo, as in stxinit.
@@ -81,6 +83,7 @@
 #include <span>
 
 #include <signal.h>
+#include <sys/reboot.h>
 #include <sys/wait.h>
 #include <time.h>
 #include <unistd.h>
@@ -123,7 +126,9 @@ stxconfig::SystemServiceActions service_actions(STDOUT_FILENO);
 // spawn (static too).
 ControlChannels control_channels(STDOUT_FILENO);
 SystemControl control_system;
-stxcontrol::ControlServer control_server(service_registry, service_actions, control_system);
+// config_write checks target names against the configuration this boot
+// loaded (boot_config: the factory configuration, or the failsafe one).
+stxcontrol::ControlServer control_server(service_registry, service_actions, control_system, boot_config);
 // The signals the main loop takes; the kqueue watches the same ones.
 const int handled_signals[] = {SIGTERM, SIGINT, SIGHUP, SIGCHLD, SIGUSR1};
 
@@ -295,6 +300,11 @@ void check_good_boot(int console, std::uint64_t now_ms) noexcept {
             item.state = stxboot::ServiceStateKind::waiting;
         } else if (state.as_stopping() != nullptr) {
             item.state = stxboot::ServiceStateKind::stopping;
+        } else if (state.is_stopped_by_request()) {
+            // C2: a service stopped by request (from the web interface) is
+            // what its operator wanted, so it does not make the boot bad
+            // (C2-web.md, owner question 2, built as recommended).
+            item.state = stxboot::ServiceStateKind::running;
         } else {
             item.state = stxboot::ServiceStateKind::stopped;
         }
@@ -371,7 +381,10 @@ constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
 
 // SIGTERM: stop every service, wait for them within stop_wait_ms, then
 // stop. A service still running then is left to stxinit's SIGKILL.
-[[noreturn]] void stop(const sigset_t& blocked) noexcept {
+// then_reboot (a reboot asked on the control channel, C2): instead of
+// exiting, sync and reboot; reboot(2) kills what is left. If the reboot
+// fails the supervisor exits, and stxinit restarts it.
+[[noreturn]] void stop(const sigset_t& blocked, bool then_reboot) noexcept {
     service_registry.stop_all(stxconfig::monotonic_milliseconds(), service_actions);
     const std::uint64_t polls_max = stop_wait_ms / stop_poll_ms;
     for (std::uint64_t poll = 0; poll < polls_max && !service_registry.all_stopped(); poll += 1) {
@@ -382,9 +395,20 @@ constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
         service_registry.tick(stxconfig::monotonic_milliseconds(), service_actions);
     }
     LineText line = stxruntime::empty_line();
-    stxruntime::append_text(line, "STXSUPERVISOR stop services=");
+    stxruntime::append_text(line, then_reboot ? "STXSUPERVISOR reboot services=" : "STXSUPERVISOR stop services=");
     stxruntime::append_text(line, service_registry.all_stopped() ? "stopped\n" : "left-running\n");
     stxruntime::write_line(STDOUT_FILENO, line);
+    if (then_reboot) {
+        sync();
+        (void)reboot(RB_AUTOBOOT);
+        const int error_number = errno;
+        LineText failed = stxruntime::empty_line();
+        stxruntime::append_text(failed, "STXSUPERVISOR reboot failed errno=");
+        stxruntime::append_decimal(failed, static_cast<std::uint64_t>(static_cast<unsigned int>(error_number)));
+        stxruntime::append_text(failed, "\n");
+        stxruntime::write_line(STDOUT_FILENO, failed);
+        _exit(EXIT_FAILURE);
+    }
     _exit(EXIT_SUCCESS);
 }
 
@@ -416,7 +440,7 @@ void terminate(const ShimRegistration& shim) noexcept {
 // One signal taken from the blocked set.
 void take_signal(int signal_number, const sigset_t& blocked, const ShimRegistration& shim) noexcept {
     if (signal_number == SIGTERM) {
-        stop(blocked);
+        stop(blocked, false);
     }
     if (signal_number == SIGUSR1) {
         terminate(shim);
@@ -480,6 +504,10 @@ void take_pending_signals(const sigset_t& blocked, const ShimRegistration& shim)
             const stxcontrol::ControlFacts facts = control_facts();
             control_channels.serve(control_server, facts, stxconfig::monotonic_milliseconds(), service_registry);
             control_channels.sweep(service_registry);
+            // A reboot asked for in this round: its response has been sent.
+            if (control_system.reboot_requested()) {
+                stop(blocked, true);
+            }
             continue;
         }
         const timespec timeout = timeout_of(wait_ms);

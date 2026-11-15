@@ -38,7 +38,16 @@ const SpawnFailed* SpawnOutcome::as_spawn_failed() const noexcept {
 ServiceState::ServiceState(const Alternatives& alternatives) noexcept : alternatives_(alternatives) {}
 
 ServiceState ServiceState::stopped() noexcept {
-    const ServiceState state(Alternatives(std::in_place_type<ServiceStopped>));
+    ServiceStopped stopped{};
+    stopped.by_request = false;
+    const ServiceState state(Alternatives(std::in_place_type<ServiceStopped>, stopped));
+    return state;
+}
+
+ServiceState ServiceState::stopped_by_request() noexcept {
+    ServiceStopped stopped{};
+    stopped.by_request = true;
+    const ServiceState state(Alternatives(std::in_place_type<ServiceStopped>, stopped));
     return state;
 }
 
@@ -71,6 +80,11 @@ ServiceState ServiceState::stopping(int pid, std::uint64_t started_ms, std::uint
 
 bool ServiceState::is_stopped() const noexcept {
     return std::holds_alternative<ServiceStopped>(alternatives_);
+}
+
+bool ServiceState::is_stopped_by_request() const noexcept {
+    const ServiceStopped* const stopped = std::get_if<ServiceStopped>(&alternatives_);
+    return stopped != nullptr && (*stopped).by_request;
 }
 
 const ServiceRunning* ServiceState::as_running() const noexcept {
@@ -317,7 +331,7 @@ bool ServiceRegistry::child_exited(int pid, int wait_status, std::uint64_t now_m
             if (start_after) {
                 event.next_in_ms = 0;
             }
-            candidate.state = ServiceState::stopped();
+            candidate.state = start_after ? ServiceState::stopped() : ServiceState::stopped_by_request();
             actions.report(event);
             if (start_after) {
                 // A restart by request: a fresh account, started now. From
@@ -396,7 +410,7 @@ void ServiceRegistry::stop_all(std::uint64_t now_ms, ServiceActions& actions) no
     for (std::size_t index = 0; index < entry_count_; index += 1) {
         Entry& candidate = entry(index);
         if (candidate.state.as_waiting() != nullptr) {
-            candidate.state = ServiceState::stopped();
+            candidate.state = ServiceState::stopped_by_request();
             continue;
         }
         if (candidate.state.as_running() != nullptr) {
@@ -422,7 +436,7 @@ StopResult ServiceRegistry::stop(const char* name, std::uint64_t now_ms, Service
         return StopResult::stopping;
     }
     if (item.state.as_waiting() != nullptr) {
-        item.state = ServiceState::stopped();
+        item.state = ServiceState::stopped_by_request();
         return StopResult::stopped;
     }
     if (item.state.as_stopping() != nullptr) {

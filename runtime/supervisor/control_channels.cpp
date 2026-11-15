@@ -14,7 +14,9 @@
 #include <unistd.h>
 
 #include "../common/console_line.h"
+#include "../store/turn_file_system.h"
 #include "boot_slots_system.h"
+#include "config/user_config.h"
 
 namespace stxsupervisor {
 
@@ -224,14 +226,24 @@ void ControlChannels::report_request(const stxcontrol::ControlHandled& handled, 
         const stxcontrol::ResponseOutcome response = stxcontrol::decode_response(
             std::span<const std::uint8_t>(response_, handled.response_size));
         const stxcontrol::ResponseView* const view = response.as_view();
+        std::optional<stxcontrol::ServiceName> named;
         if (view != nullptr && (*view).payload.size() == stxcontrol::service_record_bytes) {
             const std::optional<stxcontrol::ServiceRecord> record = stxcontrol::decode_service_record((*view).payload);
             if (record.has_value()) {
-                char target[stxcontrol::service_name_bytes_max + 1];
-                stxcontrol::service_name_c_string((*record).name, target);
-                stxruntime::append_text(line, " ");
-                stxruntime::append_text(line, target);
+                named = (*record).name;
             }
+        }
+        if (view != nullptr && (*view).payload.size() == stxcontrol::program_record_bytes) {
+            const std::optional<stxcontrol::ProgramRecord> record = stxcontrol::decode_program_record((*view).payload);
+            if (record.has_value()) {
+                named = (*record).name;
+            }
+        }
+        if (named.has_value()) {
+            char target[stxcontrol::service_name_bytes_max + 1];
+            stxcontrol::service_name_c_string(*named, target);
+            stxruntime::append_text(line, " ");
+            stxruntime::append_text(line, target);
         }
     }
     stxruntime::append_text(line, " status=");
@@ -271,10 +283,11 @@ void ControlChannels::serve(stxcontrol::ControlServer& server, const stxcontrol:
             const std::span<std::uint8_t> response(response_, sizeof(response_));
             const stxcontrol::ControlHandled handled = server.handle(frame, channel.pid, facts, now_ms, response);
             report_request(handled, channel.pid, registry);
-            // One request is outstanding at a time and a response is far
-            // smaller than the socket's buffer, so the send completes or the
-            // service has broken the protocol (or gone): either way a failed
-            // send closes the channel. MSG_NOSIGNAL: no SIGPIPE.
+            // One request is outstanding at a time and a response is smaller
+            // than the socket's buffer (64 KiB at the pin;
+            // control_protocol.h), so the send completes or the service has
+            // broken the protocol (or gone): either way a failed send closes
+            // the channel. MSG_NOSIGNAL: no SIGPIPE.
             const ssize_t sent = send(channel.descriptor, response_, handled.response_size, MSG_NOSIGNAL);
             if (sent < 0 || static_cast<std::size_t>(sent) != handled.response_size) {
                 keep = false;
@@ -365,6 +378,105 @@ stxcontrol::BootLogRead SystemControl::read_boot_log_end(std::span<char> destina
         total += static_cast<std::size_t>(got);
     }
     return stxcontrol::BootLogRead::text(total, start > 0u);
+}
+
+// ---------------------------------------------------------------------------
+// SystemControl: the user configuration, the reboot, the host side's part.
+
+namespace {
+
+const stxstore::TurnPaths user_config_paths = {
+    stxconfig::user_config_directory,
+    {stxconfig::user_config_path_0, stxconfig::user_config_path_1},
+};
+
+}  // namespace
+
+SystemControl::SystemControl() noexcept : reboot_requested_(false), turn_buffers_{} {}
+
+stxcontrol::UserConfigRead SystemControl::read_user_config(std::span<char> destination) noexcept {
+    const stxstore::TurnState state =
+        stxstore::read_turns(user_config_paths, stxcontrol::config_text_max,
+                             std::span<char>(turn_buffers_[0], sizeof(turn_buffers_[0])),
+                             std::span<char>(turn_buffers_[1], sizeof(turn_buffers_[1])));
+    if (!state.choice.newest.has_value()) {
+        // Neither file holds a turn: absent, unless reading one failed
+        // for another reason than its absence.
+        const int error_number = state.errors[0] != 0 ? state.errors[0] : state.errors[1];
+        if (error_number != 0) {
+            return stxcontrol::UserConfigRead::failed(error_number);
+        }
+        return stxcontrol::UserConfigRead::absent();
+    }
+    const std::size_t newest = *state.choice.newest;
+    const stxstore::TurnView& turn = *state.turns[newest];
+    if (turn.body.size() > destination.size()) {
+        return stxcontrol::UserConfigRead::failed(EFBIG);
+    }
+    for (std::size_t index = 0; index < turn.body.size(); index += 1) {
+        destination[index] = turn.body[index];
+    }
+    const stxcontrol::ConfigSource source = newest == 0u ? stxcontrol::ConfigSource::file_0
+                                                         : stxcontrol::ConfigSource::file_1;
+    return stxcontrol::UserConfigRead::text(source, turn.sequence, turn.body.size());
+}
+
+stxcontrol::Status SystemControl::write_user_config(std::span<const char> text,
+                                                    stxcontrol::ConfigWritten& written) noexcept {
+    // Choose from the files as they are now, not as an earlier read saw
+    // them.
+    const stxstore::TurnState state =
+        stxstore::read_turns(user_config_paths, stxcontrol::config_text_max,
+                             std::span<char>(turn_buffers_[0], sizeof(turn_buffers_[0])),
+                             std::span<char>(turn_buffers_[1], sizeof(turn_buffers_[1])));
+    const stxstore::TurnWriteOutcome outcome = stxstore::write_turn(user_config_paths, state.choice, text, 0600u);
+    const stxstore::TurnWritten* const done = outcome.as_written();
+    if (done == nullptr) {
+        return stxcontrol::Status::store_failed;
+    }
+    written.sequence = (*done).sequence;
+    written.file_index = static_cast<std::uint8_t>((*done).file_index);
+    return stxcontrol::Status::ok;
+}
+
+void SystemControl::request_reboot() noexcept {
+    reboot_requested_ = true;
+}
+
+bool SystemControl::reboot_requested() const noexcept {
+    return reboot_requested_;
+}
+
+// The host side's part (sb2's C2 note: targets K11, packages K12 and K13,
+// downloads K14, the system updater K5) replaces these.
+stxcontrol::ProgramAnswer SystemControl::program_state(const stxcontrol::ServiceName& target) noexcept {
+    (void)target;
+    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+}
+
+stxcontrol::ProgramAnswer SystemControl::program_install(const stxcontrol::ServiceName& target,
+                                                         const stxcontrol::InstallSource& source) noexcept {
+    (void)target;
+    (void)source;
+    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+}
+
+stxcontrol::ProgramAnswer SystemControl::program_rollback(const stxcontrol::ServiceName& target) noexcept {
+    (void)target;
+    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+}
+
+stxcontrol::ProgramAnswer SystemControl::program_check(const stxcontrol::ServiceName& target) noexcept {
+    (void)target;
+    return stxcontrol::program_answer(stxcontrol::Status::unsupported);
+}
+
+stxcontrol::Status SystemControl::system_update() noexcept {
+    return stxcontrol::Status::unsupported;
+}
+
+stxcontrol::OperationRecord SystemControl::operation_state() noexcept {
+    return stxcontrol::operation_none();
 }
 
 }  // namespace stxsupervisor

@@ -137,6 +137,11 @@ protected:
 // Service states.
 
 struct ServiceStopped {
+    // Stopped by a stop request (the control channel's stop, or stop_all),
+    // as opposed to never started or exited under its restart policy. The
+    // good-boot rule counts such a service as healthy (C2-web.md, owner
+    // question 2, built as recommended).
+    bool by_request;
 };
 struct ServiceRunning {
     int pid;
@@ -157,12 +162,14 @@ struct ServiceStopping {
 class ServiceState {
 public:
     [[nodiscard]] static ServiceState stopped() noexcept;
+    [[nodiscard]] static ServiceState stopped_by_request() noexcept;
     [[nodiscard]] static ServiceState running(int pid, std::uint64_t started_ms) noexcept;
     [[nodiscard]] static ServiceState waiting(std::uint64_t start_at_ms) noexcept;
     [[nodiscard]] static ServiceState stopping(int pid, std::uint64_t started_ms, std::uint64_t kill_at_ms,
                                                bool kill_sent, bool start_after) noexcept;
 
     [[nodiscard]] bool is_stopped() const noexcept;
+    [[nodiscard]] bool is_stopped_by_request() const noexcept;
     [[nodiscard]] const ServiceRunning* as_running() const noexcept;
     [[nodiscard]] const ServiceWaiting* as_waiting() const noexcept;
     [[nodiscard]] const ServiceStopping* as_stopping() const noexcept;
