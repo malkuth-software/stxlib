@@ -14,6 +14,7 @@
 
 #include "stxlib/thread_pool.hpp"
 
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/threads.hpp"
@@ -50,6 +51,11 @@ struct AtomicPool::State final {
     // run_lock is held from begin until wait. Only the thread that called
     // begin reads or writes this.
     bool batch_open{false};
+    // The thread that holds the open asynchronous batch (its identity's
+    // value), 0 when none. Written by that thread only, after taking
+    // run_lock in begin and before releasing it in wait; read by any thread,
+    // which finds its own identity there only if it holds the batch.
+    std::atomic<u64> batch_owner{0};
 };
 
 namespace {
@@ -75,6 +81,17 @@ bool batch_finished(const void* const address) noexcept {
     const AtomicPool::State& pool = *static_cast<const AtomicPool::State*>(address);
     const bool result = pool.pending.load(std::memory_order_acquire) == 0;
     return result;
+}
+
+// A call that would deadlock on run_lock, which this thread holds for its
+// open batch: a defect, recorded and failed fast (S2).
+void check_not_batch_owner(const AtomicPool::State& pool, const Operation operation) noexcept {
+    if (pool.batch_owner.load(std::memory_order_relaxed) != current_thread().value()) return;
+    const ErrorRecord record = ErrorRecord::make(
+        ErrorKind::invalid_argument, operation,
+        ErrorDetail{.code = static_cast<u32>(PoolFailure::batch_still_open),
+                    .message = "this thread's asynchronous batch is still open; call wait first"});
+    fail_fast(record);
 }
 
 ErrorRecord refusal(const PoolFailure failure, const Operation operation) noexcept {
@@ -165,6 +182,13 @@ Status validate_batch(const View<PoolTask> tasks, const Operation operation) noe
 void destroy_state(AtomicPool::State* const state) noexcept {
     if (state == nullptr) return;
     AtomicPool::State& owned = *state;
+    if (owned.batch_owner.load(std::memory_order_relaxed) != 0) {
+        const ErrorRecord record = ErrorRecord::make(
+            ErrorKind::invalid_argument, "stxlib.thread_pool.destroy",
+            ErrorDetail{.code = static_cast<u32>(PoolFailure::batch_still_open),
+                        .message = "an AtomicPool was destroyed with an asynchronous batch open"});
+        fail_fast(record);
+    }
     {
         const ScopedLock run(owned.run_lock);
         stop_workers(owned);
@@ -192,6 +216,11 @@ AtomicPool& AtomicPool::operator=(AtomicPool&& other) noexcept {
 Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     const Operation operation = "stxlib.thread_pool.create";
     if (thread_count == 0) return Result<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
+    if (thread_count > maximum_pool_threads) {
+        return Result<AtomicPool>::failure(refusal(PoolFailure::too_many_threads, operation));
+    }
+    static_assert(static_cast<u64>(maximum_pool_threads) * sizeof(Thread) <= usize_max,
+                  "the largest thread table's size is representable");
     const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, operation);
     void* const block = memory::allocate(sizeof(State), alignof(State));
     if (block == nullptr) return Result<AtomicPool>::failure(exhausted);
@@ -227,6 +256,8 @@ u32 AtomicPool::thread_count() const noexcept {
 Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.run";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    check_not_batch_owner(*state_, operation);
     if (tasks.count() == 0) return Status::success();
     Status validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
@@ -251,6 +282,8 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
 Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.begin";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    check_not_batch_owner(*state_, operation);
     if (tasks.count() == 0) return Status::failure(refusal(PoolFailure::empty_batch, operation));
     Status validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
@@ -264,12 +297,14 @@ Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
         publish_batch(pool, tasks.data(), count);
     }
     pool.batch_open = true;
+    pool.batch_owner.store(current_thread().value(), std::memory_order_relaxed);
     return Status::success();
 }
 
 Status AtomicPool::wait() noexcept {
     const Operation operation = "stxlib.thread_pool.wait";
     if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
     State& pool = *state_;
     {
         ScopedLock sleep(pool.sleep_lock);
@@ -281,6 +316,7 @@ Status AtomicPool::wait() noexcept {
     // would unlock a mutex it does not hold).
     if (pool.batch_open) {
         pool.batch_open = false;
+        pool.batch_owner.store(0, std::memory_order_relaxed);
         pool.run_lock.unlock();
     }
     return Status::success();

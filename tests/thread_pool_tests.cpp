@@ -71,6 +71,11 @@ void creation() {
     const AtomicPool pool = create_or_fail(3);
     CHECK(pool.thread_count() == 3);
     CHECK(!pool.is_worker());
+
+    // Audit A, C7: the thread count is bounded before any thread starts.
+    const Result<AtomicPool> too_many = AtomicPool::create(stxlib::maximum_pool_threads + 1);
+    CHECK(too_many.failed());
+    CHECK(refused_with(too_many.status(), PoolFailure::too_many_threads));
 }
 
 void empty_pool() {
@@ -288,6 +293,47 @@ void serialization() {
 
 } // namespace
 
+// Audit A, C6: run, begin and wait called on one of the pool's workers are
+// refused rather than deadlocking. A task calls in only when it runs on a
+// worker (on the caller's thread run_lock is held, and the call is a defect).
+struct ReentryProbe final {
+    AtomicPool* pool{nullptr};
+    std::atomic<u32> on_worker{0};
+    std::atomic<u32> refused{0};
+};
+
+void call_back_into_pool(void* const address) noexcept {
+    ReentryProbe& probe = *static_cast<ReentryProbe*>(address);
+    AtomicPool& pool = *probe.pool;
+    if (!pool.is_worker()) return;
+    probe.on_worker.fetch_add(1, std::memory_order_relaxed);
+    const std::vector<PoolTask> none;
+    const bool all_refused = refused_with(pool.run(view_of(none)), PoolFailure::called_from_worker) &&
+                             refused_with(pool.begin(view_of(none)), PoolFailure::called_from_worker) &&
+                             refused_with(pool.wait(), PoolFailure::called_from_worker);
+    if (all_refused) probe.refused.fetch_add(1, std::memory_order_relaxed);
+}
+
+void calls_from_a_worker() {
+    AtomicPool pool = create_or_fail(3);
+    ReentryProbe probe{};
+    probe.pool = &pool;
+    std::vector<PoolTask> tasks(2000);
+    for (PoolTask& task : tasks) {
+        task.function = call_back_into_pool;
+        task.argument = &probe;
+    }
+    CHECK(pool.run(view_of(tasks)).succeeded());
+    CHECK(pool.begin(view_of(tasks)).succeeded());
+    CHECK(pool.wait().succeeded());
+    CHECK(probe.refused.load() == probe.on_worker.load());
+    // The pool is unharmed: a later batch runs in full.
+    std::atomic<u32> calls{0};
+    const std::vector<PoolTask> counted = counting_tasks(calls, 100);
+    CHECK(pool.run(view_of(counted)).succeeded());
+    CHECK(calls.load() == 100);
+}
+
 int main() {
     creation();
     empty_pool();
@@ -297,5 +343,6 @@ int main() {
     worker_path();
     asynchronous();
     serialization();
+    calls_from_a_worker();
     return stxlib_tests::finish("thread_pool");
 }
