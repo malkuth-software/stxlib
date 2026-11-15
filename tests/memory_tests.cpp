@@ -63,8 +63,9 @@ void edge_blocks_release() {
     }
     CHECK(all_allocated);
     for (stxlib::usize index = 0; index < filled; ++index) stxlib::memory::release(blocks[index]);
-    // An alignment above PTRDIFF_MAX is refused, not wrapped (A6).
-    CHECK(stxlib::memory::allocate(16, static_cast<stxlib::usize>(1) << 63) == nullptr);
+    // An alignment above PTRDIFF_MAX is refused, not wrapped (A6): usize's
+    // top bit at every width (a fixed << 63 is past usize's width on wasm32).
+    CHECK(stxlib::memory::allocate(16, static_cast<stxlib::usize>(1) << (sizeof(stxlib::usize) * 8 - 1)) == nullptr);
 }
 
 void refusals() {

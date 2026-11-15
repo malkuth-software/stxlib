@@ -250,10 +250,13 @@ endif()
 #   checks defaults to it (their reports then name STXlib's own blocks).
 # The C mimalloc that was a third backend is gone (the owner, 2026-11-15;
 # notes decisions/2026-11-15-gui-forms-priority.md).
-# Emscripten: the host backend over Emscripten's malloc (dlmalloc,
-# src/settings.js MALLOC at emscripten 6.0.13), the only one admitted there:
-# stx_minmallocpp has no Emscripten host layer.
-if(stxlib_sanitized OR STXLIB_HOST_FAMILY STREQUAL "emscripten")
+# Emscripten: stx_minmallocpp is the default there too, with 64 MiB regions
+# for 32-bit addresses (src/state/stx_minmallocpp/layout.hpp) and its
+# address space taken from Emscripten's dlmalloc
+# (src/hosted/emscripten/minmallocpp_os_emscripten.cpp); host (Emscripten's
+# malloc, dlmalloc, src/settings.js MALLOC at emscripten 6.0.13) is
+# admitted.
+if(stxlib_sanitized)
     set(stxlib_allocator_default host)
 else()
     set(stxlib_allocator_default stx_minmallocpp)
@@ -262,9 +265,6 @@ set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator 
 set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS stx_minmallocpp host)
 if(NOT STXLIB_ALLOCATOR MATCHES "^(host|stx_minmallocpp)$")
     message(FATAL_ERROR "STXLIB_ALLOCATOR must be stx_minmallocpp or host")
-endif()
-if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND NOT STXLIB_ALLOCATOR STREQUAL "host")
-    message(FATAL_ERROR "STXLIB_ALLOCATOR=${STXLIB_ALLOCATOR} is not admitted for Emscripten; use host")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
@@ -281,6 +281,11 @@ if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
         list(APPEND STXLIB_STATE_SOURCES src/hosted/windows/minmallocpp_os_windows.cpp)
     else()
         list(APPEND STXLIB_STATE_SOURCES src/hosted/posix/minmallocpp_os_posix.cpp)
+    endif()
+    # Emscripten: the POSIX layer's page size, yield, stop and thread-exit
+    # hook, with its address space over linear memory.
+    if(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+        list(APPEND STXLIB_STATE_SOURCES src/hosted/emscripten/minmallocpp_os_emscripten.cpp)
     endif()
 else()
     set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
@@ -769,6 +774,7 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_heap_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
         target_compile_definitions(stxlib_emscripten_tests PRIVATE STXLIB_TEST_WASMFS)
+        target_compile_definitions(stxlib_files_tests PRIVATE STXLIB_TEST_WASMFS)
     endif()
     # emscripten_tests checks the SIMD level (simd.cpp, in stxlib_algorithms).
     if(stxlib_web_tests)
@@ -820,6 +826,9 @@ if(STXLIB_TESTS)
         list(APPEND stxlib_stx_minmallocpp_sources src/hosted/windows/minmallocpp_os_windows.cpp)
     else()
         list(APPEND stxlib_stx_minmallocpp_sources src/hosted/posix/minmallocpp_os_posix.cpp)
+    endif()
+    if(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+        list(APPEND stxlib_stx_minmallocpp_sources src/hosted/emscripten/minmallocpp_os_emscripten.cpp)
     endif()
     add_library(stxlib_stx_minmallocpp_checked OBJECT ${stxlib_stx_minmallocpp_sources})
     target_include_directories(stxlib_stx_minmallocpp_checked PRIVATE
@@ -882,6 +891,20 @@ if(STXLIB_TESTS)
     target_compile_options(stxlib_stx_minmallocpp_direct_tests PRIVATE ${stxlib_test_warnings})
     target_link_libraries(stxlib_stx_minmallocpp_direct_tests PRIVATE Threads::Threads)
     add_test(NAME stxlib_stx_minmallocpp_direct_tests COMMAND stxlib_stx_minmallocpp_direct_tests)
+    # These programs link no STXlib target, so on Emscripten they take the
+    # memory and thread settings stxlib_boundary gives every program: memory
+    # that grows, malloc (and so the allocator's reservations) null rather
+    # than an abort when it cannot, and the fixed pool of workers.
+    if(stxlib_web_tests)
+        set(stxlib_stx_minmallocpp_web_links
+            "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+            "SHELL:-s ABORTING_MALLOC=0"
+            "SHELL:-s PTHREAD_POOL_SIZE=${STXLIB_EMSCRIPTEN_POOL_SIZE}"
+            "SHELL:-s PTHREAD_POOL_SIZE_STRICT=2")
+        target_link_options(stxlib_stx_minmallocpp_direct_tests PRIVATE ${stxlib_stx_minmallocpp_web_links})
+        target_link_options(stxlib_stx_minmallocpp_floor_bench PRIVATE ${stxlib_stx_minmallocpp_web_links})
+        target_link_options(stxlib_stx_minmallocpp_interleave PRIVATE ${stxlib_stx_minmallocpp_web_links})
+    endif()
     # The allocator's leaves: every symbol its objects leave undefined is a
     # listed host call or a toolchain helper (tools/
     # check_stx_minmallocpp_surface.py). The objects are the checked
@@ -890,6 +913,8 @@ if(STXLIB_TESTS)
     if(Python3_Interpreter_FOUND AND CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
         if(WIN32)
             set(stxlib_stx_minmallocpp_family windows)
+        elseif(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+            set(stxlib_stx_minmallocpp_family web)
         else()
             set(stxlib_stx_minmallocpp_family posix)
         endif()
@@ -923,14 +948,30 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_case_folding_tests PRIVATE stxlib::algorithms)
     target_include_directories(stxlib_case_folding_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_case_folding_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_case_folding_tests
-        COMMAND stxlib_case_folding_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
-    set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
-    # Under Node the test reads the host's file through NODERAWFS
-    # (src/settings.js: Node's file system in place of the in-memory one).
-    if(stxlib_web_tests)
+    # Under Node with the js file system the test reads the host's file
+    # through NODERAWFS (src/settings.js: Node's file system in place of the
+    # in-memory one). WasmFS does its file calls in wasm, with a memory
+    # backend at the root (system/lib/wasmfs/wasmfs.cpp, initRootDirectory,
+    # at emscripten 6.0.13), and the first WasmFS run could not open the
+    # host's file with NODERAWFS set; so there the file is embedded at link
+    # time (--embed-file, served by libwasmfs.js's FS.createDataFile) and
+    # read at /stxlib_test_data/ (stxlib_web_test_data below).
+    set(stxlib_web_embeds OFF)
+    if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
+        set(stxlib_web_embeds ON)
+    endif()
+    set(stxlib_case_folding_data ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt)
+    set(stxlib_case_folding_argument ${stxlib_case_folding_data})
+    if(stxlib_web_embeds)
+        set(stxlib_case_folding_argument /stxlib_test_data/CaseFolding.txt)
+        target_link_options(stxlib_case_folding_tests PRIVATE
+            "SHELL:--embed-file ${stxlib_case_folding_data}@/stxlib_test_data/CaseFolding.txt")
+        set_property(TARGET stxlib_case_folding_tests APPEND PROPERTY LINK_DEPENDS ${stxlib_case_folding_data})
+    elseif(stxlib_web_tests)
         target_link_options(stxlib_case_folding_tests PRIVATE "SHELL:-s NODERAWFS=1")
     endif()
+    add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
+    set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
@@ -1114,11 +1155,19 @@ if(STXLIB_TESTS)
     add_executable(stxlib_voting_tests tests/voting_tests.cpp)
     target_link_libraries(stxlib_voting_tests PRIVATE stxlib::algorithms)
     target_compile_options(stxlib_voting_tests PRIVATE ${stxlib_test_warnings})
-    add_test(NAME stxlib_voting_tests
-             COMMAND stxlib_voting_tests ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference/prv_cases.txt)
-    if(stxlib_web_tests)
+    # On the web as the case folding test reads its data: NODERAWFS with the
+    # js file system, the file embedded with WasmFS.
+    set(stxlib_voting_data ${CMAKE_CURRENT_SOURCE_DIR}/tests/reference/prv_cases.txt)
+    set(stxlib_voting_argument ${stxlib_voting_data})
+    if(stxlib_web_embeds)
+        set(stxlib_voting_argument /stxlib_test_data/prv_cases.txt)
+        target_link_options(stxlib_voting_tests PRIVATE
+            "SHELL:--embed-file ${stxlib_voting_data}@/stxlib_test_data/prv_cases.txt")
+        set_property(TARGET stxlib_voting_tests APPEND PROPERTY LINK_DEPENDS ${stxlib_voting_data})
+    elseif(stxlib_web_tests)
         target_link_options(stxlib_voting_tests PRIVATE "SHELL:-s NODERAWFS=1")
     endif()
+    add_test(NAME stxlib_voting_tests COMMAND stxlib_voting_tests ${stxlib_voting_argument})
 
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the
@@ -1342,6 +1391,10 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # The allocator surface check's own tests (every family, no nm).
+        add_test(NAME stxlib_stx_minmallocpp_surface_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_stx_minmallocpp_surface_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).

@@ -371,6 +371,16 @@ Outcome information(const i64 handle, FileInformation& information) noexcept {
 // futimens with UTIME_OMIT for the access time (POSIX.1-2008; macOS from
 // 10.13). WallTime's nanoseconds split with the remainder kept non-negative,
 // so a time before 1970 is still exact.
+//
+// WasmFS (emscripten 6.0.13): musl's futimens is utimensat with a null
+// name, and WasmFS's __syscall_utimensat (system/lib/wasmfs/syscalls.cpp)
+// reads the name into a std::string_view with no null test; only an empty
+// name with AT_EMPTY_PATH, which it adds itself, means the descriptor
+// (paths.cpp, getFileAt), and any flag but AT_SYMLINK_NOFOLLOW is EINVAL.
+// The first web run's set_modified failed there on every call. So WasmFS
+// gets utimensat(fd, "", times, 0). Both Emscripten file systems keep
+// milliseconds, the nanoseconds divided down (libsyscall.js,
+// __syscall_utimensat; WasmFS's timespec_to_ms); read 2026-11-15.
 Outcome set_modified(const i64 handle, const WallTime modified) noexcept {
     const i64 count = modified.unix_nanoseconds();
     i64 seconds = count / 1000000000LL;
@@ -384,7 +394,12 @@ Outcome set_modified(const i64 handle, const WallTime modified) noexcept {
     times[0].tv_nsec = UTIME_OMIT;
     times[1].tv_sec = static_cast<time_t>(seconds);
     times[1].tv_nsec = static_cast<long>(nanoseconds);
-    if (::futimens(descriptor(handle), times) != 0) return from_errno(errno);
+#if defined(__EMSCRIPTEN__) && defined(STXLIB_EMSCRIPTEN_WASMFS)
+    const int changed = ::utimensat(descriptor(handle), "", times, 0);
+#else
+    const int changed = ::futimens(descriptor(handle), times);
+#endif
+    if (changed != 0) return from_errno(errno);
     return success();
 }
 

@@ -39,6 +39,23 @@ inline constexpr bool drive_roots = false;
 inline constexpr bool byte_names = true;
 #endif
 
+// Whether the family's file system keeps only names that are UTF-8, so
+// that core refuses any other with invalid_name before the host sees it.
+// Emscripten's JavaScript file system (MEMFS and IDBFS) holds names as
+// JavaScript strings, made from the bytes by UTF8ToString
+// (src/lib/libstrings.js at 6.0.13): a TextDecoder above 16 bytes, which
+// replaces what is not UTF-8, and below that a loop that takes a byte such
+// as 0xFF as the lead of a four-byte sequence, swallowing the bytes after
+// it. Either way a name that is not UTF-8 is created under some other
+// name (the first web run listed neither "h\xff.t" nor "s\xc3(" after
+// making both), and two such names can reach one file. WasmFS keeps the
+// bytes (the same test passed there).
+#if defined(__EMSCRIPTEN__) && !defined(STXLIB_EMSCRIPTEN_WASMFS)
+inline constexpr bool utf8_names_only = true;
+#else
+inline constexpr bool utf8_names_only = false;
+#endif
+
 // stx_auxlib's FileStatus, plus out_of_memory for the backend's buffers.
 enum class FileStatus : u8 {
     ok = 0,

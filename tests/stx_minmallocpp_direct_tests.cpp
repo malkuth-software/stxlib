@@ -202,8 +202,15 @@ void bad_requests() {
     CHECK(allocate(16, static_cast<usize>(1) << 31) == nullptr);
     CHECK(allocate(stxlib::usize_max, 16) == nullptr);
     CHECK(allocate(stxlib::usize_max - 2, 4096) == nullptr);
-    // More than any host maps: exhaustion is a null result.
-    CHECK(allocate(static_cast<usize>(1) << 60, 16) == nullptr);
+    // More than any host maps: exhaustion is a null result. With 32-bit
+    // addresses (wasm32) the largest request considered is 2 GiB less one
+    // byte, and a mapping of nearly 2 GiB cannot be had beside the program
+    // under Emscripten's default maximum memory of 2 GiB.
+    if constexpr (stxlib::stx_minmallocpp::wide_addresses) {
+        CHECK(allocate(stxlib::usize_max >> 4, 16) == nullptr);
+    } else {
+        CHECK(allocate(stxlib::stx_minmallocpp::largest_request - stxlib::stx_minmallocpp::slice_bytes, 16) == nullptr);
+    }
     void* const still_works = allocate(64, 64);
     CHECK(still_works != nullptr);
     CHECK(release(still_works) == Release::released);
@@ -213,7 +220,14 @@ void large_alignments() {
     const usize alignments[] = {static_cast<usize>(1) << 17, static_cast<usize>(1) << 20, static_cast<usize>(1) << 24,
                                 static_cast<usize>(1) << 26, static_cast<usize>(1) << 30};
     bool all_good = true;
+    bool beyond_refused = true;
     for (const usize alignment : alignments) {
+        // Above a region (64 MiB with 32-bit addresses) an alignment is
+        // refused.
+        if (alignment > stxlib::stx_minmallocpp::alignment_limit) {
+            if (allocate(1, alignment) != nullptr) beyond_refused = false;
+            continue;
+        }
         void* const small = allocate(1, alignment);
         void* const large = allocate(3000000, alignment);
         if (small == nullptr || large == nullptr || !aligned_to(small, alignment) || !aligned_to(large, alignment)) {
@@ -223,6 +237,7 @@ void large_alignments() {
         if (large != nullptr && release(large) != Release::released) all_good = false;
     }
     CHECK(all_good);
+    CHECK(beyond_refused);
 }
 
 // ---- threads ----------------------------------------------------------------------

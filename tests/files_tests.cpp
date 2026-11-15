@@ -261,12 +261,19 @@ void positioned_and_metadata(const Scratch& scratch) {
     CHECK(described.succeeded() && (*described.value()).kind == stxlib::FileKind::regular &&
           (*described.value()).size == 13);
 
-    // set_modified, at a time every tested filesystem keeps exactly
-    // (a multiple of 100 ns).
+    // set_modified, at a time every native filesystem tested keeps exactly
+    // (a multiple of 100 ns). Emscripten's file systems keep milliseconds
+    // and cut the rest toward the past (files.hpp), so there the time read
+    // back is the millisecond below.
     const stxlib::WallTime chosen = stxlib::WallTime::from_unix_nanoseconds(1700000000LL * 1000000000LL + 123456700LL);
+#if defined(__EMSCRIPTEN__)
+    const stxlib::WallTime kept = stxlib::WallTime::from_unix_nanoseconds(1700000000LL * 1000000000LL + 123000000LL);
+#else
+    const stxlib::WallTime kept = chosen;
+#endif
     CHECK(file.set_modified(chosen).succeeded());
     const Result<stxlib::FileInformation> stamped = file.information();
-    CHECK(stamped.succeeded() && (*stamped.value()).modified == chosen);
+    CHECK(stamped.succeeded() && (*stamped.value()).modified == kept);
     const stxlib::WallTime early = stxlib::WallTime::from_unix_nanoseconds(-86400LL * 1000000000LL);
     CHECK(file.set_modified(early).succeeded());
     const Result<stxlib::FileInformation> early_read = stxlib::inspect(path, stxlib::LinkMode::follow);
@@ -682,12 +689,22 @@ void odd_names(const Scratch& scratch) {
     // Bytes that are not UTF-8: POSIX names are any bytes but '/' and NUL.
     const std::string invalid_host = "h\xff.t";
     const std::string invalid_stxlib = "s\xc3(";
+#if defined(__EMSCRIPTEN__) && !defined(STXLIB_TEST_WASMFS)
+    // Emscripten's JavaScript file system takes such a name and stores it
+    // under another (file_backend.hpp, utf8_names_only): STXlib refuses it
+    // before the host sees it. The file open(2) makes there, under its
+    // altered name, goes with remove_tree below.
+    static_cast<void>(host_create(directory, invalid_host));
+    const bool invalid_ok = false;
+#else
     const bool invalid_ok = host_create(directory, invalid_host);
+#endif
     const Status stxlib_write = stxlib::write_file(child_of(directory, posix_path(invalid_stxlib)),
                                                    view_bytes(bytes_of("odd")), Durability::none);
     const bool stxlib_invalid_ok = stxlib_write.succeeded();
-    // Where the host refuses non-UTF-8 names (APFS: EILSEQ), STXlib reports
-    // invalid_name; elsewhere both must work.
+    // Where the host refuses non-UTF-8 names (APFS: EILSEQ) or would store
+    // them under another name (Emscripten's JavaScript file system), STXlib
+    // reports invalid_name; elsewhere both must work.
     CHECK(stxlib_invalid_ok == invalid_ok);
     if (!stxlib_invalid_ok) {
         CHECK(kind_of(stxlib_write) == ErrorKind::invalid_argument && code_of(stxlib_write) == HostCode::invalid_name);

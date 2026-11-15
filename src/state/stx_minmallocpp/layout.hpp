@@ -14,10 +14,20 @@
 // Data is committed in units of 1 MiB (16 slices). A directory with one
 // cell per GiB of a 48-bit address space says which GiBs are ours.
 //
+// 32-bit addresses (wasm32, the one 32-bit target types.hpp admits). The
+// whole address space is at most 4 GiB, and 2 GiB under Emscripten's
+// default MAXIMUM_MEMORY, so 1 GiB regions would leave room for one region
+// and no mapping. There a region is 64 MiB, aligned to 64 MiB: 1,024 slices,
+// the first 32 of them metadata (page.hpp), 992 data. Addresses at or above
+// 2 GiB are never ours, and blocks above 16 MiB have mappings of their own.
+// Everything else (slices, units, pages, classes) is the same at both
+// widths.
+//
 // Pages. A page is a run of slices that holds blocks of one size: 1 slice
 // for blocks up to 8 KiB, 8 slices up to 64 KiB, 64 slices up to 512 KiB,
 // so a page holds between 8 and 4,096 blocks. A larger block has a page to
-// itself; above 32 MiB it has a mapping to itself.
+// itself; above 32 MiB (16 MiB with 32-bit addresses) it has a mapping to
+// itself.
 //
 // Size classes. 56 of them: 16 * (i + 1) for i < 8 (16 to 128), then for
 // each k from 7 to 18 the four sizes 2^(k-2) * {5, 6, 7, 8} (160 to
@@ -46,18 +56,26 @@ namespace stxlib::stx_minmallocpp {
 
 // ---- the address space ---------------------------------------------------------
 
+// True where addresses are 64 bits wide; false on wasm32 (above).
+inline constexpr bool wide_addresses = sizeof(uptr) == 8;
+static_assert(sizeof(uptr) == 8 || sizeof(uptr) == 4, "stx_minmallocpp: addresses of 32 or 64 bits");
+
 inline constexpr usize slice_shift = 16;
 inline constexpr usize slice_bytes = static_cast<usize>(1) << slice_shift;
-inline constexpr usize region_shift = 30;
+inline constexpr usize region_shift = wide_addresses ? 30 : 26;
 inline constexpr usize region_bytes = static_cast<usize>(1) << region_shift;
-inline constexpr usize region_slices = region_bytes / slice_bytes; // 16,384
+inline constexpr usize region_slices = region_bytes / slice_bytes; // 16,384 (32-bit: 1,024)
 inline constexpr usize unit_slices = 16;
 inline constexpr usize unit_bytes = unit_slices * slice_bytes; // 1 MiB
-inline constexpr usize region_units = region_slices / unit_slices; // 1,024
+inline constexpr usize region_units = region_slices / unit_slices; // 1,024 (32-bit: 64)
 
-// Addresses at or above 2^48 are never ours (a reservation there is
-// refused), so the directory has 2^18 cells.
-inline constexpr usize address_bits = 48;
+// Addresses at or above 2^address_bits are never ours (a reservation there
+// is refused), so the directory has 2^18 cells (32-bit: 32). With 32-bit
+// addresses the limit is 2^31, not 2^32: an address is shifted right by
+// address_bits to test it, and a shift by the type's full width is
+// undefined; 2 GiB is also Emscripten's default maximum memory.
+inline constexpr usize address_bits = wide_addresses ? 48 : 31;
+static_assert(address_bits < sizeof(uptr) * 8, "stx_minmallocpp: an address shifted by address_bits is defined");
 inline constexpr usize directory_cells = static_cast<usize>(1) << (address_bits - region_shift);
 
 // ---- blocks and pages ----------------------------------------------------------
@@ -90,8 +108,10 @@ inline constexpr usize class_alignment_limit = slice_bytes;
 inline constexpr usize alignment_limit = region_bytes;
 
 // A block larger than this, or aligned to more than this, has a mapping to
-// itself (region.hpp, huge mappings): 512 slices.
-inline constexpr usize huge_threshold = static_cast<usize>(32) * 1024 * 1024;
+// itself (region.hpp, huge mappings): 512 slices (32-bit: 256, so that the
+// run a page of one block needs at the largest alignment, 2 * 256 - 1
+// slices, fits a new 32-bit region's data; region.hpp checks it).
+inline constexpr usize huge_threshold = static_cast<usize>(wide_addresses ? 32 : 16) * 1024 * 1024;
 
 // The largest request considered; anything above is refused before any
 // arithmetic, so no rounding below can wrap.

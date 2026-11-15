@@ -46,6 +46,10 @@
 // (src/hosted/posix/thread_exit_posix.cpp gives the sources for both; the
 // SEGV of CI 43726327460). Elsewhere the mark stays (macOS frees thread_local
 // storage before key destructors; musl and FreeBSD are unread).
+//
+// Emscripten compiles this file too, without reserve, commit, decommit
+// and release, which linear memory cannot do with mmap and mprotect; those
+// four are in src/hosted/emscripten/minmallocpp_os_emscripten.cpp.
 
 #include "state/stx_minmallocpp/os.hpp"
 
@@ -54,7 +58,9 @@
 
 #include <pthread.h>
 #include <sched.h>
+#if !defined(__EMSCRIPTEN__)
 #include <sys/mman.h>
+#endif
 #include <unistd.h>
 
 namespace stxlib::stx_minmallocpp::os {
@@ -66,12 +72,14 @@ constexpr u32 key_being_made = 1;
 constexpr u32 key_made = 2;
 constexpr u32 key_refused = 3;
 
+#if !defined(__EMSCRIPTEN__)
 // What a reservation is mapped with: no access now, readable and writable
 // later where the host wants that said up front.
 #if defined(PROT_MAX)
 constexpr int reserved_protection = PROT_NONE | PROT_MAX(PROT_READ | PROT_WRITE);
 #else
 constexpr int reserved_protection = PROT_NONE;
+#endif
 #endif
 
 constinit std::atomic<u32> key_state{key_unmade};
@@ -120,6 +128,7 @@ usize page_bytes() noexcept {
     return result;
 }
 
+#if !defined(__EMSCRIPTEN__)
 void* reserve(const usize bytes, const usize alignment) noexcept {
     if (bytes > usize_max - alignment) return nullptr;
     const usize span = bytes + alignment;
@@ -147,6 +156,7 @@ void decommit(void* const address, const usize bytes) noexcept {
 }
 
 void release(void* const address, const usize bytes) noexcept { static_cast<void>(::munmap(address, bytes)); }
+#endif
 
 void yield() noexcept { static_cast<void>(::sched_yield()); }
 

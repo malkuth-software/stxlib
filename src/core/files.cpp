@@ -121,12 +121,16 @@ Status status_of(const Outcome outcome, const Operation operation) noexcept {
 // The backend's name for `path` and a NUL (file_backend.hpp, "Names"):
 // POSIX hosts take the host bytes the path spells (they have no drive
 // roots, and a Path holding a surrogate that is not an escape spells none),
-// Windows takes the WTF-8 text.
+// Windows takes the WTF-8 text. Where the file system keeps only UTF-8
+// names (file_backend::utf8_names_only), a path whose bytes are not UTF-8
+// (its text escapes them, so is not Unicode) is refused as invalid_name,
+// as APFS refuses it with EILSEQ.
 Outcome native_name(const Path& path, Growable<char>& output) noexcept {
     output.clear();
     const PathText text = path.text();
     if constexpr (file_backend::byte_names) {
         if (path.drive() != 0) return file_backend::failure(FileStatus::unsupported);
+        if (file_backend::utf8_names_only && !text.is_unicode()) return file_backend::failure(FileStatus::invalid_name);
         const wtf8::Converted converted = wtf8::unescape_posix(text.data(), text.count(), output);
         if (converted == wtf8::Converted::not_representable) return file_backend::failure(FileStatus::invalid_name);
         if (converted != wtf8::Converted::ok) return file_backend::failure(FileStatus::out_of_memory);

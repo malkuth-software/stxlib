@@ -112,9 +112,27 @@ void run_lists_partition_the_lengths() {
 }
 
 void layout_adds_up() {
-    CHECK(first_data_slice * slice_bytes == 18 * unit_bytes);
-    CHECK(region_slices - first_data_slice == 16096);
-    CHECK(huge_threshold / slice_bytes == 512);
+    if constexpr (wide_addresses) {
+        CHECK(region_bytes == static_cast<usize>(1) << 30);
+        CHECK(first_data_slice * slice_bytes == 18 * unit_bytes);
+        CHECK(region_slices - first_data_slice == 16096);
+        CHECK(huge_threshold / slice_bytes == 512);
+        CHECK(directory_cells == static_cast<usize>(1) << 18);
+    } else {
+        // wasm32 (layout.hpp, 32-bit addresses).
+        CHECK(region_bytes == static_cast<usize>(1) << 26);
+        CHECK(first_data_slice * slice_bytes == 2 * unit_bytes);
+        CHECK(region_slices - first_data_slice == 992);
+        CHECK(huge_threshold / slice_bytes == 256);
+        CHECK(directory_cells == 32);
+    }
+    // At both widths: the run names hold a slice index, the highest
+    // address considered is a defined shift, and a page of one block at the
+    // largest size and alignment fits a new region (region.hpp).
+    CHECK((static_cast<usize>(1) << run_slice_bits) == region_slices);
+    CHECK(address_bits < sizeof(stxlib::uptr) * 8);
+    CHECK(fitting_floor(2 * (huge_threshold >> slice_shift) - 1) <=
+          run_list_floor(run_list_of(region_slices - first_data_slice)));
     CHECK(class_table.shapes[0].capacity == page_blocks_limit);
     CHECK(class_table.shapes[class_count - 1].capacity == 8);
 }
