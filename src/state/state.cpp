@@ -355,6 +355,12 @@ void thread_records_end(const u32 expected_layout) noexcept {
     if (anchor.block != nullptr) release_records(*anchor.block);
 }
 
+bool process_ending(const u32 expected_layout) noexcept {
+    if (expected_layout != layout_key) return false;
+    const bool result = thread_exit_backend::process_ending();
+    return result;
+}
+
 void note_thread_stack(const u32 expected_layout) noexcept {
     if (expected_layout != layout_key) return;
     note_stack_here();

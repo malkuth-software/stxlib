@@ -486,6 +486,16 @@ STXLIB_STATE_API void thread_records_end(u32 expected_layout) noexcept;
 // Thread's start. Never unwinds; no callback.
 STXLIB_STATE_API void note_thread_stack(u32 expected_layout) noexcept;
 
+// True once the process has begun to end in a way that stops its other
+// threads where they stand (Windows: ExitProcess, before any module's
+// DLL_PROCESS_DETACH; hosted/thread_exit_backend.hpp, process_ending), so
+// that a lock may be held for ever by a thread that will never run again.
+// False on POSIX hosts and Emscripten, and on a layout mismatch. The
+// boundary's spin locks ask it (core/spin_lock.hpp); stxlib_state's own
+// locks ask the backend directly (state.cpp, "Process end"). Takes no lock;
+// calls nothing that can wait or exit early.
+STXLIB_STATE_API bool process_ending(u32 expected_layout) noexcept;
+
 // Ends the process after a layout mismatch, writing `message` to the host's
 // error stream and aborting. It uses no thread state, so it cannot recurse
 // into an accessor (src/hosted/<family>/thread_exit_<family>.cpp).

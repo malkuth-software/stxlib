@@ -64,6 +64,12 @@ ErrorRecord exhausted(const Operation operation) noexcept {
     return result;
 }
 
+// The environment lock was refused at the process's end (spin_lock.hpp).
+ErrorRecord ending(const Operation operation) noexcept {
+    const ErrorRecord result = host_failure::record(ErrorKind::interrupted, operation, HostCode::none);
+    return result;
+}
+
 // Records a change for readers that cache what the host derived from the
 // environment. Wraps after 2^64 changes, which only risks one missed
 // refresh.
@@ -94,6 +100,7 @@ Result<Utf8String> read_variable(const TextView name, const usize limit) noexcep
     {
         state::ProcessState& process = state::current_process();
         const spin::Guard lock(process.environment_lock);
+        if (!lock.held()) return Result<Utf8String>::failure(ending("stxlib.environment.read"));
         report = environment_backend::read(host_name.data(), bounded, raw);
     }
     if (report.outcome != environment_backend::Outcome::ok) {
@@ -126,6 +133,7 @@ Status set_variable(const TextView name, const TextView value) noexcept {
     }
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.environment_lock);
+    if (!lock.held()) return Status::failure(ending("stxlib.environment.set"));
     const environment_backend::Report report = environment_backend::set(host_name.data(), host_value.data(), value.count());
     if (report.outcome != environment_backend::Outcome::ok) {
         return Status::failure(record_of(report, "stxlib.environment.set"));
@@ -140,6 +148,7 @@ Status remove_variable(const TextView name) noexcept {
     if (!terminated_copy(name, host_name)) return Status::failure(exhausted("stxlib.environment.remove"));
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.environment_lock);
+    if (!lock.held()) return Status::failure(ending("stxlib.environment.remove"));
     const environment_backend::Report report = environment_backend::remove(host_name.data());
     if (report.outcome != environment_backend::Outcome::ok) {
         return Status::failure(record_of(report, "stxlib.environment.remove"));

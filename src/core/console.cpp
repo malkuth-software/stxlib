@@ -109,6 +109,7 @@ Status write_console(const ConsoleStream stream, const TextView text) noexcept {
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
+    if (!lock.held()) return host_failure::failed(ErrorKind::interrupted, "stxlib.console.write", HostCode::none);
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write(stream, text.data(), text.count());
     const Status result = status_of(report, "stxlib.console.write");
@@ -119,6 +120,9 @@ Status write_console_line(const ConsoleStream stream, const TextView text) noexc
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
+    if (!lock.held()) {
+        return host_failure::failed(ErrorKind::interrupted, "stxlib.console.write_line", HostCode::none);
+    }
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write_line(stream, text.data(), text.count());
     const Status result = status_of(report, "stxlib.console.write_line");
@@ -137,6 +141,11 @@ Result<ConsoleLine> read_console_line(const usize limit) noexcept {
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // read is a cancellation point (audit E, 4.1)
     const spin::Guard lock(process.console_input_lock);
+    if (!lock.held()) {
+        const ErrorRecord ending =
+            host_failure::record(ErrorKind::interrupted, "stxlib.console.read_line", HostCode::none);
+        return Result<ConsoleLine>::failure(ending);
+    }
     char chunk[read_chunk_bytes]{};
     bool over_limit = false;
     usize length = 0;
