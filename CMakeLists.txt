@@ -884,6 +884,10 @@ if(STXLIB_TESTS)
     if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
         target_compile_definitions(stxlib_emscripten_tests PRIVATE STXLIB_TEST_WASMFS)
     endif()
+    # emscripten_tests checks the SIMD level (simd.cpp, in stxlib_algorithms).
+    if(stxlib_web_tests)
+        target_link_libraries(stxlib_emscripten_tests PRIVATE stxlib::algorithms)
+    endif()
 
     # The process's own arguments, compared with argv: the test is started
     # with spaces, quotes, a trailing backslash, an empty argument and one
