@@ -9,9 +9,21 @@
 // - A child starts directly from a program and an argument list; no shell
 //   ever interprets them, so arguments cannot inject commands. On Windows
 //   the arguments are quoted for the C runtime's standard parsing
-//   (CommandLineToArgvW rules), so the child sees exactly these strings.
+//   (CommandLineToArgvW rules), so a child that parses its wide command
+//   line that way sees exactly these UTF-16 strings. (A child that reads
+//   its ANSI command line has them converted to its code page by the host,
+//   which can map some characters to '"' or '\'; only the child can avoid
+//   that.)
+// - Windows refuses a program whose name ends in .bat or .cmd (any case,
+//   trailing dots and spaces ignored) with invalid_argument,
+//   HostCode::invalid_value: the host would run it through cmd.exe, which
+//   reinterprets the arguments. A program that wants cmd.exe names it,
+//   and owns the quoting. A ':' in a Windows program name other than after
+//   a drive letter is refused the same way.
 // - A program without a '/' (POSIX) or given as a bare name (Windows) is
-//   searched for in PATH.
+//   searched for in PATH, and only there: on Windows the current directory
+//   and the host's other default places are not searched, and PATH entries
+//   that are not absolute are skipped.
 // - Failure to start (a missing program, no permission) is reported by
 //   start, never by a child that exits at once with status 127 (posix_spawn
 //   reports a failed exec to the parent on macOS and on glibc 2.24 and

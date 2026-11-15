@@ -6,6 +6,7 @@
 // a primitive of its own; see files.hpp, "Changes from stx_auxlib".
 
 #include "stxlib/files.hpp"
+#include "stxlib/text.hpp"
 
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
@@ -122,18 +123,24 @@ Status status_of(const Outcome outcome, const Operation operation) noexcept {
 // POSIX hosts take the host bytes the path spells (they have no drive
 // roots, and a Path holding a surrogate that is not an escape spells none),
 // Windows takes the WTF-8 text. Where the file system keeps only UTF-8
-// names (file_backend::utf8_names_only), a path whose bytes are not UTF-8
-// (its text escapes them, so is not Unicode) is refused as invalid_name,
-// as APFS refuses it with EILSEQ.
+// names (file_backend::utf8_names_only), a path whose host bytes are not
+// UTF-8 is refused as invalid_name, as APFS refuses it with EILSEQ. The
+// bytes are checked, not the text: Path also escapes bytes that are UTF-8
+// (':' and '\'), so a text that is not Unicode can still spell a UTF-8
+// name (the second web run refused "back\slash" and "c:" when the text
+// was checked).
 Outcome native_name(const Path& path, Growable<char>& output) noexcept {
     output.clear();
     const PathText text = path.text();
     if constexpr (file_backend::byte_names) {
         if (path.drive() != 0) return file_backend::failure(FileStatus::unsupported);
-        if (file_backend::utf8_names_only && !text.is_unicode()) return file_backend::failure(FileStatus::invalid_name);
         const wtf8::Converted converted = wtf8::unescape_posix(text.data(), text.count(), output);
         if (converted == wtf8::Converted::not_representable) return file_backend::failure(FileStatus::invalid_name);
         if (converted != wtf8::Converted::ok) return file_backend::failure(FileStatus::out_of_memory);
+        if (file_backend::utf8_names_only && !text.is_unicode() &&
+            validate_utf8(output.data(), output.count()).failed()) {
+            return file_backend::failure(FileStatus::invalid_name);
+        }
     } else if (!output.append(text.data(), text.count())) {
         return file_backend::failure(FileStatus::out_of_memory);
     }
