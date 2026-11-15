@@ -42,6 +42,14 @@ constexpr const char* failsafe_config_path = "/etc/stx/failsafe.conf";
 // unmounts. Prints one line.
 void mark_boot_good(int console, const BootFacts& facts) noexcept;
 
+// Arms a system update written into target (LAYOUT.md, "Updates"; C2):
+// tries=0 on the boot-control partition, then the slot file good=running,
+// try=target on the ESP; each mounted read-write only for its write.
+// Prints "STXSUPERVISOR system armed slot=<X>" or "... arm-failed step=<s>
+// errno=<n>". Returns whether both writes were made; the caller then asks
+// stxinit to reboot.
+[[nodiscard]] bool arm_system_update(int console, Slot running, Slot target) noexcept;
+
 // Appends "uptime_ms=<n> slot=<s> tries=<n> fallback=<0|1> event=<event>\n"
 // to the boot log, mounting the user partition first when it is not yet
 // mounted. Prints one line.

@@ -40,6 +40,15 @@
 // and marks the slot good once the good-boot rule holds (60 s after the
 // init section, registered, services healthy, network up).
 //
+// Targets (C2, appliance/C2_DESIGN.md): after the init section the
+// supervisor applies the device ruleset (device_rules.h), then starts the
+// targets whose start policy is boot, the foreground target first; the
+// targets layer (targets.h) chooses each start's program slot, moves the
+// slots on exits, runs the update services and, when a system update is
+// installed and armed, the supervisor asks stxinit to reboot (SIGINT to
+// PID 1). Like services, targets are not adopted by a restarted
+// supervisor.
+//
 // stxinit starts it in its own session with the console as standard input,
 // output and error, and passes "--restart-count=<n>".
 //
@@ -56,6 +65,9 @@
 //   STXSUPERVISOR init done commands=<n> skipped=<n> failed=<n> ms=<n>
 //   STXSUPERVISOR init not-run restart_count=<n|unknown>
 //   STXSUPERVISOR service <name> started | exited | ...   (system_actions.h)
+//   STXSUPERVISOR devices ruleset=10 rules=<n> applied | failed ... (device_rules_system.h)
+//   STXSUPERVISOR target <name> ... | system ...           (targets.h)
+//   STXSUPERVISOR reboot requested=system-update
 //   STXSUPERVISOR terminate done ... | failed errno=<n> | unavailable   (shim_client.h)
 //   STXSUPERVISOR stop services=<stopped|left-running>
 //
@@ -82,8 +94,11 @@
 #include "config/init_executor.h"
 #include "config/service_registry.h"
 #include "config/system_actions.h"
+#include "device_rules.h"
+#include "device_rules_system.h"
 #include "restart_argument.h"
 #include "shim_client.h"
+#include "targets.h"
 
 namespace stxsupervisor {
 
@@ -106,6 +121,9 @@ stxconfig::InitWorkspace init_workspace;
 // Borrows boot_config, which is static too.
 stxconfig::ServiceRegistry service_registry;
 stxconfig::SystemServiceActions service_actions(STDOUT_FILENO);
+// Borrows the registry, the actions and (from load) boot_config.
+stxtargets::Targets targets(STDOUT_FILENO, service_registry, service_actions);
+bool reboot_asked = false;
 
 // This boot, as the loader and the supervisor's own start saw it (S4).
 stxboot::BootFacts boot_facts_now{};
@@ -245,7 +263,11 @@ void boot_once(int console, const RestartCount& restart_count) noexcept {
     }
     if (config == stxboot::ConfigState::loaded) {
         service_registry.load(boot_config);
+        service_actions.set_target_hooks(&targets);
+        targets.load(boot_config, boot_facts_now.slot, stxconfig::monotonic_milliseconds());
         run_init(console);
+        (void)stxdevices::apply_device_plan(console, stxdevices::plan_device_rules(boot_config));
+        targets.start_boot_targets(stxconfig::monotonic_milliseconds());
         init_done = true;
         init_done_ms = stxconfig::monotonic_milliseconds();
         if (boot_facts_now.slot.has_value()) {
@@ -319,8 +341,11 @@ void reap_children() noexcept {
         int status = 0;
         const pid_t child = waitpid(-1, &status, WNOHANG);
         if (child > 0) {
-            const bool owned = service_registry.child_exited(static_cast<int>(child), status,
-                                                             stxconfig::monotonic_milliseconds(), service_actions);
+            const std::uint64_t now_ms = stxconfig::monotonic_milliseconds();
+            if (targets.child_exited(static_cast<int>(child), status, now_ms)) {
+                continue;
+            }
+            const bool owned = service_registry.child_exited(static_cast<int>(child), status, now_ms, service_actions);
             (void)owned;
             continue;
         }
@@ -400,11 +425,27 @@ void terminate(const ShimRegistration& shim) noexcept {
     for (;;) {
         const std::uint64_t now_ms = stxconfig::monotonic_milliseconds();
         service_registry.tick(now_ms, service_actions);
+        targets.tick(now_ms);
         check_good_boot(STDOUT_FILENO, now_ms);
+        if (targets.reboot_requested() && !reboot_asked) {
+            // stxinit reboots on SIGINT (runtime/init/stxinit.cpp); its
+            // shutdown sends this supervisor SIGTERM, which stops the
+            // services and targets.
+            reboot_asked = true;
+            LineText line = stxruntime::empty_line();
+            stxruntime::append_text(line, "STXSUPERVISOR reboot requested=system-update\n");
+            stxruntime::write_line(STDOUT_FILENO, line);
+            (void)kill(1, SIGINT);
+        }
         std::uint64_t wait_ms = idle_wait_ms;
         const std::optional<std::uint64_t> due_ms = service_registry.next_due_ms();
         if (due_ms.has_value()) {
             wait_ms = *due_ms > now_ms ? *due_ms - now_ms : 0u;
+        }
+        const std::optional<std::uint64_t> targets_due_ms = targets.next_due_ms();
+        if (targets_due_ms.has_value()) {
+            const std::uint64_t targets_wait_ms = *targets_due_ms > now_ms ? *targets_due_ms - now_ms : 0u;
+            wait_ms = targets_wait_ms < wait_ms ? targets_wait_ms : wait_ms;
         }
         if (good_check_due_ms.has_value()) {
             const std::uint64_t good_wait_ms = *good_check_due_ms > now_ms ? *good_check_due_ms - now_ms : 0u;

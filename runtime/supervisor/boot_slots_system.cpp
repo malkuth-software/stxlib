@@ -277,6 +277,48 @@ void mark_boot_good(int console, const BootFacts& facts) noexcept {
     stxruntime::write_line(console, line);
 }
 
+bool arm_system_update(int console, Slot running, Slot target) noexcept {
+    const char* const prefix = "STXSUPERVISOR system arm-failed step=";
+    int error_number = mount_read_write("ufs", bootctl_device, bootctl_directory);
+    if (error_number != 0) {
+        print_failure(console, prefix, "mount-bootctl", error_number);
+        return false;
+    }
+    const std::array<char, tries_file_size> zero = format_tries(0);
+    error_number = overwrite_start("/stx/bootctl/stx/tries", std::span<const char>(zero.data(), zero.size()));
+    if (error_number == ENOENT) {
+        error_number = replace_file("/stx/bootctl/stx/tries", "/stx/bootctl/stx/tries.new",
+                                    std::span<const char>(zero.data(), zero.size()));
+    }
+    unmount_quietly(bootctl_directory);
+    if (error_number != 0) {
+        print_failure(console, prefix, "write-tries", error_number);
+        return false;
+    }
+    error_number = mount_read_write("msdosfs", esp_device, esp_directory);
+    if (error_number != 0) {
+        print_failure(console, prefix, "mount-esp", error_number);
+        return false;
+    }
+    SlotFile file{};
+    file.good = running;
+    file.try_slot = target;
+    const std::array<char, slot_file_text_size> text = format_slot_file(file);
+    error_number = replace_file("/stx/esp/stx/slots.conf", "/stx/esp/stx/slots.new",
+                                std::span<const char>(text.data(), text.size()));
+    unmount_quietly(esp_directory);
+    if (error_number != 0) {
+        print_failure(console, prefix, "write-slot-file", error_number);
+        return false;
+    }
+    LineText line = stxruntime::empty_line();
+    stxruntime::append_text(line, "STXSUPERVISOR system armed slot=");
+    const char letter[3] = {slot_letter(target), '\n', '\0'};
+    stxruntime::append_text(line, letter);
+    stxruntime::write_line(console, line);
+    return true;
+}
+
 void append_boot_log(int console, const BootFacts& facts, const char* event, std::uint64_t uptime_ms) noexcept {
     const char* const prefix = "STXSUPERVISOR boot-log failed step=";
     const int mounted = mount_read_write("msdosfs", user_device, user_directory);

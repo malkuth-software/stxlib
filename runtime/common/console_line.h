@@ -16,8 +16,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#if !defined(__aarch64__)
-#error "console_line.h reads the Arm generic timer; other architectures need their own counter read"
+#if defined(__x86_64__)
+#include <sys/types.h>
+#include <sys/sysctl.h>
+#elif !defined(__aarch64__)
+#error "console_line.h reads the Arm generic timer or the x86 TSC; other architectures need their own counter read"
 #endif
 
 namespace stxruntime {
@@ -122,6 +125,13 @@ struct GenericTimer {
 // (CNTKCTL_EL1.EL0VCTEN, set by sys/arm/arm/generic_timer.c), as its vDSO
 // time functions do. The isb orders the counter read after the instructions
 // before it.
+//
+// On amd64 (C2, the x86 image) the counter is the TSC (rdtsc after lfence,
+// which orders it after earlier loads) and its frequency the kernel's
+// calibration, machdep.tsc_freq (sys/x86/x86/tsc.c); 0 when the kernel
+// gives none. The marker names stay cntvct and cntfrq so that the boot
+// timing tools read both architectures alike.
+#if defined(__aarch64__)
 [[nodiscard]] inline GenericTimer read_generic_timer() noexcept {
     GenericTimer timer{};
     std::uint64_t count = 0;
@@ -132,6 +142,23 @@ struct GenericTimer {
     timer.frequency_hertz = frequency;
     return timer;
 }
+#else
+[[nodiscard]] inline GenericTimer read_generic_timer() noexcept {
+    GenericTimer timer{};
+    std::uint32_t low = 0;
+    std::uint32_t high = 0;
+    __asm__ __volatile__("lfence\n\trdtsc" : "=a"(low), "=d"(high) : : "memory");
+    timer.count = (static_cast<std::uint64_t>(high) << 32u) | low;
+    std::uint64_t frequency = 0;
+    std::size_t frequency_size = sizeof(frequency);
+    if (sysctlbyname("machdep.tsc_freq", &frequency, &frequency_size, nullptr, 0) != 0 ||
+        frequency_size != sizeof(frequency)) {
+        frequency = 0;
+    }
+    timer.frequency_hertz = frequency;
+    return timer;
+}
+#endif
 
 // A clock reading in nanoseconds, or nothing when the clock cannot be read.
 using ClockNanoseconds = std::optional<std::uint64_t>;

@@ -1,12 +1,16 @@
 #!/bin/sh
-# build_programs.sh -- cross-compile the appliance's own programs for arm64
+# build_programs.sh -- cross-compile the appliance's own programs for
 # FreeBSD on the M4, with the pinned toolchain (appliance/toolchain.env,
-# versions checked) against the sysroot made by appliance/vm/c1_sysroot.sh:
+# versions checked) against a sysroot: arm64 (appliance/vm/c1_sysroot.sh)
+# or amd64 (appliance/vm/c2_amd64_sysroot.sh), chosen by STXLIB_ARCH:
 #
 #   stxinit                 runtime/init/stxinit.cpp (PID 1)
-#   stxsupervisor           runtime/supervisor/stxsupervisor.cpp,
-#                           runtime/supervisor/shim_client.cpp and
-#                           runtime/supervisor/config/*.cpp
+#   stxsupervisor           runtime/supervisor/*.cpp, runtime/supervisor/config/*.cpp,
+#                           runtime/package/program_slots.cpp, manifest.cpp, store_layout.cpp
+#   stxpkg                  runtime/package/*.cpp and runtime/net/{url,http_head,fetch}.cpp,
+#                           with the base system's libssl, libcrypto and libufs (static)
+#   stxnet                  runtime/net/stxnet.cpp with the configuration parser
+#   stxsntp                 runtime/net/stxsntp.cpp, sntp.cpp
 #   stxsupervisor-crash     runtime/supervisor/test/crash_supervisor.cpp (test VMs only)
 #
 # Static (no run-time linker for PID 1), stripped (-s), unused sections
@@ -16,14 +20,20 @@
 # <storage>/appliance/programs/: each program, <program>.sha256,
 # <program>.size, and build.log. Stops at the first failure.
 #
-# Environment: STXLIB_STORAGE, STXLIB_SYSROOT (default
-# <storage>/appliance/sysroot/15.2-BETA1-aarch64).
+# Environment: STXLIB_STORAGE, STXLIB_ARCH (aarch64, the default, or
+# amd64), STXLIB_SYSROOT (default <storage>/appliance/sysroot/15.2-BETA1-<arch>).
+# Output in <storage>/appliance/programs/ (aarch64) or programs-amd64/.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 repo=$(cd "$here/.." && pwd)
 storage=${STXLIB_STORAGE:-/Volumes/Storage/stxlib_workers}
-sysroot=${STXLIB_SYSROOT:-$storage/appliance/sysroot/15.2-BETA1-aarch64}
-out=$storage/appliance/programs
+arch=${STXLIB_ARCH:-aarch64}
+case "$arch" in
+    aarch64) triple=aarch64-unknown-freebsd15.2; out=$storage/appliance/programs ;;
+    amd64) triple=x86_64-unknown-freebsd15.2; out=$storage/appliance/programs-amd64 ;;
+    *) echo "build_programs: STXLIB_ARCH must be aarch64 or amd64" >&2; exit 2 ;;
+esac
+sysroot=${STXLIB_SYSROOT:-$storage/appliance/sysroot/15.2-BETA1-$arch}
 [ -f "$sysroot/usr/lib/libc.a" ] || { echo "build_programs: no sysroot at $sysroot (run c1_sysroot.sh)" >&2; exit 2; }
 . "$repo/appliance/toolchain.env"
 reported=$("$STXLIB_LLVM_BINDIR/clang" --version | sed -n 's/.*clang version \([0-9.]*\).*/\1/p' | head -1)
@@ -34,22 +44,32 @@ mkdir -p "$out"
 log=$out/build.log
 : > "$log"
 
-# build NAME SOURCE... (paths relative to the repository)
+# build NAME SOURCE... [-- LIBRARY...] (sources relative to the repository;
+# libraries as linker flags, after the sources)
 build() {
     name=$1
     shift
     sources=
+    libraries=
+    in_libraries=0
     for source in "$@"; do
-        sources="$sources $repo/$source"
+        if [ "$source" = "--" ]; then
+            in_libraries=1
+        elif [ "$in_libraries" -eq 1 ]; then
+            libraries="$libraries $source"
+        else
+            sources="$sources $repo/$source"
+        fi
     done
     status=0
-    echo "=== $name:$sources" >> "$log"
-    "$STXLIB_LLVM_BINDIR/clang++" --target=aarch64-unknown-freebsd15.2 --sysroot="$sysroot" \
+    echo "=== $name:$sources$libraries" >> "$log"
+    # shellcheck disable=SC2086
+    "$STXLIB_LLVM_BINDIR/clang++" --target="$triple" --sysroot="$sysroot" \
         -fuse-ld=lld --ld-path="$STXLIB_LLD_BINDIR/ld.lld" \
         -std=c++20 -O2 -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Werror \
         -fno-exceptions -fno-rtti -ffunction-sections -fdata-sections \
         -static -s -Wl,--gc-sections \
-        -o "$out/$name.new" $sources >>"$log" 2>&1 || status=$?
+        -o "$out/$name.new" $sources $libraries >>"$log" 2>&1 || status=$?
     if [ "$status" -ne 0 ]; then
         echo "build_programs: $name FAILED (exit $status)"
         grep -E 'error|warning|undefined' "$log" | head -40
@@ -67,6 +87,16 @@ build() {
 build stxinit runtime/init/stxinit.cpp
 build stxsupervisor runtime/supervisor/stxsupervisor.cpp runtime/supervisor/config/boot_config.cpp \
     runtime/supervisor/config/init_executor.cpp runtime/supervisor/config/service_registry.cpp \
-    runtime/supervisor/config/system_actions.cpp runtime/supervisor/shim_client.cpp \
-    runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp
+    runtime/supervisor/config/system_actions.cpp runtime/supervisor/config/sysctl_value.cpp \
+    runtime/supervisor/shim_client.cpp runtime/supervisor/boot_slots.cpp runtime/supervisor/boot_slots_system.cpp \
+    runtime/supervisor/device_rules.cpp runtime/supervisor/device_rules_system.cpp \
+    runtime/supervisor/targets.cpp runtime/supervisor/targets_plan.cpp \
+    runtime/package/program_slots.cpp runtime/package/manifest.cpp runtime/package/store_layout.cpp
+build stxpkg runtime/package/stxpkg.cpp runtime/package/manifest.cpp runtime/package/container.cpp \
+    runtime/package/latest.cpp runtime/package/program_slots.cpp runtime/package/store_layout.cpp \
+    runtime/net/url.cpp runtime/net/http_head.cpp runtime/net/fetch.cpp \
+    runtime/supervisor/config/boot_config.cpp runtime/supervisor/config/service_registry.cpp \
+    -- -lufs -lssl -lcrypto -lpthread
+build stxnet runtime/net/stxnet.cpp runtime/supervisor/config/boot_config.cpp
+build stxsntp runtime/net/stxsntp.cpp runtime/net/sntp.cpp
 build stxsupervisor-crash runtime/supervisor/test/crash_supervisor.cpp
