@@ -32,7 +32,9 @@
 // thread-exit hook releases; the only thread_local is a trivially
 // destructible ThreadFlags anchor (identity, fail-fast depth and flag, the
 // hook phase), and consumers register their own per-thread records
-// (include/stxlib/thread_records.hpp).
+// (include/stxlib/thread_records.hpp). Layout 10 also gives AllocatorCalls
+// `heap_failure`, the allocator's report of detected heap corruption
+// (smi's mimalloc audit, D6).
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -386,12 +388,16 @@ enum class ReleaseOutcome : u8 {
 
 // STXlib's one allocator (allocator.cpp; memory.hpp states the contract).
 // `backend` is memory::Backend's value; `tags_checked` whether this build
-// tags blocks and checks them on release.
+// tags blocks and checks them on release. `heap_failure` is 0 until the
+// backend detects heap corruption, then its error code (mimalloc's EFAULT;
+// allocator.cpp, D6): memory.cpp reads it after every call and fails fast.
+// It is set once and never cleared.
 struct AllocatorCalls final {
     void* (*allocate)(usize size, usize alignment) noexcept;
     ReleaseOutcome (*release)(void* address) noexcept;
     u8 backend;
     bool tags_checked;
+    const std::atomic<u32>* heap_failure;
 };
 
 // A per-thread record type (thread_records.hpp; E-thread-records.md). The

@@ -106,6 +106,7 @@
 #include "core/checked.hpp"
 
 #include <atomic>
+#include <cerrno>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -139,6 +140,11 @@ namespace {
     const bool result = value != 0 && (value & (value - 1)) == 0;
     return result;
 }
+
+// 0, or the code of the heap corruption the backend detected (AllocatorCalls
+// in state.hpp; set by on_mimalloc_error below; always 0 with the host
+// backend, which detects none).
+constinit std::atomic<u32> heap_failure_code{0};
 
 // ---- the backend ---------------------------------------------------------------
 
@@ -175,10 +181,36 @@ private:
 #endif
 };
 
+// Heap corruption mimalloc detects (smi's mimalloc audit, D6, and appendix
+// D, section 4, item 2): in this build mimalloc's default error handler
+// neither aborts nor reports (v3.6.1 options.c:600-623: the EFAULT abort
+// needs MI_DEBUG or MI_SECURE) and the corrupted heap carries on. STXlib's
+// handler, registered with mi_register_error, which replaces the default
+// (options.c:637-643), files EFAULT in heap_failure_code; memory.cpp reads
+// it after each allocate and release and fails fast with a record. Every
+// other error is data, already carried by the NULL result: the handler
+// leaves errno alone (the default's errno write goes with it; D4). Early
+// exits: it stores one atomic, so it cannot unwind, allocate or block. It
+// runs inside a mimalloc call, on whichever thread detected the corruption,
+// with mimalloc's own state as mimalloc leaves it.
+// stxlib_state's own allocations (thread blocks and records, state.cpp) do
+// not read the code; the next memory::allocate or release in any module
+// does, since it is set once and never cleared.
+void on_mimalloc_error(const int error, void* const context) noexcept {
+    static_cast<void>(context);
+    if (error != EFAULT) return;
+    u32 expected = 0;
+    static_cast<void>(heap_failure_code.compare_exchange_strong(expected, static_cast<u32>(EFAULT),
+                                                                std::memory_order_relaxed));
+}
+
 // mimalloc's run-time options, set once before the first block (the owner's
 // Q4 on smi's mimalloc audit, B1): purge_delay 0, so freed pages are purged
 // at once instead of after 1000 ms. It has no compile-time definition, so it
-// is set with mi_option_set. The place: the first call of backend_allocate,
+// is set with mi_option_set. The error handler above is registered at the
+// same point (mimalloc stores its function and argument separately,
+// options.c:626-627; the argument is unused, so a race between the two
+// stores is harmless). The place: the first call of backend_allocate,
 // before its mi_malloc_aligned. Every block STXlib takes from mimalloc
 // passes there (allocate_block, with or without tags), and nothing else in
 // stxlib_state allocates from mimalloc (mi_is_in_heap_region only reads the
@@ -191,6 +223,7 @@ STXLIB_NO_UNWIND void apply_options() noexcept {
     u32 expected = 0;
     if (options_phase.compare_exchange_strong(expected, 1, std::memory_order_acq_rel)) {
         mi_option_set(mi_option_purge_delay, 0);
+        mi_register_error(on_mimalloc_error, nullptr);
         options_phase.store(2, std::memory_order_release);
         return;
     }
@@ -483,6 +516,7 @@ constinit const AllocatorCalls calls{
     .release = release_block,
     .backend = backend_value,
     .tags_checked = tags_value,
+    .heap_failure = &heap_failure_code,
 };
 
 } // namespace

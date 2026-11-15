@@ -270,6 +270,15 @@ int main() { return 0; }" stxlib_mingw_ucrt)
         endif()
         target_compile_definitions(stxlib_mimalloc PRIVATE MI_MINGW_UCRT64)
     endif()
+    # On musl, MI_LIBC_MUSL=1 as upstream's CMake defines it, so mimalloc's
+    # thread id takes the path upstream tests on musl instead of
+    # __builtin_thread_pointer (include/mimalloc/prim-tls.h, the one use of
+    # the macro; smi's mimalloc audit, C11). Kept in its own block, apart from
+    # the definitions above, so it merges beside smi's settings
+    # (claude/mimalloc-settings).
+    if(STXLIB_HOST_FAMILY STREQUAL "musl")
+        target_compile_definitions(stxlib_mimalloc PRIVATE MI_LIBC_MUSL=1)
+    endif()
     target_sources(stxlib_state PRIVATE $<TARGET_OBJECTS:stxlib_mimalloc>)
     target_include_directories(stxlib_state PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/mimalloc/include)
     target_compile_definitions(stxlib_state PRIVATE STXLIB_ALLOCATOR_MIMALLOC)
