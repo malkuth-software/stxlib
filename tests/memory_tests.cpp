@@ -52,6 +52,8 @@ void refusals() {
     stxlib::memory::release(nullptr);
 #if defined(STXLIB_EXPECT_MIMALLOC)
     CHECK(stxlib::memory::backend() == stxlib::memory::Backend::mimalloc);
+#elif defined(STXLIB_EXPECT_STX_MINMALLOCPP)
+    CHECK(stxlib::memory::backend() == stxlib::memory::Backend::stx_minmallocpp);
 #else
     CHECK(stxlib::memory::backend() == stxlib::memory::Backend::host);
 #endif

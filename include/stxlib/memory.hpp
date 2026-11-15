@@ -43,6 +43,11 @@ namespace stxlib::memory {
 enum class Backend : u8 {
     host = 1,
     mimalloc = 2,
+    // STXlib's own allocator (src/state/stx_minmallocpp), chosen with
+    // STXLIB_ALLOCATOR=stx_minmallocpp. It refuses a release of anything
+    // that is not a live block of its own in every build, so tags_checked()
+    // is true with it.
+    stx_minmallocpp = 3,
 };
 
 [[nodiscard]] Backend backend() noexcept;

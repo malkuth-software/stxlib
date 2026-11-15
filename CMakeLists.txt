@@ -221,7 +221,44 @@ message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 # Since layout 5 it also owns the allocator (src/state/allocator.cpp), so a
 # block from stxlib::memory in one module may be released in another.
 option(STXLIB_STATE_SHARED "Build stxlib_state as a shared library (required when STXlib is in more than one module)" ON)
-set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
+# The allocator's backend (include/stxlib/memory.hpp). Sanitizers track the
+# host allocator only, so a build with sanitizers (or the integer checks,
+# which would halt on mimalloc's intended wrap-around) defaults to the host
+# backend, and src/state/allocator.cpp refuses mimalloc under address,
+# thread or memory sanitizers.
+if(stxlib_sanitized)
+    set(stxlib_allocator_default host)
+else()
+    set(stxlib_allocator_default mimalloc)
+endif()
+# stx_minmallocpp is STXlib's own allocator (src/state/stx_minmallocpp), a
+# conversion of mimalloc's design to house-style C++ (the owner,
+# 2026-11-15). It is chosen by name until it has been built, run, measured
+# and proved (proofs/REPORT.md); it is not a default yet.
+set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: mimalloc, host or stx_minmallocpp")
+set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host stx_minmallocpp)
+if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host|stx_minmallocpp)$")
+    message(FATAL_ERROR "STXLIB_ALLOCATOR must be mimalloc, host or stx_minmallocpp")
+endif()
+message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
+if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
+    # Its own allocator calls replace src/state/allocator.cpp: it needs no
+    # tag header and no registry (src/state/stx_minmallocpp/state_calls.cpp).
+    # Its host layer is the one file per family under src/hosted.
+    set(STXLIB_STATE_SOURCES
+        src/state/state.cpp
+        src/state/stx_minmallocpp/state_calls.cpp
+        src/state/stx_minmallocpp/allocator.cpp
+        src/state/stx_minmallocpp/heap.cpp
+        src/state/stx_minmallocpp/region.cpp)
+    if(WIN32)
+        list(APPEND STXLIB_STATE_SOURCES src/hosted/windows/minmallocpp_os_windows.cpp)
+    else()
+        list(APPEND STXLIB_STATE_SOURCES src/hosted/posix/minmallocpp_os_posix.cpp)
+    endif()
+else()
+    set(STXLIB_STATE_SOURCES src/state/state.cpp src/state/allocator.cpp)
+endif()
 if(STXLIB_STATE_SHARED)
     add_library(stxlib_state SHARED ${STXLIB_STATE_SOURCES})
     target_compile_definitions(stxlib_state PUBLIC STXLIB_STATE_SHARED)
@@ -244,23 +281,11 @@ set_target_properties(stxlib_state PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON
     POSITION_INDEPENDENT_CODE ON)
+if(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp" AND NOT WIN32)
+    # The thread-exit hook is a pthread key (minmallocpp_os_posix.cpp).
+    target_link_libraries(stxlib_state PRIVATE Threads::Threads)
+endif()
 
-# The allocator's backend (include/stxlib/memory.hpp). Sanitizers track the
-# host allocator only, so a build with sanitizers (or the integer checks,
-# which would halt on mimalloc's intended wrap-around) defaults to the host
-# backend, and src/state/allocator.cpp refuses mimalloc under address,
-# thread or memory sanitizers.
-if(stxlib_sanitized)
-    set(stxlib_allocator_default host)
-else()
-    set(stxlib_allocator_default mimalloc)
-endif()
-set(STXLIB_ALLOCATOR ${stxlib_allocator_default} CACHE STRING "STXlib allocator backend: mimalloc or host")
-set_property(CACHE STXLIB_ALLOCATOR PROPERTY STRINGS mimalloc host)
-if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
-    message(FATAL_ERROR "STXLIB_ALLOCATOR must be mimalloc or host")
-endif()
-message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
     # mimalloc v3.6.1 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
     # its one translation unit (src/static.c) into stxlib_state, with the
@@ -634,7 +659,38 @@ if(STXLIB_TESTS)
 
     if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
         target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_MIMALLOC)
+    elseif(STXLIB_ALLOCATOR STREQUAL "stx_minmallocpp")
+        target_compile_definitions(stxlib_memory_tests PRIVATE STXLIB_EXPECT_STX_MINMALLOCPP)
     endif()
+
+    # stx_minmallocpp. Its arithmetic (size classes, the alignment rule, the
+    # block index, the free-run lists) is in headers and is checked
+    # exhaustively in every configuration. Its behaviour is tested with the
+    # allocator's sources linked straight into the test, also in every
+    # configuration, whatever backend stxlib_state has.
+    add_executable(stxlib_stx_minmallocpp_tests tests/stx_minmallocpp_tests.cpp)
+    target_include_directories(stxlib_stx_minmallocpp_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_stx_minmallocpp_tests PRIVATE cxx_std_20)
+    target_compile_options(stxlib_stx_minmallocpp_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_stx_minmallocpp_tests COMMAND stxlib_stx_minmallocpp_tests)
+    set(stxlib_stx_minmallocpp_direct_sources
+        tests/stx_minmallocpp_direct_tests.cpp
+        src/state/stx_minmallocpp/allocator.cpp
+        src/state/stx_minmallocpp/heap.cpp
+        src/state/stx_minmallocpp/region.cpp)
+    if(WIN32)
+        list(APPEND stxlib_stx_minmallocpp_direct_sources src/hosted/windows/minmallocpp_os_windows.cpp)
+    else()
+        list(APPEND stxlib_stx_minmallocpp_direct_sources src/hosted/posix/minmallocpp_os_posix.cpp)
+    endif()
+    add_executable(stxlib_stx_minmallocpp_direct_tests ${stxlib_stx_minmallocpp_direct_sources})
+    target_include_directories(stxlib_stx_minmallocpp_direct_tests PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_stx_minmallocpp_direct_tests PRIVATE cxx_std_20)
+    target_compile_options(stxlib_stx_minmallocpp_direct_tests PRIVATE ${stxlib_test_warnings})
+    target_link_libraries(stxlib_stx_minmallocpp_direct_tests PRIVATE Threads::Threads)
+    add_test(NAME stxlib_stx_minmallocpp_direct_tests COMMAND stxlib_stx_minmallocpp_direct_tests)
 
     # stxlib::algorithms.
     foreach(test_name IN ITEMS calendar hash numeric_text precedence random simd)

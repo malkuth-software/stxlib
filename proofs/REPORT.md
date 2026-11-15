@@ -255,3 +255,23 @@ Mach-O-style and import-prefixed names, not with a real toolchain.
 
 None of these has been compiled or run except the Python checks named:
 the integrator builds and runs them on the M4.
+
+## stx_minmallocpp (STXlib's own allocator; the owner, 2026-11-15)
+
+A conversion of mimalloc v3's design to house-style C++
+(`src/state/stx_minmallocpp/`), chosen with `STXLIB_ALLOCATOR=stx_minmallocpp`.
+Written on Neo; not built, not run, nothing proved. "Enumerated" below means
+a test that covers its whole domain, which is a proof once it has run.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `layout.hpp` (`class_of`, `class_bytes`) | every size from 1 to 524,288 is held by its class and by no smaller one; sizes increase in multiples of 16 | the table's invariants are `static_assert`ed for all 56 classes; the rest enumerated, not yet run; ESBMC harness written, not run | `tests/stx_minmallocpp_tests.cpp`, `proofs/esbmc/stx_minmallocpp.cpp` (`harness_class_of`) |
+| `layout.hpp` (the alignment rule) | for an alignment from 16 to 65,536, the class of the size rounded up to it has a block size that is a multiple of it, so aligned allocation is ordinary allocation | proved on paper (the header's comment and the seat's DESIGN.md 5.2); enumerated, not yet run; harness written, not run | the same (`harness_alignment_rule`) |
+| `page.hpp` (`block_index`) | the multiply and shift equals the division for every class and every offset of its page | bound argued in the header; enumerated, not yet run; harness written, not run | the same (`harness_block_index`) |
+| `region.hpp` (`run_list_of`, `run_list_floor`) | the lists partition run lengths 1 to 16,383 in increasing order | enumerated, not yet run; harness written, not run | the same (`harness_run_list_floor`) |
+| `region.cpp` (the free-run index) | every free run is maximal, tagged at both ends and in the list of its length; an allocated run's end tags are 0; taking and giving a run are a fixed number of steps | not yet proved; argued in `region.hpp`. No harness yet (a model of the index against a set of intervals is the plan) | `tests/stx_minmallocpp_direct_tests.cpp` exercises it |
+| `heap.cpp` (the ownership protocol) | no released block is lost; a page never has two owners; `free` and `remote` never both name a block unless a client released it twice | not yet proved; argued in the seat's DESIGN.md 4.3. To be model-checked for 2 to 3 threads and one page | the direct tests' thread cases; ThreadSanitizer can run on this allocator (it has no intended race) |
+| `allocator.cpp` (`release`) | an address that is not the first byte of a live block of this allocator is refused without reading or writing it or anything near it | argued from the code: the directory, `slice_head` and the block index decide before any write; a release that races the freeing of the same page is outside the argument (a client error already) | the direct tests' `refusals` |
+| `allocator.cpp`, `heap.cpp` (early exit) | no path throws, calls back, or calls a cancellation point | argued: the host layer's calls are `mmap`, `mprotect`, `munmap`, `sched_yield` (POSIX.1-2024 XSH 2.9.5.2: in neither list), `pthread_key_create` and `pthread_setspecific` (not looked up: unconfirmed), and on Windows `VirtualAlloc`, `VirtualFree`, `SwitchToThread` | `src/hosted/posix/minmallocpp_os_posix.cpp`, `src/hosted/windows/minmallocpp_os_windows.cpp` |
+| the region tables | zero pages from the host are read as objects of the table types holding zero | assumed (`page.hpp`): `std::atomic<u32>` and `std::atomic<u64>` are checked to have the integer's size and to be lock free; the standard does not name `mmap` as creating objects | `page.hpp` |
+| performance | the same as mimalloc v3.6.1 on each path | not measured. Known costs to measure: the thread-local read, a multiply on the allocate path, two atomic operations per remote release | the seat's DESIGN.md 6 |

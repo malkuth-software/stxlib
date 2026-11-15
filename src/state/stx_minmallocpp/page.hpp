@@ -1,0 +1,289 @@
+#pragma once
+
+// stx_minmallocpp: a page's metadata, the region tables that hold it, and
+// the operations on one page's blocks.
+//
+// A region's metadata, by slice (each slice is 64 KiB; DESIGN.md 4.1):
+//
+//   0         RegionHeader (region.hpp)
+//   1         slice_head: one u32 per slice. 0: the slice is not part of a
+//             page. Otherwise 1 + the number of slices back to the page's
+//             first slice.
+//   2..4      the free-run tables: length (u16), next and previous (u32)
+//   5..20     PageMeta, 64 bytes per slice; a page's is at its first slice
+//   21..148   free words, 64 per slice
+//   149..276  remote words, 64 per slice
+//   277..287  never committed: a guard between metadata and data
+//   288..     data
+//
+// The host hands these tables over as zero pages. Zero is the empty value
+// of every table (not a page; no owner; no run; no free block), so a new
+// region needs no initialising pass. Assumption, stated once (proofs/
+// REPORT.md): zero pages from the host are read as objects of the table
+// types holding zero; std::atomic<u32> and std::atomic<u64> have the size
+// and representation of the integer (checked below).
+//
+// A page's blocks. Block i of a page is at area + i * block_bytes, where
+// area is the page's first slice's start. Its state is two bits, both
+// outside the page:
+//   free[i]    set: the block is free and its owner knows it;
+//   remote[i]  set: a thread that does not own the page released the
+//              block, and the owner has not merged that yet.
+// Both clear: the block is live. Both set never holds; finding it means a
+// block was released twice, and stops the process.
+//
+// The allocator never reads or writes a block's memory, free or live.
+//
+// Who may touch what:
+//   - free words, summary, live, the queue links: the page's owner only.
+//     Free words are atomics read and written relaxed, so that a thread
+//     that does not own the page may read one (to refuse a second release)
+//     without a data race.
+//   - remote words: anyone sets bits with an atomic OR; the owner takes a
+//     word with an atomic exchange.
+//   - state: see below.
+//   - list_class and the links while the page is on an abandoned list:
+//     under the structure lock (region.hpp).
+//   - slices, block_bytes, divide_magic, capacity, words, class_index: set
+//     when the page is made, constant until it is freed.
+//
+// state = (owner << 1) | pending.
+//   owner 0  no page here (what zero metadata holds); never claimable;
+//   owner 1  abandoned: a page with no owner, which any thread may claim;
+//   owner 2  the orphan heap (heap.hpp); owner 3 and up: thread heaps.
+//   pending  some thread set a remote bit since the owner last collected.
+// The protocol (heap.cpp) and why no release is lost: DESIGN.md 4.3.
+
+#include "state/stx_minmallocpp/layout.hpp"
+#include "state/stx_minmallocpp/os.hpp"
+
+#include <atomic>
+#include <bit>
+
+namespace stxlib::stx_minmallocpp {
+
+static_assert(sizeof(std::atomic<u32>) == sizeof(u32) && sizeof(std::atomic<u64>) == sizeof(u64),
+              "stx_minmallocpp: atomics have the integer's size");
+static_assert(std::atomic<u32>::is_always_lock_free && std::atomic<u64>::is_always_lock_free,
+              "stx_minmallocpp: atomics are lock free");
+
+// ---- the lock --------------------------------------------------------------------
+
+// A spin lock for the allocator's structure (region.hpp) and the orphan
+// heap. Zero is unlocked. Holders make only constant-time edits and at
+// most one host call, so a waiter's wait is the holder's bound. Waiters
+// yield, which is not a cancellation point. Not reentrant.
+struct Lock final {
+    std::atomic<u32> held{0};
+};
+
+class LockScope final {
+public:
+    explicit LockScope(Lock& target) noexcept : target_(target) {
+        while (target_.held.exchange(1, std::memory_order_acquire) != 0) {
+            while (target_.held.load(std::memory_order_relaxed) != 0) {
+                os::yield();
+            }
+        }
+    }
+    ~LockScope() { target_.held.store(0, std::memory_order_release); }
+    LockScope(const LockScope&) = delete;
+    LockScope& operator=(const LockScope&) = delete;
+
+private:
+    Lock& target_;
+};
+
+// ---- owners and state --------------------------------------------------------------
+
+inline constexpr u32 owner_none = 0;
+inline constexpr u32 owner_abandoned = 1;
+inline constexpr u32 owner_orphan = 2;
+inline constexpr u32 first_heap_owner = 3;
+// The identity of a heap that owns nothing (heap.hpp: the unbound and the
+// ended sentinels). No page ever names it, so "this page is mine" is false
+// for every page, whatever state a racing reader sees.
+inline constexpr u32 owner_unbound = 0x7fffffff;
+inline constexpr u32 pending_bit = 1;
+
+[[nodiscard]] constexpr u32 state_of_owner(const u32 owner) noexcept {
+    const u32 result = owner << 1;
+    return result;
+}
+
+[[nodiscard]] constexpr u32 owner_of_state(const u32 state) noexcept {
+    const u32 result = state >> 1;
+    return result;
+}
+
+// PageMeta::list_class when the page is on no abandoned list.
+inline constexpr u8 not_listed = 0xff;
+
+// ---- PageMeta ------------------------------------------------------------------------
+
+struct alignas(64) PageMeta final {
+    std::atomic<u32> state{0};
+    // The page's length in slices.
+    u32 slices{0};
+    // The block size, and ceil(2^42 / block_bytes) (0 for a singleton page,
+    // whose one block starts the page).
+    u64 block_bytes{0};
+    u64 divide_magic{0};
+    // Blocks in the page, and how many of them are live as far as the owner
+    // has merged.
+    u32 capacity{0};
+    u32 live{0};
+    // Bit w clear: free word w is zero. A set bit promises nothing.
+    u64 summary{0};
+    // The size class, or singleton_class.
+    u16 class_index{0};
+    // Bitmap words in use, 1 to 64.
+    u8 words{0};
+    // The class whose abandoned list holds the page, or not_listed.
+    u8 list_class{not_listed};
+    u32 reserved{0};
+    // The owner heap's class queue, or the abandoned list.
+    PageMeta* next{nullptr};
+    PageMeta* previous{nullptr};
+};
+
+static_assert(sizeof(PageMeta) == 64 && alignof(PageMeta) == 64, "stx_minmallocpp: PageMeta is one cache line");
+
+// ---- the region's tables -----------------------------------------------------------
+
+inline constexpr usize header_slice = 0;
+inline constexpr usize slice_head_slice = 1;
+inline constexpr usize run_length_slice = 2;
+inline constexpr usize run_next_slice = 3;
+inline constexpr usize run_previous_slice = 4;
+inline constexpr usize page_meta_slice = 5;
+inline constexpr usize free_words_slice = 21;
+inline constexpr usize remote_words_slice = 149;
+inline constexpr usize guard_slice = 277;
+// The first data slice, on a unit boundary (288 = 18 units).
+inline constexpr usize first_data_slice = 288;
+// Slices committed when a region is made: 0 up to the free words.
+inline constexpr usize eager_meta_slices = free_words_slice;
+
+static_assert(region_slices * sizeof(u32) == slice_bytes, "slice_head fills one slice");
+static_assert(region_slices * sizeof(PageMeta) == (free_words_slice - page_meta_slice) * slice_bytes, "PageMeta table");
+static_assert(region_slices * page_words * sizeof(u64) == (remote_words_slice - free_words_slice) * slice_bytes,
+              "free words table");
+static_assert(region_slices * page_words * sizeof(u64) == (guard_slice - remote_words_slice) * slice_bytes,
+              "remote words table");
+static_assert(guard_slice < first_data_slice && first_data_slice % unit_slices == 0, "data starts on a unit");
+
+// The region that holds `address`, which is inside one: its 1 GiB base.
+[[nodiscard]] constexpr uptr region_base_of(const uptr address) noexcept {
+    const uptr result = address & ~static_cast<uptr>(region_bytes - 1);
+    return result;
+}
+
+[[nodiscard]] inline std::atomic<u32>* slice_heads(const uptr base) noexcept {
+    std::atomic<u32>* const result = reinterpret_cast<std::atomic<u32>*>(base + slice_head_slice * slice_bytes);
+    return result;
+}
+
+[[nodiscard]] inline PageMeta* page_metas(const uptr base) noexcept {
+    PageMeta* const result = reinterpret_cast<PageMeta*>(base + page_meta_slice * slice_bytes);
+    return result;
+}
+
+// The 64 free words, and the 64 remote words, of the page whose first slice
+// is `head`.
+[[nodiscard]] inline std::atomic<u64>* free_words(const uptr base, const usize head) noexcept {
+    const uptr address = base + free_words_slice * slice_bytes + head * page_words * sizeof(u64);
+    std::atomic<u64>* const result = reinterpret_cast<std::atomic<u64>*>(address);
+    return result;
+}
+
+[[nodiscard]] inline std::atomic<u64>* remote_words(const uptr base, const usize head) noexcept {
+    const uptr address = base + remote_words_slice * slice_bytes + head * page_words * sizeof(u64);
+    std::atomic<u64>* const result = reinterpret_cast<std::atomic<u64>*>(address);
+    return result;
+}
+
+// Where a page is, from its PageMeta's own address: the tables are at fixed
+// places in the region, so nothing is stored.
+struct PagePlace final {
+    uptr base{0};
+    usize head{0};
+};
+
+[[nodiscard]] inline PagePlace place_of(const PageMeta& page) noexcept {
+    const uptr address = reinterpret_cast<uptr>(&page);
+    const uptr base = region_base_of(address);
+    const usize head = static_cast<usize>(address - base - page_meta_slice * slice_bytes) / sizeof(PageMeta);
+    const PagePlace result{.base = base, .head = head};
+    return result;
+}
+
+// The address of the page's first block.
+[[nodiscard]] constexpr uptr area_of(const PagePlace place) noexcept {
+    const uptr result = place.base + (static_cast<uptr>(place.head) << slice_shift);
+    return result;
+}
+
+// ---- block arithmetic ---------------------------------------------------------------
+
+// The index of the block that contains byte `offset` of a page:
+// floor(offset / block_bytes), without a division. Exact for
+// offset < 2^22 and 16 <= block_bytes <= 2^19: with
+// magic = ceil(2^42 / block_bytes), offset * (magic - 2^42 / block_bytes)
+// < 2^22 <= 2^42 / block_bytes, and offset * magic < 2^61. A singleton
+// page has magic 0, so the index is 0 for every offset.
+[[nodiscard]] constexpr u64 block_index(const u64 offset, const u64 divide_magic) noexcept {
+    const u64 result = (offset * divide_magic) >> divide_shift;
+    return result;
+}
+
+// ---- the owner's operations on one page ------------------------------------------
+
+// What the allocator found contradicted before it stopped the process;
+// kept for a debugger or a core file (integrity_stop, heap.cpp).
+enum class Integrity : u32 {
+    whole = 0,
+    // A remote bit and a free bit name the same block: released twice.
+    released_twice = 1,
+    // A page being made found remote bits left by a release of a block of
+    // the page that was there before.
+    released_into_freed_page = 2,
+    // More blocks were merged than were live.
+    live_count = 3,
+};
+
+[[noreturn]] void integrity_stop(Integrity what) noexcept;
+
+// Merges every remote release into the page's free words. Owner only.
+// Clears pending first, so a release that sets its bit after a word is
+// taken sets pending again and is merged by a later collect. At most 64
+// words.
+inline void collect(PageMeta& page) noexcept {
+    static_cast<void>(page.state.fetch_and(~pending_bit));
+    const PagePlace place = place_of(page);
+    std::atomic<u64>* const free_cells = free_words(place.base, place.head);
+    std::atomic<u64>* const remote_cells = remote_words(place.base, place.head);
+    const usize words = page.words;
+    for (usize word = 0; word < words; ++word) {
+        if (remote_cells[word].load(std::memory_order_relaxed) == 0) continue;
+        const u64 released = remote_cells[word].exchange(0);
+        const u64 known = free_cells[word].load(std::memory_order_relaxed);
+        if ((known & released) != 0) integrity_stop(Integrity::released_twice);
+        const u32 count = static_cast<u32>(std::popcount(released));
+        if (count > page.live) integrity_stop(Integrity::live_count);
+        free_cells[word].store(known | released, std::memory_order_relaxed);
+        page.summary = page.summary | (static_cast<u64>(1) << word);
+        page.live = page.live - count;
+    }
+}
+
+// ---- the empty sentinels -----------------------------------------------------------
+
+// What a heap's class entry names when the class has no current page: a
+// word that is always zero, so the fast path falls to the slow path with no
+// test of its own, and a page nobody writes (the fast path writes a page
+// only after it found a non-zero word).
+inline constinit std::atomic<u64> empty_word{0};
+inline constinit PageMeta empty_page{};
+
+} // namespace stxlib::stx_minmallocpp
