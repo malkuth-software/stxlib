@@ -145,6 +145,9 @@ mount -t msdosfs "/dev/$esp" "$mnt/esp"
 mount "/dev/$bootctl" "$mnt/bootctl"
 mount "/dev/$slot_a" "$mnt/a"
 mount "/dev/$slot_b" "$mnt/b"
+# newfs makes an empty /.snap for UFS snapshots. The roots are mounted
+# read-only and never take one, so it goes and the inventory stays exact.
+rmdir "$mnt/a/.snap" "$mnt/b/.snap"
 mount -t msdosfs "/dev/$user" "$mnt/user"
 
 # --- ESP ----------------------------------------------------------------

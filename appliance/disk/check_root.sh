@@ -77,6 +77,9 @@ elves=0
 : > "$work/unmet"
 ( cd "$root" && find . -type f ) | sed 's|^\.||' > "$work/files"
 while IFS= read -r file; do
+    # The kernel and its modules are linked by the kernel linker, not rtld;
+    # the kernel's NEEDED force-dynamic-hack.pico (kern.post.mk) is no library.
+    case $file in /boot/*) continue ;; esac
     readelf -h "$root$file" > /dev/null 2>&1 || continue
     elves=$((elves + 1))
     for library in $(readelf -d "$root$file" 2>/dev/null | sed -n 's/.*NEEDED.*\[\(.*\)\].*/\1/p'); do
