@@ -86,7 +86,7 @@ constexpr double exp2_ulp_limit = 0.5001;   // proved 0.5000001
 constexpr double expm1_ulp_limit = 0.5013;  // proved 0.5011219
 constexpr double log1p_ulp_limit = 0.5001;  // proved 0.5000001
 constexpr double exp2_screen = 0x1p-79;     // proved 2^-79.92
-constexpr double expm1_screen = 0x1p-62.5;  // proved 2^-62.80
+constexpr double expm1_screen = 0x1.6a09e667f3bcdp-63; // 2^-62.5 rounded up; proved 2^-62.80
 constexpr double log1p_screen = 0x1p-75;    // proved 2^-75.80
 
 // ---- references ------------------------------------------------------------------
