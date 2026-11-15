@@ -29,7 +29,8 @@ terms of the MIT license. A copy of the license can be found in the file
 #include "mimalloc/heap/process.h"
 
 #include <sys/mman.h>  // mmap
-#include <unistd.h>    // sysconf, sleep
+#include <unistd.h>    // sysconf
+#include <sched.h>     // sched_yield
 #include <fcntl.h>     // open, close, read, access
 #include <stdlib.h>    // getenv, arc4random_buf
 
@@ -161,7 +162,10 @@ static bool unix_detect_overcommit(void) {
     int val = 0;
     size_t olen = sizeof(val);
     if (sysctlbyname("vm.overcommit", &val, &olen, NULL, 0) == 0) {
-      os_overcommit = (val != 0);
+      // vm.overcommit is a bit set (FreeBSD sys/vm/vm.h): bit 0 is SWAP_RESERVE_FORCE_ON
+      // (strict swap accounting) and bit 1 SWAP_RESERVE_RLIMIT_ON (RLIMIT_SWAP enforced).
+      // Memory is overcommitted only when neither is set; 0 is the default.
+      os_overcommit = ((val & 3) == 0);
     }
   #else
     // default: overcommit is true
@@ -1145,7 +1149,10 @@ bool _mi_prim_thread_is_in_threadpool(void) {
 }
 
 void _mi_prim_thread_yield(void) {
-  sleep(0);
+  // sched_yield, not sleep(0): sleep is a POSIX cancellation point and this yield sits
+  // in busy-waits reached from mi_free (bitmap-chunk.c) and thread exit (theap.c, inside
+  // the tld's theaps_lock), where a cancellation would leave a page claimed or a lock held.
+  sched_yield();
 }
 
 bool _mi_prim_process_is_killed(void) {

@@ -1,0 +1,43 @@
+Subject: unix: yield with sched_yield, which is not a cancellation point
+Fixes: E1 - _mi_prim_thread_yield called sleep(0), a POSIX cancellation point, inside busy-waits on mi_free and thread-exit paths
+Upstream: to report
+
+POSIX (Issue 8, XSH 2.9.5.2) requires sleep() to be a cancellation point;
+sched_yield() is in neither list. v3.6.1's _mi_prim_thread_yield, used in
+the busy-waits of src/arena/bitmap-chunk.c (122-125, reached from mi_free
+when a page is being unabandoned concurrently), src/heap/theap.c (438 and
+470, the latter inside mi_lock(&tld->theaps_lock) at thread exit) and the
+fallback lock of include/mimalloc/atomic.h (550), called sleep(0). A
+deferred cancellation acted on there either left a page owned and abandoned
+for ever or a lock held, and with -fno-exceptions the forced unwind passed
+through mimalloc's frames (audit E1, E2, E5). sched_yield() gives the same
+yield without a cancellation point. sleep is no longer used in this file,
+so the comment on the unistd.h include is updated and sched.h is included.
+STXlib also blocks cancellation around its allocator calls
+(src/state/allocator.cpp); this patch covers the paths that do not go
+through them, such as thread exit.
+
+--- a/src/prim/unix/prim.c
++++ b/src/prim/unix/prim.c
+@@ -29,7 +29,8 @@
+ #include "mimalloc/heap/process.h"
+ 
+ #include <sys/mman.h>  // mmap
+-#include <unistd.h>    // sysconf, sleep
++#include <unistd.h>    // sysconf
++#include <sched.h>     // sched_yield
+ #include <fcntl.h>     // open, close, read, access
+ #include <stdlib.h>    // getenv, arc4random_buf
+ 
+@@ -1148,7 +1149,10 @@
+ }
+ 
+ void _mi_prim_thread_yield(void) {
+-  sleep(0);
++  // sched_yield, not sleep(0): sleep is a POSIX cancellation point and this yield sits
++  // in busy-waits reached from mi_free (bitmap-chunk.c) and thread exit (theap.c, inside
++  // the tld's theaps_lock), where a cancellation would leave a page claimed or a lock held.
++  sched_yield();
+ }
+ 
+ bool _mi_prim_process_is_killed(void) {

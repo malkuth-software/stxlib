@@ -614,7 +614,8 @@ or extra. Kept, as for v3.5.3: `LICENSE` and the `.c` and `.h` files under
 `include/` and `src/`, without the override headers
 (`include/mimalloc-new-delete.h`, `include/mimalloc-override.h`), the
 `readme.md` files and the ETW manifest and profile; 75 files, copied
-unmodified. Compiled into `stxlib_state` as its one translation unit,
+unmodified (STXlib's patches are applied on top: "STXlib's patch series"
+below). Compiled into `stxlib_state` as its one translation unit,
 `src/static.c`, with stx_auxlib's definitions (CMakeLists.txt), plus
 `MI_MINGW_UCRT64` on MinGW (batch 3b) and `MI_PROFILE=0` (CMakeLists.txt
 gives the reasons).
@@ -730,9 +731,19 @@ exactly.
 
 | Patch (under `third_party/mimalloc-patches/`) | SHA-256 | Fixes | Upstream |
 |---|---|---|---|
+| `0001-freebsd-overcommit-bits.patch` | `743986078953941e6be00e9c4f20e6fda3caed990ff818bcf185104754cf7d4d` | B4 | to report |
+| `0002-unix-yield-no-cancellation-point.patch` | `d9fb7687cd92ff9614842a9ebda06771d20db62440b87997f96b7982dcc053d4` | E1 | to report |
+| `0003-page-map-full-span.patch` | `5ccb963c052127f0acbc4113413ab0faefb8ee1d66f8f415a4261a6edd768b28` | S1, A2 | to report (clamp); count is 221e58feb, unreleased |
+| `0004-no-implicit-reinit-after-thread-done.patch` | `f9c7c50cfcb079a9e9b3b32ee2d4d8f33571fa75c6899b4ea9909d533cc3e55c` | A4, C2 | backport of 66b6fd4c2, unreleased |
 
 | Patched file (under `third_party/mimalloc/`) | SHA-256 |
 |---|---|
+| `include/mimalloc/heap/process.h` | `05f5135d92f8a7ec9741b3dd968bc61b2c104627e4a64335002f4ecde7783d95` |
+| `src/alloc/alloc-generic.c` | `5b2954a8b7cde7e20835d6b941ff37ba5c426eead9a7f061255f6201180533cb` |
+| `src/heap/heap.c` | `ac54337200785292547c979ef55a541bb784926a3a33b980c66f7fbaa9d08f76` |
+| `src/heap/page-map.c` | `0bc401eda64d17cb94f589da3b95c76edeb5d10296f9d0745f1b95061783b7f8` |
+| `src/heap/process.c` | `0b1263336522094c68172bcb12613cacb33a10087c8ea9075478585ad81e23fb` |
+| `src/prim/unix/prim.c` | `fefa6af0b9209775dd5de6a39f26f89eafd079f5553f9f11a41ace949b32d33d` |
 
 ### threadpool_atomic_fast, the pool's C reference (batch 3c)
 

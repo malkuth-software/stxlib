@@ -208,8 +208,9 @@ if(NOT STXLIB_ALLOCATOR MATCHES "^(mimalloc|host)$")
 endif()
 message(STATUS "STXlib allocator backend: ${STXLIB_ALLOCATOR}")
 if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
-    # mimalloc v3.6.1 (third_party/mimalloc, MIT; PROVENANCE.md), compiled as
-    # its one translation unit (src/static.c) into stxlib_state, with the
+    # mimalloc v3.6.1 with STXlib's patch series (third_party/mimalloc, MIT;
+    # third_party/mimalloc-patches; PROVENANCE.md), compiled as its one
+    # translation unit (src/static.c) into stxlib_state, with the
     # definitions stx_auxlib b6e330a used (CMakeLists.txt there). It replaces
     # no C library function (MI_MALLOC_OVERRIDE stays undefined) and its
     # symbols are hidden, so its heap holds STXlib's blocks only. Compiled as
@@ -251,8 +252,9 @@ if(STXLIB_ALLOCATOR STREQUAL "mimalloc")
     #   MI_NO_ALIGNED_HINT leaves arena placement to the kernel, so a first
     #   allocation on a worker thread cannot leave later arenas at fixed low
     #   addresses (B3; 24a5896da). On FreeBSD, MI_DEFAULT_ARENA_EAGER_COMMIT=0,
-    #   below: mimalloc reads vm.overcommit inverted (B4, unfixed upstream)
-    #   and would commit whole arenas up front under strict accounting. The
+    #   below: v3.6.1 reads vm.overcommit inverted (B4, unfixed upstream;
+    #   patch 0001 corrects the reading) and would commit whole arenas up
+    #   front under strict accounting. The
     #   purge delay of 0 (B1) is an option set at start-up, not a definition.
     target_compile_definitions(stxlib_mimalloc PRIVATE
         MI_NO_GETENV
