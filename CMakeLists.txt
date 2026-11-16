@@ -816,6 +816,9 @@ if(STXLIB_TESTS)
     if(NOT stxlib_web_tests)
         target_include_directories(stxlib_debugger_anchor_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_link_libraries(stxlib_debugger_anchor_tests PRIVATE ${CMAKE_DL_LIBS})
+        # state.hpp's layout key carries the build type (STXLIB_SHADOW), as
+        # stxlib_state has it.
+        target_compile_definitions(stxlib_debugger_anchor_tests PRIVATE $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>)
     endif()
     if(stxlib_web_tests AND STXLIB_EMSCRIPTEN_FILESYSTEM STREQUAL "wasmfs")
         target_compile_definitions(stxlib_emscripten_tests PRIVATE STXLIB_TEST_WASMFS)
