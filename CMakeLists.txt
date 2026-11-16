@@ -690,6 +690,10 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/layout_tables.cpp
     src/algorithms/glyphs/shape_buffer.cpp
     src/algorithms/glyphs/shape_unicode.cpp
+    src/algorithms/glyphs/shape_plan.cpp
+    src/algorithms/glyphs/shape_apply.cpp
+    src/algorithms/glyphs/shape_text.cpp
+    src/algorithms/glyphs/glyph_shape.cpp
     src/algorithms/glyphs/hinter_accents.cpp
     src/algorithms/glyphs/hinter_align.cpp
     src/algorithms/glyphs/hinter_edges.cpp
@@ -1015,6 +1019,12 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_shape_unicode_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_shape_unicode_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_shape_unicode_tests COMMAND stxlib_glyph_shape_unicode_tests)
+    # stxlib::glyphs: shaping, on a font with layout tables built in the
+    # test (tests/glyph_shape_tests.cpp).
+    add_executable(stxlib_glyph_shape_tests tests/glyph_shape_tests.cpp)
+    target_link_libraries(stxlib_glyph_shape_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_glyph_shape_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_shape_tests COMMAND stxlib_glyph_shape_tests)
     # stxlib::glyphs with every check on (src/algorithms/glyphs/
     # glyph_checks.hpp): the glyph sources compiled again with
     # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call
@@ -1027,7 +1037,7 @@ if(STXLIB_TESTS)
     target_compile_features(stxlib_glyphs_checked PRIVATE cxx_std_20)
     target_compile_definitions(stxlib_glyphs_checked PRIVATE STXLIB_GLYPHS_CHECKS)
     target_compile_options(stxlib_glyphs_checked PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
-    foreach(test_name IN ITEMS font_file glyph_hinter glyph_untrusted glyph_shape_buffer)
+    foreach(test_name IN ITEMS font_file glyph_hinter glyph_untrusted glyph_shape_buffer glyph_shape)
         add_executable(stxlib_${test_name}_checked_tests tests/${test_name}_tests.cpp $<TARGET_OBJECTS:stxlib_glyphs_checked>)
         target_link_libraries(stxlib_${test_name}_checked_tests PRIVATE stxlib::algorithms)
         target_include_directories(stxlib_${test_name}_checked_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

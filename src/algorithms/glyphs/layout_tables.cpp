@@ -214,6 +214,30 @@ LanguageSystem language_system(const LayoutTable& layout, const usize script, co
     return system;
 }
 
+bool has_language(const LayoutTable& layout, const usize script, const u32 language) noexcept {
+    const Span& table = layout.table;
+    if (script == 0 || language == 0 || !has(table, script, 4)) return false;
+    const usize count = read_u16(table, script + 2);
+    if (!has(table, script + 4, count * 6)) return false;
+    usize low = 0;
+    usize high = count;
+    bool found = false;
+    while (low < high && !found) {
+        const usize middle = low + (high - low) / 2;
+        const usize record = script + 4 + middle * 6;
+        const u32 listed = read_u32(table, record);
+        if (listed < language) {
+            low = middle + 1;
+        } else if (listed > language) {
+            high = middle;
+        } else {
+            found = read_u16(table, record + 4) != 0;
+            low = high;
+        }
+    }
+    return found;
+}
+
 u32 language_feature(const LayoutTable& layout, const LanguageSystem& system, const u32 index) noexcept {
     const u32 result = index < system.feature_count ? read_u16(layout.table, system.features + static_cast<usize>(index) * 2) : no_feature;
     return result;

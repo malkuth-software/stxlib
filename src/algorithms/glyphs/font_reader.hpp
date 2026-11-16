@@ -77,6 +77,25 @@ struct Span final {
     return result;
 }
 
+// The same numbers for a place that has not been checked: 0 when the bytes
+// are not all inside the span. A table read this way is read as if what
+// lies outside it were zeros, which every reader of offsets and counts
+// takes as "nothing there".
+[[nodiscard]] constexpr u32 peek_u16(const Span& span, const usize offset) noexcept {
+    const u32 result = has(span, offset, 2) ? read_u16(span, offset) : 0;
+    return result;
+}
+
+[[nodiscard]] constexpr i32 peek_i16(const Span& span, const usize offset) noexcept {
+    const i32 result = has(span, offset, 2) ? read_i16(span, offset) : 0;
+    return result;
+}
+
+[[nodiscard]] constexpr u32 peek_u32(const Span& span, const usize offset) noexcept {
+    const u32 result = has(span, offset, 4) ? read_u32(span, offset) : 0;
+    return result;
+}
+
 // a * b / 65536, rounded to the nearest, halves away from zero: a times a
 // 16.16 number.
 [[nodiscard]] constexpr i64 multiply_fixed(const i64 a, const i64 b) noexcept {

@@ -105,6 +105,11 @@ struct Font final {
     FontTable substitutions{};
     FontTable positions{};
     FontTable definitions{};
+    // The character map's list of variation sequences (a base character
+    // and a variation selector that together name a glyph), and the old
+    // kerning table; the shaper reads both. Empty when the font has none.
+    FontTable variation_map{};
+    FontTable kerning{};
     u32 advance_count{0};
     // CFF: the charstrings, the global subroutines, and where each glyph's
     // font dictionary is found (src/algorithms/glyphs/font_cff.cpp).
@@ -162,6 +167,11 @@ struct MappedStretch final {
 // Whether the font's table of substitutions lists the feature `tag` (four
 // letters as one number, the first highest: 'smcp' is 0x736D6370).
 [[nodiscard]] bool has_feature(const Font& font, u32 tag) noexcept;
+
+// The glyph of a character followed by a variation selector: 0 when the
+// font lists no such sequence; `use_default` set when the font says the
+// sequence is the character's own glyph (glyph_of gives it).
+[[nodiscard]] u32 variation_glyph(const Font& font, u32 character, u32 selector, bool& use_default) noexcept;
 
 // A glyph's advance in font units, or 0 for a glyph the font has not.
 [[nodiscard]] i32 advance_of(const Font& font, u32 glyph) noexcept;

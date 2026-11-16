@@ -58,6 +58,7 @@ struct Tables final {
     FontTable gsub{};
     FontTable gpos{};
     FontTable gdef{};
+    FontTable kern{};
 };
 
 // The character maps this reads, and which is taken: a map of all of
@@ -118,6 +119,26 @@ void choose_character_map(const Span& whole, const FontTable& table, Font& font)
         }
     }
     static_cast<void>(whole);
+}
+
+// The list of variation sequences: the character map of platform 0,
+// encoding 5, format 14, when its header and its records are inside it.
+void choose_variation_map(const FontTable& table, Font& font) noexcept {
+    const Span cmap = table_of(font, table);
+    if (!has(cmap, 0, 4)) return;
+    const usize records = read_u16(cmap, 2);
+    if (!has(cmap, 4, records * 8)) return;
+    for (usize index = 0; index < records; ++index) {
+        const usize record = 4 + index * 8;
+        if (read_u16(cmap, record) != platform_unicode || read_u16(cmap, record + 2) != 5) continue;
+        const usize offset = read_u32(cmap, record + 4);
+        if (!has(cmap, offset, 10) || read_u16(cmap, offset) != 14) continue;
+        const Span map = part(cmap, offset, cmap.size - offset);
+        const usize selectors = read_u32(map, 6);
+        if (selectors > (map.size - 10) / 11) continue;
+        font.variation_map = FontTable{.offset = static_cast<u32>(table.offset + offset), .length = static_cast<u32>(map.size)};
+        return;
+    }
 }
 
 // Format 4: segments of the first 65,536 characters, by a search for the
@@ -226,6 +247,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         if (name == tag('G', 'S', 'U', 'B')) tables.gsub = table;
         if (name == tag('G', 'P', 'O', 'S')) tables.gpos = table;
         if (name == tag('G', 'D', 'E', 'F')) tables.gdef = table;
+        if (name == tag('k', 'e', 'r', 'n')) tables.kern = table;
         if (name == tag('c', 'm', 'a', 'p')) tables.cmap = table;
         if (name == tag('l', 'o', 'c', 'a')) tables.loca = table;
         if (name == tag('g', 'l', 'y', 'f')) tables.glyf = table;
@@ -268,6 +290,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     font.substitutions = tables.gsub;
     font.positions = tables.gpos;
     font.definitions = tables.gdef;
+    font.kerning = tables.kern;
     if (has(os2, 0, 78)) {
         const i32 typo_ascender = read_i16(os2, 68);
         const i32 typo_descender = read_i16(os2, 70);
@@ -295,6 +318,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     font.hmtx = tables.hmtx;
     font.advance_count = static_cast<u32>(advances < hmtx.size / 4 ? advances : hmtx.size / 4);
     choose_character_map(whole, tables.cmap, font);
+    choose_variation_map(tables.cmap, font);
     if (tables.glyf.length != 0 && tables.loca.length != 0) {
         font.outlines = OutlineKind::truetype;
         font.loca = tables.loca;
@@ -442,6 +466,80 @@ bool has_feature(const Font& font, const u32 wanted) noexcept {
     bool found = false;
     for (usize index = 0; index < count && !found; ++index) found = read_u32(table, list + 2 + index * 6) == wanted;
     return found;
+}
+
+u32 variation_glyph(const Font& font, const u32 character, const u32 selector, bool& use_default) noexcept {
+    use_default = false;
+    const Span map = table_of(font, font.variation_map);
+    if (!has(map, 0, 10) || character > 0xFFFFFFU) return 0;
+    const usize selectors = read_u32(map, 6);
+    if (selectors > (map.size - 10) / 11) return 0;
+    // The selectors in order: the selector (24 bits), then the offsets of
+    // its two lists, each 0 for none.
+    usize low = 0;
+    usize high = selectors;
+    usize record = 0;
+    while (low < high && record == 0) {
+        const usize middle = low + (high - low) / 2;
+        const u32 listed = detail::read_u24(map, 10 + middle * 11);
+        if (listed < selector) {
+            low = middle + 1;
+        } else if (listed > selector) {
+            high = middle;
+        } else {
+            record = 10 + middle * 11;
+        }
+    }
+    if (record == 0) return 0;
+    // The sequences that name the character's own glyph: ranges in order,
+    // a first character (24 bits) and how many more follow it.
+    const usize defaults = read_u32(map, record + 3);
+    if (defaults != 0 && has(map, defaults, 4)) {
+        const usize ranges = read_u32(map, defaults);
+        if (ranges <= (map.size - defaults - 4) / 4) {
+            low = 0;
+            high = ranges;
+            while (low < high && !use_default) {
+                const usize middle = low + (high - low) / 2;
+                const u32 first = detail::read_u24(map, defaults + 4 + middle * 4);
+                const u32 last = first + detail::read_u8(map, defaults + 4 + middle * 4 + 3);
+                if (last < character) {
+                    low = middle + 1;
+                } else if (first > character) {
+                    high = middle;
+                } else {
+                    use_default = true;
+                }
+            }
+        }
+    }
+    if (use_default) return 0;
+    // The sequences with a glyph of their own: characters in order, each
+    // with its glyph.
+    const usize others = read_u32(map, record + 7);
+    u32 glyph = 0;
+    if (others != 0 && has(map, others, 4)) {
+        const usize count = read_u32(map, others);
+        if (count <= (map.size - others - 4) / 5) {
+            low = 0;
+            high = count;
+            bool found = false;
+            while (low < high && !found) {
+                const usize middle = low + (high - low) / 2;
+                const u32 listed = detail::read_u24(map, others + 4 + middle * 5);
+                if (listed < character) {
+                    low = middle + 1;
+                } else if (listed > character) {
+                    high = middle;
+                } else {
+                    glyph = read_u16(map, others + 4 + middle * 5 + 3);
+                    found = true;
+                }
+            }
+        }
+    }
+    const u32 result = glyph < font.glyph_count ? glyph : 0;
+    return result;
 }
 
 i32 advance_of(const Font& font, const u32 glyph) noexcept {

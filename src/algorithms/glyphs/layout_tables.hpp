@@ -97,6 +97,8 @@ struct LanguageSystem final {
 // one when `language` is 0 or the script has none for it. found is false
 // when there is neither.
 [[nodiscard]] LanguageSystem language_system(const LayoutTable& layout, usize script, u32 language) noexcept;
+// Whether the script has a language system of its own for `language`.
+[[nodiscard]] bool has_language(const LayoutTable& layout, usize script, u32 language) noexcept;
 // The number of the system's `index`th feature (index < feature_count).
 [[nodiscard]] u32 language_feature(const LayoutTable& layout, const LanguageSystem& system, u32 index) noexcept;
 
