@@ -205,6 +205,53 @@ inline void add_any_chord(const Cells& cells, const Fixed upper, const Fixed low
     add_piece(row, from, lower_x, last_height * frame_to_fixed, slope);
 }
 
+// Any chord, but only the rows of a band: rows `first` to `first + count`
+// of the mask, into cells whose first row is row `first`. Each row gets
+// the piece add_any_chord gives it: the same crossings (the exact x
+// rounded down, found for the band's first row by a division and carried
+// from there) and the same heights.
+inline void add_chord_in_rows(const Cells& cells, const Fixed upper, const Fixed lower, const i64 sign, const i64 first,
+                              const i64 count) noexcept {
+    const i64 dx = lower.x - upper.x;
+    const i64 rise = lower.y - upper.y;
+    const i64 run = magnitude(dx);
+    const i64 toward = dx < 0 ? -1 : 1;
+    const i64 first_row = upper.y >> frame_bits;
+    const i64 last_row = (lower.y - 1) >> frame_bits;
+    const i64 from_row = first_row > first ? first_row : first;
+    const i64 to_row = last_row < first + count - 1 ? last_row : first + count - 1;
+    if (from_row > to_row) return;
+    const Slope slope{.rise = rise, .run = run, .run_reciprocal = 0, .sign = sign};
+    const i64 upper_x = upper.x * frame_to_fixed;
+    const i64 lower_x = lower.x * frame_to_fixed;
+    const i64 bias = dx < 0 ? rise - 1 : 0;
+    // The crossing of the lower boundary of from_row, and of the boundary
+    // above it when the chord begins higher.
+    const i64 row_product = run * one;
+    const i64 step = row_product / rise;
+    const i64 step_remainder = row_product - step * rise;
+    const i64 product = ((from_row + 1) * frame_one - upper.y) * run * frame_one + bias;
+    i64 crossed = product / rise;
+    i64 remainder = product - crossed * rise;
+    i64 from = upper_x;
+    if (from_row > first_row) from = upper_x + toward * ((product - row_product) / rise);
+    i64* row = cells.cells + static_cast<usize>(from_row - first) * cells.stride;
+    for (i64 index = from_row; index <= to_row; ++index) {
+        const i64 top = index * frame_one > upper.y ? index * frame_one : upper.y;
+        const i64 bottom = (index + 1) * frame_one < lower.y ? (index + 1) * frame_one : lower.y;
+        const i64 to = index == last_row ? lower_x : upper_x + toward * crossed;
+        add_piece(row, from, to, (bottom - top) * frame_to_fixed, slope);
+        row = row + cells.stride;
+        from = to;
+        crossed = crossed + step;
+        remainder = remainder + step_remainder;
+        if (remainder >= rise) {
+            remainder = remainder - rise;
+            crossed = crossed + 1;
+        }
+    }
+}
+
 // ---- the block -----------------------------------------------------------------------------
 
 // The forms. A chord's form is read from a table by the rows it touches

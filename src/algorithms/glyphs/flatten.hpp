@@ -97,7 +97,8 @@ inline void put_frame_chord(Work& work, const Fixed begin, const Fixed end) noex
 // axes, in 1/256 of a pixel) is quartered, rounding down, before it is at
 // most 64 (a quarter of a pixel). The chords' ends are the curve's points
 // rounded down to 1/256 of a pixel.
-inline void add_quadratic(Work& work, const Fixed start, const Fixed control, const Fixed end) noexcept {
+template <typename Target>
+inline void add_quadratic(Target& work, const Fixed start, const Fixed control, const Fixed end) noexcept {
     const i64 bx = control.x - start.x;
     const i64 by = control.y - start.y;
     const i64 ax = end.x - control.x - bx;
@@ -151,7 +152,8 @@ inline void halve(i64& p0, i64& p1, i64& p2, i64& p3, i64& p4, i64& p5, i64& p6)
 // within a sixth of a pixel of where a straight chord would have it), and
 // is then drawn as its chord. The arcs still to draw are kept on a fixed
 // stack, the nearest to the start on top.
-inline void add_cubic(Work& work, const Fixed start, const Fixed first, const Fixed second, const Fixed end) noexcept {
+template <typename Target>
+inline void add_cubic(Target& work, const Fixed start, const Fixed first, const Fixed second, const Fixed end) noexcept {
     Fixed stack[cubic_depth * 3 + 7];
     stack[0] = end;
     stack[1] = second;
@@ -178,6 +180,82 @@ inline void add_cubic(Work& work, const Fixed start, const Fixed first, const Fi
         arc = arc + 3;
     }
 }
+
+// ---- the plain way ---------------------------------------------------------------------------
+
+// The outline's chords one at a time, in the outline's order, to a
+// function: no block and no lists. It is what draws a mask a band at a
+// time and the monochrome mask, where each chord is looked at again for
+// every band, and it is the second writing that the lists are held to
+// (tests/glyph_mask_tests.cpp, M13: a mask in bands is the mask at once).
+// The chord is given in mask coordinates (1/256 of a pixel, y downward).
+using ChordFunction = void (*)(void* context, Fixed begin, Fixed end) noexcept;
+
+struct Plain final {
+    ChordFunction put{nullptr};
+    void* context{nullptr};
+    i64 shift_x{0};
+    i64 shift_y{0};
+    // The mask's height in 1/256 of a pixel.
+    i64 height{0};
+};
+
+[[nodiscard]] inline Fixed to_frame(const Plain& plain, const Point point) noexcept {
+    const Fixed result{.x = (static_cast<i64>(point.x) + plain.shift_x) * 4, .y = (static_cast<i64>(point.y) + plain.shift_y) * 4};
+    return result;
+}
+
+// There is always room.
+inline void make_room(Plain&, const usize) noexcept {}
+
+inline void put_frame_chord(Plain& plain, const Fixed begin, const Fixed end) noexcept {
+    const Fixed from{.x = begin.x, .y = plain.height - begin.y};
+    const Fixed to{.x = end.x, .y = plain.height - end.y};
+    plain.put(plain.context, from, to);
+}
+
+// Requirement: the outline is well formed and every point lies in the
+// mask's box.
+inline void plain_chords(Plain& plain, const Outline& outline) noexcept {
+    const usize segment_count = outline.segments.count();
+    const Segment* const segments = outline.segments.data();
+    const Point* const points = outline.points.data();
+    usize next_point = 0;
+    Fixed contour_start{};
+    Fixed current{};
+    bool open = false;
+    for (usize index = 0; index < segment_count; ++index) {
+        const Segment segment = segments[index];
+        if (segment == Segment::move) {
+            if (open) put_frame_chord(plain, current, contour_start);
+            contour_start = to_frame(plain, points[next_point]);
+            current = contour_start;
+            open = true;
+            next_point = next_point + 1;
+        } else if (segment == Segment::line) {
+            const Fixed end = to_frame(plain, points[next_point]);
+            put_frame_chord(plain, current, end);
+            current = end;
+            next_point = next_point + 1;
+        } else if (segment == Segment::quadratic) {
+            const Fixed control = to_frame(plain, points[next_point]);
+            const Fixed end = to_frame(plain, points[next_point + 1]);
+            add_quadratic(plain, current, control, end);
+            current = end;
+            next_point = next_point + 2;
+        } else {
+            const Fixed first = to_frame(plain, points[next_point]);
+            const Fixed second = to_frame(plain, points[next_point + 1]);
+            const Fixed end = to_frame(plain, points[next_point + 2]);
+            add_cubic(plain, current, first, second, end);
+            current = end;
+            next_point = next_point + 3;
+        }
+    }
+    if (open) put_frame_chord(plain, current, contour_start);
+}
+
+// ---- by lists --------------------------------------------------------------------------------
 
 // The loops below each take one list: every item in it is the same kind of
 // thing and becomes the same number of chords, so nothing is decided per

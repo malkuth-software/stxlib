@@ -58,6 +58,7 @@
 
 #include "stxlib/glyph_mask.hpp"
 
+#include "algorithms/glyphs/centres.hpp"
 #include "algorithms/glyphs/flatten.hpp"
 
 namespace stxlib::glyphs {
@@ -65,15 +66,25 @@ namespace stxlib::glyphs {
 namespace {
 
 using detail::accumulate;
+using detail::add_chord_in_rows;
+using detail::add_crossings;
 using detail::Block;
 using detail::block_words;
 using detail::Cells;
+using detail::clear_lines;
+using detail::Fixed;
 using detail::fraction_bits;
 using detail::frame_one;
+using detail::Lines;
 using detail::lists_words;
 using detail::magnitude;
+using detail::mark_columns;
+using detail::Plain;
+using detail::plain_chords;
 using detail::spare_cells;
+using detail::stretch_cells;
 using detail::Work;
+using detail::write_rows;
 
 // A pixel's value is its doubled area (units of one * one) shifted by this.
 inline constexpr u32 value_shift = 2 * fraction_bits + 1 - 8;
@@ -190,9 +201,23 @@ Status measure(const Outline& outline, const Point offset, const Limits& limits,
     return Status::success();
 }
 
-Status Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
-                          const MutableView<u8> mask) noexcept {
-    const Operation operation("stxlib.glyphs.render");
+namespace {
+
+// What render and render_monochrome establish before drawing.
+struct Checked final {
+    usize width{0};
+    usize height{0};
+    // What is added to a point to measure it from the box's left and
+    // bottom edges (26.6).
+    i64 shift_x{0};
+    i64 shift_y{0};
+    // Nothing is left to draw: the mask has no pixels, or the outline no
+    // points (the mask is then cleared).
+    bool done{false};
+};
+
+[[nodiscard]] Status check(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+                           const MutableView<u8> mask, const Operation operation, Checked& checked) noexcept {
     bool too_many = false;
     if (!well_formed(outline, limits, too_many)) {
         const Status refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
@@ -202,15 +227,18 @@ Status Rasterizer::render(const Outline& outline, const Point offset, const Boun
     const usize width = bounds.width;
     const usize height = bounds.height;
     if (mask.count() != width * height) return refuse(ErrorKind::invalid_argument, operation);
+    checked.width = width;
+    checked.height = height;
+    checked.done = true;
     if (width == 0 || height == 0) {
         // Nothing to write; an outline with points cannot fit such a box
         // unless it is a single dot or a line along a pixel edge, which
         // covers nothing.
         return Status::success();
     }
-    u8* const out = mask.data();
     const usize point_count = outline.points.count();
     if (point_count == 0) {
+        u8* const out = mask.data();
         for (usize index = 0; index < width * height; ++index) out[index] = 0;
         return Status::success();
     }
@@ -225,26 +253,145 @@ Status Rasterizer::render(const Outline& outline, const Point offset, const Boun
         static_cast<i64>(extent.y_low) + offset.y < box_bottom || static_cast<i64>(extent.y_high) + offset.y > box_top) {
         return refuse(ErrorKind::invalid_argument, operation);
     }
-    const usize stride = width + spare_cells;
-    const usize cell_count = stride * height;
-    if (cell_count > limits.work_cells) return refuse(ErrorKind::limit_exceeded, operation);
-    if (cells_.count() < cell_count) {
-        if (cells_.resize(cell_count).failed()) return refuse(ErrorKind::out_of_memory, operation);
+    checked.shift_x = offset.x - box_left;
+    checked.shift_y = offset.y - box_bottom;
+    checked.done = false;
+    return Status::success();
+}
+
+// A band of the coverage mask: the cells of its rows.
+struct Band final {
+    Cells cells{};
+    i64 first{0};
+    i64 count{0};
+};
+
+void put_in_band(void* const context, const Fixed begin, const Fixed end) noexcept {
+    if (begin.y == end.y) return;
+    const Band& band = *static_cast<const Band*>(context);
+    if (begin.y < end.y) {
+        add_chord_in_rows(band.cells, begin, end, 1, band.first, band.count);
+    } else {
+        add_chord_in_rows(band.cells, end, begin, -1, band.first, band.count);
     }
-    if (block_.count() < block_words + lists_words) {
-        if (block_.resize(block_words + lists_words).failed()) return refuse(ErrorKind::out_of_memory, operation);
+}
+
+void put_on_rows(void* const context, const Fixed begin, const Fixed end) noexcept {
+    add_crossings(*static_cast<const Lines*>(context), begin, end);
+}
+
+// Columns are rows with x and y exchanged.
+void put_on_columns(void* const context, const Fixed begin, const Fixed end) noexcept {
+    const Fixed from{.x = begin.y, .y = begin.x};
+    const Fixed to{.x = end.y, .y = end.x};
+    add_crossings(*static_cast<const Lines*>(context), from, to);
+}
+
+} // namespace
+
+Status Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+                          const MutableView<u8> mask) noexcept {
+    const Operation operation("stxlib.glyphs.render");
+    Checked checked{};
+    const Status status = check(outline, offset, bounds, limits, mask, operation, checked);
+    if (status.failed() || checked.done) return status;
+    const usize width = checked.width;
+    const usize height = checked.height;
+    u8* const out = mask.data();
+    const usize stride = width + spare_cells;
+    if (stride > limits.work_cells) return refuse(ErrorKind::limit_exceeded, operation);
+    const usize cell_count = stride * height;
+    if (cell_count <= limits.work_cells) {
+        // The whole mask at once.
+        if (cells_.count() < cell_count) {
+            if (cells_.resize(cell_count).failed()) return refuse(ErrorKind::out_of_memory, operation);
+        }
+        if (block_.count() < block_words + lists_words) {
+            if (block_.resize(block_words + lists_words).failed()) return refuse(ErrorKind::out_of_memory, operation);
+        }
+        i64* const cells = cells_.mutable_view().data();
+        for (usize index = 0; index < cell_count; ++index) cells[index] = 0;
+        i32* const words = block_.mutable_view().data();
+        Work work{.cells = Cells{.cells = cells, .stride = stride},
+                  .block = Block{.words = words, .count = 0, .listed = {}},
+                  .lists = words + block_words,
+                  .shift_x = checked.shift_x,
+                  .shift_y = checked.shift_y,
+                  .height = static_cast<i64>(height) * frame_one};
+        accumulate(work, outline);
+        write_mask(cells, stride, width, height, out);
+        return Status::success();
+    }
+    // A band of rows at a time, as many rows as the cells allowed hold: the
+    // outline's chords are gone through once for each band, and a band
+    // takes from each chord the rows that are its own. The rows of a mask
+    // do not depend on one another, so the bytes are the ones above.
+    const usize band_rows = limits.work_cells / stride;
+    const usize band_cells = band_rows * stride;
+    if (cells_.count() < band_cells) {
+        if (cells_.resize(band_cells).failed()) return refuse(ErrorKind::out_of_memory, operation);
     }
     i64* const cells = cells_.mutable_view().data();
-    for (usize index = 0; index < cell_count; ++index) cells[index] = 0;
-    i32* const words = block_.mutable_view().data();
-    Work work{.cells = Cells{.cells = cells, .stride = stride},
-              .block = Block{.words = words, .count = 0, .listed = {}},
-              .lists = words + block_words,
-              .shift_x = offset.x - box_left,
-              .shift_y = offset.y - box_bottom,
-              .height = static_cast<i64>(height) * frame_one};
-    accumulate(work, outline);
-    write_mask(cells, stride, width, height, out);
+    for (usize first = 0; first < height; first = first + band_rows) {
+        const usize rows = height - first < band_rows ? height - first : band_rows;
+        for (usize index = 0; index < rows * stride; ++index) cells[index] = 0;
+        Band band{.cells = Cells{.cells = cells, .stride = stride}, .first = static_cast<i64>(first), .count = static_cast<i64>(rows)};
+        Plain plain{.put = put_in_band,
+                    .context = &band,
+                    .shift_x = checked.shift_x,
+                    .shift_y = checked.shift_y,
+                    .height = static_cast<i64>(height) * frame_one};
+        plain_chords(plain, outline);
+        write_mask(cells, stride, width, rows, out + first * width);
+    }
+    return Status::success();
+}
+
+Status Rasterizer::render_monochrome(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+                                     const MutableView<u8> mask) noexcept {
+    const Operation operation("stxlib.glyphs.render_monochrome");
+    Checked checked{};
+    const Status status = check(outline, offset, bounds, limits, mask, operation, checked);
+    if (status.failed() || checked.done) return status;
+    const usize width = checked.width;
+    const usize height = checked.height;
+    u8* const out = mask.data();
+    // Rows a band at a time, then columns a band at a time: a line of
+    // either is three cells for each stretch between centres.
+    const usize row_cells = (width + 1) * stretch_cells;
+    const usize column_cells = (height + 1) * stretch_cells;
+    if (row_cells > limits.work_cells || column_cells > limits.work_cells) return refuse(ErrorKind::limit_exceeded, operation);
+    const usize band_rows = limits.work_cells / row_cells < height ? limits.work_cells / row_cells : height;
+    const usize band_columns = limits.work_cells / column_cells < width ? limits.work_cells / column_cells : width;
+    const usize needed = band_rows * row_cells > band_columns * column_cells ? band_rows * row_cells : band_columns * column_cells;
+    if (cells_.count() < needed) {
+        if (cells_.resize(needed).failed()) return refuse(ErrorKind::out_of_memory, operation);
+    }
+    i64* const cells = cells_.mutable_view().data();
+    for (usize first = 0; first < height; first = first + band_rows) {
+        const usize rows = height - first < band_rows ? height - first : band_rows;
+        Lines lines{.cells = cells, .stride = width + 1, .first = static_cast<i64>(first), .count = static_cast<i64>(rows)};
+        clear_lines(lines);
+        Plain plain{.put = put_on_rows,
+                    .context = &lines,
+                    .shift_x = checked.shift_x,
+                    .shift_y = checked.shift_y,
+                    .height = static_cast<i64>(height) * frame_one};
+        plain_chords(plain, outline);
+        write_rows(lines, width, out + first * width);
+    }
+    for (usize first = 0; first < width; first = first + band_columns) {
+        const usize columns = width - first < band_columns ? width - first : band_columns;
+        Lines lines{.cells = cells, .stride = height + 1, .first = static_cast<i64>(first), .count = static_cast<i64>(columns)};
+        clear_lines(lines);
+        Plain plain{.put = put_on_columns,
+                    .context = &lines,
+                    .shift_x = checked.shift_x,
+                    .shift_y = checked.shift_y,
+                    .height = static_cast<i64>(height) * frame_one};
+        plain_chords(plain, outline);
+        mark_columns(lines, width, height, out);
+    }
     return Status::success();
 }
 

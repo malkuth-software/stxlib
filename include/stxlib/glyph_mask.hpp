@@ -42,6 +42,31 @@
 // 2^-14 of a pixel for each chord through the pixel (tests/
 // glyph_mask_tests.cpp checks the bound against exact areas).
 //
+// The monochrome mask (render_monochrome) is its own rule, on the same
+// chords and in the same box. It is a scan conversion, not the coverage
+// mask cut at a value:
+// 6. A pixel is 255 when the outline winds round its centre (the number of
+//    chords crossing the row's line of centres to the left of it, those
+//    going down the mask less those going up, is not zero), and 0 when
+//    not. A centre exactly on the outline is taken an instant right of and
+//    below where it is, which puts it on one side.
+// 7. Drop-outs. Where the outline's inside crosses a row's line of centres
+//    between two neighbouring centres and reaches neither, so that rule 6
+//    leaves both pixels off, the pixel whose centre is nearer the middle
+//    of that crossing is 255; the left one when they are equally near. The
+//    same along every column's line of centres, between the centres of
+//    two rows: the nearer pixel, and the lower one when equally near. At
+//    the mask's edge it is the one pixel there is.
+// Rules 6 and 7 are the scan conversion rules of the OpenType
+// specification with its "smart" drop-out control and stubs included (the
+// mode the text fonts GUI.Forms bundles ask for), but for one thing: the
+// specification turns a pixel on when the outline passes exactly through
+// its centre, whichever side the inside is on, and rule 6 puts such a
+// centre on one side, so that a shape reaching from one centre to the
+// next is one pixel and not two. The x at which a chord crosses a line of
+// centres is the exact x rounded down to 1/65536 of a pixel, and the same
+// for columns.
+//
 // The mask's place. measure gives the bounds: the box of every point of
 // the outline, control points included, with the offset added, rounded
 // outward to whole pixels. `left` is the x of the mask's left edge and
@@ -54,10 +79,15 @@
 // Bounds. An outline has at most Limits::points points (and never more
 // than 2^30, whatever the limit); a mask is at most
 // Limits::width by Limits::height pixels; the working storage is 8 bytes
-// for each of (width + 2) * height cells, at most Limits::work_cells, and
-// 27 kilobytes for the chords and segments in hand. The
-// work is linear in the points, the chords (at most 2^16 a curve) and the
-// mask's area. No recursion.
+// for each of at most Limits::work_cells cells, and 27 kilobytes for the
+// chords and segments in hand. A mask whose (width + 2) * height cells are
+// within Limits::work_cells is drawn at once, and the work is linear in
+// the points, the chords (at most 2^16 a curve) and the mask's area. A
+// larger mask is drawn a band of rows at a time, as many rows as the cells
+// hold, with the same bytes; the chords are then gone through once for
+// each band. The monochrome mask is always drawn so, rows and then
+// columns, three cells for each pixel and one more a line. A mask one of
+// whose lines does not fit the cells is refused. No recursion.
 //
 // Failure. invalid_argument: the segments and points do not agree, a
 // contour does not begin with a move, a point lies outside the bounds
@@ -131,6 +161,11 @@ public:
     // holds every point. `mask` must not overlap the outline.
     [[nodiscard]] Status render(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
                                 MutableView<u8> mask) noexcept;
+
+    // The same for the monochrome mask (rules 6 and 7): every byte is 0 or
+    // 255.
+    [[nodiscard]] Status render_monochrome(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
+                                           MutableView<u8> mask) noexcept;
 
     // Frees the working storage.
     void release() noexcept;

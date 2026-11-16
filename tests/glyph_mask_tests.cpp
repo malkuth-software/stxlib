@@ -41,7 +41,14 @@
 //       (src/algorithms/glyphs/chords.hpp);
 //   M12 the quadratics by number of chords: a quadratic of one, two or four
 //       chords, through its list's loop, puts the chords the rule in full
-//       puts (src/algorithms/glyphs/flatten.hpp).
+//       puts (src/algorithms/glyphs/flatten.hpp);
+//   M13 bands: a mask drawn a band of rows at a time (few cells allowed)
+//       is the bytes of the mask drawn at once, for polygons and curves;
+//   M14 monochrome: every pixel whose centre the outline winds round is
+//       255 (the test counts crossings for itself, exactly, with the
+//       stated rounding); every other 255 has ink in its pixel; a stem, a
+//       bar and a slant thinner than a pixel are drawn unbroken; reversed
+//       contours and bands give the same bytes; only 0 and 255.
 
 #include "stxlib/glyph_mask.hpp"
 
@@ -319,6 +326,241 @@ void shared_edges() {
         if (!one.rendered || !two.rendered || one.bytes != two.bytes) equal = false;
     }
     CHECK(equal);
+}
+
+// M13, M14.
+[[nodiscard]] std::vector<u8> render_with(const Shape& shape, const glyphs::Bounds& bounds, const glyphs::Limits& limits,
+                                          const bool monochrome, bool& rendered) {
+    std::vector<u8> bytes(static_cast<usize>(bounds.width) * bounds.height, 0x5a);
+    glyphs::Rasterizer rasterizer{};
+    const stxlib::MutableView<u8> view(bytes.data(), bytes.size());
+    const stxlib::Status status = monochrome ? rasterizer.render_monochrome(outline_of(shape), glyphs::Point{}, bounds, limits, view)
+                                             : rasterizer.render(outline_of(shape), glyphs::Point{}, bounds, limits, view);
+    rendered = rendered && status.succeeded();
+    return bytes;
+}
+
+// A shape of lines, quadratics and cubics about (cx, cy), in 26.6.
+void add_blob(Shape& shape, const i32 cx, const i32 cy, const i32 reach) {
+    const glyphs::Point start{.x = cx + reach, .y = cy + random_coordinate(reach / 2 + 1)};
+    shape.segments.push_back(glyphs::Segment::move);
+    shape.points.push_back(start);
+    const i32 corners[4][2] = {{cx, cy + reach}, {cx - reach, cy}, {cx, cy - reach}, {cx + reach, cy}};
+    for (int corner = 0; corner < 4; ++corner) {
+        const std::uint64_t kind = next_random() % 3;
+        const glyphs::Point end{.x = corners[corner][0] + random_coordinate(reach / 2 + 1) - reach / 4,
+                                .y = corners[corner][1] + random_coordinate(reach / 2 + 1) - reach / 4};
+        const glyphs::Point previous = shape.points.back();
+        if (kind == 0) {
+            shape.segments.push_back(glyphs::Segment::line);
+        } else if (kind == 1) {
+            shape.segments.push_back(glyphs::Segment::quadratic);
+            shape.points.push_back(glyphs::Point{.x = previous.x + random_coordinate(reach + 1) - reach / 2,
+                                                 .y = end.y + random_coordinate(reach + 1) - reach / 2});
+        } else {
+            shape.segments.push_back(glyphs::Segment::cubic);
+            shape.points.push_back(glyphs::Point{.x = previous.x + random_coordinate(reach + 1) - reach / 2,
+                                                 .y = previous.y + random_coordinate(reach + 1) - reach / 2});
+            shape.points.push_back(glyphs::Point{.x = end.x + random_coordinate(reach + 1) - reach / 2,
+                                                 .y = end.y + random_coordinate(reach + 1) - reach / 2});
+        }
+        shape.points.push_back(end);
+    }
+}
+
+void bands() {
+    bool rendered = true;
+    bool equal = true;
+    bool mono_equal = true;
+    std::uint64_t masks = 0;
+    for (int round = 0; round < 600; ++round) {
+        Shape shape{};
+        const int blobs = 1 + static_cast<int>(next_random() % 3);
+        for (int blob = 0; blob < blobs; ++blob) {
+            add_blob(shape, 1500 + random_coordinate(1500), 1500 + random_coordinate(1500), 200 + random_coordinate(900));
+        }
+        if (round % 3 == 0) {
+            std::vector<glyphs::Point> corners{};
+            const int count = 3 + static_cast<int>(next_random() % 6);
+            for (int corner = 0; corner < count; ++corner) {
+                corners.push_back(glyphs::Point{.x = random_coordinate(4000), .y = random_coordinate(4000)});
+            }
+            add_polygon(shape, corners);
+        }
+        glyphs::Bounds bounds{};
+        const glyphs::Limits limits{};
+        if (glyphs::measure(outline_of(shape), glyphs::Point{}, limits, bounds).failed()) rendered = false;
+        // Cells for one, two or a few rows, and for one line of either
+        // kind of the monochrome mask.
+        glyphs::Limits cramped{};
+        const usize longest = bounds.width > bounds.height ? bounds.width : bounds.height;
+        cramped.work_cells = (static_cast<usize>(bounds.width) + 2) * (1 + next_random() % 5);
+        glyphs::Limits cramped_mono{};
+        cramped_mono.work_cells = (longest + 1) * 3 * (1 + next_random() % 4);
+        if (render_with(shape, bounds, limits, false, rendered) != render_with(shape, bounds, cramped, false, rendered)) equal = false;
+        if (render_with(shape, bounds, limits, true, rendered) != render_with(shape, bounds, cramped_mono, true, rendered)) mono_equal = false;
+        masks = masks + 1;
+    }
+    std::printf("bands: %llu masks each way\n", static_cast<unsigned long long>(masks));
+    CHECK(rendered);
+    CHECK(equal);
+    CHECK(mono_equal);
+}
+
+// The number of times a polygon winds round the point an instant right of
+// and below (xc, yc), by the stated rule: mask coordinates in 1/256 of a
+// pixel, y downward; a chord crosses the line when its upper end is at or
+// above yc and its lower end below; its x there is rounded down to 1/65536
+// of a pixel and counted when at or left of xc.
+[[nodiscard]] int winding_at(const std::vector<glyphs::Point>& corners, const glyphs::Bounds& bounds, const stxlib::i64 xc,
+                             const stxlib::i64 yc) {
+    int winding = 0;
+    const stxlib::i64 left = static_cast<stxlib::i64>(bounds.left) * 64;
+    const stxlib::i64 top = static_cast<stxlib::i64>(bounds.top) * 64;
+    for (usize index = 0; index < corners.size(); ++index) {
+        const glyphs::Point a = corners[index];
+        const glyphs::Point b = corners[(index + 1) % corners.size()];
+        const stxlib::i64 ax = (a.x - left) * 4;
+        const stxlib::i64 ay = (top - a.y) * 4;
+        const stxlib::i64 bx = (b.x - left) * 4;
+        const stxlib::i64 by = (top - b.y) * 4;
+        if (ay == by) continue;
+        const bool downward = ay < by;
+        const stxlib::i64 ux = downward ? ax : bx;
+        const stxlib::i64 uy = downward ? ay : by;
+        const stxlib::i64 lx = downward ? bx : ax;
+        const stxlib::i64 ly = downward ? by : ay;
+        if (uy > yc || ly <= yc) continue;
+        // floor(256 * (ux + (yc - uy) * (lx - ux) / (ly - uy))), in 1/65536.
+        const stxlib::i64 numerator = (yc - uy) * (lx - ux) * 256;
+        const stxlib::i64 denominator = ly - uy;
+        stxlib::i64 quotient = numerator / denominator;
+        if (numerator % denominator != 0 && numerator < 0) quotient = quotient - 1;
+        const stxlib::i64 crossing = ux * 256 + quotient;
+        if (crossing <= xc * 256) winding = winding + (downward ? 1 : -1);
+    }
+    return winding;
+}
+
+void monochrome() {
+    const glyphs::Limits limits{};
+    bool rendered = true;
+    // Polygons: the centres the outline winds round, and no pixel without
+    // ink.
+    std::uint64_t pixels = 0;
+    std::uint64_t inside = 0;
+    std::uint64_t missed = 0;
+    std::uint64_t drop_outs = 0;
+    std::uint64_t without_ink = 0;
+    std::uint64_t other_values = 0;
+    bool reversed_equal = true;
+    for (int round = 0; round < 1500; ++round) {
+        std::vector<glyphs::Point> corners{};
+        const int count = 3 + static_cast<int>(next_random() % 5);
+        const i32 range = round % 2 == 0 ? 1200 : 300;
+        for (int corner = 0; corner < count; ++corner) {
+            glyphs::Point point{.x = random_coordinate(range), .y = random_coordinate(range)};
+            // Some coordinates on pixel centres and edges.
+            if (next_random() % 4 == 0) point.x = (point.x / 32) * 32;
+            if (next_random() % 4 == 0) point.y = (point.y / 32) * 32;
+            corners.push_back(point);
+        }
+        Shape shape{};
+        add_polygon(shape, corners);
+        glyphs::Bounds bounds{};
+        if (glyphs::measure(outline_of(shape), glyphs::Point{}, limits, bounds).failed()) rendered = false;
+        const std::vector<u8> mask = render_with(shape, bounds, limits, true, rendered);
+        std::vector<Chord> chords{};
+        polygon_chords(corners, bounds, chords);
+        for (usize y = 0; y < bounds.height; ++y) {
+            for (usize x = 0; x < bounds.width; ++x) {
+                const u8 value = mask[y * bounds.width + x];
+                const int winding = winding_at(corners, bounds, static_cast<stxlib::i64>(x) * 256 + 128, static_cast<stxlib::i64>(y) * 256 + 128);
+                pixels = pixels + 1;
+                if (value != 0 && value != 255) other_values = other_values + 1;
+                if (winding != 0) {
+                    inside = inside + 1;
+                    if (value != 255) missed = missed + 1;
+                } else if (value == 255) {
+                    drop_outs = drop_outs + 1;
+                    if (std::fabs(reference_area(chords, x, y)) <= 0.0) without_ink = without_ink + 1;
+                }
+            }
+        }
+        Shape reversed{};
+        std::vector<glyphs::Point> backward(corners.rbegin(), corners.rend());
+        add_polygon(reversed, backward);
+        if (render_with(reversed, bounds, limits, true, rendered) != mask) reversed_equal = false;
+    }
+    std::printf("monochrome: %llu pixels, %llu inside, %llu of them missed, %llu drop-outs, %llu of them without ink\n",
+                static_cast<unsigned long long>(pixels), static_cast<unsigned long long>(inside), static_cast<unsigned long long>(missed),
+                static_cast<unsigned long long>(drop_outs), static_cast<unsigned long long>(without_ink));
+    CHECK(rendered);
+    CHECK(other_values == 0);
+    CHECK(missed == 0);
+    CHECK(without_ink == 0);
+    CHECK(drop_outs > 100);
+    CHECK(reversed_equal);
+    // A rectangle on pixel edges is its pixels.
+    {
+        Shape shape{};
+        add_polygon(shape, {{.x = 64, .y = 64}, {.x = 64 * 5, .y = 64}, {.x = 64 * 5, .y = 64 * 4}, {.x = 64, .y = 64 * 4}});
+        const glyphs::Bounds bounds{.left = 0, .top = 5, .width = 6, .height = 5};
+        const std::vector<u8> mask = render_with(shape, bounds, limits, true, rendered);
+        bool exact = true;
+        for (usize y = 0; y < 5; ++y) {
+            for (usize x = 0; x < 6; ++x) {
+                const bool expected = x >= 1 && x < 5 && y >= 1 && y < 4;
+                if (mask[y * 6 + x] != (expected ? 255 : 0)) exact = false;
+            }
+        }
+        CHECK(exact);
+    }
+    // A stem, a bar and a slant, each 0.3 of a pixel thick and placed
+    // between centres: one pixel in every row (the stem and the slant) or
+    // column (the bar) they cross.
+    {
+        // The stem: x from 1.6 to 1.9 pixels, y from 0.25 to 7.75.
+        Shape stem{};
+        add_polygon(stem, {{.x = 102, .y = 16}, {.x = 122, .y = 16}, {.x = 122, .y = 496}, {.x = 102, .y = 496}});
+        const glyphs::Bounds bounds{.left = 0, .top = 8, .width = 4, .height = 8};
+        const std::vector<u8> mask = render_with(stem, bounds, limits, true, rendered);
+        bool unbroken = true;
+        for (usize y = 0; y < 8; ++y) {
+            usize lit = 0;
+            for (usize x = 0; x < 4; ++x) lit = lit + (mask[y * 4 + x] == 255 ? 1U : 0U);
+            // The nearer centre to the middle (1.75) is pixel 1's, at 1.5.
+            if (lit != 1 || mask[y * 4 + 1] != 255) unbroken = false;
+        }
+        CHECK(unbroken);
+        // The bar: the stem with x and y exchanged.
+        Shape bar{};
+        add_polygon(bar, {{.x = 16, .y = 102}, {.x = 496, .y = 102}, {.x = 496, .y = 122}, {.x = 16, .y = 122}});
+        const glyphs::Bounds bar_bounds{.left = 0, .top = 4, .width = 8, .height = 4};
+        const std::vector<u8> bar_mask = render_with(bar, bar_bounds, limits, true, rendered);
+        bool bar_unbroken = true;
+        for (usize x = 0; x < 8; ++x) {
+            usize lit = 0;
+            for (usize y = 0; y < 4; ++y) lit = lit + (bar_mask[y * 8 + x] == 255 ? 1U : 0U);
+            // y from 1.6 to 1.9 up is row 2 from the top of four rows.
+            if (lit != 1 || bar_mask[2 * 8 + x] != 255) bar_unbroken = false;
+        }
+        CHECK(bar_unbroken);
+        // The slant: a parallelogram 0.3 wide leaning two pixels over eight
+        // rows.
+        Shape slant{};
+        add_polygon(slant, {{.x = 40, .y = 16}, {.x = 60, .y = 16}, {.x = 188, .y = 496}, {.x = 168, .y = 496}});
+        const glyphs::Bounds slant_bounds{.left = 0, .top = 8, .width = 4, .height = 8};
+        const std::vector<u8> slant_mask = render_with(slant, slant_bounds, limits, true, rendered);
+        bool slant_unbroken = true;
+        for (usize y = 0; y < 8; ++y) {
+            usize lit = 0;
+            for (usize x = 0; x < 4; ++x) lit = lit + (slant_mask[y * 4 + x] == 255 ? 1U : 0U);
+            if (lit < 1) slant_unbroken = false;
+        }
+        CHECK(slant_unbroken);
+        CHECK(rendered);
+    }
 }
 
 // M12.
@@ -696,7 +938,7 @@ void bounds_and_refusals() {
     status = rasterizer.render(outline_of(shape), glyphs::Point{}, bounds, limits, stxlib::MutableView<u8>(bytes.data(), bytes.size()));
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument);
     glyphs::Limits cramped{};
-    cramped.work_cells = 4;
+    cramped.work_cells = 2;
     bytes.assign(static_cast<usize>(bounds.width) * bounds.height, 0);
     status = rasterizer.render(outline_of(shape), glyphs::Point{}, bounds, cramped, stxlib::MutableView<u8>(bytes.data(), bytes.size()));
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded);
@@ -730,6 +972,8 @@ int main() {
     reciprocals();
     forms();
     quadratics_by_chords();
+    bands();
+    monochrome();
     const int status = stxlib_tests::finish("stxlib_glyph_mask_tests");
     return status;
 }
