@@ -6,8 +6,8 @@
 
 namespace stxlib::surface_backend {
 
-Result<detail::SurfaceState*> open() noexcept {
-    Result<detail::SurfaceState*> result = Result<detail::SurfaceState*>::failure(
+OperationResult<detail::SurfaceState*> open() noexcept {
+    OperationResult<detail::SurfaceState*> result = OperationResult<detail::SurfaceState*>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.open", HostCode::none));
     return result;
 }
@@ -30,23 +30,23 @@ SurfacePixels pixels(const detail::SurfaceState* const state) noexcept {
     return none;
 }
 
-Result<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
+OperationResult<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
                                const usize count) noexcept {
     (void)state;
     (void)rects;
     (void)count;
-    Result<SurfacePresent> result = Result<SurfacePresent>::failure(
+    OperationResult<SurfacePresent> result = OperationResult<SurfacePresent>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.present", HostCode::none));
     return result;
 }
 
-Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
+OperationResult<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
                           const i64 wait_ms) noexcept {
     (void)state;
     (void)events;
     (void)capacity;
     (void)wait_ms;
-    Result<usize> result = Result<usize>::failure(
+    OperationResult<usize> result = OperationResult<usize>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.read_events", HostCode::none));
     return result;
 }

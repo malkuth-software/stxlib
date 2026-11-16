@@ -284,14 +284,14 @@ struct Outcome final {
 Outcome run_library(const std::vector<u32>& input, const text::BaseDirection direction) {
     Outcome outcome;
     text::Paragraph paragraph;
-    const stxlib::Status analysed =
+    const stxlib::OperationStatus analysed =
         text::analyse_paragraph(View<u32>(input.data(), input.size()), 0, direction, paragraph);
     if (analysed.failed() || paragraph.length() != input.size()) return outcome;
     outcome.base_level = paragraph.base_level();
     const View<u8> levels = paragraph.levels();
     for (usize index = 0; index < levels.count(); ++index) outcome.levels.push_back(levels[index]);
     text::Line line;
-    const stxlib::Status lined = text::analyse_line(paragraph, 0, input.size(), line);
+    const stxlib::OperationStatus lined = text::analyse_line(paragraph, 0, input.size(), line);
     if (lined.failed()) return outcome;
     const View<u8> line_levels = line.levels();
     for (usize index = 0; index < line_levels.count(); ++index) outcome.line_levels.push_back(line_levels[index]);
@@ -598,7 +598,7 @@ void utf8_agrees(const int count, Random& random) {
             append_utf8(bytes, value);
         }
         byte_of.push_back(bytes.size());
-        const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+        const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
         if (validated.failed()) {
             mismatches = mismatches + 1;
             continue;
@@ -609,8 +609,8 @@ void utf8_agrees(const int count, Random& random) {
         while (point < input.size()) {
             text::Paragraph by_point;
             text::Paragraph by_byte;
-            const stxlib::Status a = text::analyse_paragraph(View<u32>(input.data(), input.size()), point, direction, by_point);
-            const stxlib::Status b = text::analyse_paragraph(view, byte_of[point], direction, by_byte);
+            const stxlib::OperationStatus a = text::analyse_paragraph(View<u32>(input.data(), input.size()), point, direction, by_point);
+            const stxlib::OperationStatus b = text::analyse_paragraph(view, byte_of[point], direction, by_byte);
             paragraphs = paragraphs + 1;
             bool same = a.succeeded() && b.succeeded() && by_point.base_level() == by_byte.base_level() &&
                         by_byte.offset() == byte_of[point] &&
@@ -623,8 +623,8 @@ void utf8_agrees(const int count, Random& random) {
             if (same) {
                 text::Line line_point;
                 text::Line line_byte;
-                const stxlib::Status c = text::analyse_line(by_point, by_point.offset(), by_point.length(), line_point);
-                const stxlib::Status d = text::analyse_line(by_byte, by_byte.offset(), by_byte.length(), line_byte);
+                const stxlib::OperationStatus c = text::analyse_line(by_point, by_point.offset(), by_point.length(), line_point);
+                const stxlib::OperationStatus d = text::analyse_line(by_byte, by_byte.offset(), by_byte.length(), line_byte);
                 same = c.succeeded() && d.succeeded() && line_point.runs().count() == line_byte.runs().count();
                 for (usize r = 0; same && r < line_point.runs().count(); ++r) {
                     const text::BidiRun& p = line_point.runs()[r];
@@ -657,7 +657,7 @@ void utf8_agrees(const int count, Random& random) {
 
 void arguments() {
     const char bytes[] = "a\xd7\x90" "b";
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes, 4);
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes, 4);
     CHECK(validated.succeeded());
     const stxlib::TextView view = *validated.value();
     text::Paragraph paragraph;
@@ -676,7 +676,7 @@ void arguments() {
     CHECK(line.runs().count() == 1 && line.runs()[0].offset == 1 && line.runs()[0].length == 2 && line.runs()[0].level == 1);
     // A uniform paragraph beyond ASCII still checks boundaries.
     const char latin[] = "\xc3\xa9t\xc3\xa9";
-    const stxlib::Result<stxlib::TextView> latin_view = stxlib::validate_utf8(latin, 5);
+    const stxlib::OperationResult<stxlib::TextView> latin_view = stxlib::validate_utf8(latin, 5);
     CHECK(latin_view.succeeded());
     CHECK(text::analyse_paragraph(*latin_view.value(), 0, text::BaseDirection::automatic_left_to_right, paragraph).succeeded());
     CHECK(text::analyse_line(paragraph, 1, 2, line).failed());

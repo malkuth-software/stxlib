@@ -92,16 +92,16 @@ enum class FlushRule : u8 {
 // permission_denied, out_of_memory, unsupported (ENOTSUP, ENOSYS),
 // invalid_argument with HostCode::not_a_directory, else `otherwise`; the
 // errno is carried as the foreign code.
-[[nodiscard]] Status errno_failure(Operation operation, int error, ErrorKind otherwise) noexcept;
+[[nodiscard]] OperationStatus errno_failure(Operation operation, int error, ErrorKind otherwise) noexcept;
 // invalid_argument with HostCode::invalid_state: a wait the main runtime or
 // browser thread may not make.
-[[nodiscard]] Status main_thread_refusal(Operation operation) noexcept;
+[[nodiscard]] OperationStatus main_thread_refusal(Operation operation) noexcept;
 
 // Mounts `kind` at `name` (an absolute host name with a NUL), making the
 // directories leading to it. Failures as mount_web_storage's (web.hpp).
-[[nodiscard]] Status mount(const char* name, StorageKind kind) noexcept;
-[[nodiscard]] Status restore() noexcept;
-[[nodiscard]] Status persist() noexcept;
-[[nodiscard]] Status persist_on_page_hide() noexcept;
+[[nodiscard]] OperationStatus mount(const char* name, StorageKind kind) noexcept;
+[[nodiscard]] OperationStatus restore() noexcept;
+[[nodiscard]] OperationStatus persist() noexcept;
+[[nodiscard]] OperationStatus persist_on_page_hide() noexcept;
 
 } // namespace stxlib::web_backend

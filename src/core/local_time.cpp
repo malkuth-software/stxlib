@@ -61,14 +61,14 @@ NamePart database_name_part(const char* const bytes, const usize count) noexcept
 
 // The zone the host's text names. The text is the host's or the caller's
 // TZ, already checked as UTF-8 (read_variable), or the module's ASCII.
-Result<Zone> zone_of_text(const char* const bytes, const usize count) noexcept {
+OperationResult<Zone> zone_of_text(const char* const bytes, const usize count) noexcept {
     const NamePart part = database_name_part(bytes, count);
-    if (part.count == 0) return Result<Zone>::success(Zone::utc());
+    if (part.count == 0) return OperationResult<Zone>::success(Zone::utc());
     const TextView name = detail::TextViewAccess::adopt_validated(bytes + part.start, part.count);
-    Result<Zone> found = Zone::named(name);
+    OperationResult<Zone> found = Zone::named(name);
     if (found.succeeded()) return found;
     const ErrorRecord record = ErrorRecord::make(ErrorKind::not_found, host_zone_operation);
-    return Result<Zone>::failure(record);
+    return OperationResult<Zone>::failure(record);
 }
 
 // True for TZ naming the host's own zone file, "/etc/localtime" with or
@@ -87,39 +87,39 @@ bool names_host_zone_file(const char* const bytes, const usize count) noexcept {
 
 } // namespace
 
-Result<Zone> host_zone() noexcept {
-    const Result<Utf8String> tz = read_variable("TZ", tz_limit);
+OperationResult<Zone> host_zone() noexcept {
+    const OperationResult<Utf8String> tz = read_variable("TZ", tz_limit);
     bool from_module = false;
     if (tz.succeeded()) {
         const TextView value = (*tz.value()).view();
         from_module = names_host_zone_file(value.data(), value.count());
         if (!from_module) {
-            Result<Zone> result = zone_of_text(value.data(), value.count());
+            OperationResult<Zone> result = zone_of_text(value.data(), value.count());
             return result;
         }
     }
-    if (!from_module && (*tz.error()).kind() != ErrorKind::not_found) return Result<Zone>::failure(*tz.error());
+    if (!from_module && (*tz.error()).kind() != ErrorKind::not_found) return OperationResult<Zone>::failure(*tz.error());
     local_time_backend::ZoneText text{};
-    const Status read = local_time_backend::system_zone_text(text);
-    if (read.failed()) return Result<Zone>::failure(*read.error());
+    const OperationStatus read = local_time_backend::system_zone_text(text);
+    if (read.failed()) return OperationResult<Zone>::failure(*read.error());
     // The module's text may be any bytes the host stored: names in the
     // database are ASCII, so anything else is no name of ours.
     for (usize index = 0; index < text.count; ++index) {
         const u8 byte = static_cast<u8>(text.bytes[index]);
         if (byte < 0x21 || byte > 0x7e) {
             const ErrorRecord record = ErrorRecord::make(ErrorKind::not_found, host_zone_operation);
-            return Result<Zone>::failure(record);
+            return OperationResult<Zone>::failure(record);
         }
     }
-    Result<Zone> result = zone_of_text(text.bytes, text.count);
+    OperationResult<Zone> result = zone_of_text(text.bytes, text.count);
     return result;
 }
 
-Result<LocalTime> local_time(const WallTime instant) noexcept {
-    const Result<Zone> zone = host_zone();
-    if (zone.failed()) return Result<LocalTime>::failure(*zone.error());
+OperationResult<LocalTime> local_time(const WallTime instant) noexcept {
+    const OperationResult<Zone> zone = host_zone();
+    if (zone.failed()) return OperationResult<LocalTime>::failure(*zone.error());
     const LocalTime result = local_time_in(*zone.value(), instant);
-    return Result<LocalTime>::success(result);
+    return OperationResult<LocalTime>::success(result);
 }
 
 } // namespace stxlib

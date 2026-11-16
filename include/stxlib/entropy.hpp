@@ -17,6 +17,6 @@ namespace stxlib {
 
 // Fills `output`. Failure: foreign_failure with the host's code; `output`
 // is then zeroed.
-[[nodiscard]] Status fill_entropy(MutableView<Byte> output) noexcept;
+[[nodiscard]] OperationStatus fill_entropy(MutableView<Byte> output) noexcept;
 
 } // namespace stxlib

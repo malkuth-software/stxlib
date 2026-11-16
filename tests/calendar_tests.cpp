@@ -63,7 +63,7 @@ WallTime at(const i64 nanoseconds) {
 
 // The instant, or i64_min with a failed check.
 i64 converted(const CivilTime& time) {
-    const stxlib::Result<WallTime> instant = stxlib::wall_from_civil(time);
+    const stxlib::OperationResult<WallTime> instant = stxlib::wall_from_civil(time);
     CHECK(instant.succeeded());
     if (!instant.succeeded()) return std::numeric_limits<i64>::min();
     const i64 result = (*instant.value()).unix_nanoseconds();
@@ -71,7 +71,7 @@ i64 converted(const CivilTime& time) {
 }
 
 bool refused_as(const CivilTime& time, const stxlib::ErrorKind kind) {
-    const stxlib::Result<WallTime> instant = stxlib::wall_from_civil(time);
+    const stxlib::OperationResult<WallTime> instant = stxlib::wall_from_civil(time);
     const bool result = instant.failed() && (*instant.error()).kind() == kind;
     return result;
 }
@@ -91,7 +91,7 @@ void against_standard_days() {
                 noon.day == static_cast<unsigned>(expected.day()) && noon.hour == 12;
         const std::chrono::weekday standard_weekday(standard_day);
         weekdays = weekdays && static_cast<unsigned>(stxlib::weekday_of(noon)) == standard_weekday.iso_encoding();
-        const stxlib::Result<WallTime> back = stxlib::wall_from_civil(noon);
+        const stxlib::OperationResult<WallTime> back = stxlib::wall_from_civil(noon);
         round_trips = round_trips && back.succeeded() && (*back.value()).unix_nanoseconds() == noon_nanoseconds;
     }
     CHECK(dates);
@@ -136,7 +136,7 @@ void instants() {
     for (int sample = 0; sample < 100000; ++sample) {
         state = next_state(state);
         const i64 nanoseconds = static_cast<i64>(state);
-        const stxlib::Result<WallTime> back = stxlib::wall_from_civil(stxlib::civil_from_wall(at(nanoseconds)));
+        const stxlib::OperationResult<WallTime> back = stxlib::wall_from_civil(stxlib::civil_from_wall(at(nanoseconds)));
         round_trips = round_trips && back.succeeded() && (*back.value()).unix_nanoseconds() == nanoseconds;
     }
     CHECK(round_trips);
@@ -220,7 +220,7 @@ void iso8601_parsing() {
         state = next_state(state);
         const i64 nanoseconds = static_cast<i64>(state >> 2) - (1LL << 61);
         const std::string text = iso(stxlib::civil_from_wall(at(nanoseconds)), 0, {.fraction_digits = 9});
-        const stxlib::Result<TextView> view = stxlib::validate_utf8(text.data(), text.size());
+        const stxlib::OperationResult<TextView> view = stxlib::validate_utf8(text.data(), text.size());
         const stxlib::text::Parsed<WallTime> parsed = stxlib::parse_iso8601(*view.value());
         round_trips = round_trips && parsed.succeeded() && (*parsed.value()).unix_nanoseconds() == nanoseconds;
     }
@@ -229,14 +229,14 @@ void iso8601_parsing() {
 
 // A zone's local time written as ISO 8601 names the same instant.
 void zone_text() {
-    const stxlib::Result<stxlib::Zone> kolkata = stxlib::Zone::named("Asia/Kolkata");
+    const stxlib::OperationResult<stxlib::Zone> kolkata = stxlib::Zone::named("Asia/Kolkata");
     CHECK(kolkata.succeeded());
     if (!kolkata.succeeded()) return;
     const WallTime winter = at(parsed_nanoseconds("2026-01-15T12:00:00Z"));
     const stxlib::LocalTime local = stxlib::local_time_in(*kolkata.value(), winter);
     const std::string text = iso(local.civil, local.offset_seconds, {});
     CHECK(text == "2026-01-15T17:30:00+05:30");
-    const stxlib::Result<TextView> view = stxlib::validate_utf8(text.data(), text.size());
+    const stxlib::OperationResult<TextView> view = stxlib::validate_utf8(text.data(), text.size());
     CHECK(parsed_nanoseconds(*view.value()) == winter.unix_nanoseconds());
 }
 

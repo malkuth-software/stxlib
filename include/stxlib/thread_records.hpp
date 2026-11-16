@@ -105,7 +105,7 @@ private:
 // leaves a call into unmapped code for the next thread that ends with one
 // of its records, and loading it again registers again, using another of
 // the thread_record_type_capacity entries.
-[[nodiscard]] Result<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) noexcept;
+[[nodiscard]] OperationResult<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) noexcept;
 
 // The calling thread's record of `slot`, created on first access. Failures:
 // invalid_argument (an invalid slot, or a call from inside this slot's own
@@ -114,7 +114,7 @@ private:
 // which holds for the thread's life); unsupported (the host gave the
 // thread no exit hook, for the thread's life); disposed (this thread's
 // records are ending or have ended, or the process is ending).
-[[nodiscard]] Result<void*> thread_record(ThreadRecordSlot slot) noexcept;
+[[nodiscard]] OperationResult<void*> thread_record(ThreadRecordSlot slot) noexcept;
 
 // The calling thread's record of `slot` if it exists and has not been let
 // go, else null. Never allocates and never calls initialize.
@@ -133,24 +133,24 @@ template <typename Record>
 class ThreadRecord final {
 public:
     template <void (*Initialize)(Record* record) noexcept, void (*Release)(Record* record) noexcept>
-    [[nodiscard]] static Result<ThreadRecord> register_type() noexcept {
+    [[nodiscard]] static OperationResult<ThreadRecord> register_type() noexcept {
         ThreadRecordType type{};
         type.size = sizeof(Record);
         type.alignment = alignof(Record);
         type.initialize = &initialize_record<Initialize>;
         type.release = &release_record<Release>;
-        Result<ThreadRecordSlot> registered = register_thread_record(type);
-        if (registered.failed()) return Result<ThreadRecord>::failure(*registered.error());
+        OperationResult<ThreadRecordSlot> registered = register_thread_record(type);
+        if (registered.failed()) return OperationResult<ThreadRecord>::failure(*registered.error());
         ThreadRecord result;
-        result.slot_ = static_cast<Result<ThreadRecordSlot>&&>(registered).take_value();
-        return Result<ThreadRecord>::success(result);
+        result.slot_ = static_cast<OperationResult<ThreadRecordSlot>&&>(registered).take_value();
+        return OperationResult<ThreadRecord>::success(result);
     }
 
-    [[nodiscard]] Result<Record*> get() const noexcept {
-        Result<void*> found = thread_record(slot_);
-        if (found.failed()) return Result<Record*>::failure(*found.error());
-        Record* const record = static_cast<Record*>(static_cast<Result<void*>&&>(found).take_value());
-        return Result<Record*>::success(record);
+    [[nodiscard]] OperationResult<Record*> get() const noexcept {
+        OperationResult<void*> found = thread_record(slot_);
+        if (found.failed()) return OperationResult<Record*>::failure(*found.error());
+        Record* const record = static_cast<Record*>(static_cast<OperationResult<void*>&&>(found).take_value());
+        return OperationResult<Record*>::success(record);
     }
 
     [[nodiscard]] Record* existing() const noexcept {

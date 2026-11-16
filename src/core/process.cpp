@@ -42,7 +42,7 @@ void run_exit_tasks() {
 
 } // namespace
 
-Status register_exit_task(const CallbackTarget<void()> task) noexcept {
+OperationStatus register_exit_task(const CallbackTarget<void()> task) noexcept {
     if (!task.bound()) {
         return host_failure::failed(ErrorKind::invalid_argument, "stxlib.process.register_exit_task",
                                     HostCode::empty_request);
@@ -65,7 +65,7 @@ Status register_exit_task(const CallbackTarget<void()> task) noexcept {
     }
     process.exit_tasks[process.exit_task_count] = state::ExitTaskEntry{task.function(), task.context()};
     process.exit_task_count = process.exit_task_count + 1;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib

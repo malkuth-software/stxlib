@@ -319,20 +319,20 @@ Chain& Chain::operator=(Chain&& other) noexcept {
     return *this;
 }
 
-Result<Chain> Chain::with_storage() noexcept {
-    Result<Buffer<hash::Digest>> block = Buffer<hash::Digest>::allocate_zeroed(block_digests);
-    if (block.failed()) return Result<Chain>::failure(*block.error());
-    Result<Buffer<hash::Digest>> next_block = Buffer<hash::Digest>::allocate_zeroed(block_digests);
-    if (next_block.failed()) return Result<Chain>::failure(*next_block.error());
+OperationResult<Chain> Chain::with_storage() noexcept {
+    OperationResult<Buffer<hash::Digest>> block = Buffer<hash::Digest>::allocate_zeroed(block_digests);
+    if (block.failed()) return OperationResult<Chain>::failure(*block.error());
+    OperationResult<Buffer<hash::Digest>> next_block = Buffer<hash::Digest>::allocate_zeroed(block_digests);
+    if (next_block.failed()) return OperationResult<Chain>::failure(*next_block.error());
     Chain chain{};
-    chain.block_ = static_cast<Result<Buffer<hash::Digest>>&&>(block).take_value();
-    chain.next_block_ = static_cast<Result<Buffer<hash::Digest>>&&>(next_block).take_value();
-    return Result<Chain>::success(static_cast<Chain&&>(chain));
+    chain.block_ = static_cast<OperationResult<Buffer<hash::Digest>>&&>(block).take_value();
+    chain.next_block_ = static_cast<OperationResult<Buffer<hash::Digest>>&&>(next_block).take_value();
+    return OperationResult<Chain>::success(static_cast<Chain&&>(chain));
 }
 
-Result<Chain> Chain::from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
+OperationResult<Chain> Chain::from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
                                 const WallTime now) noexcept {
-    Result<Chain> made = with_storage();
+    OperationResult<Chain> made = with_storage();
     if (made.failed()) return made;
     Chain& chain = *made.value();
     chain.seed_ = secret_seed;
@@ -347,11 +347,11 @@ Result<Chain> Chain::from_seeds(const hash::Digest& secret_seed, const hash::Dig
     return made;
 }
 
-Result<Chain> Chain::create(const WallTime now) noexcept {
+OperationResult<Chain> Chain::create(const WallTime now) noexcept {
     Byte entropy[64]{};
     const MutableView<Byte> entropy_view(entropy);
-    const Status filled = fill_entropy(entropy_view);
-    if (filled.failed()) return Result<Chain>::failure(*filled.error());
+    const OperationStatus filled = fill_entropy(entropy_view);
+    if (filled.failed()) return OperationResult<Chain>::failure(*filled.error());
     hash::Digest secret_seed{};
     hash::Digest public_seed{};
     for (usize index = 0; index < hash::digest_bytes; ++index) {
@@ -359,18 +359,18 @@ Result<Chain> Chain::create(const WallTime now) noexcept {
         public_seed.bytes[index] = entropy[hash::digest_bytes + index];
     }
     hash::secure_erase(entropy_view);
-    Result<Chain> made = from_seeds(secret_seed, public_seed, now);
+    OperationResult<Chain> made = from_seeds(secret_seed, public_seed, now);
     erase(secret_seed);
     return made;
 }
 
-Result<Chain> Chain::restore(const ChainState& state) noexcept {
+OperationResult<Chain> Chain::restore(const ChainState& state) noexcept {
     if (state.pending_count > infos_per_epoch) {
-        return Result<Chain>::failure(ErrorRecord::make(
+        return OperationResult<Chain>::failure(ErrorRecord::make(
             ErrorKind::invalid_argument, "stxlib.precedence.restore",
             ErrorDetail{.message = "the state's pending count is above infos_per_epoch"}));
     }
-    Result<Chain> made = with_storage();
+    OperationResult<Chain> made = with_storage();
     if (made.failed()) return made;
     Chain& chain = *made.value();
     chain.anchor_ = state.anchor;
@@ -506,7 +506,7 @@ PrecedenceStatus Verifier::verify(const Certificate& certificate) noexcept {
             // Doubling from 8; the new list is filled before it replaces
             // the old one, so a failure leaves the verifier unchanged.
             const usize capacity = later_roots_.count() == 0 ? 8 : 2 * later_roots_.count();
-            Result<Buffer<hash::Digest>> grown = Buffer<hash::Digest>::allocate_zeroed(capacity);
+            OperationResult<Buffer<hash::Digest>> grown = Buffer<hash::Digest>::allocate_zeroed(capacity);
             if (grown.failed()) return PrecedenceStatus::out_of_memory;
             Buffer<hash::Digest>& larger = *grown.value();
             for (usize index = 0; index < later_count_; ++index) larger[index] = later_roots_[index];

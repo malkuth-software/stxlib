@@ -54,7 +54,7 @@ bool visit_image(const mach_header_64* const header, const NameField& segment, c
 
 } // namespace
 
-Status visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
+OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
                      const ImageRegionVisitor visitor, void* const context) noexcept {
     const NameField segment = field_of(query.mach_o_segment);
     const NameField section = field_of(query.mach_o_section);
@@ -70,7 +70,7 @@ Status visit_regions(const ImageRegionQuery& query, const bool containing, const
                                         HostCode::no_image);
         }
         static_cast<void>(visit_image(header, segment, section, visitor, context));
-        return Status::success();
+        return OperationStatus::success();
     }
     const std::uint32_t count = ::_dyld_image_count();
     for (std::uint32_t index = 0; index < count; ++index) {
@@ -79,7 +79,7 @@ Status visit_regions(const ImageRegionQuery& query, const bool containing, const
         const mach_header_64* const header64 = reinterpret_cast<const mach_header_64*>(header);
         if (!visit_image(header64, segment, section, visitor, context)) break;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::image_backend

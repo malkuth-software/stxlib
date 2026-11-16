@@ -17,49 +17,49 @@ namespace {
 // ---- targets --------------------------------------------------------------
 
 struct Succeeds final {
-    stxlib::Status operator()() const { return stxlib::Status::success(); }
+    stxlib::OperationStatus operator()() const { return stxlib::OperationStatus::success(); }
 };
 
 struct Adds final {
-    stxlib::Result<int> operator()(int& left, int& right) const {
+    stxlib::OperationResult<int> operator()(int& left, int& right) const {
         const int sum = left + right;
-        return stxlib::Result<int>::success(sum);
+        return stxlib::OperationResult<int>::success(sum);
     }
 };
 
 struct ReturnsFailure final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(stxlib::ErrorKind::not_found, "stxlib.tests.inner");
-        return stxlib::Status::failure(record);
+        return stxlib::OperationStatus::failure(record);
     }
 };
 
 struct ThrowsBadAlloc final {
-    stxlib::Status operator()() const { throw std::bad_alloc(); }
+    stxlib::OperationStatus operator()() const { throw std::bad_alloc(); }
 };
 struct ThrowsInvalidArgument final {
-    stxlib::Status operator()() const { throw std::invalid_argument("bad width"); }
+    stxlib::OperationStatus operator()() const { throw std::invalid_argument("bad width"); }
 };
 struct ThrowsOutOfRange final {
-    stxlib::Result<int> operator()() const { throw std::out_of_range("row 9"); }
+    stxlib::OperationResult<int> operator()() const { throw std::out_of_range("row 9"); }
 };
 struct ThrowsLengthError final {
-    stxlib::Status operator()() const { throw std::length_error("too long"); }
+    stxlib::OperationStatus operator()() const { throw std::length_error("too long"); }
 };
 struct ThrowsLogicError final {
-    stxlib::Status operator()() const { throw std::logic_error("broken"); }
+    stxlib::OperationStatus operator()() const { throw std::logic_error("broken"); }
 };
 struct ThrowsRuntimeError final {
-    stxlib::Status operator()() const { throw std::runtime_error("ran badly"); }
+    stxlib::OperationStatus operator()() const { throw std::runtime_error("ran badly"); }
 };
 struct ThrowsSystemError final {
-    stxlib::Status operator()() const { throw std::system_error(std::make_error_code(std::errc::permission_denied)); }
+    stxlib::OperationStatus operator()() const { throw std::system_error(std::make_error_code(std::errc::permission_denied)); }
 };
 struct ThrowsInteger final {
-    stxlib::Status operator()() const { throw 7; }
+    stxlib::OperationStatus operator()() const { throw 7; }
 };
 struct ThrowsIllFormedText final {
-    stxlib::Status operator()() const { throw std::runtime_error("ok\xff tail"); }
+    stxlib::OperationStatus operator()() const { throw std::runtime_error("ok\xff tail"); }
 };
 
 // A consumer's own exception type and its classifier.
@@ -78,7 +78,7 @@ bool classify_wrong_thread(void*, stxlib::ExceptionClass& decided) noexcept {
 }
 
 struct ThrowsWrongThread final {
-    stxlib::Status operator()() const { throw WrongThreadError(); }
+    stxlib::OperationStatus operator()() const { throw WrongThreadError(); }
 };
 
 struct ReturnsNumber final {
@@ -110,7 +110,7 @@ struct CountsOrThrows final {
     }
 };
 
-// A const-qualified class result: Result holds it without the const.
+// A const-qualified class result: OperationResult holds it without the const.
 struct Extent final {
     int width{0};
     int height{0};
@@ -131,14 +131,14 @@ int doubled(void* const context, int& value) {
 // ---- tests ----------------------------------------------------------------
 
 template <typename Value>
-bool record_present(const stxlib::Result<Value>& result) {
+bool record_present(const stxlib::OperationResult<Value>& result) {
     const bool present = result.failed() && (*result.error()).shadow().present();
     return present;
 }
 
 template <typename Target>
 stxlib::ErrorRecord failure_of(Target& target) {
-    const stxlib::Status status = stxlib::call_gate("stxlib.tests.gate", target);
+    const stxlib::OperationStatus status = stxlib::call_gate("stxlib.tests.gate", target);
     STXLIB_REQUIRE(status.failed(), "the target was expected to fail");
     const stxlib::ErrorRecord record = *status.error();
     return record;
@@ -150,10 +150,10 @@ void results_pass_through() {
     Adds adds;
     int left = 2;
     int right = 3;
-    stxlib::Result<int> sum = stxlib::call_gate("stxlib.tests.gate", adds, left, right);
+    stxlib::OperationResult<int> sum = stxlib::call_gate("stxlib.tests.gate", adds, left, right);
     CHECK(sum.succeeded() && *sum.value() == 5);
     ReturnsFailure returns_failure;
-    const stxlib::Status inner = stxlib::call_gate("stxlib.tests.gate", returns_failure);
+    const stxlib::OperationStatus inner = stxlib::call_gate("stxlib.tests.gate", returns_failure);
     CHECK(inner.failed() && (*inner.error()).kind() == stxlib::ErrorKind::not_found);
     CHECK((*inner.error()).operation().name() == stxlib::TextView("stxlib.tests.inner"));
 }
@@ -184,7 +184,7 @@ void standard_exceptions_are_classified() {
     CHECK(integer_record.message().empty());
 
     ThrowsOutOfRange out_of_range;
-    const stxlib::Result<int> range = stxlib::call_gate("stxlib.tests.gate", out_of_range);
+    const stxlib::OperationResult<int> range = stxlib::call_gate("stxlib.tests.gate", out_of_range);
     CHECK(range.failed() && (*range.error()).kind() == stxlib::ErrorKind::out_of_range);
 }
 
@@ -198,12 +198,12 @@ void foreign_text_is_cut_at_the_first_bad_byte() {
 void the_classifier_comes_first() {
     const stxlib::ExceptionClassifier classifier{classify_wrong_thread, nullptr};
     ThrowsWrongThread wrong_thread;
-    const stxlib::Status classified = stxlib::call_gate_classified(classifier, "stxlib.tests.gate", wrong_thread);
+    const stxlib::OperationStatus classified = stxlib::call_gate_classified(classifier, "stxlib.tests.gate", wrong_thread);
     CHECK(classified.failed());
     CHECK((*classified.error()).kind() == stxlib::ErrorKind::wrong_thread);
     CHECK((*classified.error()).code() == 77);
     ThrowsInvalidArgument invalid;
-    const stxlib::Status standard = stxlib::call_gate_classified(classifier, "stxlib.tests.gate", invalid);
+    const stxlib::OperationStatus standard = stxlib::call_gate_classified(classifier, "stxlib.tests.gate", invalid);
     CHECK((*standard.error()).kind() == stxlib::ErrorKind::invalid_argument);
 }
 
@@ -220,9 +220,9 @@ void development_builds_keep_type_and_history() {
         CHECK(stxlib::exception_type_for_display(record, stxlib::MutableView<char>(readable)) ==
               stxlib::TextView("std::invalid_argument"));
         CHECK(stxlib::recent_failure_count() == 2);
-        stxlib::Result<stxlib::ErrorRecord> newest = stxlib::recent_failure(0);
+        stxlib::OperationResult<stxlib::ErrorRecord> newest = stxlib::recent_failure(0);
         CHECK(newest.succeeded() && (*newest.value()).sequence() == newer.sequence());
-        stxlib::Result<stxlib::ErrorRecord> older = stxlib::recent_failure(1);
+        stxlib::OperationResult<stxlib::ErrorRecord> older = stxlib::recent_failure(1);
         CHECK(older.succeeded() && (*older.value()).sequence() == record.sequence());
         CHECK(stxlib::recent_failure(2).failed());
         for (int round = 0; round < 20; ++round) {
@@ -243,33 +243,33 @@ void development_builds_keep_type_and_history() {
 void plain_targets_become_results() {
     MeasuresWidth measures;
     const int columns = 10;
-    stxlib::Result<int> width = stxlib::call_as_result("stxlib.tests.measure", measures, columns);
+    stxlib::OperationResult<int> width = stxlib::call_as_result("stxlib.tests.measure", measures, columns);
     CHECK(width.succeeded() && *width.value() == 80);
     const int negative = -1;
-    const stxlib::Result<int> refused = stxlib::call_as_result("stxlib.tests.measure", measures, negative);
+    const stxlib::OperationResult<int> refused = stxlib::call_as_result("stxlib.tests.measure", measures, negative);
     CHECK(refused.failed());
     CHECK((*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK((*refused.error()).message() == stxlib::TextView("negative columns"));
     CHECK((*refused.error()).operation().name() == stxlib::TextView("stxlib.tests.measure"));
     // The frame form: the record names the frame's operation.
     const stxlib::GateFrame frame{"stxlib.tests.measure_framed", 5, 6};
-    const stxlib::Result<int> framed = stxlib::call_as_result(frame, measures, negative);
+    const stxlib::OperationResult<int> framed = stxlib::call_as_result(frame, measures, negative);
     CHECK(framed.failed() && (*framed.error()).operation().name() == stxlib::TextView("stxlib.tests.measure_framed"));
     CHECK(record_present(framed));
-    // Nothing comes back as Status; the classifier decides its own types.
+    // Nothing comes back as OperationStatus; the classifier decides its own types.
     CountsOrThrows counts;
     const bool succeed = false;
     CHECK(stxlib::call_as_result("stxlib.tests.count", counts, succeed).succeeded());
     const stxlib::ExceptionClassifier classifier{classify_wrong_thread, nullptr};
     const bool fail = true;
-    const stxlib::Status classified = stxlib::call_as_result_classified(classifier, "stxlib.tests.count", counts, fail);
+    const stxlib::OperationStatus classified = stxlib::call_as_result_classified(classifier, "stxlib.tests.count", counts, fail);
     CHECK(classified.failed() && (*classified.error()).kind() == stxlib::ErrorKind::wrong_thread);
     CHECK((*classified.error()).code() == 77);
-    const stxlib::Status unclassified = stxlib::call_as_result("stxlib.tests.count", counts, fail);
+    const stxlib::OperationStatus unclassified = stxlib::call_as_result("stxlib.tests.count", counts, fail);
     CHECK(unclassified.failed() && (*unclassified.error()).kind() == stxlib::ErrorKind::foreign_exception);
     CHECK(counts.calls == 3);
     ReturnsConstExtent extent_target;
-    stxlib::Result<Extent> extent = stxlib::call_as_result("stxlib.tests.extent", extent_target);
+    stxlib::OperationResult<Extent> extent = stxlib::call_as_result("stxlib.tests.extent", extent_target);
     CHECK(extent.succeeded() && (*extent.value()).width == 3 && (*extent.value()).height == 4);
     CHECK(stxlib::shadow_depth() == 0);
 }

@@ -54,7 +54,7 @@ struct DecodedCodePoint final {
 
 // The code point whose sequence starts at `offset`. out_of_range when
 // offset >= count; invalid_argument when offset is not a boundary.
-[[nodiscard]] Result<DecodedCodePoint> code_point_at(TextView text, usize offset) noexcept;
+[[nodiscard]] OperationResult<DecodedCodePoint> code_point_at(TextView text, usize offset) noexcept;
 
 // ---- UTF-16 ---------------------------------------------------------------
 
@@ -63,31 +63,31 @@ struct DecodedCodePoint final {
 
 // The number of UTF-8 bytes the units need; invalid_argument at the first
 // unpaired surrogate.
-[[nodiscard]] Result<usize> utf8_count_of_utf16(View<u16> units) noexcept;
+[[nodiscard]] OperationResult<usize> utf8_count_of_utf16(View<u16> units) noexcept;
 
 // Writes the text as UTF-16 to output[0, utf16_count) and returns that
 // count. limit_exceeded when output is shorter; output is then unchanged.
-[[nodiscard]] Result<usize> write_utf16(TextView text, MutableView<u16> output) noexcept;
+[[nodiscard]] OperationResult<usize> write_utf16(TextView text, MutableView<u16> output) noexcept;
 
 // Writes the units as UTF-8 to output[0, n) and returns n (the bytes are
 // then well-formed; validate_utf8 adopts them as a TextView).
 // invalid_argument for an unpaired surrogate, limit_exceeded when output is
 // shorter; output is then unchanged.
-[[nodiscard]] Result<usize> write_utf8_of_utf16(View<u16> units, MutableView<char> output) noexcept;
+[[nodiscard]] OperationResult<usize> write_utf8_of_utf16(View<u16> units, MutableView<char> output) noexcept;
 
 // Owned forms. out_of_memory when the allocation is refused.
-[[nodiscard]] Result<Vector<u16>> utf16_of(TextView text) noexcept;
-[[nodiscard]] Result<Utf8String> text_of_utf16(View<u16> units) noexcept;
+[[nodiscard]] OperationResult<Vector<u16>> utf16_of(TextView text) noexcept;
+[[nodiscard]] OperationResult<Utf8String> text_of_utf16(View<u16> units) noexcept;
 // Appends the units to `text`; on failure `text` is unchanged.
-[[nodiscard]] Status append_utf16(Utf8String& text, View<u16> units) noexcept;
+[[nodiscard]] OperationStatus append_utf16(Utf8String& text, View<u16> units) noexcept;
 
 // ---- UTF-32 ---------------------------------------------------------------
 
-[[nodiscard]] Result<Vector<u32>> utf32_of(TextView text) noexcept;
+[[nodiscard]] OperationResult<Vector<u32>> utf32_of(TextView text) noexcept;
 // invalid_argument for a surrogate or a value above U+10FFFF.
-[[nodiscard]] Result<Utf8String> text_of_utf32(View<u32> code_points) noexcept;
+[[nodiscard]] OperationResult<Utf8String> text_of_utf32(View<u32> code_points) noexcept;
 // Appends the code points to `text`; on failure `text` is unchanged.
-[[nodiscard]] Status append_utf32(Utf8String& text, View<u32> code_points) noexcept;
+[[nodiscard]] OperationStatus append_utf32(Utf8String& text, View<u32> code_points) noexcept;
 
 // ---- WTF-8 ----------------------------------------------------------------
 
@@ -97,10 +97,10 @@ struct DecodedCodePoint final {
 // The units as WTF-8: a high surrogate followed by a low one is one
 // supplementary code point, any other surrogate is encoded alone. Only an
 // allocation can fail.
-[[nodiscard]] Result<Vector<char>> wtf8_of_utf16(View<u16> units) noexcept;
+[[nodiscard]] OperationResult<Vector<char>> wtf8_of_utf16(View<u16> units) noexcept;
 
 // The 16-bit units well-formed WTF-8 names; invalid_argument when the bytes
 // are not WTF-8 (detail code: the offset where reading stopped).
-[[nodiscard]] Result<Vector<u16>> utf16_of_wtf8(View<char> bytes) noexcept;
+[[nodiscard]] OperationResult<Vector<u16>> utf16_of_wtf8(View<char> bytes) noexcept;
 
 } // namespace stxlib

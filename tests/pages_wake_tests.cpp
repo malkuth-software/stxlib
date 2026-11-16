@@ -20,25 +20,25 @@ using stxlib::HostCode;
 using stxlib::i64;
 using stxlib::IntervalTime;
 using stxlib::PageBlock;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::usize;
 using stxlib::WakeChannel;
 using stxlib::WakeWait;
 
 template <typename T>
-ErrorKind kind_of(const Result<T>& result) {
+ErrorKind kind_of(const OperationResult<T>& result) {
     const ErrorKind kind = result.failed() ? (*result.error()).kind() : ErrorKind::internal_failure;
     return kind;
 }
 
 template <typename T>
-HostCode code_of(const Result<T>& result) {
+HostCode code_of(const OperationResult<T>& result) {
     const HostCode code = result.failed() ? static_cast<HostCode>((*result.error()).code()) : HostCode::none;
     return code;
 }
 
-HostCode status_code(const Status& status) {
+HostCode status_code(const OperationStatus& status) {
     const HostCode code = status.failed() ? static_cast<HostCode>((*status.error()).code()) : HostCode::none;
     return code;
 }
@@ -52,10 +52,10 @@ void page_size_is_a_power_of_two() {
 }
 
 void empty_block() {
-    Result<PageBlock> mapped = PageBlock::map(0);
+    OperationResult<PageBlock> mapped = PageBlock::map(0);
     CHECK(mapped.succeeded());
     if (mapped.failed()) return;
-    PageBlock block = static_cast<Result<PageBlock>&&>(mapped).take_value();
+    PageBlock block = static_cast<OperationResult<PageBlock>&&>(mapped).take_value();
     CHECK(block.count() == 0);
     CHECK(block.mapped_bytes() == 0);
     CHECK(block.bytes().empty());
@@ -72,10 +72,10 @@ void map_write_seal() {
     CHECK(stxlib::capability_supported(stxlib::Capability::page_protection));
     const usize page = stxlib::page_size();
     const usize asked = page + 100;
-    Result<PageBlock> mapped = PageBlock::map(asked);
+    OperationResult<PageBlock> mapped = PageBlock::map(asked);
     CHECK(mapped.succeeded());
     if (mapped.failed()) return;
-    PageBlock block = static_cast<Result<PageBlock>&&>(mapped).take_value();
+    PageBlock block = static_cast<OperationResult<PageBlock>&&>(mapped).take_value();
     CHECK(block.count() == asked);
     CHECK(block.mapped_bytes() == 2 * page);
     CHECK(!block.sealed());
@@ -98,7 +98,7 @@ void map_write_seal() {
     CHECK(kept);
 
     // Sealing twice is refused; the block stays sealed.
-    const Status again = block.seal();
+    const OperationStatus again = block.seal();
     CHECK(again.failed());
     CHECK((*again.error()).kind() == ErrorKind::invalid_argument);
     CHECK(status_code(again) == HostCode::sealed);
@@ -118,29 +118,29 @@ void map_write_seal() {
 
 void map_refuses_overflow() {
     const usize largest = ~static_cast<usize>(0);
-    Result<PageBlock> overflow = PageBlock::map(largest);
+    OperationResult<PageBlock> overflow = PageBlock::map(largest);
     CHECK(overflow.failed());
     CHECK(kind_of(overflow) == ErrorKind::limit_exceeded);
 
     // A size the host cannot give (a quarter of the address space).
-    Result<PageBlock> refused = PageBlock::map(largest / 4);
+    OperationResult<PageBlock> refused = PageBlock::map(largest / 4);
     CHECK(refused.failed());
     CHECK(kind_of(refused) == ErrorKind::out_of_memory || kind_of(refused) == ErrorKind::limit_exceeded);
 }
 
 // ---- wake channel ---------------------------------------------------------------
 
-Result<WakeChannel> created() {
-    Result<WakeChannel> channel = WakeChannel::create();
+OperationResult<WakeChannel> created() {
+    OperationResult<WakeChannel> channel = WakeChannel::create();
     CHECK(channel.succeeded());
     return channel;
 }
 
 void wake_and_drain() {
     CHECK(stxlib::capability_supported(stxlib::Capability::wake_channel));
-    Result<WakeChannel> made = created();
+    OperationResult<WakeChannel> made = created();
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
     CHECK(channel.is_open());
     CHECK(channel.native_handle() != -1);
     CHECK(!channel.drain());
@@ -156,18 +156,18 @@ void wake_and_drain() {
 }
 
 void wait_states() {
-    Result<WakeChannel> made = created();
+    OperationResult<WakeChannel> made = created();
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
 
     // Nothing raised: a poll times out at once, a short wait after its time.
-    Result<WakeWait> polled = channel.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
+    OperationResult<WakeWait> polled = channel.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
     CHECK(polled.succeeded() && (*polled.value()).is_timed_out());
-    Result<WakeWait> negative = channel.wait(stxlib::View<i64>(), Duration::milliseconds(-5));
+    OperationResult<WakeWait> negative = channel.wait(stxlib::View<i64>(), Duration::milliseconds(-5));
     CHECK(negative.succeeded() && (*negative.value()).is_timed_out());
 
     const IntervalTime before = IntervalTime::now();
-    Result<WakeWait> waited = channel.wait(stxlib::View<i64>(), Duration::milliseconds(30));
+    OperationResult<WakeWait> waited = channel.wait(stxlib::View<i64>(), Duration::milliseconds(30));
     const Duration taken = IntervalTime::now().since(before);
     CHECK(waited.succeeded() && (*waited.value()).is_timed_out());
     CHECK(taken >= Duration::milliseconds(25));
@@ -175,9 +175,9 @@ void wait_states() {
 
     // Raised: the wait reports it and leaves it raised.
     channel.wake();
-    Result<WakeWait> woken = channel.wait(stxlib::View<i64>(), Duration::seconds(5));
+    OperationResult<WakeWait> woken = channel.wait(stxlib::View<i64>(), Duration::seconds(5));
     CHECK(woken.succeeded() && (*woken.value()).is_woken());
-    Result<WakeWait> still = channel.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
+    OperationResult<WakeWait> still = channel.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
     CHECK(still.succeeded() && (*still.value()).is_woken());
     CHECK(channel.drain());
 }
@@ -191,15 +191,15 @@ void wake_later(const stxlib::StopSignal& stop, void* const context) noexcept {
 }
 
 void wake_from_another_thread() {
-    Result<WakeChannel> made = created();
+    OperationResult<WakeChannel> made = created();
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
-    Result<stxlib::Thread> started = stxlib::Thread::start(wake_later, &channel);
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(wake_later, &channel);
     CHECK(started.succeeded());
     if (started.failed()) return;
-    stxlib::Thread waker = static_cast<Result<stxlib::Thread>&&>(started).take_value();
+    stxlib::Thread waker = static_cast<OperationResult<stxlib::Thread>&&>(started).take_value();
     const IntervalTime before = IntervalTime::now();
-    Result<WakeWait> woken = channel.wait(stxlib::View<i64>(), Duration::seconds(30));
+    OperationResult<WakeWait> woken = channel.wait(stxlib::View<i64>(), Duration::seconds(30));
     const Duration taken = IntervalTime::now().since(before);
     const stxlib::JoinResult joined = waker.join();
     static_cast<void>(joined);
@@ -209,19 +209,19 @@ void wake_from_another_thread() {
 }
 
 void handle_ready() {
-    Result<WakeChannel> made_waiter = created();
-    Result<WakeChannel> made_other = created();
+    OperationResult<WakeChannel> made_waiter = created();
+    OperationResult<WakeChannel> made_other = created();
     if (made_waiter.failed() || made_other.failed()) return;
-    WakeChannel waiter = static_cast<Result<WakeChannel>&&>(made_waiter).take_value();
-    WakeChannel other = static_cast<Result<WakeChannel>&&>(made_other).take_value();
+    WakeChannel waiter = static_cast<OperationResult<WakeChannel>&&>(made_waiter).take_value();
+    WakeChannel other = static_cast<OperationResult<WakeChannel>&&>(made_other).take_value();
 
     // Another channel's handle, watched by this channel's wait.
     const i64 handles[2] = {other.native_handle(), other.native_handle()};
-    Result<WakeWait> quiet = waiter.wait(stxlib::View<i64>(handles), Duration::nanoseconds(0));
+    OperationResult<WakeWait> quiet = waiter.wait(stxlib::View<i64>(handles), Duration::nanoseconds(0));
     CHECK(quiet.succeeded() && (*quiet.value()).is_timed_out());
 
     other.wake();
-    Result<WakeWait> ready = waiter.wait(stxlib::View<i64>(handles), Duration::seconds(5));
+    OperationResult<WakeWait> ready = waiter.wait(stxlib::View<i64>(handles), Duration::seconds(5));
     CHECK(ready.succeeded());
     if (ready.succeeded()) {
         const usize* const index = (*ready.value()).ready_handle();
@@ -231,27 +231,27 @@ void handle_ready() {
 
     // The channel itself is reported before the handles.
     waiter.wake();
-    Result<WakeWait> both = waiter.wait(stxlib::View<i64>(handles), Duration::seconds(5));
+    OperationResult<WakeWait> both = waiter.wait(stxlib::View<i64>(handles), Duration::seconds(5));
     CHECK(both.succeeded() && (*both.value()).is_woken());
     CHECK(waiter.drain());
     CHECK(other.drain());
 }
 
 void too_many_handles() {
-    Result<WakeChannel> made = created();
+    OperationResult<WakeChannel> made = created();
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
     i64 handles[stxlib::maximum_wake_wait_handles + 1];
     for (usize index = 0; index < stxlib::maximum_wake_wait_handles + 1; ++index) {
         handles[index] = channel.native_handle();
     }
-    Result<WakeWait> refused = channel.wait(stxlib::View<i64>(handles), Duration::nanoseconds(0));
+    OperationResult<WakeWait> refused = channel.wait(stxlib::View<i64>(handles), Duration::nanoseconds(0));
     CHECK(refused.failed());
     CHECK(kind_of(refused) == ErrorKind::limit_exceeded);
     CHECK(code_of(refused) == HostCode::too_many_handles);
 
     // The most handles allowed is accepted.
-    Result<WakeWait> most =
+    OperationResult<WakeWait> most =
         channel.wait(stxlib::View<i64>(handles, stxlib::maximum_wake_wait_handles), Duration::nanoseconds(0));
     CHECK(most.succeeded() && (*most.value()).is_timed_out());
 }
@@ -262,13 +262,13 @@ void closed_channel() {
     CHECK(closed.native_handle() == -1);
     closed.wake();
     CHECK(!closed.drain());
-    Result<WakeWait> refused = closed.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
+    OperationResult<WakeWait> refused = closed.wait(stxlib::View<i64>(), Duration::nanoseconds(0));
     CHECK(kind_of(refused) == ErrorKind::disposed);
     CHECK(code_of(refused) == HostCode::closed_handle);
 
-    Result<WakeChannel> made = created();
+    OperationResult<WakeChannel> made = created();
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
     const i64 handle = channel.native_handle();
     WakeChannel moved = static_cast<WakeChannel&&>(channel);
     CHECK(!channel.is_open());

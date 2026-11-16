@@ -43,7 +43,7 @@ ErrorRecord failure_of(const state::RecordStatus status, const Operation operati
 
 } // namespace
 
-Result<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) noexcept {
+OperationResult<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) noexcept {
     const state::ThreadRecordTypeEntry entry{.size = type.size,
                                              .alignment = type.alignment,
                                              .initialize = type.initialize,
@@ -52,18 +52,18 @@ Result<ThreadRecordSlot> register_thread_record(const ThreadRecordType& type) no
     u32 slot = 0;
     const state::RecordStatus status = state::thread_record_register(state::layout_key, &entry, &slot);
     if (status != state::RecordStatus::ok) {
-        return Result<ThreadRecordSlot>::failure(failure_of(status, "stxlib.thread_records.register"));
+        return OperationResult<ThreadRecordSlot>::failure(failure_of(status, "stxlib.thread_records.register"));
     }
-    return Result<ThreadRecordSlot>::success(ThreadRecordSlot::from_index(slot));
+    return OperationResult<ThreadRecordSlot>::success(ThreadRecordSlot::from_index(slot));
 }
 
-Result<void*> thread_record(const ThreadRecordSlot slot) noexcept {
+OperationResult<void*> thread_record(const ThreadRecordSlot slot) noexcept {
     void* record = nullptr;
     const state::RecordStatus status = state::thread_record_get(state::layout_key, slot.index(), &record);
     if (status != state::RecordStatus::ok) {
-        return Result<void*>::failure(failure_of(status, "stxlib.thread_records.get"));
+        return OperationResult<void*>::failure(failure_of(status, "stxlib.thread_records.get"));
     }
-    return Result<void*>::success(record);
+    return OperationResult<void*>::success(record);
 }
 
 void* existing_thread_record(const ThreadRecordSlot slot) noexcept {

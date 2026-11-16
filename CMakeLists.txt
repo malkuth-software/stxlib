@@ -1553,7 +1553,7 @@ if(STXLIB_TESTS)
             "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
             "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
             "view_index|stxlib: requirement failed: View: index out of range"
-            "take_failed_value|stxlib: requirement failed: Result::take_value on a failure"
+            "take_failed_value|stxlib: requirement failed: OperationResult::take_value on a failure"
             "vector_index|stxlib: requirement failed: Vector: index out of range"
             "optional_take|stxlib: requirement failed: Optional::take on an absent value"
             "shared_dereference|stxlib: requirement failed: Shared: dereference of an empty owner"

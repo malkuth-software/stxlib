@@ -49,8 +49,8 @@ using stxlib::ErrorKind;
 using stxlib::HostCode;
 using stxlib::IntervalTime;
 using stxlib::Path;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::StorageKind;
 using stxlib::TextView;
 using stxlib::usize;
@@ -58,35 +58,35 @@ using stxlib::WakeChannel;
 using stxlib::WakeWait;
 
 template <typename Value>
-ErrorKind kind_of(const Result<Value>& result) {
+ErrorKind kind_of(const OperationResult<Value>& result) {
     if (result.succeeded()) return ErrorKind::internal_failure;
     const ErrorKind kind = (*result.error()).kind();
     return kind;
 }
 
-ErrorKind kind_of(const Status& status) {
+ErrorKind kind_of(const OperationStatus& status) {
     if (status.succeeded()) return ErrorKind::internal_failure;
     const ErrorKind kind = (*status.error()).kind();
     return kind;
 }
 
-HostCode code_of(const Status& status) {
+HostCode code_of(const OperationStatus& status) {
     if (status.succeeded()) return HostCode::none;
     const HostCode code = static_cast<HostCode>((*status.error()).code());
     return code;
 }
 
 TextView view_of(const std::string& text) {
-    Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    OperationResult<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
 
 Path path_of(const std::string& text) {
-    Result<Path> parsed = Path::parse(view_of(text));
+    OperationResult<Path> parsed = Path::parse(view_of(text));
     CHECK(parsed.succeeded());
     if (parsed.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(parsed).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(parsed).take_value();
     return result;
 }
 
@@ -103,7 +103,7 @@ std::vector<Byte> bytes_of(const std::string& text) {
 }
 
 std::vector<Byte> read_or_empty(const Path& path) {
-    Result<stxlib::Buffer<Byte>> read = stxlib::read_file(path, 4096);
+    OperationResult<stxlib::Buffer<Byte>> read = stxlib::read_file(path, 4096);
     CHECK(read.succeeded());
     std::vector<Byte> result;
     if (read.failed()) return result;
@@ -138,7 +138,7 @@ void thread_facts() {
     CHECK(stxlib::capability_supported(stxlib::Capability::cross_origin_isolated));
     CHECK(stxlib::processor_count() >= 1);
     // No name for main's thread under PROXY_TO_PTHREAD: as on Windows.
-    const Result<bool> main_thread = stxlib::is_main_thread();
+    const OperationResult<bool> main_thread = stxlib::is_main_thread();
     CHECK(kind_of(main_thread) == ErrorKind::unsupported);
 }
 
@@ -181,12 +181,12 @@ void entropy() {
 
 void environment_and_home() {
     // Emscripten's default environment (src/lib/libwasi.js:49-62).
-    const Result<stxlib::Utf8String> home = stxlib::read_variable("HOME", 256);
+    const OperationResult<stxlib::Utf8String> home = stxlib::read_variable("HOME", 256);
     CHECK(home.succeeded() && (*home.value()).view() == TextView("/home/web_user"));
-    const Result<Path> known = stxlib::known_directory(stxlib::KnownDirectory::home);
+    const OperationResult<Path> known = stxlib::known_directory(stxlib::KnownDirectory::home);
     CHECK(known.succeeded() && text_of((*known.value()).text()) == "/home/web_user");
     CHECK(stxlib::set_variable("STXLIB_WEB_TEST", "value").succeeded());
-    const Result<stxlib::Utf8String> read = stxlib::read_variable("STXLIB_WEB_TEST", 16);
+    const OperationResult<stxlib::Utf8String> read = stxlib::read_variable("STXLIB_WEB_TEST", 16);
     CHECK(read.succeeded() && (*read.value()).view() == TextView("value"));
     CHECK(stxlib::remove_variable("STXLIB_WEB_TEST").succeeded());
 }
@@ -199,9 +199,9 @@ void storage_kinds() {
     CHECK(stxlib::web_storage_durability(StorageKind::indexed_db) == Durability::ordered);
     CHECK(stxlib::web_storage_durability(StorageKind::origin_private) == Durability::durable);
     // A relative path is refused before anything is made.
-    const Status relative = stxlib::mount_web_storage(path_of("relative/volume"), StorageKind::memory);
+    const OperationStatus relative = stxlib::mount_web_storage(path_of("relative/volume"), StorageKind::memory);
     CHECK(kind_of(relative) == ErrorKind::invalid_argument && code_of(relative) == HostCode::invalid_name);
-    const Status unknown = stxlib::mount_web_storage(path_of("/stxlib-unknown"), static_cast<StorageKind>(9));
+    const OperationStatus unknown = stxlib::mount_web_storage(path_of("/stxlib-unknown"), static_cast<StorageKind>(9));
     CHECK(kind_of(unknown) == ErrorKind::invalid_argument);
 }
 
@@ -218,7 +218,7 @@ void memory_volume() {
     CHECK(stxlib::write_file(file, view, Durability::durable).succeeded());
     CHECK(read_or_empty(file) == content);
     CHECK(stxlib::write_file(file, view, Durability::ordered).succeeded());
-    Result<stxlib::File> opened = stxlib::File::open(file, stxlib::FileMode::append);
+    OperationResult<stxlib::File> opened = stxlib::File::open(file, stxlib::FileMode::append);
     CHECK(opened.succeeded());
     if (opened.failed()) return;
     stxlib::File& handle = *opened.value();
@@ -228,16 +228,16 @@ void memory_volume() {
     CHECK(handle.sync(Durability::durable).succeeded());
     CHECK(handle.close().succeeded());
     // A file in the way of a volume's directory.
-    const Status blocked = stxlib::mount_web_storage(file, StorageKind::memory);
+    const OperationStatus blocked = stxlib::mount_web_storage(file, StorageKind::memory);
     CHECK(kind_of(blocked) == ErrorKind::invalid_argument && code_of(blocked) == HostCode::not_a_directory);
 }
 
 // Node has neither IndexedDB nor OPFS: both refuse without changing
 // anything.
 void browser_volumes_absent() {
-    const Status indexed = stxlib::mount_web_storage(path_of("/stxlib-web/indexed"), StorageKind::indexed_db);
+    const OperationStatus indexed = stxlib::mount_web_storage(path_of("/stxlib-web/indexed"), StorageKind::indexed_db);
     CHECK(kind_of(indexed) == ErrorKind::unsupported);
-    const Status origin = stxlib::mount_web_storage(path_of("/stxlib-web/origin"), StorageKind::origin_private);
+    const OperationStatus origin = stxlib::mount_web_storage(path_of("/stxlib-web/origin"), StorageKind::origin_private);
 #if defined(STXLIB_TEST_WASMFS)
     // WasmFS refuses OPFS on the main browser thread first.
     CHECK(kind_of(origin) == ErrorKind::invalid_argument && code_of(origin) == HostCode::invalid_state);
@@ -251,9 +251,9 @@ void browser_volumes_absent() {
 
 // The waits are refused where the event loop would be blocked.
 void storage_waits_on_main_thread() {
-    const Status persisted = stxlib::persist_web_storage();
+    const OperationStatus persisted = stxlib::persist_web_storage();
     CHECK(kind_of(persisted) == ErrorKind::invalid_argument && code_of(persisted) == HostCode::invalid_state);
-    const Status restored = stxlib::restore_web_storage();
+    const OperationStatus restored = stxlib::restore_web_storage();
     CHECK(kind_of(restored) == ErrorKind::invalid_argument && code_of(restored) == HostCode::invalid_state);
 }
 
@@ -278,10 +278,10 @@ void storage_from_thread(const stxlib::StopSignal& stop, void* const context) no
 // on the persisting thread (web.hpp).
 void storage_waits_from_thread() {
     StorageReport report{};
-    Result<stxlib::Thread> started = stxlib::Thread::start(storage_from_thread, &report);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(storage_from_thread, &report);
     CHECK(started.succeeded());
     if (started.failed()) return;
-    stxlib::Thread thread = static_cast<Result<stxlib::Thread>&&>(started).take_value();
+    stxlib::Thread thread = static_cast<OperationResult<stxlib::Thread>&&>(started).take_value();
     static_cast<void>(thread.join());
     CHECK(report.persisted);
     CHECK(report.restored);
@@ -299,10 +299,10 @@ void wake_later(const stxlib::StopSignal& stop, void* const context) noexcept {
 
 void wake_channel() {
     CHECK(stxlib::capability_supported(stxlib::Capability::wake_channel));
-    Result<WakeChannel> made = WakeChannel::create();
+    OperationResult<WakeChannel> made = WakeChannel::create();
     CHECK(made.succeeded());
     if (made.failed()) return;
-    WakeChannel channel = static_cast<Result<WakeChannel>&&>(made).take_value();
+    WakeChannel channel = static_cast<OperationResult<WakeChannel>&&>(made).take_value();
     CHECK(channel.is_open() && channel.native_handle() != -1);
     CHECK(!channel.drain());
     channel.wake();
@@ -311,27 +311,27 @@ void wake_channel() {
     CHECK(!channel.drain());
 
     const IntervalTime before = IntervalTime::now();
-    Result<WakeWait> quiet = channel.wait(stxlib::View<stxlib::i64>(), Duration::milliseconds(30));
+    OperationResult<WakeWait> quiet = channel.wait(stxlib::View<stxlib::i64>(), Duration::milliseconds(30));
     CHECK(quiet.succeeded() && (*quiet.value()).is_timed_out());
     CHECK(IntervalTime::now().since(before) >= Duration::milliseconds(30));
 
     // A page has no host handles to wait on.
     const stxlib::i64 handles[1] = {0};
-    Result<WakeWait> with_handle = channel.wait(stxlib::View<stxlib::i64>(handles), Duration::nanoseconds(0));
+    OperationResult<WakeWait> with_handle = channel.wait(stxlib::View<stxlib::i64>(handles), Duration::nanoseconds(0));
     CHECK(kind_of(with_handle) == ErrorKind::unsupported);
 
-    Result<stxlib::Thread> started = stxlib::Thread::start(wake_later, &channel);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(wake_later, &channel);
     CHECK(started.succeeded());
     if (started.failed()) return;
-    stxlib::Thread waker = static_cast<Result<stxlib::Thread>&&>(started).take_value();
-    Result<WakeWait> woken = channel.wait(stxlib::View<stxlib::i64>(), Duration::seconds(30));
+    stxlib::Thread waker = static_cast<OperationResult<stxlib::Thread>&&>(started).take_value();
+    OperationResult<WakeWait> woken = channel.wait(stxlib::View<stxlib::i64>(), Duration::seconds(30));
     static_cast<void>(waker.join());
     CHECK(woken.succeeded() && (*woken.value()).is_woken());
     CHECK(channel.drain());
 
     WakeChannel moved = static_cast<WakeChannel&&>(channel);
     CHECK(!channel.is_open() && moved.is_open());
-    Result<WakeWait> closed = channel.wait(stxlib::View<stxlib::i64>(), Duration::nanoseconds(0));
+    OperationResult<WakeWait> closed = channel.wait(stxlib::View<stxlib::i64>(), Duration::nanoseconds(0));
     CHECK(kind_of(closed) == ErrorKind::disposed);
 }
 
@@ -353,16 +353,16 @@ void simd_level() {
 // ---- what a page lacks ------------------------------------------------------------------
 
 void absent_services() {
-    Result<stxlib::PageBlock> pages = stxlib::PageBlock::map(stxlib::page_size());
+    OperationResult<stxlib::PageBlock> pages = stxlib::PageBlock::map(stxlib::page_size());
     CHECK(kind_of(pages) == ErrorKind::unsupported);
 
     stxlib::uptr addresses[8]{};
     CHECK(stxlib::capture_stack_trace(stxlib::MutableView<stxlib::uptr>(addresses)) == 0);
 
-    Result<stxlib::Library> library = stxlib::Library::open_system("libc.so");
+    OperationResult<stxlib::Library> library = stxlib::Library::open_system("libc.so");
     CHECK(kind_of(library) == ErrorKind::unsupported);
 
-    const Result<stxlib::ProcessArguments> arguments = stxlib::process_arguments(4096);
+    const OperationResult<stxlib::ProcessArguments> arguments = stxlib::process_arguments(4096);
     CHECK(kind_of(arguments) == ErrorKind::unsupported);
     CHECK(stxlib::process_id() == 0);
 
@@ -370,12 +370,12 @@ void absent_services() {
     // answers ENOSYS); their capabilities say so first.
     CHECK(!stxlib::capability_supported(stxlib::Capability::child_processes));
     CHECK(!stxlib::capability_supported(stxlib::Capability::current_executable));
-    const Result<Path> executable = stxlib::current_executable();
+    const OperationResult<Path> executable = stxlib::current_executable();
     CHECK(executable.failed());
 }
 
 void process_and_zone() {
-    const Result<stxlib::ProcessMemory> memory = stxlib::process_memory();
+    const OperationResult<stxlib::ProcessMemory> memory = stxlib::process_memory();
     CHECK(memory.succeeded());
     if (memory.succeeded()) {
         CHECK((*memory.value()).resident_bytes > 0);
@@ -383,9 +383,9 @@ void process_and_zone() {
     }
     // The runtime's zone (Intl) or UTC; either names a compiled zone.
     CHECK(stxlib::remove_variable("TZ").succeeded());
-    const Result<stxlib::Zone> zone = stxlib::host_zone();
+    const OperationResult<stxlib::Zone> zone = stxlib::host_zone();
     CHECK(zone.succeeded());
-    const Result<stxlib::LocalTime> local = stxlib::local_time(stxlib::WallTime::now());
+    const OperationResult<stxlib::LocalTime> local = stxlib::local_time(stxlib::WallTime::now());
     CHECK(local.succeeded());
 }
 

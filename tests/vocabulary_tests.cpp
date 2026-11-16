@@ -39,18 +39,18 @@ void literals_and_validation() {
     static_assert(!stxlib::detail::utf8_well_formed("\xf4\x90\x80\x80", 4), "above U+10FFFF");
 
     const char valid[] = {'a', static_cast<char>(0xc3), static_cast<char>(0xa9)};
-    const stxlib::Result<stxlib::TextView> accepted = stxlib::validate_utf8(valid, sizeof(valid));
+    const stxlib::OperationResult<stxlib::TextView> accepted = stxlib::validate_utf8(valid, sizeof(valid));
     CHECK(accepted.succeeded());
     CHECK((*accepted.value()).count() == 3);
 
     const char invalid[] = {'a', 'b', static_cast<char>(0xff), 'c'};
-    const stxlib::Result<stxlib::TextView> refused = stxlib::validate_utf8(invalid, sizeof(invalid));
+    const stxlib::OperationResult<stxlib::TextView> refused = stxlib::validate_utf8(invalid, sizeof(invalid));
     CHECK(refused.failed());
     CHECK((*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK((*refused.error()).code() == 2);
 
     const char cut[] = {'a', static_cast<char>(0xe2), static_cast<char>(0x82)};
-    const stxlib::Result<stxlib::TextView> cut_off = stxlib::validate_utf8(cut, sizeof(cut));
+    const stxlib::OperationResult<stxlib::TextView> cut_off = stxlib::validate_utf8(cut, sizeof(cut));
     CHECK(cut_off.failed() && (*cut_off.error()).code() == 1);
 
     CHECK(stxlib::validate_utf8(nullptr, 0).succeeded());
@@ -58,21 +58,21 @@ void literals_and_validation() {
 
 void strings_own_their_bytes() {
     char source[] = "copy me";
-    const stxlib::Result<stxlib::TextView> view = stxlib::validate_utf8(source, 7);
+    const stxlib::OperationResult<stxlib::TextView> view = stxlib::validate_utf8(source, 7);
     CHECK(view.succeeded());
-    stxlib::Result<stxlib::Utf8String> copied = stxlib::Utf8String::copy_of(*view.value());
+    stxlib::OperationResult<stxlib::Utf8String> copied = stxlib::Utf8String::copy_of(*view.value());
     CHECK(copied.succeeded());
     source[0] = 'X';
-    const stxlib::Utf8String owned = static_cast<stxlib::Result<stxlib::Utf8String>&&>(copied).take_value();
+    const stxlib::Utf8String owned = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(copied).take_value();
     CHECK(owned.view() == stxlib::TextView("copy me"));
-    stxlib::Result<stxlib::Utf8String> empty = stxlib::Utf8String::copy_of(stxlib::TextView());
+    stxlib::OperationResult<stxlib::Utf8String> empty = stxlib::Utf8String::copy_of(stxlib::TextView());
     CHECK(empty.succeeded() && (*empty.value()).empty());
 }
 
 void buffers_zero_and_refuse() {
-    stxlib::Result<stxlib::Buffer<stxlib::u32>> made = stxlib::Buffer<stxlib::u32>::allocate_zeroed(100);
+    stxlib::OperationResult<stxlib::Buffer<stxlib::u32>> made = stxlib::Buffer<stxlib::u32>::allocate_zeroed(100);
     CHECK(made.succeeded());
-    stxlib::Buffer<stxlib::u32> buffer = static_cast<stxlib::Result<stxlib::Buffer<stxlib::u32>>&&>(made).take_value();
+    stxlib::Buffer<stxlib::u32> buffer = static_cast<stxlib::OperationResult<stxlib::Buffer<stxlib::u32>>&&>(made).take_value();
     CHECK(buffer.count() == 100);
     bool all_zero = true;
     for (usize index = 0; index < buffer.count(); ++index) {
@@ -85,10 +85,10 @@ void buffers_zero_and_refuse() {
     moved.release();
     CHECK(moved.empty());
 
-    stxlib::Result<stxlib::Buffer<stxlib::u32>> none = stxlib::Buffer<stxlib::u32>::allocate_zeroed(0);
+    stxlib::OperationResult<stxlib::Buffer<stxlib::u32>> none = stxlib::Buffer<stxlib::u32>::allocate_zeroed(0);
     CHECK(none.succeeded() && (*none.value()).empty());
 
-    const stxlib::Result<stxlib::Buffer<stxlib::u64>> huge =
+    const stxlib::OperationResult<stxlib::Buffer<stxlib::u64>> huge =
         stxlib::Buffer<stxlib::u64>::allocate_zeroed(stxlib::usize_max / 4);
     CHECK(huge.failed() && (*huge.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 }
@@ -97,16 +97,16 @@ struct WidgetTag final {};
 
 void identities_never_wrap() {
     stxlib::IdentityIssuer<WidgetTag> issuer;
-    stxlib::Result<stxlib::Identity<WidgetTag>> first = issuer.issue();
-    stxlib::Result<stxlib::Identity<WidgetTag>> second = issuer.issue();
+    stxlib::OperationResult<stxlib::Identity<WidgetTag>> first = issuer.issue();
+    stxlib::OperationResult<stxlib::Identity<WidgetTag>> second = issuer.issue();
     CHECK(first.succeeded() && (*first.value()).value() == 1);
     CHECK(second.succeeded() && (*second.value()).value() == 2);
     CHECK(!stxlib::Identity<WidgetTag>().present());
 
     stxlib::IdentityIssuer<WidgetTag> nearly = stxlib::IdentityIssuer<WidgetTag>::resume(stxlib::u64_max - 1);
-    stxlib::Result<stxlib::Identity<WidgetTag>> last = nearly.issue();
+    stxlib::OperationResult<stxlib::Identity<WidgetTag>> last = nearly.issue();
     CHECK(last.succeeded() && (*last.value()).value() == stxlib::u64_max);
-    const stxlib::Result<stxlib::Identity<WidgetTag>> refused = nearly.issue();
+    const stxlib::OperationResult<stxlib::Identity<WidgetTag>> refused = nearly.issue();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(nearly.last_issued() == stxlib::u64_max);
 }
@@ -143,7 +143,7 @@ void records_cut_at_whole_sequences() {
     std::memset(text, 'a', 199);
     text[199] = static_cast<char>(0xc3);
     text[200] = static_cast<char>(0xa9);
-    const stxlib::Result<stxlib::TextView> long_text = stxlib::validate_utf8(text, 201);
+    const stxlib::OperationResult<stxlib::TextView> long_text = stxlib::validate_utf8(text, 201);
     CHECK(long_text.succeeded());
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(
         stxlib::ErrorKind::io_failure, "stxlib.tests.record",
@@ -159,7 +159,7 @@ void records_cut_at_whole_sequences() {
     CHECK(record.exception_type().empty());
     CHECK(!record.shadow().present());
 
-    const stxlib::Result<stxlib::TextView> exact = stxlib::validate_utf8(text, 200 - 1);
+    const stxlib::OperationResult<stxlib::TextView> exact = stxlib::validate_utf8(text, 200 - 1);
     const stxlib::ErrorRecord fits = stxlib::ErrorRecord::make(stxlib::ErrorKind::io_failure, "stxlib.tests.record",
                                                                stxlib::ErrorDetail{.message = *exact.value()});
     CHECK(fits.message().count() == 199 && !fits.message_truncated());
@@ -173,18 +173,18 @@ void kind_names_are_stable() {
 }
 
 void results_hold_one_alternative() {
-    const stxlib::Status good = stxlib::Status::success();
+    const stxlib::OperationStatus good = stxlib::OperationStatus::success();
     CHECK(good.succeeded() && good.error() == nullptr);
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(stxlib::ErrorKind::not_found, "stxlib.tests.result");
-    const stxlib::Status bad = stxlib::Status::failure(record);
+    const stxlib::OperationStatus bad = stxlib::OperationStatus::failure(record);
     CHECK(bad.failed() && (*bad.error()).kind() == stxlib::ErrorKind::not_found);
 
-    stxlib::Result<int> number = stxlib::Result<int>::success(42);
+    stxlib::OperationResult<int> number = stxlib::OperationResult<int>::success(42);
     CHECK(number.succeeded() && *number.value() == 42 && number.error() == nullptr);
     CHECK(number.status().succeeded());
-    stxlib::Result<int> failed = stxlib::Result<int>::failure(record);
+    stxlib::OperationResult<int> failed = stxlib::OperationResult<int>::failure(record);
     CHECK(failed.value() == nullptr && failed.status().failed());
-    const stxlib::Result<int> moved(static_cast<stxlib::Result<int>&&>(failed));
+    const stxlib::OperationResult<int> moved(static_cast<stxlib::OperationResult<int>&&>(failed));
     CHECK(moved.failed() && (*moved.error()).kind() == stxlib::ErrorKind::not_found);
 }
 

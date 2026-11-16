@@ -919,7 +919,7 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
 
 } // namespace
 
-Status open_cff(Font& font) noexcept {
+OperationStatus open_cff(Font& font) noexcept {
     const Operation operation("stxlib.glyphs.open_font");
     const Span table = table_of(font, font.cff);
     if (!has(table, 0, 4) || read_u8(table, 0) != 1) return refuse_font(ErrorKind::invalid_argument, operation);
@@ -971,15 +971,15 @@ Status open_cff(Font& font) noexcept {
         Index local{};
         if (local_at != 0 && read_index(table, local_at, local, end)) font.local_subroutines = table_part(font, local_at, end - local_at);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status load_cff_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
+OperationStatus load_cff_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     Index charstrings{};
     if (!index_of(font, font.charstrings, charstrings)) return refuse_font(ErrorKind::invalid_argument, operation);
     // A glyph past the charstrings has no outline.
-    if (glyph >= charstrings.count) return Status::success();
+    if (glyph >= charstrings.count) return OperationStatus::success();
     Machine machine{};
     machine.path.outline = &outline;
     machine.path.limits = &limits;
@@ -1001,7 +1001,7 @@ Status load_cff_glyph(const Font& font, const u32 glyph, const FontLimits& limit
     if (machine.path.no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
     if (ran == Ran::too_large || machine.path.too_large) return refuse_font(ErrorKind::limit_exceeded, operation);
     if (ran == Ran::invalid) return refuse_font(ErrorKind::invalid_argument, operation);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs::detail

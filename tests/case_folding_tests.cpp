@@ -150,10 +150,10 @@ std::string utf8_of(const u32 scalar) {
 
 // A view of a test string. Requirement: the string is UTF-8 and outlives the view.
 TextView view_of(const std::string& value) {
-    stxlib::Result<TextView> validated = stxlib::validate_utf8(value.data(), value.size());
+    stxlib::OperationResult<TextView> validated = stxlib::validate_utf8(value.data(), value.size());
     CHECK(validated.succeeded());
     if (!validated.succeeded()) return TextView();
-    const TextView result = static_cast<stxlib::Result<TextView>&&>(validated).take_value();
+    const TextView result = static_cast<stxlib::OperationResult<TextView>&&>(validated).take_value();
     return result;
 }
 

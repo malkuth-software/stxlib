@@ -5,7 +5,7 @@
 // stx_auxlib's include/stx_auxlib/calendar.hpp at b6e330a: the civil-day
 // algorithms (Hinnant's), the validity rules, the ISO 8601 forms and the
 // parse rules are unchanged. The interface is restated in STXlib's
-// vocabulary: WallTime for instants, Result in place of std::optional,
+// vocabulary: WallTime for instants, OperationResult in place of std::optional,
 // text written into caller storage (numeric_text.hpp's Formatted), TextView
 // in. CivilTime, LocalTime and the local time zone stayed in the boundary
 // (local_time.hpp); this header is host-free.
@@ -54,7 +54,7 @@ enum class Weekday : u8 {
 // The instant of a UTC civil time. Failures: invalid_argument when the time
 // is not valid (is_valid_civil_time); out_of_range when it is valid but
 // outside WallTime's range.
-[[nodiscard]] Result<WallTime> wall_from_civil(const CivilTime& time) noexcept;
+[[nodiscard]] OperationResult<WallTime> wall_from_civil(const CivilTime& time) noexcept;
 
 enum class ZoneDesignator : u8 {
     // No zone ("2026-10-31 21:30:05"), as "%Y-%m-%d %H:%M:%S" prints.

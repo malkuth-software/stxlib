@@ -83,7 +83,7 @@ public:
     // Failures: limit_exceeded or foreign_failure with the host's code when
     // the host refuses a pipe or an event; unsupported where
     // Capability::wake_channel is false.
-    [[nodiscard]] static Result<WakeChannel> create() noexcept;
+    [[nodiscard]] static OperationResult<WakeChannel> create() noexcept;
 
     WakeChannel() noexcept = default;
     ~WakeChannel();
@@ -111,7 +111,7 @@ public:
     // maximum_wake_wait_handles handles; disposed with HostCode::closed_handle
     // on a closed channel; foreign_failure with the host's code (a handle
     // the host refuses).
-    [[nodiscard]] Result<WakeWait> wait(View<i64> handles, Duration timeout) noexcept;
+    [[nodiscard]] OperationResult<WakeWait> wait(View<i64> handles, Duration timeout) noexcept;
 
     // The handle another wait can watch: the pipe's read end, or the event.
     // Valid while the channel is open. -1 when closed.

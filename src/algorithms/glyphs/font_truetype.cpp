@@ -344,7 +344,7 @@ enum class Loaded : u8 {
 
 } // namespace
 
-Status load_truetype_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
+OperationStatus load_truetype_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
                            GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     // Scales are 16.16 and no greater than 16,384 pixels to the em of the
@@ -441,7 +441,7 @@ Status load_truetype_glyph(const Font& font, const u32 glyph, const i64 x_scale,
     if (result == Loaded::invalid) return refuse_font(ErrorKind::invalid_argument, operation);
     if (result == Loaded::too_large) return refuse_font(ErrorKind::limit_exceeded, operation);
     if (result == Loaded::no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs::detail

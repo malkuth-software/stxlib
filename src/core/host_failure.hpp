@@ -21,14 +21,14 @@ namespace stxlib::host_failure {
     return result;
 }
 
-[[nodiscard]] inline Status failed(const ErrorKind kind, const Operation operation, const HostCode code,
+[[nodiscard]] inline OperationStatus failed(const ErrorKind kind, const Operation operation, const HostCode code,
                                    const ForeignCode foreign) noexcept {
-    const Status result = Status::failure(record(kind, operation, code, foreign));
+    const OperationStatus result = OperationStatus::failure(record(kind, operation, code, foreign));
     return result;
 }
 
-[[nodiscard]] inline Status failed(const ErrorKind kind, const Operation operation, const HostCode code) noexcept {
-    const Status result = Status::failure(record(kind, operation, code));
+[[nodiscard]] inline OperationStatus failed(const ErrorKind kind, const Operation operation, const HostCode code) noexcept {
+    const OperationStatus result = OperationStatus::failure(record(kind, operation, code));
     return result;
 }
 

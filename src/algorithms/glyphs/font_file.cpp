@@ -13,8 +13,8 @@ namespace stxlib::glyphs {
 
 namespace detail {
 
-Status refuse_font(const ErrorKind kind, const Operation operation) noexcept {
-    const Status result = Status::failure(ErrorRecord::make(kind, operation));
+OperationStatus refuse_font(const ErrorKind kind, const Operation operation) noexcept {
+    const OperationStatus result = OperationStatus::failure(ErrorRecord::make(kind, operation));
     return result;
 }
 
@@ -284,7 +284,7 @@ u32 face_count(const View<u8> bytes) noexcept {
     return faces;
 }
 
-Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
+OperationStatus open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     const Operation operation("stxlib.glyphs.open_font");
     font = Font{};
     const Span whole = span_of(bytes);
@@ -413,14 +413,14 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         font.glyf = tables.glyf;
     } else if (tables.cff.length != 0) {
         font.cff = tables.cff;
-        const Status opened = detail::open_cff(font);
+        const OperationStatus opened = detail::open_cff(font);
         if (opened.failed()) {
             font = Font{};
             return opened;
         }
         font.outlines = OutlineKind::cff;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 namespace {
@@ -690,21 +690,21 @@ bool outline_whole(const GlyphOutline& outline) noexcept {
 
 } // namespace detail
 
-Status load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
+OperationStatus load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     outline.points.clear();
     outline.tags.clear();
     outline.contour_ends.clear();
     if (glyph >= font.glyph_count) return refuse_font(ErrorKind::invalid_argument, operation);
     if (font.outlines == OutlineKind::truetype) {
-        const Status status = detail::load_truetype_glyph(font, glyph, 0, 0, limits, outline);
+        const OperationStatus status = detail::load_truetype_glyph(font, glyph, 0, 0, limits, outline);
         STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() <= limits.points &&
                                                 outline.contour_ends.count() <= limits.contours),
                             "load_glyph: the outline is not whole");
         return status;
     }
     if (font.outlines == OutlineKind::cff) {
-        const Status status = detail::load_cff_glyph(font, glyph, limits, outline);
+        const OperationStatus status = detail::load_cff_glyph(font, glyph, limits, outline);
         STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() <= limits.points &&
                                                 outline.contour_ends.count() <= limits.contours),
                             "load_glyph: the outline is not whole");
@@ -713,7 +713,7 @@ Status load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, G
     return refuse_font(ErrorKind::invalid_argument, operation);
 }
 
-Status load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
+OperationStatus load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
                          GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_scaled_glyph");
     outline.points.clear();
@@ -721,13 +721,13 @@ Status load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, c
     outline.contour_ends.clear();
     if (glyph >= font.glyph_count || x_scale <= 0 || y_scale <= 0) return refuse_font(ErrorKind::invalid_argument, operation);
     if (font.outlines == OutlineKind::truetype) {
-        const Status status = detail::load_truetype_glyph(font, glyph, x_scale, y_scale, limits, outline);
+        const OperationStatus status = detail::load_truetype_glyph(font, glyph, x_scale, y_scale, limits, outline);
         STXLIB_GLYPHS_CHECK(status.failed() || detail::outline_whole(outline), "load_scaled_glyph: the outline is not whole");
         return status;
     }
     if (font.outlines == OutlineKind::cff) {
         // A CFF glyph's points are whole font units before they are scaled.
-        const Status status = detail::load_cff_glyph(font, glyph, limits, outline);
+        const OperationStatus status = detail::load_cff_glyph(font, glyph, limits, outline);
         if (status.failed()) return status;
         return scale_outline(outline, x_scale, y_scale);
     }
@@ -741,7 +741,7 @@ i64 scale_of(const Font& font, const i64 size) noexcept {
     return result;
 }
 
-Status scale_outline(GlyphOutline& outline, const i64 x_scale, const i64 y_scale) noexcept {
+OperationStatus scale_outline(GlyphOutline& outline, const i64 x_scale, const i64 y_scale) noexcept {
     const Operation operation("stxlib.glyphs.scale_outline");
     const i64 most_scale = static_cast<i64>(1) << 32;
     if (x_scale <= 0 || y_scale <= 0 || x_scale > most_scale || y_scale > most_scale) {
@@ -762,7 +762,7 @@ Status scale_outline(GlyphOutline& outline, const i64 x_scale, const i64 y_scale
         points[index].x = static_cast<i32>(detail::multiply_fixed(points[index].x, x_scale));
         points[index].y = static_cast<i32>(detail::multiply_fixed(points[index].y, y_scale));
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 namespace {
@@ -789,7 +789,7 @@ void write(Writer& writer, const Segment segment, const Point* const points, con
 
 } // namespace
 
-Status to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vector<Point>& points) noexcept {
+OperationStatus to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vector<Point>& points) noexcept {
     const Operation operation("stxlib.glyphs.to_segments");
     segments.clear();
     points.clear();
@@ -857,7 +857,7 @@ Status to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vecto
         first = last + 1;
     }
     if (writer.failed) return refuse_font(ErrorKind::out_of_memory, operation);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs

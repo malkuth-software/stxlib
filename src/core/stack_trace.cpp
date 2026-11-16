@@ -48,7 +48,7 @@ void write_stack_trace(const View<uptr> addresses) noexcept {
         // it is the call, which belongs to the caller's function even when
         // the call is the function's last instruction.
         const uptr lookup = address == 0 ? 0 : address - 1;
-        const Result<AddressDescription> described =
+        const OperationResult<AddressDescription> described =
             describe_address(lookup, MutableView<char>(image_room, image_name_room_bytes),
                              MutableView<char>(symbol_room, symbol_name_room_bytes));
         if (described.succeeded()) {

@@ -67,7 +67,7 @@ using stxlib::usize;
 [[nodiscard]] bool read(const std::string& source, const markdown::Options& options, markdown::Document& document) {
     const markdown::Limits limits{};
     const stxlib::View<char> view(source.data(), source.size());
-    const stxlib::Status status = markdown::parse(view, options, limits, document, nullptr);
+    const stxlib::OperationStatus status = markdown::parse(view, options, limits, document, nullptr);
     const bool succeeded = status.succeeded();
     return succeeded;
 }
@@ -622,7 +622,7 @@ void limits_and_stopping() {
     const stxlib::View<char> view(source.data(), source.size());
     markdown::Limits small_source{};
     small_source.source_bytes = 10;
-    stxlib::Status status = markdown::parse(view, options, small_source, document, nullptr);
+    stxlib::OperationStatus status = markdown::parse(view, options, small_source, document, nullptr);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && document.events.empty());
     markdown::Limits few_events{};
     few_events.events = 8;
@@ -733,7 +733,7 @@ void audit_findings() {
     stxlib::StopSignal stop{};
     stop.request();
     const stxlib::View<char> view(nested.data(), nested.size());
-    const stxlib::Status status = markdown::parse(view, options, markdown::Limits{}, document, &stop);
+    const stxlib::OperationStatus status = markdown::parse(view, options, markdown::Limits{}, document, &stop);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::interrupted && document.events.empty());
 }
 

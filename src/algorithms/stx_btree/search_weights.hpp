@@ -22,9 +22,9 @@
 // - the weights are borrowed views (View), the caller's storage;
 // - a shape's children are STXlib storage (detail::Array) in place of
 //   std::vector;
-// - validation returns a Status (invalid_argument) where stx_auxlib threw
+// - validation returns a OperationStatus (invalid_argument) where stx_auxlib threw
 //   std::invalid_argument;
-// - the checks that need working storage return a Result, out_of_memory
+// - the checks that need working storage return a OperationResult, out_of_memory
 //   when it cannot be had, and from_parents returns false then.
 // The rules themselves are stx_auxlib's.
 
@@ -76,20 +76,20 @@ class SearchWeightRules final {
 public:
     // invalid_argument unless there is exactly one more gap than keys and
     // the key count fits KeyIndex.
-    [[nodiscard]] static Status validate(const SearchWeights& weights) noexcept {
+    [[nodiscard]] static OperationStatus validate(const SearchWeights& weights) noexcept {
         if (weights.keys.count() > maximum_search_keys) {
             const ErrorRecord refused = ErrorRecord::make(
                 ErrorKind::invalid_argument, "stxlib.stx_btree.search_weights",
                 ErrorDetail{.message = "too many keys for a search tree"});
-            return Status::failure(refused);
+            return OperationStatus::failure(refused);
         }
         if (weights.gaps.count() != weights.keys.count() + 1) {
             const ErrorRecord refused = ErrorRecord::make(
                 ErrorKind::invalid_argument, "stxlib.stx_btree.search_weights",
                 ErrorDetail{.message = "search weights need one more gap weight than key weights"});
-            return Status::failure(refused);
+            return OperationStatus::failure(refused);
         }
-        return Status::success();
+        return OperationStatus::success();
     }
 
     [[nodiscard]] static ExactCost total_mass(const SearchWeights& weights) noexcept {
@@ -121,16 +121,16 @@ public:
     // Whether `shape` is a binary search tree over keys 0..n-1: every key
     // reached exactly once from the root, and in-order 0..n-1.
     // out_of_memory when the walk's stack cannot be had.
-    [[nodiscard]] static Result<bool> is_search_tree(const BinaryTreeShape& shape, std::size_t key_count) noexcept {
+    [[nodiscard]] static OperationResult<bool> is_search_tree(const BinaryTreeShape& shape, std::size_t key_count) noexcept {
         if (shape.left.size() != key_count || shape.right.size() != key_count) {
-            return Result<bool>::success(false);
+            return OperationResult<bool>::success(false);
         }
         if (key_count == 0) {
-            return Result<bool>::success(shape.root == no_key);
+            return OperationResult<bool>::success(shape.root == no_key);
         }
         detail::Array<KeyIndex> pending;
         if (!pending.reserve(key_count)) {
-            return Result<bool>::failure(exhausted());
+            return OperationResult<bool>::failure(exhausted());
         }
         KeyIndex expected = 0;
         KeyIndex current = shape.root;
@@ -138,40 +138,40 @@ public:
         while (current != no_key || !pending.empty()) {
             while (current != no_key) {
                 if (current < 0 || static_cast<std::size_t>(current) >= key_count || steps > key_count) {
-                    return Result<bool>::success(false);
+                    return OperationResult<bool>::success(false);
                 }
                 steps += 1;
                 // Room reserved: at most key_count keys are pending.
                 if (!pending.push_back(current)) {
-                    return Result<bool>::failure(exhausted());
+                    return OperationResult<bool>::failure(exhausted());
                 }
                 current = shape.left[static_cast<std::size_t>(current)];
             }
             const KeyIndex visited = pending.back();
             pending.pop_back();
             if (visited != expected) {
-                return Result<bool>::success(false);
+                return OperationResult<bool>::success(false);
             }
             expected += 1;
             current = shape.right[static_cast<std::size_t>(visited)];
         }
-        return Result<bool>::success(static_cast<std::size_t>(expected) == key_count);
+        return OperationResult<bool>::success(static_cast<std::size_t>(expected) == key_count);
     }
 
     // The weighted comparison count of `shape` (see the head of this file).
     // The shape must satisfy is_search_tree. out_of_memory when the walk's
     // stack cannot be had.
-    [[nodiscard]] static Result<ExactCost> cost(const BinaryTreeShape& shape, const SearchWeights& weights) noexcept {
+    [[nodiscard]] static OperationResult<ExactCost> cost(const BinaryTreeShape& shape, const SearchWeights& weights) noexcept {
         ExactCost total = 0;
         if (shape.root == no_key) {
-            return Result<ExactCost>::success(total); // the one gap hangs below no key
+            return OperationResult<ExactCost>::success(total); // the one gap hangs below no key
         }
         detail::Array<Visit> pending;
         if (!pending.push_back(Visit{.key = shape.root,
                                      .low = 0,
                                      .high = static_cast<KeyIndex>(weights.keys.count()),
                                      .depth = 0})) {
-            return Result<ExactCost>::failure(exhausted());
+            return OperationResult<ExactCost>::failure(exhausted());
         }
         while (!pending.empty()) {
             const Visit visit = pending.back();
@@ -184,15 +184,15 @@ public:
             if (left_child == no_key) {
                 total += static_cast<ExactCost>(weights.gaps[key]) * below;
             } else if (!pending.push_back(Visit{.key = left_child, .low = visit.low, .high = visit.key, .depth = below})) {
-                return Result<ExactCost>::failure(exhausted());
+                return OperationResult<ExactCost>::failure(exhausted());
             }
             if (right_child == no_key) {
                 total += static_cast<ExactCost>(weights.gaps[key + 1]) * below;
             } else if (!pending.push_back(Visit{.key = right_child, .low = visit.key + 1, .high = visit.high, .depth = below})) {
-                return Result<ExactCost>::failure(exhausted());
+                return OperationResult<ExactCost>::failure(exhausted());
             }
         }
-        return Result<ExactCost>::success(total);
+        return OperationResult<ExactCost>::success(total);
     }
 
     // Children from a parent array (no_key at the root), as the

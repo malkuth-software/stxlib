@@ -106,7 +106,7 @@ void give_back(ShaperState& state, const usize characters) noexcept {
 
 // The plan for the run's direction, script, language and features: one
 // kept, or made now in the place of the one longest unused.
-[[nodiscard]] Status plan_for(ShaperState& state, const detail::ShapeDirection direction, const u32 script, const u32 language,
+[[nodiscard]] OperationStatus plan_for(ShaperState& state, const detail::ShapeDirection direction, const u32 script, const u32 language,
                               const detail::ShapePlan*& plan) noexcept {
     const Operation operation("stxlib.glyphs.shaper");
     plan = nullptr;
@@ -117,7 +117,7 @@ void give_back(ShaperState& state, const usize characters) noexcept {
         if (kept.plan.direction == direction && kept.plan.script == script && kept.plan.language == language && same_requests(kept.requests, state.requests)) {
             kept.last_used = state.uses;
             plan = &kept.plan;
-            return Status::success();
+            return OperationStatus::success();
         }
         if (kept.last_used < state.plans[oldest].last_used) oldest = index;
     }
@@ -134,7 +134,7 @@ void give_back(ShaperState& state, const usize characters) noexcept {
     for (usize index = 0; index < state.requests.count(); ++index) {
         if (kept.requests.push_copy(state.requests[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     }
-    const Status compiled = detail::compile_plan(*state.font, direction, script, language, state.requests.view(), kept.plan);
+    const OperationStatus compiled = detail::compile_plan(*state.font, direction, script, language, state.requests.view(), kept.plan);
     if (compiled.failed()) {
         // A plan half made is no plan: its place is for the next.
         kept.plan = detail::ShapePlan{};
@@ -145,7 +145,7 @@ void give_back(ShaperState& state, const usize characters) noexcept {
     state.made = state.made + 1;
     kept.plan.serial = state.made;
     plan = &kept.plan;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace
@@ -155,27 +155,27 @@ Shaper::Shaper(Shaper&&) noexcept = default;
 Shaper& Shaper::operator=(Shaper&&) noexcept = default;
 Shaper::~Shaper() noexcept = default;
 
-Status Shaper::open(const Shared<Typeface>& typeface, const ShaperLimits& limits) noexcept {
+OperationStatus Shaper::open(const Shared<Typeface>& typeface, const ShaperLimits& limits) noexcept {
     const Operation operation("stxlib.glyphs.shaper");
     state_.reset();
     if (typeface.empty() || (*typeface).font() == nullptr) return refuse_font(ErrorKind::invalid_argument, operation);
-    Result<Unique<ShaperState>> made = Unique<ShaperState>::make();
+    OperationResult<Unique<ShaperState>> made = Unique<ShaperState>::make();
     if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    state_ = static_cast<Result<Unique<ShaperState>>&&>(made).take_value();
+    state_ = static_cast<OperationResult<Unique<ShaperState>>&&>(made).take_value();
     ShaperState& state = *state_;
     state.typeface = typeface;
     state.font = (*typeface).font();
     state.limits = limits;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status Shaper::shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
-    const Status status = shape_into(run, glyphs);
+OperationStatus Shaper::shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
+    const OperationStatus status = shape_into(run, glyphs);
     if (status.failed()) glyphs.clear();
     return status;
 }
 
-Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
+OperationStatus Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
     const Operation operation("stxlib.glyphs.shaper");
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     ShaperState& state = *state_;
@@ -188,7 +188,7 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
     }
     if (count == 0) {
         glyphs.clear();
-        return Status::success();
+        return OperationStatus::success();
     }
 
     detail::ShapeBuffer& buffer = state.buffer;
@@ -208,7 +208,7 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
         if (state.requests.push_copy(request).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     }
     const detail::ShapePlan* plan = nullptr;
-    const Status planned = plan_for(state, buffer.direction, buffer.script, run.language, plan);
+    const OperationStatus planned = plan_for(state, buffer.direction, buffer.script, run.language, plan);
     if (planned.failed()) return planned;
 
     detail::ShapeFont font = detail::shape_font_of(*state.font, run.size);
@@ -240,7 +240,7 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
                                     .unsafe_to_break = (item.mask & detail::glyph_unsafe_to_break) != 0};
     }
     give_back(state, count);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 usize Shaper::plans_made() const noexcept {

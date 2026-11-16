@@ -410,7 +410,7 @@ public:
     // A typeface is opened once: open on one already open is refused
     // (invalid_argument), since the faces and shapers that hold it hold
     // its font.
-    [[nodiscard]] Status open(View<u8> bytes, u32 face_index, const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(View<u8> bytes, u32 face_index, const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
     // The font opened (its numbers, and glyph_of, advance_of and
     // has_feature of it), or null. It does not change once opened.
@@ -418,16 +418,16 @@ public:
 
     // Reads the glyphs of these characters into the kept part of the glyph
     // store. `kept` is how many glyphs are kept afterwards.
-    [[nodiscard]] Status keep(View<u32> characters, usize& kept) noexcept;
+    [[nodiscard]] OperationStatus keep(View<u32> characters, usize& kept) noexcept;
 
     // The glyph's outline at `size` (26.6 pixels to the em, at most 2^24)
     // in the form the font has it, and its advance (26.6): scaled for
     // Fit::none, hinted otherwise. This is what a Face fits from.
-    [[nodiscard]] Status fit(u32 glyph, i64 size, Fit fit, GlyphOutline& outline, i32& advance) noexcept;
+    [[nodiscard]] OperationStatus fit(u32 glyph, i64 size, Fit fit, GlyphOutline& outline, i32& advance) noexcept;
 
     // The glyph's ink box at `size`, unfitted. Nothing is kept of it: a
     // caller that asks often keeps the answer.
-    [[nodiscard]] Status ink_box(u32 glyph, i64 size, InkBox& box) noexcept;
+    [[nodiscard]] OperationStatus ink_box(u32 glyph, i64 size, InkBox& box) noexcept;
 
     // How many times a glyph has been read from the font into the store so
     // far.
@@ -449,7 +449,7 @@ private:
 
 // A typeface for the program to share: opened, and owned by however many
 // faces and callers hold it.
-[[nodiscard]] Result<Shared<Typeface>> open_typeface(View<u8> bytes, u32 face_index,
+[[nodiscard]] OperationResult<Shared<Typeface>> open_typeface(View<u8> bytes, u32 face_index,
                                                      const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
 class Face final {
@@ -463,11 +463,11 @@ public:
 
     // A face of the program's typeface: it holds the typeface for as long
     // as it is open.
-    [[nodiscard]] Status open(const Shared<Typeface>& typeface, const FaceLimits& limits = FaceLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface, const FaceLimits& limits = FaceLimits{}) noexcept;
 
     // A face with a typeface of its own, for a program with one thread of
     // text, or a font nothing else uses.
-    [[nodiscard]] Status open(View<u8> bytes, u32 face_index, const FaceLimits& limits = FaceLimits{},
+    [[nodiscard]] OperationStatus open(View<u8> bytes, u32 face_index, const FaceLimits& limits = FaceLimits{},
                               const TypefaceLimits& typeface_limits = TypefaceLimits{}) noexcept;
 
     // The font, or null for a face not opened.
@@ -479,10 +479,10 @@ public:
     // Reads the glyphs of these characters into the kept part of the
     // typeface's store and, if `size` is not 0, fits them at it. `warmed`
     // is how many glyphs were had.
-    [[nodiscard]] Status warm(View<u32> characters, i64 size, Fit fit, usize& warmed) noexcept;
+    [[nodiscard]] OperationStatus warm(View<u32> characters, i64 size, Fit fit, usize& warmed) noexcept;
 
     // The glyph's outline at `size` (26.6 pixels to the em, at most 2^24).
-    [[nodiscard]] Status fitted(u32 glyph, i64 size, Fit fit, FittedGlyph& glyph_out) noexcept;
+    [[nodiscard]] OperationStatus fitted(u32 glyph, i64 size, Fit fit, FittedGlyph& glyph_out) noexcept;
 
     // The glyph's mask in `style` (its size, fit, thickening and matrix),
     // moved by `shift` (26.6, y upward) last: `bounds` as glyph_mask.hpp's
@@ -491,13 +491,13 @@ public:
     // turn_lattice.hpp, rule 3), `pixels` bounds.width * bounds.height
     // bytes, the top row first. A shift farther than 2^30 either way is
     // invalid_argument.
-    [[nodiscard]] Status mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
+    [[nodiscard]] OperationStatus mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
 
     // Where the run's ink can be, without drawing it.
-    [[nodiscard]] Status measure_run(View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept;
+    [[nodiscard]] OperationStatus measure_run(View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept;
 
     // The run's mask. `coverage` is replaced; its storage is reused.
-    [[nodiscard]] Status draw_run(View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept;
+    [[nodiscard]] OperationStatus draw_run(View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept;
 
     // How many times an outline has been fitted so far.
     [[nodiscard]] usize glyphs_fitted() const noexcept;

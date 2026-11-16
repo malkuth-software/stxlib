@@ -123,9 +123,9 @@ int callback_target_throw() {
 }
 
 int reporter() {
-    const stxlib::Status installed = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
+    const stxlib::OperationStatus installed = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
     if (installed.failed()) return 2;
-    const stxlib::Status second = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
+    const stxlib::OperationStatus second = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
     if (second.succeeded()) return 3;
     ThrowingCallback callback;
     stxlib::invoke_callback("stxlib.tests.callback", callback);
@@ -221,12 +221,12 @@ void reenter_own_pool(void* const address) noexcept {
 }
 
 int pool_caller_reentry() {
-    stxlib::Result<stxlib::AtomicPool> created = stxlib::AtomicPool::create(1);
+    stxlib::OperationResult<stxlib::AtomicPool> created = stxlib::AtomicPool::create(1);
     if (created.failed()) {
         std::puts("skipped");
         return 0;
     }
-    stxlib::AtomicPool pool = static_cast<stxlib::Result<stxlib::AtomicPool>&&>(created).take_value();
+    stxlib::AtomicPool pool = static_cast<stxlib::OperationResult<stxlib::AtomicPool>&&>(created).take_value();
     // A one-thread pool runs every batch on the caller.
     const stxlib::PoolTask tasks[] = {stxlib::PoolTask{reenter_own_pool, &pool}};
     static_cast<void>(pool.run(stxlib::View<stxlib::PoolTask>(tasks)));
@@ -244,36 +244,36 @@ int view_index() {
 
 int take_failed_value() {
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(stxlib::ErrorKind::not_found, "stxlib.tests.take");
-    stxlib::Result<int> failed = stxlib::Result<int>::failure(record);
-    const int value = static_cast<stxlib::Result<int>&&>(failed).take_value();
+    stxlib::OperationResult<int> failed = stxlib::OperationResult<int>::failure(record);
+    const int value = static_cast<stxlib::OperationResult<int>&&>(failed).take_value();
     std::printf("survived %d\n", value);
     return 0;
 }
 
 int take_or_fail_fast() {
     // A success passes its value on first.
-    const int kept = stxlib::take_or_fail_fast(stxlib::Result<int>::success(7));
+    const int kept = stxlib::take_or_fail_fast(stxlib::OperationResult<int>::success(7));
     std::printf("kept %d\n", kept);
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(
         stxlib::ErrorKind::not_found, "stxlib.tests.take", stxlib::ErrorDetail{.message = "no such row"});
-    const int value = stxlib::take_or_fail_fast(stxlib::Result<int>::failure(record));
+    const int value = stxlib::take_or_fail_fast(stxlib::OperationResult<int>::failure(record));
     std::printf("survived %d\n", value);
     return 0;
 }
 
 int check_or_fail_fast() {
-    stxlib::check_or_fail_fast(stxlib::Status::success());
+    stxlib::check_or_fail_fast(stxlib::OperationStatus::success());
     std::printf("passed a success\n");
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(
         stxlib::ErrorKind::limit_exceeded, "stxlib.tests.check", stxlib::ErrorDetail{.message = "too many rows"});
-    stxlib::check_or_fail_fast(stxlib::Status::failure(record));
+    stxlib::check_or_fail_fast(stxlib::OperationStatus::failure(record));
     std::printf("survived\n");
     return 0;
 }
 
 int vector_index() {
     stxlib::Vector<int> numbers;
-    const stxlib::Status pushed = numbers.push(7);
+    const stxlib::OperationStatus pushed = numbers.push(7);
     std::printf("pushed %d\n", pushed.succeeded() ? 1 : 0);
     const int beyond = numbers[1];
     std::printf("survived %d\n", beyond);
@@ -373,11 +373,11 @@ int callback_frame_texts() {
 void contract_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
     stxlib::ShadowFrameRecord frames[stxlib::shadow_frame_capacity]{};
     stxlib::uptr trace[stxlib::shadow_trace_capacity]{};
-    const stxlib::Result<stxlib::ShadowSummary> read = stxlib::read_shadow(
+    const stxlib::OperationResult<stxlib::ShadowSummary> read = stxlib::read_shadow(
         record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>(trace));
     char type[stxlib::exception_type_display_capacity];
     const stxlib::TextView shown_type = stxlib::exception_type_for_display(record, stxlib::MutableView<char>(type));
-    const stxlib::Status written = stxlib::write_console_line(stxlib::ConsoleStream::error, "reporter: console");
+    const stxlib::OperationStatus written = stxlib::write_console_line(stxlib::ConsoleStream::error, "reporter: console");
     const stxlib::usize frame_count = read.succeeded() ? (*read.value()).frame_count : 0;
     std::fprintf(stderr, "reporter: classified %d, message %zu, frames %zu, kind %u, type %s, console %s\n",
                  sink_state.calls, sink_state.message_count, frame_count, frame_count > 0 ? frames[0].kind : 0U,
@@ -385,7 +385,7 @@ void contract_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
 }
 
 int reporter_contract() {
-    const stxlib::Status installed =
+    const stxlib::OperationStatus installed =
         stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{contract_reporter, nullptr});
     if (installed.failed()) return 2;
     throw_in_event_frame();
@@ -408,7 +408,7 @@ int reporter_opens_frame() {
         std::puts("skipped");
         return 0;
     }
-    const stxlib::Status installed =
+    const stxlib::OperationStatus installed =
         stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{frame_opening_reporter, nullptr});
     if (installed.failed()) return 2;
     ThrowingCallback callback;
@@ -423,7 +423,7 @@ void nesting_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
 }
 
 int reporter_nested() {
-    const stxlib::Status installed =
+    const stxlib::OperationStatus installed =
         stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{nesting_reporter, nullptr});
     if (installed.failed()) return 2;
     ThrowingCallback callback;

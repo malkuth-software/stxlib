@@ -4,7 +4,7 @@
 // std::random_device, the standard engines and distributions, and
 // std::shuffle (stx_auxlib owner decisions of 2026-10-31). Ported from
 // stx_auxlib's include/stx_auxlib/random.hpp at b6e330a; the interface is
-// restated in STXlib's vocabulary (fixed arrays, views, Result), and the
+// restated in STXlib's vocabulary (fixed arrays, views, OperationResult), and the
 // algorithms and their outputs are unchanged.
 //
 // Reproducibility: a Seed and a generator name fix the whole sequence on
@@ -39,7 +39,7 @@ struct Seed final {
 
 // An unpredictable seed from the host's entropy source (stxlib::fill_entropy,
 // entropy.hpp); its failures are fill_entropy's.
-[[nodiscard]] Result<Seed> entropy_seed() noexcept;
+[[nodiscard]] OperationResult<Seed> entropy_seed() noexcept;
 
 // A seed fixed by one number (a deal number, a level seed, a test case):
 // four successive SplitMix64 outputs from state `number`.

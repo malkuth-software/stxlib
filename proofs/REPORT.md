@@ -744,7 +744,7 @@ copy constructors and copy assignment:
 
 The copy allocates through STXlib's allocator. An allocation it cannot have
 ends the process through `take_or_fail_fast`, with the out_of_memory record
-of `copy()`. `copy()` and `copy_of()` still return `Result`. Q1 is
+of `copy()`. `copy()` and `copy_of()` still return `OperationResult`. Q1 is
 unchanged.
 
 `Optional`'s rule does not change: it is copyable whenever its value has a
@@ -756,7 +756,7 @@ Still not copyable:
 - `FrozenMap` and `FrozenTextMap`: they own an opaque search structure, and
   a copy would rebuild or clone it, so `build` stays the way to make a
   second map;
-- `Result`: a return vehicle;
+- `OperationResult`: a return vehicle;
 - the objects that own host resources (File, Thread, Child and the rest).
 
 | Module | Property | Status | Evidence |

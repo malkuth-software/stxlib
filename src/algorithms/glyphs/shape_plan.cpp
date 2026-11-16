@@ -457,7 +457,7 @@ usize bytes_of(const ShapePlan& plan) noexcept {
     return bytes;
 }
 
-Status compile_plan(const Font& font, const ShapeDirection direction, const u32 script, const u32 language, const View<PlanRequest> requests,
+OperationStatus compile_plan(const Font& font, const ShapeDirection direction, const u32 script, const u32 language, const View<PlanRequest> requests,
                     ShapePlan& plan) noexcept {
     const Operation operation("stxlib.glyphs.shape_plan");
     plan = ShapePlan{};
@@ -703,7 +703,7 @@ Status compile_plan(const Font& font, const ShapeDirection direction, const u32 
     plan.has_gpos_mark = plan_one_mask(plan, layout_tag('m', 'a', 'r', 'k')) != 0;
     plan.adjust_mark_positioning_when_zeroing = !plan.apply_gpos && (!plan.apply_kern || !kerning_crosses(font));
     plan.fallback_mark_positioning = plan.adjust_mark_positioning_when_zeroing;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs::detail

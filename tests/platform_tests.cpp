@@ -38,7 +38,7 @@ stxlib::HostCode code_of(const stxlib::ErrorRecord& record) {
 }
 
 stxlib::TextView view_of(const std::string& text) {
-    stxlib::Result<stxlib::TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    stxlib::OperationResult<stxlib::TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const stxlib::TextView result = valid.succeeded() ? *valid.value() : stxlib::TextView("");
     return result;
 }
@@ -143,16 +143,16 @@ void capabilities_report() {
 // covers the Emscripten family.
 void web_storage_elsewhere() {
 #if !defined(__EMSCRIPTEN__)
-    stxlib::Result<stxlib::Path> root = stxlib::Path::parse("/stxlib-web");
+    stxlib::OperationResult<stxlib::Path> root = stxlib::Path::parse("/stxlib-web");
     CHECK(root.succeeded());
     if (root.failed()) return;
-    const stxlib::Status mounted = stxlib::mount_web_storage(*root.value(), stxlib::StorageKind::memory);
+    const stxlib::OperationStatus mounted = stxlib::mount_web_storage(*root.value(), stxlib::StorageKind::memory);
     CHECK(mounted.failed() && (*mounted.error()).kind() == stxlib::ErrorKind::unsupported);
-    const stxlib::Status persisted = stxlib::persist_web_storage();
+    const stxlib::OperationStatus persisted = stxlib::persist_web_storage();
     CHECK(persisted.failed() && (*persisted.error()).kind() == stxlib::ErrorKind::unsupported);
-    const stxlib::Status restored = stxlib::restore_web_storage();
+    const stxlib::OperationStatus restored = stxlib::restore_web_storage();
     CHECK(restored.failed() && (*restored.error()).kind() == stxlib::ErrorKind::unsupported);
-    const stxlib::Status hidden = stxlib::persist_web_storage_on_page_hide();
+    const stxlib::OperationStatus hidden = stxlib::persist_web_storage_on_page_hide();
     CHECK(hidden.failed() && (*hidden.error()).kind() == stxlib::ErrorKind::unsupported);
     CHECK(stxlib::web_storage_durability(stxlib::StorageKind::indexed_db) == stxlib::Durability::ordered);
 #endif
@@ -349,7 +349,7 @@ void variable_names() {
     CHECK(!stxlib::is_portable_variable_name("A-B"));
     CHECK(!stxlib::is_portable_variable_name("A=B"));
     CHECK(!stxlib::is_portable_variable_name("\xc3\xa9"));
-    const stxlib::Result<stxlib::Utf8String> refused = stxlib::read_variable("A=B", 64);
+    const stxlib::OperationResult<stxlib::Utf8String> refused = stxlib::read_variable("A=B", 64);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument &&
           code_of(*refused.error()) == stxlib::HostCode::invalid_name);
     CHECK(stxlib::set_variable("A B", "x").failed());
@@ -357,25 +357,25 @@ void variable_names() {
 
 void set_read_remove() {
     CHECK(stxlib::remove_variable(variable).succeeded());
-    const stxlib::Result<stxlib::Utf8String> unset = stxlib::read_variable(variable, 64);
+    const stxlib::OperationResult<stxlib::Utf8String> unset = stxlib::read_variable(variable, 64);
     CHECK(unset.failed() && (*unset.error()).kind() == stxlib::ErrorKind::not_found);
     constexpr stxlib::TextView text = "caf\xc3\xa9 \xf0\x9f\x98\x80 /usr/local/bin";
     CHECK(stxlib::set_variable(variable, text).succeeded());
-    const stxlib::Result<stxlib::Utf8String> got = stxlib::read_variable(variable, 64);
+    const stxlib::OperationResult<stxlib::Utf8String> got = stxlib::read_variable(variable, 64);
     CHECK(got.succeeded() && (*got.value()).view() == text);
-    const stxlib::Result<stxlib::Utf8String> over = stxlib::read_variable(variable, text.count() - 1);
+    const stxlib::OperationResult<stxlib::Utf8String> over = stxlib::read_variable(variable, text.count() - 1);
     CHECK(over.failed() && (*over.error()).kind() == stxlib::ErrorKind::limit_exceeded &&
           code_of(*over.error()) == stxlib::HostCode::too_long);
     CHECK(stxlib::set_variable(variable, "").succeeded());
-    const stxlib::Result<stxlib::Utf8String> empty = stxlib::read_variable(variable, 64);
+    const stxlib::OperationResult<stxlib::Utf8String> empty = stxlib::read_variable(variable, 64);
     CHECK(empty.succeeded() && (*empty.value()).empty());
-    const stxlib::Status nul = stxlib::set_variable(variable, "a\0b");
+    const stxlib::OperationStatus nul = stxlib::set_variable(variable, "a\0b");
     CHECK(nul.failed() && code_of(*nul.error()) == stxlib::HostCode::invalid_value);
     CHECK(stxlib::remove_variable(variable).succeeded());
-    const stxlib::Result<stxlib::Utf8String> removed = stxlib::read_variable(variable, 64);
+    const stxlib::OperationResult<stxlib::Utf8String> removed = stxlib::read_variable(variable, 64);
     CHECK(removed.failed() && (*removed.error()).kind() == stxlib::ErrorKind::not_found);
     const std::string oversized(stxlib::maximum_environment_bytes + 1, 'x');
-    const stxlib::Status too_long = stxlib::set_variable(variable, view_of(oversized));
+    const stxlib::OperationStatus too_long = stxlib::set_variable(variable, view_of(oversized));
     CHECK(too_long.failed() && (*too_long.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 }
 
@@ -387,7 +387,7 @@ void churn() {
         const bool long_value = round % 2 == 0;
         const stxlib::TextView value = long_value ? stxlib::TextView("aaaaaaaaaaaaaaaa") : stxlib::TextView("bb");
         static_cast<void>(stxlib::set_variable(variable, value));
-        const stxlib::Result<stxlib::Utf8String> got = stxlib::read_variable(variable, 64);
+        const stxlib::OperationResult<stxlib::Utf8String> got = stxlib::read_variable(variable, 64);
         if (got.succeeded()) {
             const stxlib::TextView seen = (*got.value()).view();
             if (seen != stxlib::TextView("aaaaaaaaaaaaaaaa") && seen != stxlib::TextView("bb")) {
@@ -429,18 +429,18 @@ void entropy_fills() {
 void terminal_without_one() {
 #if defined(__EMSCRIPTEN__)
     // A page has no terminal: refused before any host call.
-    const stxlib::Result<stxlib::TerminalSize> web_size = stxlib::terminal_size();
+    const stxlib::OperationResult<stxlib::TerminalSize> web_size = stxlib::terminal_size();
     CHECK(web_size.failed() && (*web_size.error()).kind() == stxlib::ErrorKind::unsupported &&
           code_of(*web_size.error()) == stxlib::HostCode::none);
-    const stxlib::Result<stxlib::RawTerminal> web_raw = stxlib::RawTerminal::enter();
+    const stxlib::OperationResult<stxlib::RawTerminal> web_raw = stxlib::RawTerminal::enter();
     CHECK(web_raw.failed() && (*web_raw.error()).kind() == stxlib::ErrorKind::unsupported);
     return;
 #endif
     // CTest runs with standard output redirected.
-    const stxlib::Result<stxlib::TerminalSize> size = stxlib::terminal_size();
+    const stxlib::OperationResult<stxlib::TerminalSize> size = stxlib::terminal_size();
     CHECK(size.failed() && (*size.error()).kind() == stxlib::ErrorKind::unsupported &&
           code_of(*size.error()) == stxlib::HostCode::not_a_terminal);
-    const stxlib::Result<stxlib::RawTerminal> raw = stxlib::RawTerminal::enter();
+    const stxlib::OperationResult<stxlib::RawTerminal> raw = stxlib::RawTerminal::enter();
     CHECK(raw.failed() && code_of(*raw.error()) == stxlib::HostCode::not_a_terminal);
     const stxlib::RawTerminal none;
     CHECK(!none.active());
@@ -453,22 +453,22 @@ void events() {
     // Audit A, X4: of_bits keeps only the bits of defined events.
     static_assert(stxlib::EventSet::of_bits(0xE0).empty(), "undefined event bits are dropped");
     static_assert(stxlib::EventSet::of_bits(0xFF).bits() == 31, "every defined event bit is kept");
-    const stxlib::Result<stxlib::EventWatch> empty = stxlib::EventWatch::watch(stxlib::EventSet());
+    const stxlib::OperationResult<stxlib::EventWatch> empty = stxlib::EventWatch::watch(stxlib::EventSet());
     CHECK(empty.failed() && code_of(*empty.error()) == stxlib::HostCode::empty_request);
     const stxlib::EventSet watched =
         stxlib::EventSet().with(stxlib::ProcessEvent::interrupt).with(stxlib::ProcessEvent::terminal_resized);
 #if defined(__EMSCRIPTEN__)
     // A page receives no signals: refused before any handler is installed.
-    const stxlib::Result<stxlib::EventWatch> web_watch = stxlib::EventWatch::watch(watched);
+    const stxlib::OperationResult<stxlib::EventWatch> web_watch = stxlib::EventWatch::watch(watched);
     CHECK(web_watch.failed() && (*web_watch.error()).kind() == stxlib::ErrorKind::unsupported);
     return;
 #endif
     {
-        stxlib::Result<stxlib::EventWatch> started = stxlib::EventWatch::watch(watched);
+        stxlib::OperationResult<stxlib::EventWatch> started = stxlib::EventWatch::watch(watched);
         CHECK(started.succeeded());
         if (started.failed()) return;
         stxlib::EventWatch& watch = *started.value();
-        const stxlib::Result<stxlib::EventWatch> second = stxlib::EventWatch::watch(watched);
+        const stxlib::OperationResult<stxlib::EventWatch> second = stxlib::EventWatch::watch(watched);
         CHECK(second.failed() && code_of(*second.error()) == stxlib::HostCode::busy);
         CHECK(std::raise(SIGINT) == 0);
         CHECK(watch.take().contains(stxlib::ProcessEvent::interrupt));
@@ -487,7 +487,7 @@ void events() {
     // The watch restored the earlier handling and can be taken again.
     struct sigaction current{};
     CHECK(::sigaction(SIGINT, nullptr, &current) == 0 && current.sa_handler == SIG_DFL);
-    const stxlib::Result<stxlib::EventWatch> again = stxlib::EventWatch::watch(watched);
+    const stxlib::OperationResult<stxlib::EventWatch> again = stxlib::EventWatch::watch(watched);
     CHECK(again.succeeded());
 }
 #endif

@@ -36,7 +36,7 @@ namespace {
 void write_shadow(const ShadowReference reference) noexcept {
     ShadowFrameRecord frames[shadow_frame_capacity]{};
     uptr trace[shadow_trace_capacity]{};
-    const Result<ShadowSummary> read =
+    const OperationResult<ShadowSummary> read =
         read_shadow(reference, MutableView<ShadowFrameRecord>(frames), MutableView<uptr>(trace));
     if (read.failed()) return;
     const ShadowSummary summary = *read.value();
@@ -111,11 +111,11 @@ void write_own_report(const ErrorRecord& record) noexcept {
 
 } // namespace
 
-Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
+OperationStatus install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
     if (reporter.report == nullptr) {
         const ErrorRecord unbound = ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.fail_fast.install",
                                                       ErrorDetail{.message = "the reporter has no function"});
-        return Status::failure(unbound);
+        return OperationStatus::failure(unbound);
     }
 #if defined(STXLIB_SHADOW)
     STXLIB_REQUIRE(!state::current_flags().in_reporter,
@@ -129,11 +129,11 @@ Status install_fail_fast_reporter(const FailFastReporter reporter) noexcept {
     if (!claimed) {
         const ErrorRecord taken = ErrorRecord::make(ErrorKind::already_exists, "stxlib.fail_fast.install",
                                                     ErrorDetail{.message = "a reporter is already installed"});
-        return Status::failure(taken);
+        return OperationStatus::failure(taken);
     }
     process.reporter = reporter;
     process.reporter_phase.store(static_cast<int>(state::ReporterPhase::installed), std::memory_order_release);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 void fail_fast(const ErrorRecord& record) noexcept {

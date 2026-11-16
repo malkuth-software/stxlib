@@ -149,7 +149,7 @@ struct Limits final {
 
 // The bounds of the outline's mask at `offset`. An outline with no point
 // has an empty mask (width and height 0).
-[[nodiscard]] Status measure(const Outline& outline, Point offset, const Limits& limits, Bounds& bounds) noexcept;
+[[nodiscard]] OperationStatus measure(const Outline& outline, Point offset, const Limits& limits, Bounds& bounds) noexcept;
 
 // Renders masks. It owns the working storage, kept from one call to the
 // next; it holds nothing else. One thread at a time.
@@ -165,12 +165,12 @@ public:
     // bounds.width * bounds.height bytes and is replaced. `bounds` is what
     // measure gave for the same outline, offset and limits, or any box that
     // holds every point. `mask` must not overlap the outline.
-    [[nodiscard]] Status render(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
+    [[nodiscard]] OperationStatus render(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
                                 MutableView<u8> mask) noexcept;
 
     // The same for the monochrome mask (rules 6 and 7): every byte is 0 or
     // 255.
-    [[nodiscard]] Status render_monochrome(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
+    [[nodiscard]] OperationStatus render_monochrome(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
                                            MutableView<u8> mask) noexcept;
 
     // The bytes of the working storage, as allocated now.

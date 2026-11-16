@@ -23,7 +23,7 @@ using stxlib::JoinResult;
 using stxlib::IntervalTime;
 using stxlib::Mutex;
 using stxlib::OnceFlag;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::ScopedLock;
 using stxlib::StopSignal;
 using stxlib::Thread;
@@ -32,7 +32,7 @@ using stxlib::WaitResult;
 
 // Starts a thread; a failed start is a failed check and an empty Thread.
 Thread start_or_fail(const Thread::Entry entry, void* const context) {
-    Result<Thread> started = Thread::start(entry, context);
+    OperationResult<Thread> started = Thread::start(entry, context);
     CHECK(started.succeeded());
     if (started.failed()) return Thread();
     Thread result = std::move(started).take_value();
@@ -108,7 +108,7 @@ void join_self(const StopSignal&, void* const address) noexcept {
 }
 
 void thread_lifetime() {
-    const Result<Thread> rejected = Thread::start(nullptr, nullptr);
+    const OperationResult<Thread> rejected = Thread::start(nullptr, nullptr);
     CHECK(rejected.failed());
     CHECK(rejected.failed() && (*rejected.error()).kind() == stxlib::ErrorKind::invalid_argument &&
           (*rejected.error()).code() == static_cast<stxlib::u32>(stxlib::ThreadFailure::no_entry));
@@ -308,7 +308,7 @@ void stacks() {
     StackProbe stated{};
     stated.bytes = 8 * 1048576 + 1;
     {
-        Result<Thread> started = Thread::start(probe_stack, &stated, stated.bytes);
+        OperationResult<Thread> started = Thread::start(probe_stack, &stated, stated.bytes);
         CHECK(started.succeeded());
         if (started.succeeded()) {
             Thread thread = std::move(started).take_value();
@@ -321,7 +321,7 @@ void stacks() {
     const stxlib::usize refused_sizes[] = {0, stxlib::minimum_thread_stack_bytes - 1,
                                            stxlib::maximum_thread_stack_bytes + 1};
     for (const stxlib::usize size : refused_sizes) {
-        const Result<Thread> refused = Thread::start(probe_stack, &stated, size);
+        const OperationResult<Thread> refused = Thread::start(probe_stack, &stated, size);
         CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument &&
               (*refused.error()).code() == static_cast<stxlib::u32>(stxlib::ThreadFailure::stack_size_out_of_range));
     }

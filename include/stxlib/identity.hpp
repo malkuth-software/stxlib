@@ -61,16 +61,16 @@ public:
 
     // The next identity, or limit_exceeded when 2^64 - 1 have been issued.
     // On failure the issuer is unchanged.
-    [[nodiscard]] Result<Identity<Tag>> issue() noexcept {
+    [[nodiscard]] OperationResult<Identity<Tag>> issue() noexcept {
         if (last_issued_ == u64_max) {
             const ErrorRecord exhausted = ErrorRecord::make(
                 ErrorKind::limit_exceeded, "stxlib.identity.issue",
                 ErrorDetail{.message = "every identity of this kind has been issued"});
-            return Result<Identity<Tag>>::failure(exhausted);
+            return OperationResult<Identity<Tag>>::failure(exhausted);
         }
         last_issued_ = last_issued_ + 1;
         const Identity<Tag> issued = Identity<Tag>::from_value(last_issued_);
-        return Result<Identity<Tag>>::success(issued);
+        return OperationResult<Identity<Tag>>::success(issued);
     }
 
     [[nodiscard]] constexpr u64 last_issued() const noexcept { return last_issued_; }

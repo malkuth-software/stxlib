@@ -19,35 +19,35 @@ namespace {
 struct Counter final {
     int total{0};
 
-    stxlib::Status operator()(int& amount) {
+    stxlib::OperationStatus operator()(int& amount) {
         total = total + amount;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 using CounterTrampolines = stxlib::Trampolines<Counter>;
 
 CounterTrampolines make_counters(const stxlib::usize capacity) {
-    stxlib::Result<CounterTrampolines> made = CounterTrampolines::create("stxlib.tests.trampoline", capacity);
+    stxlib::OperationResult<CounterTrampolines> made = CounterTrampolines::create("stxlib.tests.trampoline", capacity);
     STXLIB_REQUIRE(made.succeeded(), "creating the test table");
-    CounterTrampolines result = static_cast<stxlib::Result<CounterTrampolines>&&>(made).take_value();
+    CounterTrampolines result = static_cast<stxlib::OperationResult<CounterTrampolines>&&>(made).take_value();
     return result;
 }
 
 stxlib::TrampolineHandle attach_or_fail(CounterTrampolines& table, Counter& counter) {
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(counter);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(counter);
     STXLIB_REQUIRE(attached.succeeded(), "attaching a test target");
     const stxlib::TrampolineHandle handle = *attached.value();
     return handle;
 }
 
 void capacities_are_checked() {
-    const stxlib::Result<stxlib::TrampolineTable> empty = stxlib::TrampolineTable::create(0);
+    const stxlib::OperationResult<stxlib::TrampolineTable> empty = stxlib::TrampolineTable::create(0);
     CHECK(empty.failed() && (*empty.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    const stxlib::Result<stxlib::TrampolineTable> too_big =
+    const stxlib::OperationResult<stxlib::TrampolineTable> too_big =
         stxlib::TrampolineTable::create(stxlib::trampoline_capacity_limit + 1);
     CHECK(too_big.failed());
-    stxlib::Result<stxlib::TrampolineTable> largest = stxlib::TrampolineTable::create(stxlib::trampoline_capacity_limit);
+    stxlib::OperationResult<stxlib::TrampolineTable> largest = stxlib::TrampolineTable::create(stxlib::trampoline_capacity_limit);
     CHECK(largest.succeeded() && (*largest.value()).capacity() == stxlib::trampoline_capacity_limit);
 }
 
@@ -64,27 +64,27 @@ void invoke_revoke_and_reissue() {
     CHECK(first.total == 5);
 
     Counter second;
-    const stxlib::Result<stxlib::TrampolineHandle> full = table.attach(second);
+    const stxlib::OperationResult<stxlib::TrampolineHandle> full = table.attach(second);
     CHECK(full.failed() && (*full.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 
-    stxlib::Result<stxlib::Revocation> revoked = table.revoke(handle);
+    stxlib::OperationResult<stxlib::Revocation> revoked = table.revoke(handle);
     CHECK(revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed);
-    const stxlib::Status after = table.invoke(handle, amount);
+    const stxlib::OperationStatus after = table.invoke(handle, amount);
     CHECK(after.failed());
     CHECK(first.total == 5);
-    const stxlib::Result<stxlib::Revocation> again = table.revoke(handle);
+    const stxlib::OperationResult<stxlib::Revocation> again = table.revoke(handle);
     CHECK(again.failed() && (*again.error()).kind() == stxlib::ErrorKind::stale_identity);
 
     const stxlib::TrampolineHandle reissued = attach_or_fail(table, second);
     CHECK(reissued != handle);
-    const stxlib::Status stale = table.invoke(handle, amount);
+    const stxlib::OperationStatus stale = table.invoke(handle, amount);
     CHECK(stale.failed() && (*stale.error()).kind() == stxlib::ErrorKind::stale_identity);
     CHECK(table.invoke(reissued, amount).succeeded());
     CHECK(second.total == 5 && first.total == 5);
 
-    const stxlib::Status null_context = table.invoke(stxlib::TrampolineHandle::from_context(nullptr), amount);
+    const stxlib::OperationStatus null_context = table.invoke(stxlib::TrampolineHandle::from_context(nullptr), amount);
     CHECK(null_context.failed() && (*null_context.error()).kind() == stxlib::ErrorKind::stale_identity);
-    const stxlib::Status out_of_table = table.invoke(stxlib::TrampolineHandle::from_value((1ULL << 16) | 9), amount);
+    const stxlib::OperationStatus out_of_table = table.invoke(stxlib::TrampolineHandle::from_value((1ULL << 16) | 9), amount);
     CHECK(out_of_table.failed());
 }
 
@@ -121,7 +121,7 @@ void handles_fit_the_pointer_width() {
     if constexpr (pointer_bits < 64) {
         const stxlib::TrampolineHandle beyond =
             stxlib::TrampolineHandle::from_value((stxlib::trampoline_generation_limit + 1) << stxlib::trampoline_index_bits);
-        const stxlib::Status refused = table.invoke(beyond, amount);
+        const stxlib::OperationStatus refused = table.invoke(beyond, amount);
         CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::stale_identity);
     }
     if constexpr (stxlib::trampoline_generation_limit > 70000) return;
@@ -131,7 +131,7 @@ void handles_fit_the_pointer_width() {
     bool all_attached = true;
     bool all_round_trips = true;
     for (stxlib::u64 attachment = 0; attachment < stxlib::trampoline_generation_limit; ++attachment) {
-        stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(counter);
+        stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(counter);
         if (attached.failed()) {
             all_attached = false;
             break;
@@ -141,7 +141,7 @@ void handles_fit_the_pointer_width() {
             all_round_trips = false;
         }
         previous = handle;
-        const stxlib::Result<stxlib::Revocation> revoked = table.revoke(handle);
+        const stxlib::OperationResult<stxlib::Revocation> revoked = table.revoke(handle);
         if (revoked.failed()) {
             all_attached = false;
             break;
@@ -153,10 +153,10 @@ void handles_fit_the_pointer_width() {
     CHECK((previous.value() & 0xffffULL) == 0);
     // Slot 0 is retired: the next attachment takes slot 1, and the old
     // handle stays stale.
-    const stxlib::Result<stxlib::TrampolineHandle> next_slot = table.attach(counter);
+    const stxlib::OperationResult<stxlib::TrampolineHandle> next_slot = table.attach(counter);
     CHECK(next_slot.succeeded() && ((*next_slot.value()).value() & 0xffffULL) == 1);
     if (next_slot.succeeded()) CHECK(table.revoke(*next_slot.value()).succeeded());
-    const stxlib::Status stale = table.invoke(previous, amount);
+    const stxlib::OperationStatus stale = table.invoke(previous, amount);
     CHECK(stale.failed());
     CHECK(counter.total == 0);
 }
@@ -167,20 +167,20 @@ struct SelfRevoker final {
     stxlib::TrampolineHandle handle{};
     bool deferred{false};
 
-    stxlib::Status operator()() {
-        stxlib::Result<stxlib::Revocation> revoked = (*table).revoke(handle);
+    stxlib::OperationStatus operator()() {
+        stxlib::OperationResult<stxlib::Revocation> revoked = (*table).revoke(handle);
         deferred = revoked.succeeded() && *revoked.value() == stxlib::Revocation::deferred;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void self_revocation_is_deferred() {
-    stxlib::Result<stxlib::Trampolines<SelfRevoker>> made =
+    stxlib::OperationResult<stxlib::Trampolines<SelfRevoker>> made =
         stxlib::Trampolines<SelfRevoker>::create("stxlib.tests.trampoline", 1);
     CHECK(made.succeeded());
-    stxlib::Trampolines<SelfRevoker> table = static_cast<stxlib::Result<stxlib::Trampolines<SelfRevoker>>&&>(made).take_value();
+    stxlib::Trampolines<SelfRevoker> table = static_cast<stxlib::OperationResult<stxlib::Trampolines<SelfRevoker>>&&>(made).take_value();
     SelfRevoker revoker;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(revoker);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(revoker);
     CHECK(attached.succeeded());
     revoker.table = &table;
     revoker.handle = *attached.value();
@@ -214,13 +214,13 @@ struct StaleCaller final {
 // is a race, so it is tried many times; a stranded slot never recovers, so
 // one stranding fails the attach that follows.
 void stale_enter_does_not_strand_a_self_revocation() {
-    stxlib::Result<stxlib::Trampolines<SelfRevoker>> made =
+    stxlib::OperationResult<stxlib::Trampolines<SelfRevoker>> made =
         stxlib::Trampolines<SelfRevoker>::create("stxlib.tests.trampoline", 1);
     CHECK(made.succeeded());
     if (made.failed()) return;
-    stxlib::Trampolines<SelfRevoker> table = static_cast<stxlib::Result<stxlib::Trampolines<SelfRevoker>>&&>(made).take_value();
+    stxlib::Trampolines<SelfRevoker> table = static_cast<stxlib::OperationResult<stxlib::Trampolines<SelfRevoker>>&&>(made).take_value();
     SelfRevoker first;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(first);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(first);
     CHECK(attached.succeeded());
     if (attached.failed()) return;
     const stxlib::TrampolineHandle stale = *attached.value();
@@ -241,7 +241,7 @@ void stale_enter_does_not_strand_a_self_revocation() {
             std::chrono::steady_clock::now() + std::chrono::seconds(2);
         bool placed = false;
         for (;;) {
-            const stxlib::Result<stxlib::TrampolineHandle> next = table.attach(revoker);
+            const stxlib::OperationResult<stxlib::TrampolineHandle> next = table.attach(revoker);
             if (next.succeeded()) {
                 revoker.handle = *next.value();
                 placed = true;
@@ -271,45 +271,45 @@ struct Nester final {
     stxlib::usize deepest{0};
     bool refused_at_limit{false};
 
-    stxlib::Status operator()() {
+    stxlib::OperationStatus operator()() {
         depth = depth + 1;
         if (depth > deepest) deepest = depth;
-        const stxlib::Status inner = (*table).invoke(handle);
+        const stxlib::OperationStatus inner = (*table).invoke(handle);
         if (inner.failed() && (*inner.error()).kind() == stxlib::ErrorKind::limit_exceeded) refused_at_limit = true;
         depth = depth - 1;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void nesting_is_bounded() {
-    stxlib::Result<stxlib::Trampolines<Nester>> made = stxlib::Trampolines<Nester>::create("stxlib.tests.trampoline", 1);
-    stxlib::Trampolines<Nester> table = static_cast<stxlib::Result<stxlib::Trampolines<Nester>>&&>(made).take_value();
+    stxlib::OperationResult<stxlib::Trampolines<Nester>> made = stxlib::Trampolines<Nester>::create("stxlib.tests.trampoline", 1);
+    stxlib::Trampolines<Nester> table = static_cast<stxlib::OperationResult<stxlib::Trampolines<Nester>>&&>(made).take_value();
     Nester nester;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(nester);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(nester);
     nester.table = &table;
     nester.handle = *attached.value();
     CHECK(table.invoke(nester.handle).succeeded());
     CHECK(nester.deepest == stxlib::trampoline_nesting_limit);
     CHECK(nester.refused_at_limit);
-    stxlib::Result<stxlib::Revocation> revoked = table.revoke(nester.handle);
+    stxlib::OperationResult<stxlib::Revocation> revoked = table.revoke(nester.handle);
     CHECK(revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed);
 }
 
 struct Thrower final {
-    stxlib::Status operator()() { throw std::runtime_error("target failed"); }
+    stxlib::OperationStatus operator()() { throw std::runtime_error("target failed"); }
 };
 
 void a_throwing_target_leaves_its_slot() {
-    stxlib::Result<stxlib::Trampolines<Thrower>> made = stxlib::Trampolines<Thrower>::create("stxlib.tests.trampoline", 1);
-    stxlib::Trampolines<Thrower> table = static_cast<stxlib::Result<stxlib::Trampolines<Thrower>>&&>(made).take_value();
+    stxlib::OperationResult<stxlib::Trampolines<Thrower>> made = stxlib::Trampolines<Thrower>::create("stxlib.tests.trampoline", 1);
+    stxlib::Trampolines<Thrower> table = static_cast<stxlib::OperationResult<stxlib::Trampolines<Thrower>>&&>(made).take_value();
     Thrower thrower;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(thrower);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(thrower);
     const stxlib::TrampolineHandle handle = *attached.value();
-    const stxlib::Status failed = table.invoke(handle);
+    const stxlib::OperationStatus failed = table.invoke(handle);
     CHECK(failed.failed() && (*failed.error()).kind() == stxlib::ErrorKind::internal_failure);
     CHECK((*failed.error()).operation().name() == stxlib::TextView("stxlib.tests.trampoline"));
     // If the slot had not been left, this would wait forever.
-    stxlib::Result<stxlib::Revocation> revoked = table.revoke(handle);
+    stxlib::OperationResult<stxlib::Revocation> revoked = table.revoke(handle);
     CHECK(revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed);
 }
 
@@ -323,11 +323,11 @@ struct Blocker final {
     std::atomic<bool> may_leave{false};
     std::atomic<bool> left{false};
 
-    stxlib::Status operator()() {
+    stxlib::OperationStatus operator()() {
         entered.store(true);
         while (!may_leave.load()) std::this_thread::yield();
         left.store(true);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
@@ -337,7 +337,7 @@ struct BlockerRun final {
     bool succeeded{false};
 
     void operator()() {
-        const stxlib::Status status = (*table).invoke(handle);
+        const stxlib::OperationStatus status = (*table).invoke(handle);
         succeeded = status.succeeded();
     }
 };
@@ -354,7 +354,7 @@ struct RevokeRun final {
 
     void operator()() {
         started.store(true);
-        stxlib::Result<stxlib::Revocation> revoked = (*table).revoke(handle);
+        stxlib::OperationResult<stxlib::Revocation> revoked = (*table).revoke(handle);
         left_before_return = (*blocker).left.load();
         completed = revoked.succeeded() && *revoked.value() == stxlib::Revocation::completed;
         done.store(true);
@@ -362,10 +362,10 @@ struct RevokeRun final {
 };
 
 void revoke_waits_for_a_running_invocation() {
-    stxlib::Result<stxlib::Trampolines<Blocker>> made = stxlib::Trampolines<Blocker>::create("stxlib.tests.trampoline", 1);
-    stxlib::Trampolines<Blocker> table = static_cast<stxlib::Result<stxlib::Trampolines<Blocker>>&&>(made).take_value();
+    stxlib::OperationResult<stxlib::Trampolines<Blocker>> made = stxlib::Trampolines<Blocker>::create("stxlib.tests.trampoline", 1);
+    stxlib::Trampolines<Blocker> table = static_cast<stxlib::OperationResult<stxlib::Trampolines<Blocker>>&&>(made).take_value();
     Blocker blocker;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(blocker);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(blocker);
     const stxlib::TrampolineHandle handle = *attached.value();
 
     BlockerRun run{&table, handle, false};

@@ -150,9 +150,9 @@ constexpr u32 scan_block = 65536;
 // Grows `vector` to at least `wanted` elements (never shrinks; the new
 // elements are zero).
 template <typename Element>
-[[nodiscard]] Status grow(Vector<Element>& vector, const usize wanted) noexcept {
-    if (vector.count() >= wanted) return Status::success();
-    const Status result = vector.resize(wanted);
+[[nodiscard]] OperationStatus grow(Vector<Element>& vector, const usize wanted) noexcept {
+    if (vector.count() >= wanted) return OperationStatus::success();
+    const OperationStatus result = vector.resize(wanted);
     return result;
 }
 
@@ -427,15 +427,15 @@ struct Access final {
         Runs runs;
     };
 
-    [[nodiscard]] static Status prepare(Paragraph& paragraph, const u32 points, const bool explicit_form,
+    [[nodiscard]] static OperationStatus prepare(Paragraph& paragraph, const u32 points, const bool explicit_form,
                                         Work& work) noexcept {
         const usize narrow = explicit_form ? 6u * usize{points} : 3u * usize{points};
         // points counts one more than the paragraph's code points (units_'s
         // last entry), so every array below has room for the paragraph.
         const usize wide = explicit_form ? 10u * usize{points} : 5u * usize{points};
-        const Status narrow_grown = grow(paragraph.work_, narrow);
+        const OperationStatus narrow_grown = grow(paragraph.work_, narrow);
         if (narrow_grown.failed()) return narrow_grown;
-        const Status wide_grown = grow(paragraph.work_wide_, wide);
+        const OperationStatus wide_grown = grow(paragraph.work_wide_, wide);
         if (wide_grown.failed()) return wide_grown;
         u8* const bytes = paragraph.work_.begin();
         u32* const words = paragraph.work_wide_.begin();
@@ -466,7 +466,7 @@ struct Access final {
             work.run_first = words + 8u * usize{points};
             work.run_last = words + 9u * usize{points};
         }
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Writes the levels of the runs (after resolve_sequence) to the code units.
@@ -483,19 +483,19 @@ struct Access final {
     // Room for `wanted` decisions (the slot before the first included),
     // at least doubling so that a long paragraph is copied a bounded
     // number of times.
-    [[nodiscard]] static Status grow_breaks(Paragraph& paragraph, const usize wanted) noexcept {
+    [[nodiscard]] static OperationStatus grow_breaks(Paragraph& paragraph, const usize wanted) noexcept {
         const usize held = paragraph.breaks_.count();
-        if (held >= wanted) return Status::success();
+        if (held >= wanted) return OperationStatus::success();
         const usize doubled = held > (~usize{0}) / 2u ? wanted : 2u * held;
-        const Status result = paragraph.breaks_.resize(doubled > wanted ? doubled : wanted);
+        const OperationStatus result = paragraph.breaks_.resize(doubled > wanted ? doubled : wanted);
         return result;
     }
 
-    [[nodiscard]] static Status append_script_run(Paragraph& paragraph, const u32 offset, const u32 length,
+    [[nodiscard]] static OperationStatus append_script_run(Paragraph& paragraph, const u32 offset, const u32 length,
                                                   const u32 script) noexcept {
         const usize held = paragraph.script_runs_.count();
         if (paragraph.script_run_count_ == held) {
-            const Status grown = paragraph.script_runs_.resize(held < 8u ? 16u : 2u * held);
+            const OperationStatus grown = paragraph.script_runs_.resize(held < 8u ? 16u : 2u * held);
             if (grown.failed()) return grown;
         }
         ScriptRun run{};
@@ -504,7 +504,7 @@ struct Access final {
         run.script = static_cast<Script>(script);
         paragraph.script_runs_.begin()[paragraph.script_run_count_] = run;
         paragraph.script_run_count_ = paragraph.script_run_count_ + 1u;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // A code point that may change the script run: one of a script other
@@ -520,7 +520,7 @@ struct Access final {
     //   starts the next.
     // Bound: the two loops run over the open brackets, at most
     // script_bracket_depth each.
-    [[nodiscard]] static Status script_event(Paragraph& paragraph, ScriptWalk& walk, const u32 properties,
+    [[nodiscard]] static OperationStatus script_event(Paragraph& paragraph, ScriptWalk& walk, const u32 properties,
                                              const u32 code_point, const u32 unit) noexcept {
         u32 script = tables::script_in(properties);
         bool from_bracket = false;
@@ -531,31 +531,31 @@ struct Access final {
                 walk.keys[walk.depth] = key & ~opens_bit;
                 walk.scripts[walk.depth] = static_cast<u8>(walk.script);
                 walk.depth = walk.depth + 1u;
-                return Status::success();
+                return OperationStatus::success();
             }
             u32 search = walk.depth;
             while (search > 0 && walk.keys[search - 1u] != key) search = search - 1u;
             if (search == 0) {
                 walk.depth = 0;
-                return Status::success();
+                return OperationStatus::success();
             }
             script = walk.scripts[search - 1u];
             walk.depth = search - 1u;
             from_bracket = true;
         }
-        if (script <= 1u) return Status::success();
+        if (script <= 1u) return OperationStatus::success();
         if (walk.script <= 1u) {
             walk.script = script;
             for (u32 index = 0; index < walk.depth; ++index) walk.scripts[index] = static_cast<u8>(script);
-            return Status::success();
+            return OperationStatus::success();
         }
-        if (script == walk.script) return Status::success();
-        if (!from_bracket && tables::script_extends(properties, walk.script)) return Status::success();
-        const Status appended = append_script_run(paragraph, walk.run_start, unit - walk.run_start, walk.script);
+        if (script == walk.script) return OperationStatus::success();
+        if (!from_bracket && tables::script_extends(properties, walk.script)) return OperationStatus::success();
+        const OperationStatus appended = append_script_run(paragraph, walk.run_start, unit - walk.run_start, walk.script);
         if (appended.failed()) return appended;
         walk.run_start = unit;
         walk.script = script;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // The walk over UTF-8, from `offset` to the first paragraph separator
@@ -568,7 +568,7 @@ struct Access final {
     // the inner loop advances `index` by at least one each step; the
     // letters loop advances `end` by one each step, to the block's end at
     // most; the fill after it writes end - index entries.
-    [[nodiscard]] static Status scan_utf8(Paragraph& paragraph, const unsigned char* const bytes, const u32 offset,
+    [[nodiscard]] static OperationStatus scan_utf8(Paragraph& paragraph, const unsigned char* const bytes, const u32 offset,
                                           const u32 count, Scan& result) noexcept {
         const u32* const ascii = tables::ascii_records;
         const u8* const is_letter = kernel::letters.is_letter;
@@ -588,7 +588,7 @@ struct Access final {
             // A code point that starts inside the block ends at most three
             // code units after it; then CR LF's LF, and the slot before the
             // first decision.
-            const Status grown = grow_breaks(paragraph, usize{block_end - offset} + 8u);
+            const OperationStatus grown = grow_breaks(paragraph, usize{block_end - offset} + 8u);
             if (grown.failed()) return grown;
             LineBreak* const breaks = paragraph.breaks_.begin();
             while (index < block_end) {
@@ -623,7 +623,7 @@ struct Access final {
                 // Scripts.
                 const u32 script = tables::script_in(properties);
                 if (((script > 1u) && (script != walk.script)) || (properties & tables::bracket_bit) != 0) {
-                    const Status event = script_event(paragraph, walk, properties, value, index);
+                    const OperationStatus event = script_event(paragraph, walk, properties, value, index);
                     if (event.failed()) return event;
                 }
                 index = index + length;
@@ -648,19 +648,19 @@ struct Access final {
         }
         // LB3: the paragraph's end.
         paragraph.breaks_.begin()[index - offset] = LineBreak::mandatory;
-        const Status appended = append_script_run(paragraph, walk.run_start, index - walk.run_start, walk.script);
+        const OperationStatus appended = append_script_run(paragraph, walk.run_start, index - walk.run_start, walk.script);
         if (appended.failed()) return appended;
         result.end = index;
         result.code_points = points;
         result.classes = classes;
         result.first_strong = first;
         result.beyond_ascii = high != 0;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // The same walk over code points, one general step each. Bounds as
     // scan_utf8's outer and inner loops.
-    [[nodiscard]] static Status scan_code_points(Paragraph& paragraph, const u32* const values, const u32 offset,
+    [[nodiscard]] static OperationStatus scan_code_points(Paragraph& paragraph, const u32* const values, const u32 offset,
                                                  const u32 count, Scan& result) noexcept {
         ScriptWalk walk{};
         walk.run_start = offset;
@@ -673,7 +673,7 @@ struct Access final {
         while (index < count && !ended) {
             const u32 remaining = count - index;
             const u32 block_end = index + (remaining < scan_block ? remaining : scan_block);
-            const Status grown = grow_breaks(paragraph, usize{block_end - offset} + 8u);
+            const OperationStatus grown = grow_breaks(paragraph, usize{block_end - offset} + 8u);
             if (grown.failed()) return grown;
             LineBreak* const breaks = paragraph.breaks_.begin();
             while (index < block_end) {
@@ -691,7 +691,7 @@ struct Access final {
                 first = first != 0 ? first : first_strong_of[kind];
                 const u32 script = tables::script_in(properties);
                 if (((script > 1u) && (script != walk.script)) || (properties & tables::bracket_bit) != 0) {
-                    const Status event = script_event(paragraph, walk, properties, value, index);
+                    const OperationStatus event = script_event(paragraph, walk, properties, value, index);
                     if (event.failed()) return event;
                 }
                 index = index + 1;
@@ -706,14 +706,14 @@ struct Access final {
             }
         }
         paragraph.breaks_.begin()[index - offset] = LineBreak::mandatory;
-        const Status appended = append_script_run(paragraph, walk.run_start, index - walk.run_start, walk.script);
+        const OperationStatus appended = append_script_run(paragraph, walk.run_start, index - walk.run_start, walk.script);
         if (appended.failed()) return appended;
         result.end = index;
         result.code_points = index - offset;
         result.classes = classes;
         result.first_strong = first;
         result.beyond_ascii = false;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // P2 and P3 over code points [begin, end), skipping isolates by BD9;
@@ -928,11 +928,11 @@ struct Access final {
     // The common part of both inputs once the scan is done: stores classes,
     // code unit offsets and bracket keys (pass 2) and resolves.
     template <typename Next>
-    [[nodiscard]] static Status analyse(Paragraph& paragraph, const Scan& scan, const u32 offset,
+    [[nodiscard]] static OperationStatus analyse(Paragraph& paragraph, const Scan& scan, const u32 offset,
                                         const BaseDirection direction, const Next& next) noexcept {
         const u32 length = scan.end - offset;
         const u32 points = scan.code_points;
-        const Status levels_grown = grow(paragraph.levels_, length);
+        const OperationStatus levels_grown = grow(paragraph.levels_, length);
         if (levels_grown.failed()) return levels_grown;
         paragraph.offset_ = offset;
         paragraph.length_ = length;
@@ -959,13 +959,13 @@ struct Access final {
             // from the break decisions (inside_character), so nothing more
             // is stored.
             paragraph.unit_count_ = 0;
-            return Status::success();
+            return OperationStatus::success();
         }
 
         paragraph.uniform_ = false;
-        const Status classes_grown = grow(paragraph.classes_, points);
+        const OperationStatus classes_grown = grow(paragraph.classes_, points);
         if (classes_grown.failed()) return classes_grown;
-        const Status units_grown = grow(paragraph.units_, usize{points} + 1u);
+        const OperationStatus units_grown = grow(paragraph.units_, usize{points} + 1u);
         if (units_grown.failed()) return units_grown;
         u8* const classes = paragraph.classes_.begin();
         u32* const units = paragraph.units_.begin();
@@ -982,7 +982,7 @@ struct Access final {
         units[points] = unit;
         paragraph.unit_count_ = points + 1u;
         if (brackets > 0) {
-            const Status keys_grown = grow(paragraph.keys_, 2u * usize{brackets});
+            const OperationStatus keys_grown = grow(paragraph.keys_, 2u * usize{brackets});
             if (keys_grown.failed()) return keys_grown;
             u32* const keys = paragraph.keys_.begin();
             u32 written = 0;
@@ -998,7 +998,7 @@ struct Access final {
         }
 
         Work work{};
-        const Status prepared = prepare(paragraph, points + 1u, explicit_form, work);
+        const OperationStatus prepared = prepare(paragraph, points + 1u, explicit_form, work);
         if (prepared.failed()) return prepared;
         Source source{};
         source.types = classes; // append_runs masks BRACKET off
@@ -1007,7 +1007,7 @@ struct Access final {
         source.key_count = brackets;
         if (explicit_form) {
             resolve_explicit(paragraph, work, source, direction);
-            return Status::success();
+            return OperationStatus::success();
         }
         // The implicit form: one sequence over the whole paragraph, at the
         // base level, sos and eos the base direction.
@@ -1015,12 +1015,12 @@ struct Access final {
         append_runs(source, 0, points, work.runs);
         if (work.runs.runs == 0) {
             fill(levels, length, base);
-            return Status::success();
+            return OperationStatus::success();
         }
         const u8 sos = base != 0 ? class_r : class_l;
         resolve_sequence(work.runs, base, sos, sos);
         write_levels(paragraph, work.runs);
-        return Status::success();
+        return OperationStatus::success();
     }
 
     static void clear(Paragraph& paragraph) noexcept {
@@ -1081,26 +1081,26 @@ struct Access final {
         return result;
     }
 
-    [[nodiscard]] static Status line(const Paragraph& paragraph, const usize offset, const usize length,
+    [[nodiscard]] static OperationStatus line(const Paragraph& paragraph, const usize offset, const usize length,
                                      Line& line) noexcept {
         if (length == 0 || offset < paragraph.offset_ || offset - paragraph.offset_ > paragraph.length_ ||
             length > paragraph.length_ - (offset - paragraph.offset_)) {
-            return Status::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_line"));
+            return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_line"));
         }
         const u32 first_unit = static_cast<u32>(offset - paragraph.offset_);
         const u32 count = static_cast<u32>(length);
         const u32 end_unit = first_unit + count;
         if (!starts_code_point(paragraph, first_unit) || !starts_code_point(paragraph, end_unit)) {
-            return Status::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_line"));
+            return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_line"));
         }
         // The code points of the line, where the paragraph keeps them (a
         // uniform one does not, and rule L1 below does not need them).
         const u32 first_point = paragraph.uniform_ ? 0 : point_at(paragraph, first_unit);
         const u32 end_point = paragraph.uniform_ ? 0 : point_at(paragraph, end_unit);
         if (first_point == none || end_point == none) {
-            return Status::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_line"));
+            return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_line"));
         }
-        const Status levels_grown = grow(line.levels_, count);
+        const OperationStatus levels_grown = grow(line.levels_, count);
         if (levels_grown.failed()) return levels_grown;
         u8* const levels = line.levels_.begin();
         const u8* const source = paragraph.levels_.begin() + first_unit;
@@ -1136,7 +1136,7 @@ struct Access final {
         // The logical runs, then L2 over the runs.
         u32 runs = 1;
         for (u32 unit = 1; unit < count; ++unit) runs = runs + (levels[unit] != levels[unit - 1] ? 1u : 0u);
-        const Status runs_grown = grow(line.runs_, runs);
+        const OperationStatus runs_grown = grow(line.runs_, runs);
         if (runs_grown.failed()) return runs_grown;
         BidiRun* const list = line.runs_.begin();
         u32 written = 0;
@@ -1185,7 +1185,7 @@ struct Access final {
         line.offset_ = static_cast<u32>(offset);
         line.length_ = count;
         line.run_count_ = runs;
-        return Status::success();
+        return OperationStatus::success();
     }
 };
 
@@ -1340,21 +1340,21 @@ Line& Line::operator=(Line&& other) noexcept {
     return *this;
 }
 
-Status analyse_paragraph(const TextView text, const usize offset, const BaseDirection direction,
+OperationStatus analyse_paragraph(const TextView text, const usize offset, const BaseDirection direction,
                          Paragraph& paragraph) noexcept {
     Access::clear(paragraph);
     if (text.count() > largest_input) {
-        return Status::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.textlayout.analyse_paragraph"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.textlayout.analyse_paragraph"));
     }
     if (offset >= text.count()) {
-        return Status::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_paragraph"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_paragraph"));
     }
     const unsigned char* const bytes = reinterpret_cast<const unsigned char*>(text.data());
     if ((bytes[offset] & 0xc0u) == 0x80u) {
-        return Status::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_paragraph"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.analyse_paragraph"));
     }
     Scan scan{};
-    const Status scanned =
+    const OperationStatus scanned =
         Access::scan_utf8(paragraph, bytes, static_cast<u32>(offset), static_cast<u32>(text.count()), scan);
     if (scanned.failed()) {
         Access::clear(paragraph);
@@ -1362,23 +1362,23 @@ Status analyse_paragraph(const TextView text, const usize offset, const BaseDire
         return scanned;
     }
     const Utf8Next next{bytes};
-    const Status result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
+    const OperationStatus result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
     if (result.failed()) Access::clear(paragraph);
     Access::note_peak(paragraph);
     return result;
 }
 
-Status analyse_paragraph(const View<u32> code_points, const usize offset, const BaseDirection direction,
+OperationStatus analyse_paragraph(const View<u32> code_points, const usize offset, const BaseDirection direction,
                          Paragraph& paragraph) noexcept {
     Access::clear(paragraph);
     if (code_points.count() > largest_input) {
-        return Status::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.textlayout.analyse_paragraph"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.textlayout.analyse_paragraph"));
     }
     if (offset >= code_points.count()) {
-        return Status::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_paragraph"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.textlayout.analyse_paragraph"));
     }
     Scan scan{};
-    const Status scanned = Access::scan_code_points(paragraph, code_points.data(), static_cast<u32>(offset),
+    const OperationStatus scanned = Access::scan_code_points(paragraph, code_points.data(), static_cast<u32>(offset),
                                                     static_cast<u32>(code_points.count()), scan);
     if (scanned.failed()) {
         Access::clear(paragraph);
@@ -1386,15 +1386,15 @@ Status analyse_paragraph(const View<u32> code_points, const usize offset, const 
         return scanned;
     }
     const CodePointNext next{code_points.data()};
-    const Status result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
+    const OperationStatus result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
     if (result.failed()) Access::clear(paragraph);
     Access::note_peak(paragraph);
     return result;
 }
 
-Status analyse_line(const Paragraph& paragraph, const usize offset, const usize length, Line& line) noexcept {
+OperationStatus analyse_line(const Paragraph& paragraph, const usize offset, const usize length, Line& line) noexcept {
     Access::clear(line);
-    const Status result = Access::line(paragraph, offset, length, line);
+    const OperationStatus result = Access::line(paragraph, offset, length, line);
     if (result.failed()) Access::clear(line);
     Access::note_peak(line);
     return result;

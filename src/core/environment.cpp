@@ -88,36 +88,36 @@ bool is_portable_variable_name(const TextView name) noexcept {
     return true;
 }
 
-Result<Utf8String> read_variable(const TextView name, const usize limit) noexcept {
+OperationResult<Utf8String> read_variable(const TextView name, const usize limit) noexcept {
     if (!is_portable_variable_name(name)) {
-        return Result<Utf8String>::failure(invalid_name("stxlib.environment.read"));
+        return OperationResult<Utf8String>::failure(invalid_name("stxlib.environment.read"));
     }
     Growable<char> host_name;
-    if (!terminated_copy(name, host_name)) return Result<Utf8String>::failure(exhausted("stxlib.environment.read"));
+    if (!terminated_copy(name, host_name)) return OperationResult<Utf8String>::failure(exhausted("stxlib.environment.read"));
     const usize bounded = limit < maximum_environment_bytes ? limit : maximum_environment_bytes;
     Growable<char> raw;
     environment_backend::Report report{};
     {
         state::ProcessState& process = state::current_process();
         const spin::Guard lock(process.environment_lock);
-        if (!lock.held()) return Result<Utf8String>::failure(ending("stxlib.environment.read"));
+        if (!lock.held()) return OperationResult<Utf8String>::failure(ending("stxlib.environment.read"));
         report = environment_backend::read(host_name.data(), bounded, raw);
     }
     if (report.outcome != environment_backend::Outcome::ok) {
-        return Result<Utf8String>::failure(record_of(report, "stxlib.environment.read"));
+        return OperationResult<Utf8String>::failure(record_of(report, "stxlib.environment.read"));
     }
-    Result<TextView> valid = validate_utf8(raw.data(), raw.count());
+    OperationResult<TextView> valid = validate_utf8(raw.data(), raw.count());
     if (valid.failed()) {
         const ErrorRecord invalid =
             host_failure::record(ErrorKind::invalid_argument, "stxlib.environment.read", HostCode::invalid_text);
-        return Result<Utf8String>::failure(invalid);
+        return OperationResult<Utf8String>::failure(invalid);
     }
-    Result<Utf8String> result = Utf8String::copy_of(*valid.value());
+    OperationResult<Utf8String> result = Utf8String::copy_of(*valid.value());
     return result;
 }
 
-Status set_variable(const TextView name, const TextView value) noexcept {
-    if (!is_portable_variable_name(name)) return Status::failure(invalid_name("stxlib.environment.set"));
+OperationStatus set_variable(const TextView name, const TextView value) noexcept {
+    if (!is_portable_variable_name(name)) return OperationStatus::failure(invalid_name("stxlib.environment.set"));
     if (value.count() > maximum_environment_bytes) {
         return host_failure::failed(ErrorKind::limit_exceeded, "stxlib.environment.set", HostCode::too_long);
     }
@@ -129,32 +129,32 @@ Status set_variable(const TextView name, const TextView value) noexcept {
     Growable<char> host_name;
     Growable<char> host_value;
     if (!terminated_copy(name, host_name) || !terminated_copy(value, host_value)) {
-        return Status::failure(exhausted("stxlib.environment.set"));
+        return OperationStatus::failure(exhausted("stxlib.environment.set"));
     }
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.environment_lock);
-    if (!lock.held()) return Status::failure(ending("stxlib.environment.set"));
+    if (!lock.held()) return OperationStatus::failure(ending("stxlib.environment.set"));
     const environment_backend::Report report = environment_backend::set(host_name.data(), host_value.data(), value.count());
     if (report.outcome != environment_backend::Outcome::ok) {
-        return Status::failure(record_of(report, "stxlib.environment.set"));
+        return OperationStatus::failure(record_of(report, "stxlib.environment.set"));
     }
     record_change(process);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status remove_variable(const TextView name) noexcept {
-    if (!is_portable_variable_name(name)) return Status::failure(invalid_name("stxlib.environment.remove"));
+OperationStatus remove_variable(const TextView name) noexcept {
+    if (!is_portable_variable_name(name)) return OperationStatus::failure(invalid_name("stxlib.environment.remove"));
     Growable<char> host_name;
-    if (!terminated_copy(name, host_name)) return Status::failure(exhausted("stxlib.environment.remove"));
+    if (!terminated_copy(name, host_name)) return OperationStatus::failure(exhausted("stxlib.environment.remove"));
     state::ProcessState& process = state::current_process();
     const spin::Guard lock(process.environment_lock);
-    if (!lock.held()) return Status::failure(ending("stxlib.environment.remove"));
+    if (!lock.held()) return OperationStatus::failure(ending("stxlib.environment.remove"));
     const environment_backend::Report report = environment_backend::remove(host_name.data());
     if (report.outcome != environment_backend::Outcome::ok) {
-        return Status::failure(record_of(report, "stxlib.environment.remove"));
+        return OperationStatus::failure(record_of(report, "stxlib.environment.remove"));
     }
     record_change(process);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib

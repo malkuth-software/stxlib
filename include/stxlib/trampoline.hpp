@@ -134,7 +134,7 @@ class TrampolineTable final {
 public:
     // A table of `capacity` slots: 1 to trampoline_capacity_limit, else
     // invalid_argument; out_of_memory when its storage cannot be allocated.
-    [[nodiscard]] static Result<TrampolineTable> create(usize capacity) noexcept;
+    [[nodiscard]] static OperationResult<TrampolineTable> create(usize capacity) noexcept;
 
     TrampolineTable(TrampolineTable&& other) noexcept : slots_(other.slots_) { other.slots_ = nullptr; }
     TrampolineTable(const TrampolineTable&) = delete;
@@ -152,16 +152,16 @@ public:
 
     // Attaches `target` to a free slot; limit_exceeded when none is free.
     // Requirement: target is non-null.
-    [[nodiscard]] Result<TrampolineHandle> attach(void* target) noexcept;
+    [[nodiscard]] OperationResult<TrampolineHandle> attach(void* target) noexcept;
 
     // Steps 1 and 3 above. Every successful enter is matched by one leave
     // on the same thread.
-    [[nodiscard]] Result<TrampolineEntry> enter(TrampolineHandle handle) noexcept;
+    [[nodiscard]] OperationResult<TrampolineEntry> enter(TrampolineHandle handle) noexcept;
     void leave(const TrampolineEntry& entry) noexcept;
 
     // See "Revocation" above. stale_identity when the handle is not
     // attached in this table (never was, already revoked, or reissued).
-    [[nodiscard]] Result<Revocation> revoke(TrampolineHandle handle) noexcept;
+    [[nodiscard]] OperationResult<Revocation> revoke(TrampolineHandle handle) noexcept;
 
 private:
     explicit TrampolineTable(detail::TrampolineSlots* const slots) noexcept : slots_(slots) {}
@@ -183,15 +183,15 @@ private:
 };
 
 // The typed table: every attached target is a Target, invoked as
-// target(arguments...) returning Status or Result<Value>.
+// target(arguments...) returning OperationStatus or OperationResult<Value>.
 template <typename Target>
 class Trampolines final {
 public:
-    [[nodiscard]] static Result<Trampolines> create(const Operation operation, const usize capacity) noexcept {
-        Result<TrampolineTable> table = TrampolineTable::create(capacity);
-        if (table.failed()) return Result<Trampolines>::failure(*table.error());
-        Trampolines result(operation, static_cast<Result<TrampolineTable>&&>(table).take_value());
-        return Result<Trampolines>::success(static_cast<Trampolines&&>(result));
+    [[nodiscard]] static OperationResult<Trampolines> create(const Operation operation, const usize capacity) noexcept {
+        OperationResult<TrampolineTable> table = TrampolineTable::create(capacity);
+        if (table.failed()) return OperationResult<Trampolines>::failure(*table.error());
+        Trampolines result(operation, static_cast<OperationResult<TrampolineTable>&&>(table).take_value());
+        return OperationResult<Trampolines>::success(static_cast<Trampolines&&>(result));
     }
 
     Trampolines(Trampolines&&) noexcept = default;
@@ -203,13 +203,13 @@ public:
     [[nodiscard]] u64 generation_limit() const noexcept { return table_.generation_limit(); }
 
     // `target` is borrowed until its revocation completes.
-    [[nodiscard]] Result<TrampolineHandle> attach(Target& target) noexcept {
-        Result<TrampolineHandle> result = table_.attach(&target);
+    [[nodiscard]] OperationResult<TrampolineHandle> attach(Target& target) noexcept {
+        OperationResult<TrampolineHandle> result = table_.attach(&target);
         return result;
     }
 
-    [[nodiscard]] Result<Revocation> revoke(const TrampolineHandle handle) noexcept {
-        Result<Revocation> result = table_.revoke(handle);
+    [[nodiscard]] OperationResult<Revocation> revoke(const TrampolineHandle handle) noexcept {
+        OperationResult<Revocation> result = table_.revoke(handle);
         return result;
     }
 
@@ -223,7 +223,7 @@ public:
                                                                                   Arguments&... arguments) noexcept {
         static_assert(Exceptions == detail::gate_exceptions, "Trampolines::invoke: Exceptions is the unit's setting");
         using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-        Result<TrampolineEntry> entered = table_.enter(handle);
+        OperationResult<TrampolineEntry> entered = table_.enter(handle);
         if (entered.failed()) return Return::failure(*entered.error());
         const TrampolineEntry entry = *entered.value();
 #if !defined(__cpp_exceptions)

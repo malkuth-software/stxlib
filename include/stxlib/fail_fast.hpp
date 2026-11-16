@@ -60,7 +60,7 @@ struct FailFastReporter final {
 // with already_exists and leaves the first in place; an unbound reporter
 // fails with invalid_argument. Install before any thread can fail fast;
 // the reporter and its context must stay valid until the process ends.
-[[nodiscard]] Status install_fail_fast_reporter(FailFastReporter reporter) noexcept;
+[[nodiscard]] OperationStatus install_fail_fast_reporter(FailFastReporter reporter) noexcept;
 
 // Reports `record` and ends the process abnormally. Allocates nothing.
 [[noreturn]] void fail_fast(const ErrorRecord& record) noexcept;
@@ -74,7 +74,7 @@ struct FailFastReporter final {
 
 // Ends the process through fail_fast when `status` failed; returns
 // otherwise.
-inline void check_or_fail_fast(const Status& status) noexcept {
+inline void check_or_fail_fast(const OperationStatus& status) noexcept {
     const ErrorRecord* const failure = status.error();
     if (failure != nullptr) fail_fast(*failure);
 }
@@ -82,10 +82,10 @@ inline void check_or_fail_fast(const Status& status) noexcept {
 // The value of a successful `result`; ends the process through fail_fast
 // with the record of a failed one.
 template <typename Value>
-[[nodiscard]] Value take_or_fail_fast(Result<Value>&& result) noexcept {
+[[nodiscard]] Value take_or_fail_fast(OperationResult<Value>&& result) noexcept {
     const ErrorRecord* const failure = result.error();
     if (failure != nullptr) fail_fast(*failure);
-    Value value = static_cast<Result<Value>&&>(result).take_value();
+    Value value = static_cast<OperationResult<Value>&&>(result).take_value();
     return value;
 }
 

@@ -25,14 +25,14 @@ namespace stxlib::desktop_backend {
 
 namespace {
 
-Status exhausted(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
+OperationStatus exhausted(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
     return result;
 }
 
 } // namespace
 
-Status open_target(const TextView target, const bool is_link) noexcept {
+OperationStatus open_target(const TextView target, const bool is_link) noexcept {
     const Operation operation = "stxlib.desktop.open";
     Growable<wchar_t> wide;
     if (!utf16::append_wide(target.data(), target.count(), wide)) return exhausted(operation);
@@ -50,10 +50,10 @@ Status open_target(const TextView target, const bool is_link) noexcept {
         return host_failure::failed(ErrorKind::io_failure, operation, HostCode::none,
                                     ForeignCode::of(ForeignFamily::windows_last_error, static_cast<i64>(code)));
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status reveal(const Path& path) noexcept {
+OperationStatus reveal(const Path& path) noexcept {
     const Operation operation = "stxlib.desktop.reveal";
     const PathText text = path.text();
     Growable<char> selection;
@@ -96,12 +96,12 @@ Status reveal(const Path& path) noexcept {
                                .arguments = View<PathText>(arguments),
                                .streams = ChildStreams::discard,
                                .detached = true};
-    const Result<Child> started = Child::start(request);
-    if (started.failed()) return Status::failure(*started.error());
-    return Status::success();
+    const OperationResult<Child> started = Child::start(request);
+    if (started.failed()) return OperationStatus::failure(*started.error());
+    return OperationStatus::success();
 }
 
-Status executable_name(Growable<char>& text) noexcept {
+OperationStatus executable_name(Growable<char>& text) noexcept {
     const Operation operation = "stxlib.desktop.current_executable";
     text.clear();
     Growable<wchar_t> buffer;
@@ -142,7 +142,7 @@ Status executable_name(Growable<char>& text) noexcept {
     for (usize index = 0; index < text.count(); ++index) {
         if (text[index] == '\\') text[index] = '/';
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::desktop_backend

@@ -110,13 +110,13 @@ inline constexpr i64 farthest_point = static_cast<i64>(1) << 30;
     return result;
 }
 
-[[nodiscard]] Status refuse_font(ErrorKind kind, Operation operation) noexcept;
+[[nodiscard]] OperationStatus refuse_font(ErrorKind kind, Operation operation) noexcept;
 
 // The outlines of the two kinds (font_truetype.cpp, font_cff.cpp).
-[[nodiscard]] Status load_truetype_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale, const FontLimits& limits,
+[[nodiscard]] OperationStatus load_truetype_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale, const FontLimits& limits,
                                          GlyphOutline& outline) noexcept;
-[[nodiscard]] Status open_cff(Font& font) noexcept;
-[[nodiscard]] Status load_cff_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;
+[[nodiscard]] OperationStatus open_cff(Font& font) noexcept;
+[[nodiscard]] OperationStatus load_cff_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;
 
 } // namespace stxlib::glyphs::detail
 

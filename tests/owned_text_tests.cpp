@@ -67,7 +67,7 @@ void append_code_point_exhaustive() {
     const u32 last = 0x110010u;
     for (u32 code_point = 0; code_point <= last; ++code_point) {
         text.clear();
-        const stxlib::Status status = text.append_code_point(code_point);
+        const stxlib::OperationStatus status = text.append_code_point(code_point);
         const bool scalar = code_point <= 0x10ffffu && !(code_point >= 0xd800u && code_point <= 0xdfffu);
         if (status.succeeded() != scalar) {
             mismatches = mismatches + 1;
@@ -140,7 +140,7 @@ bool is_listed_boundary(const Sample& sample, const usize offset) {
 }
 
 stxlib::TextView view_of(const std::string& bytes) {
-    const stxlib::Result<stxlib::TextView> valid = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> valid = stxlib::validate_utf8(bytes.data(), bytes.size());
     CHECK(valid.succeeded());
     const stxlib::TextView result = *valid.value();
     return result;
@@ -152,9 +152,9 @@ stxlib::Utf8String start_from(const Sample& sample, const Start start) {
     usize capacity = 0;
     if (start == Start::just_past_inline) capacity = stxlib::Utf8String::inline_capacity + 1;
     if (start == Start::roomy) capacity = 40;
-    stxlib::Result<stxlib::Utf8String> made = stxlib::Utf8String::with_capacity(capacity);
+    stxlib::OperationResult<stxlib::Utf8String> made = stxlib::Utf8String::with_capacity(capacity);
     CHECK(made.succeeded());
-    stxlib::Utf8String result = static_cast<stxlib::Result<stxlib::Utf8String>&&>(made).take_value();
+    stxlib::Utf8String result = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(made).take_value();
     CHECK(result.assign(view_of(sample.bytes)).succeeded());
     return result;
 }
@@ -197,7 +197,7 @@ void replace_case(const Sample& sample, const Start start, const usize offset, c
             argument = stxlib::detail::TextViewAccess::adopt_validated(text.view().data() + at, replacement.size());
         }
         if (refused == 1) stxlib::detail::arm_vocabulary_refusals(0);
-        const stxlib::Status status = text.replace(offset, length, argument);
+        const stxlib::OperationStatus status = text.replace(offset, length, argument);
         if (refused == 1) stxlib::detail::disarm_vocabulary_refusals();
         tally.cases = tally.cases + 1;
         if (!on_boundaries) {
@@ -282,16 +282,16 @@ void compare_exhaustive() {
 // ---- moves, wrappers and limits ---------------------------------------------
 
 void moves_and_wrappers() {
-    stxlib::Result<stxlib::Utf8String> short_made = stxlib::Utf8String::copy_of("short");
+    stxlib::OperationResult<stxlib::Utf8String> short_made = stxlib::Utf8String::copy_of("short");
     CHECK(short_made.succeeded());
-    stxlib::Utf8String short_text = static_cast<stxlib::Result<stxlib::Utf8String>&&>(short_made).take_value();
+    stxlib::Utf8String short_text = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(short_made).take_value();
     CHECK(short_text.capacity() == stxlib::Utf8String::inline_capacity);
     const stxlib::Utf8String moved_short(static_cast<stxlib::Utf8String&&>(short_text));
     CHECK(moved_short.equals("short") && short_text.empty() && short_text.c_text()[0] == '\0');
 
-    stxlib::Result<stxlib::Utf8String> long_made = stxlib::Utf8String::copy_of("a text longer than fifteen bytes");
+    stxlib::OperationResult<stxlib::Utf8String> long_made = stxlib::Utf8String::copy_of("a text longer than fifteen bytes");
     CHECK(long_made.succeeded());
-    stxlib::Utf8String long_text = static_cast<stxlib::Result<stxlib::Utf8String>&&>(long_made).take_value();
+    stxlib::Utf8String long_text = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(long_made).take_value();
     CHECK(long_text.capacity() > stxlib::Utf8String::inline_capacity);
     const char* const block = long_text.c_text();
     stxlib::Utf8String moved_long;
@@ -305,13 +305,13 @@ void moves_and_wrappers() {
     CHECK(built.insert(0, "»").succeeded());
     CHECK(built.equals("»grü\xf0\x9f\x98\x80"));
     CHECK(!built.is_boundary(1) && built.is_boundary(2));
-    const stxlib::Status inside = built.insert(1, "x");
+    const stxlib::OperationStatus inside = built.insert(1, "x");
     CHECK(inside.failed() && (*inside.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK(built.erase(0, 2).succeeded() && built.equals("grü\xf0\x9f\x98\x80"));
-    const stxlib::Status beyond = built.truncate(100);
+    const stxlib::OperationStatus beyond = built.truncate(100);
     CHECK(beyond.failed() && (*beyond.error()).kind() == stxlib::ErrorKind::out_of_range);
     CHECK(built.truncate(4).succeeded() && built.equals("grü"));
-    stxlib::Result<stxlib::Utf8String> copied = built.copy();
+    stxlib::OperationResult<stxlib::Utf8String> copied = built.copy();
     CHECK(copied.succeeded() && *copied.value() == built);
     built.clear();
     CHECK(built.empty() && *copied.value() != built);
@@ -319,11 +319,11 @@ void moves_and_wrappers() {
     CHECK(built.capacity() == stxlib::Utf8String::inline_capacity);
 
     stxlib::Utf8String limited;
-    const stxlib::Status huge = limited.reserve(stxlib::usize_max);
+    const stxlib::OperationStatus huge = limited.reserve(stxlib::usize_max);
     CHECK(huge.failed() && (*huge.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     stxlib::detail::arm_vocabulary_refusals(0);
-    stxlib::Result<stxlib::Utf8String> refused = stxlib::Utf8String::with_capacity(64);
-    stxlib::Result<stxlib::Utf8String> inline_needs_none = stxlib::Utf8String::copy_of("fits inline");
+    stxlib::OperationResult<stxlib::Utf8String> refused = stxlib::Utf8String::with_capacity(64);
+    stxlib::OperationResult<stxlib::Utf8String> inline_needs_none = stxlib::Utf8String::copy_of("fits inline");
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
     CHECK(inline_needs_none.succeeded());
@@ -331,9 +331,9 @@ void moves_and_wrappers() {
     // Owned text inside the owned vector: elements relocate by move.
     stxlib::Vector<stxlib::Utf8String> names;
     for (int index = 0; index < 20; ++index) {
-        stxlib::Result<stxlib::Utf8String> name = stxlib::Utf8String::copy_of("a name long enough for a block");
+        stxlib::OperationResult<stxlib::Utf8String> name = stxlib::Utf8String::copy_of("a name long enough for a block");
         CHECK(name.succeeded());
-        CHECK(names.push(static_cast<stxlib::Result<stxlib::Utf8String>&&>(name).take_value()).succeeded());
+        CHECK(names.push(static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(name).take_value()).succeeded());
     }
     CHECK(names.count() == 20 && names[19].equals("a name long enough for a block"));
 }

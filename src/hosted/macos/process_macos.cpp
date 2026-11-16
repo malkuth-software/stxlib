@@ -22,12 +22,12 @@
 
 namespace stxlib::process_backend {
 
-Status arguments(const usize limit, Growable<char>& raw) noexcept {
+OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
     const Operation operation = "stxlib.process.arguments";
     raw.clear();
     const int count = *::_NSGetArgc();
     char** const vector = *::_NSGetArgv();
-    if (vector == nullptr || count <= 0) return Status::success();
+    if (vector == nullptr || count <= 0) return OperationStatus::success();
     // Measured first, so an over-limit set is refused before copying.
     usize total = 0;
     for (int index = 0; index < count && vector[index] != nullptr; ++index) {
@@ -44,7 +44,7 @@ Status arguments(const usize limit, Growable<char>& raw) noexcept {
             return host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
         }
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 u64 process_id() noexcept {
@@ -52,12 +52,12 @@ u64 process_id() noexcept {
     return result;
 }
 
-Status is_main_thread(bool& initial) noexcept {
+OperationStatus is_main_thread(bool& initial) noexcept {
     initial = ::pthread_main_np() != 0;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status memory(ProcessMemory& report) noexcept {
+OperationStatus memory(ProcessMemory& report) noexcept {
     report = ProcessMemory{};
     mach_task_basic_info_data_t information{};
     mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
@@ -70,7 +70,7 @@ Status memory(ProcessMemory& report) noexcept {
     }
     report.resident_bytes = static_cast<u64>(information.resident_size);
     report.peak_resident_bytes = static_cast<u64>(information.resident_size_max);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::process_backend

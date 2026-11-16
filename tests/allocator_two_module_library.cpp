@@ -28,23 +28,23 @@ stxlib::memory::Backend library_backend() noexcept { return stxlib::memory::back
 
 bool library_tags_checked() noexcept { return stxlib::memory::tags_checked(); }
 
-stxlib::Result<stxlib::Path> library_path(const stxlib::TextView text) noexcept {
-    stxlib::Result<stxlib::Path> result = stxlib::Path::parse(text);
+stxlib::OperationResult<stxlib::Path> library_path(const stxlib::TextView text) noexcept {
+    stxlib::OperationResult<stxlib::Path> result = stxlib::Path::parse(text);
     return result;
 }
 
-stxlib::Result<stxlib::Thread> library_thread(stxlib::u32* const counter) noexcept {
-    stxlib::Result<stxlib::Thread> result = stxlib::Thread::start(add_one, counter);
+stxlib::OperationResult<stxlib::Thread> library_thread(stxlib::u32* const counter) noexcept {
+    stxlib::OperationResult<stxlib::Thread> result = stxlib::Thread::start(add_one, counter);
     return result;
 }
 
-stxlib::Result<stxlib::AtomicPool> library_pool(const stxlib::u32 thread_count) noexcept {
-    stxlib::Result<stxlib::AtomicPool> result = stxlib::AtomicPool::create(thread_count);
+stxlib::OperationResult<stxlib::AtomicPool> library_pool(const stxlib::u32 thread_count) noexcept {
+    stxlib::OperationResult<stxlib::AtomicPool> result = stxlib::AtomicPool::create(thread_count);
     return result;
 }
 
-void library_destroy_path(stxlib::Result<stxlib::Path>&& path) noexcept {
-    const stxlib::Result<stxlib::Path> destroyed = std::move(path);
+void library_destroy_path(stxlib::OperationResult<stxlib::Path>&& path) noexcept {
+    const stxlib::OperationResult<stxlib::Path> destroyed = std::move(path);
     static_cast<void>(destroyed);
 }
 

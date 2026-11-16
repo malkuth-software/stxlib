@@ -233,20 +233,20 @@ template <typename T>
 // own workers (a task must not call into its own pool). Nothing is reduced
 // on a failure. Requirement (dot): left.count() == right.count().
 template <typename T>
-[[nodiscard]] Result<T> pooled_reduce(AtomicPool& pool, const T* const left, const T* const right,
+[[nodiscard]] OperationResult<T> pooled_reduce(AtomicPool& pool, const T* const left, const T* const right,
                                       const usize count) noexcept {
     if (pool.is_worker()) {
         const ErrorRecord refused = ErrorRecord::make(
             ErrorKind::invalid_argument, "stxlib.float_reduce.pooled",
             ErrorDetail{.message = "a reduction must not run on a worker of its own pool"});
-        return Result<T>::failure(refused);
+        return OperationResult<T>::failure(refused);
     }
     const usize chunks_needed = chunk_count(count);
-    if (chunks_needed == 0) return Result<T>::success(T(0));
-    Result<Buffer<Chunk<T>>> chunk_storage = Buffer<Chunk<T>>::allocate_zeroed(chunks_needed);
-    if (chunk_storage.failed()) return Result<T>::failure(*chunk_storage.error());
-    Result<Buffer<PoolTask>> task_storage = Buffer<PoolTask>::allocate_zeroed(chunks_needed);
-    if (task_storage.failed()) return Result<T>::failure(*task_storage.error());
+    if (chunks_needed == 0) return OperationResult<T>::success(T(0));
+    OperationResult<Buffer<Chunk<T>>> chunk_storage = Buffer<Chunk<T>>::allocate_zeroed(chunks_needed);
+    if (chunk_storage.failed()) return OperationResult<T>::failure(*chunk_storage.error());
+    OperationResult<Buffer<PoolTask>> task_storage = Buffer<PoolTask>::allocate_zeroed(chunks_needed);
+    if (task_storage.failed()) return OperationResult<T>::failure(*task_storage.error());
     Buffer<Chunk<T>>& chunks = *chunk_storage.value();
     Buffer<PoolTask>& tasks = *task_storage.value();
     describe_chunks(left, right, count, &chunks[0]);
@@ -254,22 +254,22 @@ template <typename T>
         tasks[index].function = &reduce_chunk_task<T>;
         tasks[index].argument = &chunks[index];
     }
-    const Status ran = pool.run(tasks.view());
-    if (!ran.succeeded()) return Result<T>::failure(*ran.error());
+    const OperationStatus ran = pool.run(tasks.view());
+    if (!ran.succeeded()) return OperationResult<T>::failure(*ran.error());
     const T result = combine_chunks(&chunks[0], chunks_needed);
-    return Result<T>::success(result);
+    return OperationResult<T>::success(result);
 }
 
 template <typename T>
-[[nodiscard]] Result<T> pooled_sum(AtomicPool& pool, const View<T> terms) noexcept {
-    Result<T> result = pooled_reduce<T>(pool, terms.data(), nullptr, terms.count());
+[[nodiscard]] OperationResult<T> pooled_sum(AtomicPool& pool, const View<T> terms) noexcept {
+    OperationResult<T> result = pooled_reduce<T>(pool, terms.data(), nullptr, terms.count());
     return result;
 }
 
 template <typename T>
-[[nodiscard]] Result<T> pooled_dot(AtomicPool& pool, const View<T> left, const View<T> right) noexcept {
+[[nodiscard]] OperationResult<T> pooled_dot(AtomicPool& pool, const View<T> left, const View<T> right) noexcept {
     STXLIB_REQUIRE(left.count() == right.count(), "float_reduce::pooled_dot: lengths differ");
-    Result<T> result = pooled_reduce<T>(pool, left.data(), right.data(), left.count());
+    OperationResult<T> result = pooled_reduce<T>(pool, left.data(), right.data(), left.count());
     return result;
 }
 

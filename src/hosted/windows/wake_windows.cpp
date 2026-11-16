@@ -57,18 +57,18 @@ DWORD wait_milliseconds(const Duration remaining) noexcept {
 
 } // namespace
 
-Result<WakeChannel> WakeChannel::create() noexcept {
+OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return Result<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
     const HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (event == nullptr) {
-        return Result<WakeChannel>::failure(
+        return OperationResult<WakeChannel>::failure(
             host_failure::record(ErrorKind::foreign_failure, operation, HostCode::none, last_error()));
     }
     const i64 value = static_cast<i64>(reinterpret_cast<intptr_t>(event));
-    return Result<WakeChannel>::success(WakeChannel(value, value));
+    return OperationResult<WakeChannel>::success(WakeChannel(value, value));
 }
 
 WakeChannel::~WakeChannel() { close_handles(); }
@@ -103,13 +103,13 @@ bool WakeChannel::drain() noexcept {
     return raised;
 }
 
-Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
+OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return Result<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
-        return Result<WakeWait>::failure(
+        return OperationResult<WakeWait>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_many_handles));
     }
     HANDLE watched[maximum_wake_wait_handles + 1]{};
@@ -121,22 +121,22 @@ Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeo
         const Duration remaining = deadline.since(IntervalTime::now());
         const DWORD outcome = WaitForMultipleObjects(count, watched, FALSE, wait_milliseconds(remaining));
         if (outcome == WAIT_FAILED) {
-            return Result<WakeWait>::failure(
+            return OperationResult<WakeWait>::failure(
                 host_failure::record(ErrorKind::foreign_failure, operation, HostCode::none, last_error()));
         }
         if (outcome < WAIT_OBJECT_0 + count) {
             const usize index = static_cast<usize>(outcome - WAIT_OBJECT_0);
-            if (index == 0) return Result<WakeWait>::success(WakeWait::woken());
-            return Result<WakeWait>::success(WakeWait::handle_ready(index - 1));
+            if (index == 0) return OperationResult<WakeWait>::success(WakeWait::woken());
+            return OperationResult<WakeWait>::success(WakeWait::handle_ready(index - 1));
         }
         if (outcome >= WAIT_ABANDONED_0 && outcome < WAIT_ABANDONED_0 + count) {
             // An abandoned mutex among the handles: ready, and its owner
             // learns of the abandonment when it takes it.
             const usize index = static_cast<usize>(outcome - WAIT_ABANDONED_0);
-            if (index == 0) return Result<WakeWait>::success(WakeWait::woken());
-            return Result<WakeWait>::success(WakeWait::handle_ready(index - 1));
+            if (index == 0) return OperationResult<WakeWait>::success(WakeWait::woken());
+            return OperationResult<WakeWait>::success(WakeWait::handle_ready(index - 1));
         }
-        if (deadline <= IntervalTime::now()) return Result<WakeWait>::success(WakeWait::timed_out());
+        if (deadline <= IntervalTime::now()) return OperationResult<WakeWait>::success(WakeWait::timed_out());
     }
 }
 

@@ -30,10 +30,10 @@ inline constexpr Convention convention = Convention::xdg;
 // POSIX hosts: replaces `text` with the calling user's home directory from
 // the user database (getpwuid_r), as host bytes; not_found with
 // HostCode::no_home when it has none. Windows: unsupported.
-[[nodiscard]] Status user_database_home(Growable<char>& text) noexcept;
+[[nodiscard]] OperationStatus user_database_home(Growable<char>& text) noexcept;
 
 // Windows: replaces `text` with the known folder for `which`, as WTF-8
 // with '/' separators. POSIX hosts: unsupported.
-[[nodiscard]] Status known_folder(KnownDirectory which, Growable<char>& text) noexcept;
+[[nodiscard]] OperationStatus known_folder(KnownDirectory which, Growable<char>& text) noexcept;
 
 } // namespace stxlib::directories_backend

@@ -16,53 +16,53 @@ namespace stxlib::image_backend {
 
 namespace {
 
-Status unsupported(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
+OperationStatus unsupported(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
     return result;
 }
 
 } // namespace
 
-Status open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
+OperationStatus open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
     static_cast<void>(name);
     static_cast<void>(mode);
     handle = 0;
-    const Status result = unsupported("stxlib.library.open");
+    const OperationStatus result = unsupported("stxlib.library.open");
     return result;
 }
 
-Status close_library(const uptr handle) noexcept {
+OperationStatus close_library(const uptr handle) noexcept {
     static_cast<void>(handle);
-    const Status result = unsupported("stxlib.library.close");
+    const OperationStatus result = unsupported("stxlib.library.close");
     return result;
 }
 
-Status find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
+OperationStatus find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
     static_cast<void>(handle);
     static_cast<void>(name);
     address = 0;
-    const Status result = unsupported("stxlib.library.find_symbol");
+    const OperationStatus result = unsupported("stxlib.library.find_symbol");
     return result;
 }
 
-Status describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
                 AddressDescription& description) noexcept {
     static_cast<void>(address);
     static_cast<void>(image_name_room);
     static_cast<void>(symbol_name_room);
     static_cast<void>(description);
-    const Status result = unsupported("stxlib.images.describe_address");
+    const OperationStatus result = unsupported("stxlib.images.describe_address");
     return result;
 }
 
-Status visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
+OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
                      const ImageRegionVisitor visitor, void* const context) noexcept {
     static_cast<void>(query);
     static_cast<void>(containing);
     static_cast<void>(address);
     static_cast<void>(visitor);
     static_cast<void>(context);
-    const Status result = unsupported("stxlib.images.visit_regions");
+    const OperationStatus result = unsupported("stxlib.images.visit_regions");
     return result;
 }
 

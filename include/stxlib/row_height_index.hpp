@@ -104,7 +104,7 @@ public:
     // An empty index whose new rows are estimated at `estimate` units; an
     // estimate outside [1, height_limit] falls back to 64 (one logical
     // unit). Failure: out_of_memory.
-    [[nodiscard]] static Result<RowHeightIndex> create(i64 estimate) noexcept;
+    [[nodiscard]] static OperationResult<RowHeightIndex> create(i64 estimate) noexcept;
 
     RowHeightIndex(RowHeightIndex&& other) noexcept;
     RowHeightIndex& operator=(RowHeightIndex&& other) noexcept;
@@ -115,7 +115,7 @@ public:
     // Replaces every row with `rows` estimated rows at `estimate` (falling
     // back as create's does), which becomes the estimate. Failures:
     // limit_exceeded; out_of_memory.
-    [[nodiscard]] Status assign(u64 rows, i64 estimate) noexcept;
+    [[nodiscard]] OperationStatus assign(u64 rows, i64 estimate) noexcept;
 
     [[nodiscard]] u64 count() const noexcept;
     // Rows in the measured state, O(1).
@@ -136,27 +136,27 @@ public:
     // changed, false when it was already measured at that height (nothing
     // changes). Failures: invalid_argument (a row past the end, a height
     // outside [0, height_limit]); limit_exceeded (the total); out_of_memory.
-    [[nodiscard]] Result<bool> set_height(u64 row, i64 height) noexcept;
+    [[nodiscard]] OperationResult<bool> set_height(u64 row, i64 height) noexcept;
     // Records measured heights for rows [row, row + heights.count()), one
     // leaf pass per leaf touched; refused as a whole. An empty view
     // succeeds. Failures: invalid_argument (the range passes the end, or a
     // height outside [0, height_limit]); limit_exceeded; out_of_memory.
-    [[nodiscard]] Status set_heights(u64 row, View<i64> heights) noexcept;
+    [[nodiscard]] OperationStatus set_heights(u64 row, View<i64> heights) noexcept;
     // Inserts `rows` estimated rows before `row` (clamped to count()).
     // Failures: limit_exceeded; out_of_memory.
-    [[nodiscard]] Status insert(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus insert(u64 row, u64 rows) noexcept;
     // Erases rows [row, row + rows), clamped to the end. Failure:
     // out_of_memory (an erase inside a run can split it).
-    [[nodiscard]] Status erase(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus erase(u64 row, u64 rows) noexcept;
     // Returns rows [row, row + rows) (clamped) to the estimate, unmeasured;
     // every row keeps its position. Failures: limit_exceeded;
     // out_of_memory.
-    [[nodiscard]] Status forget(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus forget(u64 row, u64 rows) noexcept;
     // Replaces rows [row, row + rows) (clamped) by one approximate run
     // holding their exact total; the offset of every row at or before `row`
     // and at or after the range's end is unchanged bit for bit. Failure:
     // out_of_memory.
-    [[nodiscard]] Status coarsen(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus coarsen(u64 row, u64 rows) noexcept;
 
     // Cursors: seek_row places at `row` (past the end: at_end()); seek_offset
     // at row_at(offset); seek_offset_from moves a valid cursor there in

@@ -179,14 +179,14 @@ void publish_batch(AtomicPool::State& pool, const PoolTask* const tasks, const u
 }
 
 // The checks shared by run and begin, which differ only on empty batches.
-Status validate_batch(const View<PoolTask> tasks, const Operation operation) noexcept {
-    if (tasks.count() > u32_maximum) return Status::failure(refusal(PoolFailure::too_many_tasks, operation));
+OperationStatus validate_batch(const View<PoolTask> tasks, const Operation operation) noexcept {
+    if (tasks.count() > u32_maximum) return OperationStatus::failure(refusal(PoolFailure::too_many_tasks, operation));
     for (usize index = 0; index < tasks.count(); ++index) {
         if (tasks[index].function == nullptr) {
-            return Status::failure(refusal(PoolFailure::task_without_function, operation));
+            return OperationStatus::failure(refusal(PoolFailure::task_without_function, operation));
         }
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // Stops the workers of `state` and releases it; null does nothing.
@@ -228,11 +228,11 @@ AtomicPool& AtomicPool::operator=(AtomicPool&& other) noexcept {
     return *this;
 }
 
-Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
+OperationResult<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     const Operation operation = "stxlib.thread_pool.create";
-    if (thread_count == 0) return Result<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
+    if (thread_count == 0) return OperationResult<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
     if (thread_count > maximum_pool_threads) {
-        return Result<AtomicPool>::failure(refusal(PoolFailure::too_many_threads, operation));
+        return OperationResult<AtomicPool>::failure(refusal(PoolFailure::too_many_threads, operation));
     }
     static_assert(static_cast<u64>(maximum_pool_threads) * sizeof(Thread) <= usize_max,
                   "the largest thread table's size is representable");
@@ -240,29 +240,29 @@ Result<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     // The threads' array must be representable: on wasm32 a u32 count times
     // sizeof(Thread) can pass usize_max, and the product would wrap to a
     // short block that the loop below overruns.
-    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) return Result<AtomicPool>::failure(exhausted);
+    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) return OperationResult<AtomicPool>::failure(exhausted);
     void* const block = memory::allocate(sizeof(State), alignof(State));
-    if (block == nullptr) return Result<AtomicPool>::failure(exhausted);
+    if (block == nullptr) return OperationResult<AtomicPool>::failure(exhausted);
     State* const state = ::new (block) State();
     State& pool = *state;
     pool.threads = static_cast<Thread*>(memory::allocate(sizeof(Thread) * thread_count, alignof(Thread)));
     if (pool.threads == nullptr) {
         pool.~State();
         memory::release(state);
-        return Result<AtomicPool>::failure(exhausted);
+        return OperationResult<AtomicPool>::failure(exhausted);
     }
     pool.thread_count = thread_count;
     for (u32 index = 0; index < thread_count; ++index) {
-        Result<Thread> started = Thread::start(run_worker, state);
+        OperationResult<Thread> started = Thread::start(run_worker, state);
         if (started.failed()) {
             const ErrorRecord failure = *started.error();
             destroy_state(state);
-            return Result<AtomicPool>::failure(failure);
+            return OperationResult<AtomicPool>::failure(failure);
         }
-        ::new (static_cast<void*>(pool.threads + index)) Thread(static_cast<Result<Thread>&&>(started).take_value());
+        ::new (static_cast<void*>(pool.threads + index)) Thread(static_cast<OperationResult<Thread>&&>(started).take_value());
         pool.started = index + 1;
     }
-    Result<AtomicPool> result = Result<AtomicPool>::success(AtomicPool(state));
+    OperationResult<AtomicPool> result = OperationResult<AtomicPool>::success(AtomicPool(state));
     return result;
 }
 
@@ -272,13 +272,13 @@ u32 AtomicPool::thread_count() const noexcept {
     return result;
 }
 
-Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
+OperationStatus AtomicPool::run(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.run";
-    if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
-    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    if (state_ == nullptr) return OperationStatus::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return OperationStatus::failure(refusal(PoolFailure::called_from_worker, operation));
     check_not_batch_owner(*state_, operation);
-    if (tasks.count() == 0) return Status::success();
-    Status validation = validate_batch(tasks, operation);
+    if (tasks.count() == 0) return OperationStatus::success();
+    OperationStatus validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
@@ -299,22 +299,22 @@ Status AtomicPool::run(const View<PoolTask> tasks) noexcept {
         pool.batch_owner.store(current_thread().value(), std::memory_order_relaxed);
         for (u32 index = 0; index < count; ++index) tasks[index].function(tasks[index].argument);
         pool.batch_owner.store(0, std::memory_order_relaxed);
-        return Status::success();
+        return OperationStatus::success();
     }
     ScopedLock sleep(pool.sleep_lock);
     publish_batch(pool, tasks.data(), count);
     pool.done_cv.wait(sleep, batch_finished, &pool);
     pool.tasks = nullptr;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
+OperationStatus AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     const Operation operation = "stxlib.thread_pool.begin";
-    if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
-    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    if (state_ == nullptr) return OperationStatus::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return OperationStatus::failure(refusal(PoolFailure::called_from_worker, operation));
     check_not_batch_owner(*state_, operation);
-    if (tasks.count() == 0) return Status::failure(refusal(PoolFailure::empty_batch, operation));
-    Status validation = validate_batch(tasks, operation);
+    if (tasks.count() == 0) return OperationStatus::failure(refusal(PoolFailure::empty_batch, operation));
+    OperationStatus validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
     State& pool = *state_;
     const u32 count = static_cast<u32>(tasks.count());
@@ -330,13 +330,13 @@ Status AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     }
     pool.batch_open = true;
     pool.batch_owner.store(current_thread().value(), std::memory_order_relaxed);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status AtomicPool::wait() noexcept {
+OperationStatus AtomicPool::wait() noexcept {
     const Operation operation = "stxlib.thread_pool.wait";
-    if (state_ == nullptr) return Status::failure(refusal(PoolFailure::empty_pool, operation));
-    if (is_worker()) return Status::failure(refusal(PoolFailure::called_from_worker, operation));
+    if (state_ == nullptr) return OperationStatus::failure(refusal(PoolFailure::empty_pool, operation));
+    if (is_worker()) return OperationStatus::failure(refusal(PoolFailure::called_from_worker, operation));
     State& pool = *state_;
     // Only the thread that called begin may end its batch: it holds
     // run_lock, and another thread unlocking that mutex is undefined for the
@@ -346,7 +346,7 @@ Status AtomicPool::wait() noexcept {
     // nothing.
     const u64 caller = current_thread().value();
     const u64 owner = pool.batch_owner.load(std::memory_order_relaxed);
-    if (owner != 0 && owner != caller) return Status::failure(refusal(PoolFailure::not_batch_owner, operation));
+    if (owner != 0 && owner != caller) return OperationStatus::failure(refusal(PoolFailure::not_batch_owner, operation));
     const bool owns_batch = owner == caller && pool.batch_open;
     {
         const detail::CancellationHold no_cancel;
@@ -364,7 +364,7 @@ Status AtomicPool::wait() noexcept {
         pool.run_lock.unlock();
         detail::restore_cancellation(cancellation);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 bool AtomicPool::is_worker() const noexcept {

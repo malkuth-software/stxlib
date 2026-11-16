@@ -360,12 +360,12 @@ public:
     }
 
     bool assign(RowCount rows, Units estimate) {
-        const stxlib::Status done = index_.assign(rows, static_cast<stxlib::i64>(estimate));
+        const stxlib::OperationStatus done = index_.assign(rows, static_cast<stxlib::i64>(estimate));
         return accepted(done, stxlib::ErrorKind::limit_exceeded);
     }
     bool set_height(RowCount row, HeightUnits height) {
         const bool invalid = row >= count() || height.value < 0 || height.value > height_limit;
-        const stxlib::Result<bool> done = index_.set_height(row, static_cast<stxlib::i64>(height.value));
+        const stxlib::OperationResult<bool> done = index_.set_height(row, static_cast<stxlib::i64>(height.value));
         if (done.succeeded()) {
             return *done.value();
         }
@@ -380,24 +380,24 @@ public:
             invalid = invalid || value.value < 0 || value.value > height_limit;
         }
         invalid = invalid && !values.empty();
-        const stxlib::Status done = index_.set_heights(row, stxlib::View<stxlib::i64>(plain.data(), plain.size()));
+        const stxlib::OperationStatus done = index_.set_heights(row, stxlib::View<stxlib::i64>(plain.data(), plain.size()));
         return accepted(done, invalid ? stxlib::ErrorKind::invalid_argument : stxlib::ErrorKind::limit_exceeded);
     }
     bool insert(RowCount row, RowCount rows) {
-        const stxlib::Status done = index_.insert(row, rows);
+        const stxlib::OperationStatus done = index_.insert(row, rows);
         return accepted(done, stxlib::ErrorKind::limit_exceeded);
     }
     bool erase(RowCount row, RowCount rows) {
-        const stxlib::Status done = index_.erase(row, rows);
+        const stxlib::OperationStatus done = index_.erase(row, rows);
         if (done.failed()) facade_defect("erase failed");
         return true;
     }
     bool forget(RowCount row, RowCount rows) {
-        const stxlib::Status done = index_.forget(row, rows);
+        const stxlib::OperationStatus done = index_.forget(row, rows);
         return accepted(done, stxlib::ErrorKind::limit_exceeded);
     }
     bool coarsen(RowCount row, RowCount rows) {
-        const stxlib::Status done = index_.coarsen(row, rows);
+        const stxlib::OperationStatus done = index_.coarsen(row, rows);
         if (done.failed()) facade_defect("coarsen failed");
         return true;
     }
@@ -413,9 +413,9 @@ public:
 
 private:
     [[nodiscard]] static stxlib::RowHeightIndex make(Units estimate) {
-        stxlib::Result<stxlib::RowHeightIndex> made = stxlib::RowHeightIndex::create(static_cast<stxlib::i64>(estimate));
+        stxlib::OperationResult<stxlib::RowHeightIndex> made = stxlib::RowHeightIndex::create(static_cast<stxlib::i64>(estimate));
         if (!made.succeeded()) facade_defect("create failed");
-        return static_cast<stxlib::Result<stxlib::RowHeightIndex>&&>(made).take_value();
+        return static_cast<stxlib::OperationResult<stxlib::RowHeightIndex>&&>(made).take_value();
     }
     [[nodiscard]] static RowState state_of(stxlib::RowState state) noexcept {
         return static_cast<RowState>(static_cast<std::uint8_t>(state));
@@ -423,7 +423,7 @@ private:
     static void expect_kind(const stxlib::ErrorRecord& record, stxlib::ErrorKind expected) {
         if (record.kind() != expected) facade_defect("a failure's kind does not match its cause");
     }
-    [[nodiscard]] static bool accepted(const stxlib::Status& done, stxlib::ErrorKind expected_failure) {
+    [[nodiscard]] static bool accepted(const stxlib::OperationStatus& done, stxlib::ErrorKind expected_failure) {
         if (done.succeeded()) {
             return true;
         }

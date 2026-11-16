@@ -41,18 +41,18 @@ namespace stxlib {
 
 // Opens an http, https or mailto link with the desktop's default handler;
 // any other target (a path included) is refused. For targets from content.
-[[nodiscard]] Status open_link_with_desktop(TextView link) noexcept;
+[[nodiscard]] OperationStatus open_link_with_desktop(TextView link) noexcept;
 // Opens a link or an absolute path with the desktop's default handler. A
 // path that names a program runs it: only for paths the program made or the
 // user chose, never for a target from content.
-[[nodiscard]] Status open_with_desktop(TextView target) noexcept;
+[[nodiscard]] OperationStatus open_with_desktop(TextView target) noexcept;
 // Shows `path` selected in the desktop's file manager (on hosts that cannot
 // select it, its directory opened). `path` must be absolute; a host name
 // that is not valid Unicode (path.hpp) reaches the file manager as the host
 // spells it (children.hpp).
-[[nodiscard]] Status reveal_in_file_manager(const Path& path) noexcept;
+[[nodiscard]] OperationStatus reveal_in_file_manager(const Path& path) noexcept;
 // The running program's executable, as an absolute Path (its host name
 // carried losslessly, path.hpp).
-[[nodiscard]] Result<Path> current_executable() noexcept;
+[[nodiscard]] OperationResult<Path> current_executable() noexcept;
 
 } // namespace stxlib

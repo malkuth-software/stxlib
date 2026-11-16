@@ -325,7 +325,7 @@ allocate only when they grow.
 | `SBLineGetRunsPtr` / `SBLineGetRunCount`, `SBRun{offset, length, level}` | `line.runs()`, `BidiRun{offset, length, level}`; offsets are bytes of the whole text, as in SheenBidi |
 | `SBParagraphGetLevelsPtr` | `paragraph.levels()` |
 | `SBLineRelease`, `SBParagraphRelease`, `SBAlgorithmRelease` | none |
-| a null result (`std::bad_alloc` in GUI.Forms) | a failed `Status` (`out_of_memory`, `out_of_range`, `invalid_argument`, `limit_exceeded`) |
+| a null result (`std::bad_alloc` in GUI.Forms) | a failed `OperationStatus` (`out_of_memory`, `out_of_range`, `invalid_argument`, `limit_exceeded`) |
 | `SBMirrorLocator` (not used by GUI.Forms) | `bidi_mirroring_glyph`, `bidi_mirrored`, applied to the code points at odd levels |
 | `SBScriptLocatorCreate`, `LoadCodepoints`, `MoveNext`, `GetAgent` → `{offset, length, script}` | `paragraph.script_runs()`: `ScriptRun{offset, length, script}`, offsets in bytes of the whole text |
 | `SBScriptGetUnicodeTag(script)` → `hb_script_from_iso15924_tag` | `script_tag(run.script)` → `hb_script_from_iso15924_tag` |

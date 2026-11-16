@@ -46,7 +46,7 @@
 namespace {
 
 using stxlib::Path;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::u16;
 using stxlib::usize;
 
@@ -161,12 +161,12 @@ std::uint64_t posix_names = 0;
 
 void check_posix_name(const std::string& bytes) {
     posix_names = posix_names + 1;
-    Result<Path> made = Path::from_posix_name(bytes.data(), bytes.size());
+    OperationResult<Path> made = Path::from_posix_name(bytes.data(), bytes.size());
     expect(made.succeeded(), "N1 from_posix_name");
     if (made.failed()) return;
     const Path& path = *made.value();
     expect(text_of(path) == reference_escape(bytes), "N1 escape");
-    Result<stxlib::Buffer<char>> name = path.posix_name();
+    OperationResult<stxlib::Buffer<char>> name = path.posix_name();
     expect(name.succeeded(), "N1 posix_name");
     if (name.failed()) return;
     const stxlib::View<char> spelled = (*name.value()).view();
@@ -232,19 +232,19 @@ void check_text(const std::vector<std::uint32_t>& code_points) {
             return;
         }
     }
-    Result<Path> parsed = Path::parse_wtf8(text.data(), text.size());
+    OperationResult<Path> parsed = Path::parse_wtf8(text.data(), text.size());
     expect(parsed.succeeded(), "N2 parse_wtf8");
     if (parsed.failed()) return;
     std::string expected_bytes;
     const bool representable = reference_unescape(code_points, expected_bytes);
-    Result<stxlib::Buffer<char>> name = (*parsed.value()).posix_name();
+    OperationResult<stxlib::Buffer<char>> name = (*parsed.value()).posix_name();
     expect(name.succeeded() == representable, "N2 representable");
     if (name.failed() || !representable) return;
     const stxlib::View<char> spelled = (*name.value()).view();
     expect(spelled.count() == expected_bytes.size() + 1 &&
                std::memcmp(spelled.data(), expected_bytes.data(), expected_bytes.size()) == 0,
            "N2 bytes");
-    Result<Path> back = Path::from_posix_name(spelled.data(), spelled.count() - 1);
+    OperationResult<Path> back = Path::from_posix_name(spelled.data(), spelled.count() - 1);
     expect(back.succeeded() && *back.value() == *parsed.value(), "N2 injective");
 }
 
@@ -277,13 +277,13 @@ std::uint64_t unit_sequences = 0;
 
 void check_units(const std::vector<u16>& units) {
     unit_sequences = unit_sequences + 1;
-    Result<Path> made = Path::from_windows_name(units.data(), units.size());
+    OperationResult<Path> made = Path::from_windows_name(units.data(), units.size());
     expect(made.succeeded(), "N3 from_windows_name");
     if (made.failed()) return;
     const Path& path = *made.value();
     const std::string expected = reference_wtf8(units);
     expect(text_of(path) == expected, "N3 wtf8");
-    Result<stxlib::Buffer<u16>> name = path.windows_name();
+    OperationResult<stxlib::Buffer<u16>> name = path.windows_name();
     expect(name.succeeded(), "N3 windows_name");
     if (name.succeeded()) {
         const stxlib::View<u16> spelled = (*name.value()).view();
@@ -291,7 +291,7 @@ void check_units(const std::vector<u16>& units) {
         for (usize index = 0; same && index < units.size(); ++index) same = spelled[index] == units[index];
         expect(same, "N3 round trip");
     }
-    Result<Path> stored = Path::parse_wtf8(expected.data(), expected.size());
+    OperationResult<Path> stored = Path::parse_wtf8(expected.data(), expected.size());
     expect(stored.succeeded() && *stored.value() == path, "N4 parse_wtf8");
 }
 

@@ -44,7 +44,7 @@ ForeignCode errno_code(const int error) noexcept {
 
 } // namespace
 
-Status arguments(const usize limit, Growable<char>& raw) noexcept {
+OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
     const Operation operation = "stxlib.process.arguments";
     raw.clear();
     int names[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ARGS, -1};
@@ -63,7 +63,7 @@ Status arguments(const usize limit, Growable<char>& raw) noexcept {
         size_t got = room;
         if (::sysctl(names, 4, raw.data(), &got, nullptr, 0) == 0) {
             raw.shrink(static_cast<usize>(got));
-            return Status::success();
+            return OperationStatus::success();
         }
         if (errno != ENOMEM) {
             return host_failure::failed(ErrorKind::io_failure, operation, HostCode::none, errno_code(errno));
@@ -77,13 +77,13 @@ u64 process_id() noexcept {
     return result;
 }
 
-Status is_main_thread(bool& initial) noexcept {
+OperationStatus is_main_thread(bool& initial) noexcept {
     const int answer = ::pthread_main_np();
     initial = answer != 0;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status memory(ProcessMemory& report) noexcept {
+OperationStatus memory(ProcessMemory& report) noexcept {
     const Operation operation = "stxlib.process.memory";
     report = ProcessMemory{};
     int names[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, static_cast<int>(::getpid())};
@@ -102,7 +102,7 @@ Status memory(ProcessMemory& report) noexcept {
         const u64 kibibytes = static_cast<u64>(usage.ru_maxrss);
         report.peak_resident_bytes = kibibytes > u64_max / 1024 ? u64_max : kibibytes * 1024;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::process_backend

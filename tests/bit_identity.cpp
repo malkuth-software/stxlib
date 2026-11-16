@@ -563,15 +563,15 @@ int reduce_items() {
 
     // The pool gives the serial chunked bits at 3 threads; a disagreement
     // is a failure on this host, whatever the frozen values say.
-    stxlib::Result<stxlib::AtomicPool> created = stxlib::AtomicPool::create(3);
+    stxlib::OperationResult<stxlib::AtomicPool> created = stxlib::AtomicPool::create(3);
     if (!created.succeeded()) {
         std::printf("# reduce.pooled: no pool\n");
         return 1;
     }
     stxlib::AtomicPool pool = std::move(created).take_value();
-    const stxlib::Result<double> pooled_sum = fr::pooled_sum(pool, left_view);
-    const stxlib::Result<double> pooled_dot = fr::pooled_dot(pool, left_view, right_view);
-    const stxlib::Result<float> pooled_narrow = fr::pooled_sum(pool, narrow_view);
+    const stxlib::OperationResult<double> pooled_sum = fr::pooled_sum(pool, left_view);
+    const stxlib::OperationResult<double> pooled_dot = fr::pooled_dot(pool, left_view, right_view);
+    const stxlib::OperationResult<float> pooled_narrow = fr::pooled_sum(pool, narrow_view);
     const bool agreed = pooled_sum.succeeded() && pooled_dot.succeeded() && pooled_narrow.succeeded() &&
                         std::bit_cast<std::uint64_t>(*pooled_sum.value()) == std::bit_cast<std::uint64_t>(chunked_sum) &&
                         std::bit_cast<std::uint64_t>(*pooled_dot.value()) == std::bit_cast<std::uint64_t>(chunked_dot) &&
@@ -592,7 +592,7 @@ int reduce_items() {
 // ---- Numeric text ---------------------------------------------------------------
 
 stxlib::TextView view_of(const char* const bytes, const usize count) {
-    stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes, count);
+    stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes, count);
     if (!validated.succeeded()) return stxlib::TextView();
     const stxlib::TextView result = std::move(validated).take_value();
     return result;

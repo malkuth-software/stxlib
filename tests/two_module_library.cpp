@@ -17,9 +17,9 @@ struct CallsBackForGate final {
     Callback callback{nullptr};
     void* context{nullptr};
 
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         callback(context);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
@@ -48,9 +48,9 @@ void run_in_library_frame(const Callback callback, void* const context) {
     stxlib::in_shadow_frame("test.library.frame", 5, 6, calls);
 }
 
-stxlib::Status run_in_library_gate(const Callback callback, void* const context) {
+stxlib::OperationStatus run_in_library_gate(const Callback callback, void* const context) {
     CallsBackForGate calls{callback, context};
-    const stxlib::Status result = stxlib::call_gate("test.library.gate", calls);
+    const stxlib::OperationStatus result = stxlib::call_gate("test.library.gate", calls);
     return result;
 }
 
@@ -64,8 +64,8 @@ stxlib::ErrorRecord library_record() {
     return result;
 }
 
-stxlib::Result<stxlib::EventWatch> library_watch_interrupts() {
-    stxlib::Result<stxlib::EventWatch> result =
+stxlib::OperationResult<stxlib::EventWatch> library_watch_interrupts() {
+    stxlib::OperationResult<stxlib::EventWatch> result =
         stxlib::EventWatch::watch(stxlib::EventSet().with(stxlib::ProcessEvent::interrupt));
     return result;
 }

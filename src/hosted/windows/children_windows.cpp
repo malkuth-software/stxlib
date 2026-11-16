@@ -311,17 +311,17 @@ void Child::release() noexcept {
     if (process != none) (void)CloseHandle(handle_of(process));
 }
 
-Result<Child> Child::start(const ChildRequest& request) noexcept {
+OperationResult<Child> Child::start(const ChildRequest& request) noexcept {
     const Operation operation = "stxlib.children.start";
-    const Status checked = children_detail::check_request(request);
-    if (checked.failed()) return Result<Child>::failure(*checked.error());
+    const OperationStatus checked = children_detail::check_request(request);
+    if (checked.failed()) return OperationResult<Child>::failure(*checked.error());
     const ErrorRecord exhausted = host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none);
     Growable<wchar_t> application;
     const Resolved found = resolve_program(request.program, application);
-    if (found == Resolved::out_of_memory) return Result<Child>::failure(exhausted);
-    if (found == Resolved::host_error) return Result<Child>::failure(last_error(operation));
+    if (found == Resolved::out_of_memory) return OperationResult<Child>::failure(exhausted);
+    if (found == Resolved::host_error) return OperationResult<Child>::failure(last_error(operation));
     if (found == Resolved::refused) {
-        return Result<Child>::failure(host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value));
+        return OperationResult<Child>::failure(host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value));
     }
 
     SECURITY_ATTRIBUTES inheritable{};
@@ -330,20 +330,20 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     OwnedHandle null_input;
     null_input.value = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritable,
                                    OPEN_EXISTING, 0, nullptr);
-    if (null_input.value == INVALID_HANDLE_VALUE) return Result<Child>::failure(last_error(operation));
+    if (null_input.value == INVALID_HANDLE_VALUE) return OperationResult<Child>::failure(last_error(operation));
     OwnedHandle output_reader;
     OwnedHandle output_writer;
     if (request.streams == ChildStreams::capture) {
         HANDLE reader = nullptr;
         HANDLE writer = nullptr;
-        if (!CreatePipe(&reader, &writer, &inheritable, 0)) return Result<Child>::failure(last_error(operation));
+        if (!CreatePipe(&reader, &writer, &inheritable, 0)) return OperationResult<Child>::failure(last_error(operation));
         output_reader.value = reader;
         output_writer.value = writer;
         (void)SetHandleInformation(reader, HANDLE_FLAG_INHERIT, 0);
     } else if (request.streams == ChildStreams::discard) {
         output_writer.value = CreateFileW(L"NUL", GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, &inheritable,
                                           OPEN_EXISTING, 0, nullptr);
-        if (output_writer.value == INVALID_HANDLE_VALUE) return Result<Child>::failure(last_error(operation));
+        if (output_writer.value == INVALID_HANDLE_VALUE) return OperationResult<Child>::failure(last_error(operation));
     }
     STARTUPINFOEXW startup{};
     startup.StartupInfo.cb = sizeof startup;
@@ -403,25 +403,25 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     AttributeList attributes;
     SIZE_T list_bytes = 0;
     (void)InitializeProcThreadAttributeList(nullptr, 1, 0, &list_bytes);
-    if (!attributes.storage.resize(list_bytes)) return Result<Child>::failure(exhausted);
+    if (!attributes.storage.resize(list_bytes)) return OperationResult<Child>::failure(exhausted);
     if (!InitializeProcThreadAttributeList(attributes.list(), 1, 0, &list_bytes)) {
-        return Result<Child>::failure(last_error(operation));
+        return OperationResult<Child>::failure(last_error(operation));
     }
     attributes.ready = true;
     if (!UpdateProcThreadAttribute(attributes.list(), 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, handles,
                                    handle_count * sizeof(HANDLE), nullptr, nullptr)) {
-        return Result<Child>::failure(last_error(operation));
+        return OperationResult<Child>::failure(last_error(operation));
     }
     startup.lpAttributeList = attributes.list();
 
     Growable<wchar_t> command_line;
-    if (!append_quoted(command_line, request.program)) return Result<Child>::failure(exhausted);
+    if (!append_quoted(command_line, request.program)) return OperationResult<Child>::failure(exhausted);
     for (usize index = 0; index < request.arguments.count(); ++index) {
         if (!command_line.push(L' ') || !append_quoted(command_line, request.arguments[index])) {
-            return Result<Child>::failure(exhausted);
+            return OperationResult<Child>::failure(exhausted);
         }
     }
-    if (!utf16::terminate(command_line)) return Result<Child>::failure(exhausted);
+    if (!utf16::terminate(command_line)) return OperationResult<Child>::failure(exhausted);
     DWORD flags = EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT;
     if (request.detached) flags = flags | DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP;
     PROCESS_INFORMATION information{};
@@ -429,20 +429,20 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
     // file comment); the command line still begins with the program as given.
     if (!CreateProcessW(application.data(), command_line.data(), nullptr, nullptr, TRUE, flags, nullptr, nullptr,
                         &startup.StartupInfo, &information)) {
-        return Result<Child>::failure(last_error(operation));
+        return OperationResult<Child>::failure(last_error(operation));
     }
     (void)CloseHandle(information.hThread);
     Child child;
     child.process_ = value_of(information.hProcess);
     child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? value_of(output_reader.release()) : none;
-    Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
+    OperationResult<Child> result = OperationResult<Child>::success(static_cast<Child&&>(child));
     return result;
 }
 
-Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
+OperationResult<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return OperationResult<ChildEnd>::failure(children_detail::invalid_state(operation));
     // timed_out means IntervalTime::now() has reached the deadline
     // (children.hpp), as on POSIX hosts. WaitForSingleObject's interval is
     // whole milliseconds counted on the system timer, whose accuracy
@@ -465,27 +465,27 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
         outcome = WaitForSingleObject(handle_of(process_), wait_milliseconds);
         if (outcome != WAIT_TIMEOUT) break;
         if (!(IntervalTime::now() < deadline)) {
-            return Result<ChildEnd>::failure(
+            return OperationResult<ChildEnd>::failure(
                 host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
         }
     }
-    if (outcome != WAIT_OBJECT_0) return Result<ChildEnd>::failure(last_error(operation));
+    if (outcome != WAIT_OBJECT_0) return OperationResult<ChildEnd>::failure(last_error(operation));
     DWORD code = 0;
-    if (!GetExitCodeProcess(handle_of(process_), &code)) return Result<ChildEnd>::failure(last_error(operation));
+    if (!GetExitCodeProcess(handle_of(process_), &code)) return OperationResult<ChildEnd>::failure(last_error(operation));
     phase_ = Phase::waited;
-    return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(code)));
+    return OperationResult<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(code)));
 }
 
-Status Child::kill() noexcept {
+OperationStatus Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
-    if (!TerminateProcess(handle_of(process_), 1)) return Status::failure(last_error(operation));
-    return Status::success();
+    if (phase_ != Phase::running) return OperationStatus::failure(children_detail::invalid_state(operation));
+    if (!TerminateProcess(handle_of(process_), 1)) return OperationStatus::failure(last_error(operation));
+    return OperationStatus::success();
 }
 
-Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
+OperationResult<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const Operation operation = "stxlib.children.read_output";
-    if (output_ == none) return Result<Buffer<Byte>>::failure(children_detail::invalid_state(operation));
+    if (output_ == none) return OperationResult<Buffer<Byte>>::failure(children_detail::invalid_state(operation));
     const HANDLE pipe = handle_of(output_);
     Growable<Byte> output;
     bool over_limit = false;
@@ -507,11 +507,11 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     }
     output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)CloseHandle(pipe);
-    if (failed_error != 0) return Result<Buffer<Byte>>::failure(record_of_error(failed_error, operation));
+    if (failed_error != 0) return OperationResult<Buffer<Byte>>::failure(record_of_error(failed_error, operation));
     if (exhausted) {
-        return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
     }
-    Result<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
+    OperationResult<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
     return result;
 }
 

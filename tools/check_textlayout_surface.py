@@ -9,7 +9,7 @@ which is what runs: it lists every symbol the two objects leave undefined,
 removes those the other defines, and fails unless each remaining one is
 
   - a symbol of namespace stxlib (the workspaces' storage goes through
-    stxlib's allocation entry, and failures are stxlib's Status and Error):
+    stxlib's allocation entry, and failures are stxlib's OperationStatus and Error):
     an Itanium-mangled name with the component "6stxlib"; or
   - a helper the toolchain itself emits: block set and copy (memset,
     memcpy, memmove, bzero), the stack protector's symbols, the global

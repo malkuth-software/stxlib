@@ -83,16 +83,16 @@ public:
 
     // Makes the store ready for `font`, holding nothing yet. `limits` are
     // those every glyph is read under.
-    [[nodiscard]] Status open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits = StoreLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits = StoreLimits{}) noexcept;
 
     // Reads the glyphs of these characters into the kept part, in order,
     // for as long as there is room there; a character the font has no
     // glyph for, or whose glyph is refused, is passed over. `kept` is how
     // many glyphs are in the kept part afterwards.
-    [[nodiscard]] Status keep(const Font& font, View<u32> characters, usize& kept) noexcept;
+    [[nodiscard]] OperationStatus keep(const Font& font, View<u32> characters, usize& kept) noexcept;
 
     // The glyph, read from `font` (the font opened) if it is not held.
-    [[nodiscard]] Status glyph(const Font& font, u32 glyph, StoredGlyph& stored) noexcept;
+    [[nodiscard]] OperationStatus glyph(const Font& font, u32 glyph, StoredGlyph& stored) noexcept;
 
     // How many times a glyph has been read from the font so far.
     [[nodiscard]] usize glyphs_read() const noexcept { return read_; }
@@ -131,7 +131,7 @@ private:
 
     [[nodiscard]] bool put(u32 part, u32 glyph, i32 advance, View<Point> points, View<PointTag> tags, View<u32> contour_ends) noexcept;
     void give_up(u32 part) noexcept;
-    [[nodiscard]] Status place(const Font& font, u32 glyph, bool in_kept, StoredGlyph& stored) noexcept;
+    [[nodiscard]] OperationStatus place(const Font& font, u32 glyph, bool in_kept, StoredGlyph& stored) noexcept;
 
     // For each glyph of the font, where it is: 0 for nowhere; else the
     // part in the low two bits (3: refused) and above them the record's

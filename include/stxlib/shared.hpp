@@ -164,7 +164,7 @@ public:
     // constructing nothing, when the allocator refuses. A Value derived from
     // SharedFromThis gets its link to the block here.
     template <typename... Arguments>
-    [[nodiscard]] static Result<Shared> make(Arguments&&... arguments) noexcept {
+    [[nodiscard]] static OperationResult<Shared> make(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Value, Arguments&&...),
                       "Shared::make needs a nothrow constructor for these arguments");
         static_assert(detail::nothrow_destructible<Value>, "Shared's Value must be nothrow destructible");
@@ -173,7 +173,7 @@ public:
         void* const block = detail::vocabulary_allocate(offset + sizeof(Value), alignment);
         if (block == nullptr) {
             const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.shared.make");
-            return Result<Shared>::failure(exhausted);
+            return OperationResult<Shared>::failure(exhausted);
         }
         detail::SharedHeader* const header = static_cast<detail::SharedHeader*>(block);
         (*header).owners = 1;
@@ -188,7 +188,7 @@ public:
         Shared result;
         result.object_ = object;
         result.header_ = header;
-        return Result<Shared>::success(static_cast<Shared&&>(result));
+        return OperationResult<Shared>::success(static_cast<Shared&&>(result));
     }
 
     // Another owner of the same object.

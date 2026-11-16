@@ -337,29 +337,29 @@ Thread& Thread::operator=(Thread&& other) noexcept {
     return *this;
 }
 
-Result<Thread> Thread::start(const Entry entry, void* const context, const usize stack_bytes) noexcept {
+OperationResult<Thread> Thread::start(const Entry entry, void* const context, const usize stack_bytes) noexcept {
     const Operation operation = "stxlib.threads.start";
     if (entry == nullptr) {
         const ErrorRecord refused = ErrorRecord::make(
             ErrorKind::invalid_argument, operation,
             ErrorDetail{.code = static_cast<u32>(ThreadFailure::no_entry), .message = "a thread needs an entry"});
-        return Result<Thread>::failure(refused);
+        return OperationResult<Thread>::failure(refused);
     }
     if (stack_bytes < minimum_thread_stack_bytes || stack_bytes > maximum_thread_stack_bytes) {
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::invalid_argument, operation,
                               ErrorDetail{.code = static_cast<u32>(ThreadFailure::stack_size_out_of_range),
                                           .message = "a thread's stack size is outside STXlib's bounds"});
-        return Result<Thread>::failure(refused);
+        return OperationResult<Thread>::failure(refused);
     }
     const u64 identity = issue_identity();
     if (identity == 0) {
         const ErrorRecord exhausted = ErrorRecord::make(
             ErrorKind::limit_exceeded, operation, ErrorDetail{.message = "every thread identity has been issued"});
-        return Result<Thread>::failure(exhausted);
+        return OperationResult<Thread>::failure(exhausted);
     }
     void* const block = memory::allocate(sizeof(State), alignof(State));
-    if (block == nullptr) return Result<Thread>::failure(ErrorRecord::make(ErrorKind::out_of_memory, operation));
+    if (block == nullptr) return OperationResult<Thread>::failure(ErrorRecord::make(ErrorKind::out_of_memory, operation));
     State* const created = ::new (block) State();
     (*created).entry = entry;
     (*created).context = context;
@@ -370,9 +370,9 @@ Result<Thread> Thread::start(const Entry entry, void* const context, const usize
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::limit_exceeded, operation,
                               ErrorDetail{.foreign = host_failure, .message = "the host refused another thread"});
-        return Result<Thread>::failure(refused);
+        return OperationResult<Thread>::failure(refused);
     }
-    Result<Thread> result = Result<Thread>::success(Thread(created));
+    OperationResult<Thread> result = OperationResult<Thread>::success(Thread(created));
     return result;
 }
 

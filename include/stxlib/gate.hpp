@@ -11,7 +11,7 @@
 // call_gate(operation, target, arguments...)
 //   For a boundary that recovers (a C ABI slot, a trampoline entry, an
 //   interface module's call into the host's C++ library). Calls
-//   target(arguments...), which returns Status or Result<Value>, and
+//   target(arguments...), which returns OperationStatus or OperationResult<Value>, and
 //   returns its result. An exception that leaves the target is caught here,
 //   turned into an error record for `operation` and returned as the same
 //   type's failure. Unwinding therefore runs only inside the caller's side,
@@ -24,7 +24,7 @@
 // call_as_result(operation, target, arguments...)
 // call_as_result_classified(classifier, operation, target, arguments...)
 //   As the two above, for a target that returns a plain value or nothing:
-//   the value comes back as Result<Value>'s success (nothing as Status's),
+//   the value comes back as OperationResult<Value>'s success (nothing as OperationStatus's),
 //   and an exception as the failure. For code that offers a result-returning
 //   form of an operation whose implementation still throws (notes
 //   planning/stages/A3-no-exceptions.md, stage G4); built without
@@ -117,11 +117,11 @@ struct IsGateResult final {
     static constexpr bool value = false;
 };
 template <>
-struct IsGateResult<Status> final {
+struct IsGateResult<OperationStatus> final {
     static constexpr bool value = true;
 };
 template <typename Value>
-struct IsGateResult<Result<Value>> final {
+struct IsGateResult<OperationResult<Value>> final {
     static constexpr bool value = true;
 };
 
@@ -163,15 +163,15 @@ struct WithoutConst<const Value> final {
     using Type = Value;
 };
 
-// What call_as_result returns for a target returning Return: Status for
-// void, Result<Return> (without const) otherwise.
+// What call_as_result returns for a target returning Return: OperationStatus for
+// void, OperationResult<Return> (without const) otherwise.
 template <typename Return>
 struct AsResult final {
-    using Type = Result<typename WithoutConst<Return>::Type>;
+    using Type = OperationResult<typename WithoutConst<Return>::Type>;
 };
 template <>
 struct AsResult<void> final {
-    using Type = Status;
+    using Type = OperationStatus;
 };
 
 // A gate target that calls `target` and returns what it returns as a
@@ -186,11 +186,11 @@ struct ReturnsAsResult final {
         using Return = typename TargetReturn<Target, Arguments...>::Type;
         if constexpr (SameType<Return, void>::value) {
             target(arguments...);
-            return Status::success();
+            return OperationStatus::success();
         } else {
             using Value = typename WithoutConst<Return>::Type;
             Value value = target(arguments...);
-            return Result<Value>::success(static_cast<Value&&>(value));
+            return OperationResult<Value>::success(static_cast<Value&&>(value));
         }
     }
 };
@@ -199,7 +199,7 @@ struct ReturnsAsResult final {
 template <typename Return>
 struct AsResultTarget final {
     static_assert(!IsGateResult<typename WithoutConst<Return>::Type>::value,
-                  "the target returns Status or Result already: use call_gate");
+                  "the target returns OperationStatus or OperationResult already: use call_gate");
     static_assert(!IsReference<Return>::value,
                   "call_as_result does not carry a reference: return a value or a pointer");
     using Type = typename AsResult<Return>::Type;
@@ -254,7 +254,7 @@ template <typename Target, typename... Arguments>
                                                                                   Target& target,
                                                                                   Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-    static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
+    static_assert(detail::IsGateResult<Return>::value, "a gated target returns OperationStatus or OperationResult<Value>");
 #if defined(__cpp_exceptions)
     try {
         detail::ShadowFrameScope frame(detail::push_of(frame_at));
@@ -287,7 +287,7 @@ template <typename Target, typename... Arguments>
 [[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate_classified(
     const ExceptionClassifier& classifier, const GateFrame frame_at, Target& target, Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-    static_assert(detail::IsGateResult<Return>::value, "a gated target returns Status or Result<Value>");
+    static_assert(detail::IsGateResult<Return>::value, "a gated target returns OperationStatus or OperationResult<Value>");
 #if defined(__cpp_exceptions)
     try {
         detail::ShadowFrameScope frame(detail::push_of(frame_at));

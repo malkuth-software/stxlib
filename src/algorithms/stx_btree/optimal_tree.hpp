@@ -42,7 +42,7 @@
 //
 // STXlib adaptation (from stx_auxlib b6e330a, btree/include/stx_btree/
 // optimal_tree.hpp; private to STXlib, namespace stxlib::stx_btree): every
-// construction returns Result<SearchTree> where stx_auxlib returned the
+// construction returns OperationResult<SearchTree> where stx_auxlib returned the
 // tree and threw. invalid_argument stands for std::invalid_argument
 // (malformed weights, garsia_wachs on a nonzero key weight, an unknown
 // construction), and out_of_memory for working storage that cannot be had
@@ -116,7 +116,7 @@ inline constexpr std::size_t maximum_table_cells = static_cast<std::size_t>(1) <
 
 class OptimalTreeBuilder final {
 public:
-    [[nodiscard]] static Result<SearchTree> build(const SearchWeights& weights, TreeConstruction construction) noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> build(const SearchWeights& weights, TreeConstruction construction) noexcept {
         switch (construction) {
         case TreeConstruction::knuth:
             return knuth(weights);
@@ -133,7 +133,7 @@ public:
         }
         const ErrorRecord unknown = ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.stx_btree.optimal_tree",
                                                       ErrorDetail{.message = "unknown tree construction"});
-        return Result<SearchTree>::failure(unknown);
+        return OperationResult<SearchTree>::failure(unknown);
     }
 
     // ---- Knuth -------------------------------------------------------------
@@ -142,10 +142,10 @@ public:
     // previous length left at i and i + 1, and overwrites i only after both
     // are read; so one array of roots serves, not a table. The final tree's
     // roots are recovered afterwards (recovered_tree).
-    [[nodiscard]] static Result<SearchTree> knuth(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> knuth(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         std::size_t cells = 0;
         if (!triangle_cells(weights.keys.count(), cells)) {
@@ -162,10 +162,10 @@ public:
     // cell (i, j) being written, and the left terms C(i, r) are the current
     // row, kept in one array. root(i, j - 1) is the previous cell's root and
     // root(i + 1, j) the previous row's, again one array.
-    [[nodiscard]] static Result<SearchTree> knuth_scattered(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> knuth_scattered(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         std::size_t cells = 0;
         if (!triangle_cells(weights.keys.count(), cells)) {
@@ -179,10 +179,10 @@ public:
 
     // ---- Weight-balanced bisection ---------------------------------------
 
-    [[nodiscard]] static Result<SearchTree> weight_balanced(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> weight_balanced(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         const std::size_t key_count = weights.keys.count();
         detail::Array<ExactCost> prefix;
@@ -219,10 +219,10 @@ public:
     // search tree with exactly those depths (Garsia and Wachs 1977; Knuth,
     // TAOCP 6.2.2). The working list is an array, so a combination shifts its
     // tail: O(n log n) comparisons, O(n^2) element moves at worst.
-    [[nodiscard]] static Result<SearchTree> garsia_wachs(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> garsia_wachs(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         const std::size_t key_count = weights.keys.count();
         std::size_t key = 0;
@@ -231,12 +231,12 @@ public:
                 const ErrorRecord refused = ErrorRecord::make(
                     ErrorKind::invalid_argument, "stxlib.stx_btree.optimal_tree",
                     ErrorDetail{.message = "garsia_wachs needs every key weight zero"});
-                return Result<SearchTree>::failure(refused);
+                return OperationResult<SearchTree>::failure(refused);
             }
         }
         SearchTree tree;
         if (key_count == 0) {
-            return Result<SearchTree>::success(std::move(tree));
+            return OperationResult<SearchTree>::success(std::move(tree));
         }
         const std::size_t leaf_count = key_count + 1;
         // Nodes 0..n are the gaps; each combination adds one.
@@ -335,10 +335,10 @@ public:
     // A tree's cost with constant key weight p and gap weight q is
     // (p + q) I + n p + 2 n q for internal path length I, so this tree is
     // optimal for such weights; for others it is only balanced.
-    [[nodiscard]] static Result<SearchTree> balanced(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> balanced(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         const std::size_t key_count = weights.keys.count();
         detail::Array<KeyIndex> parent;
@@ -372,15 +372,15 @@ public:
     // the hanging subtrees as atoms). A join costs the square of the two
     // spines' lengths; spines are short on most weights and as long as the
     // half on a geometric ramp.
-    [[nodiscard]] static Result<SearchTree> bottom_up(const SearchWeights& weights) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+    [[nodiscard]] static OperationResult<SearchTree> bottom_up(const SearchWeights& weights) noexcept {
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (!valid.succeeded()) {
-            return Result<SearchTree>::failure(*valid.error());
+            return OperationResult<SearchTree>::failure(*valid.error());
         }
         const std::size_t key_count = weights.keys.count();
         SearchTree tree;
         if (key_count == 0) {
-            return Result<SearchTree>::success(std::move(tree));
+            return OperationResult<SearchTree>::success(std::move(tree));
         }
         BottomUpState state;
         if (!mass_prefix(weights, state.prefix) || !state.left.assign(key_count, no_key) ||
@@ -398,12 +398,12 @@ public:
         tree.shape.root = root;
         tree.shape.left = std::move(state.left);
         tree.shape.right = std::move(state.right);
-        const Result<ExactCost> cost = BinaryTreeRules::cost(tree.shape, weights);
+        const OperationResult<ExactCost> cost = BinaryTreeRules::cost(tree.shape, weights);
         if (!cost.succeeded()) {
-            return Result<SearchTree>::failure(*cost.error());
+            return OperationResult<SearchTree>::failure(*cost.error());
         }
         tree.cost = *cost.value();
-        return Result<SearchTree>::success(std::move(tree));
+        return OperationResult<SearchTree>::success(std::move(tree));
     }
 
 private:
@@ -432,15 +432,15 @@ private:
         std::size_t last_leaf;
     };
 
-    [[nodiscard]] static Result<SearchTree> exhausted() noexcept {
-        return Result<SearchTree>::failure(BinaryTreeRules::exhausted());
+    [[nodiscard]] static OperationResult<SearchTree> exhausted() noexcept {
+        return OperationResult<SearchTree>::failure(BinaryTreeRules::exhausted());
     }
 
-    [[nodiscard]] static Result<SearchTree> too_large() noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> too_large() noexcept {
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.stx_btree.optimal_tree",
                               ErrorDetail{.message = "the construction's table would exceed maximum_table_cells"});
-        return Result<SearchTree>::failure(refused);
+        return OperationResult<SearchTree>::failure(refused);
     }
 
     // (n + 1)(n + 2) / 2, the cells of Knuth's triangle over n keys, into
@@ -477,18 +477,18 @@ private:
     }
 
     // The tree with these parents, and its cost.
-    [[nodiscard]] static Result<SearchTree> tree_from_parents(const detail::Array<KeyIndex>& parent,
+    [[nodiscard]] static OperationResult<SearchTree> tree_from_parents(const detail::Array<KeyIndex>& parent,
                                                               const SearchWeights& weights) noexcept {
         SearchTree tree;
         if (!BinaryTreeRules::from_parents(parent, tree.shape)) {
             return exhausted();
         }
-        const Result<ExactCost> cost = BinaryTreeRules::cost(tree.shape, weights);
+        const OperationResult<ExactCost> cost = BinaryTreeRules::cost(tree.shape, weights);
         if (!cost.succeeded()) {
-            return Result<SearchTree>::failure(*cost.error());
+            return OperationResult<SearchTree>::failure(*cost.error());
         }
         tree.cost = *cost.value();
-        return Result<SearchTree>::success(std::move(tree));
+        return OperationResult<SearchTree>::success(std::move(tree));
     }
 
     // Cells (i, j), 0 <= i <= j <= n, row by row: row i starts at offset[i] + i.
@@ -569,7 +569,7 @@ private:
     }
 
     template <typename Cost>
-    [[nodiscard]] static Result<SearchTree> knuth_by_diagonals(const SearchWeights& weights) noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> knuth_by_diagonals(const SearchWeights& weights) noexcept {
         const std::size_t key_count = weights.keys.count();
         detail::Array<Cost> prefix;
         RowTriangle<Cost> table;
@@ -611,7 +611,7 @@ private:
     }
 
     template <typename Cost>
-    [[nodiscard]] static Result<SearchTree> knuth_by_rows(const SearchWeights& weights) noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> knuth_by_rows(const SearchWeights& weights) noexcept {
         const std::size_t key_count = weights.keys.count();
         detail::Array<Cost> prefix;
         ColumnTriangle<Cost> table;
@@ -660,7 +660,7 @@ private:
     // exact in integers, which is the leftmost optimal root, the one the
     // restricted search above settles on as well.
     template <typename Cost, typename Table>
-    [[nodiscard]] static Result<SearchTree> recovered_tree(const SearchWeights& weights, const detail::Array<Cost>& prefix,
+    [[nodiscard]] static OperationResult<SearchTree> recovered_tree(const SearchWeights& weights, const detail::Array<Cost>& prefix,
                                                            const Table& table) noexcept {
         const std::size_t key_count = weights.keys.count();
         detail::Array<KeyIndex> parent;
@@ -695,7 +695,7 @@ private:
         if (!BinaryTreeRules::from_parents(parent, tree.shape)) {
             return exhausted();
         }
-        return Result<SearchTree>::success(std::move(tree));
+        return OperationResult<SearchTree>::success(std::move(tree));
     }
 
     // One chain interval (a, b) waiting to be linked: first its two halves,

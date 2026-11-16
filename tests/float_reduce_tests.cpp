@@ -220,7 +220,7 @@ void chunks() {
 }
 
 stxlib::AtomicPool make_pool(const stxlib::u32 thread_count) {
-    stxlib::Result<stxlib::AtomicPool> created = stxlib::AtomicPool::create(thread_count);
+    stxlib::OperationResult<stxlib::AtomicPool> created = stxlib::AtomicPool::create(thread_count);
     CHECK(created.succeeded());
     stxlib::AtomicPool result = std::move(created).take_value();
     return result;
@@ -240,9 +240,9 @@ void pool() {
             const stxlib::View<double> left_view(left.data(), count);
             const stxlib::View<double> right_view(right.data(), count);
             const stxlib::View<float> narrow_view(narrow.data(), count);
-            const stxlib::Result<double> sum = fr::pooled_sum(workers, left_view);
-            const stxlib::Result<double> dot = fr::pooled_dot(workers, left_view, right_view);
-            const stxlib::Result<float> narrow_sum = fr::pooled_sum(workers, narrow_view);
+            const stxlib::OperationResult<double> sum = fr::pooled_sum(workers, left_view);
+            const stxlib::OperationResult<double> dot = fr::pooled_dot(workers, left_view, right_view);
+            const stxlib::OperationResult<float> narrow_sum = fr::pooled_sum(workers, narrow_view);
             CHECK(sum.succeeded() && dot.succeeded() && narrow_sum.succeeded());
             if (!sum.succeeded() || !dot.succeeded() || !narrow_sum.succeeded()) continue;
             CHECK(same_bits(*sum.value(), fr::chunked_sum(left_view)));
@@ -268,7 +268,7 @@ struct WorkerCall final {
 void reduce_on_worker(void* const argument) noexcept {
     WorkerCall& call = *static_cast<WorkerCall*>(argument);
     const stxlib::View<double> view(call.terms, 16);
-    const stxlib::Result<double> attempt = fr::pooled_sum(*call.pool, view);
+    const stxlib::OperationResult<double> attempt = fr::pooled_sum(*call.pool, view);
     call.refused = !attempt.succeeded();
     if (call.refused) call.kind = (*attempt.error()).kind();
 }
@@ -286,7 +286,7 @@ void pool_refusals() {
     // An empty pool refuses with the pool's own record.
     stxlib::AtomicPool empty;
     const stxlib::View<double> view(terms.data(), terms.size());
-    const stxlib::Result<double> refused = fr::pooled_sum(empty, view);
+    const stxlib::OperationResult<double> refused = fr::pooled_sum(empty, view);
     CHECK(!refused.succeeded());
 }
 

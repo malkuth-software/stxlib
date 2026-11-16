@@ -38,12 +38,12 @@ constexpr Operation operation = "stxlib.files.known_directory";
 
 } // namespace
 
-Status user_database_home(Growable<char>& text) noexcept {
+OperationStatus user_database_home(Growable<char>& text) noexcept {
     text.clear();
     return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
 }
 
-Status known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
+OperationStatus known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
     text.clear();
     const GUID* folder = nullptr;
     switch (which) {
@@ -100,7 +100,7 @@ Status known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
     for (usize index = 0; index < text.count(); ++index) {
         if (text[index] == '\\') text[index] = '/';
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::directories_backend

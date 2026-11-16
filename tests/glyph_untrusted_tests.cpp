@@ -445,7 +445,7 @@ void search_maps() {
     stxlib::Vector<glyphs::Segment> kinds{};
     stxlib::Vector<glyphs::Point> points{};
     for (int scaled = 0; scaled < 2; ++scaled) {
-        const stxlib::Status status =
+        const stxlib::OperationStatus status =
             scaled == 0 ? glyphs::load_glyph(font, glyph, limits, outline) : glyphs::load_scaled_glyph(font, glyph, 70001, 65000, limits, outline);
         if (status.failed()) continue;
         loaded = loaded + 1;

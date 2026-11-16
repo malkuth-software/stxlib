@@ -22,7 +22,7 @@ constexpr Operation operation = "stxlib.files.known_directory";
 
 } // namespace
 
-Status user_database_home(Growable<char>& text) noexcept {
+OperationStatus user_database_home(Growable<char>& text) noexcept {
     text.clear();
     const long suggested = ::sysconf(_SC_GETPW_R_SIZE_MAX);
     usize capacity = suggested > 0 ? static_cast<usize>(suggested) : 1024;
@@ -47,11 +47,11 @@ Status user_database_home(Growable<char>& text) noexcept {
         if (!text.append(entry.pw_dir, std::strlen(entry.pw_dir))) {
             return host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
         }
-        return Status::success();
+        return OperationStatus::success();
     }
 }
 
-Status known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
+OperationStatus known_folder(const KnownDirectory which, Growable<char>& text) noexcept {
     static_cast<void>(which);
     text.clear();
     return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);

@@ -34,7 +34,7 @@
 //
 // STXlib adaptation (from stx_auxlib b6e330a, btree/include/stx_btree/
 // optimal_map.hpp; private to STXlib, namespace stxlib::stx_btree):
-// - build returns a Result (invalid_argument for mismatched lengths, too
+// - build returns a OperationResult (invalid_argument for mismatched lengths, too
 //   many keys or unsorted keys, the tree construction's own failures, and
 //   out_of_memory when storage cannot be had) where stx_auxlib threw;
 // - build takes the keys and values as caller storage (MutableView) and
@@ -254,24 +254,24 @@ public:
     // mismatched lengths, too many keys or unsorted keys, and whatever the
     // chosen tree construction refuses; out_of_memory when storage cannot
     // be had.
-    [[nodiscard]] static Result<OptimalMap> build(
+    [[nodiscard]] static OperationResult<OptimalMap> build(
         MutableView<Key> keys, MutableView<Value> values, const SearchWeights& weights,
         const OptimalMapPlan& plan) noexcept {
-        const Status valid = SearchWeightRules::validate(weights);
+        const OperationStatus valid = SearchWeightRules::validate(weights);
         if (valid.failed()) {
-            return Result<OptimalMap>::failure(*valid.error());
+            return OperationResult<OptimalMap>::failure(*valid.error());
         }
         if (keys.count() != values.count() || keys.count() != weights.keys.count()) {
             const ErrorRecord refused = ErrorRecord::make(
                 ErrorKind::invalid_argument, "stxlib.stx_btree.optimal_map",
                 ErrorDetail{.message = "keys, values and key weights differ in length"});
-            return Result<OptimalMap>::failure(refused);
+            return OperationResult<OptimalMap>::failure(refused);
         }
         if (keys.count() > static_cast<std::size_t>(std::numeric_limits<std::uint32_t>::max())) {
             const ErrorRecord refused = ErrorRecord::make(
                 ErrorKind::invalid_argument, "stxlib.stx_btree.optimal_map",
                 ErrorDetail{.message = "too many keys for the static map"});
-            return Result<OptimalMap>::failure(refused);
+            return OperationResult<OptimalMap>::failure(refused);
         }
         std::size_t index = 0;
         for (index = 1; index < keys.count(); index += 1) {
@@ -280,19 +280,19 @@ public:
                 const ErrorRecord refused = ErrorRecord::make(
                     ErrorKind::invalid_argument, "stxlib.stx_btree.optimal_map",
                     ErrorDetail{.message = "keys are not strictly ascending"});
-                return Result<OptimalMap>::failure(refused);
+                return OperationResult<OptimalMap>::failure(refused);
             }
         }
-        Result<SearchTree> built = OptimalTreeBuilder::build(weights, plan.tree);
+        OperationResult<SearchTree> built = OptimalTreeBuilder::build(weights, plan.tree);
         if (built.failed()) {
-            return Result<OptimalMap>::failure(*built.error());
+            return OperationResult<OptimalMap>::failure(*built.error());
         }
         const SearchTree& tree = *built.value();
         detail::PackedTree packed;
         detail::PackedTree laid;
         if (!detail::TreePacker::pack(tree.shape, weights, node_capacity, packed) ||
             !detail::ColdSubtreeLayout::relayout(packed, weights, node_capacity, plan.count_layout_slack_percent, laid)) {
-            return Result<OptimalMap>::failure(exhausted());
+            return OperationResult<OptimalMap>::failure(exhausted());
         }
         OptimalMap map;
         map.statistics.entries = keys.count();
@@ -300,9 +300,9 @@ public:
         map.statistics.packed_visits = packed.cost;
         map.statistics.expected_visits = laid.cost;
         if (!map.lay_out(laid, keys, values)) {
-            return Result<OptimalMap>::failure(exhausted());
+            return OperationResult<OptimalMap>::failure(exhausted());
         }
-        return Result<OptimalMap>::success(std::move(map));
+        return OperationResult<OptimalMap>::success(std::move(map));
     }
 
     [[nodiscard]] std::size_t size() const noexcept {

@@ -404,11 +404,11 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
 
 // The glyph's outline at the size, made afresh from the typeface into
 // work_kinds and work_points; `record` gets its advance and its box.
-[[nodiscard]] Status fit_outline(FaceState& state, const u32 glyph, const i64 size, const Fit fit, FittedRecord& record) noexcept {
+[[nodiscard]] OperationStatus fit_outline(FaceState& state, const u32 glyph, const i64 size, const Fit fit, FittedRecord& record) noexcept {
     i32 advance = 0;
-    const Status made = (*state.typeface).fit(glyph, size, fit, state.fitting, advance);
+    const OperationStatus made = (*state.typeface).fit(glyph, size, fit, state.fitting, advance);
     if (made.failed()) return made;
-    const Status cut = to_segments(state.fitting, state.work_kinds, state.work_points);
+    const OperationStatus cut = to_segments(state.fitting, state.work_kinds, state.work_points);
     if (cut.failed()) return cut;
     state.fittings = state.fittings + 1;
     record = FittedRecord{};
@@ -430,12 +430,12 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
             record.top = point.y > record.top ? point.y : record.top;
         }
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // The glyph's outline at the size: found among those held, or fitted and
 // held.
-[[nodiscard]] Status fitted_of(FaceState& state, const u32 glyph, const i64 size, const Fit fit, FittedGlyph& glyph_out) noexcept {
+[[nodiscard]] OperationStatus fitted_of(FaceState& state, const u32 glyph, const i64 size, const Fit fit, FittedGlyph& glyph_out) noexcept {
     const Operation operation("stxlib.glyphs.face");
     glyph_out = FittedGlyph{};
     if (glyph >= state.font.glyph_count || size <= 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
@@ -445,7 +445,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     const usize in_newer = find(newer, glyph, size_key, fit_key);
     if (in_newer != not_found) {
         give(newer, newer.records[in_newer], glyph_out);
-        return Status::success();
+        return OperationStatus::success();
     }
     const u32 older_index = state.newer == 0 ? 1U : 0U;
     FittedHalf& older = state.halves[older_index];
@@ -460,7 +460,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         for (usize index = 0; index < record.kind_count; ++index) state.work_kinds[index] = older.kinds[record.first_kind + index];
         for (usize index = 0; index < record.point_count; ++index) state.work_points[index] = older.points[record.first_point + index];
     } else {
-        const Status made = fit_outline(state, glyph, size, fit, record);
+        const OperationStatus made = fit_outline(state, glyph, size, fit, record);
         if (made.failed()) return made;
     }
     // A half holds a fifth of the limit: its storage grows by doubling,
@@ -478,7 +478,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         glyph_out.bottom = record.bottom;
         glyph_out.right = record.right;
         glyph_out.top = record.top;
-        return Status::success();
+        return OperationStatus::success();
     }
     if (state.held[state.newer] + cost > half_bytes || newer.records.count() >= half_records) {
         // The newer half is full: the older is given up and a new one
@@ -490,7 +490,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     FittedHalf& target = state.halves[state.newer];
     if (!put(state, state.newer, record, half_records)) return refuse_font(ErrorKind::out_of_memory, operation);
     give(target, target.records[target.records.count() - 1], glyph_out);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 
@@ -518,10 +518,10 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
 // A glyph as it is drawn: its fitted outline, taken through the style's
 // matrix if it has one (into `turned`) and thickened if the style says so
 // (into `thick`).
-[[nodiscard]] Status styled_outline(FaceState& state, const u32 glyph, const DrawStyle& style, Outline& outline) noexcept {
+[[nodiscard]] OperationStatus styled_outline(FaceState& state, const u32 glyph, const DrawStyle& style, Outline& outline) noexcept {
     const Operation operation("stxlib.glyphs.face");
     FittedGlyph fitted{};
-    const Status had = fitted_of(state, glyph, style.size, style.fit, fitted);
+    const OperationStatus had = fitted_of(state, glyph, style.size, style.fit, fitted);
     if (had.failed()) return had;
     outline = fitted.outline;
     if (style.transformed) {
@@ -544,7 +544,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         if (!thicken(outline, style.thicken, state.thick)) return refuse_font(ErrorKind::out_of_memory, operation);
         outline.points = state.thick.view();
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // ---- quarter turns ---------------------------------------------------------------------------------------
@@ -728,7 +728,7 @@ void empty(LatticeHalf& half) noexcept {
 // The box of the glyph's upright mask at no part of a pixel, in the
 // upright style (the style without its matrix): from its lattice if one is
 // held, else measured.
-[[nodiscard]] Status upright_box(FaceState& state, const u32 glyph, const DrawStyle& upright_style, Bounds& upright) noexcept {
+[[nodiscard]] OperationStatus upright_box(FaceState& state, const u32 glyph, const DrawStyle& upright_style, Bounds& upright) noexcept {
     const u32 size_key = static_cast<u32>(upright_style.size);
     const u32 thick_key = static_cast<u32>(upright_style.thicken);
     for (u32 number = 0; number < 2; ++number) {
@@ -736,13 +736,13 @@ void empty(LatticeHalf& half) noexcept {
         const usize found = find_lattice(half, glyph, size_key, thick_key);
         if (found != not_found) {
             upright = half.records[found].upright;
-            return Status::success();
+            return OperationStatus::success();
         }
     }
     Outline outline{};
-    const Status had = styled_outline(state, glyph, upright_style, outline);
+    const OperationStatus had = styled_outline(state, glyph, upright_style, outline);
     if (had.failed()) return had;
-    const Status measured = measure(outline, Point{}, state.limits.mask, upright);
+    const OperationStatus measured = measure(outline, Point{}, state.limits.mask, upright);
     return measured;
 }
 
@@ -757,7 +757,7 @@ void empty(LatticeHalf& half) noexcept {
 // mask and held. What is given is good until the next call on the face. A
 // glyph that takes none (no ink, or too large) is given its upright box and
 // no controls.
-[[nodiscard]] Status lattice_of(FaceState& state, const u32 glyph, const DrawStyle& upright_style, TurnLattice& lattice) noexcept {
+[[nodiscard]] OperationStatus lattice_of(FaceState& state, const u32 glyph, const DrawStyle& upright_style, TurnLattice& lattice) noexcept {
     const Operation operation("stxlib.glyphs.face");
     lattice = TurnLattice{};
     const u32 size_key = static_cast<u32>(upright_style.size);
@@ -767,7 +767,7 @@ void empty(LatticeHalf& half) noexcept {
     if (in_newer != not_found) {
         const LatticeRecord& record = newer.records[in_newer];
         lattice = TurnLattice{.controls = newer.controls.view().data() + record.first, .upright = record.upright};
-        return Status::success();
+        return OperationStatus::success();
     }
     const u32 older_index = state.lattices_newer == 0 ? 1U : 0U;
     LatticeHalf& older = state.lattices[older_index];
@@ -784,17 +784,17 @@ void empty(LatticeHalf& half) noexcept {
     } else {
         // The upright mask at no part of a pixel, and its surface.
         Outline outline{};
-        const Status had = styled_outline(state, glyph, upright_style, outline);
+        const OperationStatus had = styled_outline(state, glyph, upright_style, outline);
         if (had.failed()) return had;
         Bounds upright{};
-        const Status measured = measure(outline, Point{}, state.limits.mask, upright);
+        const OperationStatus measured = measure(outline, Point{}, state.limits.mask, upright);
         if (measured.failed()) return measured;
         if (!takes_lattice(upright)) {
             lattice.upright = upright;
-            return Status::success();
+            return OperationStatus::success();
         }
         if (state.glyph_pixels.resize(static_cast<usize>(upright.width) * upright.height).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-        const Status drawn = state.rasterizer.render(outline, Point{}, upright, state.limits.mask, state.glyph_pixels.mutable_view());
+        const OperationStatus drawn = state.rasterizer.render(outline, Point{}, upright, state.limits.mask, state.glyph_pixels.mutable_view());
         if (drawn.failed()) return drawn;
         if (!detail::build_lattice(state.glyph_pixels.view().data(), upright.width, upright.height, state.lattice_rows, state.lattice_work)) {
             return refuse_font(ErrorKind::out_of_memory, operation);
@@ -813,7 +813,7 @@ void empty(LatticeHalf& half) noexcept {
     if (cost > half_bytes || half_records == 0) {
         // Too large to hold: served from the working storage.
         lattice = TurnLattice{.controls = state.lattice_work.view().data(), .upright = record.upright};
-        return Status::success();
+        return OperationStatus::success();
     }
     if (state.lattices_held[state.lattices_newer] + cost > half_bytes || newer.records.count() >= half_records) {
         empty(older);
@@ -824,7 +824,7 @@ void empty(LatticeHalf& half) noexcept {
     if (!put_lattice(state, state.lattices_newer, record, half_records)) return refuse_font(ErrorKind::out_of_memory, operation);
     const LatticeRecord& kept = target.records[target.records.count() - 1];
     lattice = TurnLattice{.controls = target.controls.view().data() + kept.first, .upright = kept.upright};
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // Whether a style can be drawn in at all.
@@ -833,13 +833,13 @@ void empty(LatticeHalf& half) noexcept {
     return result;
 }
 
-[[nodiscard]] bool out_of_memory(const Status& status) noexcept {
+[[nodiscard]] bool out_of_memory(const OperationStatus& status) noexcept {
     const bool result = status.failed() && (*status.error()).kind() == ErrorKind::out_of_memory;
     return result;
 }
 
 // Every glyph of the run is placed (state.placed) and the run's box taken.
-[[nodiscard]] Status place_run(FaceState& state, const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
+[[nodiscard]] OperationStatus place_run(FaceState& state, const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
     const Operation operation("stxlib.glyphs.face");
     box = RunBox{};
     if (!style_is_valid(style)) return refuse_font(ErrorKind::invalid_argument, operation);
@@ -872,8 +872,8 @@ void empty(LatticeHalf& half) noexcept {
         // outline's axes is toward less y.
         placed.shift = Point{.x = glyph.x - placed.pixel_x * 64, .y = -(glyph.y - placed.pixel_y * 64)};
         Outline outline{};
-        Status had = Status::success();
-        Status measured = Status::success();
+        OperationStatus had = OperationStatus::success();
+        OperationStatus measured = OperationStatus::success();
         if (by_quarters) {
             // The upright glyph's box, turned.
             Bounds upright{};
@@ -928,17 +928,17 @@ void empty(LatticeHalf& half) noexcept {
         bottom = (!any || glyph_bottom > bottom) ? glyph_bottom : bottom;
         any = true;
     }
-    if (!any) return Status::success();
+    if (!any) return OperationStatus::success();
     if (right - left > state.limits.mask.width || bottom - top > state.limits.mask.height || left < -0x40000000LL || top < -0x40000000LL ||
         right > 0x40000000LL || bottom > 0x40000000LL) {
         box.oversized = true;
-        return Status::success();
+        return OperationStatus::success();
     }
     box.left = static_cast<i32>(left);
     box.top = static_cast<i32>(top);
     box.right = static_cast<i32>(right);
     box.bottom = static_cast<i32>(bottom);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 [[nodiscard]] usize bytes_of(const FittedHalf& half) noexcept {
@@ -1189,21 +1189,21 @@ Typeface::Typeface(Typeface&&) noexcept = default;
 Typeface& Typeface::operator=(Typeface&&) noexcept = default;
 Typeface::~Typeface() noexcept = default;
 
-Status Typeface::open(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
+OperationStatus Typeface::open(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
     const Operation operation("stxlib.glyphs.typeface");
     if (!state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
-    Result<Unique<detail::TypefaceState>> made = Unique<detail::TypefaceState>::make();
+    OperationResult<Unique<detail::TypefaceState>> made = Unique<detail::TypefaceState>::make();
     if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    Unique<detail::TypefaceState> fresh = static_cast<Result<Unique<detail::TypefaceState>>&&>(made).take_value();
+    Unique<detail::TypefaceState> fresh = static_cast<OperationResult<Unique<detail::TypefaceState>>&&>(made).take_value();
     TypefaceState& state = *fresh;
     state.limits = limits;
-    const Status opened = open_font(bytes, face_index, state.font);
+    const OperationStatus opened = open_font(bytes, face_index, state.font);
     if (opened.failed()) return opened;
-    const Status stored = state.store.open(state.font, limits.font, limits.store);
+    const OperationStatus stored = state.store.open(state.font, limits.font, limits.store);
     if (stored.failed()) return stored;
     note_peak(state);
     state_ = static_cast<Unique<detail::TypefaceState>&&>(fresh);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 const Font* Typeface::font() const noexcept {
@@ -1211,18 +1211,18 @@ const Font* Typeface::font() const noexcept {
     return result;
 }
 
-Status Typeface::keep(const View<u32> characters, usize& kept) noexcept {
+OperationStatus Typeface::keep(const View<u32> characters, usize& kept) noexcept {
     const Operation operation("stxlib.glyphs.typeface");
     kept = 0;
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     TypefaceState& state = *state_;
     const ScopedLock held(state.lock);
-    const Status status = state.store.keep(state.font, characters, kept);
+    const OperationStatus status = state.store.keep(state.font, characters, kept);
     note_peak(state);
     return status;
 }
 
-Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutline& outline, i32& advance) noexcept {
+OperationStatus Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutline& outline, i32& advance) noexcept {
     const Operation operation("stxlib.glyphs.typeface");
     advance = 0;
     outline.points.clear();
@@ -1236,13 +1236,13 @@ Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutlin
         // A TrueType glyph's parts are scaled each on its own: read at the
         // size, as its scaler has it.
         const i64 scale = scale_of(state.font, size);
-        const Status scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
+        const OperationStatus scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
         if (scaled.succeeded()) advance = times(advance_of(state.font, glyph), scale);
         note_peak(state);
         return scaled;
     }
     StoredGlyph stored{};
-    Status status = state.store.glyph(state.font, glyph, stored);
+    OperationStatus status = state.store.glyph(state.font, glyph, stored);
     if (status.succeeded() && fit == Fit::none) {
         // Scaled as load_scaled_glyph scales a CFF glyph (scale_outline:
         // the same rounding as times, and the reader's bound on the result).
@@ -1291,7 +1291,7 @@ bool Typeface::whole() const noexcept {
     return result;
 }
 
-Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept {
+OperationStatus Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept {
     const Operation operation("stxlib.glyphs.typeface");
     box = InkBox{};
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
@@ -1306,10 +1306,10 @@ Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept 
         // puts two points in the other order, so the box of the scaled
         // points is the scaled box, and it is load_scaled_glyph's.
         StoredGlyph stored{};
-        const Status found = state.store.glyph(state.font, glyph, stored);
+        const OperationStatus found = state.store.glyph(state.font, glyph, stored);
         note_peak(state);
         if (found.failed()) return found;
-        if (stored.points.empty()) return Status::success();
+        if (stored.points.empty()) return OperationStatus::success();
         GlyphOutline& corners = state.measuring;
         corners.points.clear();
         corners.tags.clear();
@@ -1324,13 +1324,13 @@ Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept 
         if (corners.points.push_copy(least).failed() || corners.points.push_copy(most).failed()) {
             return refuse_font(ErrorKind::out_of_memory, operation);
         }
-        const Status scaled = scale_outline(corners, scale, scale);
+        const OperationStatus scaled = scale_outline(corners, scale, scale);
         if (scaled.failed()) return scaled;
         box = InkBox{.left = corners.points[0].x, .bottom = corners.points[0].y, .right = corners.points[1].x, .top = corners.points[1].y};
-        return Status::success();
+        return OperationStatus::success();
     }
     GlyphOutline& outline = state.measuring;
-    const Status scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
+    const OperationStatus scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
     if (scaled.succeeded() && !outline.points.empty()) {
         box = InkBox{.left = outline.points[0].x, .bottom = outline.points[0].y, .right = outline.points[0].x, .top = outline.points[0].y};
         for (usize index = 1; index < outline.points.count(); ++index) {
@@ -1376,11 +1376,11 @@ void Typeface::reset_peak() noexcept {
     state.peak = bytes_of(state);
 }
 
-Result<Shared<Typeface>> open_typeface(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
-    Result<Shared<Typeface>> made = Shared<Typeface>::make();
+OperationResult<Shared<Typeface>> open_typeface(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
+    OperationResult<Shared<Typeface>> made = Shared<Typeface>::make();
     if (made.failed()) return made;
-    const Status opened = (*(*made.value())).open(bytes, face_index, limits);
-    if (opened.failed()) return Result<Shared<Typeface>>::failure(*opened.error());
+    const OperationStatus opened = (*(*made.value())).open(bytes, face_index, limits);
+    if (opened.failed()) return OperationResult<Shared<Typeface>>::failure(*opened.error());
     return made;
 }
 
@@ -1391,26 +1391,26 @@ Face::Face(Face&&) noexcept = default;
 Face& Face::operator=(Face&&) noexcept = default;
 Face::~Face() noexcept = default;
 
-Status Face::open(const Shared<Typeface>& typeface, const FaceLimits& limits) noexcept {
+OperationStatus Face::open(const Shared<Typeface>& typeface, const FaceLimits& limits) noexcept {
     const Operation operation("stxlib.glyphs.face");
     release();
     if (typeface.empty() || (*typeface).font() == nullptr) return refuse_font(ErrorKind::invalid_argument, operation);
-    Result<Unique<detail::FaceState>> made = Unique<detail::FaceState>::make();
+    OperationResult<Unique<detail::FaceState>> made = Unique<detail::FaceState>::make();
     if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    state_ = static_cast<Result<Unique<detail::FaceState>>&&>(made).take_value();
+    state_ = static_cast<OperationResult<Unique<detail::FaceState>>&&>(made).take_value();
     FaceState& state = *state_;
     state.typeface = typeface;
     state.font = *(*typeface).font();
     state.limits = limits;
     note_peak(state);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status Face::open(const View<u8> bytes, const u32 face_index, const FaceLimits& limits, const TypefaceLimits& typeface_limits) noexcept {
+OperationStatus Face::open(const View<u8> bytes, const u32 face_index, const FaceLimits& limits, const TypefaceLimits& typeface_limits) noexcept {
     release();
-    Result<Shared<Typeface>> made = open_typeface(bytes, face_index, typeface_limits);
-    if (made.failed()) return Status::failure(*made.error());
-    const Status status = open(*made.value(), limits);
+    OperationResult<Shared<Typeface>> made = open_typeface(bytes, face_index, typeface_limits);
+    if (made.failed()) return OperationStatus::failure(*made.error());
+    const OperationStatus status = open(*made.value(), limits);
     return status;
 }
 
@@ -1425,13 +1425,13 @@ Shared<Typeface> Face::typeface() const noexcept {
     return result;
 }
 
-Status Face::warm(const View<u32> characters, const i64 size, const Fit fit, usize& warmed) noexcept {
+OperationStatus Face::warm(const View<u32> characters, const i64 size, const Fit fit, usize& warmed) noexcept {
     const Operation operation("stxlib.glyphs.face");
     warmed = 0;
     if (state_.empty() || size < 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
     FaceState& state = *state_;
     usize kept = 0;
-    const Status keeping = (*state.typeface).keep(characters, kept);
+    const OperationStatus keeping = (*state.typeface).keep(characters, kept);
     if (keeping.failed()) return keeping;
     for (usize index = 0; index < characters.count(); ++index) {
         const u32 glyph = glyph_of(state.font, characters[index]);
@@ -1441,19 +1441,19 @@ Status Face::warm(const View<u32> characters, const i64 size, const Fit fit, usi
             continue;
         }
         FittedGlyph fitted{};
-        const Status had = fitted_of(state, glyph, size, fit, fitted);
+        const OperationStatus had = fitted_of(state, glyph, size, fit, fitted);
         if (out_of_memory(had)) return had;
         if (had.succeeded()) warmed = warmed + 1;
     }
     note_peak(state);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status Face::fitted(const u32 glyph, const i64 size, const Fit fit, FittedGlyph& glyph_out) noexcept {
+OperationStatus Face::fitted(const u32 glyph, const i64 size, const Fit fit, FittedGlyph& glyph_out) noexcept {
     const Operation operation("stxlib.glyphs.face");
     glyph_out = FittedGlyph{};
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
-    const Status status = fitted_of(*state_, glyph, size, fit, glyph_out);
+    const OperationStatus status = fitted_of(*state_, glyph, size, fit, glyph_out);
     note_peak(*state_);
     STXLIB_GLYPHS_CHECK(fitted_whole(*state_), "Face::fitted: the fitted outlines are not whole");
     return status;
@@ -1465,7 +1465,7 @@ bool Face::whole() const noexcept {
     return result;
 }
 
-Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
+OperationStatus Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
     const Operation operation("stxlib.glyphs.face");
     bounds = Bounds{};
     // A shift farther than 2^30 either way puts no pixel in any mask; it is
@@ -1488,7 +1488,7 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
         DrawStyle upright_style = style;
         upright_style.transformed = false;
         TurnLattice lattice{};
-        const Status had_lattice = lattice_of(state, glyph, upright_style, lattice);
+        const OperationStatus had_lattice = lattice_of(state, glyph, upright_style, lattice);
         if (had_lattice.failed() || lattice.upright.width == 0 || lattice.upright.height == 0) {
             pixels.clear();
             return had_lattice;
@@ -1506,7 +1506,7 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
             detail::turn_lattice(lattice, style.xx, style.yx, shift, bounds, pixels.mutable_view().data());
             note_peak(state);
             STXLIB_GLYPHS_CHECK(fitted_whole(state) && lattices_whole(state), "Face::mask: what the face holds is not whole");
-            return Status::success();
+            return OperationStatus::success();
         }
     }
     pixels.clear();
@@ -1516,29 +1516,29 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
         upright_style.transformed = false;
         const Point upright_shift = shift_before_quarter(quarter, shift);
         Bounds upright{};
-        const Status had_upright = styled_outline(state, glyph, upright_style, outline);
+        const OperationStatus had_upright = styled_outline(state, glyph, upright_style, outline);
         if (had_upright.failed()) return had_upright;
-        const Status measured_upright = measure(outline, upright_shift, state.limits.mask, upright);
+        const OperationStatus measured_upright = measure(outline, upright_shift, state.limits.mask, upright);
         if (measured_upright.failed()) return measured_upright;
         bounds = bounds_after_quarter(quarter, upright);
         const usize upright_bytes = static_cast<usize>(upright.width) * upright.height;
-        if (upright_bytes == 0) return Status::success();
+        if (upright_bytes == 0) return OperationStatus::success();
         if (state.glyph_pixels.resize(upright_bytes).failed() || pixels.resize(upright_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-        const Status drawn_upright =
+        const OperationStatus drawn_upright =
             style.fit == Fit::monochrome ? state.rasterizer.render_monochrome(outline, upright_shift, upright, state.limits.mask, state.glyph_pixels.mutable_view())
                                          : state.rasterizer.render(outline, upright_shift, upright, state.limits.mask, state.glyph_pixels.mutable_view());
         if (drawn_upright.succeeded()) turn_pixels(quarter, upright, state.glyph_pixels.view().data(), pixels.mutable_view().data());
         note_peak(state);
         return drawn_upright;
     }
-    const Status had = styled_outline(state, glyph, style, outline);
+    const OperationStatus had = styled_outline(state, glyph, style, outline);
     if (had.failed()) return had;
-    const Status measured = measure(outline, shift, state.limits.mask, bounds);
+    const OperationStatus measured = measure(outline, shift, state.limits.mask, bounds);
     if (measured.failed()) return measured;
     const usize bytes = static_cast<usize>(bounds.width) * bounds.height;
-    if (bytes == 0) return Status::success();
+    if (bytes == 0) return OperationStatus::success();
     if (pixels.resize(bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    const Status drawn = style.fit == Fit::monochrome
+    const OperationStatus drawn = style.fit == Fit::monochrome
                              ? state.rasterizer.render_monochrome(outline, shift, bounds, state.limits.mask, pixels.mutable_view())
                              : state.rasterizer.render(outline, shift, bounds, state.limits.mask, pixels.mutable_view());
     note_peak(state);
@@ -1546,17 +1546,17 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
     return drawn;
 }
 
-Status Face::measure_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
+OperationStatus Face::measure_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
     const Operation operation("stxlib.glyphs.face");
     box = RunBox{};
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
-    const Status status = place_run(*state_, glyphs, style, box);
+    const OperationStatus status = place_run(*state_, glyphs, style, box);
     note_peak(*state_);
     STXLIB_GLYPHS_CHECK(fitted_whole(*state_), "Face::measure_run: the fitted outlines are not whole");
     return status;
 }
 
-Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept {
+OperationStatus Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept {
     const Operation operation("stxlib.glyphs.face");
     coverage.pixels.clear();
     coverage.width = 0;
@@ -1569,12 +1569,12 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCo
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     FaceState& state = *state_;
     RunBox box{};
-    const Status placed = place_run(state, glyphs, style, box);
+    const OperationStatus placed = place_run(state, glyphs, style, box);
     if (placed.failed()) return placed;
     coverage.missing_glyphs = box.missing_glyphs;
     coverage.outside_glyphs = box.outside_glyphs;
     coverage.oversized = box.oversized;
-    if (box.oversized || box.right <= box.left || box.bottom <= box.top) return Status::success();
+    if (box.oversized || box.right <= box.left || box.bottom <= box.top) return OperationStatus::success();
     const u32 width = static_cast<u32>(box.right - box.left);
     const u32 height = static_cast<u32>(box.bottom - box.top);
     const usize bytes = static_cast<usize>(width) * height;
@@ -1603,17 +1603,17 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCo
             // The lattice first: making one draws the upright mask in
             // glyph_pixels.
             TurnLattice lattice{};
-            const Status had_lattice = lattice_of(state, glyphs[index].glyph, upright_style, lattice);
+            const OperationStatus had_lattice = lattice_of(state, glyphs[index].glyph, upright_style, lattice);
             if (had_lattice.failed()) return had_lattice;
             if (lattice.controls == nullptr) return refuse_font(ErrorKind::invalid_argument, operation);
             if (state.turned_pixels.resize(glyph_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
             detail::turn_lattice(lattice, style.xx, style.yx, glyph.shift, glyph.bounds, state.turned_pixels.mutable_view().data());
         } else {
             Outline outline{};
-            const Status had = styled_outline(state, glyphs[index].glyph, by_quarters ? upright_style : style, outline);
+            const OperationStatus had = styled_outline(state, glyphs[index].glyph, by_quarters ? upright_style : style, outline);
             if (had.failed()) return had;
             if (state.glyph_pixels.resize(glyph_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-            const Status drawn = monochrome ? state.rasterizer.render_monochrome(outline, drawn_shift, drawn_bounds, state.limits.mask,
+            const OperationStatus drawn = monochrome ? state.rasterizer.render_monochrome(outline, drawn_shift, drawn_bounds, state.limits.mask,
                                                                                  state.glyph_pixels.mutable_view())
                                             : state.rasterizer.render(outline, drawn_shift, drawn_bounds, state.limits.mask,
                                                                       state.glyph_pixels.mutable_view());
@@ -1644,7 +1644,7 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCo
     note_peak(state);
     STXLIB_GLYPHS_CHECK(fitted_whole(state) && lattices_whole(state), "Face::draw_run: what the face holds is not whole");
     STXLIB_GLYPHS_CHECK(coverage.pixels.count() == static_cast<usize>(coverage.width) * coverage.height, "Face::draw_run: the mask is not its box");
-    return Status::success();
+    return OperationStatus::success();
 }
 
 usize Face::glyphs_fitted() const noexcept {

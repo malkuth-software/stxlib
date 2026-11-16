@@ -53,13 +53,13 @@ int prepare_mode(const char* const path) {
 void say_line(const stxlib::TextView prefix, const stxlib::TextView text) {
     std::string joined(prefix.data(), prefix.count());
     joined.append(text.data(), text.count());
-    stxlib::Result<stxlib::TextView> valid = stxlib::validate_utf8(joined.data(), joined.size());
+    stxlib::OperationResult<stxlib::TextView> valid = stxlib::validate_utf8(joined.data(), joined.size());
     if (valid.succeeded()) say(*valid.value());
 }
 
 int read_mode() {
     for (;;) {
-        const stxlib::Result<stxlib::ConsoleLine> line = stxlib::read_console_line(16);
+        const stxlib::OperationResult<stxlib::ConsoleLine> line = stxlib::read_console_line(16);
         if (line.succeeded()) {
             const stxlib::ConsoleLine& got = *line.value();
             if (got.ended()) {

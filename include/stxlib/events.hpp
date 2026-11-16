@@ -82,7 +82,7 @@ public:
     // set; unsupported when `events` includes one the host lacks;
     // limit_exceeded with HostCode::busy while another watch is active;
     // foreign_failure when the host refuses a handler.
-    [[nodiscard]] static Result<EventWatch> watch(EventSet events) noexcept;
+    [[nodiscard]] static OperationResult<EventWatch> watch(EventSet events) noexcept;
 
     EventWatch() noexcept = default;
     ~EventWatch();

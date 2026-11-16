@@ -38,7 +38,7 @@ ForeignCode errno_code(const int error) noexcept {
 
 // Replaces `bytes` with the whole proc file, or fails once it passes
 // `limit` bytes.
-Status read_proc_file(const char* const name, const usize limit, Growable<char>& bytes, const Operation operation) noexcept {
+OperationStatus read_proc_file(const char* const name, const usize limit, Growable<char>& bytes, const Operation operation) noexcept {
     bytes.clear();
     int fd = ::open(name, O_RDONLY | O_CLOEXEC);
     while (fd < 0 && errno == EINTR) fd = ::open(name, O_RDONLY | O_CLOEXEC);
@@ -64,7 +64,7 @@ Status read_proc_file(const char* const name, const usize limit, Growable<char>&
         }
     }
     static_cast<void>(::close(fd));
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // The second decimal field of statm's text; false when there is none.
@@ -90,8 +90,8 @@ bool second_field(const Growable<char>& text, u64& value) noexcept {
 
 } // namespace
 
-Status arguments(const usize limit, Growable<char>& raw) noexcept {
-    const Status result = read_proc_file("/proc/self/cmdline", limit, raw, "stxlib.process.arguments");
+OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
+    const OperationStatus result = read_proc_file("/proc/self/cmdline", limit, raw, "stxlib.process.arguments");
     return result;
 }
 
@@ -100,17 +100,17 @@ u64 process_id() noexcept {
     return result;
 }
 
-Status is_main_thread(bool& initial) noexcept {
+OperationStatus is_main_thread(bool& initial) noexcept {
     const long thread = ::syscall(SYS_gettid);
     initial = thread == static_cast<long>(::getpid());
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status memory(ProcessMemory& report) noexcept {
+OperationStatus memory(ProcessMemory& report) noexcept {
     const Operation operation = "stxlib.process.memory";
     report = ProcessMemory{};
     Growable<char> statm;
-    const Status read = read_proc_file("/proc/self/statm", 4096, statm, operation);
+    const OperationStatus read = read_proc_file("/proc/self/statm", 4096, statm, operation);
     if (read.failed()) return read;
     u64 pages = 0;
     if (!second_field(statm, pages)) return host_failure::failed(ErrorKind::io_failure, operation, HostCode::invalid_value);
@@ -122,7 +122,7 @@ Status memory(ProcessMemory& report) noexcept {
         const u64 kibibytes = static_cast<u64>(usage.ru_maxrss);
         report.peak_resident_bytes = kibibytes > u64_max / 1024 ? u64_max : kibibytes * 1024;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::process_backend

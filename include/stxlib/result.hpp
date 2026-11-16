@@ -1,6 +1,6 @@
 #pragma once
 
-// Status and Result<Value>: the outcome of an operation, either success
+// OperationStatus and OperationResult<Value>: the outcome of an operation, either success
 // (with its value) or failure (with its error record), never both (house
 // style, section 2: a result is its value or its failure).
 //
@@ -19,14 +19,14 @@
 
 namespace stxlib {
 
-class Status final {
+class OperationStatus final {
 public:
-    [[nodiscard]] static Status success() noexcept {
-        const Status result;
+    [[nodiscard]] static OperationStatus success() noexcept {
+        const OperationStatus result;
         return result;
     }
-    [[nodiscard]] static Status failure(const ErrorRecord& record) noexcept {
-        const Status result(record);
+    [[nodiscard]] static OperationStatus failure(const ErrorRecord& record) noexcept {
+        const OperationStatus result(record);
         return result;
     }
 
@@ -54,26 +54,26 @@ private:
         explicit State(const ErrorRecord& failure_record) noexcept : record(failure_record) {}
     };
 
-    Status() noexcept : outcome_(Outcome::success), state_() {}
-    explicit Status(const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(record) {}
+    OperationStatus() noexcept : outcome_(Outcome::success), state_() {}
+    explicit OperationStatus(const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(record) {}
 
     Outcome outcome_;
     State state_;
 };
 
 template <typename Value>
-class Result final {
+class OperationResult final {
     // A result moves its value without a failure path (house style, section
     // 1: element relocation must not escape through another mechanism).
-    static_assert(__is_nothrow_constructible(Value, Value&&), "Result's Value must be nothrow move constructible");
+    static_assert(__is_nothrow_constructible(Value, Value&&), "OperationResult's Value must be nothrow move constructible");
 
 public:
-    [[nodiscard]] static Result success(Value succeeded_value) noexcept {
-        Result result(ValueTag{}, static_cast<Value&&>(succeeded_value));
+    [[nodiscard]] static OperationResult success(Value succeeded_value) noexcept {
+        OperationResult result(ValueTag{}, static_cast<Value&&>(succeeded_value));
         return result;
     }
-    [[nodiscard]] static Result failure(const ErrorRecord& record) noexcept {
-        Result result(FailureTag{}, record);
+    [[nodiscard]] static OperationResult failure(const ErrorRecord& record) noexcept {
+        OperationResult result(FailureTag{}, record);
         return result;
     }
 
@@ -83,16 +83,16 @@ public:
     // whose operands are both prvalues of State, so the chosen one
     // initialises state_ directly ([expr.cond], [dcl.init]: no State copy
     // or move constructor is needed or called).
-    Result(Result&& other) noexcept
+    OperationResult(OperationResult&& other) noexcept
         : outcome_(other.outcome_),
           state_(other.outcome_ == Outcome::success ? State(ValueTag{}, static_cast<Value&&>(other.state_.value))
                                                     : State(FailureTag{}, other.state_.record)) {}
 
-    Result(const Result&) = delete;
-    Result& operator=(const Result&) = delete;
-    Result& operator=(Result&&) = delete;
+    OperationResult(const OperationResult&) = delete;
+    OperationResult& operator=(const OperationResult&) = delete;
+    OperationResult& operator=(OperationResult&&) = delete;
 
-    ~Result() {
+    ~OperationResult() {
         if (outcome_ == Outcome::success) state_.value.~Value();
     }
 
@@ -120,16 +120,16 @@ public:
 
     // Moves the value out. Requirement: succeeded().
     [[nodiscard]] Value take_value() && noexcept {
-        STXLIB_REQUIRE(outcome_ == Outcome::success, "Result::take_value on a failure");
+        STXLIB_REQUIRE(outcome_ == Outcome::success, "OperationResult::take_value on a failure");
         Value result(static_cast<Value&&>(state_.value));
         return result;
     }
 
-    // The failure as a Status, or success. For an operation that passes a
+    // The failure as a OperationStatus, or success. For an operation that passes a
     // callee's failure on without its value.
-    [[nodiscard]] Status status() const noexcept {
-        if (outcome_ == Outcome::failure) return Status::failure(state_.record);
-        return Status::success();
+    [[nodiscard]] OperationStatus status() const noexcept {
+        if (outcome_ == Outcome::failure) return OperationStatus::failure(state_.record);
+        return OperationStatus::success();
     }
 
 private:
@@ -145,13 +145,13 @@ private:
 
         State(ValueTag, Value&& moved) noexcept : value(static_cast<Value&&>(moved)) {}
         State(FailureTag, const ErrorRecord& failure_record) noexcept : record(failure_record) {}
-        // Result's destructor ends the active member's lifetime.
+        // OperationResult's destructor ends the active member's lifetime.
         ~State() {}
     };
 
-    Result(ValueTag tag, Value&& moved_value) noexcept
+    OperationResult(ValueTag tag, Value&& moved_value) noexcept
         : outcome_(Outcome::success), state_(tag, static_cast<Value&&>(moved_value)) {}
-    Result(FailureTag tag, const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(tag, record) {}
+    OperationResult(FailureTag tag, const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(tag, record) {}
 
     Outcome outcome_;
     State state_;

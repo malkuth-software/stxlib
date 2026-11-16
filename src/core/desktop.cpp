@@ -57,8 +57,8 @@ bool has_link_separator(const TextView text) noexcept {
     return false;
 }
 
-Status refused(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
+OperationStatus refused(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
     return result;
 }
 
@@ -70,60 +70,60 @@ bool is_link(const TextView target) noexcept {
 
 } // namespace
 
-Status open_link_with_desktop(const TextView link) noexcept {
+OperationStatus open_link_with_desktop(const TextView link) noexcept {
     const Operation operation = "stxlib.desktop.open_link";
     if (has_control_character(link) || !is_link(link) || has_link_separator(link)) return refused(operation);
-    const Status opened = desktop_backend::open_target(link, true);
+    const OperationStatus opened = desktop_backend::open_target(link, true);
     return opened;
 }
 
-Status open_with_desktop(const TextView target) noexcept {
+OperationStatus open_with_desktop(const TextView target) noexcept {
     const Operation operation = "stxlib.desktop.open";
     if (has_control_character(target)) return refused(operation);
     if (is_link(target)) {
         if (has_link_separator(target)) return refused(operation);
-        const Status opened = desktop_backend::open_target(target, true);
+        const OperationStatus opened = desktop_backend::open_target(target, true);
         return opened;
     }
-    Result<Path> parsed = Path::parse(target);
+    OperationResult<Path> parsed = Path::parse(target);
     if (parsed.failed()) {
-        if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return Status::failure(*parsed.error());
+        if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return OperationStatus::failure(*parsed.error());
         return refused(operation);
     }
     const Path& path = *parsed.value();
     if (!acceptable_path(path)) return refused(operation);
     // Parsed from a TextView, so its text is Unicode.
-    const Status result = desktop_backend::open_target(path.text().unicode(), false);
+    const OperationStatus result = desktop_backend::open_target(path.text().unicode(), false);
     return result;
 }
 
-Status reveal_in_file_manager(const Path& path) noexcept {
+OperationStatus reveal_in_file_manager(const Path& path) noexcept {
     const Operation operation = "stxlib.desktop.reveal";
     if (!acceptable_path(path)) return refused(operation);
     // The file manager is started as a child process, which takes a Path's
     // text losslessly (children.hpp), host names that are not valid Unicode
     // included.
-    const Status result = desktop_backend::reveal(path);
+    const OperationStatus result = desktop_backend::reveal(path);
     return result;
 }
 
-Result<Path> current_executable() noexcept {
+OperationResult<Path> current_executable() noexcept {
     const Operation operation = "stxlib.desktop.current_executable";
     Growable<char> text;
-    const Status found = desktop_backend::executable_name(text);
-    if (found.failed()) return Result<Path>::failure(*found.error());
+    const OperationStatus found = desktop_backend::executable_name(text);
+    if (found.failed()) return OperationResult<Path>::failure(*found.error());
     // A host with drive roots never gives a UNC name here: its backend
     // refuses one (A-stxlib-core-01-F1). Checked again, since "//server/x"
     // would parse as the local "/server/x".
     if (desktop_backend::drive_roots && text.count() >= 2 && text[0] == '/' && text[1] == '/') {
-        return Result<Path>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<Path>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
     // The host's name, losslessly (D13 a; desktop_backend.hpp).
-    Result<Path> parsed = desktop_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
+    OperationResult<Path> parsed = desktop_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
                                                       : Path::parse_wtf8(text.data(), text.count());
     if (parsed.failed()) {
         if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return parsed;
-        return Result<Path>::failure(host_failure::record(ErrorKind::io_failure, operation, HostCode::invalid_name));
+        return OperationResult<Path>::failure(host_failure::record(ErrorKind::io_failure, operation, HostCode::invalid_name));
     }
     return parsed;
 }

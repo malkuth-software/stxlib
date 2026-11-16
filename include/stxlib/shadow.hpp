@@ -348,7 +348,7 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
 // first (none in a release build). not_found when it is empty or has been
 // overwritten (each thread keeps shadow_record_capacity in a development
 // build, 1 in a release build).
-[[nodiscard]] Result<ShadowSummary> read_shadow(ShadowReference reference, MutableView<ShadowFrameRecord> frames,
+[[nodiscard]] OperationResult<ShadowSummary> read_shadow(ShadowReference reference, MutableView<ShadowFrameRecord> frames,
                                                 MutableView<uptr> trace) noexcept;
 
 // For code that carries an exception as a value and rethrows it later
@@ -376,7 +376,7 @@ void restore_shadow(ShadowReference reference) noexcept;
 //   ShadowFrameRecord frames[parked_shadow_frame_room]; // 7,680 bytes
 //   uptr trace[parked_shadow_trace_room];               // 256 bytes; optional
 //   catch (...) {
-//       Result<ParkedShadow> parked = park_shadow_into(frames_view, trace_view);
+//       OperationResult<ParkedShadow> parked = park_shadow_into(frames_view, trace_view);
 //       // keep *parked.value() and the two arrays with the exception
 //   }
 //   ...
@@ -414,7 +414,7 @@ struct ParkedShadow final {
 // - not_found when the thread's shadow sequence is exhausted (2^64 - 1
 //   records) and no record could be filed; the pending capture is
 //   cleared, as park_shadow clears it.
-[[nodiscard]] Result<ParkedShadow> park_shadow_into(MutableView<ShadowFrameRecord> frames,
+[[nodiscard]] OperationResult<ParkedShadow> park_shadow_into(MutableView<ShadowFrameRecord> frames,
                                                     MutableView<uptr> trace) noexcept;
 
 // Called just before the rethrow, in place of restore_shadow: files the
@@ -437,7 +437,7 @@ ShadowReference restore_shadow_from(const ParkedShadow& parked, View<ShadowFrame
 
 // A copy of the calling thread's gate record `age` steps back (0 is the
 // newest), or not_found when the thread keeps fewer than age + 1.
-[[nodiscard]] Result<ErrorRecord> recent_failure(usize age) noexcept;
+[[nodiscard]] OperationResult<ErrorRecord> recent_failure(usize age) noexcept;
 
 // Forgets the calling thread's kept records.
 void clear_recent_failures() noexcept;

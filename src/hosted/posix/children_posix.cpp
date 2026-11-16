@@ -339,10 +339,10 @@ void Child::release() noexcept {
     abandon(process);
 }
 
-Result<Child> Child::start(const ChildRequest& request) noexcept {
+OperationResult<Child> Child::start(const ChildRequest& request) noexcept {
     const Operation operation = "stxlib.children.start";
-    const Status checked = children_detail::check_request(request);
-    if (checked.failed()) return Result<Child>::failure(*checked.error());
+    const OperationStatus checked = children_detail::check_request(request);
+    if (checked.failed()) return OperationResult<Child>::failure(*checked.error());
     reap_abandoned();
     // The program and arguments as NUL-terminated strings in one buffer,
     // then the argv pointers into it (made after the last append, which may
@@ -355,26 +355,26 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
         host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
     for (usize index = 0; index <= request.arguments.count(); ++index) {
         const PathText text = index == 0 ? request.program : request.arguments[index - 1];
-        if (!starts.push(strings.count())) return Result<Child>::failure(exhausted);
+        if (!starts.push(strings.count())) return OperationResult<Child>::failure(exhausted);
         const Appended appended = append_host_bytes(text, strings);
-        if (appended == Appended::unrepresentable) return Result<Child>::failure(unrepresentable);
-        if (appended != Appended::ok || !strings.push('\0')) return Result<Child>::failure(exhausted);
+        if (appended == Appended::unrepresentable) return OperationResult<Child>::failure(unrepresentable);
+        if (appended != Appended::ok || !strings.push('\0')) return OperationResult<Child>::failure(exhausted);
     }
     Growable<char*> argv;
     for (usize index = 0; index < starts.count(); ++index) {
-        if (!argv.push(strings.data() + starts[index])) return Result<Child>::failure(exhausted);
+        if (!argv.push(strings.data() + starts[index])) return OperationResult<Child>::failure(exhausted);
     }
-    if (!argv.push(nullptr)) return Result<Child>::failure(exhausted);
+    if (!argv.push(nullptr)) return OperationResult<Child>::failure(exhausted);
 
     Descriptor reader;
     Descriptor writer;
     if (request.streams == ChildStreams::capture) {
         const int opened = open_capture_pipe(reader, writer);
-        if (opened != 0) return Result<Child>::failure(record_of_errno(opened, operation));
+        if (opened != 0) return OperationResult<Child>::failure(record_of_errno(opened, operation));
     }
     SpawnSetup setup;
     const int prepared = prepare(setup, request, writer.value);
-    if (prepared != 0) return Result<Child>::failure(record_of_errno(prepared, operation));
+    if (prepared != 0) return OperationResult<Child>::failure(record_of_errno(prepared, operation));
 
     pid_t pid = -1;
     int error = 0;
@@ -390,18 +390,18 @@ Result<Child> Child::start(const ChildRequest& request) noexcept {
             error = posix_spawnp(&pid, argv[0], &setup.actions, &setup.attributes, argv.data(), environment);
         }
     }
-    if (error != 0) return Result<Child>::failure(record_of_errno(error, operation));
+    if (error != 0) return OperationResult<Child>::failure(record_of_errno(error, operation));
     Child child;
     child.process_ = static_cast<i64>(pid);
     child.phase_ = Phase::running;
     child.output_ = request.streams == ChildStreams::capture ? static_cast<i64>(reader.release()) : none;
-    Result<Child> result = Result<Child>::success(static_cast<Child&&>(child));
+    OperationResult<Child> result = OperationResult<Child>::success(static_cast<Child&&>(child));
     return result;
 }
 
-Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
+OperationResult<ChildEnd> Child::wait(const Duration timeout) noexcept {
     const Operation operation = "stxlib.children.wait";
-    if (phase_ != Phase::running) return Result<ChildEnd>::failure(children_detail::invalid_state(operation));
+    if (phase_ != Phase::running) return OperationResult<ChildEnd>::failure(children_detail::invalid_state(operation));
     reap_abandoned();
     const IntervalTime deadline = IntervalTime::now().after(timeout.negative() ? Duration() : timeout);
     Duration pause = Duration::microseconds(200);
@@ -417,18 +417,18 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
             // phase, its end unknown, so kill can never signal that id
             // (A-stxlib-hosted-01-F5).
             if (error == ECHILD) phase_ = Phase::waited;
-            return Result<ChildEnd>::failure(record_of_errno(error, operation));
+            return OperationResult<ChildEnd>::failure(record_of_errno(error, operation));
         }
         if (reaped == process_id(process_)) {
             phase_ = Phase::waited;
             if (WIFSIGNALED(status)) {
-                return Result<ChildEnd>::success(ChildEnd::signalled(static_cast<u32>(WTERMSIG(status))));
+                return OperationResult<ChildEnd>::success(ChildEnd::signalled(static_cast<u32>(WTERMSIG(status))));
             }
-            return Result<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(WEXITSTATUS(status))));
+            return OperationResult<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(WEXITSTATUS(status))));
         }
         const IntervalTime now = IntervalTime::now();
         if (deadline <= now) {
-            return Result<ChildEnd>::failure(
+            return OperationResult<ChildEnd>::failure(
                 host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::timed_out));
         }
         const Duration left = deadline.since(now);
@@ -437,16 +437,16 @@ Result<ChildEnd> Child::wait(const Duration timeout) noexcept {
     }
 }
 
-Status Child::kill() noexcept {
+OperationStatus Child::kill() noexcept {
     const Operation operation = "stxlib.children.kill";
-    if (phase_ != Phase::running) return Status::failure(children_detail::invalid_state(operation));
-    if (::kill(process_id(process_), SIGKILL) != 0) return Status::failure(record_of_errno(errno, operation));
-    return Status::success();
+    if (phase_ != Phase::running) return OperationStatus::failure(children_detail::invalid_state(operation));
+    if (::kill(process_id(process_), SIGKILL) != 0) return OperationStatus::failure(record_of_errno(errno, operation));
+    return OperationStatus::success();
 }
 
-Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
+OperationResult<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     const Operation operation = "stxlib.children.read_output";
-    if (output_ == none) return Result<Buffer<Byte>>::failure(children_detail::invalid_state(operation));
+    if (output_ == none) return OperationResult<Buffer<Byte>>::failure(children_detail::invalid_state(operation));
     const int descriptor = static_cast<int>(output_);
     Growable<Byte> output;
     bool over_limit = false;
@@ -468,11 +468,11 @@ Result<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     }
     output_ = none; // let go before closing (AGENTS.md, rule 1)
     (void)::close(descriptor);
-    if (failed_errno != 0) return Result<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
+    if (failed_errno != 0) return OperationResult<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
     if (exhausted) {
-        return Result<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
     }
-    Result<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
+    OperationResult<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
     return result;
 }
 

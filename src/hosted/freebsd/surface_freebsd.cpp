@@ -227,17 +227,17 @@ void drain_terminal(const SurfaceState& state) noexcept {
 
 } // namespace
 
-Result<detail::SurfaceState*> open() noexcept {
+OperationResult<detail::SurfaceState*> open() noexcept {
     SurfaceState& state = surface_state;
     for (u32 index = 0U; index < surface_input::devices_max; ++index) state.inputs[index] = -1;
     const int framebuffer = ::open("/dev/fb0", O_RDWR | O_CLOEXEC);
-    if (framebuffer < 0) return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", errno));
+    if (framebuffer < 0) return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", errno));
     state.framebuffer = framebuffer;
     struct fbtype type{};
     if (ioctl(framebuffer, FBIOGTYPE, &type) != 0) {
         const int code = errno;
         undo_open(state);
-        return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
+        return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
     }
     surface_blit::FramebufferFormat format = surface_blit::FramebufferFormat::bgrx8888;
     usize pixel_bytes = 4U;
@@ -246,19 +246,19 @@ Result<detail::SurfaceState*> open() noexcept {
         pixel_bytes = 2U;
     } else if (type.fb_depth != 32) {
         undo_open(state);
-        return Result<SurfaceState*>::failure(
+        return OperationResult<SurfaceState*>::failure(
             host_failure::record(ErrorKind::unsupported, "stxlib.surface.open", HostCode::invalid_value));
     }
     unsigned int stride = 0U;
     if (ioctl(framebuffer, FBIO_GETLINEWIDTH, &stride) != 0) {
         const int code = errno;
         undo_open(state);
-        return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
+        return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
     }
     if (type.fb_width <= 0 || type.fb_height <= 0 || static_cast<u32>(type.fb_width) > side_max ||
         static_cast<u32>(type.fb_height) > side_max || static_cast<usize>(stride) < static_cast<usize>(type.fb_width) * pixel_bytes) {
         undo_open(state);
-        return Result<SurfaceState*>::failure(
+        return OperationResult<SurfaceState*>::failure(
             host_failure::record(ErrorKind::unsupported, "stxlib.surface.open", HostCode::invalid_value));
     }
     const u32 width = static_cast<u32>(type.fb_width);
@@ -268,7 +268,7 @@ Result<detail::SurfaceState*> open() noexcept {
     if (screen == MAP_FAILED) {
         const int code = errno;
         undo_open(state);
-        return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
+        return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
     }
     state.screen = static_cast<Byte*>(screen);
     state.screen_bytes = screen_bytes;
@@ -276,7 +276,7 @@ Result<detail::SurfaceState*> open() noexcept {
     void* const shadow = mmap(nullptr, shadow_bytes, PROT_READ | PROT_WRITE, MAP_ANON | MAP_PRIVATE, -1, 0);
     if (shadow == MAP_FAILED) {
         undo_open(state);
-        return Result<SurfaceState*>::failure(
+        return OperationResult<SurfaceState*>::failure(
             host_failure::record(ErrorKind::out_of_memory, "stxlib.surface.open", HostCode::none));
     }
     state.shadow = static_cast<Byte*>(shadow);
@@ -288,14 +288,14 @@ Result<detail::SurfaceState*> open() noexcept {
         if (ioctl(terminal, KDGKBMODE, &keyboard_mode) != 0 || ioctl(terminal, KDSETMODE, KD_GRAPHICS) != 0) {
             const int code = errno;
             undo_open(state);
-            return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
+            return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
         }
         state.saved_keyboard_mode = keyboard_mode;
         state.terminal_changed = true;
         if (ioctl(terminal, KDSKBMODE, K_RAW) != 0) {
             const int code = errno;
             undo_open(state);
-            return Result<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
+            return OperationResult<SurfaceState*>::failure(errno_record("stxlib.surface.open", code));
         }
     }
     open_inputs(state);
@@ -307,7 +307,7 @@ Result<detail::SurfaceState*> open() noexcept {
     state.backlog_count = 0U;
     state.backlog_next = 0U;
     state.active.store(true, std::memory_order_release);
-    return Result<SurfaceState*>::success(&state);
+    return OperationResult<SurfaceState*>::success(&state);
 }
 
 void close(detail::SurfaceState* const state) noexcept {
@@ -324,15 +324,15 @@ SurfacePixels pixels(const detail::SurfaceState* const state) noexcept {
     return result;
 }
 
-Result<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
+OperationResult<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
                                const usize count) noexcept {
-    if (!(*state).active.load(std::memory_order_acquire)) return Result<SurfacePresent>::success(SurfacePresent::inactive);
+    if (!(*state).active.load(std::memory_order_acquire)) return OperationResult<SurfacePresent>::success(SurfacePresent::inactive);
     const SurfacePixels from = pixels(state);
     for (usize index = 0U; index < count; ++index) surface_blit::copy_rect(from, (*state).view, rects[index]);
-    return Result<SurfacePresent>::success(SurfacePresent::presented);
+    return OperationResult<SurfacePresent>::success(SurfacePresent::presented);
 }
 
-Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
+OperationResult<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
                           const i64 wait_ms) noexcept {
     SurfaceState& surface = *state;
     usize written = 0U;
@@ -345,7 +345,7 @@ Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const
         surface.backlog_count = 0U;
         surface.backlog_next = 0U;
     }
-    if (written != 0U) return Result<usize>::success(written);
+    if (written != 0U) return OperationResult<usize>::success(written);
     struct pollfd watched[surface_input::devices_max + 1U]{};
     u32 owners[surface_input::devices_max + 1U]{};
     nfds_t watched_count = 0U;
@@ -364,7 +364,7 @@ Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const
     }
     const int timeout = wait_ms < 0 ? -1 : (wait_ms > INT_MAX ? INT_MAX : static_cast<int>(wait_ms));
     const int ready = poll(watched, watched_count, timeout);
-    if (ready <= 0) return Result<usize>::success(0U);
+    if (ready <= 0) return OperationResult<usize>::success(0U);
     const u64 time_ms = static_cast<u64>(IntervalTime::now().count_nanoseconds() / 1000000);
     for (nfds_t item = 0U; item < watched_count; ++item) {
         if ((watched[item].revents & (POLLIN | POLLHUP | POLLERR)) == 0) continue;
@@ -374,7 +374,7 @@ Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const
             read_device(surface, owners[item], time_ms, events, capacity, written);
         }
     }
-    return Result<usize>::success(written);
+    return OperationResult<usize>::success(written);
 }
 
 } // namespace stxlib::surface_backend

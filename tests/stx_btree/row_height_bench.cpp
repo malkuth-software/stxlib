@@ -227,9 +227,9 @@ int main(int argument_count, char** arguments) {
 
     TemplateHolder holder{};
     Template& template_index = holder.index();
-    stxlib::Result<stxlib::RowHeightIndex> made = stxlib::RowHeightIndex::create(5728);
+    stxlib::OperationResult<stxlib::RowHeightIndex> made = stxlib::RowHeightIndex::create(5728);
     if (!made.succeeded()) fail("no memory for the facade index");
-    stxlib::RowHeightIndex facade = static_cast<stxlib::Result<stxlib::RowHeightIndex>&&>(made).take_value();
+    stxlib::RowHeightIndex facade = static_cast<stxlib::OperationResult<stxlib::RowHeightIndex>&&>(made).take_value();
     Workload work{};
     prepare(template_index, facade, options, work);
     std::printf("rows %llu, queries %zu, rounds %zu, depth %zu\n", static_cast<unsigned long long>(options.rows),

@@ -22,19 +22,19 @@ void literal_is_not_utf8() noexcept {
 
 } // namespace detail
 
-Result<TextView> validate_utf8(const char* const bytes, const usize count) noexcept {
+OperationResult<TextView> validate_utf8(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "validate_utf8: a null pointer with a non-zero count");
-    if (count == 0) return Result<TextView>::success(TextView());
+    if (count == 0) return OperationResult<TextView>::success(TextView());
     const usize prefix = detail::utf8_prefix(bytes, count, count);
     if (prefix != count) {
         const u32 offset = prefix > static_cast<usize>(u32_max) ? u32_max : static_cast<u32>(prefix);
         const ErrorRecord ill_formed =
             ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.text.validate_utf8",
                               ErrorDetail{.code = offset, .message = "the bytes are not well-formed UTF-8"});
-        return Result<TextView>::failure(ill_formed);
+        return OperationResult<TextView>::failure(ill_formed);
     }
     const TextView validated = detail::TextViewAccess::adopt_validated(bytes, count);
-    return Result<TextView>::success(validated);
+    return OperationResult<TextView>::success(validated);
 }
 
 // ---- Utf8String ------------------------------------------------------------
@@ -132,22 +132,22 @@ const char* Utf8String::bytes() const noexcept {
     return storage_.inline_bytes;
 }
 
-Result<Utf8String> Utf8String::with_capacity(const usize room) noexcept {
+OperationResult<Utf8String> Utf8String::with_capacity(const usize room) noexcept {
     Utf8String result;
-    const Status reserved = result.reserve(room);
-    if (reserved.failed()) return Result<Utf8String>::failure(*reserved.error());
-    return Result<Utf8String>::success(static_cast<Utf8String&&>(result));
+    const OperationStatus reserved = result.reserve(room);
+    if (reserved.failed()) return OperationResult<Utf8String>::failure(*reserved.error());
+    return OperationResult<Utf8String>::success(static_cast<Utf8String&&>(result));
 }
 
-Result<Utf8String> Utf8String::copy_of(const TextView text) noexcept {
+OperationResult<Utf8String> Utf8String::copy_of(const TextView text) noexcept {
     Utf8String result;
-    const Status assigned = result.replace_checked(0, 0, text, "stxlib.text.copy_of");
-    if (assigned.failed()) return Result<Utf8String>::failure(*assigned.error());
-    return Result<Utf8String>::success(static_cast<Utf8String&&>(result));
+    const OperationStatus assigned = result.replace_checked(0, 0, text, "stxlib.text.copy_of");
+    if (assigned.failed()) return OperationResult<Utf8String>::failure(*assigned.error());
+    return OperationResult<Utf8String>::success(static_cast<Utf8String&&>(result));
 }
 
-Result<Utf8String> Utf8String::copy() const noexcept {
-    Result<Utf8String> result = copy_of(view());
+OperationResult<Utf8String> Utf8String::copy() const noexcept {
+    OperationResult<Utf8String> result = copy_of(view());
     return result;
 }
 
@@ -180,37 +180,37 @@ bool Utf8String::operator!=(const Utf8String& other) const noexcept {
     return !equal;
 }
 
-Status Utf8String::reserve(const usize wanted) noexcept {
-    if (wanted <= capacity_) return Status::success();
-    if (wanted == usize_max) return Status::failure(text_too_long("stxlib.text.reserve"));
+OperationStatus Utf8String::reserve(const usize wanted) noexcept {
+    if (wanted <= capacity_) return OperationStatus::success();
+    if (wanted == usize_max) return OperationStatus::failure(text_too_long("stxlib.text.reserve"));
     const usize next = detail::grown_capacity<usize>(capacity_, wanted, 1);
     void* const block = detail::vocabulary_allocate(next + 1, 1);
-    if (block == nullptr) return Status::failure(text_exhausted("stxlib.text.reserve"));
+    if (block == nullptr) return OperationStatus::failure(text_exhausted("stxlib.text.reserve"));
     char* const target = static_cast<char*>(block);
     std::memcpy(target, bytes(), count_ + 1);
     if (on_heap()) detail::vocabulary_release(storage_.block);
     storage_.block = target;
     capacity_ = next;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status Utf8String::assign(const TextView text) noexcept {
-    const Status result = replace_checked(0, count_, text, "stxlib.text.assign");
+OperationStatus Utf8String::assign(const TextView text) noexcept {
+    const OperationStatus result = replace_checked(0, count_, text, "stxlib.text.assign");
     return result;
 }
 
-Status Utf8String::append(const TextView text) noexcept {
-    const Status result = replace_checked(count_, 0, text, "stxlib.text.append");
+OperationStatus Utf8String::append(const TextView text) noexcept {
+    const OperationStatus result = replace_checked(count_, 0, text, "stxlib.text.append");
     return result;
 }
 
-Status Utf8String::append_code_point(const u32 code_point) noexcept {
+OperationStatus Utf8String::append_code_point(const u32 code_point) noexcept {
     const bool surrogate = code_point >= 0xd800u && code_point <= 0xdfffu;
     if (surrogate || code_point > 0x10ffffu) {
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.text.append_code_point",
                               ErrorDetail{.code = code_point, .message = "not a Unicode scalar value"});
-        return Status::failure(refused);
+        return OperationStatus::failure(refused);
     }
     // Unicode section 3.9, Table 3-6 (UTF-8 bit distribution).
     char encoded[4] = {0, 0, 0, 0};
@@ -237,31 +237,31 @@ Status Utf8String::append_code_point(const u32 code_point) noexcept {
     // A scalar value's encoding is well-formed by Table 3-6 (checked for
     // every scalar value by tests/owned_text_exhaustive.cpp).
     const TextView piece = detail::TextViewAccess::adopt_validated(encoded, length);
-    const Status result = replace_checked(count_, 0, piece, "stxlib.text.append_code_point");
+    const OperationStatus result = replace_checked(count_, 0, piece, "stxlib.text.append_code_point");
     return result;
 }
 
-Status Utf8String::insert(const usize offset, const TextView text) noexcept {
-    const Status result = replace_checked(offset, 0, text, "stxlib.text.insert");
+OperationStatus Utf8String::insert(const usize offset, const TextView text) noexcept {
+    const OperationStatus result = replace_checked(offset, 0, text, "stxlib.text.insert");
     return result;
 }
 
-Status Utf8String::erase(const usize offset, const usize length) noexcept {
-    const Status result = replace_checked(offset, length, TextView(), "stxlib.text.erase");
+OperationStatus Utf8String::erase(const usize offset, const usize length) noexcept {
+    const OperationStatus result = replace_checked(offset, length, TextView(), "stxlib.text.erase");
     return result;
 }
 
-Status Utf8String::replace(const usize offset, const usize length, const TextView text) noexcept {
-    const Status result = replace_checked(offset, length, text, "stxlib.text.replace");
+OperationStatus Utf8String::replace(const usize offset, const usize length, const TextView text) noexcept {
+    const OperationStatus result = replace_checked(offset, length, text, "stxlib.text.replace");
     return result;
 }
 
-Status Utf8String::truncate(const usize length) noexcept {
+OperationStatus Utf8String::truncate(const usize length) noexcept {
     if (length > count_) {
         const ErrorRecord refused = ErrorRecord::make(ErrorKind::out_of_range, "stxlib.text.truncate");
-        return Status::failure(refused);
+        return OperationStatus::failure(refused);
     }
-    const Status result = replace_checked(length, count_ - length, TextView(), "stxlib.text.truncate");
+    const OperationStatus result = replace_checked(length, count_ - length, TextView(), "stxlib.text.truncate");
     return result;
 }
 
@@ -279,23 +279,23 @@ void Utf8String::release() noexcept {
 
 // The one editing operation: every change of the text is a replacement of
 // one boundary-delimited range by a well-formed text.
-Status Utf8String::replace_checked(const usize offset, const usize length, const TextView text,
+OperationStatus Utf8String::replace_checked(const usize offset, const usize length, const TextView text,
                                    const Operation operation) noexcept {
     // Validate before mutating (house style, section 2).
     if (offset > count_ || length > count_ - offset) {
         const ErrorRecord refused = ErrorRecord::make(ErrorKind::out_of_range, operation,
                                                       ErrorDetail{.message = "the range is outside the text"});
-        return Status::failure(refused);
+        return OperationStatus::failure(refused);
     }
     const usize end = offset + length;
     if (!is_boundary(offset) || !is_boundary(end)) {
         const ErrorRecord refused = ErrorRecord::make(ErrorKind::invalid_argument, operation,
                                                       ErrorDetail{.message = "an offset is inside a UTF-8 sequence"});
-        return Status::failure(refused);
+        return OperationStatus::failure(refused);
     }
     const usize kept = count_ - length;
     // The new count and its NUL must be representable.
-    if (text.count() > usize_max - 1 - kept) return Status::failure(text_too_long(operation));
+    if (text.count() > usize_max - 1 - kept) return OperationStatus::failure(text_too_long(operation));
     const usize new_count = kept + text.count();
 
     char* const current = bytes();
@@ -311,7 +311,7 @@ Status Utf8String::replace_checked(const usize offset, const usize length, const
         if (!text.empty()) std::memcpy(current + offset, text.data(), text.count());
         current[new_count] = '\0';
         count_ = new_count;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     if (new_count <= capacity_) {
@@ -323,28 +323,28 @@ Status Utf8String::replace_checked(const usize offset, const usize length, const
         void* scratch_block = nullptr;
         if (new_count > inline_capacity) {
             scratch_block = detail::vocabulary_allocate(new_count + 1, 1);
-            if (scratch_block == nullptr) return Status::failure(text_exhausted(operation));
+            if (scratch_block == nullptr) return OperationStatus::failure(text_exhausted(operation));
             scratch = static_cast<char*>(scratch_block);
         }
         join_into(scratch, prefix, text, suffix);
         std::memcpy(current, scratch, new_count + 1);
         detail::vocabulary_release(scratch_block);
         count_ = new_count;
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Growth: a new block, built while the old storage (and any text
     // borrowed from it) is still alive, then adopted.
     const usize next = detail::grown_capacity<usize>(capacity_, new_count, 1);
     void* const block = detail::vocabulary_allocate(next + 1, 1);
-    if (block == nullptr) return Status::failure(text_exhausted(operation));
+    if (block == nullptr) return OperationStatus::failure(text_exhausted(operation));
     char* const target = static_cast<char*>(block);
     join_into(target, prefix, text, suffix);
     if (on_heap()) detail::vocabulary_release(storage_.block);
     storage_.block = target;
     capacity_ = next;
     count_ = new_count;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 i32 compare_text(const TextView left, const TextView right) noexcept {

@@ -53,19 +53,19 @@ void raw_blocks() {
 void owned_objects() {
     {
         // A Path made in the library, destroyed here.
-        const stxlib::Result<stxlib::Path> path = stxlib_allocator_two_module::library_path("/tmp/two/modules");
+        const stxlib::OperationResult<stxlib::Path> path = stxlib_allocator_two_module::library_path("/tmp/two/modules");
         CHECK(path.succeeded());
     }
     {
         // A Path made here, destroyed in the library.
-        stxlib::Result<stxlib::Path> path = stxlib::Path::parse("/tmp/one/module");
+        stxlib::OperationResult<stxlib::Path> path = stxlib::Path::parse("/tmp/one/module");
         CHECK(path.succeeded());
         stxlib_allocator_two_module::library_destroy_path(std::move(path));
     }
     {
         // A thread started in the library, joined and destroyed here.
         stxlib::u32 counter = 0;
-        stxlib::Result<stxlib::Thread> started = stxlib_allocator_two_module::library_thread(&counter);
+        stxlib::OperationResult<stxlib::Thread> started = stxlib_allocator_two_module::library_thread(&counter);
         CHECK(started.succeeded());
         if (started.succeeded()) {
             stxlib::Thread thread = std::move(started).take_value();
@@ -75,7 +75,7 @@ void owned_objects() {
     }
     {
         // A pool created in the library, used and destroyed here.
-        stxlib::Result<stxlib::AtomicPool> created = stxlib_allocator_two_module::library_pool(2);
+        stxlib::OperationResult<stxlib::AtomicPool> created = stxlib_allocator_two_module::library_pool(2);
         CHECK(created.succeeded());
         if (created.succeeded()) {
             stxlib::AtomicPool pool = std::move(created).take_value();

@@ -87,9 +87,9 @@ void check_number_builds(const std::vector<u64>& keys, const std::vector<u64>& q
     const stxlib::View<u64> key_view(keys.data(), keys.size());
     const stxlib::View<u64> value_view(values.data(), values.size());
 
-    stxlib::Result<stxlib::FrozenMap> uniform = stxlib::FrozenMap::build(key_view, value_view);
+    stxlib::OperationResult<stxlib::FrozenMap> uniform = stxlib::FrozenMap::build(key_view, value_view);
     CHECK(uniform.succeeded() && check_number_map(*uniform.value(), keys, queries));
-    stxlib::Result<stxlib::FrozenMap> weighted = stxlib::FrozenMap::build_weighted(
+    stxlib::OperationResult<stxlib::FrozenMap> weighted = stxlib::FrozenMap::build_weighted(
         key_view, value_view, stxlib::View<u64>(key_weights.data(), key_weights.size()),
         stxlib::View<u64>(gap_weights.data(), gap_weights.size()));
     CHECK(weighted.succeeded() && check_number_map(*weighted.value(), keys, queries));
@@ -128,7 +128,7 @@ void number_families() {
 // ---- text ---------------------------------------------------------------------
 
 stxlib::TextView view_of(const std::string& text) {
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
     if (validated.failed()) return stxlib::TextView();
     const stxlib::TextView result = *validated.value();
     return result;
@@ -189,9 +189,9 @@ void check_text_builds(const std::vector<std::string>& keys, const std::vector<s
     gap_weights.push_back(3);
     const stxlib::View<stxlib::TextView> key_view(views.data(), views.size());
     const stxlib::View<u64> value_view(values.data(), values.size());
-    stxlib::Result<stxlib::FrozenTextMap> uniform = stxlib::FrozenTextMap::build(key_view, value_view);
+    stxlib::OperationResult<stxlib::FrozenTextMap> uniform = stxlib::FrozenTextMap::build(key_view, value_view);
     CHECK(uniform.succeeded() && check_text_map(*uniform.value(), keys, queries));
-    stxlib::Result<stxlib::FrozenTextMap> weighted = stxlib::FrozenTextMap::build_weighted(
+    stxlib::OperationResult<stxlib::FrozenTextMap> weighted = stxlib::FrozenTextMap::build_weighted(
         key_view, value_view, stxlib::View<u64>(key_weights.data(), key_weights.size()),
         stxlib::View<u64>(gap_weights.data(), gap_weights.size()));
     CHECK(weighted.succeeded() && check_text_map(*weighted.value(), keys, queries));
@@ -237,7 +237,7 @@ void refusals() {
     const u64 unsorted[] = {1, 3, 2};
     const u64 repeated[] = {1, 2, 2};
     const u64 values[] = {7, 8, 9};
-    stxlib::Result<stxlib::FrozenMap> out_of_order =
+    stxlib::OperationResult<stxlib::FrozenMap> out_of_order =
         stxlib::FrozenMap::build(stxlib::View<u64>(unsorted), stxlib::View<u64>(values));
     CHECK(out_of_order.failed() && (*out_of_order.error()).kind() == stxlib::ErrorKind::invalid_argument &&
           (*out_of_order.error()).code() == 2);
@@ -249,21 +249,21 @@ void refusals() {
               .failed());
 
     stxlib::detail::arm_vocabulary_refusals(0);
-    stxlib::Result<stxlib::FrozenMap> refused =
+    stxlib::OperationResult<stxlib::FrozenMap> refused =
         stxlib::FrozenMap::build(stxlib::View<u64>(values), stxlib::View<u64>(values));
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
 
     const stxlib::TextView texts[] = {"b", "a"};
-    stxlib::Result<stxlib::FrozenTextMap> texts_out_of_order =
+    stxlib::OperationResult<stxlib::FrozenTextMap> texts_out_of_order =
         stxlib::FrozenTextMap::build(stxlib::View<stxlib::TextView>(texts), stxlib::View<u64>(values, 2));
     CHECK(texts_out_of_order.failed() && (*texts_out_of_order.error()).code() == 1);
 
     // Moves: the source is left empty and still usable.
-    stxlib::Result<stxlib::FrozenMap> built =
+    stxlib::OperationResult<stxlib::FrozenMap> built =
         stxlib::FrozenMap::build(stxlib::View<u64>(values), stxlib::View<u64>(values));
     CHECK(built.succeeded());
-    stxlib::FrozenMap map = static_cast<stxlib::Result<stxlib::FrozenMap>&&>(built).take_value();
+    stxlib::FrozenMap map = static_cast<stxlib::OperationResult<stxlib::FrozenMap>&&>(built).take_value();
     stxlib::FrozenMap moved = static_cast<stxlib::FrozenMap&&>(map);
     CHECK(map.empty() && map.find(8) == nullptr && map.lower_bound(8) == 0);
     CHECK(moved.count() == 3 && moved.find(8) != nullptr && *moved.find(8) == 8);

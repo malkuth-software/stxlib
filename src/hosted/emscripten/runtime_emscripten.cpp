@@ -122,7 +122,7 @@ int make_directories(const char* const name) noexcept {
     return 0;
 }
 
-Status errno_failure(const Operation operation, const int error, const ErrorKind otherwise) noexcept {
+OperationStatus errno_failure(const Operation operation, const int error, const ErrorKind otherwise) noexcept {
     const ForeignCode code = ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error));
     ErrorKind kind = otherwise;
     HostCode host_code = HostCode::none;
@@ -152,12 +152,12 @@ Status errno_failure(const Operation operation, const int error, const ErrorKind
     default:
         break;
     }
-    const Status result = host_failure::failed(kind, operation, host_code, code);
+    const OperationStatus result = host_failure::failed(kind, operation, host_code, code);
     return result;
 }
 
-Status main_thread_refusal(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
+OperationStatus main_thread_refusal(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
     return result;
 }
 

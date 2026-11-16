@@ -107,13 +107,13 @@ bool rename_can_be_durable(const char* const name) noexcept {
     return result;
 }
 
-Status mount(const char* const name, const StorageKind kind) noexcept {
+OperationStatus mount(const char* const name, const StorageKind kind) noexcept {
     const Operation operation = "stxlib.web.mount";
     if (kind == StorageKind::indexed_db) return errno_failure(operation, ENOTSUP, ErrorKind::unsupported);
     if (kind == StorageKind::memory) {
         const int made = make_directories(name);
         if (made != 0) return errno_failure(operation, made, ErrorKind::foreign_failure);
-        return Status::success();
+        return OperationStatus::success();
     }
     if (emscripten_is_main_browser_thread() != 0) return main_thread_refusal(operation);
     if (stxlib_web_has_opfs() == 0) return errno_failure(operation, ENOTSUP, ErrorKind::unsupported);
@@ -126,24 +126,24 @@ Status mount(const char* const name, const StorageKind kind) noexcept {
     const int mounted = wasmfs_create_directory(name, 0777, backend);
     if (mounted < 0) return errno_failure(operation, -mounted, ErrorKind::foreign_failure);
     if (mounted > 0) return errno_failure(operation, EIO, ErrorKind::foreign_failure);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status restore() noexcept {
+OperationStatus restore() noexcept {
     if (on_main_thread()) return main_thread_refusal("stxlib.web.restore");
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status persist() noexcept {
+OperationStatus persist() noexcept {
     if (on_main_thread()) return main_thread_refusal("stxlib.web.persist");
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status persist_on_page_hide() noexcept {
+OperationStatus persist_on_page_hide() noexcept {
     if (stxlib_web_has_page() == 0) {
         return errno_failure("stxlib.web.persist_on_page_hide", ENOTSUP, ErrorKind::unsupported);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::web_backend

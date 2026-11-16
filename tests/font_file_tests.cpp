@@ -244,7 +244,7 @@ void truetype() {
                           {times(101, xx) + dx, times(101, yx) + dy, on}},
                          {3}));
         // Glyph 6 contains itself: it ends at the depth allowed.
-        const stxlib::Status itself = glyphs::load_glyph(font, 6, limits, outline);
+        const stxlib::OperationStatus itself = glyphs::load_glyph(font, 6, limits, outline);
         CHECK(itself.failed() && (*itself.error()).kind() == stxlib::ErrorKind::limit_exceeded);
         // Scaled: at 16 pixels to the em, each part and offset on its own.
         const i64 scale = glyphs::scale_of(font, 16 * 64);
@@ -259,7 +259,7 @@ void truetype() {
         // Limits.
         glyphs::FontLimits few{};
         few.points = 7;
-        stxlib::Status status = glyphs::load_glyph(font, 3, few, outline);
+        stxlib::OperationStatus status = glyphs::load_glyph(font, 3, few, outline);
         CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded);
         few = glyphs::FontLimits{};
         few.contours = 1;
@@ -612,12 +612,12 @@ void cff() {
         // a move with nothing drawn from it leaves nothing.
         CHECK(glyphs::load_glyph(font, 10, limits, outline).succeeded() && outline.points.empty());
         for (u32 glyph = 11; glyph < 13; ++glyph) {
-            const stxlib::Status status = glyphs::load_glyph(font, glyph, limits, outline);
+            const stxlib::OperationStatus status = glyphs::load_glyph(font, glyph, limits, outline);
             CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument);
         }
         glyphs::FontLimits few{};
         few.charstring_steps = 5;
-        stxlib::Status status = glyphs::load_glyph(font, 1, few, outline);
+        stxlib::OperationStatus status = glyphs::load_glyph(font, 1, few, outline);
         CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded);
         few = glyphs::FontLimits{};
         few.points = 3;
@@ -787,7 +787,7 @@ void audit_contracts() {
     outline.contour_ends.clear();
     CHECK(outline.points.push_copy(glyphs::Point{.x = 100000, .y = -100000}).succeeded() &&
           outline.tags.push_copy(on).succeeded() && outline.contour_ends.push_copy(0U).succeeded());
-    stxlib::Status status = glyphs::scale_outline(outline, static_cast<i64>(1) << 32, static_cast<i64>(1) << 32);
+    stxlib::OperationStatus status = glyphs::scale_outline(outline, static_cast<i64>(1) << 32, static_cast<i64>(1) << 32);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument && outline.points[0].x == 100000);
     status = glyphs::scale_outline(outline, 0, 65536);
     CHECK(status.failed() && outline.points[0].x == 100000);
@@ -895,7 +895,7 @@ struct NameRecord final {
 
 [[nodiscard]] std::string name_of(const glyphs::Font& font, const u32 id) {
     stxlib::Vector<char> text{};
-    const stxlib::Status status = glyphs::font_name(font, id, text);
+    const stxlib::OperationStatus status = glyphs::font_name(font, id, text);
     CHECK(status.succeeded());
     return text_of(text);
 }
@@ -1076,7 +1076,7 @@ void font_tables() {
             if (glyphs::open_font(view_of(bytes), 0, font).failed()) continue;
             const u32 ids[] = {1, 2, 4, 16, 0xFFFF};
             for (const u32 id : ids) {
-                const stxlib::Status status = glyphs::font_name(font, id, text);
+                const stxlib::OperationStatus status = glyphs::font_name(font, id, text);
                 kept = kept && status.succeeded() && well_formed_utf8(text) && text.count() <= variant.size() * 3;
             }
             kept = kept && glyphs::family_name(font, text).succeeded() && well_formed_utf8(text);
@@ -1126,7 +1126,7 @@ void font_tables() {
     glyphs::Font font{};
     if (!glyphs::open_font(view_of(font_bytes), 0, font).succeeded()) return false;
     glyphs::GlyphOutline outline{};
-    const stxlib::Status status = glyphs::load_glyph(font, 0, glyphs::FontLimits{}, outline);
+    const stxlib::OperationStatus status = glyphs::load_glyph(font, 0, glyphs::FontLimits{}, outline);
     const bool refused = status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument;
     return refused;
 }

@@ -48,13 +48,13 @@ using stxlib::FileMode;
 using stxlib::HostCode;
 using stxlib::Path;
 using stxlib::PathText;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::TextView;
 using stxlib::usize;
 
 TextView view_of(const std::string& text) {
-    Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    OperationResult<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
@@ -65,18 +65,18 @@ std::string text_of(const PathText text) {
 }
 
 Path parse_or_empty(const std::string& text) {
-    Result<Path> parsed = Path::parse(view_of(text));
+    OperationResult<Path> parsed = Path::parse(view_of(text));
     CHECK(parsed.succeeded());
     if (parsed.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(parsed).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(parsed).take_value();
     return result;
 }
 
 Path under(const Path& base, const std::string& relative) {
-    Result<Path> joined = base.join(parse_or_empty(relative));
+    OperationResult<Path> joined = base.join(parse_or_empty(relative));
     CHECK(joined.succeeded());
     if (joined.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(joined).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(joined).take_value();
     return result;
 }
 
@@ -101,30 +101,30 @@ std::vector<Byte> content_of(const Buffer<Byte>& buffer) {
     return result;
 }
 
-ErrorKind kind_of(const Status& status) {
+ErrorKind kind_of(const OperationStatus& status) {
     const ErrorKind result = status.succeeded() ? static_cast<ErrorKind>(0) : (*status.error()).kind();
     return result;
 }
 
 template <typename Value>
-ErrorKind kind_of(const Result<Value>& result) {
+ErrorKind kind_of(const OperationResult<Value>& result) {
     const ErrorKind kind = result.succeeded() ? static_cast<ErrorKind>(0) : (*result.error()).kind();
     return kind;
 }
 
 template <typename Value>
-HostCode code_of(const Result<Value>& result) {
+HostCode code_of(const OperationResult<Value>& result) {
     const HostCode code = result.succeeded() ? HostCode::none : static_cast<HostCode>((*result.error()).code());
     return code;
 }
 
-HostCode code_of(const Status& status) {
+HostCode code_of(const OperationStatus& status) {
     const HostCode code = status.succeeded() ? HostCode::none : static_cast<HostCode>((*status.error()).code());
     return code;
 }
 
 std::vector<Byte> read_or_empty(const Path& path, const usize limit) {
-    Result<Buffer<Byte>> read = stxlib::read_file(path, limit);
+    OperationResult<Buffer<Byte>> read = stxlib::read_file(path, limit);
     CHECK(read.succeeded());
     if (read.failed()) return std::vector<Byte>();
     const std::vector<Byte> result = content_of(*read.value());
@@ -135,7 +135,7 @@ std::vector<Byte> read_or_empty(const Path& path, const usize limit) {
 class Scratch final {
 public:
     Scratch() {
-        Result<Path> temporary = stxlib::temporary_directory();
+        OperationResult<Path> temporary = stxlib::temporary_directory();
         CHECK(temporary.succeeded());
         if (temporary.failed()) return;
         const long long stamp = stxlib::IntervalTime::now().count_nanoseconds();
@@ -158,12 +158,12 @@ void whole_files(const Scratch& scratch) {
     const std::vector<Byte> second = bytes_of("second, longer content");
     CHECK(stxlib::write_file(file, view_bytes(second), Durability::ordered).succeeded());
     CHECK(read_or_empty(file, 1024) == second);
-    Result<stxlib::DirectoryListing> listing = stxlib::list_directory(scratch.root, 16);
+    OperationResult<stxlib::DirectoryListing> listing = stxlib::list_directory(scratch.root, 16);
     CHECK(listing.succeeded() && (*listing.value()).count() == 1 &&
           (*listing.value()).name(0) == TextView("data.bin"));
     // Limits: exactly at the limit succeeds, one byte over is refused.
     CHECK(read_or_empty(file, second.size()) == second);
-    const Result<Buffer<Byte>> over = stxlib::read_file(file, second.size() - 1);
+    const OperationResult<Buffer<Byte>> over = stxlib::read_file(file, second.size() - 1);
     CHECK(kind_of(over) == ErrorKind::limit_exceeded && code_of(over) == HostCode::too_long);
     // An empty file, and a larger one read in several chunks.
     const Path empty = under(scratch.root, "empty");
@@ -175,31 +175,31 @@ void whole_files(const Scratch& scratch) {
     CHECK(stxlib::write_file(big, view_bytes(large), Durability::durable).succeeded());
     CHECK(read_or_empty(big, large.size()) == large);
     CHECK(kind_of(stxlib::read_file(under(scratch.root, "missing"), 16)) == ErrorKind::not_found);
-    const Result<Buffer<Byte>> directory = stxlib::read_file(scratch.root, 16);
+    const OperationResult<Buffer<Byte>> directory = stxlib::read_file(scratch.root, 16);
     CHECK(kind_of(directory) == ErrorKind::invalid_argument && code_of(directory) == HostCode::is_a_directory);
 #if defined(__linux__)
     // A file that reports size 0 and holds more (procfs): read_file finds it
     // longer with its one-byte probe and must keep that byte as the first of
     // the content (A-stxlib-core-01-F3).
-    const Result<Buffer<Byte>> status_file = stxlib::read_file(parse_or_empty("/proc/self/status"), 1 << 20);
+    const OperationResult<Buffer<Byte>> status_file = stxlib::read_file(parse_or_empty("/proc/self/status"), 1 << 20);
     CHECK(status_file.succeeded());
     if (status_file.succeeded()) {
         const stxlib::View<Byte> content = (*status_file.value()).view();
         CHECK(content.count() > 5 && std::memcmp(content.data(), "Name:", 5) == 0);
     }
-    const Result<Buffer<Byte>> clipped_status = stxlib::read_file(parse_or_empty("/proc/self/status"), 3);
+    const OperationResult<Buffer<Byte>> clipped_status = stxlib::read_file(parse_or_empty("/proc/self/status"), 3);
     CHECK(kind_of(clipped_status) == ErrorKind::limit_exceeded);
 #endif
     // A path without a final name cannot be written as a file.
-    const Status root_write = stxlib::write_file(parse_or_empty("/"), view_bytes(first), Durability::durable);
+    const OperationStatus root_write = stxlib::write_file(parse_or_empty("/"), view_bytes(first), Durability::durable);
     CHECK(kind_of(root_write) == ErrorKind::invalid_argument && code_of(root_write) == HostCode::invalid_name);
-    const Status dot_write = stxlib::write_file(Path(), view_bytes(first), Durability::none);
+    const OperationStatus dot_write = stxlib::write_file(Path(), view_bytes(first), Durability::none);
     CHECK(kind_of(dot_write) == ErrorKind::invalid_argument && code_of(dot_write) == HostCode::invalid_name);
 }
 
 void file_handles(const Scratch& scratch) {
     const Path path = under(scratch.root, "stream.txt");
-    Result<File> created = File::open(path, FileMode::create_new);
+    OperationResult<File> created = File::open(path, FileMode::create_new);
     CHECK(created.succeeded());
     if (created.failed()) return;
     File& file = *created.value();
@@ -207,44 +207,44 @@ void file_handles(const Scratch& scratch) {
     const std::vector<Byte> world = bytes_of("world");
     CHECK(file.write_all(view_bytes(hello)).succeeded());
     CHECK(file.write_all(view_bytes(world)).succeeded());
-    const Result<stxlib::u64> written = file.size();
-    const Result<stxlib::u64> at = file.position();
+    const OperationResult<stxlib::u64> written = file.size();
+    const OperationResult<stxlib::u64> at = file.position();
     CHECK(written.succeeded() && *written.value() == 11 && at.succeeded() && *at.value() == 11);
     CHECK(file.sync(Durability::none).succeeded());
     CHECK(file.sync(Durability::ordered).succeeded());
     CHECK(file.sync(Durability::durable).succeeded());
     CHECK(file.close().succeeded());
     CHECK(!file.is_open());
-    const Status again = file.close();
+    const OperationStatus again = file.close();
     CHECK(kind_of(again) == ErrorKind::disposed && code_of(again) == HostCode::closed_handle);
     CHECK(kind_of(file.write_all(view_bytes(hello))) == ErrorKind::disposed);
     CHECK(kind_of(file.sync(Durability::none)) == ErrorKind::disposed);
     CHECK(kind_of(File::open(path, FileMode::create_new)) == ErrorKind::already_exists);
-    Result<File> appended = File::open(path, FileMode::append);
+    OperationResult<File> appended = File::open(path, FileMode::append);
     CHECK(appended.succeeded());
     if (appended.succeeded()) {
         const std::vector<Byte> bang = bytes_of("!");
         CHECK((*appended.value()).write_all(view_bytes(bang)).succeeded());
         CHECK((*appended.value()).close().succeeded());
     }
-    Result<File> reader = File::open(path, FileMode::read);
+    OperationResult<File> reader = File::open(path, FileMode::read);
     CHECK(reader.succeeded());
     if (reader.failed()) return;
     File& input = *reader.value();
     CHECK(input.seek(6).succeeded());
     Byte buffer[16]{};
-    const Result<usize> got = input.read(stxlib::MutableView<Byte>(buffer));
+    const OperationResult<usize> got = input.read(stxlib::MutableView<Byte>(buffer));
     CHECK(got.succeeded() && *got.value() == 6);
     CHECK(std::memcmp(buffer, "world!", 6) == 0);
-    const Result<usize> end = input.read(stxlib::MutableView<Byte>(buffer));
+    const OperationResult<usize> end = input.read(stxlib::MutableView<Byte>(buffer));
     CHECK(end.succeeded() && *end.value() == 0);
     // Moving transfers the handle.
     File moved(static_cast<File&&>(input));
     CHECK(!input.is_open() && moved.is_open());
-    Result<File> replaced = File::open(path, FileMode::replace);
+    OperationResult<File> replaced = File::open(path, FileMode::replace);
     CHECK(replaced.succeeded());
     if (replaced.succeeded()) {
-        const Result<stxlib::u64> emptied = (*replaced.value()).size();
+        const OperationResult<stxlib::u64> emptied = (*replaced.value()).size();
         CHECK(emptied.succeeded() && *emptied.value() == 0);
     }
 }
@@ -252,25 +252,25 @@ void file_handles(const Scratch& scratch) {
 // read_at, write_all_at, information, set_modified and set_size (M2 C2).
 void positioned_and_metadata(const Scratch& scratch) {
     const Path path = under(scratch.root, "positioned.bin");
-    Result<File> created = File::open(path, FileMode::create_new);
+    OperationResult<File> created = File::open(path, FileMode::create_new);
     CHECK(created.succeeded());
     if (created.failed()) return;
     File& file = *created.value();
     CHECK(file.write_all(view_bytes(bytes_of("0123456789"))).succeeded());
     // A positioned write leaves the position where the stream left it.
     CHECK(file.write_all_at(2, view_bytes(bytes_of("ab"))).succeeded());
-    const Result<stxlib::u64> after_write = file.position();
+    const OperationResult<stxlib::u64> after_write = file.position();
     CHECK(after_write.succeeded() && *after_write.value() == 10);
     // Past the end extends the file; the gap reads as zeros.
     CHECK(file.write_all_at(12, view_bytes(bytes_of("Z"))).succeeded());
-    const Result<stxlib::u64> grown = file.size();
+    const OperationResult<stxlib::u64> grown = file.size();
     CHECK(grown.succeeded() && *grown.value() == 13);
     CHECK(file.write_all(view_bytes(bytes_of("!"))).succeeded());
-    const Result<stxlib::u64> streamed = file.position();
+    const OperationResult<stxlib::u64> streamed = file.position();
     CHECK(streamed.succeeded() && *streamed.value() == 11);
 
     // information() describes the open file.
-    const Result<stxlib::FileInformation> described = file.information();
+    const OperationResult<stxlib::FileInformation> described = file.information();
     CHECK(described.succeeded() && (*described.value()).kind == stxlib::FileKind::regular &&
           (*described.value()).size == 13);
 
@@ -285,50 +285,50 @@ void positioned_and_metadata(const Scratch& scratch) {
     const stxlib::WallTime kept = chosen;
 #endif
     CHECK(file.set_modified(chosen).succeeded());
-    const Result<stxlib::FileInformation> stamped = file.information();
+    const OperationResult<stxlib::FileInformation> stamped = file.information();
     CHECK(stamped.succeeded() && (*stamped.value()).modified == kept);
     const stxlib::WallTime early = stxlib::WallTime::from_unix_nanoseconds(-86400LL * 1000000000LL);
     CHECK(file.set_modified(early).succeeded());
-    const Result<stxlib::FileInformation> early_read = stxlib::inspect(path, stxlib::LinkMode::follow);
+    const OperationResult<stxlib::FileInformation> early_read = stxlib::inspect(path, stxlib::LinkMode::follow);
     CHECK(early_read.succeeded() && (*early_read.value()).modified == early);
 
     // set_size cuts and extends; the position stays.
     CHECK(file.set_size(4).succeeded());
-    const Result<stxlib::u64> cut = file.size();
+    const OperationResult<stxlib::u64> cut = file.size();
     CHECK(cut.succeeded() && *cut.value() == 4);
     CHECK(file.set_size(8).succeeded());
-    const Result<stxlib::u64> still = file.position();
+    const OperationResult<stxlib::u64> still = file.position();
     CHECK(still.succeeded() && *still.value() == 11);
     CHECK(file.close().succeeded());
 
-    Result<File> reader = File::open(path, FileMode::read);
+    OperationResult<File> reader = File::open(path, FileMode::read);
     CHECK(reader.succeeded());
     if (reader.failed()) return;
     File& input = *reader.value();
     Byte buffer[16]{};
-    const Result<usize> got = input.read_at(0, stxlib::MutableView<Byte>(buffer));
+    const OperationResult<usize> got = input.read_at(0, stxlib::MutableView<Byte>(buffer));
     CHECK(got.succeeded() && *got.value() == 8);
     const Byte expected[8] = {'0', '1', 'a', 'b', 0, 0, 0, 0};
     CHECK(std::memcmp(buffer, expected, 8) == 0);
-    const Result<stxlib::u64> unmoved = input.position();
+    const OperationResult<stxlib::u64> unmoved = input.position();
     CHECK(unmoved.succeeded() && *unmoved.value() == 0);
-    const Result<usize> past = input.read_at(100, stxlib::MutableView<Byte>(buffer));
+    const OperationResult<usize> past = input.read_at(100, stxlib::MutableView<Byte>(buffer));
     CHECK(past.succeeded() && *past.value() == 0);
-    const Result<usize> huge = input.read_at(~static_cast<stxlib::u64>(0), stxlib::MutableView<Byte>(buffer));
+    const OperationResult<usize> huge = input.read_at(~static_cast<stxlib::u64>(0), stxlib::MutableView<Byte>(buffer));
     CHECK(kind_of(huge) == ErrorKind::limit_exceeded && code_of(huge) == HostCode::too_long);
 
     // Refusals by mode.
     CHECK(code_of(input.write_all_at(0, view_bytes(bytes_of("x")))) == HostCode::invalid_state);
     CHECK(code_of(input.set_modified(chosen)) == HostCode::invalid_state);
     CHECK(code_of(input.set_size(0)) == HostCode::invalid_state);
-    Result<File> appender = File::open(path, FileMode::append);
+    OperationResult<File> appender = File::open(path, FileMode::append);
     CHECK(appender.succeeded());
     if (appender.succeeded()) {
         File& tail = *appender.value();
         CHECK(code_of(tail.write_all_at(0, view_bytes(bytes_of("x")))) == HostCode::invalid_state);
         CHECK(code_of(tail.set_size(0)) == HostCode::invalid_state);
         CHECK(tail.set_modified(chosen).succeeded());
-        const Result<stxlib::FileInformation> tail_described = tail.information();
+        const OperationResult<stxlib::FileInformation> tail_described = tail.information();
         CHECK(tail_described.succeeded() && (*tail_described.value()).size == 8);
     }
     File closed;
@@ -345,7 +345,7 @@ void deep_and_wide_trees(const Scratch& scratch) {
     CHECK(stxlib::write_file(under(scratch.root, (chain + "/leaf").c_str()), view_bytes(bytes_of("x")),
                              Durability::none)
               .succeeded());
-    const Result<stxlib::u64> deep = stxlib::remove_tree(under(scratch.root, "deep"));
+    const OperationResult<stxlib::u64> deep = stxlib::remove_tree(under(scratch.root, "deep"));
     CHECK(deep.succeeded() && *deep.value() == 42);
 
     CHECK(stxlib::create_directory(under(scratch.root, "wide")).succeeded());
@@ -361,10 +361,10 @@ void deep_and_wide_trees(const Scratch& scratch) {
                       .succeeded());
         }
     }
-    const Result<stxlib::u64> wide = stxlib::remove_tree(under(scratch.root, "wide"));
+    const OperationResult<stxlib::u64> wide = stxlib::remove_tree(under(scratch.root, "wide"));
     // 600 entries, 12 inner files, the top.
     CHECK(wide.succeeded() && *wide.value() == 613);
-    const Result<stxlib::FileInformation> gone = stxlib::inspect(under(scratch.root, "wide"), stxlib::LinkMode::no_follow);
+    const OperationResult<stxlib::FileInformation> gone = stxlib::inspect(under(scratch.root, "wide"), stxlib::LinkMode::no_follow);
     CHECK(kind_of(gone) == ErrorKind::not_found);
 }
 
@@ -378,9 +378,9 @@ void metadata_and_directories(const Scratch& scratch) {
         stxlib::WallTime::now().unix_nanoseconds() - stxlib::Duration::seconds(5).count_nanoseconds());
     CHECK(stxlib::write_file(file, view_bytes(bytes_of("12345")), Durability::durable).succeeded());
     // create_directories over a file: not a directory.
-    const Status over_file = stxlib::create_directories(file);
+    const OperationStatus over_file = stxlib::create_directories(file);
     CHECK(kind_of(over_file) == ErrorKind::invalid_argument && code_of(over_file) == HostCode::not_a_directory);
-    const Result<stxlib::FileInformation> information = stxlib::inspect(file, stxlib::LinkMode::follow);
+    const OperationResult<stxlib::FileInformation> information = stxlib::inspect(file, stxlib::LinkMode::follow);
     CHECK(information.succeeded());
     if (information.succeeded()) {
         const stxlib::FileInformation& described = *information.value();
@@ -390,20 +390,20 @@ void metadata_and_directories(const Scratch& scratch) {
             stxlib::WallTime::now().unix_nanoseconds() + stxlib::Duration::seconds(5).count_nanoseconds());
         CHECK(!(described.modified < before) && described.modified < after);
     }
-    const Result<stxlib::FileInformation> directory = stxlib::inspect(nested, stxlib::LinkMode::follow);
+    const OperationResult<stxlib::FileInformation> directory = stxlib::inspect(nested, stxlib::LinkMode::follow);
     CHECK(directory.succeeded() && (*directory.value()).kind == stxlib::FileKind::directory);
     CHECK(kind_of(stxlib::inspect(under(scratch.root, "nothing"), stxlib::LinkMode::follow)) == ErrorKind::not_found);
     // Listing is sorted by Path text bytes, whatever order the host returns.
     const char* const names[] = {"zeta", "Alpha", "beta", "_under", "\xc3\xa9t\xc3\xa9"};
     for (const char* const name : names) {
-        const Status missing = stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::none);
+        const OperationStatus missing = stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::none);
         CHECK(kind_of(missing) == ErrorKind::not_found);
     }
     CHECK(stxlib::create_directory(under(scratch.root, "list")).succeeded());
     for (const char* const name : names) {
         CHECK(stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::ordered).succeeded());
     }
-    Result<stxlib::DirectoryListing> listing = stxlib::list_directory(under(scratch.root, "list"), 16);
+    OperationResult<stxlib::DirectoryListing> listing = stxlib::list_directory(under(scratch.root, "list"), 16);
     CHECK(listing.succeeded());
     if (listing.succeeded()) {
         const stxlib::DirectoryListing& entries = *listing.value();
@@ -414,7 +414,7 @@ void metadata_and_directories(const Scratch& scratch) {
             CHECK(entries.kind(index) == stxlib::FileKind::regular);
         }
     }
-    const Result<stxlib::DirectoryListing> refused = stxlib::list_directory(under(scratch.root, "list"), 4);
+    const OperationResult<stxlib::DirectoryListing> refused = stxlib::list_directory(under(scratch.root, "list"), 4);
     CHECK(kind_of(refused) == ErrorKind::limit_exceeded && code_of(refused) == HostCode::too_long);
     // Rename replaces; copy; remove and remove_tree.
     const Path renamed = under(scratch.root, "list/beta");
@@ -427,13 +427,13 @@ void metadata_and_directories(const Scratch& scratch) {
     // A copy onto itself is refused, not truncated.
     CHECK(kind_of(stxlib::copy_file(renamed, renamed, stxlib::CopyMode::replace)) == ErrorKind::already_exists);
     CHECK(read_or_empty(renamed, 64) == bytes_of("zeta"));
-    const Status full = stxlib::remove(under(scratch.root, "list"));
+    const OperationStatus full = stxlib::remove(under(scratch.root, "list"));
     CHECK(kind_of(full) == ErrorKind::invalid_argument && code_of(full) == HostCode::directory_not_empty);
     CHECK(stxlib::remove(under(scratch.root, "list/copy")).succeeded());
     CHECK(kind_of(stxlib::remove(under(scratch.root, "list/copy"))) == ErrorKind::not_found);
-    const Result<stxlib::u64> removed = stxlib::remove_tree(under(scratch.root, "list"));
+    const OperationResult<stxlib::u64> removed = stxlib::remove_tree(under(scratch.root, "list"));
     CHECK(removed.succeeded() && *removed.value() == 5);
-    const Result<stxlib::u64> nothing = stxlib::remove_tree(under(scratch.root, "list"));
+    const OperationResult<stxlib::u64> nothing = stxlib::remove_tree(under(scratch.root, "list"));
     CHECK(nothing.succeeded() && *nothing.value() == 0);
     // Audit A, C3, over the held-directory walk (platform-rest): a limit
     // stops the walk with limit_exceeded, too_long; what was removed before
@@ -446,7 +446,7 @@ void metadata_and_directories(const Scratch& scratch) {
     empty_file("bounded/x/two");
     stxlib::RemoveTreeLimits shallow{};
     shallow.depth = 1; // bounded is 0, x is 1, y would be 2
-    const Result<stxlib::u64> too_deep = stxlib::remove_tree(under(scratch.root, "bounded"), shallow);
+    const OperationResult<stxlib::u64> too_deep = stxlib::remove_tree(under(scratch.root, "bounded"), shallow);
     CHECK(kind_of(too_deep) == ErrorKind::limit_exceeded && code_of(too_deep) == HostCode::too_long);
     CHECK(stxlib::inspect(under(scratch.root, "bounded/x/y"), stxlib::LinkMode::no_follow).succeeded());
     empty_file("bounded/x/one");
@@ -454,14 +454,14 @@ void metadata_and_directories(const Scratch& scratch) {
     empty_file("bounded/x/three");
     stxlib::RemoveTreeLimits narrow{};
     narrow.entries_per_directory = 2; // x holds y, one, two and three
-    const Result<stxlib::u64> too_wide = stxlib::remove_tree(under(scratch.root, "bounded"), narrow);
+    const OperationResult<stxlib::u64> too_wide = stxlib::remove_tree(under(scratch.root, "bounded"), narrow);
     CHECK(kind_of(too_wide) == ErrorKind::limit_exceeded && code_of(too_wide) == HostCode::too_long);
     CHECK(stxlib::inspect(under(scratch.root, "bounded/x"), stxlib::LinkMode::no_follow).succeeded());
-    const Result<stxlib::u64> bounded = stxlib::remove_tree(under(scratch.root, "bounded"));
+    const OperationResult<stxlib::u64> bounded = stxlib::remove_tree(under(scratch.root, "bounded"));
     CHECK(bounded.succeeded());
     CHECK(stxlib::inspect(under(scratch.root, "bounded"), stxlib::LinkMode::no_follow).failed());
     // A nested tree: a/b/c, a/note.txt, and a itself.
-    const Result<stxlib::u64> tree = stxlib::remove_tree(under(scratch.root, "a"));
+    const OperationResult<stxlib::u64> tree = stxlib::remove_tree(under(scratch.root, "a"));
     CHECK(tree.succeeded() && *tree.value() == 4);
 }
 
@@ -469,7 +469,7 @@ void metadata_and_directories(const Scratch& scratch) {
 // restricts links (Windows without developer mode or the symbolic link
 // privilege reports permission_denied, as files.hpp states).
 bool created_link(const Path& link) {
-    const Status status = stxlib::create_link(parse_or_empty("target.txt"), link);
+    const OperationStatus status = stxlib::create_link(parse_or_empty("target.txt"), link);
 #if defined(_WIN32)
     if (kind_of(status) == ErrorKind::permission_denied) {
         std::puts("links: skipped (this host restricts symbolic links)");
@@ -481,21 +481,21 @@ bool created_link(const Path& link) {
 }
 
 void link_checks(const Scratch& scratch, const Path& target, const Path& link) {
-    const Result<Path> named = stxlib::read_link(link);
+    const OperationResult<Path> named = stxlib::read_link(link);
     CHECK(named.succeeded() && text_of((*named.value()).text()) == "target.txt");
-    const Result<stxlib::FileInformation> itself = stxlib::inspect(link, stxlib::LinkMode::no_follow);
+    const OperationResult<stxlib::FileInformation> itself = stxlib::inspect(link, stxlib::LinkMode::no_follow);
     CHECK(itself.succeeded() && (*itself.value()).kind == stxlib::FileKind::symbolic_link);
-    const Result<stxlib::FileInformation> followed = stxlib::inspect(link, stxlib::LinkMode::follow);
+    const OperationResult<stxlib::FileInformation> followed = stxlib::inspect(link, stxlib::LinkMode::follow);
     CHECK(followed.succeeded() && (*followed.value()).kind == stxlib::FileKind::regular);
-    const Result<Path> resolved = stxlib::resolve(link);
-    const Result<Path> resolved_target = stxlib::resolve(target);
+    const OperationResult<Path> resolved = stxlib::resolve(link);
+    const OperationResult<Path> resolved_target = stxlib::resolve(target);
     CHECK(resolved.succeeded() && resolved_target.succeeded() && *resolved.value() == *resolved_target.value());
     // remove_tree removes the link, not its target.
     const Path holder = under(scratch.root, "holder");
     CHECK(stxlib::create_directory(holder).succeeded());
-    const Status inner = stxlib::create_link(parse_or_empty("../target.txt"), under(scratch.root, "holder/to-target"));
+    const OperationStatus inner = stxlib::create_link(parse_or_empty("../target.txt"), under(scratch.root, "holder/to-target"));
     CHECK(inner.succeeded());
-    const Result<stxlib::u64> removed = stxlib::remove_tree(holder);
+    const OperationResult<stxlib::u64> removed = stxlib::remove_tree(holder);
     CHECK(removed.succeeded() && *removed.value() == 2);
     CHECK(read_or_empty(target, 16) == bytes_of("t"));
 
@@ -507,16 +507,16 @@ void link_checks(const Scratch& scratch, const Path& target, const Path& link) {
               .succeeded());
     const Path second = under(scratch.root, "holder2/inner");
     CHECK(stxlib::create_directories(second).succeeded());
-    const Status to_directory =
+    const OperationStatus to_directory =
         stxlib::create_link(parse_or_empty("../../outside"), under(scratch.root, "holder2/inner/to-outside"));
     CHECK(to_directory.succeeded());
-    const Result<stxlib::u64> unlinked = stxlib::remove_tree(under(scratch.root, "holder2"));
+    const OperationResult<stxlib::u64> unlinked = stxlib::remove_tree(under(scratch.root, "holder2"));
     CHECK(unlinked.succeeded() && *unlinked.value() == 3);
     CHECK(read_or_empty(under(scratch.root, "outside/keep"), 16) == bytes_of("k"));
     // remove_tree of a link at the top removes the link alone.
     const Path top_link = under(scratch.root, "top-link");
     CHECK(stxlib::create_link(parse_or_empty("outside"), top_link).succeeded());
-    const Result<stxlib::u64> single = stxlib::remove_tree(top_link);
+    const OperationResult<stxlib::u64> single = stxlib::remove_tree(top_link);
     CHECK(single.succeeded() && *single.value() == 1);
     CHECK(read_or_empty(under(scratch.root, "outside/keep"), 16) == bytes_of("k"));
     CHECK(stxlib::remove_tree(outside).succeeded());
@@ -527,19 +527,19 @@ void links_and_resolution(const Scratch& scratch) {
     CHECK(stxlib::write_file(target, view_bytes(bytes_of("t")), Durability::durable).succeeded());
     const Path link = under(scratch.root, "link");
     if (created_link(link)) link_checks(scratch, target, link);
-    const Result<Path> working = stxlib::working_directory();
+    const OperationResult<Path> working = stxlib::working_directory();
     CHECK(working.succeeded() && (*working.value()).is_absolute());
     if (working.failed()) return;
-    const Result<Path> made = stxlib::absolute(parse_or_empty("x/../y"));
+    const OperationResult<Path> made = stxlib::absolute(parse_or_empty("x/../y"));
     CHECK(made.succeeded() && *made.value() == under(*working.value(), "y"));
-    const Result<Path> unchanged = stxlib::absolute(scratch.root);
+    const OperationResult<Path> unchanged = stxlib::absolute(scratch.root);
     CHECK(unchanged.succeeded() && *unchanged.value() == scratch.root);
 }
 
 void roots_and_host_forms() {
     // A root lists without a doubled separator.
 #if defined(_WIN32)
-    const Result<Path> working = stxlib::working_directory();
+    const OperationResult<Path> working = stxlib::working_directory();
     CHECK(working.succeeded());
     if (working.failed()) return;
     std::string root_text = text_of((*working.value()).text()).substr(0, 3);
@@ -547,10 +547,10 @@ void roots_and_host_forms() {
 #else
     const Path root = parse_or_empty("/");
 #endif
-    const Result<stxlib::DirectoryListing> listing = stxlib::list_directory(root, 1000000);
+    const OperationResult<stxlib::DirectoryListing> listing = stxlib::list_directory(root, 1000000);
     CHECK(listing.succeeded() && (*listing.value()).count() > 0);
 #if !defined(_WIN32)
-    const Result<Buffer<Byte>> drive = stxlib::read_file(parse_or_empty("C:/x"), 16);
+    const OperationResult<Buffer<Byte>> drive = stxlib::read_file(parse_or_empty("C:/x"), 16);
     CHECK(kind_of(drive) == ErrorKind::unsupported);
 #endif
 }
@@ -558,10 +558,10 @@ void roots_and_host_forms() {
 // ---- odd host names (D13 a) --------------------------------------------------
 
 Path child_of(const Path& directory, const Path& name) {
-    Result<Path> joined = directory.join(name);
+    OperationResult<Path> joined = directory.join(name);
     CHECK(joined.succeeded());
     if (joined.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(joined).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(joined).take_value();
     return result;
 }
 
@@ -578,7 +578,7 @@ usize find_entry(const stxlib::DirectoryListing& listing, const PathText name) {
 void check_odd_pair(const Path& directory, const Path& host_made, const Path& stxlib_made, const bool host_ok) {
     const std::vector<Byte> content = bytes_of("odd");
     CHECK(stxlib::write_file(child_of(directory, stxlib_made), view_bytes(content), Durability::durable).succeeded());
-    Result<stxlib::DirectoryListing> listing = stxlib::list_directory(directory, 64);
+    OperationResult<stxlib::DirectoryListing> listing = stxlib::list_directory(directory, 64);
     CHECK(listing.succeeded());
     if (listing.failed()) return;
     const stxlib::DirectoryListing& entries = *listing.value();
@@ -590,7 +590,7 @@ void check_odd_pair(const Path& directory, const Path& host_made, const Path& st
         CHECK(found < entries.count());
         if (found < entries.count()) {
             // The listed name is a Path segment that reaches the file.
-            Result<Path> listed = Path::parse_wtf8(entries.name(found).data(), entries.name(found).count());
+            OperationResult<Path> listed = Path::parse_wtf8(entries.name(found).data(), entries.name(found).count());
             CHECK(listed.succeeded() && *listed.value() == host_made);
             if (listed.succeeded()) CHECK(read_or_empty(child_of(directory, *listed.value()), 16) == content);
         }
@@ -604,7 +604,7 @@ void check_odd_pair(const Path& directory, const Path& host_made, const Path& st
 // Creates `units` in `directory` with CreateFileW, writing "odd". False when
 // the volume refuses the name.
 bool host_create(const Path& directory, const std::vector<stxlib::u16>& units) {
-    Result<Buffer<stxlib::u16>> native = directory.windows_name();
+    OperationResult<Buffer<stxlib::u16>> native = directory.windows_name();
     CHECK(native.succeeded());
     if (native.failed()) return false;
     const stxlib::View<stxlib::u16> base = (*native.value()).view();
@@ -625,7 +625,7 @@ bool host_create(const Path& directory, const std::vector<stxlib::u16>& units) {
 
 // Whether the host finds `units` in `directory` (GetFileAttributesW).
 bool host_exists(const Path& directory, const std::vector<stxlib::u16>& units) {
-    Result<Buffer<stxlib::u16>> native = directory.windows_name();
+    OperationResult<Buffer<stxlib::u16>> native = directory.windows_name();
     if (native.failed()) return false;
     const stxlib::View<stxlib::u16> base = (*native.value()).view();
     std::wstring name(reinterpret_cast<const wchar_t*>(base.data()), base.count() - 1);
@@ -635,10 +635,10 @@ bool host_exists(const Path& directory, const std::vector<stxlib::u16>& units) {
 }
 
 Path windows_path(const std::vector<stxlib::u16>& units) {
-    Result<Path> made = Path::from_windows_name(units.data(), units.size());
+    OperationResult<Path> made = Path::from_windows_name(units.data(), units.size());
     CHECK(made.succeeded());
     if (made.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(made).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(made).take_value();
     return result;
 }
 
@@ -651,14 +651,14 @@ void odd_names(const Scratch& scratch) {
     const bool host_ok = host_create(directory, lone_high);
     check_odd_pair(directory, windows_path(lone_high), windows_path(lone_low), host_ok);
     CHECK(host_exists(directory, lone_low));
-    const Result<stxlib::u64> removed = stxlib::remove_tree(directory);
+    const OperationResult<stxlib::u64> removed = stxlib::remove_tree(directory);
     CHECK(removed.succeeded() && *removed.value() == 2);
 }
 
 #else
 
 std::string host_name(const Path& directory, const std::string& name) {
-    Result<Buffer<char>> native = directory.posix_name();
+    OperationResult<Buffer<char>> native = directory.posix_name();
     CHECK(native.succeeded());
     if (native.failed()) return std::string();
     const stxlib::View<char> base = (*native.value()).view();
@@ -689,10 +689,10 @@ bool host_exists(const Path& directory, const std::string& name) {
 }
 
 Path posix_path(const std::string& name) {
-    Result<Path> made = Path::from_posix_name(name.data(), name.size());
+    OperationResult<Path> made = Path::from_posix_name(name.data(), name.size());
     CHECK(made.succeeded());
     if (made.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(made).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(made).take_value();
     return result;
 }
 
@@ -712,7 +712,7 @@ void odd_names(const Scratch& scratch) {
 #else
     const bool invalid_ok = host_create(directory, invalid_host);
 #endif
-    const Status stxlib_write = stxlib::write_file(child_of(directory, posix_path(invalid_stxlib)),
+    const OperationStatus stxlib_write = stxlib::write_file(child_of(directory, posix_path(invalid_stxlib)),
                                                    view_bytes(bytes_of("odd")), Durability::none);
     const bool stxlib_invalid_ok = stxlib_write.succeeded();
     // Where the host refuses non-UTF-8 names (APFS: EILSEQ) or would store
@@ -733,7 +733,7 @@ void odd_names(const Scratch& scratch) {
     check_odd_pair(directory, posix_path("c:"), posix_path("back\\slash"), reserved_ok);
     CHECK(host_exists(directory, "back\\slash"));
     // remove_tree reaches every entry whatever its name.
-    const Result<stxlib::u64> removed = stxlib::remove_tree(directory);
+    const OperationResult<stxlib::u64> removed = stxlib::remove_tree(directory);
     CHECK(removed.succeeded() && !host_exists(directory, ""));
 }
 
@@ -743,11 +743,11 @@ void odd_names(const Scratch& scratch) {
 // the file operations on POSIX hosts; Windows takes it.
 void unrepresentable_names(const Scratch& scratch) {
     const stxlib::u16 units[] = {'w', 0xd800};
-    Result<Path> name = Path::from_windows_name(units, 2);
+    OperationResult<Path> name = Path::from_windows_name(units, 2);
     CHECK(name.succeeded());
     if (name.failed()) return;
     const Path path = child_of(scratch.root, *name.value());
-    const Status written = stxlib::write_file(path, view_bytes(bytes_of("w")), Durability::none);
+    const OperationStatus written = stxlib::write_file(path, view_bytes(bytes_of("w")), Durability::none);
 #if defined(_WIN32)
     CHECK(written.succeeded());
     CHECK(stxlib::remove(path).succeeded());

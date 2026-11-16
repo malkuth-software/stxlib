@@ -90,7 +90,7 @@ public:
     // The zone or link with exactly this name, as the database spells it
     // (case matters: "America/New_York"). Failures: not_found for any other
     // text, the empty text included.
-    [[nodiscard]] static Result<Zone> named(TextView name) noexcept;
+    [[nodiscard]] static OperationResult<Zone> named(TextView name) noexcept;
 
     // The name it was found by: a link ("US/Eastern") keeps its own name.
     // Static storage.
@@ -117,13 +117,13 @@ private:
 // without ICU, foreign_failure when ICU refuses the key; the failures of
 // read_variable (environment.hpp) for TZ other than not_found, a TZ of
 // more than 1024 bytes included.
-[[nodiscard]] Result<Zone> host_zone() noexcept;
+[[nodiscard]] OperationResult<Zone> host_zone() noexcept;
 
 // The instant in the zone.
 [[nodiscard]] LocalTime local_time_in(const Zone& zone, WallTime instant) noexcept;
 
 // The instant in the host's zone: host_zone(), then local_time_in. Failures
 // as host_zone's.
-[[nodiscard]] Result<LocalTime> local_time(WallTime instant) noexcept;
+[[nodiscard]] OperationResult<LocalTime> local_time(WallTime instant) noexcept;
 
 } // namespace stxlib

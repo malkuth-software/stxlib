@@ -152,7 +152,7 @@ public:
 
     // A shaper of the program's typeface: it holds the typeface for as
     // long as it is open.
-    [[nodiscard]] Status open(const Shared<Typeface>& typeface, const ShaperLimits& limits = ShaperLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface, const ShaperLimits& limits = ShaperLimits{}) noexcept;
 
     // The run's glyphs, in the order they are drawn from left to right.
     // Failures: invalid_argument for a shaper not opened, clusters that
@@ -160,7 +160,7 @@ public:
     // limit_exceeded for a run longer than the limit, with more features
     // than the limit, or one whose shaping passes the bounds above;
     // out_of_memory. `glyphs` is then empty.
-    [[nodiscard]] Status shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
+    [[nodiscard]] OperationStatus shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
 
     // How many plans have been made since the shaper was opened (a count
     // that stays still while the same fonts, scripts and features recur).
@@ -173,7 +173,7 @@ public:
     void release() noexcept;
 
 private:
-    [[nodiscard]] Status shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
+    [[nodiscard]] OperationStatus shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
 
     Unique<detail::ShaperState> state_{};
 };

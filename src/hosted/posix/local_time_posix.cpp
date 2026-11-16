@@ -35,18 +35,18 @@ constexpr const char* zone_name_file = "/var/db/zoneinfo";
 constexpr const char* zone_name_file = "/etc/timezone";
 #endif
 
-Status io_failure_errno(const int error) noexcept {
-    const Status result = host_failure::failed(ErrorKind::io_failure, operation, HostCode::none,
+OperationStatus io_failure_errno(const int error) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::io_failure, operation, HostCode::none,
                                                ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
     return result;
 }
 
-Status write_utc(ZoneText& text) noexcept {
+OperationStatus write_utc(ZoneText& text) noexcept {
     text.bytes[0] = 'U';
     text.bytes[1] = 'T';
     text.bytes[2] = 'C';
     text.count = 3;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // The first line of the zone-name file (/etc/timezone, or /var/db/zoneinfo
@@ -54,7 +54,7 @@ Status write_utc(ZoneText& text) noexcept {
 // `localtime_exists` says /etc/localtime exists but is no link: the zone is
 // then a copied file with no name in it, and a missing zone-name file leaves
 // it unnamed.
-Status read_timezone_file(ZoneText& text, const bool localtime_exists) noexcept {
+OperationStatus read_timezone_file(ZoneText& text, const bool localtime_exists) noexcept {
     int fd = ::open(zone_name_file, O_RDONLY | O_CLOEXEC);
     while (fd < 0 && errno == EINTR) fd = ::open(zone_name_file, O_RDONLY | O_CLOEXEC);
     if (fd < 0) {
@@ -80,12 +80,12 @@ Status read_timezone_file(ZoneText& text, const bool localtime_exists) noexcept 
     while (count > 0 && (line.bytes[count - 1] == ' ' || line.bytes[count - 1] == '\t')) --count;
     for (usize index = 0; index < count; ++index) text.bytes[index] = line.bytes[index];
     text.count = count;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace
 
-Status system_zone_text(ZoneText& text) noexcept {
+OperationStatus system_zone_text(ZoneText& text) noexcept {
     ZoneText link{};
     const ssize_t got = ::readlink("/etc/localtime", link.bytes, zone_text_capacity);
     if (got >= 0) {
@@ -95,7 +95,7 @@ Status system_zone_text(ZoneText& text) noexcept {
         }
         for (usize index = 0; index < length; ++index) text.bytes[index] = link.bytes[index];
         text.count = length;
-        return Status::success();
+        return OperationStatus::success();
     }
     const int error = errno;
     // EINVAL: /etc/localtime exists and is no link (a copied zone file).

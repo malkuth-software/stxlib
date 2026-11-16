@@ -242,14 +242,14 @@ bool same_as_model(const stxlib::Vector<Element>& vector, const std::vector<int>
 // Applies `operation` to the vector and, when it succeeds, to the model.
 // Returns the status (success for the operations that cannot fail).
 template <typename Element>
-stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Element>& vector, std::vector<int>& model,
+stxlib::OperationStatus apply_vector(const VectorOperation& operation, stxlib::Vector<Element>& vector, std::vector<int>& model,
                             const int fresh) {
     const usize first = operation.first;
     const usize second = operation.second;
     switch (operation.step) {
     case VectorStep::push: {
         Element argument(fresh);
-        const stxlib::Status status = vector.push(static_cast<Element&&>(argument));
+        const stxlib::OperationStatus status = vector.push(static_cast<Element&&>(argument));
         if (status.succeeded()) {
             model.push_back(fresh);
             if (argument.value != moved_from_value) vector_tally.mismatches = vector_tally.mismatches + 1;
@@ -259,7 +259,7 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
         return status;
     }
     case VectorStep::push_inside: {
-        const stxlib::Status status = vector.insert(first, static_cast<Element&&>(vector[second]));
+        const stxlib::OperationStatus status = vector.insert(first, static_cast<Element&&>(vector[second]));
         if (status.succeeded()) {
             const int moved = model[second];
             model[second] = moved_from_value;
@@ -269,12 +269,12 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
     }
     case VectorStep::push_copy_outside: {
         const Element argument(fresh);
-        const stxlib::Status status = vector.push_copy(argument);
+        const stxlib::OperationStatus status = vector.push_copy(argument);
         if (status.succeeded()) model.push_back(fresh);
         return status;
     }
     case VectorStep::push_copy_inside: {
-        const stxlib::Status status = vector.push_copy(vector[first]);
+        const stxlib::OperationStatus status = vector.push_copy(vector[first]);
         if (status.succeeded()) {
             const int copied = model[first];
             model.push_back(copied);
@@ -282,13 +282,13 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
         return status;
     }
     case VectorStep::emplace: {
-        const stxlib::Status status = vector.emplace(fresh);
+        const stxlib::OperationStatus status = vector.emplace(fresh);
         if (status.succeeded()) model.push_back(fresh);
         return status;
     }
     case VectorStep::insert: {
         Element argument(fresh);
-        const stxlib::Status status = vector.insert(first, static_cast<Element&&>(argument));
+        const stxlib::OperationStatus status = vector.insert(first, static_cast<Element&&>(argument));
         if (status.succeeded()) {
             model.insert(model.begin() + static_cast<long>(first), fresh);
         } else if (argument.value != fresh) {
@@ -299,46 +299,46 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
     case VectorStep::erase:
         vector.erase(first);
         model.erase(model.begin() + static_cast<long>(first));
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::erase_range:
         vector.erase_range(first, second);
         model.erase(model.begin() + static_cast<long>(first), model.begin() + static_cast<long>(first + second));
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::take_last: {
         const Element taken = vector.take_last();
         if (taken.value != model.back()) vector_tally.mismatches = vector_tally.mismatches + 1;
         model.pop_back();
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
     case VectorStep::remove_last:
         vector.remove_last();
         model.pop_back();
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::truncate:
         vector.truncate(first);
         model.resize(first);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::clear:
         vector.clear();
         model.clear();
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::release:
         vector.release();
         model.clear();
         if (vector.capacity() != 0) vector_tally.mismatches = vector_tally.mismatches + 1;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     case VectorStep::reserve: {
-        const stxlib::Status status = vector.reserve(first);
+        const stxlib::OperationStatus status = vector.reserve(first);
         if (status.succeeded() && vector.capacity() < first) vector_tally.mismatches = vector_tally.mismatches + 1;
         return status;
     }
     case VectorStep::resize: {
-        const stxlib::Status status = vector.resize(first);
+        const stxlib::OperationStatus status = vector.resize(first);
         if (status.succeeded()) model.resize(first, 0);
         return status;
     }
     case VectorStep::append_self: {
-        const stxlib::Status status = vector.append_copies(vector.view().first(first));
+        const stxlib::OperationStatus status = vector.append_copies(vector.view().first(first));
         if (status.succeeded()) {
             for (usize index = 0; index < first; ++index) {
                 const int copied = model[index];
@@ -348,14 +348,14 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
         return status;
     }
     case VectorStep::copy_named: {
-        stxlib::Result<stxlib::Vector<Element>> copied = vector.copy();
-        if (copied.failed()) return stxlib::Status::failure(*copied.error());
+        stxlib::OperationResult<stxlib::Vector<Element>> copied = vector.copy();
+        if (copied.failed()) return stxlib::OperationStatus::failure(*copied.error());
         const stxlib::Vector<Element>& made = *copied.value();
         if (made.capacity() != made.count() || !same_as_model(made, model)) {
             vector_tally.mismatches = vector_tally.mismatches + 1;
         }
-        vector = static_cast<stxlib::Result<stxlib::Vector<Element>>&&>(copied).take_value();
-        return stxlib::Status::success();
+        vector = static_cast<stxlib::OperationResult<stxlib::Vector<Element>>&&>(copied).take_value();
+        return stxlib::OperationStatus::success();
     }
     case VectorStep::copy_construct: {
         stxlib::Vector<Element> made(vector);
@@ -363,7 +363,7 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
             vector_tally.mismatches = vector_tally.mismatches + 1;
         }
         vector = static_cast<stxlib::Vector<Element>&&>(made);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
     case VectorStep::copy_assign: {
         stxlib::Vector<Element> other;
@@ -375,19 +375,19 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
             vector_tally.mismatches = vector_tally.mismatches + 1;
         }
         vector = other;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
     case VectorStep::copy_self: {
         const usize capacity = vector.capacity();
         stxlib::Vector<Element>& alias = vector;
         vector = alias;
         if (vector.capacity() != capacity) vector_tally.mismatches = vector_tally.mismatches + 1;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
     case VectorStep::append_outside: {
         const Element outside[2] = {Element(fresh), Element(fresh + 1)};
         const stxlib::View<Element> source(outside);
-        const stxlib::Status status = vector.append_copies(source);
+        const stxlib::OperationStatus status = vector.append_copies(source);
         if (status.succeeded()) {
             model.push_back(fresh);
             model.push_back(fresh + 1);
@@ -396,13 +396,13 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
     }
     }
     vector_tally.mismatches = vector_tally.mismatches + 1;
-    return stxlib::Status::success();
+    return stxlib::OperationStatus::success();
 }
 
 template <typename Element>
 void replay(const std::vector<VectorOperation>& path, stxlib::Vector<Element>& vector, std::vector<int>& model) {
     for (usize index = 0; index < path.size(); ++index) {
-        const stxlib::Status status = apply_vector<Element>(path[index], vector, model, static_cast<int>(100 + index));
+        const stxlib::OperationStatus status = apply_vector<Element>(path[index], vector, model, static_cast<int>(100 + index));
         if (status.failed()) vector_tally.mismatches = vector_tally.mismatches + 1;
     }
 }
@@ -427,7 +427,7 @@ void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
             replay<Element>(path, vector, model);
             const usize capacity_before = vector.capacity();
             stxlib::detail::arm_vocabulary_refusals(0);
-            const stxlib::Status status = apply_vector<Element>(candidate, vector, model, fresh);
+            const stxlib::OperationStatus status = apply_vector<Element>(candidate, vector, model, fresh);
             stxlib::detail::disarm_vocabulary_refusals();
             if (status.failed()) {
                 vector_tally.refusals_checked = vector_tally.refusals_checked + 1;
@@ -466,12 +466,12 @@ void vector_exhaustive(const usize depth) {
 }
 
 void vector_limits_and_moves() {
-    stxlib::Result<stxlib::Vector<u64>> huge = stxlib::Vector<u64>::with_capacity(stxlib::usize_max);
+    stxlib::OperationResult<stxlib::Vector<u64>> huge = stxlib::Vector<u64>::with_capacity(stxlib::usize_max);
     CHECK(huge.failed() && (*huge.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 
-    stxlib::Result<stxlib::Vector<u64>> made = stxlib::Vector<u64>::with_capacity(3);
+    stxlib::OperationResult<stxlib::Vector<u64>> made = stxlib::Vector<u64>::with_capacity(3);
     CHECK(made.succeeded());
-    stxlib::Vector<u64> numbers = static_cast<stxlib::Result<stxlib::Vector<u64>>&&>(made).take_value();
+    stxlib::Vector<u64> numbers = static_cast<stxlib::OperationResult<stxlib::Vector<u64>>&&>(made).take_value();
     CHECK(numbers.capacity() >= 3 && numbers.empty());
     for (u64 value = 0; value < 40; ++value) CHECK(numbers.push_copy(value).succeeded());
     u64 sum = 0;
@@ -482,14 +482,14 @@ void vector_limits_and_moves() {
     CHECK(numbers.empty() && numbers.capacity() == 0);
     CHECK(moved.count() == 40 && moved[39] == 39);
 
-    stxlib::Result<stxlib::Vector<u64>> copied = moved.copy();
+    stxlib::OperationResult<stxlib::Vector<u64>> copied = moved.copy();
     CHECK(copied.succeeded());
     CHECK(*copied.value() == moved);
     (*copied.value())[0] = 7;
     CHECK(*copied.value() != moved);
 
     stxlib::detail::arm_vocabulary_refusals(0);
-    stxlib::Result<stxlib::Vector<u64>> refused_copy = moved.copy();
+    stxlib::OperationResult<stxlib::Vector<u64>> refused_copy = moved.copy();
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused_copy.failed() && (*refused_copy.error()).kind() == stxlib::ErrorKind::out_of_memory);
 
@@ -636,9 +636,9 @@ void unique_owners() {
     const long long live_before = ledger.live;
     const u64 released_before = stxlib::detail::vocabulary_blocks_released();
     {
-        stxlib::Result<stxlib::Unique<Joined>> made = stxlib::Unique<Joined>::make(9);
+        stxlib::OperationResult<stxlib::Unique<Joined>> made = stxlib::Unique<Joined>::make(9);
         CHECK(made.succeeded());
-        stxlib::Unique<Joined> joined = static_cast<stxlib::Result<stxlib::Unique<Joined>>&&>(made).take_value();
+        stxlib::Unique<Joined> joined = static_cast<stxlib::OperationResult<stxlib::Unique<Joined>>&&>(made).take_value();
         CHECK(joined.present() && (*joined).tracked.value == 9);
         Joined* const address = joined.get();
         stxlib::Unique<Right> right(static_cast<stxlib::Unique<Joined>&&>(joined));
@@ -653,7 +653,7 @@ void unique_owners() {
 
     const long long constructed_before = ledger.constructed;
     stxlib::detail::arm_vocabulary_refusals(0);
-    stxlib::Result<stxlib::Unique<Tracked>> refused = stxlib::Unique<Tracked>::make(3);
+    stxlib::OperationResult<stxlib::Unique<Tracked>> refused = stxlib::Unique<Tracked>::make(3);
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
     CHECK(ledger.constructed == constructed_before);
@@ -671,9 +671,9 @@ struct ListNode final {
 };
 
 stxlib::Unique<ListNode> list_node(const int value) {
-    stxlib::Result<stxlib::Unique<ListNode>> made = stxlib::Unique<ListNode>::make(value);
+    stxlib::OperationResult<stxlib::Unique<ListNode>> made = stxlib::Unique<ListNode>::make(value);
     STXLIB_REQUIRE(made.succeeded(), "making a list node");
-    stxlib::Unique<ListNode> result = static_cast<stxlib::Result<stxlib::Unique<ListNode>>&&>(made).take_value();
+    stxlib::Unique<ListNode> result = static_cast<stxlib::OperationResult<stxlib::Unique<ListNode>>&&>(made).take_value();
     return result;
 }
 
@@ -802,11 +802,11 @@ void vector_emplace_and_exact_copies() {
     stxlib::Vector<u64> numbers;
     for (u64 value = 0; value < 5; ++value) CHECK(numbers.push_copy(value).succeeded());
     CHECK(numbers.capacity() == 8);
-    stxlib::Result<stxlib::Vector<u64>> five = numbers.copy();
+    stxlib::OperationResult<stxlib::Vector<u64>> five = numbers.copy();
     CHECK(five.succeeded() && (*five.value()).capacity() == 5 && *five.value() == numbers);
-    stxlib::Result<stxlib::Vector<u64>> one = stxlib::Vector<u64>::copy_of(numbers.view().first(1));
+    stxlib::OperationResult<stxlib::Vector<u64>> one = stxlib::Vector<u64>::copy_of(numbers.view().first(1));
     CHECK(one.succeeded() && (*one.value()).capacity() == 1 && (*one.value()).count() == 1);
-    stxlib::Result<stxlib::Vector<u64>> none = stxlib::Vector<u64>::copy_of(stxlib::View<u64>());
+    stxlib::OperationResult<stxlib::Vector<u64>> none = stxlib::Vector<u64>::copy_of(stxlib::View<u64>());
     CHECK(none.succeeded() && (*none.value()).capacity() == 0 && (*none.value()).empty());
 }
 
@@ -860,7 +860,7 @@ static_assert(__is_nothrow_constructible(TreeNode, const TreeNode&), "a tree nod
 stxlib::Utf8String text_of(const usize length, const char seed) {
     char bytes[64];
     for (usize index = 0; index < length; ++index) bytes[index] = static_cast<char>(seed + static_cast<char>(index % 7));
-    stxlib::Result<stxlib::TextView> view = stxlib::validate_utf8(bytes, length);
+    stxlib::OperationResult<stxlib::TextView> view = stxlib::validate_utf8(bytes, length);
     stxlib::Utf8String result = stxlib::take_or_fail_fast(stxlib::Utf8String::copy_of(*view.value()));
     return result;
 }
@@ -934,9 +934,9 @@ void ordinary_copies() {
     CHECK(other.present() && *other.value() == *some.value());
 
     // Buffer, Path, PriorityQueue.
-    stxlib::Result<stxlib::Buffer<u32>> made = stxlib::Buffer<u32>::allocate_zeroed(9);
+    stxlib::OperationResult<stxlib::Buffer<u32>> made = stxlib::Buffer<u32>::allocate_zeroed(9);
     CHECK(made.succeeded());
-    stxlib::Buffer<u32> buffer = static_cast<stxlib::Result<stxlib::Buffer<u32>>&&>(made).take_value();
+    stxlib::Buffer<u32> buffer = static_cast<stxlib::OperationResult<stxlib::Buffer<u32>>&&>(made).take_value();
     for (usize index = 0; index < buffer.count(); ++index) buffer[index] = static_cast<u32>(index * 3);
     const stxlib::Buffer<u32> buffer_copy(buffer);
     CHECK(buffer_copy.count() == 9 && buffer_copy[8] == 24 && buffer_copy.view().data() != buffer.view().data());
@@ -944,9 +944,9 @@ void ordinary_copies() {
     empty = buffer_copy;
     CHECK(empty.count() == 9 && empty[4] == 12);
 
-    stxlib::Result<stxlib::Path> parsed = stxlib::Path::parse(stxlib::TextView("alpha/beta/gamma.txt"));
+    stxlib::OperationResult<stxlib::Path> parsed = stxlib::Path::parse(stxlib::TextView("alpha/beta/gamma.txt"));
     CHECK(parsed.succeeded());
-    const stxlib::Path path = static_cast<stxlib::Result<stxlib::Path>&&>(parsed).take_value();
+    const stxlib::Path path = static_cast<stxlib::OperationResult<stxlib::Path>&&>(parsed).take_value();
     stxlib::Path path_copy(path);
     CHECK(path_copy.text() == path.text());
     path_copy = path;
@@ -975,9 +975,9 @@ struct SharedNode final {
 };
 
 stxlib::Shared<SharedNode> shared_node(const int value) {
-    stxlib::Result<stxlib::Shared<SharedNode>> made = stxlib::Shared<SharedNode>::make(value);
+    stxlib::OperationResult<stxlib::Shared<SharedNode>> made = stxlib::Shared<SharedNode>::make(value);
     STXLIB_REQUIRE(made.succeeded(), "making a shared node");
-    stxlib::Shared<SharedNode> result = static_cast<stxlib::Result<stxlib::Shared<SharedNode>>&&>(made).take_value();
+    stxlib::Shared<SharedNode> result = static_cast<stxlib::OperationResult<stxlib::Shared<SharedNode>>&&>(made).take_value();
     return result;
 }
 
@@ -1053,12 +1053,12 @@ void apply_shared(const SharedOperation& operation, SharedWorld& world, const in
     const unsigned second = operation.second;
     switch (operation.step) {
     case SharedStep::make: {
-        stxlib::Result<stxlib::Shared<Tracked>> made = stxlib::Shared<Tracked>::make(fresh);
+        stxlib::OperationResult<stxlib::Shared<Tracked>> made = stxlib::Shared<Tracked>::make(fresh);
         if (made.failed()) {
             mismatches = mismatches + 1;
             return;
         }
-        world.owners[first] = static_cast<stxlib::Result<stxlib::Shared<Tracked>>&&>(made).take_value();
+        world.owners[first] = static_cast<stxlib::OperationResult<stxlib::Shared<Tracked>>&&>(made).take_value();
         world.model_owners[first] = std::make_shared<int>(fresh);
         return;
     }
@@ -1169,9 +1169,9 @@ struct Bird final : Animal {
 void shared_self_and_casts() {
     bool owner_in_destructor = true;
     {
-        stxlib::Result<stxlib::Shared<SelfAware>> made = stxlib::Shared<SelfAware>::make(&owner_in_destructor);
+        stxlib::OperationResult<stxlib::Shared<SelfAware>> made = stxlib::Shared<SelfAware>::make(&owner_in_destructor);
         CHECK(made.succeeded());
-        const stxlib::Shared<SelfAware> first = static_cast<stxlib::Result<stxlib::Shared<SelfAware>>&&>(made).take_value();
+        const stxlib::Shared<SelfAware> first = static_cast<stxlib::OperationResult<stxlib::Shared<SelfAware>>&&>(made).take_value();
         const stxlib::Shared<SelfAware> again = (*first).shared_from_this();
         CHECK(again == first && first.owner_count() == 2);
         const stxlib::Weak<SelfAware> observer = (*first).weak_from_this();
@@ -1184,9 +1184,9 @@ void shared_self_and_casts() {
     }
     CHECK(!owner_in_destructor);
 
-    stxlib::Result<stxlib::Shared<Bird>> made_bird = stxlib::Shared<Bird>::make();
+    stxlib::OperationResult<stxlib::Shared<Bird>> made_bird = stxlib::Shared<Bird>::make();
     CHECK(made_bird.succeeded());
-    const stxlib::Shared<Bird> bird = static_cast<stxlib::Result<stxlib::Shared<Bird>>&&>(made_bird).take_value();
+    const stxlib::Shared<Bird> bird = static_cast<stxlib::OperationResult<stxlib::Shared<Bird>>&&>(made_bird).take_value();
     const stxlib::Shared<Animal> animal(bird);
     CHECK(animal.owner_count() == 2 && (*animal).legs == 2);
     const stxlib::Shared<Bird> back = stxlib::dynamic_shared_cast<Bird>(animal);
@@ -1196,7 +1196,7 @@ void shared_self_and_casts() {
 
     const long long constructed_before = ledger.constructed;
     stxlib::detail::arm_vocabulary_refusals(0);
-    stxlib::Result<stxlib::Shared<Tracked>> refused = stxlib::Shared<Tracked>::make(1);
+    stxlib::OperationResult<stxlib::Shared<Tracked>> refused = stxlib::Shared<Tracked>::make(1);
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
     CHECK(ledger.constructed == constructed_before);
@@ -1226,9 +1226,9 @@ struct Churn final {
 void shared_threads() {
     int destructions = 0;
     {
-        stxlib::Result<stxlib::Shared<Counted>> made = stxlib::Shared<Counted>::make(&destructions);
+        stxlib::OperationResult<stxlib::Shared<Counted>> made = stxlib::Shared<Counted>::make(&destructions);
         CHECK(made.succeeded());
-        stxlib::Shared<Counted> owner = static_cast<stxlib::Result<stxlib::Shared<Counted>>&&>(made).take_value();
+        stxlib::Shared<Counted> owner = static_cast<stxlib::OperationResult<stxlib::Shared<Counted>>&&>(made).take_value();
         const stxlib::Weak<Counted> observer(owner);
         std::vector<std::thread> threads;
         for (int index = 0; index < 4; ++index) {

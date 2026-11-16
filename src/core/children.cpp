@@ -23,7 +23,7 @@ bool holds_nul(const PathText text) noexcept {
 
 } // namespace
 
-Status check_request(const ChildRequest& request) noexcept {
+OperationStatus check_request(const ChildRequest& request) noexcept {
     const Operation operation = "stxlib.children.start";
     if (request.program.empty()) {
         return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::empty_request);
@@ -36,7 +36,7 @@ Status check_request(const ChildRequest& request) noexcept {
             return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
         }
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 ErrorRecord invalid_state(const Operation operation) noexcept {
@@ -55,13 +55,13 @@ bool keep_output(const Byte* const bytes, const usize count, const usize limit, 
     return result;
 }
 
-Result<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit, const Operation operation) noexcept {
+OperationResult<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit, const Operation operation) noexcept {
     if (over_limit) {
-        return Result<Buffer<Byte>>::failure(
+        return OperationResult<Buffer<Byte>>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
     }
     // Handed over, not copied (audit A, X5).
-    return Result<Buffer<Byte>>::success(output.take_as_buffer());
+    return OperationResult<Buffer<Byte>>::success(output.take_as_buffer());
 }
 
 } // namespace children_detail

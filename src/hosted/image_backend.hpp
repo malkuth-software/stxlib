@@ -40,20 +40,20 @@ enum class LoadMode : u8 {
 };
 
 // On success `handle` holds one reference to the image; never 0.
-[[nodiscard]] Status open_library(const char* name, LoadMode mode, uptr& handle) noexcept;
+[[nodiscard]] OperationStatus open_library(const char* name, LoadMode mode, uptr& handle) noexcept;
 // Gives the reference back; the handle is released even on failure.
-[[nodiscard]] Status close_library(uptr handle) noexcept;
+[[nodiscard]] OperationStatus close_library(uptr handle) noexcept;
 // The symbol's address, or not_found with HostCode::symbol_not_found.
-[[nodiscard]] Status find_symbol(uptr handle, const char* name, uptr& address) noexcept;
+[[nodiscard]] OperationStatus find_symbol(uptr handle, const char* name, uptr& address) noexcept;
 
 // describe_address's work, rooms already checked.
-[[nodiscard]] Status describe(uptr address, MutableView<char> image_name_room, MutableView<char> symbol_name_room,
+[[nodiscard]] OperationStatus describe(uptr address, MutableView<char> image_name_room, MutableView<char> symbol_name_room,
                               AddressDescription& description) noexcept;
 
 // Visits the query's region in every image (`containing` false) or in the
 // image holding `address` only. The query's names are checked; the
 // visitor is not null.
-[[nodiscard]] Status visit_regions(const ImageRegionQuery& query, bool containing, uptr address,
+[[nodiscard]] OperationStatus visit_regions(const ImageRegionQuery& query, bool containing, uptr address,
                                    ImageRegionVisitor visitor, void* context) noexcept;
 
 // Copies `count` host bytes into `room`, cut to its capacity; the copied

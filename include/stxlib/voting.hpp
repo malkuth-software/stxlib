@@ -47,7 +47,7 @@
 // happens in either case.
 //
 // Changes from stx_auxlib: Ballots stores its rankings in STXlib Buffers
-// and reports a failed growth (add returns Status); the outcome is a tagged
+// and reports a failed growth (add returns OperationStatus); the outcome is a tagged
 // union laid out here; PrvFailure::out_of_memory (new) reports the working
 // storage; rankings are View<Candidate>.
 
@@ -75,11 +75,11 @@ public:
     // Adds a ballot, most preferred first. It is validated when counted.
     // Failures: out_of_memory or limit_exceeded when the storage cannot
     // grow; the ballots are then unchanged.
-    [[nodiscard]] Status add(View<Candidate> ranking) noexcept;
+    [[nodiscard]] OperationStatus add(View<Candidate> ranking) noexcept;
     // Adds `copies` identical ballots without storing each. Failures as add.
     // The ranking may be a view of these same ballots (ranking(k)): it is
     // copied correctly even when the storage grows.
-    [[nodiscard]] Status add_copies(View<Candidate> ranking, u64 copies) noexcept;
+    [[nodiscard]] OperationStatus add_copies(View<Candidate> ranking, u64 copies) noexcept;
     [[nodiscard]] usize distinct() const noexcept { return distinct_; }
     // Borrowed from these ballots: valid until the next add or clear.
     // Requirement: index < distinct().

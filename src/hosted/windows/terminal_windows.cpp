@@ -57,17 +57,17 @@ struct RawTerminal::HostAccess final {
     }
 };
 
-Result<TerminalSize> terminal_size() noexcept {
+OperationResult<TerminalSize> terminal_size() noexcept {
     CONSOLE_SCREEN_BUFFER_INFO information{};
     const HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
     if (output == nullptr || output == INVALID_HANDLE_VALUE || !GetConsoleScreenBufferInfo(output, &information)) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.size", HostCode::not_a_terminal);
-        return Result<TerminalSize>::failure(none);
+        return OperationResult<TerminalSize>::failure(none);
     }
     const TerminalSize size{static_cast<u32>(information.srWindow.Right - information.srWindow.Left + 1),
                             static_cast<u32>(information.srWindow.Bottom - information.srWindow.Top + 1)};
-    return Result<TerminalSize>::success(size);
+    return OperationResult<TerminalSize>::success(size);
 }
 
 RawTerminal::~RawTerminal() { release(); }
@@ -99,18 +99,18 @@ void RawTerminal::release() noexcept {
     process.raw_terminal_active.store(false, std::memory_order_release);
 }
 
-Result<RawTerminal> RawTerminal::enter() noexcept {
+OperationResult<RawTerminal> RawTerminal::enter() noexcept {
     SavedModes modes{};
     if (!console_mode(STD_INPUT_HANDLE, modes.input_mode) || !console_mode(STD_OUTPUT_HANDLE, modes.output_mode)) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::not_a_terminal);
-        return Result<RawTerminal>::failure(none);
+        return OperationResult<RawTerminal>::failure(none);
     }
     state::ProcessState& process = state::current_process();
     if (process.raw_terminal_active.exchange(true, std::memory_order_acq_rel)) {
         const ErrorRecord busy =
             host_failure::record(ErrorKind::limit_exceeded, "stxlib.terminal.enter_raw", HostCode::busy);
-        return Result<RawTerminal>::failure(busy);
+        return OperationResult<RawTerminal>::failure(busy);
     }
     const DWORD raw_input =
         (modes.input_mode & ~static_cast<DWORD>(ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_PROCESSED_INPUT)) |
@@ -123,11 +123,11 @@ Result<RawTerminal> RawTerminal::enter() noexcept {
         process.raw_terminal_active.store(false, std::memory_order_release);
         const ErrorRecord refused =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::none);
-        return Result<RawTerminal>::failure(refused);
+        return OperationResult<RawTerminal>::failure(refused);
     }
     RawTerminal result;
     HostAccess::save(result, modes);
-    return Result<RawTerminal>::success(static_cast<RawTerminal&&>(result));
+    return OperationResult<RawTerminal>::success(static_cast<RawTerminal&&>(result));
 }
 
 } // namespace stxlib

@@ -871,7 +871,7 @@ Outcome list(const char* const name, const usize limit, Growable<char>& names, G
 Outcome temporary_directory(Growable<char>& text) noexcept {
     const TextView variables[] = {"TMPDIR", "TMP", "TEMP", "TEMPDIR"};
     for (const TextView variable : variables) {
-        Result<Utf8String> value = read_variable(variable, maximum_environment_bytes);
+        OperationResult<Utf8String> value = read_variable(variable, maximum_environment_bytes);
         if (value.failed()) {
             const ErrorKind kind = (*value.error()).kind();
             if (kind == ErrorKind::not_found) continue;

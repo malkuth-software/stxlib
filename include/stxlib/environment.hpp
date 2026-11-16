@@ -37,14 +37,14 @@ inline constexpr usize maximum_environment_bytes = 32767;
 // value is not UTF-8; out_of_memory. The value is a string of its own,
 // bounded by `limit` (house style §6, audit A, X10): variables are read
 // rarely, never on a hot path.
-[[nodiscard]] Result<Utf8String> read_variable(TextView name, usize limit) noexcept;
+[[nodiscard]] OperationResult<Utf8String> read_variable(TextView name, usize limit) noexcept;
 // Sets the variable, replacing any value it had. Failures: invalid_name;
 // limit_exceeded (more than maximum_environment_bytes); invalid_argument
 // with HostCode::invalid_value for a value containing NUL; foreign_failure
 // when the host refuses.
-[[nodiscard]] Status set_variable(TextView name, TextView value) noexcept;
+[[nodiscard]] OperationStatus set_variable(TextView name, TextView value) noexcept;
 // Removes the variable; succeeds when it was not set.
-[[nodiscard]] Status remove_variable(TextView name) noexcept;
+[[nodiscard]] OperationStatus remove_variable(TextView name) noexcept;
 //
 // Each of the three also fails with interrupted, having read or changed
 // nothing, when the process is ending on Windows (ExitProcess has stopped

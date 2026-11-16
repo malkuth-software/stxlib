@@ -14,7 +14,7 @@ namespace stxlib::children_detail {
 // A non-empty program, and a program and arguments without NUL (a PathText
 // is well-formed WTF-8 already). Fails with invalid_argument and HostCode::empty_request
 // or HostCode::invalid_value.
-[[nodiscard]] Status check_request(const ChildRequest& request) noexcept;
+[[nodiscard]] OperationStatus check_request(const ChildRequest& request) noexcept;
 
 // The record for a Child that cannot take the call: empty, already waited
 // for, or not capturing.
@@ -29,7 +29,7 @@ namespace stxlib::children_detail {
 // The captured output as the caller's buffer, taking `output`'s block
 // without a copy (`output` is empty afterwards), or limit_exceeded with
 // HostCode::too_long.
-[[nodiscard]] Result<Buffer<Byte>> finish_output(Growable<Byte>& output, bool over_limit,
+[[nodiscard]] OperationResult<Buffer<Byte>> finish_output(Growable<Byte>& output, bool over_limit,
                                                  Operation operation) noexcept;
 
 } // namespace stxlib::children_detail

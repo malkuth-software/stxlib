@@ -28,27 +28,27 @@
 
 namespace stxlib::process_backend {
 
-Status arguments(const usize limit, Growable<char>& raw) noexcept {
+OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
     static_cast<void>(limit);
     raw.clear();
-    const Status result = host_failure::failed(ErrorKind::unsupported, "stxlib.process.arguments", HostCode::none);
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.process.arguments", HostCode::none);
     return result;
 }
 
 u64 process_id() noexcept { return 0; }
 
-Status is_main_thread(bool& initial) noexcept {
+OperationStatus is_main_thread(bool& initial) noexcept {
     initial = false;
-    const Status result = host_failure::failed(ErrorKind::unsupported, "stxlib.threads.is_main_thread", HostCode::none);
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.threads.is_main_thread", HostCode::none);
     return result;
 }
 
-Status memory(ProcessMemory& report) noexcept {
+OperationStatus memory(ProcessMemory& report) noexcept {
     const u64 size = static_cast<u64>(emscripten_get_heap_size());
     report = ProcessMemory{};
     report.resident_bytes = size;
     report.peak_resident_bytes = size;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::process_backend

@@ -35,7 +35,7 @@ public:
     // rounding overflows; out_of_memory when the host refuses (its code as
     // the foreign code); unsupported where Capability::page_protection is
     // false.
-    [[nodiscard]] static Result<PageBlock> map(usize bytes) noexcept;
+    [[nodiscard]] static OperationResult<PageBlock> map(usize bytes) noexcept;
 
     PageBlock() noexcept = default;
     // Unmaps the pages; borrows of them end.
@@ -66,7 +66,7 @@ public:
     // Makes every page read-only, for good. Failures: invalid_argument with
     // HostCode::sealed when already sealed; foreign_failure with the host's
     // code (the block is then unchanged and still writable).
-    [[nodiscard]] Status seal() noexcept;
+    [[nodiscard]] OperationStatus seal() noexcept;
 
 private:
     PageBlock(Byte* const pages, const usize requested, const usize whole) noexcept

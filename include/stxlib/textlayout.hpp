@@ -250,11 +250,11 @@ inline constexpr u32 line_break_class_count = 44;
 // byte i. The last entry is mandatory (LB3). invalid_argument, and nothing
 // written, unless output.count() == text.count(). Requirement: `output`
 // does not overlap `text`. No allocation.
-[[nodiscard]] Status find_line_breaks(MutableView<LineBreak> output, TextView text) noexcept;
+[[nodiscard]] OperationStatus find_line_breaks(MutableView<LineBreak> output, TextView text) noexcept;
 
 // The same over code points, one entry each (inside_character does not
 // occur). A value that is not a scalar value is taken as U+FFFD.
-[[nodiscard]] Status find_line_breaks(MutableView<LineBreak> output, View<u32> code_points) noexcept;
+[[nodiscard]] OperationStatus find_line_breaks(MutableView<LineBreak> output, View<u32> code_points) noexcept;
 
 // ---------------------------------------------------------------------------
 // Scripts.
@@ -387,12 +387,12 @@ private:
 // invalid_argument when offset is not at a code point's first byte,
 // out_of_range when offset >= text.count(), limit_exceeded when the text
 // has more than 2^32 - 2 bytes; out_of_memory when storage cannot grow.
-[[nodiscard]] Status analyse_paragraph(TextView text, usize offset, BaseDirection direction,
+[[nodiscard]] OperationStatus analyse_paragraph(TextView text, usize offset, BaseDirection direction,
                                        Paragraph& paragraph) noexcept;
 
 // The same over code points, one code unit each. A value that is not a
 // scalar value is taken as U+FFFD (Bidi_Class ON).
-[[nodiscard]] Status analyse_paragraph(View<u32> code_points, usize offset, BaseDirection direction,
+[[nodiscard]] OperationStatus analyse_paragraph(View<u32> code_points, usize offset, BaseDirection direction,
                                        Paragraph& paragraph) noexcept;
 
 // One line of an analysed paragraph: its levels after rule L1 and its runs
@@ -451,7 +451,7 @@ private:
 // paragraph separator. invalid_argument when either end is not at a code
 // point boundary, out_of_range when the line is empty or not within the
 // paragraph; out_of_memory when storage cannot grow.
-[[nodiscard]] Status analyse_line(const Paragraph& paragraph, usize offset, usize length,
+[[nodiscard]] OperationStatus analyse_line(const Paragraph& paragraph, usize offset, usize length,
                                   Line& line) noexcept;
 
 } // namespace stxlib::textlayout

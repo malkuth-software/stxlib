@@ -53,7 +53,7 @@ Shown show(const char* const title, const stxlib::ErrorRecord& record) {
     std::printf(")");
     std::printf("\n  sequence: %llu\n", static_cast<unsigned long long>(record.sequence()));
     Shown shown{};
-    stxlib::Result<stxlib::ShadowSummary> found = stxlib::read_shadow(
+    stxlib::OperationResult<stxlib::ShadowSummary> found = stxlib::read_shadow(
         record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(shown.frames),
         stxlib::MutableView<stxlib::uptr>(shown.trace));
     if (found.failed()) {
@@ -91,15 +91,15 @@ bool frame_is(const Shown& shown, const usize index, const stxlib::TextView name
 void throws_in_executable(void*) { throw std::invalid_argument("thrown in the executable"); }
 
 struct ThroughLibrary final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         two_module::run_in_library_frame(throws_in_executable, nullptr);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void an_executable_throw_is_captured_by_the_library_frame() {
     ThroughLibrary through;
-    const stxlib::Status status = stxlib::call_gate("test.exe.gate", through);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.exe.gate", through);
     CHECK(status.failed());
     const stxlib::ErrorRecord record = *status.error();
     const Shown shown = show("executable throw through a library frame", record);
@@ -132,7 +132,7 @@ void opens_executable_frame(void*) {
 }
 
 void a_library_gate_catches_an_executable_throw() {
-    const stxlib::Status status = two_module::run_in_library_gate(opens_executable_frame, nullptr);
+    const stxlib::OperationStatus status = two_module::run_in_library_gate(opens_executable_frame, nullptr);
     CHECK(status.failed());
     const stxlib::ErrorRecord record = *status.error();
     const Shown shown = show("library gate, executable throw", record);
@@ -170,9 +170,9 @@ bool classify_counting(void*, stxlib::ExceptionClass&) noexcept {
 void throws_under_dispatch(void*) { throw std::out_of_range("thrown under the library's dispatch frame"); }
 
 struct SlotThroughLibrary final {
-    stxlib::Result<int> operator()() const {
+    stxlib::OperationResult<int> operator()() const {
         two_module::run_in_library_dispatch_frame(throws_under_dispatch, nullptr);
-        return stxlib::Result<int>::success(0);
+        return stxlib::OperationResult<int>::success(0);
     }
 };
 
@@ -181,7 +181,7 @@ void a_slot_sees_a_library_hand_frame() {
     const stxlib::ExceptionClassifier classifier{classify_counting, nullptr};
     const stxlib::GateFrame slot{.operation = "test.exe.slot", .first = 24, .second = 3, .kind = 1};
     SlotThroughLibrary body;
-    const stxlib::Result<int> result = stxlib::call_gate_classified(classifier, slot, body);
+    const stxlib::OperationResult<int> result = stxlib::call_gate_classified(classifier, slot, body);
     CHECK(result.failed());
     if (result.succeeded()) return;
     const stxlib::ErrorRecord record = *result.error();
@@ -232,13 +232,13 @@ void both_copies_share_the_state() {
 void one_event_watch_for_both() {
     const stxlib::EventSet interrupts = stxlib::EventSet().with(stxlib::ProcessEvent::interrupt);
     {
-        const stxlib::Result<stxlib::EventWatch> held = two_module::library_watch_interrupts();
+        const stxlib::OperationResult<stxlib::EventWatch> held = two_module::library_watch_interrupts();
         CHECK(held.succeeded());
-        const stxlib::Result<stxlib::EventWatch> second = stxlib::EventWatch::watch(interrupts);
+        const stxlib::OperationResult<stxlib::EventWatch> second = stxlib::EventWatch::watch(interrupts);
         CHECK(second.failed() && static_cast<stxlib::HostCode>((*second.error()).code()) == stxlib::HostCode::busy);
     }
     // The library's watch ended in the executable's copy; the flag is free.
-    const stxlib::Result<stxlib::EventWatch> again = stxlib::EventWatch::watch(interrupts);
+    const stxlib::OperationResult<stxlib::EventWatch> again = stxlib::EventWatch::watch(interrupts);
     CHECK(again.succeeded());
 }
 

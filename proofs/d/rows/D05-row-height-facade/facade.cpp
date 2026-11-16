@@ -19,7 +19,7 @@
 //       template's out_of_memory() says; erase and coarsen: out_of_memory.
 // Environment model: the template is replaced by a model that accepts or
 //     refuses nondeterministically within that contract and records why;
-//     STXlib's vocabulary (Status, Result, ErrorRecord, View) is reduced to
+//     STXlib's vocabulary (OperationStatus, OperationResult, ErrorRecord, View) is reduced to
 //     the outcome and its kind. The structure itself (every query and walk
 //     equals a flat model, I1-I6) is the exhaustive test's
 //     (tests/stx_btree/sequence_tree_exhaustive_test.cpp, REPORT batch 3c6).
@@ -47,20 +47,20 @@ struct ErrorRecord final {
     }
 };
 
-struct Status final {
+struct OperationStatus final {
     bool ok{false};
     ErrorKind kind{ErrorKind::none};
-    static Status success() noexcept { return Status{true, ErrorKind::none}; }
-    static Status failure(const ErrorRecord record) noexcept { return Status{false, record.kind}; }
+    static OperationStatus success() noexcept { return OperationStatus{true, ErrorKind::none}; }
+    static OperationStatus failure(const ErrorRecord record) noexcept { return OperationStatus{false, record.kind}; }
 };
 
 template <typename T>
-struct Result final {
+struct OperationResult final {
     bool ok{false};
     T value{};
     ErrorKind kind{ErrorKind::none};
-    static Result success(const T value) noexcept { return Result{true, value, ErrorKind::none}; }
-    static Result failure(const ErrorRecord record) noexcept { return Result{false, T{}, record.kind}; }
+    static OperationResult success(const T value) noexcept { return OperationResult{true, value, ErrorKind::none}; }
+    static OperationResult failure(const ErrorRecord record) noexcept { return OperationResult{false, T{}, record.kind}; }
 };
 
 template <typename T>
@@ -189,13 +189,13 @@ public:
     static constexpr i64 height_limit = stx_btree::height_limit;
     explicit RowHeightIndex(void* const tree) noexcept : tree_(tree) {}
     [[nodiscard]] u64 count() const noexcept { return static_cast<Index*>(tree_)->model.rows; }
-    [[nodiscard]] Status assign(u64 rows, i64 estimate) noexcept;
-    [[nodiscard]] Result<bool> set_height(u64 row, i64 height) noexcept;
-    [[nodiscard]] Status set_heights(u64 row, View<i64> heights) noexcept;
-    [[nodiscard]] Status insert(u64 row, u64 rows) noexcept;
-    [[nodiscard]] Status erase(u64 row, u64 rows) noexcept;
-    [[nodiscard]] Status forget(u64 row, u64 rows) noexcept;
-    [[nodiscard]] Status coarsen(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus assign(u64 rows, i64 estimate) noexcept;
+    [[nodiscard]] OperationResult<bool> set_height(u64 row, i64 height) noexcept;
+    [[nodiscard]] OperationStatus set_heights(u64 row, View<i64> heights) noexcept;
+    [[nodiscard]] OperationStatus insert(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus erase(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus forget(u64 row, u64 rows) noexcept;
+    [[nodiscard]] OperationStatus coarsen(u64 row, u64 rows) noexcept;
 
 private:
     void* tree_{nullptr};
@@ -226,7 +226,7 @@ bool valid_height(const i64 height) {
     return height >= 0 && height <= stxlib::RowHeightIndex::height_limit;
 }
 
-void check_limited(const stxlib::Status status, const stxlib::stx_btree::Model& model) {
+void check_limited(const stxlib::OperationStatus status, const stxlib::stx_btree::Model& model) {
     if (model.last == Reason::accepted) STX_ASSERT(status.ok, "an accepted edit succeeds");
     if (model.last == Reason::memory) STX_ASSERT(!status.ok && status.kind == ErrorKind::out_of_memory, "page refusal");
     if (model.last == Reason::limit) STX_ASSERT(!status.ok && status.kind == ErrorKind::limit_exceeded, "limit refusal");
@@ -244,7 +244,7 @@ int main() {
     const i64 height = static_cast<i64>(nondet_longlong());
 
     // set_height
-    const stxlib::Result<bool> set = index.set_height(row, height);
+    const stxlib::OperationResult<bool> set = index.set_height(row, height);
     if (row >= tree.model.rows || !valid_height(height)) {
         STX_ASSERT(!set.ok && set.kind == ErrorKind::invalid_argument, "set_height: invalid argument");
         STX_ASSERT(tree.model.calls == 0, "set_height: the template is not called with invalid arguments");
@@ -265,7 +265,7 @@ int main() {
     const usize wanted = nondet_size();
     STX_ASSUME(wanted <= STX_N);
     const u64 first = nondet_ulonglong();
-    const stxlib::Status many = index.set_heights(first, stxlib::View<i64>{heights, wanted});
+    const stxlib::OperationStatus many = index.set_heights(first, stxlib::View<i64>{heights, wanted});
     bool every_valid = true;
     for (usize position = 0; position < wanted; ++position) every_valid = every_valid && valid_height(heights[position]);
     const bool in_range = first < tree.model.rows && wanted <= tree.model.rows - first;
@@ -280,10 +280,10 @@ int main() {
     check_limited(index.assign(count, height), tree.model);
     check_limited(index.insert(row, count), tree.model);
     check_limited(index.forget(row, count), tree.model);
-    const stxlib::Status erased = index.erase(row, count);
+    const stxlib::OperationStatus erased = index.erase(row, count);
     STX_ASSERT(tree.model.last != Reason::limit, "erase has no limit");
     check_limited(erased, tree.model);
-    const stxlib::Status coarsened = index.coarsen(row, count);
+    const stxlib::OperationStatus coarsened = index.coarsen(row, count);
     check_limited(coarsened, tree.model);
     STX_VACUITY_PROBE();
     return 0;

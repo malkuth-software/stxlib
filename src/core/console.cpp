@@ -26,10 +26,10 @@ namespace {
 
 constexpr usize read_chunk_bytes = 4096;
 
-Status status_of(const console_backend::Report report, const Operation operation) noexcept {
+OperationStatus status_of(const console_backend::Report report, const Operation operation) noexcept {
     switch (report.outcome) {
     case console_backend::Outcome::ok:
-        return Status::success();
+        return OperationStatus::success();
     case console_backend::Outcome::closed:
         return host_failure::failed(ErrorKind::io_failure, operation, HostCode::stream_closed, report.foreign);
     case console_backend::Outcome::invalid_text:
@@ -78,17 +78,17 @@ usize find_newline(const state::ProcessState& process) noexcept {
     return usize_max;
 }
 
-Result<ConsoleLine> line_from(const char* const bytes, const usize count) noexcept {
-    Result<TextView> valid = validate_utf8(bytes, count);
+OperationResult<ConsoleLine> line_from(const char* const bytes, const usize count) noexcept {
+    OperationResult<TextView> valid = validate_utf8(bytes, count);
     if (valid.failed()) {
         const ErrorRecord invalid = host_failure::record(ErrorKind::invalid_argument, "stxlib.console.read_line",
                                                          HostCode::invalid_text);
-        return Result<ConsoleLine>::failure(invalid);
+        return OperationResult<ConsoleLine>::failure(invalid);
     }
-    Result<Utf8String> copied = Utf8String::copy_of(*valid.value());
-    if (copied.failed()) return Result<ConsoleLine>::failure(*copied.error());
-    ConsoleLine line = ConsoleLine::line(static_cast<Result<Utf8String>&&>(copied).take_value());
-    return Result<ConsoleLine>::success(static_cast<ConsoleLine&&>(line));
+    OperationResult<Utf8String> copied = Utf8String::copy_of(*valid.value());
+    if (copied.failed()) return OperationResult<ConsoleLine>::failure(*copied.error());
+    ConsoleLine line = ConsoleLine::line(static_cast<OperationResult<Utf8String>&&>(copied).take_value());
+    return OperationResult<ConsoleLine>::success(static_cast<ConsoleLine&&>(line));
 }
 
 } // namespace
@@ -105,18 +105,18 @@ ConsoleLine ConsoleLine::end_of_input() noexcept {
     return result;
 }
 
-Status write_console(const ConsoleStream stream, const TextView text) noexcept {
+OperationStatus write_console(const ConsoleStream stream, const TextView text) noexcept {
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
     if (!lock.held()) return host_failure::failed(ErrorKind::interrupted, "stxlib.console.write", HostCode::none);
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write(stream, text.data(), text.count());
-    const Status result = status_of(report, "stxlib.console.write");
+    const OperationStatus result = status_of(report, "stxlib.console.write");
     return result;
 }
 
-Status write_console_line(const ConsoleStream stream, const TextView text) noexcept {
+OperationStatus write_console_line(const ConsoleStream stream, const TextView text) noexcept {
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // fflush and write are cancellation points (audit E, 4.1)
     const spin::Guard lock(process.console_output_lock);
@@ -125,7 +125,7 @@ Status write_console_line(const ConsoleStream stream, const TextView text) noexc
     }
     host::flush_c_stream(stream == ConsoleStream::error);
     const console_backend::Report report = console_backend::write_line(stream, text.data(), text.count());
-    const Status result = status_of(report, "stxlib.console.write_line");
+    const OperationStatus result = status_of(report, "stxlib.console.write_line");
     return result;
 }
 
@@ -137,14 +137,14 @@ bool console_is_terminal(const ConsoleStream stream) noexcept {
 // Takes the next line from the read-ahead bytes, reading more as needed. A
 // line over `limit` is discarded through its ending, so the next call
 // starts at the following line.
-Result<ConsoleLine> read_console_line(const usize limit) noexcept {
+OperationResult<ConsoleLine> read_console_line(const usize limit) noexcept {
     state::ProcessState& process = state::current_process();
     const detail::CancellationHold no_cancel; // read is a cancellation point (audit E, 4.1)
     const spin::Guard lock(process.console_input_lock);
     if (!lock.held()) {
         const ErrorRecord ending =
             host_failure::record(ErrorKind::interrupted, "stxlib.console.read_line", HostCode::none);
-        return Result<ConsoleLine>::failure(ending);
+        return OperationResult<ConsoleLine>::failure(ending);
     }
     char chunk[read_chunk_bytes]{};
     bool over_limit = false;
@@ -161,13 +161,13 @@ Result<ConsoleLine> read_console_line(const usize limit) noexcept {
                 drop_front(process, ending + 1);
                 break;
             }
-            Result<ConsoleLine> result = line_from(process.console_pending, length);
+            OperationResult<ConsoleLine> result = line_from(process.console_pending, length);
             drop_front(process, ending + 1);
             return result;
         }
         if (process.console_input_ended) {
             if (process.console_pending_count == 0 && !over_limit) {
-                return Result<ConsoleLine>::success(ConsoleLine::end_of_input());
+                return OperationResult<ConsoleLine>::success(ConsoleLine::end_of_input());
             }
             length = process.console_pending_count;
             if (length > 0 && process.console_pending[length - 1] == '\r') length = length - 1;
@@ -176,7 +176,7 @@ Result<ConsoleLine> read_console_line(const usize limit) noexcept {
                 process.console_pending_count = 0;
                 break;
             }
-            Result<ConsoleLine> result = line_from(process.console_pending, length);
+            OperationResult<ConsoleLine> result = line_from(process.console_pending, length);
             process.console_pending_count = 0;
             return result;
         }
@@ -190,8 +190,8 @@ Result<ConsoleLine> read_console_line(const usize limit) noexcept {
         usize transferred = 0;
         const console_backend::Report report = console_backend::read(chunk, read_chunk_bytes, transferred);
         if (report.outcome != console_backend::Outcome::ok) {
-            const Status failed = status_of(report, "stxlib.console.read_line");
-            return Result<ConsoleLine>::failure(*failed.error());
+            const OperationStatus failed = status_of(report, "stxlib.console.read_line");
+            return OperationResult<ConsoleLine>::failure(*failed.error());
         }
         if (transferred == 0) {
             process.console_input_ended = true;
@@ -201,14 +201,14 @@ Result<ConsoleLine> read_console_line(const usize limit) noexcept {
             !reserve_pending(process, process.console_pending_count + transferred)) {
             const ErrorRecord exhausted =
                 host_failure::record(ErrorKind::out_of_memory, "stxlib.console.read_line", HostCode::none);
-            return Result<ConsoleLine>::failure(exhausted);
+            return OperationResult<ConsoleLine>::failure(exhausted);
         }
         std::memcpy(process.console_pending + process.console_pending_count, chunk, transferred);
         process.console_pending_count = process.console_pending_count + transferred;
     }
     const ErrorRecord too_long =
         host_failure::record(ErrorKind::limit_exceeded, "stxlib.console.read_line", HostCode::too_long);
-    return Result<ConsoleLine>::failure(too_long);
+    return OperationResult<ConsoleLine>::failure(too_long);
 }
 
 } // namespace stxlib

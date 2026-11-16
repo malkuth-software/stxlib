@@ -2,7 +2,7 @@
 // stxlib::AtomicPool, so that tests/thread_pool_conformance.cpp runs one set
 // of checks against both the library and atomic_pool.c. Test-only. Ported
 // from stx_auxlib's tests/reference/atomic_pool_adapter.cpp at b6e330a:
-// STXlib's pool reports Status (thread_pool.hpp, "Changes from
+// STXlib's pool reports OperationStatus (thread_pool.hpp, "Changes from
 // stx_auxlib"), mapped back to the reference's codes here, and its tasks'
 // functions are noexcept, so each reference task runs through one noexcept
 // trampoline over a copy of the reference task the adapter owns.
@@ -43,7 +43,7 @@ bool copy_tasks(const gui_forms_atomic_pool_task_t* const tasks, const uint32_t 
     return true;
 }
 
-gui_forms_atomic_pool_result_t to_reference(const stxlib::Status& status) {
+gui_forms_atomic_pool_result_t to_reference(const stxlib::OperationStatus& status) {
     if (status.succeeded()) return THREADPOOL_OK;
     const stxlib::ErrorRecord& record = *status.error();
     if (record.kind() == stxlib::ErrorKind::out_of_memory) return THREADPOOL_ALLOCATION_FAILED;
@@ -69,11 +69,11 @@ gui_forms_atomic_pool_result_t gui_forms_atomic_pool_create_checked(const uint32
                                                                     gui_forms_atomic_pool_t** const output) {
     if (output == nullptr || thread_count == 0) return THREADPOOL_INVALID_ARGUMENT;
     *output = nullptr;
-    stxlib::Result<stxlib::AtomicPool> creation = stxlib::AtomicPool::create(thread_count);
+    stxlib::OperationResult<stxlib::AtomicPool> creation = stxlib::AtomicPool::create(thread_count);
     if (creation.failed()) return to_reference(creation.status());
     gui_forms_atomic_pool_t* const adapter = new (std::nothrow) gui_forms_atomic_pool_t();
     if (adapter == nullptr) return THREADPOOL_ALLOCATION_FAILED;
-    (*adapter).pool = static_cast<stxlib::Result<stxlib::AtomicPool>&&>(creation).take_value();
+    (*adapter).pool = static_cast<stxlib::OperationResult<stxlib::AtomicPool>&&>(creation).take_value();
     *output = adapter;
     return THREADPOOL_OK;
 }
@@ -88,7 +88,7 @@ gui_forms_atomic_pool_result_t gui_forms_atomic_pool_run_checked(gui_forms_atomi
     CopiedBatch copied{};
     if (!copy_tasks(tasks, count, copied)) return THREADPOOL_INVALID_TASK;
     const stxlib::View<stxlib::PoolTask> batch(copied.pooled.data(), copied.pooled.size());
-    const stxlib::Status result = (*adapter).pool.run(batch);
+    const stxlib::OperationStatus result = (*adapter).pool.run(batch);
     return to_reference(result);
 }
 
@@ -108,14 +108,14 @@ gui_forms_atomic_pool_result_t gui_forms_atomic_pool_begin_checked(gui_forms_ato
     CopiedBatch copied{};
     if (!copy_tasks(tasks, count, copied)) return THREADPOOL_INVALID_TASK;
     const stxlib::View<stxlib::PoolTask> batch(copied.pooled.data(), copied.pooled.size());
-    const stxlib::Status result = (*adapter).pool.begin(batch);
+    const stxlib::OperationStatus result = (*adapter).pool.begin(batch);
     if (result.succeeded()) (*adapter).asynchronous = static_cast<CopiedBatch&&>(copied);
     return to_reference(result);
 }
 
 gui_forms_atomic_pool_result_t gui_forms_atomic_pool_wait_checked(gui_forms_atomic_pool_t* const adapter) {
     if (adapter == nullptr) return THREADPOOL_INVALID_ARGUMENT;
-    const stxlib::Status result = (*adapter).pool.wait();
+    const stxlib::OperationStatus result = (*adapter).pool.wait();
     return to_reference(result);
 }
 

@@ -42,7 +42,7 @@ namespace {
 ErrorRecord loader_failure(const ErrorKind kind, const Operation operation, const HostCode code) noexcept {
     const char* const message = ::dlerror();
     if (message != nullptr) {
-        const Result<TextView> text = validate_utf8(message, std::strlen(message));
+        const OperationResult<TextView> text = validate_utf8(message, std::strlen(message));
         if (text.succeeded()) {
             const ErrorRecord result =
                 ErrorRecord::make(kind, operation, ErrorDetail{.code = static_cast<u32>(code), .message = *text.value()});
@@ -60,7 +60,7 @@ void* handle_of(const uptr handle) noexcept {
 
 } // namespace
 
-Status open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
+OperationStatus open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
     handle = 0;
     // Clears a stale message, so the one read after a failure is this call's.
     static_cast<void>(::dlerror());
@@ -70,21 +70,21 @@ Status open_library(const char* const name, const LoadMode mode, uptr& handle) n
     if (opened == nullptr) {
         const Operation operation = mode == LoadMode::loaded_only ? Operation("stxlib.library.find_loaded")
                                                                   : Operation("stxlib.library.open");
-        return Status::failure(loader_failure(ErrorKind::not_found, operation, HostCode::none));
+        return OperationStatus::failure(loader_failure(ErrorKind::not_found, operation, HostCode::none));
     }
     handle = reinterpret_cast<uptr>(opened);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status close_library(const uptr handle) noexcept {
+OperationStatus close_library(const uptr handle) noexcept {
     static_cast<void>(::dlerror());
     if (::dlclose(handle_of(handle)) != 0) {
-        return Status::failure(loader_failure(ErrorKind::foreign_failure, "stxlib.library.close", HostCode::none));
+        return OperationStatus::failure(loader_failure(ErrorKind::foreign_failure, "stxlib.library.close", HostCode::none));
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
+OperationStatus find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
     address = 0;
     // A symbol may legitimately be at address 0 only for an absolute symbol
     // no library of ours exports; null is reported as missing (POSIX:
@@ -92,13 +92,13 @@ Status find_symbol(const uptr handle, const char* const name, uptr& address) noe
     static_cast<void>(::dlerror());
     void* const found = ::dlsym(handle_of(handle), name);
     if (found == nullptr) {
-        return Status::failure(loader_failure(ErrorKind::not_found, "stxlib.library.symbol", HostCode::symbol_not_found));
+        return OperationStatus::failure(loader_failure(ErrorKind::not_found, "stxlib.library.symbol", HostCode::symbol_not_found));
     }
     address = reinterpret_cast<uptr>(found);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
                 AddressDescription& description) noexcept {
     description = AddressDescription{};
     Dl_info information{};
@@ -116,7 +116,7 @@ Status describe(const uptr address, const MutableView<char> image_name_room, con
                                             symbol_name_room, description.symbol_name_truncated);
         description.symbol_address = reinterpret_cast<uptr>(information.dli_saddr);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::image_backend

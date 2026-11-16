@@ -434,11 +434,11 @@ void blit_rgb565_all() {
 void open_where_unsupported() {
 #if !defined(__FreeBSD__)
     CHECK(!stxlib::capability_supported(stxlib::Capability::display_surface));
-    stxlib::Result<stxlib::Surface> opened = stxlib::open_surface();
+    stxlib::OperationResult<stxlib::Surface> opened = stxlib::open_surface();
     CHECK(opened.failed());
     if (opened.failed()) CHECK((*opened.error()).kind() == stxlib::ErrorKind::unsupported);
     // The claim was given back: a second try fails the same way, not busy.
-    stxlib::Result<stxlib::Surface> again = stxlib::open_surface();
+    stxlib::OperationResult<stxlib::Surface> again = stxlib::open_surface();
     CHECK(again.failed());
     if (again.failed()) CHECK((*again.error()).kind() == stxlib::ErrorKind::unsupported);
 #endif

@@ -174,7 +174,7 @@ void stack_reporter(void*, const stxlib::ErrorRecord&) noexcept {
     bool described = false;
     bool unsupported = false;
     if (captured > 0) {
-        const stxlib::Result<stxlib::AddressDescription> description =
+        const stxlib::OperationResult<stxlib::AddressDescription> description =
             stxlib::describe_address(addresses[0] - 1, stxlib::MutableView<char>(image_room),
                                      stxlib::MutableView<char>(symbol_room));
         // The image's name may be empty for the main program (the loader's
@@ -207,7 +207,7 @@ void stack_reporter(void*, const stxlib::ErrorRecord&) noexcept {
 }
 
 int reporter_stack_unallocated() {
-    const stxlib::Status installed =
+    const stxlib::OperationStatus installed =
         stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{stack_reporter, nullptr});
     if (installed.failed()) return 2;
     const stxlib::ErrorRecord record = stxlib::ErrorRecord::make(

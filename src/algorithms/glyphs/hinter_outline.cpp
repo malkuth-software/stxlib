@@ -205,7 +205,7 @@ bool within_hint_bounds(const View<Point> glyph_points, const i32 advance) noexc
     return within;
 }
 
-Status fill_hint_outline(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 units_per_em,
+OperationStatus fill_hint_outline(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 units_per_em,
                          const i32 advance, HintOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     outline.points.clear();
@@ -243,7 +243,7 @@ Status fill_hint_outline(const View<Point> glyph_points, const View<PointTag> gl
     simplify_topology(outline);
     check_remaining_weak_points(outline);
     compute_winding(outline);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs::detail

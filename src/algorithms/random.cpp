@@ -243,10 +243,10 @@ double detail::scale_into(const double given_low, const double given_high, const
     return result;
 }
 
-Result<Seed> entropy_seed() noexcept {
+OperationResult<Seed> entropy_seed() noexcept {
     Byte bytes[32]{};
-    const Status filled = fill_entropy(MutableView<Byte>(bytes));
-    if (filled.failed()) return Result<Seed>::failure(*filled.error());
+    const OperationStatus filled = fill_entropy(MutableView<Byte>(bytes));
+    if (filled.failed()) return OperationResult<Seed>::failure(*filled.error());
     Seed seed{};
     for (usize word = 0; word < 4; ++word) {
         u64 value = 0;
@@ -256,7 +256,7 @@ Result<Seed> entropy_seed() noexcept {
         }
         seed.words[word] = value;
     }
-    return Result<Seed>::success(seed);
+    return OperationResult<Seed>::success(seed);
 }
 
 Seed seed_from_number(const u64 number) noexcept {

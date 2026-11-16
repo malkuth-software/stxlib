@@ -68,12 +68,12 @@ void Document::clear() noexcept {
     text.clear();
 }
 
-Status parse(const View<char> source, const Options& options, const Limits& limits, Document& document,
+OperationStatus parse(const View<char> source, const Options& options, const Limits& limits, Document& document,
              const StopSignal* const stop) noexcept {
     const Operation operation("stxlib.markdown.parse");
     document.clear();
     if (source.count() > limits.source_bytes || source.count() > largest_source_bytes) {
-        const Status too_large = Status::failure(ErrorRecord::make(ErrorKind::limit_exceeded, operation));
+        const OperationStatus too_large = OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded, operation));
         return too_large;
     }
     detail::Context ctx{};
@@ -86,11 +86,11 @@ Status parse(const View<char> source, const Options& options, const Limits& limi
     const bool read = detail::read_lines(ctx) && detail::write_blocks(ctx);
     if (!read) {
         document.clear();
-        const Status failed = Status::failure(ErrorRecord::make(ctx.failure, operation));
+        const OperationStatus failed = OperationStatus::failure(ErrorRecord::make(ctx.failure, operation));
         return failed;
     }
     document.events.truncate(ctx.event_count);
-    const Status done = Status::success();
+    const OperationStatus done = OperationStatus::success();
     return done;
 }
 

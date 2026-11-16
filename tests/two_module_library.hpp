@@ -35,7 +35,7 @@ STXLIB_TEST_LIBRARY_API void run_in_library_dispatch_frame(Callback callback, vo
 
 // A gate in the library's copy: call_gate("test.library.gate") around
 // `callback`.
-STXLIB_TEST_LIBRARY_API stxlib::Status run_in_library_gate(Callback callback, void* context);
+STXLIB_TEST_LIBRARY_API stxlib::OperationStatus run_in_library_gate(Callback callback, void* context);
 
 // The shadow depth as the library's copy reads it.
 STXLIB_TEST_LIBRARY_API stxlib::usize library_shadow_depth();
@@ -45,6 +45,6 @@ STXLIB_TEST_LIBRARY_API stxlib::ErrorRecord library_record();
 
 // An event watch made by the library's copy (one watch per process, in
 // stxlib_state).
-STXLIB_TEST_LIBRARY_API stxlib::Result<stxlib::EventWatch> library_watch_interrupts();
+STXLIB_TEST_LIBRARY_API stxlib::OperationResult<stxlib::EventWatch> library_watch_interrupts();
 
 } // namespace two_module

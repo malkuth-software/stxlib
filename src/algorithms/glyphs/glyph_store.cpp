@@ -84,7 +84,7 @@ bool GlyphStore::opened_for(const Font& font) const noexcept {
     return result;
 }
 
-Status GlyphStore::open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits) noexcept {
+OperationStatus GlyphStore::open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     release();
     limits_ = limits;
@@ -95,12 +95,12 @@ Status GlyphStore::open(const Font& font, const FontLimits& limits, const StoreL
     font_glyf_ = font.glyf;
     font_charstrings_ = font.charstrings;
     font_map_ = font.character_map;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // The glyph is found or read, and put where it belongs: in the kept part
 // if `in_kept` and there is room, else among the recent ones.
-Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, StoredGlyph& stored) noexcept {
+OperationStatus GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, StoredGlyph& stored) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     stored = StoredGlyph{};
     if (!opened_for(font) || glyph >= font.glyph_count) return detail::refuse_font(ErrorKind::invalid_argument, operation);
@@ -124,7 +124,7 @@ Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, 
             for (usize index = 0; index < record.contour_count; ++index) loaded_.contour_ends[index] = from.contour_ends[record.first_contour + index];
             advance = record.advance;
         } else {
-            const Status loaded = load_glyph(font, glyph, limits_, loaded_);
+            const OperationStatus loaded = load_glyph(font, glyph, limits_, loaded_);
             read_ = read_ + 1;
             if (loaded.failed()) {
                 const ErrorKind kind = (*loaded.error()).kind();
@@ -164,7 +164,7 @@ Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, 
             stored.tags = loaded_.tags.view();
             stored.contour_ends = loaded_.contour_ends.view();
             stored.advance = advance;
-            return Status::success();
+            return OperationStatus::success();
         }
     }
     const u32 now = index_[glyph];
@@ -174,11 +174,11 @@ Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, 
     stored.tags = View<PointTag>(part.tags.view().data() + record.first_point, record.point_count);
     stored.contour_ends = View<u32>(part.contour_ends.view().data() + record.first_contour, record.contour_count);
     stored.advance = record.advance;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status GlyphStore::glyph(const Font& font, const u32 glyph, StoredGlyph& stored) noexcept {
-    const Status status = place(font, glyph, false, stored);
+OperationStatus GlyphStore::glyph(const Font& font, const u32 glyph, StoredGlyph& stored) noexcept {
+    const OperationStatus status = place(font, glyph, false, stored);
     STXLIB_GLYPHS_CHECK(whole(), "GlyphStore::glyph: the store is not whole");
     STXLIB_GLYPHS_CHECK(status.failed() || (stored.tags.count() == stored.points.count() && stored.contour_ends.count() <= stored.points.count()),
                         "GlyphStore::glyph: the glyph given is not whole");
@@ -214,7 +214,7 @@ bool GlyphStore::whole() const noexcept {
     return good;
 }
 
-Status GlyphStore::keep(const Font& font, const View<u32> characters, usize& kept) noexcept {
+OperationStatus GlyphStore::keep(const Font& font, const View<u32> characters, usize& kept) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     kept = parts_[part_kept].records.count();
     if (!opened_for(font)) return detail::refuse_font(ErrorKind::invalid_argument, operation);
@@ -222,12 +222,12 @@ Status GlyphStore::keep(const Font& font, const View<u32> characters, usize& kep
         const u32 glyph = glyph_of(font, characters[index]);
         if (glyph == 0 || glyph >= font.glyph_count) continue;
         StoredGlyph stored{};
-        const Status status = place(font, glyph, true, stored);
+        const OperationStatus status = place(font, glyph, true, stored);
         if (status.failed() && (*status.error()).kind() == ErrorKind::out_of_memory) return status;
     }
     kept = parts_[part_kept].records.count();
     STXLIB_GLYPHS_CHECK(whole(), "GlyphStore::keep: the store is not whole");
-    return Status::success();
+    return OperationStatus::success();
 }
 
 usize GlyphStore::bytes_held() const noexcept {

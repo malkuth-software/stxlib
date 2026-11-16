@@ -24,7 +24,7 @@ namespace stxlib {
 // part of a well-formed sequence (u32_max when the offset does not fit
 // in 32 bits). The view borrows the caller's bytes.
 // Requirement: bytes is non-null unless count is zero.
-[[nodiscard]] Result<TextView> validate_utf8(const char* bytes, usize count) noexcept;
+[[nodiscard]] OperationResult<TextView> validate_utf8(const char* bytes, usize count) noexcept;
 
 // Byte-wise order of two texts: negative when left sorts first, zero when
 // equal, positive when right sorts first. For well-formed UTF-8 this is the
@@ -44,7 +44,7 @@ namespace stxlib {
 // invalid_argument; neither changes anything.
 //
 // Allocation (D8 = a, as answered): every operation that may allocate
-// returns a Status or a Result; a refused allocation is out_of_memory (or
+// returns a OperationStatus or a OperationResult; a refused allocation is out_of_memory (or
 // limit_exceeded when the size is not representable) and changes nothing.
 // A TextView argument may borrow from this same string.
 //
@@ -71,11 +71,11 @@ public:
     Utf8String() noexcept = default;
 
     // A copy of `text`.
-    [[nodiscard]] static Result<Utf8String> copy_of(TextView text) noexcept;
+    [[nodiscard]] static OperationResult<Utf8String> copy_of(TextView text) noexcept;
     // Empty text with room for `room` bytes.
-    [[nodiscard]] static Result<Utf8String> with_capacity(usize room) noexcept;
+    [[nodiscard]] static OperationResult<Utf8String> with_capacity(usize room) noexcept;
     // A named copy of this text.
-    [[nodiscard]] Result<Utf8String> copy() const noexcept;
+    [[nodiscard]] OperationResult<Utf8String> copy() const noexcept;
 
     Utf8String(Utf8String&& other) noexcept;
     Utf8String& operator=(Utf8String&& other) noexcept;
@@ -113,22 +113,22 @@ public:
     // ---- changes ------------------------------------------------------------
 
     // Room for at least `wanted` bytes; the text is unchanged.
-    [[nodiscard]] Status reserve(usize wanted) noexcept;
+    [[nodiscard]] OperationStatus reserve(usize wanted) noexcept;
     // The text becomes `text`.
-    [[nodiscard]] Status assign(TextView text) noexcept;
-    [[nodiscard]] Status append(TextView text) noexcept;
+    [[nodiscard]] OperationStatus assign(TextView text) noexcept;
+    [[nodiscard]] OperationStatus append(TextView text) noexcept;
     // Appends one code point, encoded as UTF-8. A surrogate (U+D800 to
     // U+DFFF) or a value above U+10FFFF fails with invalid_argument.
-    [[nodiscard]] Status append_code_point(u32 code_point) noexcept;
+    [[nodiscard]] OperationStatus append_code_point(u32 code_point) noexcept;
     // Inserts `text` before the byte at `offset` (a boundary).
-    [[nodiscard]] Status insert(usize offset, TextView text) noexcept;
+    [[nodiscard]] OperationStatus insert(usize offset, TextView text) noexcept;
     // Removes bytes [offset, offset + length); both ends must be boundaries.
-    [[nodiscard]] Status erase(usize offset, usize length) noexcept;
+    [[nodiscard]] OperationStatus erase(usize offset, usize length) noexcept;
     // Replaces bytes [offset, offset + length) with `text`; both ends must
     // be boundaries.
-    [[nodiscard]] Status replace(usize offset, usize length, TextView text) noexcept;
+    [[nodiscard]] OperationStatus replace(usize offset, usize length, TextView text) noexcept;
     // Keeps the first `length` bytes; length must be a boundary.
-    [[nodiscard]] Status truncate(usize length) noexcept;
+    [[nodiscard]] OperationStatus truncate(usize length) noexcept;
 
     // The empty text; the capacity remains.
     void clear() noexcept;
@@ -139,7 +139,7 @@ private:
     [[nodiscard]] bool on_heap() const noexcept { return capacity_ > inline_capacity; }
     [[nodiscard]] char* bytes() noexcept;
     [[nodiscard]] const char* bytes() const noexcept;
-    [[nodiscard]] Status replace_checked(usize offset, usize length, TextView text, Operation operation) noexcept;
+    [[nodiscard]] OperationStatus replace_checked(usize offset, usize length, TextView text, Operation operation) noexcept;
 
     union Storage {
         char* block;

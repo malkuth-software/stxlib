@@ -38,14 +38,14 @@ using stxlib::KnownDirectory;
 using stxlib::Path;
 using stxlib::PathText;
 using stxlib::ProcessArguments;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::TextView;
 using stxlib::usize;
 
 // Test texts are valid UTF-8; an invalid one becomes the empty view, so the
 // comparison using it fails.
 TextView view_of(const char* const text) {
-    const stxlib::Result<TextView> valid = stxlib::validate_utf8(text, std::strlen(text));
+    const stxlib::OperationResult<TextView> valid = stxlib::validate_utf8(text, std::strlen(text));
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
@@ -71,13 +71,13 @@ bool is_ascii(const char* const text) {
 #endif
 
 template <typename T>
-ErrorKind kind_of(const Result<T>& result) {
+ErrorKind kind_of(const OperationResult<T>& result) {
     const ErrorKind kind = result.failed() ? (*result.error()).kind() : ErrorKind::internal_failure;
     return kind;
 }
 
 template <typename T>
-HostCode code_of(const Result<T>& result) {
+HostCode code_of(const OperationResult<T>& result) {
     const HostCode code = result.failed() ? static_cast<HostCode>((*result.error()).code()) : HostCode::none;
     return code;
 }
@@ -86,7 +86,7 @@ HostCode code_of(const Result<T>& result) {
 
 void arguments_agree_with_argv(const int argument_count, char** const arguments) {
     CHECK(stxlib::capability_supported(stxlib::Capability::process_arguments));
-    Result<ProcessArguments> read = stxlib::process_arguments();
+    OperationResult<ProcessArguments> read = stxlib::process_arguments();
     CHECK(read.succeeded());
     if (read.failed()) return;
     const ProcessArguments& all = *read.value();
@@ -117,12 +117,12 @@ void arguments_agree_with_argv(const int argument_count, char** const arguments)
 
 void argument_limit() {
     // One byte holds no program name, so every process exceeds it.
-    const Result<ProcessArguments> small = stxlib::process_arguments(1);
+    const OperationResult<ProcessArguments> small = stxlib::process_arguments(1);
     CHECK(kind_of(small) == ErrorKind::limit_exceeded);
     CHECK(code_of(small) == HostCode::too_long);
     // Two reads agree.
-    Result<ProcessArguments> first = stxlib::process_arguments();
-    Result<ProcessArguments> second = stxlib::process_arguments();
+    OperationResult<ProcessArguments> first = stxlib::process_arguments();
+    OperationResult<ProcessArguments> second = stxlib::process_arguments();
     CHECK(first.succeeded() && second.succeeded());
     if (first.failed() || second.failed()) return;
     CHECK((*first.value()).count() == (*second.value()).count());
@@ -140,7 +140,7 @@ std::string hex_of(const ArgumentText argument) {
 }
 
 int print_arguments_hex() {
-    Result<ProcessArguments> read = stxlib::process_arguments();
+    OperationResult<ProcessArguments> read = stxlib::process_arguments();
     if (read.failed()) return 3;
     const ProcessArguments& all = *read.value();
     for (usize index = 2; index < all.count(); ++index) {
@@ -151,7 +151,7 @@ int print_arguments_hex() {
 }
 
 std::string captured_output(Child& child) {
-    Result<stxlib::Buffer<stxlib::Byte>> output = child.read_output(4096);
+    OperationResult<stxlib::Buffer<stxlib::Byte>> output = child.read_output(4096);
     std::string text;
     if (output.failed()) return text;
     const stxlib::Buffer<stxlib::Byte>& bytes = *output.value();
@@ -164,17 +164,17 @@ std::string captured_output(Child& child) {
 // An argument that is not Unicode reaches process_arguments losslessly
 // (D13): host bytes on POSIX, WTF-8 for an unpaired surrogate on Windows.
 void lossless_arguments() {
-    Result<Path> self = stxlib::current_executable();
+    OperationResult<Path> self = stxlib::current_executable();
     CHECK(self.succeeded());
     if (self.failed()) return;
 #if defined(_WIN32)
     const stxlib::u16 units[] = {stxlib::u16{'a'}, 0xd800, stxlib::u16{'b'}, 0xdc01};
-    Result<Path> odd = Path::from_windows_name(units, 4);
+    OperationResult<Path> odd = Path::from_windows_name(units, 4);
     // a, U+D800 as WTF-8 (ed a0 80), b, U+DC01 (ed b0 81).
     const std::string expected = "61eda08062edb081 n\n2061 u\n";
 #else
     const char bytes[] = {'a', static_cast<char>(0xff), 'b', static_cast<char>(0xc3)};
-    Result<Path> odd = Path::from_posix_name(bytes, sizeof(bytes));
+    OperationResult<Path> odd = Path::from_posix_name(bytes, sizeof(bytes));
     const std::string expected = "61ff62c3 n\n2061 u\n";
 #endif
     CHECK(odd.succeeded());
@@ -183,14 +183,14 @@ void lossless_arguments() {
     const ChildRequest request{.program = (*self.value()).text(),
                                .arguments = stxlib::View<PathText>(arguments),
                                .streams = ChildStreams::capture};
-    Result<Child> started = Child::start(request);
+    OperationResult<Child> started = Child::start(request);
     CHECK(started.succeeded());
     if (started.failed()) return;
     Child child = std::move(started).take_value();
     const std::string printed = captured_output(child);
     CHECK(printed == expected);
     if (printed != expected) std::fprintf(stderr, "arguments-hex child printed: %s", printed.c_str());
-    const Result<stxlib::ChildEnd> ended = child.wait(Duration::seconds(30));
+    const OperationResult<stxlib::ChildEnd> ended = child.wait(Duration::seconds(30));
     CHECK(ended.succeeded());
     if (ended.succeeded()) {
         const stxlib::u32* const status = (*ended.value()).exit_status();
@@ -206,7 +206,7 @@ void identity_and_memory() {
     CHECK(id != 0);
     CHECK(stxlib::process_id() == id);
     CHECK(stxlib::capability_supported(stxlib::Capability::memory_report));
-    const Result<stxlib::ProcessMemory> memory = stxlib::process_memory();
+    const OperationResult<stxlib::ProcessMemory> memory = stxlib::process_memory();
     CHECK(memory.succeeded());
     if (memory.failed()) return;
     const stxlib::ProcessMemory report = *memory.value();
@@ -225,20 +225,20 @@ struct MainThreadReport final {
 
 void report_main_thread(const stxlib::StopSignal&, void* const context) noexcept {
     MainThreadReport& report = *static_cast<MainThreadReport*>(context);
-    const Result<bool> answer = stxlib::is_main_thread();
+    const OperationResult<bool> answer = stxlib::is_main_thread();
     report.answered = answer.succeeded();
     report.initial = answer.succeeded() && *answer.value();
 }
 
 void main_thread() {
-    const Result<bool> here = stxlib::is_main_thread();
+    const OperationResult<bool> here = stxlib::is_main_thread();
     if (!stxlib::capability_supported(stxlib::Capability::main_thread)) {
         CHECK(kind_of(here) == ErrorKind::unsupported);
         return;
     }
     CHECK(here.succeeded() && *here.value());
     MainThreadReport report{};
-    Result<stxlib::Thread> started = stxlib::Thread::start(report_main_thread, &report);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(report_main_thread, &report);
     CHECK(started.succeeded());
     if (started.failed()) return;
     stxlib::Thread thread = std::move(started).take_value();
@@ -259,7 +259,7 @@ struct SavedVariable final {
 SavedVariable save(const TextView name) {
     SavedVariable saved{};
     saved.name = name;
-    Result<stxlib::Utf8String> read = stxlib::read_variable(name, 65536);
+    OperationResult<stxlib::Utf8String> read = stxlib::read_variable(name, 65536);
     if (read.succeeded()) {
         saved.present = true;
         const TextView text = (*read.value()).view();
@@ -270,14 +270,14 @@ SavedVariable save(const TextView name) {
 
 void restore(const SavedVariable& saved) {
     if (saved.present) {
-        const Result<TextView> text = stxlib::validate_utf8(saved.value.data(), saved.value.size());
+        const OperationResult<TextView> text = stxlib::validate_utf8(saved.value.data(), saved.value.size());
         if (text.succeeded()) CHECK(stxlib::set_variable(saved.name, *text.value()).succeeded());
     } else {
         static_cast<void>(stxlib::remove_variable(saved.name));
     }
 }
 
-bool names(const Result<Path>& found, const char* const text) {
+bool names(const OperationResult<Path>& found, const char* const text) {
     if (found.failed()) return false;
     const PathText actual = (*found.value()).text();
     const bool result = actual == PathText(view_of(text));
@@ -287,11 +287,11 @@ bool names(const Result<Path>& found, const char* const text) {
 void known_directories() {
     CHECK(stxlib::capability_supported(stxlib::Capability::known_directories));
     for (int which = 0; which <= 3; ++which) {
-        const Result<Path> found = stxlib::known_directory(static_cast<KnownDirectory>(which));
+        const OperationResult<Path> found = stxlib::known_directory(static_cast<KnownDirectory>(which));
         CHECK(found.succeeded());
         if (found.succeeded()) CHECK((*found.value()).is_absolute());
     }
-    const Result<Path> outside = stxlib::known_directory(static_cast<KnownDirectory>(9));
+    const OperationResult<Path> outside = stxlib::known_directory(static_cast<KnownDirectory>(9));
     CHECK(kind_of(outside) == ErrorKind::unsupported);
 #if !defined(_WIN32)
     const SavedVariable home = save("HOME");
@@ -319,7 +319,7 @@ void known_directories() {
     // An empty HOME falls back to the user database, which names an
     // absolute directory for the account running the tests.
     CHECK(stxlib::set_variable("HOME", "").succeeded());
-    const Result<Path> database = stxlib::known_directory(KnownDirectory::home);
+    const OperationResult<Path> database = stxlib::known_directory(KnownDirectory::home);
     CHECK(database.succeeded() || code_of(database) == HostCode::no_home);
     if (database.succeeded()) CHECK((*database.value()).is_absolute());
     restore(home);

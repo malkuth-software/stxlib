@@ -92,15 +92,15 @@ std::string encode(const std::vector<u32>& values) {
 }
 
 void run_stxlib(const std::string& bytes) {
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
     const stxlib::TextView view = *validated.value();
     text::Paragraph paragraph;
     text::Line line;
     usize offset = 0;
     while (offset < bytes.size()) {
-        const stxlib::Status a = text::analyse_paragraph(view, offset, text::BaseDirection::automatic_left_to_right, paragraph);
+        const stxlib::OperationStatus a = text::analyse_paragraph(view, offset, text::BaseDirection::automatic_left_to_right, paragraph);
         if (a.failed()) std::abort();
-        const stxlib::Status b = text::analyse_line(paragraph, paragraph.offset(), paragraph.length(), line);
+        const stxlib::OperationStatus b = text::analyse_line(paragraph, paragraph.offset(), paragraph.length(), line);
         if (b.failed()) std::abort();
         sink = sink + line.runs().count();
         offset = offset + paragraph.length();
@@ -142,8 +142,8 @@ void run_script_locator(const std::string& bytes) {
 void run_find_line_breaks(const std::string& bytes) {
     static std::vector<text::LineBreak> decisions;
     decisions.resize(bytes.size());
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
-    const stxlib::Status status = text::find_line_breaks(
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationStatus status = text::find_line_breaks(
         stxlib::MutableView<text::LineBreak>(decisions.data(), decisions.size()), *validated.value());
     if (status.failed()) std::abort();
     sink = sink + static_cast<unsigned char>(decisions[bytes.size() / 2]);
@@ -152,7 +152,7 @@ void run_find_line_breaks(const std::string& bytes) {
 // Validation alone, which every stxlib entry above pays for here and
 // which a caller holding a TextView does not pay again.
 void run_validate(const std::string& bytes) {
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
     sink = sink + (validated.failed() ? 1u : 0u);
 }
 
@@ -219,7 +219,7 @@ void compare_file(const char* const path) {
         const SBLevel sb_level = file_direction == 0 ? 0 : (file_direction == 1 ? 1 : SBLevelDefaultLTR);
         cases = cases + 1;
         text::Paragraph paragraph;
-        const stxlib::Status analysed =
+        const stxlib::OperationStatus analysed =
             text::analyse_paragraph(stxlib::View<u32>(values.data(), values.size()), 0, direction, paragraph);
         std::vector<SBUInt32> units(values.begin(), values.end());
         const SBCodepointSequence sequence{SBStringEncodingUTF32, units.data(), units.size()};
@@ -314,10 +314,10 @@ void compare_breaks(const std::vector<u32>& values, BreakCounts& counts) {
         append_utf8(bytes, value);
         last.push_back(bytes.size() - 1);
     }
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
     if (validated.failed()) return;
     std::vector<text::LineBreak> ours(bytes.size(), text::LineBreak::prohibited);
-    const stxlib::Status status =
+    const stxlib::OperationStatus status =
         text::find_line_breaks(stxlib::MutableView<text::LineBreak>(ours.data(), ours.size()), *validated.value());
     if (status.failed()) std::abort();
     std::vector<char> theirs(bytes.size(), 0);
@@ -577,7 +577,7 @@ void compare_scripts(const int count) {
         const u32 length = 1 + random.next(16);
         values.clear();
         for (u32 position = 0; position < length; ++position) values.push_back(pool[random.next(static_cast<u32>(pool.size()))]);
-        const stxlib::Status analysed = text::analyse_paragraph(stxlib::View<u32>(values.data(), values.size()), 0,
+        const stxlib::OperationStatus analysed = text::analyse_paragraph(stxlib::View<u32>(values.data(), values.size()), 0,
                                                                 text::BaseDirection::left_to_right, paragraph);
         if (analysed.failed() || paragraph.length() != values.size()) std::abort();
         const stxlib::View<text::ScriptRun> runs = paragraph.script_runs();

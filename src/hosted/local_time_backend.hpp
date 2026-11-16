@@ -26,6 +26,6 @@ struct ZoneText final {
 // ending), or "UTC" when neither exists; on Windows the IANA name ICU maps
 // the current dynamic time zone to. `text` is written only on success.
 // Failures as host_zone's (local_time.hpp).
-[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Status system_zone_text(ZoneText& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL OperationStatus system_zone_text(ZoneText& text) noexcept;
 
 } // namespace stxlib::local_time_backend

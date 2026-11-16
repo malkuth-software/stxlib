@@ -109,21 +109,21 @@ void EventWatch::release() noexcept {
     events_ = EventSet();
 }
 
-Result<EventWatch> EventWatch::watch(const EventSet events) noexcept {
+OperationResult<EventWatch> EventWatch::watch(const EventSet events) noexcept {
     if (events.empty()) {
         const ErrorRecord empty =
             host_failure::record(ErrorKind::invalid_argument, "stxlib.events.watch", HostCode::empty_request);
-        return Result<EventWatch>::failure(empty);
+        return OperationResult<EventWatch>::failure(empty);
     }
     if ((events.bits() & static_cast<u8>(~supported_bits)) != 0) {
         const ErrorRecord unsupported =
             host_failure::record(ErrorKind::unsupported, "stxlib.events.watch", HostCode::none);
-        return Result<EventWatch>::failure(unsupported);
+        return OperationResult<EventWatch>::failure(unsupported);
     }
     state::ProcessState& process = state::current_process();
     if (process.event_watch_active.exchange(true, std::memory_order_acq_rel)) {
         const ErrorRecord busy = host_failure::record(ErrorKind::limit_exceeded, "stxlib.events.watch", HostCode::busy);
-        return Result<EventWatch>::failure(busy);
+        return OperationResult<EventWatch>::failure(busy);
     }
     process.pending_events.store(0, std::memory_order_relaxed);
     process.watched_events.store(events.bits(), std::memory_order_release);
@@ -134,11 +134,11 @@ Result<EventWatch> EventWatch::watch(const EventSet events) noexcept {
         process.event_watch_active.store(false, std::memory_order_release);
         const ErrorRecord refused =
             host_failure::record(ErrorKind::foreign_failure, "stxlib.events.watch", HostCode::none, foreign);
-        return Result<EventWatch>::failure(refused);
+        return OperationResult<EventWatch>::failure(refused);
     }
     EventWatch result;
     result.events_ = events;
-    return Result<EventWatch>::success(static_cast<EventWatch&&>(result));
+    return OperationResult<EventWatch>::success(static_cast<EventWatch&&>(result));
 }
 
 EventSet EventWatch::take() noexcept {

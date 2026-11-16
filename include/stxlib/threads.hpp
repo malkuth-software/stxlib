@@ -33,8 +33,8 @@
 // Changes from stx_auxlib: std::thread, std::mutex and
 // std::condition_variable are not used (STXlib builds without exceptions,
 // so they could not report a failed start); each family module calls the
-// host (src/hosted/<family>/threads_<family>.cpp). Results are Result and
-// Status. Thread identities and their issuer live in stxlib_state, so every
+// host (src/hosted/<family>/threads_<family>.cpp). Results are OperationResult and
+// OperationStatus. Thread identities and their issuer live in stxlib_state, so every
 // module sees one identity per thread. Times are IntervalTime and Duration.
 //
 // Modules: a Thread's shared state is a block of STXlib's allocator, which
@@ -106,7 +106,7 @@ void yield_thread() noexcept;
 // answer records its own main thread's ThreadIdentity on entry. Emscripten
 // answers unsupported too: under PROXY_TO_PTHREAD main runs on a worker
 // the runtime does not name (core/capabilities.cpp).
-[[nodiscard]] Result<bool> is_main_thread() noexcept;
+[[nodiscard]] OperationResult<bool> is_main_thread() noexcept;
 
 // D11's stack sizes, in bytes. A caller's size is rounded up to the host's
 // page size; a size outside [minimum, maximum] is refused by Thread::start.
@@ -292,7 +292,7 @@ public:
 
     // The thread's stack is `stack_bytes` rounded up to the host's page
     // size, with a guard page below it (D11).
-    [[nodiscard]] static Result<Thread> start(Entry entry, void* context,
+    [[nodiscard]] static OperationResult<Thread> start(Entry entry, void* context,
                                               usize stack_bytes = default_thread_stack_bytes) noexcept;
     Thread() noexcept = default;
     ~Thread();

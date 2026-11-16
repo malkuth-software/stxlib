@@ -3,7 +3,7 @@
 // rules, text forms and parse rules. Changes: the civil-day conversions are
 // the boundary's src/core/civil.hpp (the same Hinnant algorithms, already
 // ported in batch 2c and 3b); WallTime in place of WallClock::time_point;
-// Result in place of std::optional; the text goes into caller storage.
+// OperationResult in place of std::optional; the text goes into caller storage.
 
 #include "stxlib/calendar.hpp"
 
@@ -136,15 +136,15 @@ CivilTime civil_from_wall(const WallTime instant) noexcept {
     return result;
 }
 
-Result<WallTime> wall_from_civil(const CivilTime& time) noexcept {
+OperationResult<WallTime> wall_from_civil(const CivilTime& time) noexcept {
     if (!is_valid_civil_time(time)) {
-        return Result<WallTime>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.calendar.wall_from_civil"));
+        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.calendar.wall_from_civil"));
     }
     WallTime instant{};
     if (!wall_from_seconds(civil::seconds_from_civil(time), time.nanosecond, instant)) {
-        return Result<WallTime>::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.calendar.wall_from_civil"));
+        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.calendar.wall_from_civil"));
     }
-    return Result<WallTime>::success(instant);
+    return OperationResult<WallTime>::success(instant);
 }
 
 text::Formatted format_iso8601(const MutableView<char> output, const CivilTime& time, const i32 offset_seconds,

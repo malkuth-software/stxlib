@@ -2,7 +2,7 @@
 
 // Files and directories (Capability::files), named by stxlib::Path. Ported
 // from stx_auxlib's include/stx_auxlib/files.hpp and src/hosted/files.cpp at
-// b6e330a. Every operation returns a Status or Result; none throws or
+// b6e330a. Every operation returns a OperationStatus or OperationResult; none throws or
 // aborts for a filesystem condition. Host errors map onto the same records
 // on every host.
 //
@@ -154,7 +154,7 @@ class FileAccess;
 class File final {
 public:
     // Opening a directory for reading fails with is_a_directory.
-    [[nodiscard]] static Result<File> open(const Path& path, FileMode mode) noexcept;
+    [[nodiscard]] static OperationResult<File> open(const Path& path, FileMode mode) noexcept;
 
     File() noexcept = default;
     ~File();
@@ -168,16 +168,16 @@ public:
 
     // Reads up to output.count() bytes at the current position. Zero bytes
     // means the end of the file.
-    [[nodiscard]] Result<usize> read(MutableView<Byte> output) noexcept;
+    [[nodiscard]] OperationResult<usize> read(MutableView<Byte> output) noexcept;
     // Writes every byte or fails; on failure an unknown prefix may have been
     // written.
-    [[nodiscard]] Status write_all(View<Byte> input) noexcept;
-    [[nodiscard]] Result<u64> size() noexcept;
-    [[nodiscard]] Result<u64> position() noexcept;
-    [[nodiscard]] Status seek(u64 offset) noexcept;
+    [[nodiscard]] OperationStatus write_all(View<Byte> input) noexcept;
+    [[nodiscard]] OperationResult<u64> size() noexcept;
+    [[nodiscard]] OperationResult<u64> position() noexcept;
+    [[nodiscard]] OperationStatus seek(u64 offset) noexcept;
     // Flushes written content as `level` says (Durability, above).
-    [[nodiscard]] Status sync(Durability level) noexcept;
-    [[nodiscard]] Status close() noexcept;
+    [[nodiscard]] OperationStatus sync(Durability level) noexcept;
+    [[nodiscard]] OperationStatus close() noexcept;
 
     // ---- positioned I/O and the open file's metadata (M2 C2) ----
     // Each leaves the position unchanged on every host (POSIX pread and
@@ -188,31 +188,31 @@ public:
     // Reads up to output.count() bytes at `offset`; zero bytes means the
     // offset is at or past the end. Offsets above 2^63 - 1 fail with
     // limit_exceeded, HostCode::too_long.
-    [[nodiscard]] Result<usize> read_at(u64 offset, MutableView<Byte> output) noexcept;
+    [[nodiscard]] OperationResult<usize> read_at(u64 offset, MutableView<Byte> output) noexcept;
     // Writes every byte at `offset`, extending the file as needed; on
     // failure an unknown prefix may have been written. A file opened with
     // FileMode::append writes only at its end (O_APPEND; FILE_APPEND_DATA,
     // and Linux's pwrite ignores the offset under O_APPEND), so it is
     // refused with invalid_argument, HostCode::invalid_state, as is a file
     // opened for reading.
-    [[nodiscard]] Status write_all_at(u64 offset, View<Byte> input) noexcept;
+    [[nodiscard]] OperationStatus write_all_at(u64 offset, View<Byte> input) noexcept;
     // The open file's kind, size and last-write time (fstat;
     // GetFileInformationByHandle): the file this File holds, even if its
     // name has since been renamed or replaced.
-    [[nodiscard]] Result<FileInformation> information() noexcept;
+    [[nodiscard]] OperationResult<FileInformation> information() noexcept;
     // Sets the last-write time (futimens with the access time left as it
     // is; SetFileTime; on WasmFS, utimensat with an empty name). The host
     // keeps it at its own resolution: 1 ns on APFS, ext4 and UFS2, 100 ns
     // on NTFS, 1 ms on both Emscripten file systems (WallTime is cut,
     // toward the past, to the host's tick). A file opened for reading is refused
     // with invalid_argument, HostCode::invalid_state.
-    [[nodiscard]] Status set_modified(WallTime modified) noexcept;
+    [[nodiscard]] OperationStatus set_modified(WallTime modified) noexcept;
     // Cuts or extends the file to `bytes` (ftruncate; SetFileInformationByHandle
     // with FileEndOfFileInfo); extended bytes read as zero. The position is
     // unchanged. Refused, invalid_argument with HostCode::invalid_state, for
     // a file opened for reading or with FileMode::append (Windows' append
     // access cannot set the end).
-    [[nodiscard]] Status set_size(u64 bytes) noexcept;
+    [[nodiscard]] OperationStatus set_size(u64 bytes) noexcept;
 
 private:
     friend class detail::FileAccess;
@@ -230,7 +230,7 @@ private:
 // The whole file. Refuses (limit_exceeded, HostCode::too_long) a file of
 // more than `limit` bytes before allocating for it, and a file that grows
 // past `limit` while it is read.
-[[nodiscard]] Result<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;
+[[nodiscard]] OperationResult<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;
 
 // Replaces or creates the file with `content` through a temporary file and a
 // rename, flushed as `level` says (Durability, above). The rename is atomic
@@ -244,7 +244,7 @@ private:
 // link at the name are not kept (a link is replaced by the file). On
 // Windows it takes the directory's inherited ACL, not the replaced file's
 // own.
-[[nodiscard]] Status write_file(const Path& path, View<Byte> content, Durability level) noexcept;
+[[nodiscard]] OperationStatus write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class LinkMode : u8 {
     follow = 0,    // describe what a symbolic link points to
@@ -252,16 +252,16 @@ enum class LinkMode : u8 {
 };
 
 // not_found when nothing has that name.
-[[nodiscard]] Result<FileInformation> inspect(const Path& path, LinkMode links) noexcept;
+[[nodiscard]] OperationResult<FileInformation> inspect(const Path& path, LinkMode links) noexcept;
 // Creates one directory; already_exists if anything has that name.
-[[nodiscard]] Status create_directory(const Path& path) noexcept;
+[[nodiscard]] OperationStatus create_directory(const Path& path) noexcept;
 // Creates a directory and its missing parents; succeeds if it already
 // exists as a directory, and fails with not_a_directory if it exists as
 // something else.
-[[nodiscard]] Status create_directories(const Path& path) noexcept;
+[[nodiscard]] OperationStatus create_directories(const Path& path) noexcept;
 // Removes a file, a symbolic link or an empty directory; not_found when
 // nothing has that name.
-[[nodiscard]] Status remove(const Path& path) noexcept;
+[[nodiscard]] OperationStatus remove(const Path& path) noexcept;
 // The deepest directory remove_tree descends by default (levels below the
 // top).
 inline constexpr usize maximum_remove_tree_depth = 4096;
@@ -308,9 +308,9 @@ struct RemoveTreeLimits final {
 // HostCode::too_long (what was removed before stays removed). Terminates
 // absent concurrent writers: each pass over a directory removes an entry or
 // finds it empty.
-[[nodiscard]] Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;
+[[nodiscard]] OperationResult<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;
 // Renames, replacing an existing file at `to`.
-[[nodiscard]] Status rename(const Path& from, const Path& to) noexcept;
+[[nodiscard]] OperationStatus rename(const Path& from, const Path& to) noexcept;
 
 enum class CopyMode : u8 {
     fail_if_exists = 0,
@@ -324,7 +324,7 @@ enum class CopyPermissions : u8 {
     with_special_bits = 1, // st_mode & 07777: setuid, setgid and sticky too
 };
 
-[[nodiscard]] Status copy_file(const Path& from, const Path& to, CopyMode mode,
+[[nodiscard]] OperationStatus copy_file(const Path& from, const Path& to, CopyMode mode,
                                CopyPermissions permissions = CopyPermissions::ordinary) noexcept;
 
 namespace detail {
@@ -377,12 +377,12 @@ private:
 
 // The directory's entries. Refuses (limit_exceeded, HostCode::too_long) a
 // directory of more than `limit` entries, unnamed ones included.
-[[nodiscard]] Result<DirectoryListing> list_directory(const Path& path, usize limit) noexcept;
+[[nodiscard]] OperationResult<DirectoryListing> list_directory(const Path& path, usize limit) noexcept;
 
 // The host's directory for temporary files.
-[[nodiscard]] Result<Path> temporary_directory() noexcept;
+[[nodiscard]] OperationResult<Path> temporary_directory() noexcept;
 // The process's working directory.
-[[nodiscard]] Result<Path> working_directory() noexcept;
+[[nodiscard]] OperationResult<Path> working_directory() noexcept;
 
 // The user's directories (Capability::known_directories; replaces
 // GUI.Forms' HOME, APPDATA and XDG_CONFIG_HOME reading in theme_files.cpp,
@@ -416,17 +416,17 @@ enum class KnownDirectory : u8 {
 // for a value the variable holds that is not a Path; out_of_memory;
 // foreign_failure with the host's code (Windows); unsupported for a value
 // outside the set or a folder on a UNC share (Windows).
-[[nodiscard]] Result<Path> known_directory(KnownDirectory which) noexcept;
+[[nodiscard]] OperationResult<Path> known_directory(KnownDirectory which) noexcept;
 // `path` made absolute against the working directory, lexically: no
 // symbolic link is followed and the path need not exist.
-[[nodiscard]] Result<Path> absolute(const Path& path) noexcept;
+[[nodiscard]] OperationResult<Path> absolute(const Path& path) noexcept;
 // The existing file's absolute path with every symbolic link resolved.
-[[nodiscard]] Result<Path> resolve(const Path& path) noexcept;
+[[nodiscard]] OperationResult<Path> resolve(const Path& path) noexcept;
 // The target a symbolic link names, unresolved.
-[[nodiscard]] Result<Path> read_link(const Path& path) noexcept;
+[[nodiscard]] OperationResult<Path> read_link(const Path& path) noexcept;
 // Creates a symbolic link at `link` naming `target`. Hosts that restrict
 // links (Windows without developer mode) fail with permission_denied or
 // unsupported.
-[[nodiscard]] Status create_link(const Path& target, const Path& link) noexcept;
+[[nodiscard]] OperationStatus create_link(const Path& target, const Path& link) noexcept;
 
 } // namespace stxlib

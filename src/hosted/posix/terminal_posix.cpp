@@ -57,24 +57,24 @@ ForeignCode errno_code() noexcept {
 
 } // namespace
 
-Result<TerminalSize> terminal_size() noexcept {
+OperationResult<TerminalSize> terminal_size() noexcept {
     if (!capability_supported(Capability::raw_terminal)) {
         const ErrorRecord none = host_failure::record(ErrorKind::unsupported, "stxlib.terminal.size", HostCode::none);
-        return Result<TerminalSize>::failure(none);
+        return OperationResult<TerminalSize>::failure(none);
     }
     if (::isatty(STDOUT_FILENO) != 1) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.size", HostCode::not_a_terminal);
-        return Result<TerminalSize>::failure(none);
+        return OperationResult<TerminalSize>::failure(none);
     }
     winsize dimensions{};
     if (::ioctl(STDOUT_FILENO, TIOCGWINSZ, &dimensions) != 0) {
         const ErrorRecord failed =
             host_failure::record(ErrorKind::io_failure, "stxlib.terminal.size", HostCode::none, errno_code());
-        return Result<TerminalSize>::failure(failed);
+        return OperationResult<TerminalSize>::failure(failed);
     }
     const TerminalSize size{static_cast<u32>(dimensions.ws_col), static_cast<u32>(dimensions.ws_row)};
-    return Result<TerminalSize>::success(size);
+    return OperationResult<TerminalSize>::success(size);
 }
 
 RawTerminal::~RawTerminal() { release(); }
@@ -105,22 +105,22 @@ void RawTerminal::release() noexcept {
     process.raw_terminal_active.store(false, std::memory_order_release);
 }
 
-Result<RawTerminal> RawTerminal::enter() noexcept {
+OperationResult<RawTerminal> RawTerminal::enter() noexcept {
     if (!capability_supported(Capability::raw_terminal)) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::none);
-        return Result<RawTerminal>::failure(none);
+        return OperationResult<RawTerminal>::failure(none);
     }
     if (::isatty(STDIN_FILENO) != 1 || ::isatty(STDOUT_FILENO) != 1) {
         const ErrorRecord none =
             host_failure::record(ErrorKind::unsupported, "stxlib.terminal.enter_raw", HostCode::not_a_terminal);
-        return Result<RawTerminal>::failure(none);
+        return OperationResult<RawTerminal>::failure(none);
     }
     state::ProcessState& process = state::current_process();
     if (process.raw_terminal_active.exchange(true, std::memory_order_acq_rel)) {
         const ErrorRecord busy =
             host_failure::record(ErrorKind::limit_exceeded, "stxlib.terminal.enter_raw", HostCode::busy);
-        return Result<RawTerminal>::failure(busy);
+        return OperationResult<RawTerminal>::failure(busy);
     }
     termios original{};
     if (::tcgetattr(STDIN_FILENO, &original) != 0) {
@@ -128,7 +128,7 @@ Result<RawTerminal> RawTerminal::enter() noexcept {
         process.raw_terminal_active.store(false, std::memory_order_release);
         const ErrorRecord failed =
             host_failure::record(ErrorKind::io_failure, "stxlib.terminal.enter_raw", HostCode::none, foreign);
-        return Result<RawTerminal>::failure(failed);
+        return OperationResult<RawTerminal>::failure(failed);
     }
     termios raw = original;
     ::cfmakeraw(&raw);
@@ -137,11 +137,11 @@ Result<RawTerminal> RawTerminal::enter() noexcept {
         process.raw_terminal_active.store(false, std::memory_order_release);
         const ErrorRecord failed =
             host_failure::record(ErrorKind::io_failure, "stxlib.terminal.enter_raw", HostCode::none, foreign);
-        return Result<RawTerminal>::failure(failed);
+        return OperationResult<RawTerminal>::failure(failed);
     }
     RawTerminal result;
     HostAccess::save(result, original);
-    return Result<RawTerminal>::success(static_cast<RawTerminal&&>(result));
+    return OperationResult<RawTerminal>::success(static_cast<RawTerminal&&>(result));
 }
 
 } // namespace stxlib

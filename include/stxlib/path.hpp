@@ -62,7 +62,7 @@
 // Changes from stx_auxlib: a Path owns its text on STXlib's allocator; it
 // copies as an ordinary value (owner 2026-11-16: exhaustion during a copy
 // fails fast; copy() reports it); every other operation that allocates
-// returns a Result, so exhaustion is out_of_memory, not an abort; join and
+// returns a OperationResult, so exhaustion is out_of_memory, not an abort; join and
 // parent bound only their result (stx_auxlib refused a join whose operands
 // together exceeded the bound, and parent returned the path unchanged when
 // "<path>/.." did); host names that are not valid Unicode are carried, not
@@ -177,23 +177,23 @@ public:
     Path() noexcept = default;
 
     // Validates and normalizes `text`.
-    [[nodiscard]] static Result<Path> parse(TextView text) noexcept;
+    [[nodiscard]] static OperationResult<Path> parse(TextView text) noexcept;
     // As parse, for foreign bytes not yet known to be UTF-8. Requirement (for
     // each function taking a pointer and a count): the pointer is non-null
     // unless the count is zero.
-    [[nodiscard]] static Result<Path> parse_bytes(const char* bytes, usize count) noexcept;
+    [[nodiscard]] static OperationResult<Path> parse_bytes(const char* bytes, usize count) noexcept;
     // As parse, for bytes that must be well-formed WTF-8 (the text of a
     // Path, stored and read back).
-    [[nodiscard]] static Result<Path> parse_wtf8(const char* bytes, usize count) noexcept;
+    [[nodiscard]] static OperationResult<Path> parse_wtf8(const char* bytes, usize count) noexcept;
     // A POSIX host's name: any bytes, '/' separating. Bytes that are not
     // well-formed UTF-8, ':' and '\' are escaped (see above); a NUL is
     // refused (embedded_nul), as no POSIX name holds one.
-    [[nodiscard]] static Result<Path> from_posix_name(const char* bytes, usize count) noexcept;
+    [[nodiscard]] static OperationResult<Path> from_posix_name(const char* bytes, usize count) noexcept;
     // A Windows host's name: 16-bit units, '\' or '/' separating, without the
     // "\\?\" prefix. Unpaired surrogates are carried; ':' is refused outside
     // a drive root (reserved_character), as Windows reserves it (Microsoft,
     // "Naming Files, Paths, and Namespaces").
-    [[nodiscard]] static Result<Path> from_windows_name(const u16* units, usize count) noexcept;
+    [[nodiscard]] static OperationResult<Path> from_windows_name(const u16* units, usize count) noexcept;
 
     Path(Path&&) noexcept = default;
     Path& operator=(Path&&) noexcept = default;
@@ -206,7 +206,7 @@ public:
     ~Path() = default;
 
     // A second Path with the same text.
-    [[nodiscard]] Result<Path> copy() const noexcept;
+    [[nodiscard]] OperationResult<Path> copy() const noexcept;
 
     // Borrowed from this path: valid until it is moved from or destroyed. A
     // moved-from Path reads ".".
@@ -217,11 +217,11 @@ public:
     // buffer's last element. Fails with not_representable (see PathFailure)
     // or out_of_memory. A drive root ("C:/") is not representable: its ':'
     // is not an escape.
-    [[nodiscard]] Result<Buffer<char>> posix_name() const noexcept;
+    [[nodiscard]] OperationResult<Buffer<char>> posix_name() const noexcept;
     // The Windows host's name for this path, '\' separating, followed by a
     // NUL unit that is the buffer's last element; no "\\?\" prefix. Fails
     // only with out_of_memory.
-    [[nodiscard]] Result<Buffer<u16>> windows_name() const noexcept;
+    [[nodiscard]] OperationResult<Buffer<u16>> windows_name() const noexcept;
 
     [[nodiscard]] bool is_absolute() const noexcept;
     // True for "/" and "X:/" alone.
@@ -232,11 +232,11 @@ public:
     // This path followed by `relative`, normalized. Fails with absolute_join
     // when `relative` is absolute, and with escapes_root or too_long as parse
     // does (for the result).
-    [[nodiscard]] Result<Path> join(const Path& relative) const noexcept;
+    [[nodiscard]] OperationResult<Path> join(const Path& relative) const noexcept;
     // The path without its last segment: "a/b" -> "a", "a" -> ".",
     // "." -> "..", ".." -> "../..", and a root is its own parent. Fails with
     // too_long ("../.." past the bound) or out_of_memory.
-    [[nodiscard]] Result<Path> parent() const noexcept;
+    [[nodiscard]] OperationResult<Path> parent() const noexcept;
 
     // The last segment, or empty for a root, "." and a path ending in "..".
     // Borrowed from this path.

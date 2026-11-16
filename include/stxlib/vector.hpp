@@ -5,7 +5,7 @@
 // surface (owner, D15 before 1.0, notes decisions/2026-11-15-roadmap-choices.md).
 //
 // Semantics (D8 = a, as answered): every operation that allocates returns a
-// Status or a Result, and a refused allocation is the named failure
+// OperationStatus or a OperationResult, and a refused allocation is the named failure
 // out_of_memory (or limit_exceeded when the size is not representable) with
 // the vector unchanged: same elements, same order, same capacity, and an
 // argument passed by rvalue reference not moved from. Nothing throws. The
@@ -125,11 +125,11 @@ public:
     // An empty vector with room for `room` elements. Fails with
     // limit_exceeded when the byte size is not representable, out_of_memory
     // when the allocator refuses. Zero yields the empty vector.
-    [[nodiscard]] static Result<Vector> with_capacity(const usize room) noexcept {
+    [[nodiscard]] static OperationResult<Vector> with_capacity(const usize room) noexcept {
         Vector result;
-        const Status reserved = result.reserve(room);
-        if (reserved.failed()) return Result<Vector>::failure(*reserved.error());
-        return Result<Vector>::success(static_cast<Vector&&>(result));
+        const OperationStatus reserved = result.reserve(room);
+        if (reserved.failed()) return OperationResult<Vector>::failure(*reserved.error());
+        return OperationResult<Vector>::success(static_cast<Vector&&>(result));
     }
 
     // A vector holding copies of `elements`, with capacity exactly their
@@ -138,25 +138,25 @@ public:
     // storage, another vector included. Fails with limit_exceeded when the
     // byte size is not representable, out_of_memory when the allocator
     // refuses.
-    [[nodiscard]] static Result<Vector> copy_of(const View<Element> elements) noexcept {
+    [[nodiscard]] static OperationResult<Vector> copy_of(const View<Element> elements) noexcept {
         const usize count = elements.count();
         Vector result;
-        if (count == 0) return Result<Vector>::success(static_cast<Vector&&>(result));
+        if (count == 0) return OperationResult<Vector>::success(static_cast<Vector&&>(result));
         if (count > usize_max / sizeof(Element)) {
-            return Result<Vector>::failure(not_representable("stxlib.vector.copy_of"));
+            return OperationResult<Vector>::failure(not_representable("stxlib.vector.copy_of"));
         }
         Element* const block = allocate_block(count);
-        if (block == nullptr) return Result<Vector>::failure(exhausted("stxlib.vector.copy_of"));
+        if (block == nullptr) return OperationResult<Vector>::failure(exhausted("stxlib.vector.copy_of"));
         result.elements_ = block;
         result.capacity_ = count;
         result.construct_copies(result.elements_, elements);
         result.count_ = count;
-        return Result<Vector>::success(static_cast<Vector&&>(result));
+        return OperationResult<Vector>::success(static_cast<Vector&&>(result));
     }
 
     // A named copy of this vector (capacity exactly its count).
-    [[nodiscard]] Result<Vector> copy() const noexcept {
-        Result<Vector> result = copy_of(view());
+    [[nodiscard]] OperationResult<Vector> copy() const noexcept {
+        OperationResult<Vector> result = copy_of(view());
         return result;
     }
 
@@ -274,44 +274,44 @@ public:
 
     // Room for at least `wanted` elements; the elements keep their values and
     // order. Failure (limit_exceeded, out_of_memory) changes nothing.
-    [[nodiscard]] Status reserve(const usize wanted) noexcept {
-        if (wanted <= capacity_) return Status::success();
+    [[nodiscard]] OperationStatus reserve(const usize wanted) noexcept {
+        if (wanted <= capacity_) return OperationStatus::success();
         const usize next = detail::grown_capacity<usize>(capacity_, wanted, sizeof(Element));
-        if (next == 0) return Status::failure(not_representable("stxlib.vector.reserve"));
+        if (next == 0) return OperationStatus::failure(not_representable("stxlib.vector.reserve"));
         Element* const block = allocate_block(next);
-        if (block == nullptr) return Status::failure(exhausted("stxlib.vector.reserve"));
+        if (block == nullptr) return OperationStatus::failure(exhausted("stxlib.vector.reserve"));
         move_into(block, elements_, count_);
         adopt_block(block, next, count_);
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Appends `element`, moving from it. Failure changes nothing and leaves
     // `element` not moved from. `element` may be an element of this vector.
-    [[nodiscard]] Status push(Element&& element) noexcept {
-        const Status result = insert_moved(count_, element, "stxlib.vector.push");
+    [[nodiscard]] OperationStatus push(Element&& element) noexcept {
+        const OperationStatus result = insert_moved(count_, element, "stxlib.vector.push");
         return result;
     }
 
     // Appends a copy of `element`, which may be an element of this vector.
     // Failure changes nothing.
-    [[nodiscard]] Status push_copy(const Element& element) noexcept {
+    [[nodiscard]] OperationStatus push_copy(const Element& element) noexcept {
         static_assert(__is_nothrow_constructible(Element, const Element&),
                       "Vector::push_copy needs a nothrow copy constructor");
         if (count_ < capacity_) {
             detail::construct<Element>(elements_ + count_, element);
             count_ = count_ + 1;
-            return Status::success();
+            return OperationStatus::success();
         }
         Element* block = nullptr;
         usize next = 0;
-        const Status grown = block_for_one_more("stxlib.vector.push_copy", block, next);
+        const OperationStatus grown = block_for_one_more("stxlib.vector.push_copy", block, next);
         if (grown.failed()) return grown;
         // The copy is made before the old storage goes, so `element` may
         // live in it.
         detail::construct<Element>(block + count_, element);
         move_into(block, elements_, count_);
         adopt_block(block, next, count_ + 1);
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Appends an element constructed in place from `arguments` (forwarded).
@@ -321,42 +321,42 @@ public:
     // live, as push_copy does (security audit 2026-11-15,
     // A-stxlib-include-01-F3).
     template <typename... Arguments>
-    [[nodiscard]] Status emplace(Arguments&&... arguments) noexcept {
+    [[nodiscard]] OperationStatus emplace(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Element, Arguments&&...),
                       "Vector::emplace needs a nothrow constructor for these arguments");
         if (count_ < capacity_) {
             detail::construct<Element>(elements_ + count_, static_cast<Arguments&&>(arguments)...);
             count_ = count_ + 1;
-            return Status::success();
+            return OperationStatus::success();
         }
         Element* block = nullptr;
         usize next = 0;
-        const Status grown = block_for_one_more("stxlib.vector.emplace", block, next);
+        const OperationStatus grown = block_for_one_more("stxlib.vector.emplace", block, next);
         if (grown.failed()) return grown;
         detail::construct<Element>(block + count_, static_cast<Arguments&&>(arguments)...);
         move_into(block, elements_, count_);
         adopt_block(block, next, count_ + 1);
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Inserts `element` before position `index` (count() appends), moving
     // from it; later elements move up one place. Failure changes nothing
     // and leaves `element` not moved from. `element` may be an element of
     // this vector. Requirement: index <= count().
-    [[nodiscard]] Status insert(const usize index, Element&& element) noexcept {
+    [[nodiscard]] OperationStatus insert(const usize index, Element&& element) noexcept {
         STXLIB_REQUIRE(index <= count_, "Vector::insert: index out of range");
-        const Status result = insert_moved(index, element, "stxlib.vector.insert");
+        const OperationStatus result = insert_moved(index, element, "stxlib.vector.insert");
         return result;
     }
 
     // Appends copies of `elements`, which may borrow from this vector.
     // Failure changes nothing.
-    [[nodiscard]] Status append_copies(const View<Element> elements) noexcept {
+    [[nodiscard]] OperationStatus append_copies(const View<Element> elements) noexcept {
         static_assert(__is_nothrow_constructible(Element, const Element&),
                       "Vector::append_copies needs a nothrow copy constructor");
         const usize added = elements.count();
-        if (added == 0) return Status::success();
-        if (added > usize_max - count_) return Status::failure(not_representable("stxlib.vector.append_copies"));
+        if (added == 0) return OperationStatus::success();
+        if (added > usize_max - count_) return OperationStatus::failure(not_representable("stxlib.vector.append_copies"));
         const usize wanted = count_ + added;
         if (wanted <= capacity_) {
             // The source is live elements or foreign storage, never the
@@ -366,35 +366,35 @@ public:
                 detail::construct<Element>(elements_ + count_, from[index]);
                 count_ = count_ + 1;
             }
-            return Status::success();
+            return OperationStatus::success();
         }
         const usize next = detail::grown_capacity<usize>(capacity_, wanted, sizeof(Element));
-        if (next == 0) return Status::failure(not_representable("stxlib.vector.append_copies"));
+        if (next == 0) return OperationStatus::failure(not_representable("stxlib.vector.append_copies"));
         Element* const block = allocate_block(next);
-        if (block == nullptr) return Status::failure(exhausted("stxlib.vector.append_copies"));
+        if (block == nullptr) return OperationStatus::failure(exhausted("stxlib.vector.append_copies"));
         // Copies first, while a source inside the old storage is still live.
         construct_copies(block + count_, elements);
         move_into(block, elements_, count_);
         adopt_block(block, next, wanted);
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // Exactly `wanted` elements: extra ones are destroyed from the end; new
     // ones are value-initialised (Element(), zero for arithmetic types).
     // Failure changes nothing.
-    [[nodiscard]] Status resize(const usize wanted) noexcept {
+    [[nodiscard]] OperationStatus resize(const usize wanted) noexcept {
         static_assert(__is_nothrow_constructible(Element), "Vector::resize needs a nothrow default constructor");
         if (wanted <= count_) {
             truncate(wanted);
-            return Status::success();
+            return OperationStatus::success();
         }
-        const Status reserved = reserve(wanted);
+        const OperationStatus reserved = reserve(wanted);
         if (reserved.failed()) return reserved;
         while (count_ < wanted) {
             detail::construct<Element>(elements_ + count_);
             count_ = count_ + 1;
         }
-        return Status::success();
+        return OperationStatus::success();
     }
 
     // ---- removal (never allocates, never fails) ---------------------------
@@ -545,21 +545,21 @@ private:
 
     // A new block with room for count() + 1, for a caller that builds into
     // it before relocating. Failure leaves block null.
-    Status block_for_one_more(const Operation operation, Element*& block, usize& next) noexcept {
-        if (count_ == usize_max) return Status::failure(not_representable(operation));
+    OperationStatus block_for_one_more(const Operation operation, Element*& block, usize& next) noexcept {
+        if (count_ == usize_max) return OperationStatus::failure(not_representable(operation));
         next = detail::grown_capacity<usize>(capacity_, count_ + 1, sizeof(Element));
-        if (next == 0) return Status::failure(not_representable(operation));
+        if (next == 0) return OperationStatus::failure(not_representable(operation));
         block = allocate_block(next);
-        if (block == nullptr) return Status::failure(exhausted(operation));
-        return Status::success();
+        if (block == nullptr) return OperationStatus::failure(exhausted(operation));
+        return OperationStatus::success();
     }
 
     // Inserts `element` (moved from only on success) at `index`.
-    Status insert_moved(const usize index, Element& element, const Operation operation) noexcept {
+    OperationStatus insert_moved(const usize index, Element& element, const Operation operation) noexcept {
         if (count_ == capacity_) {
             Element* block = nullptr;
             usize next = 0;
-            const Status grown = block_for_one_more(operation, block, next);
+            const OperationStatus grown = block_for_one_more(operation, block, next);
             if (grown.failed()) return grown;
             // The new element is built first, while `element` (possibly in
             // the old storage) is still live; then the others move around it.
@@ -567,7 +567,7 @@ private:
             move_into(block, elements_, index);
             move_into(block + index + 1, elements_ + index, count_ - index);
             adopt_block(block, next, count_ + 1);
-            return Status::success();
+            return OperationStatus::success();
         }
         // Room exists, so nothing can fail now. `element` is moved out first,
         // since the shift below may move or overwrite its place.
@@ -575,7 +575,7 @@ private:
         if (index == count_) {
             detail::construct<Element>(elements_ + count_, static_cast<Element&&>(held));
             count_ = count_ + 1;
-            return Status::success();
+            return OperationStatus::success();
         }
         if constexpr (assignable()) {
             // Form 1: the last element is moved into the spare slot and
@@ -596,7 +596,7 @@ private:
             detail::construct<Element>(elements_ + index, static_cast<Element&&>(held));
             count_ = count_ + 1;
         }
-        return Status::success();
+        return OperationStatus::success();
     }
 
     Element* elements_{nullptr};

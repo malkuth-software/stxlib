@@ -70,21 +70,21 @@ public:
     // its own. Fails with out_of_memory, constructing nothing, when the
     // allocator refuses.
     template <typename... Arguments>
-    [[nodiscard]] static Result<Unique> make(Arguments&&... arguments) noexcept {
+    [[nodiscard]] static OperationResult<Unique> make(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Value, Arguments&&...),
                       "Unique::make needs a nothrow constructor for these arguments");
         static_assert(detail::nothrow_destructible<Value>, "Unique's Value must be nothrow destructible");
         void* const block = detail::vocabulary_allocate(sizeof(Value), alignof(Value));
         if (block == nullptr) {
             const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.unique.make");
-            return Result<Unique>::failure(exhausted);
+            return OperationResult<Unique>::failure(exhausted);
         }
         Value* const object = detail::construct<Value>(block, static_cast<Arguments&&>(arguments)...);
         Unique result;
         result.object_ = object;
         result.block_ = block;
         result.destroy_ = &detail::destroy_unique_block<Value>;
-        return Result<Unique>::success(static_cast<Unique&&>(result));
+        return OperationResult<Unique>::success(static_cast<Unique&&>(result));
     }
 
     Unique(const Unique&) = delete;

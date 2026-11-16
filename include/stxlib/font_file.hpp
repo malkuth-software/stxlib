@@ -192,7 +192,7 @@ struct GlyphOutline final {
 
 // Reads face `face` of the font in `bytes` (0 for a font that is not a
 // collection).
-[[nodiscard]] Status open_font(View<u8> bytes, u32 face, Font& font) noexcept;
+[[nodiscard]] OperationStatus open_font(View<u8> bytes, u32 face, Font& font) noexcept;
 
 // How many faces the bytes hold: a collection's count (TTC or OTC), 1 for
 // one font, 0 for bytes that are neither (a collection of no face, or one
@@ -212,14 +212,14 @@ struct GlyphOutline final {
 // read as Mac Roman. It ends at a U+0000, as FreeType's does. Linear in
 // the table's records; the text is at most 3 bytes for each byte of the
 // record's string. out_of_memory is the only failure.
-[[nodiscard]] Status font_name(const Font& font, u32 name_id, Vector<char>& text) noexcept;
+[[nodiscard]] OperationStatus font_name(const Font& font, u32 name_id, Vector<char>& text) noexcept;
 
 // The family and style names, by FreeType 2.14.2's rule (its
 // family_name and style_name): when OS/2's fsSelection has bit 8, the
 // typographic name (16, 17) and then the plain one (1, 2); otherwise the
 // WWS name (21, 22), then the typographic one, then the plain one.
-[[nodiscard]] Status family_name(const Font& font, Vector<char>& text) noexcept;
-[[nodiscard]] Status style_name(const Font& font, Vector<char>& text) noexcept;
+[[nodiscard]] OperationStatus family_name(const Font& font, Vector<char>& text) noexcept;
+[[nodiscard]] OperationStatus style_name(const Font& font, Vector<char>& text) noexcept;
 
 // The glyph for a character, or 0 when the font has none.
 [[nodiscard]] u32 glyph_of(const Font& font, u32 character) noexcept;
@@ -262,14 +262,14 @@ struct MappedStretch final {
 
 // A glyph's outline in font units. An empty glyph (a space) succeeds with
 // no points.
-[[nodiscard]] Status load_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;
+[[nodiscard]] OperationStatus load_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;
 
 // A glyph's outline in 26.6 pixels, without hinting, at 16.16 scales
 // (scale_of). For a TrueType glyph put together from others this is not
 // load_glyph's outline scaled: each part's points and each part's offset
 // are scaled and rounded on their own, as TrueType has it, and a point can
 // fall 1/64 of a pixel from where scaling the whole would put it.
-[[nodiscard]] Status load_scaled_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale, const FontLimits& limits,
+[[nodiscard]] OperationStatus load_scaled_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale, const FontLimits& limits,
                                        GlyphOutline& outline) noexcept;
 
 // The scale that takes font units to 26.6 pixels at a size given in 26.6
@@ -281,13 +281,13 @@ struct MappedStretch final {
 // was, for a scale not above 0 or above 2^32, or a point that would come
 // farther than 2^30 from the origin either way (the bound every outline the
 // reader gives keeps, in font units and scaled).
-[[nodiscard]] Status scale_outline(GlyphOutline& outline, i64 x_scale, i64 y_scale) noexcept;
+[[nodiscard]] OperationStatus scale_outline(GlyphOutline& outline, i64 x_scale, i64 y_scale) noexcept;
 
 // The outline as segments, for measure and render (glyph_mask.hpp). Two
 // quadratic control points in a row have a point of the curve between
 // them, their mean with each coordinate rounded down; a contour that
 // begins on a control point begins at its last point if that is on the
 // curve, else between the two.
-[[nodiscard]] Status to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vector<Point>& points) noexcept;
+[[nodiscard]] OperationStatus to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vector<Point>& points) noexcept;
 
 } // namespace stxlib::glyphs

@@ -22,7 +22,7 @@ namespace {
 using stxlib::CivilTime;
 using stxlib::i64;
 using stxlib::LocalTime;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::WallTime;
 
 // Days from 1970-01-01 to a proleptic Gregorian date (Howard Hinnant's
@@ -71,7 +71,7 @@ void reference_values() {
 void any_zone() {
     CHECK(stxlib::capability_supported(stxlib::Capability::local_time_zone));
     const WallTime now = WallTime::now();
-    const Result<LocalTime> local = stxlib::local_time(now);
+    const OperationResult<LocalTime> local = stxlib::local_time(now);
     CHECK(local.succeeded());
     if (local.succeeded()) {
         const LocalTime& reading = *local.value();
@@ -83,7 +83,7 @@ void any_zone() {
     }
     // Instants before 1970 convert too.
     const WallTime before_epoch = WallTime::from_unix_nanoseconds(-nanoseconds_per_second / 2);
-    const Result<LocalTime> earlier = stxlib::local_time(before_epoch);
+    const OperationResult<LocalTime> earlier = stxlib::local_time(before_epoch);
     CHECK(earlier.succeeded());
     if (earlier.succeeded()) CHECK(consistent(*earlier.value(), before_epoch));
 }
@@ -95,13 +95,13 @@ void any_zone() {
 void range_ends() {
     const WallTime earliest = WallTime::from_unix_nanoseconds(stxlib::i64_min);
     const WallTime latest = WallTime::from_unix_nanoseconds(stxlib::i64_max);
-    const Result<LocalTime> first = stxlib::local_time(earliest);
+    const OperationResult<LocalTime> first = stxlib::local_time(earliest);
     CHECK(first.succeeded());
     if (first.succeeded()) {
         CHECK(consistent(*first.value(), earliest));
         CHECK((*first.value()).civil.year == 1677 || (*first.value()).civil.year == 1678);
     }
-    const Result<LocalTime> last = stxlib::local_time(latest);
+    const OperationResult<LocalTime> last = stxlib::local_time(latest);
     CHECK(last.succeeded());
     if (last.succeeded()) {
         CHECK(consistent(*last.value(), latest));
@@ -111,7 +111,7 @@ void range_ends() {
 
 // The failure's kind, or 0 (no kind) on success.
 template <typename Value>
-stxlib::ErrorKind kind_of(const Result<Value>& result) {
+stxlib::ErrorKind kind_of(const OperationResult<Value>& result) {
     if (result.succeeded()) return static_cast<stxlib::ErrorKind>(0);
     const stxlib::ErrorKind kind = (*result.error()).kind();
     return kind;
@@ -148,7 +148,7 @@ WallTime wall_of_seconds(const i64 seconds) {
 void compiled_vectors() {
     stxlib::usize failures = 0;
     for (const ZoneVector& vector : zone_vectors) {
-        const Result<stxlib::Zone> zone = stxlib::Zone::named(view_of_ascii(vector.name));
+        const OperationResult<stxlib::Zone> zone = stxlib::Zone::named(view_of_ascii(vector.name));
         if (zone.failed()) {
             ++failures;
             continue;
@@ -174,8 +174,8 @@ void names() {
     const stxlib::ZoneReading utc = default_zone.at(WallTime::now());
     CHECK(utc.offset_seconds == 0 && !utc.daylight && utc.abbreviation == stxlib::TextView("UTC"));
     // A link keeps its own name and reads as its zone.
-    const Result<stxlib::Zone> link = stxlib::Zone::named("US/Eastern");
-    const Result<stxlib::Zone> target = stxlib::Zone::named("America/New_York");
+    const OperationResult<stxlib::Zone> link = stxlib::Zone::named("US/Eastern");
+    const OperationResult<stxlib::Zone> target = stxlib::Zone::named("America/New_York");
     CHECK(link.succeeded() && target.succeeded());
     if (link.succeeded() && target.succeeded()) {
         CHECK((*link.value()).name() == stxlib::TextView("US/Eastern"));
@@ -192,7 +192,7 @@ void names() {
 void zone_readings() {
     // 2026-11-01T06:00:00Z: New York's return to EST; one second earlier it
     // is still 01:59:59 EDT.
-    const Result<stxlib::Zone> new_york = stxlib::Zone::named("America/New_York");
+    const OperationResult<stxlib::Zone> new_york = stxlib::Zone::named("America/New_York");
     CHECK(new_york.succeeded());
     if (new_york.succeeded()) {
         const LocalTime after = stxlib::local_time_in(*new_york.value(), wall_of_seconds(1793512800));
@@ -208,14 +208,14 @@ void zone_readings() {
     }
     // Europe/Dublin observes a negative save in winter (tzdata's main form):
     // GMT is its daylight type there.
-    const Result<stxlib::Zone> dublin = stxlib::Zone::named("Europe/Dublin");
+    const OperationResult<stxlib::Zone> dublin = stxlib::Zone::named("Europe/Dublin");
     CHECK(dublin.succeeded());
     if (dublin.succeeded()) {
         const LocalTime winter = stxlib::local_time_in(*dublin.value(), wall_of_seconds(9208947600));
         CHECK(winter.offset_seconds == 0 && winter.daylight && winter.abbreviation == stxlib::TextView("GMT"));
         CHECK(winter.civil.year == 2261);
     }
-    const Result<stxlib::Zone> kolkata = stxlib::Zone::named("Asia/Kolkata");
+    const OperationResult<stxlib::Zone> kolkata = stxlib::Zone::named("Asia/Kolkata");
     CHECK(kolkata.succeeded());
     if (kolkata.succeeded()) {
         constexpr WallTime winter = WallTime::from_unix_nanoseconds(1768478400 * nanoseconds_per_second + 250000000);
@@ -250,7 +250,7 @@ void civil_every_day() {
 // The host's zone through TZ, which every host honours.
 void host_zone_by_tz() {
     constexpr WallTime winter = WallTime::from_unix_nanoseconds(1768478400 * nanoseconds_per_second + 250000000);
-    const Result<stxlib::Utf8String> saved = stxlib::read_variable("TZ", 4096);
+    const OperationResult<stxlib::Utf8String> saved = stxlib::read_variable("TZ", 4096);
     const bool had_zone = saved.succeeded();
     const struct Case {
         stxlib::TextView tz;
@@ -268,10 +268,10 @@ void host_zone_by_tz() {
     };
     for (const Case& item : cases) {
         CHECK(stxlib::set_variable("TZ", item.tz).succeeded());
-        const Result<stxlib::Zone> zone = stxlib::host_zone();
+        const OperationResult<stxlib::Zone> zone = stxlib::host_zone();
         CHECK(zone.succeeded());
         if (zone.succeeded()) CHECK((*zone.value()).name() == item.name);
-        const Result<LocalTime> local = stxlib::local_time(winter);
+        const OperationResult<LocalTime> local = stxlib::local_time(winter);
         CHECK(local.succeeded());
         if (local.succeeded()) {
             CHECK((*local.value()).offset_seconds == item.offset);
@@ -290,11 +290,11 @@ void host_zone_by_tz() {
     // TZ naming the host's own zone file, with or without ':', reads the
     // zone as an unset TZ does (A-stxlib-core-01-F6).
     CHECK(stxlib::remove_variable("TZ").succeeded());
-    const Result<stxlib::Zone> unset = stxlib::host_zone();
+    const OperationResult<stxlib::Zone> unset = stxlib::host_zone();
     const stxlib::TextView own_file[] = {"/etc/localtime", ":/etc/localtime"};
     for (const stxlib::TextView text : own_file) {
         CHECK(stxlib::set_variable("TZ", text).succeeded());
-        const Result<stxlib::Zone> zone = stxlib::host_zone();
+        const OperationResult<stxlib::Zone> zone = stxlib::host_zone();
         CHECK(zone.succeeded() == unset.succeeded());
         if (zone.succeeded() && unset.succeeded()) CHECK((*zone.value()).name() == (*unset.value()).name());
         if (zone.failed() && unset.failed()) CHECK(kind_of(zone) == kind_of(unset));

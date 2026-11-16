@@ -139,35 +139,35 @@ ErrorRecord exhausted(const Operation operation) noexcept {
 
 // An owned copy of bytes[0, count).
 template <typename Element>
-Result<Buffer<Element>> owned_copy(const Element* const elements, const usize count) noexcept {
-    Result<Buffer<Element>> owned = Buffer<Element>::allocate_zeroed(count);
+OperationResult<Buffer<Element>> owned_copy(const Element* const elements, const usize count) noexcept {
+    OperationResult<Buffer<Element>> owned = Buffer<Element>::allocate_zeroed(count);
     if (owned.failed() || count == 0) return owned;
     std::memcpy((*owned.value()).mutable_view().data(), elements, count * sizeof(Element));
     return owned;
 }
 
 // The Path for normalized text in `output`.
-Result<Path> adopt(const Growable<char>& output, const Operation operation) noexcept {
-    Result<Buffer<char>> owned = owned_copy(output.data(), output.count());
-    if (owned.failed()) return Result<Path>::failure(exhausted(operation));
-    Result<Path> result = Result<Path>::success(Path::Access::adopt(static_cast<Result<Buffer<char>>&&>(owned).take_value()));
+OperationResult<Path> adopt(const Growable<char>& output, const Operation operation) noexcept {
+    OperationResult<Buffer<char>> owned = owned_copy(output.data(), output.count());
+    if (owned.failed()) return OperationResult<Path>::failure(exhausted(operation));
+    OperationResult<Path> result = OperationResult<Path>::success(Path::Access::adopt(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
-Result<Path> finish(const Normalized outcome, const Growable<char>& output, const Operation operation) noexcept {
+OperationResult<Path> finish(const Normalized outcome, const Growable<char>& output, const Operation operation) noexcept {
     switch (outcome) {
     case Normalized::ok:
         break;
     case Normalized::reserved_character:
-        return Result<Path>::failure(refusal(PathFailure::reserved_character, operation));
+        return OperationResult<Path>::failure(refusal(PathFailure::reserved_character, operation));
     case Normalized::escapes_root:
-        return Result<Path>::failure(refusal(PathFailure::escapes_root, operation));
+        return OperationResult<Path>::failure(refusal(PathFailure::escapes_root, operation));
     case Normalized::too_long:
-        return Result<Path>::failure(refusal(PathFailure::too_long, operation));
+        return OperationResult<Path>::failure(refusal(PathFailure::too_long, operation));
     case Normalized::out_of_memory:
-        return Result<Path>::failure(exhausted(operation));
+        return OperationResult<Path>::failure(exhausted(operation));
     }
-    Result<Path> result = adopt(output, operation);
+    OperationResult<Path> result = adopt(output, operation);
     return result;
 }
 
@@ -181,23 +181,23 @@ enum class Encoding : u8 {
 
 // The checks parse makes before normalizing, in stx_auxlib's order: empty,
 // too long, NUL, '\', then (for foreign bytes) the encoding.
-Result<Path> parse_checked(const char* const bytes, const usize count, const Encoding encoding) noexcept {
+OperationResult<Path> parse_checked(const char* const bytes, const usize count, const Encoding encoding) noexcept {
     const Operation operation = "stxlib.path.parse";
-    if (count == 0) return Result<Path>::failure(refusal(PathFailure::empty, operation));
-    if (count > maximum_path_bytes) return Result<Path>::failure(refusal(PathFailure::too_long, operation));
+    if (count == 0) return OperationResult<Path>::failure(refusal(PathFailure::empty, operation));
+    if (count > maximum_path_bytes) return OperationResult<Path>::failure(refusal(PathFailure::too_long, operation));
     for (usize index = 0; index < count; ++index) {
-        if (bytes[index] == '\0') return Result<Path>::failure(refusal(PathFailure::embedded_nul, operation));
-        if (bytes[index] == '\\') return Result<Path>::failure(refusal(PathFailure::reserved_character, operation));
+        if (bytes[index] == '\0') return OperationResult<Path>::failure(refusal(PathFailure::embedded_nul, operation));
+        if (bytes[index] == '\\') return OperationResult<Path>::failure(refusal(PathFailure::reserved_character, operation));
     }
     if (encoding == Encoding::check_utf8) {
-        const Result<TextView> valid = validate_utf8(bytes, count);
-        if (valid.failed()) return Result<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
+        const OperationResult<TextView> valid = validate_utf8(bytes, count);
+        if (valid.failed()) return OperationResult<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
     } else if (encoding == Encoding::check_wtf8 && !wtf8::well_formed(bytes, count)) {
-        return Result<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
+        return OperationResult<Path>::failure(refusal(PathFailure::invalid_utf8, operation));
     }
     Growable<char> output;
     const Normalized outcome = normalize(bytes, count, output);
-    Result<Path> result = finish(outcome, output, operation);
+    OperationResult<Path> result = finish(outcome, output, operation);
     return result;
 }
 
@@ -242,53 +242,53 @@ TextView PathText::display(const MutableView<char> room) const noexcept {
     return result;
 }
 
-Result<Path> Path::parse(const TextView text) noexcept {
-    Result<Path> result = parse_checked(text.data(), text.count(), Encoding::utf8);
+OperationResult<Path> Path::parse(const TextView text) noexcept {
+    OperationResult<Path> result = parse_checked(text.data(), text.count(), Encoding::utf8);
     return result;
 }
 
-Result<Path> Path::parse_bytes(const char* const bytes, const usize count) noexcept {
+OperationResult<Path> Path::parse_bytes(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::parse_bytes: a null pointer with a non-zero count");
-    Result<Path> result = parse_checked(bytes, count, Encoding::check_utf8);
+    OperationResult<Path> result = parse_checked(bytes, count, Encoding::check_utf8);
     return result;
 }
 
-Result<Path> Path::parse_wtf8(const char* const bytes, const usize count) noexcept {
+OperationResult<Path> Path::parse_wtf8(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::parse_wtf8: a null pointer with a non-zero count");
-    Result<Path> result = parse_checked(bytes, count, Encoding::check_wtf8);
+    OperationResult<Path> result = parse_checked(bytes, count, Encoding::check_wtf8);
     return result;
 }
 
-Result<Path> Path::from_posix_name(const char* const bytes, const usize count) noexcept {
+OperationResult<Path> Path::from_posix_name(const char* const bytes, const usize count) noexcept {
     STXLIB_REQUIRE(bytes != nullptr || count == 0, "Path::from_posix_name: a null pointer with a non-zero count");
     // Escaping never shrinks the text, so a name longer than the bound is
     // refused before any storage is taken for it (audit A, C2).
     if (count > maximum_path_bytes) {
-        return Result<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
+        return OperationResult<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
     }
     Growable<char> escaped;
-    if (!wtf8::escape_posix(bytes, count, escaped)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
+    if (!wtf8::escape_posix(bytes, count, escaped)) return OperationResult<Path>::failure(exhausted("stxlib.path.parse"));
     // escape_posix writes well-formed WTF-8 (its only surrogates are low
     // ones) with no '\' or ':' left unescaped.
-    Result<Path> result = parse_checked(escaped.data(), escaped.count(), Encoding::wtf8);
+    OperationResult<Path> result = parse_checked(escaped.data(), escaped.count(), Encoding::wtf8);
     return result;
 }
 
-Result<Path> Path::from_windows_name(const u16* const units, const usize count) noexcept {
+OperationResult<Path> Path::from_windows_name(const u16* const units, const usize count) noexcept {
     STXLIB_REQUIRE(units != nullptr || count == 0, "Path::from_windows_name: a null pointer with a non-zero count");
     // Every UTF-16 unit becomes at least one WTF-8 byte, so a name of more
     // units than the bound has bytes is refused before converting (audit A,
     // C2).
     if (count > maximum_path_bytes) {
-        return Result<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
+        return OperationResult<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
     }
     Growable<char> text;
-    if (!wtf8::from_utf16(units, count, text)) return Result<Path>::failure(exhausted("stxlib.path.parse"));
+    if (!wtf8::from_utf16(units, count, text)) return OperationResult<Path>::failure(exhausted("stxlib.path.parse"));
     // '\' is ASCII, so it is never part of a multi-byte sequence.
     for (usize index = 0; index < text.count(); ++index) {
         if (text[index] == '\\') text[index] = '/';
     }
-    Result<Path> result = parse_checked(text.data(), text.count(), Encoding::wtf8);
+    OperationResult<Path> result = parse_checked(text.data(), text.count(), Encoding::wtf8);
     return result;
 }
 
@@ -301,11 +301,11 @@ Path& Path::operator=(const Path& other) noexcept {
     return *this;
 }
 
-Result<Path> Path::copy() const noexcept {
-    if (text_.empty()) return Result<Path>::success(Path());
-    Result<Buffer<char>> owned = owned_copy(text_.view().data(), text_.count());
-    if (owned.failed()) return Result<Path>::failure(exhausted("stxlib.path.copy"));
-    Result<Path> result = Result<Path>::success(Path(static_cast<Result<Buffer<char>>&&>(owned).take_value()));
+OperationResult<Path> Path::copy() const noexcept {
+    if (text_.empty()) return OperationResult<Path>::success(Path());
+    OperationResult<Buffer<char>> owned = owned_copy(text_.view().data(), text_.count());
+    if (owned.failed()) return OperationResult<Path>::failure(exhausted("stxlib.path.copy"));
+    OperationResult<Path> result = OperationResult<Path>::success(Path(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
@@ -315,32 +315,32 @@ PathText Path::text() const& noexcept {
     return result;
 }
 
-Result<Buffer<char>> Path::posix_name() const noexcept {
+OperationResult<Buffer<char>> Path::posix_name() const noexcept {
     const Operation operation = "stxlib.path.posix_name";
     const PathText spelled = (*this).text();
     Growable<char> bytes;
     const wtf8::Converted converted = wtf8::unescape_posix(spelled.data(), spelled.count(), bytes);
     if (converted == wtf8::Converted::not_representable) {
-        return Result<Buffer<char>>::failure(refusal(PathFailure::not_representable, operation));
+        return OperationResult<Buffer<char>>::failure(refusal(PathFailure::not_representable, operation));
     }
-    if (converted != wtf8::Converted::ok || !bytes.push('\0')) return Result<Buffer<char>>::failure(exhausted(operation));
-    Result<Buffer<char>> owned = owned_copy(bytes.data(), bytes.count());
-    if (owned.failed()) return Result<Buffer<char>>::failure(exhausted(operation));
+    if (converted != wtf8::Converted::ok || !bytes.push('\0')) return OperationResult<Buffer<char>>::failure(exhausted(operation));
+    OperationResult<Buffer<char>> owned = owned_copy(bytes.data(), bytes.count());
+    if (owned.failed()) return OperationResult<Buffer<char>>::failure(exhausted(operation));
     return owned;
 }
 
-Result<Buffer<u16>> Path::windows_name() const noexcept {
+OperationResult<Buffer<u16>> Path::windows_name() const noexcept {
     const Operation operation = "stxlib.path.windows_name";
     const PathText spelled = (*this).text();
     Growable<u16> units;
     if (!wtf8::to_utf16(spelled.data(), spelled.count(), units) || !units.push(0)) {
-        return Result<Buffer<u16>>::failure(exhausted(operation));
+        return OperationResult<Buffer<u16>>::failure(exhausted(operation));
     }
     for (usize index = 0; index < units.count(); ++index) {
         if (units[index] == u16{'/'}) units[index] = u16{'\\'};
     }
-    Result<Buffer<u16>> owned = owned_copy(units.data(), units.count());
-    if (owned.failed()) return Result<Buffer<u16>>::failure(exhausted(operation));
+    OperationResult<Buffer<u16>> owned = owned_copy(units.data(), units.count());
+    if (owned.failed()) return OperationResult<Buffer<u16>>::failure(exhausted(operation));
     return owned;
 }
 
@@ -368,36 +368,36 @@ char Path::drive() const noexcept {
     return 0;
 }
 
-Result<Path> Path::join(const Path& relative) const noexcept {
+OperationResult<Path> Path::join(const Path& relative) const noexcept {
     const Operation operation = "stxlib.path.join";
-    if (relative.is_absolute()) return Result<Path>::failure(refusal(PathFailure::absolute_join, operation));
+    if (relative.is_absolute()) return OperationResult<Path>::failure(refusal(PathFailure::absolute_join, operation));
     const PathText left = text();
     const PathText right = relative.text();
     Growable<char> combined;
     if (!combined.append(left.data(), left.count()) || !combined.push('/') ||
         !combined.append(right.data(), right.count())) {
-        return Result<Path>::failure(exhausted(operation));
+        return OperationResult<Path>::failure(exhausted(operation));
     }
     Growable<char> output;
     const Normalized outcome = normalize(combined.data(), combined.count(), output);
-    Result<Path> result = finish(outcome, output, operation);
+    OperationResult<Path> result = finish(outcome, output, operation);
     return result;
 }
 
-Result<Path> Path::parent() const noexcept {
+OperationResult<Path> Path::parent() const noexcept {
     if (is_root()) {
-        Result<Path> same = copy();
+        OperationResult<Path> same = copy();
         return same;
     }
     const Operation operation = "stxlib.path.parent";
     const PathText spelled = (*this).text();
     Growable<char> combined;
     if (!combined.append(spelled.data(), spelled.count()) || !combined.append("/..", 3)) {
-        return Result<Path>::failure(exhausted(operation));
+        return OperationResult<Path>::failure(exhausted(operation));
     }
     Growable<char> output;
     const Normalized outcome = normalize(combined.data(), combined.count(), output);
-    Result<Path> result = finish(outcome, output, operation);
+    OperationResult<Path> result = finish(outcome, output, operation);
     return result;
 }
 

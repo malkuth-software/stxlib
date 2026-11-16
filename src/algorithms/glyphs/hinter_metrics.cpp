@@ -669,7 +669,7 @@ const TableScript& script_of_style(const u32 style) noexcept {
     return table_scripts[table_styles[known].script];
 }
 
-Status compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept {
+OperationStatus compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     styles.clear();
     if (styles.resize(font.glyph_count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
@@ -710,10 +710,10 @@ Status compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept {
         const u32 glyph = glyph_of(font, digit);
         if (glyph != 0) all[glyph] = static_cast<u16>(all[glyph] | style_digit);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status compute_style_metrics(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch, StyleMetrics& metrics) noexcept {
+OperationStatus compute_style_metrics(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch, StyleMetrics& metrics) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     metrics.style = style;
     metrics.digits_same_width = true;
@@ -745,7 +745,7 @@ Status compute_style_metrics(const Font& font, const u32 style, const FontLimits
         have_advance = true;
     }
     if (no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 HintScale make_scale(const Font& font, const i64 size, const HintMode mode, const u32 group) noexcept {
@@ -772,7 +772,7 @@ HintScale make_scale(const Font& font, const i64 size, const HintMode mode, cons
     return scale;
 }
 
-Status scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale, ScaledStyleMetrics& scaled) noexcept {
+OperationStatus scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale, ScaledStyleMetrics& scaled) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     scaled.scale = scale;
     const bool is_default = script_of_style(metrics.style).group == group_default;
@@ -785,7 +785,7 @@ Status scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale, 
         }
     }
     if (!done) return refuse_font(ErrorKind::out_of_memory, operation);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::glyphs::detail

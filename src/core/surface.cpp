@@ -50,34 +50,34 @@ SurfacePixels Surface::pixels() const noexcept {
     return surface_backend::pixels(state_);
 }
 
-Result<SurfacePresent> Surface::present(const SurfaceRect* const rects, const usize count) noexcept {
+OperationResult<SurfacePresent> Surface::present(const SurfaceRect* const rects, const usize count) noexcept {
     if (state_ == nullptr) {
-        return Result<SurfacePresent>::failure(
+        return OperationResult<SurfacePresent>::failure(
             host_failure::record(ErrorKind::disposed, "stxlib.surface.present", HostCode::closed_handle));
     }
     if (count != 0U && rects == nullptr) {
-        return Result<SurfacePresent>::failure(
+        return OperationResult<SurfacePresent>::failure(
             host_failure::record(ErrorKind::invalid_argument, "stxlib.surface.present", HostCode::empty_request));
     }
     const u32 surface_width = surface_backend::width(state_);
     const u32 surface_height = surface_backend::height(state_);
     for (usize index = 0U; index < count; ++index) {
         if (!surface_blit::rect_within(rects[index], surface_width, surface_height)) {
-            return Result<SurfacePresent>::failure(
+            return OperationResult<SurfacePresent>::failure(
                 host_failure::record(ErrorKind::invalid_argument, "stxlib.surface.present", HostCode::invalid_value));
         }
     }
-    if (count == 0U) return Result<SurfacePresent>::success(SurfacePresent::presented);
+    if (count == 0U) return OperationResult<SurfacePresent>::success(SurfacePresent::presented);
     return surface_backend::present(state_, rects, count);
 }
 
-Result<usize> Surface::read_events(SurfaceEvent* const events, const usize capacity, const i64 wait_ms) noexcept {
+OperationResult<usize> Surface::read_events(SurfaceEvent* const events, const usize capacity, const i64 wait_ms) noexcept {
     if (state_ == nullptr) {
-        return Result<usize>::failure(
+        return OperationResult<usize>::failure(
             host_failure::record(ErrorKind::disposed, "stxlib.surface.read_events", HostCode::closed_handle));
     }
     if (events == nullptr || capacity == 0U || wait_ms < -1) {
-        return Result<usize>::failure(
+        return OperationResult<usize>::failure(
             host_failure::record(ErrorKind::invalid_argument, "stxlib.surface.read_events", HostCode::invalid_value));
     }
     return surface_backend::read_events(state_, events, capacity, wait_ms);
@@ -91,19 +91,19 @@ void Surface::close() noexcept {
     surface_claimed.store(false, std::memory_order_release);
 }
 
-Result<Surface> open_surface() noexcept {
+OperationResult<Surface> open_surface() noexcept {
     bool expected = false;
     if (!surface_claimed.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
-        return Result<Surface>::failure(
+        return OperationResult<Surface>::failure(
             host_failure::record(ErrorKind::limit_exceeded, "stxlib.surface.open", HostCode::busy));
     }
-    Result<detail::SurfaceState*> opened = surface_backend::open();
+    OperationResult<detail::SurfaceState*> opened = surface_backend::open();
     if (opened.failed()) {
         surface_claimed.store(false, std::memory_order_release);
-        return Result<Surface>::failure(*opened.error());
+        return OperationResult<Surface>::failure(*opened.error());
     }
     Surface surface(*opened.value());
-    return Result<Surface>::success(static_cast<Surface&&>(surface));
+    return OperationResult<Surface>::success(static_cast<Surface&&>(surface));
 }
 
 } // namespace stxlib

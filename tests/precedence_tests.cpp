@@ -58,13 +58,13 @@ constexpr i64 genesis_ns = 1793482205000000000LL;
 
 // A chain from fixed seeds; the test fails (and stops) when it cannot be made.
 precedence::Chain fixed_chain(const unsigned secret_first = 0) {
-    stxlib::Result<precedence::Chain> made =
+    stxlib::OperationResult<precedence::Chain> made =
         precedence::Chain::from_seeds(counting_digest(secret_first), counting_digest(32), at_ns(genesis_ns));
     if (!made.succeeded()) {
         std::fprintf(stderr, "stxlib precedence: a chain could not be made\n");
         std::abort();
     }
-    precedence::Chain result = static_cast<stxlib::Result<precedence::Chain>&&>(made).take_value();
+    precedence::Chain result = static_cast<stxlib::OperationResult<precedence::Chain>&&>(made).take_value();
     return result;
 }
 
@@ -215,7 +215,7 @@ void persistence() {
     static_cast<void>(straight.record(digest_of("pending")));
     precedence::ChainState state{};
     interrupted.save(state);
-    stxlib::Result<precedence::Chain> restored = precedence::Chain::restore(state);
+    stxlib::OperationResult<precedence::Chain> restored = precedence::Chain::restore(state);
     CHECK(restored.succeeded());
     if (!restored.succeeded()) return;
     precedence::Chain& resumed = *restored.value();
@@ -231,7 +231,7 @@ void persistence() {
     CHECK(same);
     precedence::ChainState broken = state;
     broken.pending_count = precedence::infos_per_epoch + 1;
-    const stxlib::Result<precedence::Chain> refused = precedence::Chain::restore(broken);
+    const stxlib::OperationResult<precedence::Chain> refused = precedence::Chain::restore(broken);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
 
     // A moved-from chain keeps no secret, and the moved-to one continues.
@@ -239,8 +239,8 @@ void persistence() {
     precedence::Certificate after_move{};
     CHECK(moved.advance(at_ns(genesis_ns + 300), after_move) == precedence::PrecedenceStatus::ok);
 
-    const stxlib::Result<precedence::Chain> created = precedence::Chain::create(stxlib::WallTime::now());
-    const stxlib::Result<precedence::Chain> again = precedence::Chain::create(stxlib::WallTime::now());
+    const stxlib::OperationResult<precedence::Chain> created = precedence::Chain::create(stxlib::WallTime::now());
+    const stxlib::OperationResult<precedence::Chain> again = precedence::Chain::create(stxlib::WallTime::now());
     CHECK(created.succeeded() && again.succeeded());
     if (created.succeeded() && again.succeeded()) {
         CHECK((*created.value()).anchor().public_seed != (*again.value()).anchor().public_seed);

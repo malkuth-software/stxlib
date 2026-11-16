@@ -67,18 +67,18 @@ int poll_milliseconds(const Duration remaining) noexcept {
 
 } // namespace
 
-Result<WakeChannel> WakeChannel::create() noexcept {
+OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return Result<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
     int ends[2] = {-1, -1};
     if (!open_pipe(ends)) {
         const int error = errno;
         const ErrorKind kind = error == EMFILE || error == ENFILE ? ErrorKind::limit_exceeded : ErrorKind::foreign_failure;
-        return Result<WakeChannel>::failure(host_failure::record(kind, operation, HostCode::none, errno_code(error)));
+        return OperationResult<WakeChannel>::failure(host_failure::record(kind, operation, HostCode::none, errno_code(error)));
     }
-    return Result<WakeChannel>::success(WakeChannel(static_cast<i64>(ends[0]), static_cast<i64>(ends[1])));
+    return OperationResult<WakeChannel>::success(WakeChannel(static_cast<i64>(ends[0]), static_cast<i64>(ends[1])));
 }
 
 WakeChannel::~WakeChannel() { close_handles(); }
@@ -126,13 +126,13 @@ bool WakeChannel::drain() noexcept {
     }
 }
 
-Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
+OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return Result<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
-        return Result<WakeWait>::failure(
+        return OperationResult<WakeWait>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_many_handles));
     }
     pollfd watched[maximum_wake_wait_handles + 1]{};
@@ -149,18 +149,18 @@ Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeo
         const int ready = ::poll(watched, count, poll_milliseconds(remaining));
         if (ready < 0) {
             const int error = errno;
-            if (error == EINTR) return Result<WakeWait>::success(WakeWait::interrupted());
-            return Result<WakeWait>::failure(
+            if (error == EINTR) return OperationResult<WakeWait>::success(WakeWait::interrupted());
+            return OperationResult<WakeWait>::failure(
                 host_failure::record(ErrorKind::foreign_failure, operation, HostCode::none, errno_code(error)));
         }
         if (ready > 0) {
             // POLLHUP and POLLERR count as readable: a read then reports
             // the end or the error to the handle's owner.
             constexpr short readable = POLLIN | POLLHUP | POLLERR;
-            if ((watched[0].revents & readable) != 0) return Result<WakeWait>::success(WakeWait::woken());
+            if ((watched[0].revents & readable) != 0) return OperationResult<WakeWait>::success(WakeWait::woken());
             for (usize index = 0; index < handles.count(); ++index) {
                 if ((watched[index + 1].revents & POLLNVAL) != 0) {
-                    return Result<WakeWait>::failure(host_failure::record(ErrorKind::foreign_failure, operation,
+                    return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::foreign_failure, operation,
                                                                           HostCode::none, errno_code(EBADF)));
                 }
                 if ((watched[index + 1].revents & readable) != 0) {
@@ -169,11 +169,11 @@ Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeo
                     // same handle is named: the first ready one.
                     usize first = 0;
                     while (handles[first] != handles[index]) ++first;
-                    return Result<WakeWait>::success(WakeWait::handle_ready(first));
+                    return OperationResult<WakeWait>::success(WakeWait::handle_ready(first));
                 }
             }
         }
-        if (deadline <= IntervalTime::now()) return Result<WakeWait>::success(WakeWait::timed_out());
+        if (deadline <= IntervalTime::now()) return OperationResult<WakeWait>::success(WakeWait::timed_out());
     }
 }
 

@@ -68,41 +68,41 @@ using stxlib::ChildStreams;
 using stxlib::Duration;
 using stxlib::ErrorKind;
 using stxlib::HostCode;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::TextView;
 using stxlib::usize;
 
 TextView view_of(const std::string& text) {
-    Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    OperationResult<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
 
 template <typename Value>
-ErrorKind kind_of(const Result<Value>& result) {
+ErrorKind kind_of(const OperationResult<Value>& result) {
     const ErrorKind kind = result.succeeded() ? static_cast<ErrorKind>(0) : (*result.error()).kind();
     return kind;
 }
 
-ErrorKind kind_of(const Status& status) {
+ErrorKind kind_of(const OperationStatus& status) {
     const ErrorKind kind = status.succeeded() ? static_cast<ErrorKind>(0) : (*status.error()).kind();
     return kind;
 }
 
 template <typename Value>
-HostCode code_of(const Result<Value>& result) {
+HostCode code_of(const OperationResult<Value>& result) {
     const HostCode code = result.succeeded() ? HostCode::none : static_cast<HostCode>((*result.error()).code());
     return code;
 }
 
-HostCode code_of(const Status& status) {
+HostCode code_of(const OperationStatus& status) {
     const HostCode code = status.succeeded() ? HostCode::none : static_cast<HostCode>((*status.error()).code());
     return code;
 }
 
 std::string self_program() {
-    Result<stxlib::Path> self = stxlib::current_executable();
+    OperationResult<stxlib::Path> self = stxlib::current_executable();
     CHECK(self.succeeded());
     if (self.failed()) return std::string();
     // The test's own build directory has a Unicode name.
@@ -121,15 +121,15 @@ Child start_self(const std::vector<std::string>& arguments, const ChildStreams s
                                .arguments = stxlib::View<stxlib::PathText>(views.data(), views.size()),
                                .streams = streams,
                                .detached = detached};
-    Result<Child> started = Child::start(request);
+    OperationResult<Child> started = Child::start(request);
     CHECK(started.succeeded());
     if (started.failed()) return Child();
-    Child result = static_cast<Result<Child>&&>(started).take_value();
+    Child result = static_cast<OperationResult<Child>&&>(started).take_value();
     return result;
 }
 
 std::string output_text(Child& child, const usize limit) {
-    Result<Buffer<Byte>> output = child.read_output(limit);
+    OperationResult<Buffer<Byte>> output = child.read_output(limit);
     CHECK(output.succeeded());
     if (output.failed()) return std::string();
     const stxlib::View<Byte> view = (*output.value()).view();
@@ -137,7 +137,7 @@ std::string output_text(Child& child, const usize limit) {
     return result;
 }
 
-bool exited_with(const Result<ChildEnd>& end, const stxlib::u32 status) {
+bool exited_with(const OperationResult<ChildEnd>& end, const stxlib::u32 status) {
     const bool result = end.succeeded() && (*end.value()).exit_status() != nullptr && *(*end.value()).exit_status() == status;
     return result;
 }
@@ -146,18 +146,18 @@ void availability() {
     CHECK(stxlib::capability_supported(stxlib::Capability::child_processes));
     CHECK(stxlib::capability_supported(stxlib::Capability::current_executable));
     const std::string self = self_program();
-    Result<stxlib::Path> parsed = stxlib::Path::parse(view_of(self));
+    OperationResult<stxlib::Path> parsed = stxlib::Path::parse(view_of(self));
     CHECK(parsed.succeeded() && (*parsed.value()).is_absolute());
 }
 
 void child_requests() {
     const ChildRequest empty{};
-    const Result<Child> no_program = Child::start(empty);
+    const OperationResult<Child> no_program = Child::start(empty);
     CHECK(kind_of(no_program) == ErrorKind::invalid_argument && code_of(no_program) == HostCode::empty_request);
     const std::string program = self_program();
     const stxlib::PathText with_nul[] = {TextView("a\0b")};
     const ChildRequest nul_request{.program = view_of(program), .arguments = stxlib::View<stxlib::PathText>(with_nul)};
-    const Result<Child> nul = Child::start(nul_request);
+    const OperationResult<Child> nul = Child::start(nul_request);
     CHECK(kind_of(nul) == ErrorKind::invalid_argument && code_of(nul) == HostCode::invalid_value);
     const ChildRequest missing{.program = "/nonexistent-stxlib/program"};
     CHECK(kind_of(Child::start(missing)) == ErrorKind::not_found);
@@ -183,16 +183,16 @@ void child_output_and_status() {
         for (const char byte : echoed) std::fprintf(stderr, " %02x", static_cast<unsigned>(static_cast<unsigned char>(byte)));
         std::fprintf(stderr, "\nexpected (%lu bytes)\n", static_cast<unsigned long>(expected.size()));
     }
-    const Result<ChildEnd> echo_end = echo.wait(Duration::seconds(30));
+    const OperationResult<ChildEnd> echo_end = echo.wait(Duration::seconds(30));
     CHECK(exited_with(echo_end, 0));
-    const Result<ChildEnd> twice = echo.wait(Duration::seconds(1));
+    const OperationResult<ChildEnd> twice = echo.wait(Duration::seconds(1));
     CHECK(kind_of(twice) == ErrorKind::invalid_argument && code_of(twice) == HostCode::invalid_state);
     CHECK(code_of(echo.read_output(16)) == HostCode::invalid_state);
     Child exiting = start_self({"exit", "3"}, ChildStreams::discard);
     CHECK(exited_with(exiting.wait(Duration::seconds(30)), 3));
     // Over the limit: too_long, after the child's output is drained.
     Child chatty = start_self({"echo", std::string(5000, 'x')}, ChildStreams::capture);
-    const Result<Buffer<Byte>> clipped = chatty.read_output(100);
+    const OperationResult<Buffer<Byte>> clipped = chatty.read_output(100);
     CHECK(kind_of(clipped) == ErrorKind::limit_exceeded && code_of(clipped) == HostCode::too_long);
     CHECK(chatty.wait(Duration::seconds(30)).succeeded());
     // A detached child (its own session) still starts, exits and is waited for.
@@ -216,11 +216,11 @@ void lossless_arguments() {
     const std::string program = self_program();
 #if defined(_WIN32)
     const stxlib::u16 units[] = {stxlib::u16{'a'}, 0xd800, stxlib::u16{'b'}, 0xdc01};
-    Result<stxlib::Path> odd = stxlib::Path::from_windows_name(units, 4);
+    OperationResult<stxlib::Path> odd = stxlib::Path::from_windows_name(units, 4);
     const std::string expected = "0061 d800 0062 dc01\n";
 #else
     const char bytes[] = {'a', static_cast<char>(0xff), ':', 'b', '\\', static_cast<char>(0xc3)};
-    Result<stxlib::Path> odd = stxlib::Path::from_posix_name(bytes, sizeof(bytes));
+    OperationResult<stxlib::Path> odd = stxlib::Path::from_posix_name(bytes, sizeof(bytes));
     const std::string expected = "61 ff 3a 62 5c c3\n";
 #endif
     CHECK(odd.succeeded());
@@ -230,10 +230,10 @@ void lossless_arguments() {
     const ChildRequest request{.program = view_of(program),
                                .arguments = stxlib::View<stxlib::PathText>(arguments),
                                .streams = ChildStreams::capture};
-    Result<Child> started = Child::start(request);
+    OperationResult<Child> started = Child::start(request);
     CHECK(started.succeeded());
     if (started.failed()) return;
-    Child child = static_cast<Result<Child>&&>(started).take_value();
+    Child child = static_cast<OperationResult<Child>&&>(started).take_value();
     const std::string printed = output_text(child, 4096);
     CHECK(printed == expected);
     if (printed != expected) std::fprintf(stderr, "hex child printed: %s", printed.c_str());
@@ -243,10 +243,10 @@ void lossless_arguments() {
     const ChildRequest plain_request{.program = view_of(program),
                                      .arguments = stxlib::View<stxlib::PathText>(plain),
                                      .streams = ChildStreams::capture};
-    Result<Child> plain_started = Child::start(plain_request);
+    OperationResult<Child> plain_started = Child::start(plain_request);
     CHECK(plain_started.succeeded());
     if (plain_started.succeeded()) {
-        Child plain_child = static_cast<Result<Child>&&>(plain_started).take_value();
+        Child plain_child = static_cast<OperationResult<Child>&&>(plain_started).take_value();
 #if defined(_WIN32)
         CHECK(output_text(plain_child, 4096) == "0061 003a 005c\n");
 #else
@@ -256,13 +256,13 @@ void lossless_arguments() {
     }
 #if !defined(_WIN32)
     // A surrogate that is not a byte's escape names no POSIX string.
-    Result<stxlib::Path> foreign = stxlib::Path::parse_wtf8("a\xed\xa0\x80", 4);
+    OperationResult<stxlib::Path> foreign = stxlib::Path::parse_wtf8("a\xed\xa0\x80", 4);
     CHECK(foreign.succeeded());
     if (foreign.succeeded()) {
         const stxlib::PathText refused_arguments[] = {"hex", (*foreign.value()).text()};
         const ChildRequest refused_request{.program = view_of(program),
                                            .arguments = stxlib::View<stxlib::PathText>(refused_arguments)};
-        const Result<Child> refused = Child::start(refused_request);
+        const OperationResult<Child> refused = Child::start(refused_request);
         CHECK(kind_of(refused) == ErrorKind::invalid_argument && code_of(refused) == HostCode::invalid_value);
     }
 #endif
@@ -271,12 +271,12 @@ void lossless_arguments() {
 void timeouts_and_kill() {
     Child sleeper = start_self({"sleep"}, ChildStreams::discard);
     const stxlib::IntervalTime before = stxlib::IntervalTime::now();
-    const Result<ChildEnd> timed = sleeper.wait(Duration::milliseconds(50));
+    const OperationResult<ChildEnd> timed = sleeper.wait(Duration::milliseconds(50));
     CHECK(kind_of(timed) == ErrorKind::limit_exceeded && code_of(timed) == HostCode::timed_out);
     CHECK(stxlib::IntervalTime::now().since(before) >= Duration::milliseconds(50));
     CHECK(code_of(sleeper.wait(Duration())) == HostCode::timed_out);
     CHECK(sleeper.kill().succeeded());
-    const Result<ChildEnd> killed = sleeper.wait(Duration::seconds(30));
+    const OperationResult<ChildEnd> killed = sleeper.wait(Duration::seconds(30));
     CHECK(killed.succeeded());
 #if !defined(_WIN32)
     CHECK(killed.succeeded() && (*killed.value()).signal() != nullptr && *(*killed.value()).signal() == SIGKILL);
@@ -333,7 +333,7 @@ void child_reaped_elsewhere() {
     struct sigaction previous {};
     CHECK(::sigaction(SIGCHLD, &ignore, &previous) == 0);
     Child child = start_self({"exit", "0"}, ChildStreams::discard);
-    const Result<ChildEnd> end = child.wait(Duration::seconds(30));
+    const OperationResult<ChildEnd> end = child.wait(Duration::seconds(30));
     CHECK(end.failed() && code_of(end) != HostCode::timed_out);
     CHECK(code_of(child.kill()) == HostCode::invalid_state);
     CHECK(code_of(child.wait(Duration())) == HostCode::invalid_state);
@@ -369,7 +369,7 @@ void windows_program_resolution() {
                                 "x:y:z"};
     for (const TextView program : refused) {
         const ChildRequest request{.program = program};
-        const Result<Child> started = Child::start(request);
+        const OperationResult<Child> started = Child::start(request);
         CHECK(kind_of(started) == ErrorKind::invalid_argument && code_of(started) == HostCode::invalid_value);
     }
 
@@ -390,7 +390,7 @@ void windows_program_resolution() {
     CHECK(previous_length > 0 && previous_length < 32768);
     if (previous_length > 0 && previous_length < 32768 && SetCurrentDirectoryW(directory.c_str()) != 0) {
         const ChildRequest bare{.program = "stxlib-planted-probe"};
-        const Result<Child> by_bare_name = Child::start(bare);
+        const OperationResult<Child> by_bare_name = Child::start(bare);
         CHECK(kind_of(by_bare_name) == ErrorKind::not_found);
         const ChildRequest with_extension{.program = "stxlib-planted-probe.exe"};
         CHECK(kind_of(Child::start(with_extension)) == ErrorKind::not_found);
@@ -410,27 +410,27 @@ void desktop_refusals() {
                                 "https://example.com/<x>", "https://example.com/a\\b", "https://example.com/a^b",
                                 "https://example.com/a`b", "https://example.com/a|b", "mailto:a@example.com?subject=a b"};
     for (const TextView target : refused) {
-        const Status status = stxlib::open_with_desktop(target);
+        const OperationStatus status = stxlib::open_with_desktop(target);
         CHECK(kind_of(status) == ErrorKind::invalid_argument && code_of(status) == HostCode::invalid_value);
-        const Status link = stxlib::open_link_with_desktop(target);
+        const OperationStatus link = stxlib::open_link_with_desktop(target);
         CHECK(kind_of(link) == ErrorKind::invalid_argument && code_of(link) == HostCode::invalid_value);
     }
     // The link-only entry refuses every path, absolute ones included: a
     // path that names a program would run it (A-stxlib-include-01-F8).
     const TextView paths[] = {"/bin/sh", "/usr/bin/env", "C:/Windows/System32/cmd.exe", "/"};
     for (const TextView target : paths) {
-        const Status status = stxlib::open_link_with_desktop(target);
+        const OperationStatus status = stxlib::open_link_with_desktop(target);
         CHECK(kind_of(status) == ErrorKind::invalid_argument && code_of(status) == HostCode::invalid_value);
     }
-    Result<stxlib::Path> relative = stxlib::Path::parse("some/file");
+    OperationResult<stxlib::Path> relative = stxlib::Path::parse("some/file");
     CHECK(relative.succeeded());
     if (relative.succeeded()) {
-        const Status status = stxlib::reveal_in_file_manager(*relative.value());
+        const OperationStatus status = stxlib::reveal_in_file_manager(*relative.value());
         CHECK(kind_of(status) == ErrorKind::invalid_argument);
     }
 #if !defined(_WIN32)
     // A drive path is not absolute on a POSIX host.
-    Result<stxlib::Path> drive = stxlib::Path::parse("C:/x");
+    OperationResult<stxlib::Path> drive = stxlib::Path::parse("C:/x");
     CHECK(drive.succeeded() && kind_of(stxlib::reveal_in_file_manager(*drive.value())) == ErrorKind::invalid_argument);
 #endif
 }
@@ -511,10 +511,10 @@ int child_mode(const int argument_count, char** const arguments) {
         const ChildRequest request{.program = view_of(program),
                                    .arguments = stxlib::View<stxlib::PathText>(words),
                                    .streams = ChildStreams::inherit};
-        Result<Child> started = Child::start(request);
+        OperationResult<Child> started = Child::start(request);
         if (started.failed()) return 4;
-        Child child = static_cast<Result<Child>&&>(started).take_value();
-        const Result<ChildEnd> end = child.wait(Duration::seconds(30));
+        Child child = static_cast<OperationResult<Child>&&>(started).take_value();
+        const OperationResult<ChildEnd> end = child.wait(Duration::seconds(30));
         return exited_with(end, 0) ? 0 : 5;
     }
 #if !defined(_WIN32)

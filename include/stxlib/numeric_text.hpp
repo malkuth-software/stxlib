@@ -14,7 +14,7 @@
 //   the bytes it needs; TextWriter composes several items in one buffer;
 //   to_text returns a small fixed record (NumberText) for the one-off case;
 // - text is TextView (well-formed UTF-8) in and out;
-// - Parsed is a tagged union with this header's layout, as Result is.
+// - Parsed is a tagged union with this header's layout, as OperationResult is.
 //
 // The numbers are std::to_chars's and std::from_chars's (inside the .cpp),
 // whose results the standard fixes exactly: the shortest form of a floating

@@ -73,7 +73,7 @@ std::string string_of(const TextView view) {
 
 bool add_ballot(voting::Ballots& ballots, const std::vector<voting::Candidate>& ranking, const u64 copies) {
     const stxlib::View<voting::Candidate> view(ranking.data(), ranking.size());
-    const stxlib::Status added = ballots.add_copies(view, copies);
+    const stxlib::OperationStatus added = ballots.add_copies(view, copies);
     return added.succeeded();
 }
 
@@ -132,14 +132,14 @@ bool check_case(const TextView line, const usize number) {
 }
 
 void reference_cases(const char* const path_text) {
-    const stxlib::Result<stxlib::Path> path = stxlib::Path::parse_bytes(path_text, std::strlen(path_text));
+    const stxlib::OperationResult<stxlib::Path> path = stxlib::Path::parse_bytes(path_text, std::strlen(path_text));
     CHECK(path.succeeded());
     if (!path.succeeded()) return;
-    const stxlib::Result<stxlib::Buffer<stxlib::Byte>> bytes = stxlib::read_file(*path.value(), 16 << 20);
+    const stxlib::OperationResult<stxlib::Buffer<stxlib::Byte>> bytes = stxlib::read_file(*path.value(), 16 << 20);
     CHECK(bytes.succeeded());
     if (!bytes.succeeded()) return;
     const stxlib::View<stxlib::Byte> content_bytes = (*bytes.value()).view();
-    const stxlib::Result<TextView> content =
+    const stxlib::OperationResult<TextView> content =
         stxlib::validate_utf8(reinterpret_cast<const char*>(content_bytes.data()), content_bytes.count());
     CHECK(content.succeeded());
     if (!content.succeeded()) return;

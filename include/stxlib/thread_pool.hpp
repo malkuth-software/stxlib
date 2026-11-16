@@ -46,7 +46,7 @@
 // begin, a batch of more than 2^32 - 1 tasks, or a task without a function
 // is refused and runs nothing.
 //
-// Changes from stx_auxlib: results are Status and Result (PoolResult's
+// Changes from stx_auxlib: results are OperationStatus and OperationResult (PoolResult's
 // invalid_argument and invalid_task become invalid_argument with a
 // PoolFailure code; allocation_failed becomes out_of_memory; a thread the
 // host refuses at creation is limit_exceeded with the host's code). The
@@ -94,7 +94,7 @@ inline constexpr u32 maximum_pool_threads = 4096;
 class AtomicPool final {
 public:
     // thread_count must be 1 to maximum_pool_threads.
-    [[nodiscard]] static Result<AtomicPool> create(u32 thread_count) noexcept;
+    [[nodiscard]] static OperationResult<AtomicPool> create(u32 thread_count) noexcept;
     AtomicPool() noexcept = default;
     ~AtomicPool();
     AtomicPool(const AtomicPool&) = delete;
@@ -104,9 +104,9 @@ public:
     AtomicPool& operator=(AtomicPool&& other) noexcept;
 
     [[nodiscard]] u32 thread_count() const noexcept;
-    [[nodiscard]] Status run(View<PoolTask> tasks) noexcept;
-    [[nodiscard]] Status begin(View<PoolTask> tasks) noexcept;
-    [[nodiscard]] Status wait() noexcept;
+    [[nodiscard]] OperationStatus run(View<PoolTask> tasks) noexcept;
+    [[nodiscard]] OperationStatus begin(View<PoolTask> tasks) noexcept;
+    [[nodiscard]] OperationStatus wait() noexcept;
     // True on one of this pool's worker threads.
     [[nodiscard]] bool is_worker() const noexcept;
 

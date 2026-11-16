@@ -19,12 +19,12 @@ namespace {
 using stxlib::Path;
 using stxlib::PathFailure;
 using stxlib::PathText;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::TextView;
 using stxlib::usize;
 
 TextView view_of(const std::string& text) {
-    Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    OperationResult<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
@@ -36,14 +36,14 @@ std::string text_of(const Path& path) {
 }
 
 Path parse_or_empty(const std::string& text) {
-    Result<Path> parsed = Path::parse_bytes(text.data(), text.size());
+    OperationResult<Path> parsed = Path::parse_bytes(text.data(), text.size());
     CHECK(parsed.succeeded());
     if (parsed.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(parsed).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(parsed).take_value();
     return result;
 }
 
-PathFailure failure_of(const Result<Path>& result) {
+PathFailure failure_of(const OperationResult<Path>& result) {
     const PathFailure failure = static_cast<PathFailure>((*result.error()).code());
     return failure;
 }
@@ -113,7 +113,7 @@ void refusals() {
         {"\xff", PathFailure::invalid_utf8},
     };
     for (const Refusal& row : rows) {
-        const Result<Path> parsed = Path::parse_bytes(row.input.data(), row.input.size());
+        const OperationResult<Path> parsed = Path::parse_bytes(row.input.data(), row.input.size());
         CHECK(parsed.failed());
         if (parsed.failed()) {
             CHECK(failure_of(parsed) == row.failure);
@@ -123,18 +123,18 @@ void refusals() {
         }
     }
     // A TextView's own parse: the same rules, UTF-8 already established.
-    const Result<Path> nul = Path::parse(TextView("a\0b"));
+    const OperationResult<Path> nul = Path::parse(TextView("a\0b"));
     CHECK(nul.failed() && failure_of(nul) == PathFailure::embedded_nul);
     const std::string longest(stxlib::maximum_path_bytes, 'a');
     CHECK(Path::parse(view_of(longest)).succeeded());
     const std::string too_long(stxlib::maximum_path_bytes + 1, 'a');
-    const Result<Path> refused = Path::parse(view_of(too_long));
+    const OperationResult<Path> refused = Path::parse(view_of(too_long));
     CHECK(refused.failed() && failure_of(refused) == PathFailure::too_long);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::limit_exceeded);
 }
 
 std::string parent_text(const Path& path) {
-    Result<Path> parent = path.parent();
+    OperationResult<Path> parent = path.parent();
     CHECK(parent.succeeded());
     if (parent.failed()) return std::string();
     const std::string result = text_of(*parent.value());
@@ -176,7 +176,7 @@ void queries() {
 }
 
 std::string joined_text(const Path& base, const char* const relative) {
-    Result<Path> joined = base.join(parse_or_empty(relative));
+    OperationResult<Path> joined = base.join(parse_or_empty(relative));
     CHECK(joined.succeeded());
     if (joined.failed()) return std::string();
     const std::string result = text_of(*joined.value());
@@ -186,9 +186,9 @@ std::string joined_text(const Path& base, const char* const relative) {
 void joins() {
     const Path base = parse_or_empty("/srv/data");
     CHECK(joined_text(base, "../logs/today") == "/srv/logs/today");
-    const Result<Path> escaping = base.join(parse_or_empty("../../.."));
+    const OperationResult<Path> escaping = base.join(parse_or_empty("../../.."));
     CHECK(escaping.failed() && failure_of(escaping) == PathFailure::escapes_root);
-    const Result<Path> absolute = base.join(parse_or_empty("/etc"));
+    const OperationResult<Path> absolute = base.join(parse_or_empty("/etc"));
     CHECK(absolute.failed() && failure_of(absolute) == PathFailure::absolute_join);
     CHECK(joined_text(parse_or_empty("."), "x/y") == "x/y");
     CHECK(joined_text(parse_or_empty("/"), "x") == "/x");
@@ -198,7 +198,7 @@ void joins() {
 // STXlib's changes: copy, moving, and the bound applied to results only.
 void ownership_and_bounds() {
     Path original = parse_or_empty("a/b");
-    Result<Path> copied = original.copy();
+    OperationResult<Path> copied = original.copy();
     CHECK(copied.succeeded() && *copied.value() == original);
     Path moved(static_cast<Path&&>(original));
     CHECK(text_of(moved) == "a/b");
@@ -213,14 +213,14 @@ void ownership_and_bounds() {
     const std::string climb = ".." + std::string("/b");
     CHECK(joined_text(near, climb.c_str()) == "b");
     // A join whose result passes the bound.
-    const Result<Path> over = near.join(parse_or_empty("bcd"));
+    const OperationResult<Path> over = near.join(parse_or_empty("bcd"));
     CHECK(over.failed() && failure_of(over) == PathFailure::too_long);
 }
 
 // ---- lossless host names (D13 a) --------------------------------------------
 
 std::string posix_bytes(const Path& path) {
-    Result<stxlib::Buffer<char>> name = path.posix_name();
+    OperationResult<stxlib::Buffer<char>> name = path.posix_name();
     CHECK(name.succeeded());
     if (name.failed()) return std::string("<failed>");
     const stxlib::View<char> spelled = (*name.value()).view();
@@ -229,10 +229,10 @@ std::string posix_bytes(const Path& path) {
 }
 
 Path from_posix(const std::string& bytes) {
-    Result<Path> made = Path::from_posix_name(bytes.data(), bytes.size());
+    OperationResult<Path> made = Path::from_posix_name(bytes.data(), bytes.size());
     CHECK(made.succeeded());
     if (made.failed()) return Path();
-    Path result = static_cast<Result<Path>&&>(made).take_value();
+    Path result = static_cast<OperationResult<Path>&&>(made).take_value();
     return result;
 }
 
@@ -264,7 +264,7 @@ void posix_host_names() {
     }
     CHECK(from_posix("c:").drive() == 0 && !from_posix("c:").is_absolute());
     // A NUL is never in a POSIX name.
-    const Result<Path> nul = Path::from_posix_name("a\0b", 3);
+    const OperationResult<Path> nul = Path::from_posix_name("a\0b", 3);
     CHECK(nul.failed() && failure_of(nul) == PathFailure::embedded_nul);
     // Normalization applies to the escaped text, as to any.
     CHECK(text_of(from_posix("/a/./\xff/../b//")) == "/a/b");
@@ -282,10 +282,10 @@ void posix_refusals() {
         "C:/x",                        // a drive root's ':' is not an escape
     };
     for (const std::string& text : refused) {
-        const Result<Path> parsed = Path::parse_wtf8(text.data(), text.size());
+        const OperationResult<Path> parsed = Path::parse_wtf8(text.data(), text.size());
         CHECK(parsed.succeeded());
         if (parsed.failed()) continue;
-        const Result<stxlib::Buffer<char>> name = (*parsed.value()).posix_name();
+        const OperationResult<stxlib::Buffer<char>> name = (*parsed.value()).posix_name();
         CHECK(name.failed());
         if (name.failed()) {
             CHECK(static_cast<PathFailure>((*name.error()).code()) == PathFailure::not_representable);
@@ -295,7 +295,7 @@ void posix_refusals() {
 }
 
 std::vector<stxlib::u16> windows_units(const Path& path) {
-    Result<stxlib::Buffer<stxlib::u16>> name = path.windows_name();
+    OperationResult<stxlib::Buffer<stxlib::u16>> name = path.windows_name();
     CHECK(name.succeeded());
     std::vector<stxlib::u16> result;
     if (name.failed()) return result;
@@ -322,7 +322,7 @@ void windows_host_names() {
         {{'C', ':', '\\', 0xdfff}, "C:/\xed\xbf\xbf"},    // a drive path, '\' separating
     };
     for (const Row& row : rows) {
-        Result<Path> made = Path::from_windows_name(row.host.data(), row.host.size());
+        OperationResult<Path> made = Path::from_windows_name(row.host.data(), row.host.size());
         CHECK(made.succeeded());
         if (made.failed()) continue;
         const Path& path = *made.value();
@@ -332,11 +332,11 @@ void windows_host_names() {
     }
     // '/' separates too, and comes back as '\'.
     const stxlib::u16 slashed[] = {'a', '/', 0xd800};
-    Result<Path> made = Path::from_windows_name(slashed, 3);
+    OperationResult<Path> made = Path::from_windows_name(slashed, 3);
     CHECK(made.succeeded() && windows_units(*made.value()) == (std::vector<stxlib::u16>{'a', '\\', 0xd800}));
     // ':' outside a drive root is reserved on Windows too.
     const stxlib::u16 stream[] = {'a', ':', 'b'};
-    const Result<Path> refused = Path::from_windows_name(stream, 3);
+    const OperationResult<Path> refused = Path::from_windows_name(stream, 3);
     CHECK(refused.failed() && failure_of(refused) == PathFailure::reserved_character);
 }
 
@@ -350,7 +350,7 @@ void longest_host_names() {
     CHECK(escaped.text().count() == 3 * 4096);
     CHECK(posix_bytes(escaped) == invalid);
     const std::vector<stxlib::u16> highs(32767, 0xd800);
-    Result<Path> made = Path::from_windows_name(highs.data(), highs.size());
+    OperationResult<Path> made = Path::from_windows_name(highs.data(), highs.size());
     CHECK(made.succeeded());
     if (made.succeeded()) {
         CHECK((*made.value()).text().count() == 3 * 32767);
@@ -359,15 +359,15 @@ void longest_host_names() {
     const std::vector<stxlib::u16> at_bound(stxlib::maximum_path_bytes / 3, 0xd800);
     CHECK(Path::from_windows_name(at_bound.data(), at_bound.size()).succeeded());
     const std::vector<stxlib::u16> over(stxlib::maximum_path_bytes / 3 + 1, 0xd800);
-    const Result<Path> refused = Path::from_windows_name(over.data(), over.size());
+    const OperationResult<Path> refused = Path::from_windows_name(over.data(), over.size());
     CHECK(refused.failed() && failure_of(refused) == PathFailure::too_long);
     // Names longer than the bound before any conversion are refused before
     // it (audit A, C2): the same failure, without the escaped copy.
     const std::string long_name(stxlib::maximum_path_bytes + 1, 'a');
-    const Result<Path> long_posix = Path::from_posix_name(long_name.data(), long_name.size());
+    const OperationResult<Path> long_posix = Path::from_posix_name(long_name.data(), long_name.size());
     CHECK(long_posix.failed() && failure_of(long_posix) == PathFailure::too_long);
     const std::vector<stxlib::u16> long_units(stxlib::maximum_path_bytes + 1, 'a');
-    const Result<Path> long_windows = Path::from_windows_name(long_units.data(), long_units.size());
+    const OperationResult<Path> long_windows = Path::from_windows_name(long_units.data(), long_units.size());
     CHECK(long_windows.failed() && failure_of(long_windows) == PathFailure::too_long);
 }
 
@@ -377,13 +377,13 @@ void wtf8_text() {
     const std::string lone = "a\xed\xa0\x80";
     CHECK(Path::parse_wtf8(lone.data(), lone.size()).succeeded());
     const std::string paired = "\xed\xa0\x80\xed\xb0\x80";
-    const Result<Path> refused = Path::parse_wtf8(paired.data(), paired.size());
+    const OperationResult<Path> refused = Path::parse_wtf8(paired.data(), paired.size());
     CHECK(refused.failed() && failure_of(refused) == PathFailure::invalid_utf8);
     const std::string broken = "\xed\xa0";
-    const Result<Path> truncated = Path::parse_wtf8(broken.data(), broken.size());
+    const OperationResult<Path> truncated = Path::parse_wtf8(broken.data(), broken.size());
     CHECK(truncated.failed() && failure_of(truncated) == PathFailure::invalid_utf8);
     // parse_bytes stays UTF-8 only.
-    const Result<Path> strict = Path::parse_bytes(lone.data(), lone.size());
+    const OperationResult<Path> strict = Path::parse_bytes(lone.data(), lone.size());
     CHECK(strict.failed() && failure_of(strict) == PathFailure::invalid_utf8);
     // PathText: a TextView converts; display shows U+FFFD for each surrogate.
     const Path path = from_posix("x\xffy");

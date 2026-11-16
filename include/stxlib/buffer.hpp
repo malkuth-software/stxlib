@@ -43,43 +43,43 @@ public:
     // A buffer of `count` zeroed elements. Fails with limit_exceeded when
     // count * sizeof(Element) is not representable, out_of_memory when the
     // allocator refuses. Zero yields the empty buffer.
-    [[nodiscard]] static Result<Buffer> allocate_zeroed(const usize count) noexcept {
-        if (count == 0) return Result<Buffer>::success(Buffer());
+    [[nodiscard]] static OperationResult<Buffer> allocate_zeroed(const usize count) noexcept {
+        if (count == 0) return OperationResult<Buffer>::success(Buffer());
         if (count > usize_max / sizeof(Element)) {
             const ErrorRecord too_large = ErrorRecord::make(
                 ErrorKind::limit_exceeded, "stxlib.buffer.allocate",
                 ErrorDetail{.message = "the element count times the element size is not representable"});
-            return Result<Buffer>::failure(too_large);
+            return OperationResult<Buffer>::failure(too_large);
         }
         const usize bytes = count * sizeof(Element);
         void* const block = memory::allocate(bytes, alignof(Element));
         if (block == nullptr) {
             const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.buffer.allocate");
-            return Result<Buffer>::failure(exhausted);
+            return OperationResult<Buffer>::failure(exhausted);
         }
         __builtin_memset(block, 0, bytes);
         Buffer result;
         result.elements_ = static_cast<Element*>(block);
         result.count_ = count;
-        return Result<Buffer>::success(static_cast<Buffer&&>(result));
+        return OperationResult<Buffer>::success(static_cast<Buffer&&>(result));
     }
 
     // A second buffer with the same elements. Fails with out_of_memory when
     // the allocator refuses (nothing changes). The empty buffer copies to
     // the empty buffer without allocating.
-    [[nodiscard]] Result<Buffer> copy() const noexcept {
-        if (count_ == 0) return Result<Buffer>::success(Buffer());
+    [[nodiscard]] OperationResult<Buffer> copy() const noexcept {
+        if (count_ == 0) return OperationResult<Buffer>::success(Buffer());
         const usize bytes = count_ * sizeof(Element);
         void* const block = memory::allocate(bytes, alignof(Element));
         if (block == nullptr) {
             const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.buffer.copy");
-            return Result<Buffer>::failure(exhausted);
+            return OperationResult<Buffer>::failure(exhausted);
         }
         __builtin_memcpy(block, elements_, bytes);
         Buffer result;
         result.elements_ = static_cast<Element*>(block);
         result.count_ = count_;
-        return Result<Buffer>::success(static_cast<Buffer&&>(result));
+        return OperationResult<Buffer>::success(static_cast<Buffer&&>(result));
     }
 
     // The ordinary copy (owner 2026-11-16, notes decisions/2026-11-16-

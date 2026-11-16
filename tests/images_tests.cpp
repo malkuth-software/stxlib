@@ -32,8 +32,8 @@ using stxlib::Byte;
 using stxlib::ErrorKind;
 using stxlib::HostCode;
 using stxlib::Library;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::SymbolAddress;
 using stxlib::TextView;
 using stxlib::u32;
@@ -41,18 +41,18 @@ using stxlib::uptr;
 using stxlib::usize;
 
 template <typename T>
-ErrorKind kind_of(const Result<T>& result) {
+ErrorKind kind_of(const OperationResult<T>& result) {
     const ErrorKind kind = result.failed() ? (*result.error()).kind() : ErrorKind::internal_failure;
     return kind;
 }
 
 template <typename T>
-HostCode code_of(const Result<T>& result) {
+HostCode code_of(const OperationResult<T>& result) {
     const HostCode code = result.failed() ? static_cast<HostCode>((*result.error()).code()) : HostCode::none;
     return code;
 }
 
-HostCode status_code(const Status& status) {
+HostCode status_code(const OperationStatus& status) {
     const HostCode code = status.failed() ? static_cast<HostCode>((*status.error()).code()) : HostCode::none;
     return code;
 }
@@ -80,7 +80,7 @@ constexpr bool system_library_known = false;
 #endif
 
 TextView text_of_bytes(const char* const bytes, const usize count) {
-    Result<TextView> valid = stxlib::validate_utf8(bytes, count);
+    OperationResult<TextView> valid = stxlib::validate_utf8(bytes, count);
     const TextView result = valid.succeeded() ? *valid.value() : TextView();
     return result;
 }
@@ -96,40 +96,40 @@ void library_refuses_bad_names() {
     CHECK(stxlib::capability_supported(stxlib::Capability::dynamic_libraries));
     const char* const refused[] = {"", ".", "..", "lib/c.so", "lib\\c.dll"};
     for (const char* const name : refused) {
-        Result<Library> opened = Library::open_system(text_of(name));
+        OperationResult<Library> opened = Library::open_system(text_of(name));
         CHECK(opened.failed());
         CHECK(kind_of(opened) == ErrorKind::invalid_argument);
         CHECK(code_of(opened) == HostCode::invalid_name);
-        Result<Library> found = Library::find_loaded(text_of(name));
+        OperationResult<Library> found = Library::find_loaded(text_of(name));
         CHECK(code_of(found) == HostCode::invalid_name);
     }
     const char with_nul[] = {'l', 'i', 'b', '\0', 'c'};
-    Result<Library> nul = Library::open_system(text_of_bytes(with_nul, sizeof(with_nul)));
+    OperationResult<Library> nul = Library::open_system(text_of_bytes(with_nul, sizeof(with_nul)));
     CHECK(code_of(nul) == HostCode::invalid_name);
 
-    Result<stxlib::Path> relative = stxlib::Path::parse(text_of("relative/libnothing.so"));
+    OperationResult<stxlib::Path> relative = stxlib::Path::parse(text_of("relative/libnothing.so"));
     CHECK(relative.succeeded());
     if (relative.succeeded()) {
-        Result<Library> opened = Library::open(*relative.value());
+        OperationResult<Library> opened = Library::open(*relative.value());
         CHECK(code_of(opened) == HostCode::invalid_name);
     }
 }
 
 void library_missing() {
-    Result<Library> missing = Library::open_system(text_of("libstxlib_no_such_library_0.so"));
+    OperationResult<Library> missing = Library::open_system(text_of("libstxlib_no_such_library_0.so"));
     CHECK(missing.failed());
     CHECK(kind_of(missing) == ErrorKind::not_found);
-    Result<Library> absent = Library::find_loaded(text_of("libstxlib_no_such_library_0.so"));
+    OperationResult<Library> absent = Library::find_loaded(text_of("libstxlib_no_such_library_0.so"));
     CHECK(kind_of(absent) == ErrorKind::not_found);
 }
 
 void library_closed() {
     Library closed;
     CHECK(!closed.is_open());
-    Result<SymbolAddress> symbol = closed.symbol(text_of("puts"));
+    OperationResult<SymbolAddress> symbol = closed.symbol(text_of("puts"));
     CHECK(kind_of(symbol) == ErrorKind::disposed);
     CHECK(code_of(symbol) == HostCode::closed_handle);
-    const Status closing = closed.close();
+    const OperationStatus closing = closed.close();
     CHECK(closing.failed());
     CHECK(status_code(closing) == HostCode::closed_handle);
 }
@@ -141,13 +141,13 @@ void library_system() {
         std::printf("library_system: skipped (no fixed libc name on this host)\n");
         return;
     }
-    Result<Library> opened = Library::open_system(text_of(system_library));
+    OperationResult<Library> opened = Library::open_system(text_of(system_library));
     CHECK(opened.succeeded());
     if (opened.failed()) return;
-    Library library = static_cast<Result<Library>&&>(opened).take_value();
+    Library library = static_cast<OperationResult<Library>&&>(opened).take_value();
     CHECK(library.is_open());
 
-    Result<SymbolAddress> symbol = library.symbol(text_of(system_symbol));
+    OperationResult<SymbolAddress> symbol = library.symbol(text_of(system_symbol));
     CHECK(symbol.succeeded());
     if (symbol.failed()) return;
     const uptr address = (*symbol.value()).address();
@@ -160,17 +160,17 @@ void library_system() {
 
     // The library is loaded already (the program links it), so find_loaded
     // finds it and resolves the same address.
-    Result<Library> found = Library::find_loaded(text_of(system_library));
+    OperationResult<Library> found = Library::find_loaded(text_of(system_library));
     CHECK(found.succeeded());
     if (found.succeeded()) {
-        Result<SymbolAddress> again = (*found.value()).symbol(text_of(system_symbol));
+        OperationResult<SymbolAddress> again = (*found.value()).symbol(text_of(system_symbol));
         CHECK(again.succeeded() && (*again.value()).address() == address);
     }
 
     // The image holding the symbol, by name and by absolute path.
     char image_room[1024];
     char symbol_room[256];
-    Result<stxlib::AddressDescription> described =
+    OperationResult<stxlib::AddressDescription> described =
         stxlib::describe_address(address, stxlib::MutableView<char>(image_room, sizeof(image_room)),
                                  stxlib::MutableView<char>(symbol_room, sizeof(symbol_room)));
     CHECK(described.succeeded());
@@ -188,20 +188,20 @@ void library_system() {
             CHECK(description.symbol_address == address);
         }
 #if defined(_WIN32)
-        Result<stxlib::Path> path =
+        OperationResult<stxlib::Path> path =
             stxlib::Path::parse_wtf8(description.image_name.data(), description.image_name.count());
 #else
-        Result<stxlib::Path> path =
+        OperationResult<stxlib::Path> path =
             stxlib::Path::parse_bytes(description.image_name.data(), description.image_name.count());
 #endif
         CHECK(path.succeeded());
         if (path.succeeded() && (*path.value()).is_absolute()) {
-            Result<Library> by_path = Library::open(*path.value());
+            OperationResult<Library> by_path = Library::open(*path.value());
             CHECK(by_path.succeeded());
             if (by_path.succeeded()) {
-                Result<SymbolAddress> through_path = (*by_path.value()).symbol(text_of(system_symbol));
+                OperationResult<SymbolAddress> through_path = (*by_path.value()).symbol(text_of(system_symbol));
                 CHECK(through_path.succeeded() && (*through_path.value()).address() == address);
-                Library closing = static_cast<Result<Library>&&>(by_path).take_value();
+                Library closing = static_cast<OperationResult<Library>&&>(by_path).take_value();
                 CHECK(closing.close().succeeded());
                 CHECK(!closing.is_open());
             }
@@ -225,7 +225,7 @@ void describe_own_code() {
     const uptr address = reinterpret_cast<uptr>(&stxlib::page_size);
     char image_room[1024];
     char symbol_room[256];
-    Result<stxlib::AddressDescription> described =
+    OperationResult<stxlib::AddressDescription> described =
         stxlib::describe_address(address, stxlib::MutableView<char>(image_room, sizeof(image_room)),
                                  stxlib::MutableView<char>(symbol_room, sizeof(symbol_room)));
     CHECK(described.succeeded());
@@ -240,7 +240,7 @@ void describe_own_code() {
     // Rooms too small: cut, with the flag, never past the room.
     char tiny_image[2];
     char tiny_symbol[1];
-    Result<stxlib::AddressDescription> cut =
+    OperationResult<stxlib::AddressDescription> cut =
         stxlib::describe_address(address, stxlib::MutableView<char>(tiny_image, sizeof(tiny_image)),
                                  stxlib::MutableView<char>(tiny_symbol, sizeof(tiny_symbol)));
     CHECK(cut.succeeded());
@@ -251,13 +251,13 @@ void describe_own_code() {
     }
 
     // Empty rooms are accepted.
-    Result<stxlib::AddressDescription> empty_rooms =
+    OperationResult<stxlib::AddressDescription> empty_rooms =
         stxlib::describe_address(address, stxlib::MutableView<char>(), stxlib::MutableView<char>());
     CHECK(empty_rooms.succeeded());
     if (empty_rooms.succeeded()) CHECK((*empty_rooms.value()).image_name.empty());
 
     // An address no image holds.
-    Result<stxlib::AddressDescription> nowhere =
+    OperationResult<stxlib::AddressDescription> nowhere =
         stxlib::describe_address(0, stxlib::MutableView<char>(image_room, sizeof(image_room)),
                                  stxlib::MutableView<char>(symbol_room, sizeof(symbol_room)));
     CHECK(nowhere.failed());
@@ -356,13 +356,13 @@ void regions_found() {
     const uptr address = reinterpret_cast<uptr>(&test_note);
 
     RegionSearch own{};
-    const Status containing = stxlib::visit_image_regions_containing(address, test_query(), search_visitor, &own);
+    const OperationStatus containing = stxlib::visit_image_regions_containing(address, test_query(), search_visitor, &own);
     CHECK(containing.succeeded());
     CHECK(own.visits >= 1);
     CHECK(own.found);
 
     RegionSearch every{};
-    const Status all = stxlib::visit_image_regions(test_query(), search_visitor, &every);
+    const OperationStatus all = stxlib::visit_image_regions(test_query(), search_visitor, &every);
     CHECK(all.succeeded());
     CHECK(every.found);
     CHECK(every.visits >= own.visits);
@@ -370,14 +370,14 @@ void regions_found() {
     // A visitor that stops is called once.
     RegionSearch once{};
     once.stop_after_first = true;
-    const Status stopped = stxlib::visit_image_regions(test_query(), search_visitor, &once);
+    const OperationStatus stopped = stxlib::visit_image_regions(test_query(), search_visitor, &once);
     CHECK(stopped.succeeded());
     CHECK(once.visits == 1);
 }
 
 void regions_refused() {
     RegionSearch search{};
-    const Status no_visitor = stxlib::visit_image_regions(test_query(), nullptr, &search);
+    const OperationStatus no_visitor = stxlib::visit_image_regions(test_query(), nullptr, &search);
     CHECK(status_code(no_visitor) == HostCode::invalid_name);
 
 #if defined(__APPLE__) || defined(_WIN32)
@@ -389,7 +389,7 @@ void regions_refused() {
     CHECK(status_code(stxlib::visit_image_regions(long_names, search_visitor, &search)) == HostCode::invalid_name);
 #endif
 
-    const Status nowhere = stxlib::visit_image_regions_containing(0, test_query(), search_visitor, &search);
+    const OperationStatus nowhere = stxlib::visit_image_regions_containing(0, test_query(), search_visitor, &search);
     CHECK(nowhere.failed());
     CHECK(status_code(nowhere) == HostCode::no_image);
     CHECK(search.visits == 0);
@@ -455,10 +455,10 @@ void stack_trace_on_thread() {
     if (!stxlib::capability_supported(stxlib::Capability::threads)) return;
     if (!stxlib::capability_supported(stxlib::Capability::stack_trace)) return;
     ThreadTrace trace{};
-    stxlib::Result<stxlib::Thread> started = stxlib::Thread::start(capture_on_thread, &trace);
+    stxlib::OperationResult<stxlib::Thread> started = stxlib::Thread::start(capture_on_thread, &trace);
     CHECK(started.succeeded());
     if (started.failed()) return;
-    stxlib::Thread thread = static_cast<stxlib::Result<stxlib::Thread>&&>(started).take_value();
+    stxlib::Thread thread = static_cast<stxlib::OperationResult<stxlib::Thread>&&>(started).take_value();
     CHECK(thread.join() == stxlib::JoinResult::joined);
     CHECK(trace.captured >= 2);
     CHECK(trace.captured <= stxlib::maximum_stack_trace_addresses);

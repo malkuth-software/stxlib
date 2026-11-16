@@ -132,7 +132,7 @@ private:
 // One started child process, owned. Move-only; a moved-from Child is empty.
 class Child final {
 public:
-    [[nodiscard]] static Result<Child> start(const ChildRequest& request) noexcept;
+    [[nodiscard]] static OperationResult<Child> start(const ChildRequest& request) noexcept;
 
     Child() noexcept = default;
     ~Child();
@@ -157,9 +157,9 @@ public:
     // the Child counts as waited: wait and kill then fail with
     // invalid_state, so its process id, which may name another process by
     // then, is never signalled.
-    [[nodiscard]] Result<ChildEnd> wait(Duration timeout) noexcept;
+    [[nodiscard]] OperationResult<ChildEnd> wait(Duration timeout) noexcept;
     // Ends the child forcibly (SIGKILL, TerminateProcess). Still wait for it.
-    [[nodiscard]] Status kill() noexcept;
+    [[nodiscard]] OperationStatus kill() noexcept;
     // The child's captured output and error, read until the child closes
     // them. More than `limit` bytes: limit_exceeded with HostCode::too_long,
     // after the rest is drained and discarded. Read before waiting: a child
@@ -167,7 +167,7 @@ public:
     // unless started with capture. The output is returned in a Buffer of its
     // own (one read per child, bounded by `limit`; house style §6, audit A,
     // X10), whose block may be up to twice its count (the read's growth).
-    [[nodiscard]] Result<Buffer<Byte>> read_output(usize limit) noexcept;
+    [[nodiscard]] OperationResult<Buffer<Byte>> read_output(usize limit) noexcept;
 
 private:
     static constexpr i64 none = -1;

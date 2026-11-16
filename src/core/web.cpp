@@ -15,8 +15,8 @@ namespace stxlib {
 
 namespace {
 
-Status unsupported(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
+OperationStatus unsupported(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
     return result;
 }
 
@@ -40,52 +40,52 @@ Durability web_storage_durability(const StorageKind kind) noexcept {
     return Durability::none;
 }
 
-Status mount_web_storage(const Path& path, const StorageKind kind) noexcept {
+OperationStatus mount_web_storage(const Path& path, const StorageKind kind) noexcept {
     const Operation operation = "stxlib.web.mount";
     if (!capability_supported(Capability::web_storage)) return unsupported(operation);
     if (!known_kind(kind)) return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
     if (!path.is_absolute()) return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_name);
 #if defined(__EMSCRIPTEN__)
-    Result<Buffer<char>> name = path.posix_name();
+    OperationResult<Buffer<char>> name = path.posix_name();
     if (name.failed()) {
         const ErrorKind failure = (*name.error()).kind();
-        if (failure == ErrorKind::out_of_memory) return Status::failure(*name.error());
+        if (failure == ErrorKind::out_of_memory) return OperationStatus::failure(*name.error());
         return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_name);
     }
-    const Status result = web_backend::mount((*name.value()).view().data(), kind);
+    const OperationStatus result = web_backend::mount((*name.value()).view().data(), kind);
     return result;
 #else
     return unsupported(operation);
 #endif
 }
 
-Status restore_web_storage() noexcept {
+OperationStatus restore_web_storage() noexcept {
     const Operation operation = "stxlib.web.restore";
     if (!capability_supported(Capability::web_storage)) return unsupported(operation);
 #if defined(__EMSCRIPTEN__)
-    const Status result = web_backend::restore();
+    const OperationStatus result = web_backend::restore();
     return result;
 #else
     return unsupported(operation);
 #endif
 }
 
-Status persist_web_storage() noexcept {
+OperationStatus persist_web_storage() noexcept {
     const Operation operation = "stxlib.web.persist";
     if (!capability_supported(Capability::web_storage)) return unsupported(operation);
 #if defined(__EMSCRIPTEN__)
-    const Status result = web_backend::persist();
+    const OperationStatus result = web_backend::persist();
     return result;
 #else
     return unsupported(operation);
 #endif
 }
 
-Status persist_web_storage_on_page_hide() noexcept {
+OperationStatus persist_web_storage_on_page_hide() noexcept {
     const Operation operation = "stxlib.web.persist_on_page_hide";
     if (!capability_supported(Capability::web_storage)) return unsupported(operation);
 #if defined(__EMSCRIPTEN__)
-    const Status result = web_backend::persist_on_page_hide();
+    const OperationStatus result = web_backend::persist_on_page_hide();
     return result;
 #else
     return unsupported(operation);

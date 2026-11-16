@@ -37,9 +37,9 @@ constexpr u64 largest_total = static_cast<u64>(1) << 62;
 template <typename Element>
 bool allocate(Buffer<Element>& buffer, const usize count) noexcept {
     // A zero count still yields a usable (empty) buffer.
-    Result<Buffer<Element>> made = Buffer<Element>::allocate_zeroed(count);
+    OperationResult<Buffer<Element>> made = Buffer<Element>::allocate_zeroed(count);
     if (made.failed()) return false;
-    buffer = static_cast<Result<Buffer<Element>>&&>(made).take_value();
+    buffer = static_cast<OperationResult<Buffer<Element>>&&>(made).take_value();
     return true;
 }
 
@@ -752,8 +752,8 @@ void merge_identical(Workspace& ws) noexcept {
 
 // Grows `buffer` (holding `used` elements) to hold at least `wanted`.
 template <typename Element>
-Status grow(Buffer<Element>& buffer, const usize used, const usize wanted) noexcept {
-    if (wanted <= buffer.count()) return Status::success();
+OperationStatus grow(Buffer<Element>& buffer, const usize used, const usize wanted) noexcept {
+    if (wanted <= buffer.count()) return OperationStatus::success();
     usize capacity = buffer.count() < 16 ? 16 : buffer.count();
     while (capacity < wanted) {
         if (capacity > usize_max / 2) {
@@ -762,24 +762,24 @@ Status grow(Buffer<Element>& buffer, const usize used, const usize wanted) noexc
         }
         capacity = capacity * 2;
     }
-    Result<Buffer<Element>> grown = Buffer<Element>::allocate_zeroed(capacity);
-    if (grown.failed()) return Status::failure(*grown.error());
+    OperationResult<Buffer<Element>> grown = Buffer<Element>::allocate_zeroed(capacity);
+    if (grown.failed()) return OperationStatus::failure(*grown.error());
     Buffer<Element>& larger = *grown.value();
     for (usize index = 0; index < used; ++index) larger[index] = buffer[index];
     buffer = static_cast<Buffer<Element>&&>(larger);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace
 
-Status Ballots::add(const View<Candidate> ranking) noexcept {
-    const Status result = add_copies(ranking, 1);
+OperationStatus Ballots::add(const View<Candidate> ranking) noexcept {
+    const OperationStatus result = add_copies(ranking, 1);
     return result;
 }
 
-Status Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noexcept {
+OperationStatus Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noexcept {
     if (ranking.count() > usize_max - choice_count_ || distinct_ == usize_max) {
-        return Status::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.voting.ballots.add"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.voting.ballots.add"));
     }
     // A ranking that is a view of these ballots (ranking(k)) points into
     // choices_, which the growth below may replace and release: it is found
@@ -793,11 +793,11 @@ Status Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noex
     const usize offset = inside ? static_cast<usize>(ranking.data() - stored) : 0;
     // Both growths happen before anything is written, so a failure leaves
     // the ballots unchanged.
-    const Status choices = grow(choices_, choice_count_, choice_count_ + ranking.count());
+    const OperationStatus choices = grow(choices_, choice_count_, choice_count_ + ranking.count());
     if (choices.failed()) return choices;
-    const Status ends = grow(ends_, distinct_, distinct_ + 1);
+    const OperationStatus ends = grow(ends_, distinct_, distinct_ + 1);
     if (ends.failed()) return ends;
-    const Status counts = grow(copies_, distinct_, distinct_ + 1);
+    const OperationStatus counts = grow(copies_, distinct_, distinct_ + 1);
     if (counts.failed()) return counts;
     const Candidate* const source = inside ? choices_.view().data() + offset : ranking.data();
     for (usize index = 0; index < ranking.count(); ++index) choices_[choice_count_ + index] = source[index];
@@ -805,7 +805,7 @@ Status Ballots::add_copies(const View<Candidate> ranking, const u64 copies) noex
     ends_[distinct_] = choice_count_;
     copies_[distinct_] = copies;
     ++distinct_;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 View<Candidate> Ballots::ranking(const usize index) const& noexcept {

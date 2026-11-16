@@ -457,7 +457,7 @@ struct Opened final {
 
 void open_font(Opened& opened, const bool with_layout) {
     opened.bytes = shaping_font(with_layout).bytes;
-    stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(opened.bytes), 0);
+    stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(opened.bytes), 0);
     CHECK(made.succeeded());
     if (made.failed()) return;
     opened.typeface = *made.value();
@@ -611,7 +611,7 @@ void growth_and_nesting() {
     glyphs::TextRun run{};
     run.characters = stxlib::View<u32>(reinterpret_cast<const u32*>(text.data()), text.size());
     stxlib::Vector<glyphs::ShapedGlyph> shaped{};
-    const stxlib::Status status = opened.shaper.shape(run, shaped);
+    const stxlib::OperationStatus status = opened.shaper.shape(run, shaped);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && shaped.count() == 0);
     // The shaper is as good as before.
     CHECK(shapes_to(opened, U"ab", {{1, 0, 600, 0, 0}, {2, 1, 600, 0, 0}}));
@@ -700,7 +700,7 @@ void refusals_and_plans() {
     // A run longer than the limit.
     const std::u32string longer = U"ababa";
     run.characters = stxlib::View<u32>(reinterpret_cast<const u32*>(longer.data()), longer.size());
-    const stxlib::Status status = small.shape(run, shaped);
+    const stxlib::OperationStatus status = small.shape(run, shaped);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     small.release();
     CHECK(small.bytes_held() == 0 && small.shape(run, shaped).failed());
@@ -771,7 +771,7 @@ void refusals_and_plans() {
 
 [[nodiscard]] bool small_shapes(const Bytes& bytes, const std::u32string& text, std::vector<u32>& glyphs_out, std::vector<i32>& advances,
                                 const glyphs::ShaperLimits& limits = glyphs::ShaperLimits{}, const std::vector<glyphs::TextFeature>& features = {}) {
-    stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(bytes), 0);
+    stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(bytes), 0);
     if (made.failed()) return false;
     glyphs::Shaper shaper{};
     if (shaper.open(*made.value(), limits).failed()) return false;
@@ -838,7 +838,7 @@ std::uint64_t random_state = 0x6A09E667F3BCC909ULL;
 // The runs every altered font is shaped on: each is refused or shaped, and
 // a shaped one is within the bound.
 [[nodiscard]] bool shapes_within_bounds(const Bytes& bytes, std::uint64_t& shaped_runs, std::uint64_t& refused_runs) {
-    stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(bytes), 0);
+    stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(bytes), 0);
     if (made.failed()) return true;
     glyphs::Shaper shaper{};
     if (shaper.open(*made.value()).failed()) return true;

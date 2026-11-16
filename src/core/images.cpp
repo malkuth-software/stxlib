@@ -35,7 +35,7 @@ bool acceptable_query(const ImageRegionQuery& query) noexcept {
     return false;
 }
 
-Status visit(const ImageRegionQuery& query, const bool containing, const uptr address,
+OperationStatus visit(const ImageRegionQuery& query, const bool containing, const uptr address,
              const ImageRegionVisitor visitor, void* const context, const Operation operation) noexcept {
     if (!capability_supported(Capability::image_regions)) {
         return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
@@ -43,34 +43,34 @@ Status visit(const ImageRegionQuery& query, const bool containing, const uptr ad
     if (visitor == nullptr || !acceptable_query(query)) {
         return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_name);
     }
-    const Status result = image_backend::visit_regions(query, containing, address, visitor, context);
+    const OperationStatus result = image_backend::visit_regions(query, containing, address, visitor, context);
     return result;
 }
 
 } // namespace
 
-Result<AddressDescription> describe_address(const uptr address, const MutableView<char> image_name_room,
+OperationResult<AddressDescription> describe_address(const uptr address, const MutableView<char> image_name_room,
                                             const MutableView<char> symbol_name_room) noexcept {
     if (!capability_supported(Capability::address_lookup)) {
         const ErrorRecord record =
             host_failure::record(ErrorKind::unsupported, "stxlib.images.describe_address", HostCode::none);
-        return Result<AddressDescription>::failure(record);
+        return OperationResult<AddressDescription>::failure(record);
     }
     AddressDescription description{};
-    const Status described = image_backend::describe(address, image_name_room, symbol_name_room, description);
-    if (described.failed()) return Result<AddressDescription>::failure(*described.error());
-    return Result<AddressDescription>::success(description);
+    const OperationStatus described = image_backend::describe(address, image_name_room, symbol_name_room, description);
+    if (described.failed()) return OperationResult<AddressDescription>::failure(*described.error());
+    return OperationResult<AddressDescription>::success(description);
 }
 
-Status visit_image_regions(const ImageRegionQuery& query, const ImageRegionVisitor visitor,
+OperationStatus visit_image_regions(const ImageRegionQuery& query, const ImageRegionVisitor visitor,
                            void* const context) noexcept {
-    const Status result = visit(query, false, 0, visitor, context, "stxlib.images.visit_regions");
+    const OperationStatus result = visit(query, false, 0, visitor, context, "stxlib.images.visit_regions");
     return result;
 }
 
-Status visit_image_regions_containing(const uptr address, const ImageRegionQuery& query,
+OperationStatus visit_image_regions_containing(const uptr address, const ImageRegionQuery& query,
                                       const ImageRegionVisitor visitor, void* const context) noexcept {
-    const Status result = visit(query, true, address, visitor, context, "stxlib.images.visit_regions_containing");
+    const OperationStatus result = visit(query, true, address, visitor, context, "stxlib.images.visit_regions_containing");
     return result;
 }
 

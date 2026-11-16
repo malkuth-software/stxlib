@@ -117,14 +117,14 @@ ErrorRecord record_of(const Outcome outcome, const Operation operation) noexcept
     return result;
 }
 
-Status failed(const Outcome outcome, const Operation operation) noexcept {
-    const Status result = Status::failure(record_of(outcome, operation));
+OperationStatus failed(const Outcome outcome, const Operation operation) noexcept {
+    const OperationStatus result = OperationStatus::failure(record_of(outcome, operation));
     return result;
 }
 
-Status status_of(const Outcome outcome, const Operation operation) noexcept {
-    if (outcome.ok()) return Status::success();
-    const Status result = failed(outcome, operation);
+OperationStatus status_of(const Outcome outcome, const Operation operation) noexcept {
+    if (outcome.ok()) return OperationStatus::success();
+    const OperationStatus result = failed(outcome, operation);
     return result;
 }
 
@@ -160,14 +160,14 @@ Outcome native_name(const Path& path, Growable<char>& output) noexcept {
 // A host name as a Path, losslessly (D13 a); invalid_name only when the
 // name breaks Path's syntax in a way no escape covers (a ".." above a root
 // in a link target, a ':' in a Windows name outside a drive root).
-Result<Path> from_host(const Growable<char>& text, const Operation operation) noexcept {
-    Result<Path> parsed = file_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
+OperationResult<Path> from_host(const Growable<char>& text, const Operation operation) noexcept {
+    OperationResult<Path> parsed = file_backend::byte_names ? Path::from_posix_name(text.data(), text.count())
                                                    : Path::parse_wtf8(text.data(), text.count());
     if (parsed.succeeded()) return parsed;
     if ((*parsed.error()).kind() == ErrorKind::out_of_memory) {
-        return Result<Path>::failure(record_of(file_backend::failure(FileStatus::out_of_memory), operation));
+        return OperationResult<Path>::failure(record_of(file_backend::failure(FileStatus::out_of_memory), operation));
     }
-    return Result<Path>::failure(record_of(file_backend::failure(FileStatus::invalid_name), operation));
+    return OperationResult<Path>::failure(record_of(file_backend::failure(FileStatus::invalid_name), operation));
 }
 
 ErrorRecord bad_handle_record(const Operation operation) noexcept {
@@ -175,8 +175,8 @@ ErrorRecord bad_handle_record(const Operation operation) noexcept {
     return result;
 }
 
-Status bad_handle(const Operation operation) noexcept {
-    const Status result = Status::failure(bad_handle_record(operation));
+OperationStatus bad_handle(const Operation operation) noexcept {
+    const OperationStatus result = OperationStatus::failure(bad_handle_record(operation));
     return result;
 }
 
@@ -289,28 +289,28 @@ File& File::operator=(File&& other) noexcept {
     return *this;
 }
 
-Result<File> File::open(const Path& path, const FileMode mode) noexcept {
+OperationResult<File> File::open(const Path& path, const FileMode mode) noexcept {
     const Operation operation = "stxlib.files.open";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<File>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<File>::failure(record_of(converted, operation));
     i64 handle = file_backend::no_handle;
     const Outcome opened = file_backend::open(name.data(), mode, handle);
-    if (!opened.ok()) return Result<File>::failure(record_of(opened, operation));
-    Result<File> result = Result<File>::success(File(handle, mode));
+    if (!opened.ok()) return OperationResult<File>::failure(record_of(opened, operation));
+    OperationResult<File> result = OperationResult<File>::success(File(handle, mode));
     return result;
 }
 
-Result<usize> File::read(const MutableView<Byte> output) noexcept {
+OperationResult<usize> File::read(const MutableView<Byte> output) noexcept {
     const Operation operation = "stxlib.files.read";
-    if (!is_open()) return Result<usize>::failure(bad_handle_record(operation));
+    if (!is_open()) return OperationResult<usize>::failure(bad_handle_record(operation));
     usize transferred = 0;
     const Outcome outcome = file_backend::read(handle_, output.data(), output.count(), transferred);
-    if (!outcome.ok()) return Result<usize>::failure(record_of(outcome, operation));
-    return Result<usize>::success(transferred);
+    if (!outcome.ok()) return OperationResult<usize>::failure(record_of(outcome, operation));
+    return OperationResult<usize>::success(transferred);
 }
 
-Status File::write_all(const View<Byte> input) noexcept {
+OperationStatus File::write_all(const View<Byte> input) noexcept {
     const Operation operation = "stxlib.files.write";
     if (!is_open()) return bad_handle(operation);
     usize written = 0;
@@ -321,47 +321,47 @@ Status File::write_all(const View<Byte> input) noexcept {
         if (!outcome.ok()) return failed(outcome, operation);
         written = written + transferred;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Result<u64> File::size() noexcept {
+OperationResult<u64> File::size() noexcept {
     const Operation operation = "stxlib.files.size";
-    if (!is_open()) return Result<u64>::failure(bad_handle_record(operation));
+    if (!is_open()) return OperationResult<u64>::failure(bad_handle_record(operation));
     u64 bytes = 0;
     const Outcome outcome = file_backend::size(handle_, bytes);
-    if (!outcome.ok()) return Result<u64>::failure(record_of(outcome, operation));
-    return Result<u64>::success(bytes);
+    if (!outcome.ok()) return OperationResult<u64>::failure(record_of(outcome, operation));
+    return OperationResult<u64>::success(bytes);
 }
 
-Result<u64> File::position() noexcept {
+OperationResult<u64> File::position() noexcept {
     const Operation operation = "stxlib.files.position";
-    if (!is_open()) return Result<u64>::failure(bad_handle_record(operation));
+    if (!is_open()) return OperationResult<u64>::failure(bad_handle_record(operation));
     u64 offset = 0;
     const Outcome outcome = file_backend::position(handle_, offset);
-    if (!outcome.ok()) return Result<u64>::failure(record_of(outcome, operation));
-    return Result<u64>::success(offset);
+    if (!outcome.ok()) return OperationResult<u64>::failure(record_of(outcome, operation));
+    return OperationResult<u64>::success(offset);
 }
 
-Status File::seek(const u64 offset) noexcept {
+OperationStatus File::seek(const u64 offset) noexcept {
     const Operation operation = "stxlib.files.seek";
     if (!is_open()) return bad_handle(operation);
-    const Status result = status_of(file_backend::seek(handle_, offset), operation);
+    const OperationStatus result = status_of(file_backend::seek(handle_, offset), operation);
     return result;
 }
 
-Status File::sync(const Durability level) noexcept {
+OperationStatus File::sync(const Durability level) noexcept {
     const Operation operation = "stxlib.files.sync";
     if (!is_open()) return bad_handle(operation);
-    const Status result = status_of(file_backend::sync(handle_, level), operation);
+    const OperationStatus result = status_of(file_backend::sync(handle_, level), operation);
     return result;
 }
 
-Status File::close() noexcept {
+OperationStatus File::close() noexcept {
     const Operation operation = "stxlib.files.close";
     if (!is_open()) return bad_handle(operation);
     const i64 handle = handle_;
     handle_ = closed;
-    const Status result = status_of(file_backend::close(handle), operation);
+    const OperationStatus result = status_of(file_backend::close(handle), operation);
     return result;
 }
 
@@ -371,24 +371,24 @@ namespace {
 
 constexpr u64 largest_offset = static_cast<u64>(i64_max);
 
-Status refused_state(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
+OperationStatus refused_state(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
     return result;
 }
 
 } // namespace
 
-Result<usize> File::read_at(const u64 offset, const MutableView<Byte> output) noexcept {
+OperationResult<usize> File::read_at(const u64 offset, const MutableView<Byte> output) noexcept {
     const Operation operation = "stxlib.files.read_at";
-    if (!is_open()) return Result<usize>::failure(bad_handle_record(operation));
-    if (offset > largest_offset) return Result<usize>::failure(record_of_status(FileStatus::too_large, operation));
+    if (!is_open()) return OperationResult<usize>::failure(bad_handle_record(operation));
+    if (offset > largest_offset) return OperationResult<usize>::failure(record_of_status(FileStatus::too_large, operation));
     usize transferred = 0;
     const Outcome outcome = file_backend::read_at(handle_, offset, output.data(), output.count(), transferred);
-    if (!outcome.ok()) return Result<usize>::failure(record_of(outcome, operation));
-    return Result<usize>::success(transferred);
+    if (!outcome.ok()) return OperationResult<usize>::failure(record_of(outcome, operation));
+    return OperationResult<usize>::success(transferred);
 }
 
-Status File::write_all_at(const u64 offset, const View<Byte> input) noexcept {
+OperationStatus File::write_all_at(const u64 offset, const View<Byte> input) noexcept {
     const Operation operation = "stxlib.files.write_at";
     if (!is_open()) return bad_handle(operation);
     if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
@@ -404,32 +404,32 @@ Status File::write_all_at(const u64 offset, const View<Byte> input) noexcept {
         if (!outcome.ok()) return failed(outcome, operation);
         written = written + transferred;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Result<FileInformation> File::information() noexcept {
+OperationResult<FileInformation> File::information() noexcept {
     const Operation operation = "stxlib.files.information";
-    if (!is_open()) return Result<FileInformation>::failure(bad_handle_record(operation));
+    if (!is_open()) return OperationResult<FileInformation>::failure(bad_handle_record(operation));
     FileInformation described{};
     const Outcome outcome = file_backend::information(handle_, described);
-    if (!outcome.ok()) return Result<FileInformation>::failure(record_of(outcome, operation));
-    return Result<FileInformation>::success(described);
+    if (!outcome.ok()) return OperationResult<FileInformation>::failure(record_of(outcome, operation));
+    return OperationResult<FileInformation>::success(described);
 }
 
-Status File::set_modified(const WallTime modified) noexcept {
+OperationStatus File::set_modified(const WallTime modified) noexcept {
     const Operation operation = "stxlib.files.set_modified";
     if (!is_open()) return bad_handle(operation);
     if (mode_ == FileMode::read) return refused_state(operation);
-    const Status result = status_of(file_backend::set_modified(handle_, modified), operation);
+    const OperationStatus result = status_of(file_backend::set_modified(handle_, modified), operation);
     return result;
 }
 
-Status File::set_size(const u64 bytes) noexcept {
+OperationStatus File::set_size(const u64 bytes) noexcept {
     const Operation operation = "stxlib.files.set_size";
     if (!is_open()) return bad_handle(operation);
     if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
     if (bytes > largest_offset) return failed(file_backend::failure(FileStatus::too_large), operation);
-    const Status result = status_of(file_backend::set_size(handle_, bytes), operation);
+    const OperationStatus result = status_of(file_backend::set_size(handle_, bytes), operation);
     return result;
 }
 
@@ -444,18 +444,18 @@ Status File::set_size(const u64 bytes) noexcept {
 // result without a copy (audit A, X5), so a file that keeps its size costs
 // one block of its size and one extra read; one that grows while it is
 // read costs the doubling's block, under twice the bytes read.
-Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
+OperationResult<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
     const Operation operation = "stxlib.files.read_file";
-    Result<File> opened = File::open(path, FileMode::read);
-    if (opened.failed()) return Result<Buffer<Byte>>::failure(*opened.error());
+    OperationResult<File> opened = File::open(path, FileMode::read);
+    if (opened.failed()) return OperationResult<Buffer<Byte>>::failure(*opened.error());
     File& file = *opened.value();
-    const Result<u64> reported = file.size();
-    if (reported.failed()) return Result<Buffer<Byte>>::failure(*reported.error());
+    const OperationResult<u64> reported = file.size();
+    if (reported.failed()) return OperationResult<Buffer<Byte>>::failure(*reported.error());
     const u64 bytes = *reported.value();
-    if (bytes > limit) return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
+    if (bytes > limit) return OperationResult<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
     Growable<Byte> content;
     if (!content.reserve_exact(static_cast<usize>(bytes)) || !content.resize(static_cast<usize>(bytes))) {
-        return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
+        return OperationResult<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
     }
     usize filled = 0;
     for (;;) {
@@ -464,55 +464,55 @@ Result<Buffer<Byte>> read_file(const Path& path, const usize limit) noexcept {
             // growth, so a file that kept its reported size ends here with
             // its exact block, never grown and copied (A-stxlib-core-01-F3).
             Byte probe[1]{};
-            const Result<usize> extra = file.read(MutableView<Byte>(probe));
-            if (extra.failed()) return Result<Buffer<Byte>>::failure(*extra.error());
+            const OperationResult<usize> extra = file.read(MutableView<Byte>(probe));
+            if (extra.failed()) return OperationResult<Buffer<Byte>>::failure(*extra.error());
             if (*extra.value() == 0) break;
             if (content.count() == limit) {
-                return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
+                return OperationResult<Buffer<Byte>>::failure(record_of_status(FileStatus::too_large, operation));
             }
             const usize current = content.count();
             usize doubled = 4096;
             if (current >= 2048) doubled = current > usize_max / 2 ? usize_max : current * 2;
             if (!content.resize(doubled < limit ? doubled : limit)) {
-                return Result<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
+                return OperationResult<Buffer<Byte>>::failure(record_of_status(FileStatus::out_of_memory, operation));
             }
             content[filled] = probe[0];
             filled = filled + 1;
             continue;
         }
-        const Result<usize> chunk = file.read(MutableView<Byte>(content.data() + filled, content.count() - filled));
-        if (chunk.failed()) return Result<Buffer<Byte>>::failure(*chunk.error());
+        const OperationResult<usize> chunk = file.read(MutableView<Byte>(content.data() + filled, content.count() - filled));
+        if (chunk.failed()) return OperationResult<Buffer<Byte>>::failure(*chunk.error());
         if (*chunk.value() == 0) break;
         filled = filled + *chunk.value();
     }
-    const Status closed = file.close();
-    if (closed.failed()) return Result<Buffer<Byte>>::failure(*closed.error());
+    const OperationStatus closed = file.close();
+    if (closed.failed()) return OperationResult<Buffer<Byte>>::failure(*closed.error());
     content.shrink(filled);
-    return Result<Buffer<Byte>>::success(content.take_as_buffer());
+    return OperationResult<Buffer<Byte>>::success(content.take_as_buffer());
 }
 
 // Creates write_file's temporary file in `directory`, retrying on the rare
 // name collision (16 attempts, stx_auxlib's); `temporary` receives its name.
-Result<File> open_temporary(const Path& directory, Growable<char>& temporary, const Operation operation) noexcept {
+OperationResult<File> open_temporary(const Path& directory, Growable<char>& temporary, const Operation operation) noexcept {
     constexpr int attempts = 16;
     for (int attempt = 0; attempt < attempts; ++attempt) {
         const TemporaryName name = temporary_name();
-        Result<Path> name_path = Path::parse_bytes(name.text, sizeof name.text);
-        if (name_path.failed()) return Result<File>::failure(*name_path.error());
-        Result<Path> candidate = directory.join(*name_path.value());
-        if (candidate.failed()) return Result<File>::failure(record_of_status(FileStatus::name_too_long, operation));
+        OperationResult<Path> name_path = Path::parse_bytes(name.text, sizeof name.text);
+        if (name_path.failed()) return OperationResult<File>::failure(*name_path.error());
+        OperationResult<Path> candidate = directory.join(*name_path.value());
+        if (candidate.failed()) return OperationResult<File>::failure(record_of_status(FileStatus::name_too_long, operation));
         const Outcome converted = native_name(*candidate.value(), temporary);
-        if (!converted.ok()) return Result<File>::failure(record_of(converted, operation));
-        Result<File> attempted = File::open(*candidate.value(), FileMode::create_new);
+        if (!converted.ok()) return OperationResult<File>::failure(record_of(converted, operation));
+        OperationResult<File> attempted = File::open(*candidate.value(), FileMode::create_new);
         const bool collided = attempted.failed() && (*attempted.error()).kind() == ErrorKind::already_exists;
         if (!collided) return attempted;
     }
-    return Result<File>::failure(record_of_status(FileStatus::already_exists, operation));
+    return OperationResult<File>::failure(record_of_status(FileStatus::already_exists, operation));
 }
 
 // Writes, flushes (as `level` says) and closes the temporary file, then
 // renames it over the target. The file is closed on every path.
-Status write_and_replace(File& file, const View<Byte> content, const char* const temporary, const char* const target,
+OperationStatus write_and_replace(File& file, const View<Byte> content, const char* const temporary, const char* const target,
                          const Durability level, const Operation operation) noexcept {
     // The replaced file's permission bits, before any content is written
     // (A-stxlib-core-01-F4): a 0600 file stays 0600.
@@ -521,34 +521,34 @@ Status write_and_replace(File& file, const View<Byte> content, const char* const
         (void)file.close();
         return failed(carried, operation);
     }
-    const Status written = file.write_all(content);
+    const OperationStatus written = file.write_all(content);
     if (written.failed()) {
         (void)file.close();
         return written;
     }
-    const Status synced = file.sync(level);
+    const OperationStatus synced = file.sync(level);
     if (synced.failed()) {
         (void)file.close();
         return synced;
     }
-    const Status closed = file.close();
+    const OperationStatus closed = file.close();
     if (closed.failed()) return closed;
-    const Status result = status_of(file_backend::replace(temporary, target, level), operation);
+    const OperationStatus result = status_of(file_backend::replace(temporary, target, level), operation);
     return result;
 }
 
-Status write_file(const Path& path, const View<Byte> content, const Durability level) noexcept {
+OperationStatus write_file(const Path& path, const View<Byte> content, const Durability level) noexcept {
     const Operation operation = "stxlib.files.write_file";
     if (path.file_name().empty()) return failed(file_backend::failure(FileStatus::invalid_name), operation);
     Growable<char> target;
     const Outcome converted = native_name(path, target);
     if (!converted.ok()) return failed(converted, operation);
-    Result<Path> directory = path.parent();
-    if (directory.failed()) return Status::failure(*directory.error());
+    OperationResult<Path> directory = path.parent();
+    if (directory.failed()) return OperationStatus::failure(*directory.error());
     Growable<char> temporary;
-    Result<File> opened = open_temporary(*directory.value(), temporary, operation);
-    if (opened.failed()) return Status::failure(*opened.error());
-    const Status result =
+    OperationResult<File> opened = open_temporary(*directory.value(), temporary, operation);
+    if (opened.failed()) return OperationStatus::failure(*opened.error());
+    const OperationStatus result =
         write_and_replace(*opened.value(), content, temporary.data(), target.data(), level, operation);
     if (result.failed()) (void)file_backend::remove(temporary.data());
     return result;
@@ -556,30 +556,30 @@ Status write_file(const Path& path, const View<Byte> content, const Durability l
 
 // ---- metadata and directories ------------------------------------------------
 
-Result<FileInformation> inspect(const Path& path, const LinkMode links) noexcept {
+OperationResult<FileInformation> inspect(const Path& path, const LinkMode links) noexcept {
     const Operation operation = "stxlib.files.inspect";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<FileInformation>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<FileInformation>::failure(record_of(converted, operation));
     FileInformation information{};
     const Outcome outcome = file_backend::inspect(name.data(), links, information);
-    if (!outcome.ok()) return Result<FileInformation>::failure(record_of(outcome, operation));
-    return Result<FileInformation>::success(information);
+    if (!outcome.ok()) return OperationResult<FileInformation>::failure(record_of(outcome, operation));
+    return OperationResult<FileInformation>::success(information);
 }
 
-Status create_directory(const Path& path) noexcept {
+OperationStatus create_directory(const Path& path) noexcept {
     const Operation operation = "stxlib.files.create_directory";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
     if (!converted.ok()) return failed(converted, operation);
-    const Status result = status_of(file_backend::create_directory(name.data()), operation);
+    const OperationStatus result = status_of(file_backend::create_directory(name.data()), operation);
     return result;
 }
 
 // Creates each prefix of the path that ends at a separator, then the whole
 // path, accepting the ones that exist; then checks that the whole names a
 // directory (std::filesystem::create_directories' outcome).
-Status create_directories(const Path& path) noexcept {
+OperationStatus create_directories(const Path& path) noexcept {
     const Operation operation = "stxlib.files.create_directories";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
@@ -602,52 +602,52 @@ Status create_directories(const Path& path) noexcept {
     if (information.kind != FileKind::directory) {
         return failed(file_backend::failure(FileStatus::not_a_directory), operation);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status remove(const Path& path) noexcept {
+OperationStatus remove(const Path& path) noexcept {
     const Operation operation = "stxlib.files.remove";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
     if (!converted.ok()) return failed(converted, operation);
-    const Status result = status_of(file_backend::remove(name.data()), operation);
+    const OperationStatus result = status_of(file_backend::remove(name.data()), operation);
     return result;
 }
 
 // The traversal is the backend's (file_backend::remove_tree): relative to
 // each directory's own descriptor or held handle, so only `path` is looked up
 // by name (files.hpp states the safety and the bounds).
-Result<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits) noexcept {
+OperationResult<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits) noexcept {
     const Operation operation = "stxlib.files.remove_tree";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<u64>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<u64>::failure(record_of(converted, operation));
     u64 removed = 0;
     const Outcome outcome = file_backend::remove_tree(name.data(), limits.depth, limits.entries_per_directory, removed);
-    if (outcome.status == FileStatus::not_found && removed == 0) return Result<u64>::success(0);
-    if (!outcome.ok()) return Result<u64>::failure(record_of(outcome, operation));
-    return Result<u64>::success(removed);
+    if (outcome.status == FileStatus::not_found && removed == 0) return OperationResult<u64>::success(0);
+    if (!outcome.ok()) return OperationResult<u64>::failure(record_of(outcome, operation));
+    return OperationResult<u64>::success(removed);
 }
 
-Status rename(const Path& from, const Path& to) noexcept {
+OperationStatus rename(const Path& from, const Path& to) noexcept {
     const Operation operation = "stxlib.files.rename";
     Growable<char> source;
     Growable<char> target;
     Outcome converted = native_name(from, source);
     if (converted.ok()) converted = native_name(to, target);
     if (!converted.ok()) return failed(converted, operation);
-    const Status result = status_of(file_backend::rename(source.data(), target.data()), operation);
+    const OperationStatus result = status_of(file_backend::rename(source.data(), target.data()), operation);
     return result;
 }
 
-Status copy_file(const Path& from, const Path& to, const CopyMode mode, const CopyPermissions permissions) noexcept {
+OperationStatus copy_file(const Path& from, const Path& to, const CopyMode mode, const CopyPermissions permissions) noexcept {
     const Operation operation = "stxlib.files.copy_file";
     Growable<char> source;
     Growable<char> target;
     Outcome converted = native_name(from, source);
     if (converted.ok()) converted = native_name(to, target);
     if (!converted.ok()) return failed(converted, operation);
-    const Status result = status_of(file_backend::copy_file(source.data(), target.data(), mode, permissions), operation);
+    const OperationStatus result = status_of(file_backend::copy_file(source.data(), target.data(), mode, permissions), operation);
     return result;
 }
 
@@ -664,16 +664,16 @@ FileKind DirectoryListing::kind(const usize index) const noexcept {
     return result;
 }
 
-Result<DirectoryListing> list_directory(const Path& path, const usize limit) noexcept {
+OperationResult<DirectoryListing> list_directory(const Path& path, const usize limit) noexcept {
     const Operation operation = "stxlib.files.list_directory";
     const Outcome no_memory = file_backend::failure(FileStatus::out_of_memory);
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<DirectoryListing>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<DirectoryListing>::failure(record_of(converted, operation));
     Growable<char> host_names;
     Growable<file_backend::RawEntry> host_entries;
     const Outcome listed = file_backend::list(name.data(), limit, host_names, host_entries);
-    if (!listed.ok()) return Result<DirectoryListing>::failure(record_of(listed, operation));
+    if (!listed.ok()) return OperationResult<DirectoryListing>::failure(record_of(listed, operation));
     // Each name as Path text: POSIX bytes escaped, Windows' WTF-8 as it is.
     // Keep the valid segments.
     Growable<char> names;
@@ -686,7 +686,7 @@ Result<DirectoryListing> list_directory(const Path& path, const usize limit) noe
         const char* const host = host_names.data() + entry.offset;
         const bool appended = file_backend::byte_names ? wtf8::escape_posix(host, entry.count, names)
                                                        : names.append(host, entry.count);
-        if (!appended) return Result<DirectoryListing>::failure(record_of(no_memory, operation));
+        if (!appended) return OperationResult<DirectoryListing>::failure(record_of(no_memory, operation));
         const usize count = names.count() - offset;
         if (!is_segment(names.data() + offset, count)) {
             names.shrink(offset);
@@ -694,15 +694,15 @@ Result<DirectoryListing> list_directory(const Path& path, const usize limit) noe
             continue;
         }
         if (!raw.push(file_backend::RawEntry{offset, count, entry.kind})) {
-            return Result<DirectoryListing>::failure(record_of(no_memory, operation));
+            return OperationResult<DirectoryListing>::failure(record_of(no_memory, operation));
         }
         kept_bytes = kept_bytes + count;
     }
     const usize kept = raw.count();
     sort_by_name(names.data(), raw.data(), raw.count());
-    Result<Buffer<char>> name_bytes = Buffer<char>::allocate_zeroed(kept_bytes);
-    Result<Buffer<detail::DirectoryEntryRecord>> records = Buffer<detail::DirectoryEntryRecord>::allocate_zeroed(kept);
-    if (name_bytes.failed() || records.failed()) return Result<DirectoryListing>::failure(record_of(no_memory, operation));
+    OperationResult<Buffer<char>> name_bytes = Buffer<char>::allocate_zeroed(kept_bytes);
+    OperationResult<Buffer<detail::DirectoryEntryRecord>> records = Buffer<detail::DirectoryEntryRecord>::allocate_zeroed(kept);
+    if (name_bytes.failed() || records.failed()) return OperationResult<DirectoryListing>::failure(record_of(no_memory, operation));
     Buffer<char>& name_buffer = *name_bytes.value();
     Buffer<detail::DirectoryEntryRecord>& record_buffer = *records.value();
     usize offset = 0;
@@ -713,78 +713,78 @@ Result<DirectoryListing> list_directory(const Path& path, const usize limit) noe
         offset = offset + entry.count;
     }
     DirectoryListing listing = detail::DirectoryListingBuilder::make(
-        static_cast<Result<Buffer<char>>&&>(name_bytes).take_value(),
-        static_cast<Result<Buffer<detail::DirectoryEntryRecord>>&&>(records).take_value(), unnamed);
-    Result<DirectoryListing> result = Result<DirectoryListing>::success(static_cast<DirectoryListing&&>(listing));
+        static_cast<OperationResult<Buffer<char>>&&>(name_bytes).take_value(),
+        static_cast<OperationResult<Buffer<detail::DirectoryEntryRecord>>&&>(records).take_value(), unnamed);
+    OperationResult<DirectoryListing> result = OperationResult<DirectoryListing>::success(static_cast<DirectoryListing&&>(listing));
     return result;
 }
 
-Result<Path> temporary_directory() noexcept {
+OperationResult<Path> temporary_directory() noexcept {
     const Operation operation = "stxlib.files.temporary_directory";
     Growable<char> text;
     const Outcome outcome = file_backend::temporary_directory(text);
-    if (!outcome.ok()) return Result<Path>::failure(record_of(outcome, operation));
-    Result<Path> path = from_host(text, operation);
+    if (!outcome.ok()) return OperationResult<Path>::failure(record_of(outcome, operation));
+    OperationResult<Path> path = from_host(text, operation);
     if (path.failed()) return path;
     Growable<char> name;
     const Outcome converted = native_name(*path.value(), name);
-    if (!converted.ok()) return Result<Path>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<Path>::failure(record_of(converted, operation));
     FileInformation information{};
     const Outcome described = file_backend::inspect(name.data(), LinkMode::follow, information);
-    if (!described.ok()) return Result<Path>::failure(record_of(described, operation));
+    if (!described.ok()) return OperationResult<Path>::failure(record_of(described, operation));
     if (information.kind != FileKind::directory) {
-        return Result<Path>::failure(record_of(file_backend::failure(FileStatus::not_a_directory), operation));
+        return OperationResult<Path>::failure(record_of(file_backend::failure(FileStatus::not_a_directory), operation));
     }
     return path;
 }
 
-Result<Path> working_directory() noexcept {
+OperationResult<Path> working_directory() noexcept {
     const Operation operation = "stxlib.files.working_directory";
     Growable<char> text;
     const Outcome outcome = file_backend::working_directory(text);
-    if (!outcome.ok()) return Result<Path>::failure(record_of(outcome, operation));
-    Result<Path> result = from_host(text, operation);
+    if (!outcome.ok()) return OperationResult<Path>::failure(record_of(outcome, operation));
+    OperationResult<Path> result = from_host(text, operation);
     return result;
 }
 
-Result<Path> absolute(const Path& path) noexcept {
+OperationResult<Path> absolute(const Path& path) noexcept {
     if (path.is_absolute()) {
-        Result<Path> same = path.copy();
+        OperationResult<Path> same = path.copy();
         return same;
     }
-    Result<Path> working = working_directory();
+    OperationResult<Path> working = working_directory();
     if (working.failed()) return working;
-    Result<Path> result = (*working.value()).join(path);
+    OperationResult<Path> result = (*working.value()).join(path);
     return result;
 }
 
-Result<Path> resolve(const Path& path) noexcept {
+OperationResult<Path> resolve(const Path& path) noexcept {
     const Operation operation = "stxlib.files.resolve";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<Path>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<Path>::failure(record_of(converted, operation));
     Growable<char> text;
     const Outcome outcome = file_backend::resolve(name.data(), text);
-    if (!outcome.ok()) return Result<Path>::failure(record_of(outcome, operation));
-    Result<Path> result = from_host(text, operation);
+    if (!outcome.ok()) return OperationResult<Path>::failure(record_of(outcome, operation));
+    OperationResult<Path> result = from_host(text, operation);
     return result;
 }
 
-Result<Path> read_link(const Path& path) noexcept {
+OperationResult<Path> read_link(const Path& path) noexcept {
     const Operation operation = "stxlib.files.read_link";
     Growable<char> name;
     const Outcome converted = native_name(path, name);
-    if (!converted.ok()) return Result<Path>::failure(record_of(converted, operation));
+    if (!converted.ok()) return OperationResult<Path>::failure(record_of(converted, operation));
     Growable<char> text;
     const Outcome outcome = file_backend::read_link(name.data(), text);
-    if (!outcome.ok()) return Result<Path>::failure(record_of(outcome, operation));
-    Result<Path> result = from_host(text, operation);
+    if (!outcome.ok()) return OperationResult<Path>::failure(record_of(outcome, operation));
+    OperationResult<Path> result = from_host(text, operation);
     return result;
 }
 
 // A relative target is resolved against the link's directory, as the host
 // will, to tell whether it names a directory (stx_auxlib's create_link).
-Status create_link(const Path& target, const Path& link) noexcept {
+OperationStatus create_link(const Path& target, const Path& link) noexcept {
     const Operation operation = "stxlib.files.create_link";
     Growable<char> native_target;
     Growable<char> native_link;
@@ -792,9 +792,9 @@ Status create_link(const Path& target, const Path& link) noexcept {
     if (converted.ok()) converted = native_name(link, native_link);
     if (!converted.ok()) return failed(converted, operation);
     bool to_directory = false;
-    Result<Path> link_directory = link.parent();
-    if (link_directory.failed()) return Status::failure(*link_directory.error());
-    Result<Path> resolved = target.is_absolute() ? target.copy() : (*link_directory.value()).join(target);
+    OperationResult<Path> link_directory = link.parent();
+    if (link_directory.failed()) return OperationStatus::failure(*link_directory.error());
+    OperationResult<Path> resolved = target.is_absolute() ? target.copy() : (*link_directory.value()).join(target);
     if (resolved.succeeded()) {
         Growable<char> resolved_name;
         FileInformation information{};
@@ -803,7 +803,7 @@ Status create_link(const Path& target, const Path& link) noexcept {
             to_directory = information.kind == FileKind::directory;
         }
     }
-    const Status result =
+    const OperationStatus result =
         status_of(file_backend::create_link(native_target.data(), native_link.data(), to_directory), operation);
     return result;
 }

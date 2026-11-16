@@ -55,7 +55,7 @@ std::string encode_utf8(const u32 value) {
 }
 
 stxlib::TextView view_of(const std::string& text) {
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
     if (validated.failed()) return stxlib::TextView();
     const stxlib::TextView result = *validated.value();
     return result;
@@ -99,26 +99,26 @@ void scalars_exhaustive() {
         }
         same = same && text.count() == bytes.size();
         same = same && stxlib::code_point_count(text) == 1 && stxlib::utf16_count(text) == expected.size();
-        const stxlib::Result<stxlib::DecodedCodePoint> decoded = stxlib::code_point_at(text, 0);
+        const stxlib::OperationResult<stxlib::DecodedCodePoint> decoded = stxlib::code_point_at(text, 0);
         same = same && decoded.succeeded() && (*decoded.value()).value == value &&
                (*decoded.value()).length == bytes.size();
 
-        stxlib::Result<stxlib::Vector<u16>> units = stxlib::utf16_of(text);
+        stxlib::OperationResult<stxlib::Vector<u16>> units = stxlib::utf16_of(text);
         same = same && units.succeeded() && same_units(*units.value(), expected);
-        const stxlib::Result<stxlib::Utf8String> back = stxlib::text_of_utf16(units_view(expected));
+        const stxlib::OperationResult<stxlib::Utf8String> back = stxlib::text_of_utf16(units_view(expected));
         same = same && back.succeeded() && (*back.value()).equals(text);
 
-        stxlib::Result<stxlib::Vector<u32>> scalars = stxlib::utf32_of(text);
+        stxlib::OperationResult<stxlib::Vector<u32>> scalars = stxlib::utf32_of(text);
         same = same && scalars.succeeded() && (*scalars.value()).count() == 1 && (*scalars.value())[0] == value;
         const u32 single[] = {value};
-        const stxlib::Result<stxlib::Utf8String> again = stxlib::text_of_utf32(stxlib::View<u32>(single));
+        const stxlib::OperationResult<stxlib::Utf8String> again = stxlib::text_of_utf32(stxlib::View<u32>(single));
         same = same && again.succeeded() && (*again.value()).equals(text);
     }
     CHECK(same);
 
     // Not scalar values: refused with the index.
     const u32 bad[] = {0x41u, 0xd800u, 0x42u};
-    const stxlib::Result<stxlib::Utf8String> surrogate = stxlib::text_of_utf32(stxlib::View<u32>(bad));
+    const stxlib::OperationResult<stxlib::Utf8String> surrogate = stxlib::text_of_utf32(stxlib::View<u32>(bad));
     CHECK(surrogate.failed() && (*surrogate.error()).kind() == stxlib::ErrorKind::invalid_argument &&
           (*surrogate.error()).code() == 1);
     const u32 beyond[] = {0x110000u};
@@ -133,13 +133,13 @@ void surrogate_pairs_exhaustive() {
             const u16 pair[] = {static_cast<u16>(high), static_cast<u16>(low)};
             const stxlib::View<u16> units(pair);
             const std::string expected = encode_utf8(value);
-            const stxlib::Result<stxlib::usize> counted = stxlib::utf8_count_of_utf16(units);
+            const stxlib::OperationResult<stxlib::usize> counted = stxlib::utf8_count_of_utf16(units);
             same = same && counted.succeeded() && *counted.value() == 4;
             char output[4]{};
-            const stxlib::Result<stxlib::usize> written =
+            const stxlib::OperationResult<stxlib::usize> written =
                 stxlib::write_utf8_of_utf16(units, stxlib::MutableView<char>(output));
             same = same && written.succeeded() && *written.value() == 4 && std::string(output, 4) == expected;
-            stxlib::Result<stxlib::Vector<char>> wtf8 = stxlib::wtf8_of_utf16(units);
+            stxlib::OperationResult<stxlib::Vector<char>> wtf8 = stxlib::wtf8_of_utf16(units);
             same = same && wtf8.succeeded() && same_bytes(*wtf8.value(), expected);
         }
     }
@@ -182,7 +182,7 @@ void check_units(const std::vector<u16>& units) {
     const stxlib::View<u16> view = units_view(units);
     const bool well_formed = model.bad_index < 0;
 
-    const stxlib::Result<stxlib::usize> counted = stxlib::utf8_count_of_utf16(view);
+    const stxlib::OperationResult<stxlib::usize> counted = stxlib::utf8_count_of_utf16(view);
     CHECK(counted.succeeded() == well_formed);
     if (well_formed) {
         CHECK(*counted.value() == model.utf8.size());
@@ -191,7 +191,7 @@ void check_units(const std::vector<u16>& units) {
               static_cast<long>((*counted.error()).code()) == model.bad_index);
     }
 
-    stxlib::Result<stxlib::Utf8String> text = stxlib::text_of_utf16(view);
+    stxlib::OperationResult<stxlib::Utf8String> text = stxlib::text_of_utf16(view);
     CHECK(text.succeeded() == well_formed);
     if (well_formed) CHECK((*text.value()).equals(view_of(model.utf8)));
 
@@ -199,14 +199,14 @@ void check_units(const std::vector<u16>& units) {
     char output[16];
     for (char& byte : output) byte = '#';
     const usize room = well_formed ? model.utf8.size() : 16;
-    const stxlib::Result<stxlib::usize> written = stxlib::write_utf8_of_utf16(view, stxlib::MutableView<char>(output, room));
+    const stxlib::OperationResult<stxlib::usize> written = stxlib::write_utf8_of_utf16(view, stxlib::MutableView<char>(output, room));
     CHECK(written.succeeded() == well_formed);
     if (well_formed) {
         CHECK(std::string(output, model.utf8.size()) == model.utf8);
         if (!model.utf8.empty()) {
             char short_output[16];
             for (char& byte : short_output) byte = '#';
-            const stxlib::Result<stxlib::usize> refused = stxlib::write_utf8_of_utf16(
+            const stxlib::OperationResult<stxlib::usize> refused = stxlib::write_utf8_of_utf16(
                 view, stxlib::MutableView<char>(short_output, model.utf8.size() - 1));
             CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::limit_exceeded);
             bool untouched = true;
@@ -220,12 +220,12 @@ void check_units(const std::vector<u16>& units) {
     }
 
     // WTF-8 carries every sequence, and gives it back.
-    stxlib::Result<stxlib::Vector<char>> wtf8 = stxlib::wtf8_of_utf16(view);
+    stxlib::OperationResult<stxlib::Vector<char>> wtf8 = stxlib::wtf8_of_utf16(view);
     CHECK(wtf8.succeeded() && same_bytes(*wtf8.value(), model.wtf8));
     if (wtf8.succeeded()) {
         const stxlib::View<char> bytes = (*wtf8.value()).view();
         CHECK(stxlib::is_wtf8(bytes));
-        stxlib::Result<stxlib::Vector<u16>> back = stxlib::utf16_of_wtf8(bytes);
+        stxlib::OperationResult<stxlib::Vector<u16>> back = stxlib::utf16_of_wtf8(bytes);
         CHECK(back.succeeded() && same_units(*back.value(), units));
     }
 }
@@ -300,10 +300,10 @@ void check_wtf8_bytes(const std::string& bytes) {
     const stxlib::View<char> view(bytes.data(), bytes.size());
     const bool accepted = stxlib::is_wtf8(view);
     CHECK(accepted == model_wtf8(bytes));
-    stxlib::Result<stxlib::Vector<u16>> units = stxlib::utf16_of_wtf8(view);
+    stxlib::OperationResult<stxlib::Vector<u16>> units = stxlib::utf16_of_wtf8(view);
     CHECK(units.succeeded() == accepted);
     if (accepted && units.succeeded()) {
-        stxlib::Result<stxlib::Vector<char>> back = stxlib::wtf8_of_utf16((*units.value()).view());
+        stxlib::OperationResult<stxlib::Vector<char>> back = stxlib::wtf8_of_utf16((*units.value()).view());
         CHECK(back.succeeded() && same_bytes(*back.value(), bytes));
     }
 }
@@ -335,36 +335,36 @@ void wtf8_exhaustive() {
 
 void failures_unchanged() {
     u16 short_units[1] = {0x1234};
-    const stxlib::Result<stxlib::usize> too_short =
+    const stxlib::OperationResult<stxlib::usize> too_short =
         stxlib::write_utf16("ab", stxlib::MutableView<u16>(short_units));
     CHECK(too_short.failed() && (*too_short.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(short_units[0] == 0x1234);
     u16 room[4] = {0, 0, 0, 0};
-    const stxlib::Result<stxlib::usize> fits = stxlib::write_utf16("a\xf0\x9d\x84\x9e", stxlib::MutableView<u16>(room));
+    const stxlib::OperationResult<stxlib::usize> fits = stxlib::write_utf16("a\xf0\x9d\x84\x9e", stxlib::MutableView<u16>(room));
     CHECK(fits.succeeded() && *fits.value() == 3 && room[0] == 0x61 && room[1] == 0xd834 && room[2] == 0xdd1e);
 
-    stxlib::Result<stxlib::Utf8String> made = stxlib::Utf8String::copy_of("kept");
+    stxlib::OperationResult<stxlib::Utf8String> made = stxlib::Utf8String::copy_of("kept");
     CHECK(made.succeeded());
-    stxlib::Utf8String text = static_cast<stxlib::Result<stxlib::Utf8String>&&>(made).take_value();
+    stxlib::Utf8String text = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(made).take_value();
     std::vector<u16> many(64, static_cast<u16>(0x00e9));
     stxlib::detail::arm_vocabulary_refusals(0);
-    const stxlib::Status refused = stxlib::append_utf16(text, units_view(many));
+    const stxlib::OperationStatus refused = stxlib::append_utf16(text, units_view(many));
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
     CHECK(text.equals("kept"));
     const u32 bad[] = {0x61u, 0x62u, 0xdfffu};
-    const stxlib::Status rejected = stxlib::append_utf32(text, stxlib::View<u32>(bad));
+    const stxlib::OperationStatus rejected = stxlib::append_utf32(text, stxlib::View<u32>(bad));
     CHECK(rejected.failed() && (*rejected.error()).code() == 2 && text.equals("kept"));
     // A long append crosses the 256-byte pieces.
     std::vector<u16> long_units(1000, static_cast<u16>(0x20ac));
     CHECK(stxlib::append_utf16(text, units_view(long_units)).succeeded());
     CHECK(text.count() == 4 + 3000 && stxlib::code_point_count(text.view()) == 1004);
 
-    const stxlib::Result<stxlib::DecodedCodePoint> inside = stxlib::code_point_at("\xc3\xa9", 1);
+    const stxlib::OperationResult<stxlib::DecodedCodePoint> inside = stxlib::code_point_at("\xc3\xa9", 1);
     CHECK(inside.failed() && (*inside.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    const stxlib::Result<stxlib::DecodedCodePoint> outside = stxlib::code_point_at("a", 1);
+    const stxlib::OperationResult<stxlib::DecodedCodePoint> outside = stxlib::code_point_at("a", 1);
     CHECK(outside.failed() && (*outside.error()).kind() == stxlib::ErrorKind::out_of_range);
-    const stxlib::Result<stxlib::Vector<u16>> not_wtf8 = stxlib::utf16_of_wtf8(stxlib::View<char>("a\xff", 2));
+    const stxlib::OperationResult<stxlib::Vector<u16>> not_wtf8 = stxlib::utf16_of_wtf8(stxlib::View<char>("a\xff", 2));
     CHECK(not_wtf8.failed() && (*not_wtf8.error()).code() == 1);
 }
 

@@ -161,7 +161,7 @@ bool visit_module(const HMODULE module, const View<char> name, const ImageRegion
 
 } // namespace
 
-Status open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
+OperationStatus open_library(const char* const name, const LoadMode mode, uptr& handle) noexcept {
     handle = 0;
     const Operation operation =
         mode == LoadMode::loaded_only ? Operation("stxlib.library.find_loaded") : Operation("stxlib.library.open");
@@ -182,19 +182,19 @@ Status open_library(const char* const name, const LoadMode mode, uptr& handle) n
         return host_failure::failed(ErrorKind::not_found, operation, HostCode::none, last_error_code(error));
     }
     handle = reinterpret_cast<uptr>(module);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status close_library(const uptr handle) noexcept {
+OperationStatus close_library(const uptr handle) noexcept {
     if (FreeLibrary(module_of(handle)) == 0) {
         const DWORD error = GetLastError();
         return host_failure::failed(ErrorKind::foreign_failure, "stxlib.library.close", HostCode::none,
                                     last_error_code(error));
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
+OperationStatus find_symbol(const uptr handle, const char* const name, uptr& address) noexcept {
     address = 0;
     const FARPROC found = GetProcAddress(module_of(handle), name);
     if (found == nullptr) {
@@ -203,10 +203,10 @@ Status find_symbol(const uptr handle, const char* const name, uptr& address) noe
                                     last_error_code(error));
     }
     address = reinterpret_cast<uptr>(found);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
                 AddressDescription& description) noexcept {
     description = AddressDescription{};
     const Operation operation = "stxlib.images.describe_address";
@@ -231,18 +231,18 @@ Status describe(const uptr address, const MutableView<char> image_name_room, con
     }
     View<Byte> image{};
     pe_image::Headers headers{};
-    if (!image_view(module, image) || !pe_image::read_headers(image, headers)) return Status::success();
+    if (!image_view(module, image) || !pe_image::read_headers(image, headers)) return OperationStatus::success();
     const uptr base = reinterpret_cast<uptr>(image.data());
-    if (address < base || address - base >= image.count()) return Status::success();
+    if (address < base || address - base >= image.count()) return OperationStatus::success();
     pe_image::Export found{};
-    if (!pe_image::nearest_export(image, headers, static_cast<u32>(address - base), found)) return Status::success();
+    if (!pe_image::nearest_export(image, headers, static_cast<u32>(address - base), found)) return OperationStatus::success();
     const char* const symbol = reinterpret_cast<const char*>(image.data() + found.name_rva);
     description.symbol_name = copy_into(symbol, found.name_count, symbol_name_room, description.symbol_name_truncated);
     description.symbol_address = base + found.rva;
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
+OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
                      const ImageRegionVisitor visitor, void* const context) noexcept {
     const View<char> name(query.pe_section.data(), query.pe_section.count());
     if (containing) {
@@ -255,7 +255,7 @@ Status visit_regions(const ImageRegionQuery& query, const bool containing, const
         }
         static_cast<void>(visit_module(module, name, visitor, context));
         static_cast<void>(FreeLibrary(module));
-        return Status::success();
+        return OperationStatus::success();
     }
     const Operation operation = "stxlib.images.visit_regions";
     Growable<HMODULE> modules;
@@ -290,7 +290,7 @@ Status visit_regions(const ImageRegionQuery& query, const bool containing, const
         static_cast<void>(FreeLibrary(held));
         if (!more) break;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::image_backend

@@ -130,7 +130,7 @@ void start_on_main_thread(em_proxying_ctx* const context, void* const argument) 
     stxlib_web_start_sync(address_number(sync), sync->populate, EIO);
 }
 
-Status synchronise(const bool populate, const Operation operation) noexcept {
+OperationStatus synchronise(const bool populate, const Operation operation) noexcept {
     if (on_main_thread()) return main_thread_refusal(operation);
     void* const block = memory::allocate(sizeof(PendingSync), alignof(PendingSync));
     if (block == nullptr) return errno_failure(operation, ENOMEM, ErrorKind::out_of_memory);
@@ -145,7 +145,7 @@ Status synchronise(const bool populate, const Operation operation) noexcept {
     sync->~PendingSync();
     memory::release(block);
     if (status != 0) return errno_failure(operation, status, ErrorKind::io_failure);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 double name_number(const char* const name) {
@@ -193,7 +193,7 @@ bool rename_can_be_durable(const char* const name) noexcept {
     return possible != 0;
 }
 
-Status mount(const char* const name, const StorageKind kind) noexcept {
+OperationStatus mount(const char* const name, const StorageKind kind) noexcept {
     const Operation operation = "stxlib.web.mount";
     if (kind == StorageKind::origin_private) return errno_failure(operation, ENOTSUP, ErrorKind::unsupported);
     if (kind == StorageKind::indexed_db) {
@@ -210,7 +210,7 @@ Status mount(const char* const name, const StorageKind kind) noexcept {
     }
     const int made = make_directories(name);
     if (made != 0) return errno_failure(operation, made, ErrorKind::foreign_failure);
-    if (kind == StorageKind::memory) return Status::success();
+    if (kind == StorageKind::memory) return OperationStatus::success();
     // clang-format off
     const int mounted = MAIN_THREAD_EM_ASM_INT({
         try {
@@ -222,20 +222,20 @@ Status mount(const char* const name, const StorageKind kind) noexcept {
     }, name_number(name), EIO);
     // clang-format on
     if (mounted != 0) return errno_failure(operation, mounted, ErrorKind::foreign_failure);
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status restore() noexcept {
-    const Status result = synchronise(true, "stxlib.web.restore");
+OperationStatus restore() noexcept {
+    const OperationStatus result = synchronise(true, "stxlib.web.restore");
     return result;
 }
 
-Status persist() noexcept {
-    const Status result = synchronise(false, "stxlib.web.persist");
+OperationStatus persist() noexcept {
+    const OperationStatus result = synchronise(false, "stxlib.web.persist");
     return result;
 }
 
-Status persist_on_page_hide() noexcept {
+OperationStatus persist_on_page_hide() noexcept {
     const Operation operation = "stxlib.web.persist_on_page_hide";
     // clang-format off
     const int registered = MAIN_THREAD_EM_ASM_INT({
@@ -260,7 +260,7 @@ Status persist_on_page_hide() noexcept {
     }, ENOTSUP, EIO);
     // clang-format on
     if (registered != 0) return errno_failure(operation, registered, ErrorKind::foreign_failure);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::web_backend

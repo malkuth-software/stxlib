@@ -170,13 +170,13 @@ public:
     // A second queue with the same entries and sequence, so it removes the
     // same values in the same order. Needs Value's nothrow copy
     // constructor. Fails with out_of_memory when the allocator refuses.
-    [[nodiscard]] Result<PriorityQueue> copy() const noexcept {
-        Result<Vector<HeapEntry<Value>>> entries = entries_.copy();
-        if (entries.failed()) return Result<PriorityQueue>::failure(*entries.error());
+    [[nodiscard]] OperationResult<PriorityQueue> copy() const noexcept {
+        OperationResult<Vector<HeapEntry<Value>>> entries = entries_.copy();
+        if (entries.failed()) return OperationResult<PriorityQueue>::failure(*entries.error());
         PriorityQueue result;
-        result.entries_ = static_cast<Result<Vector<HeapEntry<Value>>>&&>(entries).take_value();
+        result.entries_ = static_cast<OperationResult<Vector<HeapEntry<Value>>>&&>(entries).take_value();
         result.next_sequence_ = next_sequence_;
-        return Result<PriorityQueue>::success(static_cast<PriorityQueue&&>(result));
+        return OperationResult<PriorityQueue>::success(static_cast<PriorityQueue&&>(result));
     }
     // The ordinary copy (owner 2026-11-16, notes decisions/2026-11-16-
     // vocabulary-copy.md): exhaustion fails fast with copy()'s record.
@@ -206,33 +206,33 @@ public:
     }
     ~PriorityQueue() = default;
 
-    [[nodiscard]] static Result<PriorityQueue> with_capacity(const usize room) noexcept {
+    [[nodiscard]] static OperationResult<PriorityQueue> with_capacity(const usize room) noexcept {
         PriorityQueue result;
-        const Status reserved = result.entries_.reserve(room);
-        if (reserved.failed()) return Result<PriorityQueue>::failure(*reserved.error());
-        return Result<PriorityQueue>::success(static_cast<PriorityQueue&&>(result));
+        const OperationStatus reserved = result.entries_.reserve(room);
+        if (reserved.failed()) return OperationResult<PriorityQueue>::failure(*reserved.error());
+        return OperationResult<PriorityQueue>::success(static_cast<PriorityQueue&&>(result));
     }
 
     [[nodiscard]] usize count() const noexcept { return entries_.count(); }
     [[nodiscard]] bool empty() const noexcept { return entries_.empty(); }
     [[nodiscard]] usize capacity() const noexcept { return entries_.capacity(); }
 
-    [[nodiscard]] Status reserve(const usize wanted) noexcept {
-        const Status result = entries_.reserve(wanted);
+    [[nodiscard]] OperationStatus reserve(const usize wanted) noexcept {
+        const OperationStatus result = entries_.reserve(wanted);
         return result;
     }
 
     // Adds a value. On failure (out_of_memory, limit_exceeded) the queue and
     // `value` are unchanged.
-    [[nodiscard]] Status push(Value&& value) noexcept {
+    [[nodiscard]] OperationStatus push(Value&& value) noexcept {
         if (next_sequence_ == u64_max) {
             const ErrorRecord exhausted = ErrorRecord::make(
                 ErrorKind::limit_exceeded, "stxlib.priority_queue.push",
                 ErrorDetail{.message = "2^64 - 1 insertions without the queue emptying"});
-            return Status::failure(exhausted);
+            return OperationStatus::failure(exhausted);
         }
         HeapEntry<Value> entry{static_cast<Value&&>(value), next_sequence_};
-        const Status pushed = entries_.push(static_cast<HeapEntry<Value>&&>(entry));
+        const OperationStatus pushed = entries_.push(static_cast<HeapEntry<Value>&&>(entry));
         if (pushed.failed()) {
             value = static_cast<Value&&>(entry.value);
             return pushed;

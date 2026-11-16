@@ -233,12 +233,12 @@ void wait_until_freed(TrampolineSlot& slot, const u64 generation) noexcept {
 
 } // namespace detail
 
-Result<TrampolineTable> TrampolineTable::create(const usize capacity) noexcept {
+OperationResult<TrampolineTable> TrampolineTable::create(const usize capacity) noexcept {
     if (capacity == 0 || capacity > trampoline_capacity_limit) {
         const ErrorRecord invalid = ErrorRecord::make(
             ErrorKind::invalid_argument, "stxlib.trampoline.create",
             ErrorDetail{.message = "the capacity must be 1 to trampoline_capacity_limit"});
-        return Result<TrampolineTable>::failure(invalid);
+        return OperationResult<TrampolineTable>::failure(invalid);
     }
     void* const table_block = memory::allocate(sizeof(detail::TrampolineSlots), alignof(detail::TrampolineSlots));
     void* const slot_block = memory::allocate(capacity * sizeof(detail::TrampolineSlot), alignof(detail::TrampolineSlot));
@@ -246,7 +246,7 @@ Result<TrampolineTable> TrampolineTable::create(const usize capacity) noexcept {
         memory::release(table_block);
         memory::release(slot_block);
         const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.trampoline.create");
-        return Result<TrampolineTable>::failure(exhausted);
+        return OperationResult<TrampolineTable>::failure(exhausted);
     }
     detail::TrampolineSlot* const slots = static_cast<detail::TrampolineSlot*>(slot_block);
     for (usize index = 0; index < capacity; ++index) {
@@ -259,7 +259,7 @@ Result<TrampolineTable> TrampolineTable::create(const usize capacity) noexcept {
     (*table).index_mask = (static_cast<u64>(1) << (*table).index_bits) - 1;
     (*table).generation_limit = detail::generation_limit_for((*table).index_bits);
     TrampolineTable result(table);
-    return Result<TrampolineTable>::success(static_cast<TrampolineTable&&>(result));
+    return OperationResult<TrampolineTable>::success(static_cast<TrampolineTable&&>(result));
 }
 
 TrampolineTable::~TrampolineTable() {
@@ -306,7 +306,7 @@ u64 TrampolineTable::generation_limit() const noexcept {
     return (*slots_).generation_limit;
 }
 
-Result<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
+OperationResult<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
     STXLIB_REQUIRE(target != nullptr, "TrampolineTable::attach: null target");
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::attach on a moved-from table");
     detail::TrampolineSlots& table = *slots_;
@@ -323,20 +323,20 @@ Result<TrampolineHandle> TrampolineTable::attach(void* const target) noexcept {
         slot.target.store(target, std::memory_order_relaxed);
         slot.state.store(detail::make_state(next, detail::Phase::attached), std::memory_order_seq_cst);
         const TrampolineHandle handle = detail::make_handle(index, next, table.index_bits);
-        return Result<TrampolineHandle>::success(handle);
+        return OperationResult<TrampolineHandle>::success(handle);
     }
     const ErrorRecord full = ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.trampoline.attach",
                                                ErrorDetail{.message = "every trampoline slot is in use"});
-    return Result<TrampolineHandle>::failure(full);
+    return OperationResult<TrampolineHandle>::failure(full);
 }
 
-Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) noexcept {
+OperationResult<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) noexcept {
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::enter on a moved-from table");
     detail::TrampolineSlots& table = *slots_;
     const usize index = table.index_of(handle);
     const u64 generation = table.generation_of_handle(handle);
     if (generation == 0 || generation > table.generation_limit || index >= table.capacity) {
-        return Result<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
+        return OperationResult<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
     }
     state::ThreadState* const kept = state::current_thread_state();
     if (kept == nullptr) {
@@ -345,19 +345,19 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
             const ErrorRecord ended = ErrorRecord::make(
                 ErrorKind::disposed, "stxlib.trampoline.enter",
                 ErrorDetail{.message = "this thread's state was released at its exit"});
-            return Result<TrampolineEntry>::failure(ended);
+            return OperationResult<TrampolineEntry>::failure(ended);
         }
         const ErrorRecord unallocated = ErrorRecord::make(
             ErrorKind::out_of_memory, "stxlib.trampoline.enter",
             ErrorDetail{.message = "this thread's state could not be allocated"});
-        return Result<TrampolineEntry>::failure(unallocated);
+        return OperationResult<TrampolineEntry>::failure(unallocated);
     }
     state::ThreadState& thread = *kept;
     if (thread.open_depth == trampoline_nesting_limit) {
         const ErrorRecord too_deep = ErrorRecord::make(
             ErrorKind::limit_exceeded, "stxlib.trampoline.enter",
             ErrorDetail{.message = "trampoline invocations are nested deeper than trampoline_nesting_limit"});
-        return Result<TrampolineEntry>::failure(too_deep);
+        return OperationResult<TrampolineEntry>::failure(too_deep);
     }
     detail::TrampolineSlot& slot = table.slots[index];
     slot.in_flight.fetch_add(1, std::memory_order_seq_cst);
@@ -367,15 +367,15 @@ Result<TrampolineEntry> TrampolineTable::enter(const TrampolineHandle handle) no
         if (state == detail::make_state(generation, detail::Phase::revoked)) {
             const ErrorRecord revoked = ErrorRecord::make(ErrorKind::revoked, "stxlib.trampoline.enter",
                                                           ErrorDetail{.message = "the trampoline handle is revoked"});
-            return Result<TrampolineEntry>::failure(revoked);
+            return OperationResult<TrampolineEntry>::failure(revoked);
         }
-        return Result<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
+        return OperationResult<TrampolineEntry>::failure(detail::stale("stxlib.trampoline.enter"));
     }
     void* const target = slot.target.load(std::memory_order_relaxed);
     thread.open[thread.open_depth] = state::OpenInvocation{slots_, handle.value()};
     thread.open_depth = thread.open_depth + 1;
     const TrampolineEntry entry{target, handle};
-    return Result<TrampolineEntry>::success(entry);
+    return OperationResult<TrampolineEntry>::success(entry);
 }
 
 void TrampolineTable::leave(const TrampolineEntry& entry) noexcept {
@@ -393,22 +393,22 @@ void TrampolineTable::leave(const TrampolineEntry& entry) noexcept {
     detail::depart(table.slots[index]);
 }
 
-Result<Revocation> TrampolineTable::revoke(const TrampolineHandle handle) noexcept {
+OperationResult<Revocation> TrampolineTable::revoke(const TrampolineHandle handle) noexcept {
     STXLIB_REQUIRE(slots_ != nullptr, "TrampolineTable::revoke on a moved-from table");
     detail::TrampolineSlots& table = *slots_;
     const usize index = table.index_of(handle);
     const u64 generation = table.generation_of_handle(handle);
     if (generation == 0 || generation > table.generation_limit || index >= table.capacity) {
-        return Result<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
+        return OperationResult<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
     }
     detail::TrampolineSlot& slot = table.slots[index];
     u64 expected = detail::make_state(generation, detail::Phase::attached);
     const bool revoked = slot.state.compare_exchange_strong(
         expected, detail::make_state(generation, detail::Phase::revoked), std::memory_order_seq_cst);
-    if (!revoked) return Result<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
-    if (detail::inside(slots_, handle.value())) return Result<Revocation>::success(Revocation::deferred);
+    if (!revoked) return OperationResult<Revocation>::failure(detail::stale("stxlib.trampoline.revoke"));
+    if (detail::inside(slots_, handle.value())) return OperationResult<Revocation>::success(Revocation::deferred);
     detail::wait_until_freed(slot, generation);
-    return Result<Revocation>::success(Revocation::completed);
+    return OperationResult<Revocation>::success(Revocation::completed);
 }
 
 } // namespace stxlib

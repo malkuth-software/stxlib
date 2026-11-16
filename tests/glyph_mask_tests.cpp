@@ -334,7 +334,7 @@ void shared_edges() {
     std::vector<u8> bytes(static_cast<usize>(bounds.width) * bounds.height, 0x5a);
     glyphs::Rasterizer rasterizer{};
     const stxlib::MutableView<u8> view(bytes.data(), bytes.size());
-    const stxlib::Status status = monochrome ? rasterizer.render_monochrome(outline_of(shape), glyphs::Point{}, bounds, limits, view)
+    const stxlib::OperationStatus status = monochrome ? rasterizer.render_monochrome(outline_of(shape), glyphs::Point{}, bounds, limits, view)
                                              : rasterizer.render(outline_of(shape), glyphs::Point{}, bounds, limits, view);
     rendered = rendered && status.succeeded();
     return bytes;
@@ -903,7 +903,7 @@ void bounds_and_refusals() {
     glyphs::Limits raised{};
     raised.width = static_cast<u32>(1) << 23;
     raised.height = static_cast<u32>(1) << 23;
-    stxlib::Status side = glyphs::measure(outline_of(wide), glyphs::Point{}, raised, bounds);
+    stxlib::OperationStatus side = glyphs::measure(outline_of(wide), glyphs::Point{}, raised, bounds);
     CHECK(side.failed() && (*side.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     Shape widest{};
     add_polygon(widest, {{0, 0}, {16384 * 64, 0}, {16384 * 64, 64}});
@@ -916,7 +916,7 @@ void bounds_and_refusals() {
     Shape headless{};
     headless.segments = {glyphs::Segment::line};
     headless.points = {{0, 0}};
-    stxlib::Status status = glyphs::measure(outline_of(headless), glyphs::Point{}, limits, bounds);
+    stxlib::OperationStatus status = glyphs::measure(outline_of(headless), glyphs::Point{}, limits, bounds);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument);
     // Points that do not match the segments.
     Shape short_of_points{};

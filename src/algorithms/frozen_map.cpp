@@ -175,20 +175,20 @@ private:
 // The checks every build shares: lengths, the key limit, and the weights'
 // lengths when weighted. Empty `key_weights` and `gap_weights` with
 // `weighted` false mean uniform weights.
-[[nodiscard]] Status check_shape(const usize key_count, const usize value_count, const bool weighted,
+[[nodiscard]] OperationStatus check_shape(const usize key_count, const usize value_count, const bool weighted,
                                  const usize key_weight_count, const usize gap_weight_count,
                                  const Operation operation) noexcept {
     if (key_count != value_count) {
-        return Status::failure(refused(ErrorKind::invalid_argument, operation, 0, "keys and values differ in length"));
+        return OperationStatus::failure(refused(ErrorKind::invalid_argument, operation, 0, "keys and values differ in length"));
     }
     if (key_count > FrozenMap::key_limit) {
-        return Status::failure(refused(ErrorKind::limit_exceeded, operation, 0, "too many keys for a frozen map"));
+        return OperationStatus::failure(refused(ErrorKind::limit_exceeded, operation, 0, "too many keys for a frozen map"));
     }
     if (weighted && (key_weight_count != key_count || gap_weight_count != key_count + 1)) {
-        return Status::failure(refused(ErrorKind::invalid_argument, operation, 0,
+        return OperationStatus::failure(refused(ErrorKind::invalid_argument, operation, 0,
                                        "one weight per key and one more gap weight than keys are needed"));
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // The search weights in the template's element type, and the construction:
@@ -229,18 +229,18 @@ struct Weights final {
 // Builds the template over `keys` (already checked ascending) with the
 // positions 0..count-1, and places it on memory::allocate.
 template <typename Map, typename Key>
-[[nodiscard]] Result<void*> place_map(const MutableView<Key> keys, const Weights& weights,
+[[nodiscard]] OperationResult<void*> place_map(const MutableView<Key> keys, const Weights& weights,
                                       const Operation operation) noexcept {
     const usize count = keys.count();
     Scratch<Position> positions(count);
-    if (!positions.ready()) return Result<void*>::failure(exhausted(operation));
+    if (!positions.ready()) return OperationResult<void*>::failure(exhausted(operation));
     for (usize index = 0; index < count; ++index) positions.data()[index] = static_cast<Position>(index);
-    Result<Map> built = Map::build(keys, positions.view(), weights.view(), weights.plan);
-    if (built.failed()) return Result<void*>::failure(*built.error());
+    OperationResult<Map> built = Map::build(keys, positions.view(), weights.view(), weights.plan);
+    if (built.failed()) return OperationResult<void*>::failure(*built.error());
     void* const storage = memory::allocate(sizeof(Map), alignof(Map));
-    if (storage == nullptr) return Result<void*>::failure(exhausted(operation));
-    ::new (storage) Map(static_cast<Result<Map>&&>(built).take_value());
-    return Result<void*>::success(storage);
+    if (storage == nullptr) return OperationResult<void*>::failure(exhausted(operation));
+    ::new (storage) Map(static_cast<OperationResult<Map>&&>(built).take_value());
+    return OperationResult<void*>::success(storage);
 }
 
 template <typename Map>
@@ -286,55 +286,55 @@ void FrozenMap::release() noexcept {
 
 namespace {
 
-[[nodiscard]] Result<FrozenMap> build_numbers(const View<u64> keys, const View<u64> values, const bool weighted,
+[[nodiscard]] OperationResult<FrozenMap> build_numbers(const View<u64> keys, const View<u64> values, const bool weighted,
                                               const View<u64> key_weights, const View<u64> gap_weights,
                                               const Operation operation, FrozenMap&& empty,
                                               Vector<u64>& stored_keys, Vector<u64>& stored_values,
                                               void*& map) noexcept {
-    const Status shape =
+    const OperationStatus shape =
         check_shape(keys.count(), values.count(), weighted, key_weights.count(), gap_weights.count(), operation);
-    if (shape.failed()) return Result<FrozenMap>::failure(*shape.error());
+    if (shape.failed()) return OperationResult<FrozenMap>::failure(*shape.error());
     for (usize index = 1; index < keys.count(); ++index) {
         if (keys[index - 1] >= keys[index]) {
-            return Result<FrozenMap>::failure(refused(ErrorKind::invalid_argument, operation, saturated(index),
+            return OperationResult<FrozenMap>::failure(refused(ErrorKind::invalid_argument, operation, saturated(index),
                                                       "keys are not strictly ascending"));
         }
     }
-    Result<Vector<u64>> copied_keys = Vector<u64>::copy_of(keys);
-    if (copied_keys.failed()) return Result<FrozenMap>::failure(*copied_keys.error());
-    Result<Vector<u64>> copied_values = Vector<u64>::copy_of(values);
-    if (copied_values.failed()) return Result<FrozenMap>::failure(*copied_values.error());
+    OperationResult<Vector<u64>> copied_keys = Vector<u64>::copy_of(keys);
+    if (copied_keys.failed()) return OperationResult<FrozenMap>::failure(*copied_keys.error());
+    OperationResult<Vector<u64>> copied_values = Vector<u64>::copy_of(values);
+    if (copied_values.failed()) return OperationResult<FrozenMap>::failure(*copied_values.error());
     if (keys.count() != 0) {
         const Weights search_weights(keys.count(), weighted, key_weights, gap_weights);
-        if (!search_weights.ready()) return Result<FrozenMap>::failure(exhausted(operation));
+        if (!search_weights.ready()) return OperationResult<FrozenMap>::failure(exhausted(operation));
         Scratch<std::uint64_t> template_keys(keys.count());
-        if (!template_keys.ready()) return Result<FrozenMap>::failure(exhausted(operation));
+        if (!template_keys.ready()) return OperationResult<FrozenMap>::failure(exhausted(operation));
         for (usize index = 0; index < keys.count(); ++index) {
             template_keys.data()[index] = static_cast<std::uint64_t>(keys[index]);
         }
-        Result<void*> placed = place_map<NumberMap>(template_keys.view(), search_weights, operation);
-        if (placed.failed()) return Result<FrozenMap>::failure(*placed.error());
+        OperationResult<void*> placed = place_map<NumberMap>(template_keys.view(), search_weights, operation);
+        if (placed.failed()) return OperationResult<FrozenMap>::failure(*placed.error());
         map = *placed.value();
     }
-    stored_keys = static_cast<Result<Vector<u64>>&&>(copied_keys).take_value();
-    stored_values = static_cast<Result<Vector<u64>>&&>(copied_values).take_value();
-    return Result<FrozenMap>::success(static_cast<FrozenMap&&>(empty));
+    stored_keys = static_cast<OperationResult<Vector<u64>>&&>(copied_keys).take_value();
+    stored_values = static_cast<OperationResult<Vector<u64>>&&>(copied_values).take_value();
+    return OperationResult<FrozenMap>::success(static_cast<FrozenMap&&>(empty));
 }
 
 } // namespace
 
-Result<FrozenMap> FrozenMap::build(const View<u64> keys, const View<u64> values) noexcept {
+OperationResult<FrozenMap> FrozenMap::build(const View<u64> keys, const View<u64> values) noexcept {
     FrozenMap result;
-    Result<FrozenMap> built = build_numbers(keys, values, false, View<u64>(), View<u64>(), "stxlib.frozen_map.build",
+    OperationResult<FrozenMap> built = build_numbers(keys, values, false, View<u64>(), View<u64>(), "stxlib.frozen_map.build",
                                             static_cast<FrozenMap&&>(result), result.keys_, result.values_,
                                             result.map_);
     return built;
 }
 
-Result<FrozenMap> FrozenMap::build_weighted(const View<u64> keys, const View<u64> values, const View<u64> key_weights,
+OperationResult<FrozenMap> FrozenMap::build_weighted(const View<u64> keys, const View<u64> values, const View<u64> key_weights,
                                             const View<u64> gap_weights) noexcept {
     FrozenMap result;
-    Result<FrozenMap> built =
+    OperationResult<FrozenMap> built =
         build_numbers(keys, values, true, key_weights, gap_weights, "stxlib.frozen_map.build_weighted",
                       static_cast<FrozenMap&&>(result), result.keys_, result.values_, result.map_);
     return built;
@@ -417,80 +417,80 @@ struct TextParts final {
     void*& map;
 };
 
-[[nodiscard]] Result<FrozenTextMap> build_texts(const View<TextView> keys, const View<u64> values,
+[[nodiscard]] OperationResult<FrozenTextMap> build_texts(const View<TextView> keys, const View<u64> values,
                                                 const bool weighted, const View<u64> key_weights,
                                                 const View<u64> gap_weights, const Operation operation,
                                                 FrozenTextMap&& empty, const TextParts parts) noexcept {
-    const Status shape =
+    const OperationStatus shape =
         check_shape(keys.count(), values.count(), weighted, key_weights.count(), gap_weights.count(), operation);
-    if (shape.failed()) return Result<FrozenTextMap>::failure(*shape.error());
+    if (shape.failed()) return OperationResult<FrozenTextMap>::failure(*shape.error());
     usize total = 0;
     for (usize index = 0; index < keys.count(); ++index) {
         if (index != 0 && compare_text(keys[index - 1], keys[index]) >= 0) {
-            return Result<FrozenTextMap>::failure(refused(ErrorKind::invalid_argument, operation, saturated(index),
+            return OperationResult<FrozenTextMap>::failure(refused(ErrorKind::invalid_argument, operation, saturated(index),
                                                           "keys are not strictly ascending"));
         }
         if (keys[index].count() > usize_max - total) {
-            return Result<FrozenTextMap>::failure(
+            return OperationResult<FrozenTextMap>::failure(
                 refused(ErrorKind::limit_exceeded, operation, 0, "the total key length is not representable"));
         }
         total = total + keys[index].count();
     }
-    Result<Vector<char>> made_bytes = Vector<char>::with_capacity(total);
-    if (made_bytes.failed()) return Result<FrozenTextMap>::failure(*made_bytes.error());
-    Vector<char> bytes = static_cast<Result<Vector<char>>&&>(made_bytes).take_value();
-    Result<Vector<usize>> made_starts = Vector<usize>::with_capacity(keys.count() + 1);
-    if (made_starts.failed()) return Result<FrozenTextMap>::failure(*made_starts.error());
-    Vector<usize> starts = static_cast<Result<Vector<usize>>&&>(made_starts).take_value();
-    Result<Vector<u64>> made_values = Vector<u64>::copy_of(values);
-    if (made_values.failed()) return Result<FrozenTextMap>::failure(*made_values.error());
+    OperationResult<Vector<char>> made_bytes = Vector<char>::with_capacity(total);
+    if (made_bytes.failed()) return OperationResult<FrozenTextMap>::failure(*made_bytes.error());
+    Vector<char> bytes = static_cast<OperationResult<Vector<char>>&&>(made_bytes).take_value();
+    OperationResult<Vector<usize>> made_starts = Vector<usize>::with_capacity(keys.count() + 1);
+    if (made_starts.failed()) return OperationResult<FrozenTextMap>::failure(*made_starts.error());
+    Vector<usize> starts = static_cast<OperationResult<Vector<usize>>&&>(made_starts).take_value();
+    OperationResult<Vector<u64>> made_values = Vector<u64>::copy_of(values);
+    if (made_values.failed()) return OperationResult<FrozenTextMap>::failure(*made_values.error());
     // Within the reserved capacities, so nothing below allocates.
     for (usize index = 0; index < keys.count(); ++index) {
-        const Status started = starts.push_copy(bytes.count());
+        const OperationStatus started = starts.push_copy(bytes.count());
         const View<char> key_bytes(keys[index].data(), keys[index].count());
-        const Status copied = bytes.append_copies(key_bytes);
+        const OperationStatus copied = bytes.append_copies(key_bytes);
         STXLIB_REQUIRE(started.succeeded() && copied.succeeded(), "FrozenTextMap: a copy within capacity failed");
     }
-    const Status ended = starts.push_copy(bytes.count());
+    const OperationStatus ended = starts.push_copy(bytes.count());
     STXLIB_REQUIRE(ended.succeeded(), "FrozenTextMap: a copy within capacity failed");
     if (keys.count() != 0) {
         const Weights search_weights(keys.count(), weighted, key_weights, gap_weights);
-        if (!search_weights.ready()) return Result<FrozenTextMap>::failure(exhausted(operation));
+        if (!search_weights.ready()) return OperationResult<FrozenTextMap>::failure(exhausted(operation));
         Scratch<std::string_view> template_keys(keys.count());
-        if (!template_keys.ready()) return Result<FrozenTextMap>::failure(exhausted(operation));
+        if (!template_keys.ready()) return OperationResult<FrozenTextMap>::failure(exhausted(operation));
         const char* const base = bytes.view().data();
         for (usize index = 0; index < keys.count(); ++index) {
             // The views point into `bytes`, whose block moves with it.
             ::new (static_cast<void*>(template_keys.data() + index))
                 std::string_view(base + starts[index], starts[index + 1] - starts[index]);
         }
-        Result<void*> placed = place_map<TextMap>(template_keys.view(), search_weights, operation);
-        if (placed.failed()) return Result<FrozenTextMap>::failure(*placed.error());
+        OperationResult<void*> placed = place_map<TextMap>(template_keys.view(), search_weights, operation);
+        if (placed.failed()) return OperationResult<FrozenTextMap>::failure(*placed.error());
         parts.map = *placed.value();
     }
     parts.bytes = static_cast<Vector<char>&&>(bytes);
     parts.starts = static_cast<Vector<usize>&&>(starts);
-    parts.values = static_cast<Result<Vector<u64>>&&>(made_values).take_value();
-    return Result<FrozenTextMap>::success(static_cast<FrozenTextMap&&>(empty));
+    parts.values = static_cast<OperationResult<Vector<u64>>&&>(made_values).take_value();
+    return OperationResult<FrozenTextMap>::success(static_cast<FrozenTextMap&&>(empty));
 }
 
 } // namespace
 
-Result<FrozenTextMap> FrozenTextMap::build(const View<TextView> keys, const View<u64> values) noexcept {
+OperationResult<FrozenTextMap> FrozenTextMap::build(const View<TextView> keys, const View<u64> values) noexcept {
     FrozenTextMap result;
     const TextParts parts{result.bytes_, result.starts_, result.values_, result.map_};
-    Result<FrozenTextMap> built = build_texts(keys, values, false, View<u64>(), View<u64>(),
+    OperationResult<FrozenTextMap> built = build_texts(keys, values, false, View<u64>(), View<u64>(),
                                               "stxlib.frozen_text_map.build", static_cast<FrozenTextMap&&>(result),
                                               parts);
     return built;
 }
 
-Result<FrozenTextMap> FrozenTextMap::build_weighted(const View<TextView> keys, const View<u64> values,
+OperationResult<FrozenTextMap> FrozenTextMap::build_weighted(const View<TextView> keys, const View<u64> values,
                                                     const View<u64> key_weights,
                                                     const View<u64> gap_weights) noexcept {
     FrozenTextMap result;
     const TextParts parts{result.bytes_, result.starts_, result.values_, result.map_};
-    Result<FrozenTextMap> built =
+    OperationResult<FrozenTextMap> built =
         build_texts(keys, values, true, key_weights, gap_weights, "stxlib.frozen_text_map.build_weighted",
                     static_cast<FrozenTextMap&&>(result), parts);
     return built;

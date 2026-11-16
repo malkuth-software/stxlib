@@ -92,8 +92,8 @@ using detail::write_rows;
 inline constexpr u32 value_shift = 2 * fraction_bits + 1 - 8;
 // No outline has more points than this, whatever the limit given.
 inline constexpr usize most_points = static_cast<usize>(1) << 30;
-[[nodiscard]] Status refuse(const ErrorKind kind, const Operation operation) noexcept {
-    const Status result = Status::failure(ErrorRecord::make(kind, operation));
+[[nodiscard]] OperationStatus refuse(const ErrorKind kind, const Operation operation) noexcept {
+    const OperationStatus result = OperationStatus::failure(ErrorRecord::make(kind, operation));
     return result;
 }
 
@@ -168,16 +168,16 @@ void write_mask(const i64* const cells, const usize stride, const usize width, c
 
 } // namespace
 
-Status measure(const Outline& outline, const Point offset, const Limits& limits, Bounds& bounds) noexcept {
+OperationStatus measure(const Outline& outline, const Point offset, const Limits& limits, Bounds& bounds) noexcept {
     const Operation operation("stxlib.glyphs.measure");
     bool too_many = false;
     if (!well_formed(outline, limits, too_many)) {
-        const Status refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
+        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
         return refused;
     }
     bounds = Bounds{};
     const usize count = outline.points.count();
-    if (count == 0) return Status::success();
+    if (count == 0) return OperationStatus::success();
     const Extent extent = extent_of(outline.points.data(), count);
     const i64 x_low = static_cast<i64>(extent.x_low) + offset.x;
     const i64 x_high = static_cast<i64>(extent.x_high) + offset.x;
@@ -202,7 +202,7 @@ Status measure(const Outline& outline, const Point offset, const Limits& limits,
                     .top = static_cast<i32>(top),
                     .width = static_cast<u32>(width),
                     .height = static_cast<u32>(height)};
-    return Status::success();
+    return OperationStatus::success();
 }
 
 namespace {
@@ -220,11 +220,11 @@ struct Checked final {
     bool done{false};
 };
 
-[[nodiscard]] Status check(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+[[nodiscard]] OperationStatus check(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
                            const MutableView<u8> mask, const Operation operation, Checked& checked) noexcept {
     bool too_many = false;
     if (!well_formed(outline, limits, too_many)) {
-        const Status refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
+        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
         return refused;
     }
     if (bounds.width > limits.width || bounds.height > limits.height || bounds.width > most_mask_side || bounds.height > most_mask_side) {
@@ -240,13 +240,13 @@ struct Checked final {
         // Nothing to write; an outline with points cannot fit such a box
         // unless it is a single dot or a line along a pixel edge, which
         // covers nothing.
-        return Status::success();
+        return OperationStatus::success();
     }
     const usize point_count = outline.points.count();
     if (point_count == 0) {
         u8* const out = mask.data();
         for (usize index = 0; index < width * height; ++index) out[index] = 0;
-        return Status::success();
+        return OperationStatus::success();
     }
     // Every point inside the box, checked once, before any arithmetic that
     // relies on it.
@@ -262,7 +262,7 @@ struct Checked final {
     checked.shift_x = offset.x - box_left;
     checked.shift_y = offset.y - box_bottom;
     checked.done = false;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 // A band of the coverage mask: the cells of its rows.
@@ -295,11 +295,11 @@ void put_on_columns(void* const context, const Fixed begin, const Fixed end) noe
 
 } // namespace
 
-Status Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+OperationStatus Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
                           const MutableView<u8> mask) noexcept {
     const Operation operation("stxlib.glyphs.render");
     Checked checked{};
-    const Status status = check(outline, offset, bounds, limits, mask, operation, checked);
+    const OperationStatus status = check(outline, offset, bounds, limits, mask, operation, checked);
     if (status.failed() || checked.done) return status;
     const usize width = checked.width;
     const usize height = checked.height;
@@ -326,7 +326,7 @@ Status Rasterizer::render(const Outline& outline, const Point offset, const Boun
                   .height = static_cast<i64>(height) * frame_one};
         accumulate(work, outline);
         write_mask(cells, stride, width, height, out);
-        return Status::success();
+        return OperationStatus::success();
     }
     // A band of rows at a time, as many rows as the cells allowed hold: the
     // outline's chords are gone through once for each band, and a band
@@ -350,14 +350,14 @@ Status Rasterizer::render(const Outline& outline, const Point offset, const Boun
         plain_chords(plain, outline);
         write_mask(cells, stride, width, rows, out + first * width);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
-Status Rasterizer::render_monochrome(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
+OperationStatus Rasterizer::render_monochrome(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
                                      const MutableView<u8> mask) noexcept {
     const Operation operation("stxlib.glyphs.render_monochrome");
     Checked checked{};
-    const Status status = check(outline, offset, bounds, limits, mask, operation, checked);
+    const OperationStatus status = check(outline, offset, bounds, limits, mask, operation, checked);
     if (status.failed() || checked.done) return status;
     const usize width = checked.width;
     const usize height = checked.height;
@@ -398,7 +398,7 @@ Status Rasterizer::render_monochrome(const Outline& outline, const Point offset,
         plain_chords(plain, outline);
         mark_columns(lines, width, height, out);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 void Rasterizer::release() noexcept {

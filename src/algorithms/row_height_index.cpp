@@ -65,13 +65,13 @@ static_assert(static_cast<u8>(stx_btree::RowState::estimated) == static_cast<u8>
     return held;
 }
 
-[[nodiscard]] Status failed(const ErrorKind kind, const Operation operation) noexcept {
-    return Status::failure(ErrorRecord::make(kind, operation));
+[[nodiscard]] OperationStatus failed(const ErrorKind kind, const Operation operation) noexcept {
+    return OperationStatus::failure(ErrorRecord::make(kind, operation));
 }
 
 // After the template refused an edit for which only a limit or memory can
 // refuse it.
-[[nodiscard]] Status limit_or_memory(const Index& index, const Operation operation) noexcept {
+[[nodiscard]] OperationStatus limit_or_memory(const Index& index, const Operation operation) noexcept {
     if (index.out_of_memory()) return failed(ErrorKind::out_of_memory, operation);
     return failed(ErrorKind::limit_exceeded, operation);
 }
@@ -104,20 +104,20 @@ void RowHeightIndex::settle(Cursor& cursor) noexcept {
 
 // ---- lifetime ---------------------------------------------------------------
 
-Result<RowHeightIndex> RowHeightIndex::create(const i64 estimate) noexcept {
+OperationResult<RowHeightIndex> RowHeightIndex::create(const i64 estimate) noexcept {
     void* const storage = memory::allocate(sizeof(Index), alignof(Index));
     if (storage == nullptr) {
-        return Result<RowHeightIndex>::failure(
+        return OperationResult<RowHeightIndex>::failure(
             ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.row_height_index.create"));
     }
     Index* const index = ::new (storage) Index(units(estimate));
     if (!(*index).constructed()) {
         destroy(storage);
-        return Result<RowHeightIndex>::failure(
+        return OperationResult<RowHeightIndex>::failure(
             ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.row_height_index.create"));
     }
     RowHeightIndex made(storage);
-    return Result<RowHeightIndex>::success(static_cast<RowHeightIndex&&>(made));
+    return OperationResult<RowHeightIndex>::success(static_cast<RowHeightIndex&&>(made));
 }
 
 RowHeightIndex::RowHeightIndex(RowHeightIndex&& other) noexcept : tree_(other.tree_) {
@@ -175,35 +175,35 @@ RowExtent RowHeightIndex::extent_of(const u64 row) const noexcept {
 
 // ---- edits ------------------------------------------------------------------
 
-Status RowHeightIndex::assign(const u64 rows, const i64 estimate) noexcept {
+OperationStatus RowHeightIndex::assign(const u64 rows, const i64 estimate) noexcept {
     Index& index = index_of(tree_);
-    if (index.assign(static_cast<stx_btree::RowCount>(rows), units(estimate))) return Status::success();
+    if (index.assign(static_cast<stx_btree::RowCount>(rows), units(estimate))) return OperationStatus::success();
     return limit_or_memory(index, "stxlib.row_height_index.assign");
 }
 
-Result<bool> RowHeightIndex::set_height(const u64 row, const i64 height) noexcept {
+OperationResult<bool> RowHeightIndex::set_height(const u64 row, const i64 height) noexcept {
     Index& index = index_of(tree_);
     if (row >= count() || height < 0 || height > height_limit) {
-        return Result<bool>::failure(
+        return OperationResult<bool>::failure(
             ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.row_height_index.set_height"));
     }
-    if (index.set_height(row_index(row), units(height))) return Result<bool>::success(true);
+    if (index.set_height(row_index(row), units(height))) return OperationResult<bool>::success(true);
     if (index.out_of_memory()) {
-        return Result<bool>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.row_height_index.set_height"));
+        return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.row_height_index.set_height"));
     }
     // Refused with the row and height valid: either the row already holds
     // this measured height, or the total would pass its limit.
     const stx_btree::RowExtent extent = index.extent_of(row_index(row));
     if (extent.state == stx_btree::RowState::measured && static_cast<i64>(extent.height.value) == height) {
-        return Result<bool>::success(false);
+        return OperationResult<bool>::success(false);
     }
-    return Result<bool>::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.row_height_index.set_height"));
+    return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.row_height_index.set_height"));
 }
 
-Status RowHeightIndex::set_heights(const u64 row, const View<i64> heights) noexcept {
+OperationStatus RowHeightIndex::set_heights(const u64 row, const View<i64> heights) noexcept {
     Index& index = index_of(tree_);
     const std::span<const i64> values(heights.data(), heights.count());
-    if (index.set_heights(row_index(row), values)) return Status::success();
+    if (index.set_heights(row_index(row), values)) return OperationStatus::success();
     if (index.out_of_memory()) return failed(ErrorKind::out_of_memory, "stxlib.row_height_index.set_heights");
     // Refused (unchanged): the range, a height, or the total.
     const u64 rows = count();
@@ -220,27 +220,27 @@ Status RowHeightIndex::set_heights(const u64 row, const View<i64> heights) noexc
     return failed(ErrorKind::limit_exceeded, "stxlib.row_height_index.set_heights");
 }
 
-Status RowHeightIndex::insert(const u64 row, const u64 rows) noexcept {
+OperationStatus RowHeightIndex::insert(const u64 row, const u64 rows) noexcept {
     Index& index = index_of(tree_);
-    if (index.insert(row_index(row), static_cast<stx_btree::RowCount>(rows))) return Status::success();
+    if (index.insert(row_index(row), static_cast<stx_btree::RowCount>(rows))) return OperationStatus::success();
     return limit_or_memory(index, "stxlib.row_height_index.insert");
 }
 
-Status RowHeightIndex::erase(const u64 row, const u64 rows) noexcept {
+OperationStatus RowHeightIndex::erase(const u64 row, const u64 rows) noexcept {
     Index& index = index_of(tree_);
-    if (index.erase(row_index(row), static_cast<stx_btree::RowCount>(rows))) return Status::success();
+    if (index.erase(row_index(row), static_cast<stx_btree::RowCount>(rows))) return OperationStatus::success();
     return failed(ErrorKind::out_of_memory, "stxlib.row_height_index.erase");
 }
 
-Status RowHeightIndex::forget(const u64 row, const u64 rows) noexcept {
+OperationStatus RowHeightIndex::forget(const u64 row, const u64 rows) noexcept {
     Index& index = index_of(tree_);
-    if (index.forget(row_index(row), static_cast<stx_btree::RowCount>(rows))) return Status::success();
+    if (index.forget(row_index(row), static_cast<stx_btree::RowCount>(rows))) return OperationStatus::success();
     return limit_or_memory(index, "stxlib.row_height_index.forget");
 }
 
-Status RowHeightIndex::coarsen(const u64 row, const u64 rows) noexcept {
+OperationStatus RowHeightIndex::coarsen(const u64 row, const u64 rows) noexcept {
     Index& index = index_of(tree_);
-    if (index.coarsen(row_index(row), static_cast<stx_btree::RowCount>(rows))) return Status::success();
+    if (index.coarsen(row_index(row), static_cast<stx_btree::RowCount>(rows))) return OperationStatus::success();
     return failed(ErrorKind::out_of_memory, "stxlib.row_height_index.coarsen");
 }
 

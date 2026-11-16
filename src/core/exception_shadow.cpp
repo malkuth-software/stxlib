@@ -304,18 +304,18 @@ usize recent_failure_count() noexcept {
     return result;
 }
 
-Result<ErrorRecord> recent_failure(const usize age) noexcept {
+OperationResult<ErrorRecord> recent_failure(const usize age) noexcept {
     const state::ThreadState* const kept_state = state::current_thread_state();
     if (kept_state == nullptr || age >= (*kept_state).recent_count) {
         const ErrorRecord missing = ErrorRecord::make(
             ErrorKind::not_found, "stxlib.shadow.recent_failure",
             ErrorDetail{.message = "the thread keeps fewer recent failures than that"});
-        return Result<ErrorRecord>::failure(missing);
+        return OperationResult<ErrorRecord>::failure(missing);
     }
     const state::ThreadState& thread = *kept_state;
     const usize slot = (thread.recent_newest + recent_failure_capacity - age) % recent_failure_capacity;
     const ErrorRecord kept = thread.recent[slot].record;
-    return Result<ErrorRecord>::success(kept);
+    return OperationResult<ErrorRecord>::success(kept);
 }
 
 void clear_recent_failures() noexcept {

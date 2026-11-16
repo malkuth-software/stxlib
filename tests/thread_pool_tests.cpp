@@ -21,13 +21,13 @@ using stxlib::AtomicPool;
 using stxlib::ErrorKind;
 using stxlib::PoolFailure;
 using stxlib::PoolTask;
-using stxlib::Result;
-using stxlib::Status;
+using stxlib::OperationResult;
+using stxlib::OperationStatus;
 using stxlib::u32;
 using stxlib::usize;
 using stxlib::View;
 
-bool refused_with(const Status& status, const PoolFailure failure) {
+bool refused_with(const OperationStatus& status, const PoolFailure failure) {
     if (status.succeeded()) return false;
     const stxlib::ErrorRecord& record = *status.error();
     const bool result = record.kind() == ErrorKind::invalid_argument && record.code() == static_cast<u32>(failure);
@@ -54,7 +54,7 @@ View<PoolTask> view_of(const std::vector<PoolTask>& tasks) {
 }
 
 AtomicPool create_or_fail(const u32 thread_count) {
-    Result<AtomicPool> created = AtomicPool::create(thread_count);
+    OperationResult<AtomicPool> created = AtomicPool::create(thread_count);
     CHECK(created.succeeded());
     if (created.failed()) return AtomicPool();
     AtomicPool result = std::move(created).take_value();
@@ -64,7 +64,7 @@ AtomicPool create_or_fail(const u32 thread_count) {
 // ---- Ported: creation, the empty pool, moving the owner ------------------------
 
 void creation() {
-    const Result<AtomicPool> rejected = AtomicPool::create(0);
+    const OperationResult<AtomicPool> rejected = AtomicPool::create(0);
     CHECK(rejected.failed());
     CHECK(refused_with(rejected.status(), PoolFailure::zero_threads));
 
@@ -73,7 +73,7 @@ void creation() {
     CHECK(!pool.is_worker());
 
     // Audit A, C7: the thread count is bounded before any thread starts.
-    const Result<AtomicPool> too_many = AtomicPool::create(stxlib::maximum_pool_threads + 1);
+    const OperationResult<AtomicPool> too_many = AtomicPool::create(stxlib::maximum_pool_threads + 1);
     CHECK(too_many.failed());
     CHECK(refused_with(too_many.status(), PoolFailure::too_many_threads));
 }
@@ -244,7 +244,7 @@ struct Contender final {
 void contend(const stxlib::StopSignal&, void* const address) noexcept {
     Contender& contender = *static_cast<Contender*>(address);
     contender.started.store(true, std::memory_order_release);
-    const Status status = (*contender.pool).run(view_of(*contender.tasks));
+    const OperationStatus status = (*contender.pool).run(view_of(*contender.tasks));
     contender.succeeded.store(status.succeeded(), std::memory_order_relaxed);
     contender.finished.store(true, std::memory_order_release);
 }
@@ -271,7 +271,7 @@ void serialization() {
     Contender contender{};
     contender.pool = &pool;
     contender.tasks = &tasks;
-    Result<stxlib::Thread> started = stxlib::Thread::start(contend, &contender);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(contend, &contender);
     CHECK(started.succeeded());
     while (!contender.started.load(std::memory_order_acquire)) stxlib::yield_thread();
     stxlib::sleep_for(stxlib::Duration::milliseconds(20));
@@ -304,7 +304,7 @@ struct StrayWaiter final {
 
 void stray_wait(const stxlib::StopSignal&, void* const address) noexcept {
     StrayWaiter& waiter = *static_cast<StrayWaiter*>(address);
-    const Status status = (*waiter.pool).wait();
+    const OperationStatus status = (*waiter.pool).wait();
     if (waiter.idle) {
         waiter.idle_wait_succeeded.store(status.succeeded(), std::memory_order_relaxed);
     } else {
@@ -320,7 +320,7 @@ void wait_from_another_thread() {
     CHECK(pool.begin(View<PoolTask>(gated)).succeeded());
     StrayWaiter waiter{};
     waiter.pool = &pool;
-    Result<stxlib::Thread> started = stxlib::Thread::start(stray_wait, &waiter);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(stray_wait, &waiter);
     CHECK(started.succeeded());
     if (started.succeeded()) {
         stxlib::Thread thread = std::move(started).take_value();
@@ -335,7 +335,7 @@ void wait_from_another_thread() {
     StrayWaiter idle{};
     idle.pool = &pool;
     idle.idle = true;
-    Result<stxlib::Thread> idle_started = stxlib::Thread::start(stray_wait, &idle);
+    OperationResult<stxlib::Thread> idle_started = stxlib::Thread::start(stray_wait, &idle);
     CHECK(idle_started.succeeded());
     if (idle_started.succeeded()) {
         stxlib::Thread thread = std::move(idle_started).take_value();

@@ -9,7 +9,7 @@
 //
 // Failure inside the reader is a bool: a function that can fail returns
 // false after fail() has recorded why, and its caller returns false at
-// once. parse (parse.cpp) turns the record into the Status.
+// once. parse (parse.cpp) turns the record into the OperationStatus.
 
 #include "algorithms/markdown/characters.hpp"
 #include "stxlib/markdown.hpp"

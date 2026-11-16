@@ -39,23 +39,23 @@ usize page_size() noexcept {
     return result;
 }
 
-Result<PageBlock> PageBlock::map(const usize bytes) noexcept {
+OperationResult<PageBlock> PageBlock::map(const usize bytes) noexcept {
     const Operation operation = "stxlib.pages.map";
     if (!capability_supported(Capability::page_protection)) {
-        return Result<PageBlock>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
-    if (bytes == 0) return Result<PageBlock>::success(PageBlock());
+    if (bytes == 0) return OperationResult<PageBlock>::success(PageBlock());
     const usize page = page_size();
     if (bytes > usize_max - (page - 1)) {
-        return Result<PageBlock>::failure(host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
+        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
     }
     const usize whole = (bytes + page - 1) / page * page;
     void* const mapped = VirtualAlloc(nullptr, static_cast<SIZE_T>(whole), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (mapped == nullptr) {
         const ErrorRecord record = host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none, last_error());
-        return Result<PageBlock>::failure(record);
+        return OperationResult<PageBlock>::failure(record);
     }
-    return Result<PageBlock>::success(PageBlock(static_cast<Byte*>(mapped), bytes, whole));
+    return OperationResult<PageBlock>::success(PageBlock(static_cast<Byte*>(mapped), bytes, whole));
 }
 
 PageBlock::~PageBlock() { unmap(); }
@@ -88,19 +88,19 @@ MutableView<Byte> PageBlock::writable() & noexcept {
     return result;
 }
 
-Status PageBlock::seal() noexcept {
+OperationStatus PageBlock::seal() noexcept {
     const Operation operation = "stxlib.pages.seal";
     if (sealed_) return host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::sealed);
     if (base_ == nullptr) {
         sealed_ = true;
-        return Status::success();
+        return OperationStatus::success();
     }
     DWORD previous = 0;
     if (VirtualProtect(base_, static_cast<SIZE_T>(mapped_), PAGE_READONLY, &previous) == 0) {
         return host_failure::failed(ErrorKind::foreign_failure, operation, HostCode::none, last_error());
     }
     sealed_ = true;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 void PageBlock::unmap() noexcept {

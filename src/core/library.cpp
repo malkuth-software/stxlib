@@ -21,18 +21,18 @@ namespace {
 constexpr usize maximum_file_name_bytes = 255;
 constexpr usize maximum_symbol_bytes = 4096;
 
-Status refused(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_name);
+OperationStatus refused(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_name);
     return result;
 }
 
-Status unsupported(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
+OperationStatus unsupported(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
     return result;
 }
 
-Status exhausted(const Operation operation) noexcept {
-    const Status result = host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
+OperationStatus exhausted(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::out_of_memory, operation, HostCode::none);
     return result;
 }
 
@@ -87,14 +87,14 @@ bool native_path(const Path& path, Growable<char>& output, bool& representable) 
 #endif
 }
 
-Result<Library> failed_library(const Status& status) noexcept {
-    Result<Library> result = Result<Library>::failure(*status.error());
+OperationResult<Library> failed_library(const OperationStatus& status) noexcept {
+    OperationResult<Library> result = OperationResult<Library>::failure(*status.error());
     return result;
 }
 
 } // namespace
 
-Result<Library> Library::open(const Path& path) noexcept {
+OperationResult<Library> Library::open(const Path& path) noexcept {
     const Operation operation = "stxlib.library.open";
     if (!capability_supported(Capability::dynamic_libraries)) return failed_library(unsupported(operation));
     if (!path.is_absolute()) return failed_library(refused(operation));
@@ -105,33 +105,33 @@ Result<Library> Library::open(const Path& path) noexcept {
         return failed_library(exhausted(operation));
     }
     uptr handle = 0;
-    const Status opened = image_backend::open_library(name.data(), image_backend::LoadMode::path, handle);
+    const OperationStatus opened = image_backend::open_library(name.data(), image_backend::LoadMode::path, handle);
     if (opened.failed()) return failed_library(opened);
-    return Result<Library>::success(Library(handle));
+    return OperationResult<Library>::success(Library(handle));
 }
 
-Result<Library> Library::open_system(const TextView file_name) noexcept {
+OperationResult<Library> Library::open_system(const TextView file_name) noexcept {
     const Operation operation = "stxlib.library.open_system";
     if (!capability_supported(Capability::dynamic_libraries)) return failed_library(unsupported(operation));
     if (!acceptable_file_name(file_name)) return failed_library(refused(operation));
     Growable<char> name;
     if (!terminated(file_name, name)) return failed_library(exhausted(operation));
     uptr handle = 0;
-    const Status opened = image_backend::open_library(name.data(), image_backend::LoadMode::system, handle);
+    const OperationStatus opened = image_backend::open_library(name.data(), image_backend::LoadMode::system, handle);
     if (opened.failed()) return failed_library(opened);
-    return Result<Library>::success(Library(handle));
+    return OperationResult<Library>::success(Library(handle));
 }
 
-Result<Library> Library::find_loaded(const TextView file_name) noexcept {
+OperationResult<Library> Library::find_loaded(const TextView file_name) noexcept {
     const Operation operation = "stxlib.library.find_loaded";
     if (!capability_supported(Capability::dynamic_libraries)) return failed_library(unsupported(operation));
     if (!acceptable_file_name(file_name)) return failed_library(refused(operation));
     Growable<char> name;
     if (!terminated(file_name, name)) return failed_library(exhausted(operation));
     uptr handle = 0;
-    const Status opened = image_backend::open_library(name.data(), image_backend::LoadMode::loaded_only, handle);
+    const OperationStatus opened = image_backend::open_library(name.data(), image_backend::LoadMode::loaded_only, handle);
     if (opened.failed()) return failed_library(opened);
-    return Result<Library>::success(Library(handle));
+    return OperationResult<Library>::success(Library(handle));
 }
 
 Library::~Library() {
@@ -146,34 +146,34 @@ Library& Library::operator=(Library&& other) noexcept {
     return *this;
 }
 
-Result<SymbolAddress> Library::symbol(const TextView name) const noexcept {
+OperationResult<SymbolAddress> Library::symbol(const TextView name) const noexcept {
     const Operation operation = "stxlib.library.symbol";
     if (handle_ == 0) {
         const ErrorRecord record = host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle);
-        return Result<SymbolAddress>::failure(record);
+        return OperationResult<SymbolAddress>::failure(record);
     }
     if (!acceptable_symbol(name)) {
-        const Status refusal = refused(operation);
-        return Result<SymbolAddress>::failure(*refusal.error());
+        const OperationStatus refusal = refused(operation);
+        return OperationResult<SymbolAddress>::failure(*refusal.error());
     }
     Growable<char> terminated_name;
     if (!terminated(name, terminated_name)) {
-        const Status exhaustion = exhausted(operation);
-        return Result<SymbolAddress>::failure(*exhaustion.error());
+        const OperationStatus exhaustion = exhausted(operation);
+        return OperationResult<SymbolAddress>::failure(*exhaustion.error());
     }
     uptr address = 0;
-    const Status found = image_backend::find_symbol(handle_, terminated_name.data(), address);
-    if (found.failed()) return Result<SymbolAddress>::failure(*found.error());
-    return Result<SymbolAddress>::success(SymbolAddress(address));
+    const OperationStatus found = image_backend::find_symbol(handle_, terminated_name.data(), address);
+    if (found.failed()) return OperationResult<SymbolAddress>::failure(*found.error());
+    return OperationResult<SymbolAddress>::success(SymbolAddress(address));
 }
 
-Status Library::close() noexcept {
+OperationStatus Library::close() noexcept {
     if (handle_ == 0) {
         return host_failure::failed(ErrorKind::disposed, "stxlib.library.close", HostCode::closed_handle);
     }
     const uptr handle = handle_;
     handle_ = 0;
-    const Status result = image_backend::close_library(handle);
+    const OperationStatus result = image_backend::close_library(handle);
     return result;
 }
 

@@ -120,7 +120,7 @@ bool is_requested(const i32 value) noexcept {
 // refuses any longer value before it is copied.
 i32 level_from_environment() noexcept {
     constexpr usize value_limit = 15;
-    const Result<Utf8String> value = read_variable("STX_SIMD_LEVEL", value_limit);
+    const OperationResult<Utf8String> value = read_variable("STX_SIMD_LEVEL", value_limit);
     if (value.failed()) return unset;
     const TextView text = (*value.value()).view();
     if (text == TextView("scalar")) return static_cast<i32>(Level::scalar);

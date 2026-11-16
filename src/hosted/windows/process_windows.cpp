@@ -36,11 +36,11 @@
 
 namespace stxlib::process_backend {
 
-Status arguments(const usize limit, Growable<char>& raw) noexcept {
+OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
     const Operation operation = "stxlib.process.arguments";
     raw.clear();
     const wchar_t* const line = GetCommandLineW();
-    if (line == nullptr) return Status::success();
+    if (line == nullptr) return OperationStatus::success();
     const usize units = static_cast<usize>(std::wcslen(line));
     // Every unit takes at least one byte of WTF-8, so a line of more units
     // than the limit is refused before converting.
@@ -54,7 +54,7 @@ Status arguments(const usize limit, Growable<char>& raw) noexcept {
         raw.clear();
         return host_failure::failed(ErrorKind::limit_exceeded, operation, HostCode::too_long);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 u64 process_id() noexcept {
@@ -62,12 +62,12 @@ u64 process_id() noexcept {
     return result;
 }
 
-Status is_main_thread(bool& initial) noexcept {
+OperationStatus is_main_thread(bool& initial) noexcept {
     initial = false;
     return host_failure::failed(ErrorKind::unsupported, "stxlib.threads.is_main_thread", HostCode::none);
 }
 
-Status memory(ProcessMemory& report) noexcept {
+OperationStatus memory(ProcessMemory& report) noexcept {
     report = ProcessMemory{};
     PROCESS_MEMORY_COUNTERS counters{};
     counters.cb = sizeof counters;
@@ -77,7 +77,7 @@ Status memory(ProcessMemory& report) noexcept {
     }
     report.resident_bytes = static_cast<u64>(counters.WorkingSetSize);
     report.peak_resident_bytes = static_cast<u64>(counters.PeakWorkingSetSize);
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::process_backend

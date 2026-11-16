@@ -32,15 +32,15 @@ inline constexpr ArgumentForm argument_form = ArgumentForm::nul_separated;
 // Replaces `raw` with the arguments in the family's form. Fails with
 // limit_exceeded (HostCode::too_long) when they hold more than `limit`
 // bytes, found before copying where the host says the size first.
-[[nodiscard]] Status arguments(usize limit, Growable<char>& raw) noexcept;
+[[nodiscard]] OperationStatus arguments(usize limit, Growable<char>& raw) noexcept;
 
 [[nodiscard]] u64 process_id() noexcept;
 
 // Whether the calling thread is the initial thread, or unsupported.
-[[nodiscard]] Status is_main_thread(bool& initial) noexcept;
+[[nodiscard]] OperationStatus is_main_thread(bool& initial) noexcept;
 
 // The resident sizes, before core raises the peak to at least the current
 // size.
-[[nodiscard]] Status memory(ProcessMemory& report) noexcept;
+[[nodiscard]] OperationStatus memory(ProcessMemory& report) noexcept;
 
 } // namespace stxlib::process_backend

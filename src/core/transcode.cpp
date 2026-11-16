@@ -141,15 +141,15 @@ bool is_scalar(const u32 code_point) noexcept {
 // through a local buffer, in pieces that end on code point boundaries.
 // `text` has already been reserved for them, so no append allocates.
 template <typename Producer>
-Status append_produced(Utf8String& text, Producer& produce) noexcept {
+OperationStatus append_produced(Utf8String& text, Producer& produce) noexcept {
     const usize start = text.count();
     char piece[256];
     usize filled = 0;
     while (produce.more()) {
         if (filled + 4 > sizeof(piece)) {
-            const Status appended = text.append(detail::TextViewAccess::adopt_validated(piece, filled));
+            const OperationStatus appended = text.append(detail::TextViewAccess::adopt_validated(piece, filled));
             if (appended.failed()) {
-                const Status restored = text.truncate(start);
+                const OperationStatus restored = text.truncate(start);
                 STXLIB_REQUIRE(restored.succeeded(), "transcode: restoring the text failed");
                 return appended;
             }
@@ -158,14 +158,14 @@ Status append_produced(Utf8String& text, Producer& produce) noexcept {
         filled = filled + wtf8::encode(produce.next(), piece + filled);
     }
     if (filled != 0) {
-        const Status appended = text.append(detail::TextViewAccess::adopt_validated(piece, filled));
+        const OperationStatus appended = text.append(detail::TextViewAccess::adopt_validated(piece, filled));
         if (appended.failed()) {
-            const Status restored = text.truncate(start);
+            const OperationStatus restored = text.truncate(start);
             STXLIB_REQUIRE(restored.succeeded(), "transcode: restoring the text failed");
             return appended;
         }
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 struct ScalarCursor final {
@@ -181,9 +181,9 @@ struct ScalarCursor final {
     }
 };
 
-Status reserve_more(Utf8String& text, const usize bytes, const Operation operation) noexcept {
-    if (bytes > usize_max - 1 - text.count()) return Status::failure(text_too_long(operation));
-    const Status result = text.reserve(text.count() + bytes);
+OperationStatus reserve_more(Utf8String& text, const usize bytes, const Operation operation) noexcept {
+    if (bytes > usize_max - 1 - text.count()) return OperationStatus::failure(text_too_long(operation));
+    const OperationStatus result = text.reserve(text.count() + bytes);
     return result;
 }
 
@@ -225,22 +225,22 @@ usize code_point_count(const TextView text) noexcept {
     return result;
 }
 
-Result<DecodedCodePoint> code_point_at(const TextView text, const usize offset) noexcept {
+OperationResult<DecodedCodePoint> code_point_at(const TextView text, const usize offset) noexcept {
     if (offset >= text.count()) {
         const ErrorRecord refused = ErrorRecord::make(ErrorKind::out_of_range, "stxlib.transcode.code_point_at",
                                                       ErrorDetail{.message = "the offset is not inside the text"});
-        return Result<DecodedCodePoint>::failure(refused);
+        return OperationResult<DecodedCodePoint>::failure(refused);
     }
     const char* const bytes = text.data();
     if ((static_cast<u8>(bytes[offset]) & 0xc0U) == 0x80U) {
         const ErrorRecord refused = bad_unit("stxlib.transcode.code_point_at", offset,
                                              "the offset is not on a code point boundary");
-        return Result<DecodedCodePoint>::failure(refused);
+        return OperationResult<DecodedCodePoint>::failure(refused);
     }
     const usize length = detail::utf8_sequence_length(bytes, text.count(), offset);
     STXLIB_REQUIRE(length != 0, "code_point_at: a TextView that is not well-formed UTF-8");
     const DecodedCodePoint decoded{wtf8::decode(bytes, offset, length), static_cast<u32>(length)};
-    return Result<DecodedCodePoint>::success(decoded);
+    return OperationResult<DecodedCodePoint>::success(decoded);
 }
 
 // ---- UTF-16 -----------------------------------------------------------------
@@ -258,13 +258,13 @@ usize utf16_count(const TextView text) noexcept {
     return result;
 }
 
-Result<usize> utf8_count_of_utf16(const View<u16> units) noexcept {
+OperationResult<usize> utf8_count_of_utf16(const View<u16> units) noexcept {
     const UnitsMeasure measured = measure_units(units, true);
     if (!measured.well_formed) {
-        return Result<usize>::failure(
+        return OperationResult<usize>::failure(
             bad_unit("stxlib.transcode.utf8_count_of_utf16", measured.bad_index, "an unpaired surrogate"));
     }
-    return Result<usize>::success(measured.bytes);
+    return OperationResult<usize>::success(measured.bytes);
 }
 
 namespace {
@@ -288,93 +288,93 @@ void write_text_as_utf16(const TextView text, u16* const output) noexcept {
 
 } // namespace
 
-Result<usize> write_utf16(const TextView text, const MutableView<u16> output) noexcept {
+OperationResult<usize> write_utf16(const TextView text, const MutableView<u16> output) noexcept {
     const usize needed = utf16_count(text);
-    if (needed > output.count()) return Result<usize>::failure(output_too_short("stxlib.transcode.write_utf16"));
+    if (needed > output.count()) return OperationResult<usize>::failure(output_too_short("stxlib.transcode.write_utf16"));
     write_text_as_utf16(text, output.data());
-    return Result<usize>::success(needed);
+    return OperationResult<usize>::success(needed);
 }
 
-Result<usize> write_utf8_of_utf16(const View<u16> units, const MutableView<char> output) noexcept {
+OperationResult<usize> write_utf8_of_utf16(const View<u16> units, const MutableView<char> output) noexcept {
     const UnitsMeasure measured = measure_units(units, true);
     if (!measured.well_formed) {
-        return Result<usize>::failure(
+        return OperationResult<usize>::failure(
             bad_unit("stxlib.transcode.write_utf8_of_utf16", measured.bad_index, "an unpaired surrogate"));
     }
     if (measured.bytes > output.count()) {
-        return Result<usize>::failure(output_too_short("stxlib.transcode.write_utf8_of_utf16"));
+        return OperationResult<usize>::failure(output_too_short("stxlib.transcode.write_utf8_of_utf16"));
     }
     write_units_as_utf8(units, output.data());
-    return Result<usize>::success(measured.bytes);
+    return OperationResult<usize>::success(measured.bytes);
 }
 
-Result<Vector<u16>> utf16_of(const TextView text) noexcept {
+OperationResult<Vector<u16>> utf16_of(const TextView text) noexcept {
     const usize needed = utf16_count(text);
-    Result<Vector<u16>> made = Vector<u16>::with_capacity(needed);
+    OperationResult<Vector<u16>> made = Vector<u16>::with_capacity(needed);
     if (made.failed()) return made;
-    Vector<u16> result = static_cast<Result<Vector<u16>>&&>(made).take_value();
-    const Status sized = result.resize(needed);
+    Vector<u16> result = static_cast<OperationResult<Vector<u16>>&&>(made).take_value();
+    const OperationStatus sized = result.resize(needed);
     STXLIB_REQUIRE(sized.succeeded(), "utf16_of: resizing within the reserved capacity failed");
     if (needed != 0) write_text_as_utf16(text, result.mutable_view().data());
-    return Result<Vector<u16>>::success(static_cast<Vector<u16>&&>(result));
+    return OperationResult<Vector<u16>>::success(static_cast<Vector<u16>&&>(result));
 }
 
-Status append_utf16(Utf8String& text, const View<u16> units) noexcept {
+OperationStatus append_utf16(Utf8String& text, const View<u16> units) noexcept {
     const UnitsMeasure measured = measure_units(units, true);
     if (!measured.well_formed) {
-        return Status::failure(bad_unit("stxlib.transcode.append_utf16", measured.bad_index, "an unpaired surrogate"));
+        return OperationStatus::failure(bad_unit("stxlib.transcode.append_utf16", measured.bad_index, "an unpaired surrogate"));
     }
-    const Status reserved = reserve_more(text, measured.bytes, "stxlib.transcode.append_utf16");
+    const OperationStatus reserved = reserve_more(text, measured.bytes, "stxlib.transcode.append_utf16");
     if (reserved.failed()) return reserved;
     UnitCursor cursor{units.data(), units.count(), 0};
-    const Status result = append_produced(text, cursor);
+    const OperationStatus result = append_produced(text, cursor);
     return result;
 }
 
-Result<Utf8String> text_of_utf16(const View<u16> units) noexcept {
+OperationResult<Utf8String> text_of_utf16(const View<u16> units) noexcept {
     Utf8String result;
-    const Status appended = append_utf16(result, units);
-    if (appended.failed()) return Result<Utf8String>::failure(*appended.error());
-    return Result<Utf8String>::success(static_cast<Utf8String&&>(result));
+    const OperationStatus appended = append_utf16(result, units);
+    if (appended.failed()) return OperationResult<Utf8String>::failure(*appended.error());
+    return OperationResult<Utf8String>::success(static_cast<Utf8String&&>(result));
 }
 
 // ---- UTF-32 -----------------------------------------------------------------
 
-Result<Vector<u32>> utf32_of(const TextView text) noexcept {
+OperationResult<Vector<u32>> utf32_of(const TextView text) noexcept {
     const usize needed = code_point_count(text);
-    Result<Vector<u32>> made = Vector<u32>::with_capacity(needed);
+    OperationResult<Vector<u32>> made = Vector<u32>::with_capacity(needed);
     if (made.failed()) return made;
-    Vector<u32> result = static_cast<Result<Vector<u32>>&&>(made).take_value();
+    Vector<u32> result = static_cast<OperationResult<Vector<u32>>&&>(made).take_value();
     TextCursor cursor{text.data(), text.count(), 0};
     while (cursor.more()) {
-        const Status pushed = result.push_copy(cursor.next());
+        const OperationStatus pushed = result.push_copy(cursor.next());
         STXLIB_REQUIRE(pushed.succeeded(), "utf32_of: a push within the reserved capacity failed");
     }
-    return Result<Vector<u32>>::success(static_cast<Vector<u32>&&>(result));
+    return OperationResult<Vector<u32>>::success(static_cast<Vector<u32>&&>(result));
 }
 
-Status append_utf32(Utf8String& text, const View<u32> code_points) noexcept {
+OperationStatus append_utf32(Utf8String& text, const View<u32> code_points) noexcept {
     usize bytes = 0;
     for (usize index = 0; index < code_points.count(); ++index) {
         const u32 code_point = code_points[index];
         if (!is_scalar(code_point)) {
-            return Status::failure(
+            return OperationStatus::failure(
                 bad_unit("stxlib.transcode.append_utf32", index, "a value that is not a Unicode scalar value"));
         }
         bytes = bytes + utf8_length_of(code_point);
     }
-    const Status reserved = reserve_more(text, bytes, "stxlib.transcode.append_utf32");
+    const OperationStatus reserved = reserve_more(text, bytes, "stxlib.transcode.append_utf32");
     if (reserved.failed()) return reserved;
     ScalarCursor cursor{code_points.data(), code_points.count(), 0};
-    const Status result = append_produced(text, cursor);
+    const OperationStatus result = append_produced(text, cursor);
     return result;
 }
 
-Result<Utf8String> text_of_utf32(const View<u32> code_points) noexcept {
+OperationResult<Utf8String> text_of_utf32(const View<u32> code_points) noexcept {
     Utf8String result;
-    const Status appended = append_utf32(result, code_points);
-    if (appended.failed()) return Result<Utf8String>::failure(*appended.error());
-    return Result<Utf8String>::success(static_cast<Utf8String&&>(result));
+    const OperationStatus appended = append_utf32(result, code_points);
+    if (appended.failed()) return OperationResult<Utf8String>::failure(*appended.error());
+    return OperationResult<Utf8String>::success(static_cast<Utf8String&&>(result));
 }
 
 // ---- WTF-8 ------------------------------------------------------------------
@@ -385,42 +385,42 @@ bool is_wtf8(const View<char> bytes) noexcept {
     return result;
 }
 
-Result<Vector<char>> wtf8_of_utf16(const View<u16> units) noexcept {
+OperationResult<Vector<char>> wtf8_of_utf16(const View<u16> units) noexcept {
     const UnitsMeasure measured = measure_units(units, false);
-    Result<Vector<char>> made = Vector<char>::with_capacity(measured.bytes);
+    OperationResult<Vector<char>> made = Vector<char>::with_capacity(measured.bytes);
     if (made.failed()) return made;
-    Vector<char> result = static_cast<Result<Vector<char>>&&>(made).take_value();
-    const Status sized = result.resize(measured.bytes);
+    Vector<char> result = static_cast<OperationResult<Vector<char>>&&>(made).take_value();
+    const OperationStatus sized = result.resize(measured.bytes);
     STXLIB_REQUIRE(sized.succeeded(), "wtf8_of_utf16: resizing within the reserved capacity failed");
     if (measured.bytes != 0) write_units_as_utf8(units, result.mutable_view().data());
-    return Result<Vector<char>>::success(static_cast<Vector<char>&&>(result));
+    return OperationResult<Vector<char>>::success(static_cast<Vector<char>&&>(result));
 }
 
-Result<Vector<u16>> utf16_of_wtf8(const View<char> bytes) noexcept {
+OperationResult<Vector<u16>> utf16_of_wtf8(const View<char> bytes) noexcept {
     const Wtf8Measure measured = measure_wtf8(bytes.data(), bytes.count());
     if (measured.stopped != bytes.count()) {
-        return Result<Vector<u16>>::failure(
+        return OperationResult<Vector<u16>>::failure(
             bad_unit("stxlib.transcode.utf16_of_wtf8", measured.stopped, "the bytes are not well-formed WTF-8"));
     }
-    Result<Vector<u16>> made = Vector<u16>::with_capacity(measured.units);
+    OperationResult<Vector<u16>> made = Vector<u16>::with_capacity(measured.units);
     if (made.failed()) return made;
-    Vector<u16> result = static_cast<Result<Vector<u16>>&&>(made).take_value();
+    Vector<u16> result = static_cast<OperationResult<Vector<u16>>&&>(made).take_value();
     usize index = 0;
     while (index < bytes.count()) {
         const usize length = wtf8::sequence_length(bytes.data(), bytes.count(), index);
         const u32 code_point = wtf8::decode(bytes.data(), index, length);
         index = index + length;
         if (code_point < 0x10000U) {
-            const Status pushed = result.push_copy(static_cast<u16>(code_point));
+            const OperationStatus pushed = result.push_copy(static_cast<u16>(code_point));
             STXLIB_REQUIRE(pushed.succeeded(), "utf16_of_wtf8: a push within the reserved capacity failed");
             continue;
         }
         const u32 offset = code_point - 0x10000U;
-        const Status high = result.push_copy(static_cast<u16>(high_first + (offset >> 10)));
-        const Status low = result.push_copy(static_cast<u16>(low_first + (offset & 0x3ffU)));
+        const OperationStatus high = result.push_copy(static_cast<u16>(high_first + (offset >> 10)));
+        const OperationStatus low = result.push_copy(static_cast<u16>(low_first + (offset & 0x3ffU)));
         STXLIB_REQUIRE(high.succeeded() && low.succeeded(), "utf16_of_wtf8: a push within the reserved capacity failed");
     }
-    return Result<Vector<u16>>::success(static_cast<Vector<u16>&&>(result));
+    return OperationResult<Vector<u16>>::success(static_cast<Vector<u16>&&>(result));
 }
 
 } // namespace stxlib

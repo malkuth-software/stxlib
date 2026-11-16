@@ -43,7 +43,7 @@ inline constexpr usize maximum_exit_tasks = 32;
 // the process is ending on Windows (ExitProcess has stopped the other
 // threads) and another thread holds the task table's lock, which also stops
 // the tasks still registered from running.
-[[nodiscard]] Status register_exit_task(CallbackTarget<void()> task) noexcept;
+[[nodiscard]] OperationStatus register_exit_task(CallbackTarget<void()> task) noexcept;
 
 // ---- the process's identity, arguments and memory --------------------------
 // (A1 platform-rest; the A0 inventory's "executable path and arguments" and
@@ -150,7 +150,7 @@ inline constexpr usize default_argument_limit = 4194304; // 4 MiB
 // more than `limit` bytes (refused before copying); out_of_memory;
 // io_failure (with the host's code) when the host cannot be read;
 // unsupported where Capability::process_arguments is false.
-[[nodiscard]] Result<ProcessArguments> process_arguments(usize limit = default_argument_limit) noexcept;
+[[nodiscard]] OperationResult<ProcessArguments> process_arguments(usize limit = default_argument_limit) noexcept;
 
 // The process's resident memory, in bytes (Capability::memory_report).
 struct ProcessMemory final {
@@ -167,6 +167,6 @@ struct ProcessMemory final {
 
 // Failures: io_failure or foreign_failure with the host's code; unsupported
 // where Capability::memory_report is false.
-[[nodiscard]] Result<ProcessMemory> process_memory() noexcept;
+[[nodiscard]] OperationResult<ProcessMemory> process_memory() noexcept;
 
 } // namespace stxlib

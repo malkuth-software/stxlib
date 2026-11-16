@@ -56,18 +56,18 @@ double wait_milliseconds(const Duration remaining) noexcept {
 
 } // namespace
 
-Result<WakeChannel> WakeChannel::create() noexcept {
+OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return Result<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
     void* const block = memory::allocate(sizeof(u32), alignof(u32));
     if (block == nullptr) {
-        return Result<WakeChannel>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
     }
     u32* const flag = ::new (block) u32(0);
     const i64 handle = static_cast<i64>(reinterpret_cast<uptr>(flag));
-    return Result<WakeChannel>::success(WakeChannel(handle, handle));
+    return OperationResult<WakeChannel>::success(WakeChannel(handle, handle));
 }
 
 WakeChannel::~WakeChannel() { close_handles(); }
@@ -101,33 +101,33 @@ bool WakeChannel::drain() noexcept {
     return previous != 0;
 }
 
-Result<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
+OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return Result<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
-        return Result<WakeWait>::failure(
+        return OperationResult<WakeWait>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_many_handles));
     }
     // A page has no host handles to wait on (wake.hpp).
     if (handles.count() != 0) {
-        return Result<WakeWait>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
     }
     u32* const flag = flag_of(read_handle_);
     const IntervalTime deadline = IntervalTime::now().after(timeout);
     for (;;) {
         if (std::atomic_ref<u32>(*flag).load(std::memory_order_acquire) != 0) {
-            return Result<WakeWait>::success(WakeWait::woken());
+            return OperationResult<WakeWait>::success(WakeWait::woken());
         }
         const Duration remaining = deadline.since(IntervalTime::now());
-        if (remaining.count_nanoseconds() <= 0) return Result<WakeWait>::success(WakeWait::timed_out());
+        if (remaining.count_nanoseconds() <= 0) return OperationResult<WakeWait>::success(WakeWait::timed_out());
         const int waited = emscripten_futex_wait(flag, 0, wait_milliseconds(remaining));
         // 0: woken or spurious; -ETIMEDOUT and -EWOULDBLOCK: the loop's
         // checks decide.
         if (waited != 0 && waited != -ETIMEDOUT && waited != -EWOULDBLOCK) {
             const ForeignCode code = ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(-waited));
-            return Result<WakeWait>::failure(
+            return OperationResult<WakeWait>::failure(
                 host_failure::record(ErrorKind::foreign_failure, operation, HostCode::none, code));
         }
     }

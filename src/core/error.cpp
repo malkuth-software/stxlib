@@ -100,7 +100,7 @@ TextView exception_type_for_display(const ErrorRecord& record, const MutableView
     std::memcpy(terminated, mangled.data(), mangled.count());
     const usize written = host::demangle_type_name(terminated, output.data(), output.count());
     if (written == 0) return mangled;
-    Result<TextView> readable = validate_utf8(output.data(), written);
+    OperationResult<TextView> readable = validate_utf8(output.data(), written);
     if (readable.failed()) return mangled;
     const TextView result = *readable.value();
     return result;

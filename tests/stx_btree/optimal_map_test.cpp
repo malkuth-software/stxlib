@@ -14,7 +14,7 @@
 // the test keeps its weights in std::vector (OwnedWeights) and passes views;
 // constructions, packings and builds must succeed (take, packed_of,
 // laid_of, take_map); each build moves from a fresh copy of the keys and
-// values (MutableView); find_many takes views; a refusal is a Result with
+// values (MutableView); find_many takes views; a refusal is a OperationResult with
 // kind invalid_argument where stx_auxlib threw std::invalid_argument, and
 // the refused keys and values are checked to be untouched.
 
@@ -75,7 +75,7 @@ struct OwnedWeights final {
 };
 
 // A construction that must succeed.
-SearchTree take(stxlib::Result<SearchTree> built) {
+SearchTree take(stxlib::OperationResult<SearchTree> built) {
     TestFailure::expect(built.succeeded(), "construction", "a construction failed");
     if (!built.succeeded()) {
         return SearchTree{};
@@ -99,7 +99,7 @@ PackedTree laid_of(const PackedTree& packed, const OwnedWeights& weights, std::s
 
 // A build that must succeed.
 template <typename Map>
-Map take_map(stxlib::Result<Map> built, const char* label) {
+Map take_map(stxlib::OperationResult<Map> built, const char* label) {
     TestFailure::expect(built.succeeded(), label, "the build failed");
     if (!built.succeeded()) {
         return Map{};
@@ -109,7 +109,7 @@ Map take_map(stxlib::Result<Map> built, const char* label) {
 
 // A build that must refuse its input.
 template <typename Map>
-[[nodiscard]] bool refused(const stxlib::Result<Map>& built) {
+[[nodiscard]] bool refused(const stxlib::OperationResult<Map>& built) {
     return !built.succeeded() && (*built.error()).kind() == stxlib::ErrorKind::invalid_argument;
 }
 
@@ -513,14 +513,14 @@ void check_rejections() {
 
     std::vector<std::uint64_t> keys{1, 3, 2};
     std::vector<std::uint64_t> values{1, 2, 3};
-    const stxlib::Result<Map> unsorted = Map::build(stxlib::MutableView<std::uint64_t>(keys.data(), keys.size()),
+    const stxlib::OperationResult<Map> unsorted = Map::build(stxlib::MutableView<std::uint64_t>(keys.data(), keys.size()),
                                                     stxlib::MutableView<std::uint64_t>(values.data(), values.size()),
                                                     weights.view(), OptimalMapPlan{});
     TestFailure::expect(refused(unsorted), "rejections", "unsorted keys accepted");
 
     std::vector<std::uint64_t> sorted{1, 2, 3};
     std::vector<std::uint64_t> short_values{1, 2};
-    const stxlib::Result<Map> mismatched = Map::build(
+    const stxlib::OperationResult<Map> mismatched = Map::build(
         stxlib::MutableView<std::uint64_t>(sorted.data(), sorted.size()),
         stxlib::MutableView<std::uint64_t>(short_values.data(), short_values.size()), weights.view(), OptimalMapPlan{});
     TestFailure::expect(refused(mismatched), "rejections", "mismatched lengths accepted");
@@ -529,7 +529,7 @@ void check_rejections() {
     uneven.keys.assign(3, 1);
     uneven.gaps.assign(3, 1);
     std::vector<std::uint64_t> three_values{1, 2, 3};
-    const stxlib::Result<Map> bad_weights = Map::build(
+    const stxlib::OperationResult<Map> bad_weights = Map::build(
         stxlib::MutableView<std::uint64_t>(sorted.data(), sorted.size()),
         stxlib::MutableView<std::uint64_t>(three_values.data(), three_values.size()), uneven.view(), OptimalMapPlan{});
     TestFailure::expect(refused(bad_weights), "rejections", "uneven weights accepted");
@@ -539,7 +539,7 @@ void check_rejections() {
     using TextMap = OptimalMap<std::string, std::uint64_t>;
     std::vector<std::string> words{"pear", "apple", "quince"};
     std::vector<std::uint64_t> word_values{1, 2, 3};
-    const stxlib::Result<TextMap> unsorted_words = TextMap::build(
+    const stxlib::OperationResult<TextMap> unsorted_words = TextMap::build(
         stxlib::MutableView<std::string>(words.data(), words.size()),
         stxlib::MutableView<std::uint64_t>(word_values.data(), word_values.size()), weights.view(), OptimalMapPlan{});
     TestFailure::expect(refused(unsorted_words), "rejections", "unsorted text keys accepted");

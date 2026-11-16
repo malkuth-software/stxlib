@@ -39,7 +39,7 @@ using stxlib::ChildEnd;
 using stxlib::ChildRequest;
 using stxlib::ChildStreams;
 using stxlib::Duration;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::TextView;
 using stxlib::u32;
 
@@ -49,7 +49,7 @@ constexpr int child_run_milliseconds = 30;
 constexpr stxlib::i64 child_deadline_seconds = 10;
 
 TextView view_of(const std::string& text) {
-    Result<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
+    OperationResult<TextView> valid = stxlib::validate_utf8(text.data(), text.size());
     const TextView result = valid.succeeded() ? *valid.value() : TextView("");
     return result;
 }
@@ -87,7 +87,7 @@ void print_early_detach(const std::string& marker) {
 }
 
 void rounds_end_cleanly(const u32 rounds) {
-    Result<stxlib::Path> self = stxlib::current_executable();
+    OperationResult<stxlib::Path> self = stxlib::current_executable();
     CHECK(self.succeeded());
     if (self.failed()) return;
     const stxlib::PathText self_text = (*self.value()).text();
@@ -104,11 +104,11 @@ void rounds_end_cleanly(const u32 rounds) {
                                    .arguments = stxlib::View<stxlib::PathText>(argument_texts, 2),
                                    .streams = ChildStreams::discard,
                                    .detached = false};
-        Result<Child> started = Child::start(request);
+        OperationResult<Child> started = Child::start(request);
         CHECK(started.succeeded());
         if (started.failed()) return;
-        Child child = static_cast<Result<Child>&&>(started).take_value();
-        const Result<ChildEnd> end = child.wait(Duration::seconds(child_deadline_seconds));
+        Child child = static_cast<OperationResult<Child>&&>(started).take_value();
+        const OperationResult<ChildEnd> end = child.wait(Duration::seconds(child_deadline_seconds));
         if (end.failed()) {
             hung = hung + 1;
             print_early_detach(marker);

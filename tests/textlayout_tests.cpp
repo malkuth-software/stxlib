@@ -442,7 +442,7 @@ std::vector<u8> by_chain(const std::vector<u32>& input) {
 
 std::vector<u8> by_code_points(const std::vector<u32>& input) {
     std::vector<layout::LineBreak> breaks(input.size(), layout::LineBreak::inside_character);
-    const stxlib::Status status =
+    const stxlib::OperationStatus status =
         layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(breaks.data(), breaks.size()),
                                  stxlib::View<u32>(input.data(), input.size()));
     std::vector<u8> output;
@@ -461,10 +461,10 @@ std::vector<u8> by_utf8(const std::vector<u32>& input) {
         last_byte.push_back(bytes.size() - 1);
     }
     std::vector<u8> output;
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
     if (validated.failed()) return output;
     std::vector<layout::LineBreak> breaks(bytes.size(), layout::LineBreak::prohibited);
-    const stxlib::Status status = layout::find_line_breaks(
+    const stxlib::OperationStatus status = layout::find_line_breaks(
         stxlib::MutableView<layout::LineBreak>(breaks.data(), breaks.size()), *validated.value());
     if (status.failed()) return output;
     usize next = 0;
@@ -708,7 +708,7 @@ void check_paragraphs(const std::vector<u32>& input) {
         append_utf8(bytes, value);
     }
     first_byte.push_back(bytes.size());
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
     if (validated.failed()) {
         paragraph_failures = paragraph_failures + 1;
         return;
@@ -721,9 +721,9 @@ void check_paragraphs(const std::vector<u32>& input) {
     while (point < input.size()) {
         bool ok = true;
         const usize offset = first_byte[point];
-        const stxlib::Status a =
+        const stxlib::OperationStatus a =
             layout::analyse_paragraph(view, offset, layout::BaseDirection::automatic_left_to_right, by_bytes);
-        const stxlib::Status b = layout::analyse_paragraph(stxlib::View<u32>(input.data(), input.size()), point,
+        const stxlib::OperationStatus b = layout::analyse_paragraph(stxlib::View<u32>(input.data(), input.size()), point,
                                                            layout::BaseDirection::automatic_left_to_right, by_points);
         if (a.failed() || b.failed() || by_bytes.offset() != offset || by_points.offset() != point ||
             by_points.length() == 0) {
@@ -766,7 +766,7 @@ void check_paragraphs(const std::vector<u32>& input) {
         for (usize index = 0; ok && index < points; ++index) {
             ok = by_bytes.levels()[first_byte[point + index] - offset] == by_points.levels()[index];
         }
-        const stxlib::Status lined = layout::analyse_line(by_bytes, offset, by_bytes.length(), line);
+        const stxlib::OperationStatus lined = layout::analyse_line(by_bytes, offset, by_bytes.length(), line);
         ok = ok && lined.succeeded();
         paragraphs_checked = paragraphs_checked + 1;
         if (!ok) {
@@ -842,13 +842,13 @@ void fuzz(const int count, Random& random) {
                 append_utf8(bytes, value);
             }
         }
-        const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
+        const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(bytes.data(), bytes.size());
         if (validated.failed()) continue;
         accepted = accepted + 1;
         const stxlib::TextView view = *validated.value();
         bool ok = true;
         std::vector<layout::LineBreak> breaks(bytes.size(), layout::LineBreak::prohibited);
-        const stxlib::Status broke =
+        const stxlib::OperationStatus broke =
             layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(breaks.data(), breaks.size()), view);
         ok = ok && broke.succeeded();
         for (usize byte = 0; ok && byte < bytes.size(); ++byte) {
@@ -859,7 +859,7 @@ void fuzz(const int count, Random& random) {
         if (ok && !bytes.empty()) ok = breaks.back() == layout::LineBreak::mandatory;
         usize offset = 0;
         while (ok && offset < bytes.size()) {
-            const stxlib::Status analysed =
+            const stxlib::OperationStatus analysed =
                 layout::analyse_paragraph(view, offset, layout::BaseDirection::automatic_left_to_right, paragraph);
             ok = analysed.succeeded() && paragraph.offset() == offset && paragraph.length() > 0 &&
                  paragraph.length() <= bytes.size() - offset;
@@ -878,7 +878,7 @@ void fuzz(const int count, Random& random) {
                 covered = covered + runs[run].length;
             }
             ok = ok && covered == offset + length_here;
-            const stxlib::Status lined = layout::analyse_line(paragraph, offset, length_here, line);
+            const stxlib::OperationStatus lined = layout::analyse_line(paragraph, offset, length_here, line);
             ok = ok && lined.succeeded();
             usize in_runs = 0;
             for (usize run = 0; ok && run < line.runs().count(); ++run) in_runs = in_runs + line.runs()[run].length;
@@ -907,28 +907,28 @@ void arguments() {
     layout::LineBreak storage[4] = {layout::LineBreak::inside_character, layout::LineBreak::inside_character,
                                     layout::LineBreak::inside_character, layout::LineBreak::inside_character};
     const stxlib::TextView text("ab c");
-    const stxlib::Status too_small =
+    const stxlib::OperationStatus too_small =
         layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 3), text);
     CHECK(too_small.failed() && storage[0] == layout::LineBreak::inside_character);
-    const stxlib::Status exact = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4), text);
+    const stxlib::OperationStatus exact = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4), text);
     CHECK(exact.succeeded());
     CHECK(storage[0] == layout::LineBreak::prohibited && storage[1] == layout::LineBreak::prohibited);
     CHECK(storage[2] == layout::LineBreak::allowed && storage[3] == layout::LineBreak::mandatory);
-    const stxlib::Status empty = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(), stxlib::TextView());
+    const stxlib::OperationStatus empty = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(), stxlib::TextView());
     CHECK(empty.succeeded());
     const u32 values[3] = {'a', 0x0a, 'b'};
-    const stxlib::Status points = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 3),
+    const stxlib::OperationStatus points = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 3),
                                                            stxlib::View<u32>(values, 3));
     CHECK(points.succeeded() && storage[0] == layout::LineBreak::prohibited && storage[1] == layout::LineBreak::mandatory &&
           storage[2] == layout::LineBreak::mandatory);
-    const stxlib::Status wrong = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4),
+    const stxlib::OperationStatus wrong = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4),
                                                           stxlib::View<u32>(values, 3));
     CHECK(wrong.failed());
     layout::Paragraph paragraph;
     CHECK(paragraph.breaks().count() == 0 && paragraph.script_runs().count() == 0);
     // A sentence in two scripts with brackets: Latin, Greek in parentheses.
     const stxlib::TextView mixed("ab (\xce\xb1\xce\xb2) c");
-    const stxlib::Status analysed =
+    const stxlib::OperationStatus analysed =
         layout::analyse_paragraph(mixed, 0, layout::BaseDirection::automatic_left_to_right, paragraph);
     CHECK(analysed.succeeded());
     const stxlib::View<layout::ScriptRun> runs = paragraph.script_runs();

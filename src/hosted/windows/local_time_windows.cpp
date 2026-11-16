@@ -75,8 +75,8 @@ using IcuStatus = int;
 static_assert(sizeof(wchar_t) == 2, "ICU's UChar is a 16-bit unit");
 static_assert(sizeof(WindowsZoneToIana) == sizeof(FARPROC), "function pointers share one representation");
 
-Status last_error_failure(const ErrorKind kind) noexcept {
-    const Status result =
+OperationStatus last_error_failure(const ErrorKind kind) noexcept {
+    const OperationStatus result =
         host_failure::failed(kind, operation, HostCode::none,
                              ForeignCode::of(ForeignFamily::windows_last_error, static_cast<i64>(GetLastError())));
     return result;
@@ -100,7 +100,7 @@ HMODULE icu_module() noexcept {
 
 } // namespace
 
-Status system_zone_text(ZoneText& text) noexcept {
+OperationStatus system_zone_text(ZoneText& text) noexcept {
     DYNAMIC_TIME_ZONE_INFORMATION zone{};
     if (GetDynamicTimeZoneInformation(&zone) == TIME_ZONE_ID_INVALID) {
         return last_error_failure(ErrorKind::io_failure);
@@ -141,7 +141,7 @@ Status system_zone_text(ZoneText& text) noexcept {
     }
     for (usize index = 0; index < count; ++index) text.bytes[index] = static_cast<char>(mapped[index]);
     text.count = count;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::local_time_backend

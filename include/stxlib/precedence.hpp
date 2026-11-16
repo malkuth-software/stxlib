@@ -7,7 +7,7 @@
 // tests/reference/precedence_reference.py still hold). The interface is
 // restated in STXlib's vocabulary: fixed arrays with counts in place of
 // std::vector in the records (Certificate, ChainState), STXlib's Buffer for
-// the chain's key trees, Result for the calls that allocate or need
+// the chain's key trees, OperationResult for the calls that allocate or need
 // entropy, WallTime for times. See "Changes from stx_auxlib" below.
 //
 // The holder keeps a tiny secret (one 32-byte seed and the epoch number)
@@ -53,7 +53,7 @@
 //   infos_per_epoch with a count; ChainState::block_keys is a fixed array
 //   of epochs_per_block (so a state can no longer hold the wrong number of
 //   keys; restore refuses a pending count above infos_per_epoch).
-// - Chain::create, from_seeds and restore return Result<Chain>: they
+// - Chain::create, from_seeds and restore return OperationResult<Chain>: they
 //   allocate the chain's key trees (out_of_memory), and create reads the
 //   host's entropy (fill_entropy's failures, in place of
 //   PrecedenceStatus::entropy_unavailable, which is no longer returned).
@@ -84,7 +84,7 @@ enum class PrecedenceStatus : u8 {
     // The current epoch already holds infos_per_epoch infos; advance first.
     epoch_full = 1,
     // Not returned by STXlib (create reports entropy failures through its
-    // Result); kept so the values stay stx_auxlib's.
+    // OperationResult); kept so the values stay stx_auxlib's.
     entropy_unavailable = 2,
     // The certificate's signature or key path does not check out.
     invalid_certificate = 3,
@@ -156,15 +156,15 @@ class Chain final {
 public:
     // A new chain from the host's entropy; `now` is its genesis. Failures:
     // fill_entropy's (entropy.hpp); out_of_memory.
-    [[nodiscard]] static Result<Chain> create(WallTime now) noexcept;
+    [[nodiscard]] static OperationResult<Chain> create(WallTime now) noexcept;
     // A chain from a 32-byte secret seed and a public seed, for tests and
     // for callers with their own entropy. Failure: out_of_memory.
-    [[nodiscard]] static Result<Chain> from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
+    [[nodiscard]] static OperationResult<Chain> from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
                                                   WallTime now) noexcept;
     // A chain continued from saved state. Failures: invalid_argument when
     // the state is inconsistent (a pending count above infos_per_epoch);
     // out_of_memory.
-    [[nodiscard]] static Result<Chain> restore(const ChainState& state) noexcept;
+    [[nodiscard]] static OperationResult<Chain> restore(const ChainState& state) noexcept;
 
     Chain(Chain&& other) noexcept;
     Chain& operator=(Chain&& other) noexcept;
@@ -193,7 +193,7 @@ public:
 
 private:
     Chain() noexcept = default;
-    [[nodiscard]] static Result<Chain> with_storage() noexcept;
+    [[nodiscard]] static OperationResult<Chain> with_storage() noexcept;
     void erase_secret() noexcept;
 
     Anchor anchor_{};

@@ -76,8 +76,8 @@ public:
     FrozenMap& operator=(const FrozenMap&) = delete;
     ~FrozenMap();
 
-    [[nodiscard]] static Result<FrozenMap> build(View<u64> keys, View<u64> values) noexcept;
-    [[nodiscard]] static Result<FrozenMap> build_weighted(View<u64> keys, View<u64> values, View<u64> key_weights,
+    [[nodiscard]] static OperationResult<FrozenMap> build(View<u64> keys, View<u64> values) noexcept;
+    [[nodiscard]] static OperationResult<FrozenMap> build_weighted(View<u64> keys, View<u64> values, View<u64> key_weights,
                                                           View<u64> gap_weights) noexcept;
 
     [[nodiscard]] usize count() const noexcept { return keys_.count(); }
@@ -123,8 +123,8 @@ public:
     ~FrozenTextMap();
 
     // The keys are copied; the views need only last for the call.
-    [[nodiscard]] static Result<FrozenTextMap> build(View<TextView> keys, View<u64> values) noexcept;
-    [[nodiscard]] static Result<FrozenTextMap> build_weighted(View<TextView> keys, View<u64> values,
+    [[nodiscard]] static OperationResult<FrozenTextMap> build(View<TextView> keys, View<u64> values) noexcept;
+    [[nodiscard]] static OperationResult<FrozenTextMap> build_weighted(View<TextView> keys, View<u64> values,
                                                               View<u64> key_weights, View<u64> gap_weights) noexcept;
 
     [[nodiscard]] usize count() const noexcept { return values_.count(); }

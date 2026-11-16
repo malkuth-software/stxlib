@@ -407,7 +407,7 @@ u32 blue_bottom_of(const usize table_blue) noexcept {
     return result;
 }
 
-Status compute_glyph_adjustments(const Font& font, Vector<u16>& adjustments) noexcept {
+OperationStatus compute_glyph_adjustments(const Font& font, Vector<u16>& adjustments) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     adjustments.clear();
     if (adjustments.resize(font.glyph_count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
@@ -420,7 +420,7 @@ Status compute_glyph_adjustments(const Font& font, Vector<u16>& adjustments) noe
         if (glyph == 0 || glyph >= font.glyph_count) continue;
         all[glyph] = static_cast<u16>(table_adjust[index].flags);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 bool stretch_tildes(HintOutline& outline, const u32 adjustment, Vector<ContourReach>& reaches) noexcept {

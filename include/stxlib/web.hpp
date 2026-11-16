@@ -86,7 +86,7 @@ enum class StorageKind : u8 {
 // invalid_argument with HostCode::invalid_state for origin_private on the
 // main browser thread; already_exists or foreign_failure with the host's
 // code when the browser refuses the mount (a volume already there).
-[[nodiscard]] Status mount_web_storage(const Path& path, StorageKind kind) noexcept;
+[[nodiscard]] OperationStatus mount_web_storage(const Path& path, StorageKind kind) noexcept;
 
 // The strongest level that survives the end of the page on a volume of
 // `kind` (the table above): none, ordered or durable.
@@ -98,13 +98,13 @@ enum class StorageKind : u8 {
 // Failures: unsupported where Capability::web_storage is false;
 // invalid_argument with HostCode::invalid_state on the main runtime or
 // browser thread; io_failure with the host's code when IndexedDB fails.
-[[nodiscard]] Status restore_web_storage() noexcept;
+[[nodiscard]] OperationStatus restore_web_storage() noexcept;
 
 // The close hook: writes every indexed_db volume to IndexedDB and waits
 // until the transaction completes (ordered: the store holds this snapshot
 // or the one before). OPFS needs no persist: its files are written in
 // place, and File::sync flushes them. Failures as restore_web_storage's.
-[[nodiscard]] Status persist_web_storage() noexcept;
+[[nodiscard]] OperationStatus persist_web_storage() noexcept;
 
 // From any thread: asks the browser to persist every indexed_db volume
 // whenever the page is hidden or unloaded (the pagehide and
@@ -113,6 +113,6 @@ enum class StorageKind : u8 {
 // persist_web_storage from a thread before letting the page close.
 // Registering twice is harmless. Failures: unsupported where
 // Capability::web_storage is false or the runtime has no page (Node).
-[[nodiscard]] Status persist_web_storage_on_page_hide() noexcept;
+[[nodiscard]] OperationStatus persist_web_storage_on_page_hide() noexcept;
 
 } // namespace stxlib

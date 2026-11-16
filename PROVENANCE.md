@@ -128,7 +128,7 @@ The first modules of the second target, stxlib::algorithms (decision
 M1 = 1; A0 migration note 3.1): host-free code over the boundary's
 vocabulary. Each port keeps stx_auxlib's algorithm and outputs and restates
 its interface in STXlib's vocabulary (fixed C arrays, View, MutableView,
-Result) in place of std::array, std::span, std::byte and std::expected; the
+OperationResult) in place of std::array, std::span, std::byte and std::expected; the
 differences are stated in each file's header comment. The SIMD selection
 word moves into `stxlib_state` (layout 7), so every module of a program
 shares one choice. SHA-256 of each source file at `b6e330a`, read from a
@@ -146,7 +146,7 @@ shares one choice. SHA-256 of each source file at `b6e330a`, read from a
 | `tests/random_tests.cpp` | `tests/random_tests.cpp` | `d3e7330a794592534db3e266e861216781c8cb972b3bf4b4b1d7228336cc64dd` |
 | `tests/simd_tests.cpp` | `tests/simd_tests.cpp` | `a28a7708f918b4eea39ca311cb6305c046a9d93b8290e899846b54cdd6b4286a` |
 | `tests/thread_pool_conformance.cpp` | `tests/thread_pool_conformance.cpp` (names, header comment and the modular marker's header only) | `7be497fe9eafe04e4d59785ec5e3143e7d0dfc328b7b8d93af0711fb825ec469` |
-| `tests/reference/atomic_pool_adapter.cpp` | `tests/reference/atomic_pool_adapter.cpp` (rewritten for STXlib's Status and noexcept tasks) | `2c3beff9cd576f159763ae5b8d5660bf5addd4377560f5a70a590cfb01423ed3` |
+| `tests/reference/atomic_pool_adapter.cpp` | `tests/reference/atomic_pool_adapter.cpp` (rewritten for STXlib's OperationStatus and noexcept tasks) | `2c3beff9cd576f159763ae5b8d5660bf5addd4377560f5a70a590cfb01423ed3` |
 
 Copied unchanged (the file's SHA-256 here equals the source's):
 
@@ -162,7 +162,7 @@ style section 6), whole or not at all, with the size needed reported
 (`text::Formatted`, `TextWriter`, `NumberText`) in place of appending to a
 std::string; the formats, digits and parse rules are unchanged. The
 calendar keeps stx_auxlib's arithmetic, validity rules and ISO 8601 forms
-over the boundary's CivilTime and `src/core/civil.hpp`; Result replaces
+over the boundary's CivilTime and `src/core/civil.hpp`; OperationResult replaces
 std::optional and WallTime replaces WallClock::time_point.
 
 | STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
@@ -178,7 +178,7 @@ std::optional and WallTime replaces WallClock::time_point.
 
 As batch 3c. The construction and its bytes are unchanged; the records hold
 fixed arrays with counts, the key trees live in Buffers allocated when the
-chain is made, and the calls that allocate or need entropy return Result
+chain is made, and the calls that allocate or need entropy return OperationResult
 (precedence.hpp, "Changes from stx_auxlib").
 
 | STXlib file | stx_auxlib file (at `b6e330a`) | Source SHA-256 |
@@ -390,12 +390,12 @@ ThreadSanitizer suppressions and the no-inlining rule are stx_auxlib's.
 ### Batch 3c11: stx_btree's optimal binary search trees, from `b6e330a`
 
 The third part of the rest of stx_btree. The coordinator chose option 1:
-a full port onto STXlib storage with Result builders. Same licence,
+a full port onto STXlib storage with OperationResult builders. Same licence,
 namespace and privacy as batch 3c6. Changes:
 - `std::vector` becomes `detail::Array`, a new movable growable array on
   memory::allocate that reports failure;
 - the weights become borrowed Views;
-- every construction returns `Result<SearchTree>`: invalid_argument where
+- every construction returns `OperationResult<SearchTree>`: invalid_argument where
   stx_auxlib threw std::invalid_argument, out_of_memory where std::vector
   would have thrown std::bad_alloc. Nothing fails fast (survey D8 is open);
 - the shape checks (`is_search_tree`, `cost`) return Results, and
@@ -424,7 +424,7 @@ batch 3c6. Changes:
   without throwing;
 - `TreePacker::pack` and `ColdSubtreeLayout::relayout` return false on
   exhaustion, with the output passed by reference;
-- `OptimalMap::build` returns `Result<OptimalMap>`: invalid_argument where
+- `OptimalMap::build` returns `OperationResult<OptimalMap>`: invalid_argument where
   stx_auxlib threw std::invalid_argument, the tree construction's own
   failure passed on, out_of_memory where std::vector would have thrown
   std::bad_alloc. Nothing fails fast (survey D8 is open);

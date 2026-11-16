@@ -57,7 +57,7 @@ ShownShadow show(const char* const title, const stxlib::ErrorRecord& record) {
     std::printf(")");
     std::printf("\n  sequence: %llu\n", static_cast<unsigned long long>(record.sequence()));
     ShownShadow shown{};
-    stxlib::Result<stxlib::ShadowSummary> found = stxlib::read_shadow(
+    stxlib::OperationResult<stxlib::ShadowSummary> found = stxlib::read_shadow(
         record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(shown.frames),
         stxlib::MutableView<stxlib::uptr>(shown.trace));
     if (found.failed()) {
@@ -123,16 +123,16 @@ struct Measure final {
 };
 
 struct Layout final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         Measure measure;
         stxlib::in_shadow_frame("test.layout", 1, 2, measure);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void a_slot_gate_records_the_stack_at_the_throw() {
     Layout layout;
-    const stxlib::Status status = stxlib::call_gate("test.slot", layout);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.slot", layout);
     CHECK(status.failed());
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("C ABI slot gate", record);
@@ -168,17 +168,17 @@ struct ThrowsDisposed final {
 };
 
 struct UsesDisposed final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         ThrowsDisposed thrower;
         stxlib::in_shadow_frame("test.handler", 11, 0, thrower);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void a_classified_gate_records_the_consumer_kind() {
     const stxlib::ExceptionClassifier classifier{classify_disposed, nullptr};
     UsesDisposed uses;
-    const stxlib::Status status = stxlib::call_gate_classified(classifier, "test.classified", uses);
+    const stxlib::OperationStatus status = stxlib::call_gate_classified(classifier, "test.classified", uses);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("classified gate", record);
     CHECK(record.kind() == stxlib::ErrorKind::disposed && record.code() == 4);
@@ -196,7 +196,7 @@ void a_classified_gate_records_the_consumer_kind() {
 void a_gate_frame_carries_its_numbers() {
     Layout layout;
     const stxlib::GateFrame slot{"test.c_abi", 24, 3};
-    const stxlib::Status status = stxlib::call_gate(slot, layout);
+    const stxlib::OperationStatus status = stxlib::call_gate(slot, layout);
     CHECK(status.failed());
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("gate frame", record);
@@ -213,7 +213,7 @@ void a_gate_frame_carries_its_numbers() {
 
     const stxlib::ExceptionClassifier classifier{classify_disposed, nullptr};
     UsesDisposed uses;
-    const stxlib::Status classified =
+    const stxlib::OperationStatus classified =
         stxlib::call_gate_classified(classifier, stxlib::GateFrame{"test.c_abi", 24, 5}, uses);
     const stxlib::ErrorRecord classified_record = *classified.error();
     const ShownShadow classified_shown = show("classified gate frame", classified_record);
@@ -269,12 +269,12 @@ struct ThrowsLong final {
 };
 
 struct SlotBody final {
-    stxlib::Result<int> operator()() const {
+    stxlib::OperationResult<int> operator()() const {
         ThrowsLong thrower;
         const stxlib::ShadowFrameText dispatch{
             .kind = input_dispatch_kind, .subject = "form.main", .name = "pointer", .sequence = 7};
         stxlib::in_shadow_frame(dispatch, thrower);
-        return stxlib::Result<int>::success(0);
+        return stxlib::OperationResult<int>::success(0);
     }
 };
 
@@ -284,7 +284,7 @@ void a_slot_frame_is_the_whole_frame() {
     const stxlib::GateFrame slot{
         .operation = "test.c_abi", .first = 24, .second = 3, .kind = library_call_kind};
     SlotBody body;
-    const stxlib::Result<int> result = stxlib::call_gate_classified(classifier, slot, body);
+    const stxlib::OperationResult<int> result = stxlib::call_gate_classified(classifier, slot, body);
     CHECK(result.failed());
     if (result.succeeded()) return;
     const stxlib::ErrorRecord record = *result.error();
@@ -315,7 +315,7 @@ struct ThrowsRange final {
 };
 
 struct LongTexts final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         // 46 ASCII bytes, then U+00E9 (2 bytes, ending at 48) and U+20AC
         // (3 bytes, crossing 48): the subject keeps 48 bytes.
         const char subject[] = "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrst\xc3\xa9\xe2\x82\xac";
@@ -327,13 +327,13 @@ struct LongTexts final {
             .name = stxlib::detail::TextViewAccess::adopt_validated(name, sizeof(name) - 1)};
         ThrowsRange thrower;
         stxlib::in_shadow_frame(frame, thrower);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void long_texts_are_cut_at_a_whole_sequence() {
     LongTexts target;
-    const stxlib::Status status = stxlib::call_gate("test.texts", target);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.texts", target);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("texts cut to their fields", record);
     CHECK(shown.present && shown.summary.frame_count == 2);
@@ -359,13 +359,13 @@ struct HandFrame final {
 };
 
 struct HandFramed final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         const stxlib::ShadowFrameText layout{.kind = 4, .subject = "form.main", .sequence = 41};
         HandFrame frame(layout);
         ThrowsInvalid thrower;
         thrower();
         frame.returned = true;
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
@@ -380,7 +380,7 @@ struct ReadsTheStack final {
 
 void a_hand_frame_and_the_live_stack() {
     HandFramed target;
-    const stxlib::Status status = stxlib::call_gate("test.hand", target);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.hand", target);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("a frame opened by hand", record);
     CHECK(shown.present && shown.summary.frame_count == 2);
@@ -409,22 +409,22 @@ void a_hand_frame_and_the_live_stack() {
 }
 
 struct TrampolineTarget final {
-    stxlib::Status operator()(int& value) {
+    stxlib::OperationStatus operator()(int& value) {
         ThrowsInvalid thrower;
         stxlib::in_shadow_frame("test.inside_target", static_cast<stxlib::u64>(value), 0, thrower);
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void a_trampoline_entry_records_the_target_stack() {
-    stxlib::Result<stxlib::Trampolines<TrampolineTarget>> made =
+    stxlib::OperationResult<stxlib::Trampolines<TrampolineTarget>> made =
         stxlib::Trampolines<TrampolineTarget>::create("test.trampoline", 2);
     stxlib::Trampolines<TrampolineTarget> table =
-        static_cast<stxlib::Result<stxlib::Trampolines<TrampolineTarget>>&&>(made).take_value();
+        static_cast<stxlib::OperationResult<stxlib::Trampolines<TrampolineTarget>>&&>(made).take_value();
     TrampolineTarget target;
-    stxlib::Result<stxlib::TrampolineHandle> attached = table.attach(target);
+    stxlib::OperationResult<stxlib::TrampolineHandle> attached = table.attach(target);
     int value = 9;
-    const stxlib::Status status = table.invoke(*attached.value(), value);
+    const stxlib::OperationStatus status = table.invoke(*attached.value(), value);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("trampoline entry", record);
     CHECK(record.kind() == stxlib::ErrorKind::invalid_argument);
@@ -465,7 +465,7 @@ struct ClientEntry final {
 };
 
 struct Raise final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         std::exception_ptr parked{};
         stxlib::ShadowReference parked_shadow{};
         ClientEntry entry{BaseCall{&parked, &parked_shadow}};
@@ -474,13 +474,13 @@ struct Raise final {
             stxlib::restore_shadow(parked_shadow);
             std::rethrow_exception(parked);
         }
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void a_parked_exception_keeps_its_throw_site() {
     Raise raise;
-    const stxlib::Status status = stxlib::call_gate("test.raise", raise);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.raise", raise);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("parked and rethrown (class tables)", record);
     CHECK(record.kind() == stxlib::ErrorKind::out_of_range);
@@ -503,7 +503,7 @@ void a_parked_exception_keeps_its_throw_site() {
 // development build), and the outer gate still files the throw's frames
 // from the carrier's copy (restore_shadow_from).
 struct OtherFailure final {
-    stxlib::Status operator()() const { throw std::length_error("filed in between"); }
+    stxlib::OperationStatus operator()() const { throw std::length_error("filed in between"); }
 };
 
 struct CopiedShadow final {
@@ -523,7 +523,7 @@ struct CopyingBaseCall final {
             stxlib::in_shadow_frame("test.base", 2, 0, thrower);
         } catch (...) {
             *parked = std::current_exception();
-            const stxlib::Result<stxlib::ParkedShadow> kept =
+            const stxlib::OperationResult<stxlib::ParkedShadow> kept =
                 stxlib::park_shadow_into(stxlib::MutableView<stxlib::ShadowFrameRecord>((*copy).frames),
                                          stxlib::MutableView<stxlib::uptr>((*copy).trace));
             if (kept.succeeded()) {
@@ -545,7 +545,7 @@ struct CopyingRaise final {
     CopiedShadow* copy{nullptr};
     bool* old_reference_lost{nullptr};
 
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         std::exception_ptr parked{};
         CopyingClientEntry entry{CopyingBaseCall{&parked, copy}};
         stxlib::in_shadow_frame("test.client_entry_call", 0, 0, entry);
@@ -554,11 +554,11 @@ struct CopyingRaise final {
             // a development build keeps.
             for (usize round = 0; round <= stxlib::shadow_record_capacity; ++round) {
                 OtherFailure other;
-                const stxlib::Status filed = stxlib::call_gate("test.in_between", other);
+                const stxlib::OperationStatus filed = stxlib::call_gate("test.in_between", other);
                 static_cast<void>(filed);
             }
             stxlib::ShadowFrameRecord probe[1]{};
-            const stxlib::Result<stxlib::ShadowSummary> old =
+            const stxlib::OperationResult<stxlib::ShadowSummary> old =
                 stxlib::read_shadow((*copy).parked.reference, stxlib::MutableView<stxlib::ShadowFrameRecord>(probe),
                                     stxlib::MutableView<stxlib::uptr>());
             *old_reference_lost = old.failed() && (*old.error()).kind() == stxlib::ErrorKind::not_found;
@@ -568,7 +568,7 @@ struct CopyingRaise final {
             static_cast<void>(restored);
             std::rethrow_exception(parked);
         }
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
@@ -576,7 +576,7 @@ void a_copied_park_survives_later_captures() {
     CopiedShadow copy{};
     bool old_reference_lost = false;
     CopyingRaise raise{&copy, &old_reference_lost};
-    const stxlib::Status status = stxlib::call_gate("test.raise", raise);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.raise", raise);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("parked into the carrier, captures in between, rethrown", record);
     CHECK(!copy.park_failed);
@@ -618,13 +618,13 @@ struct ParksWithTooLittleRoom final {
             stxlib::ShadowFrameRecord short_frames[stxlib::parked_shadow_frame_room - 1]{};
             stxlib::ShadowFrameRecord frames[stxlib::parked_shadow_frame_room]{};
             stxlib::uptr short_trace[1]{};
-            const stxlib::Result<stxlib::ParkedShadow> too_few_frames = stxlib::park_shadow_into(
+            const stxlib::OperationResult<stxlib::ParkedShadow> too_few_frames = stxlib::park_shadow_into(
                 stxlib::MutableView<stxlib::ShadowFrameRecord>(short_frames), stxlib::MutableView<stxlib::uptr>());
             if (too_few_frames.failed()) *frames_refusal = (*too_few_frames.error()).kind();
-            const stxlib::Result<stxlib::ParkedShadow> too_short_trace = stxlib::park_shadow_into(
+            const stxlib::OperationResult<stxlib::ParkedShadow> too_short_trace = stxlib::park_shadow_into(
                 stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>(short_trace));
             if (too_short_trace.failed()) *trace_refusal = (*too_short_trace.error()).kind();
-            const stxlib::Result<stxlib::ParkedShadow> kept = stxlib::park_shadow_into(
+            const stxlib::OperationResult<stxlib::ParkedShadow> kept = stxlib::park_shadow_into(
                 stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>());
             if (kept.succeeded()) *parked = *kept.value();
         }
@@ -665,7 +665,7 @@ void a_park_into_too_little_room_parks_nothing() {
             parked, stxlib::View<stxlib::ShadowFrameRecord>(&tampered, 1), stxlib::View<stxlib::uptr>());
         CHECK(restored.present());
         stxlib::ShadowFrameRecord read_back[1]{};
-        const stxlib::Result<stxlib::ShadowSummary> summary = stxlib::read_shadow(
+        const stxlib::OperationResult<stxlib::ShadowSummary> summary = stxlib::read_shadow(
             restored, stxlib::MutableView<stxlib::ShadowFrameRecord>(read_back), stxlib::MutableView<stxlib::uptr>());
         CHECK(summary.succeeded() && (*summary.value()).frame_count == 1);
         CHECK(read_back[0].subject_count == stxlib::shadow_subject_capacity);
@@ -677,7 +677,7 @@ void a_park_into_too_little_room_parks_nothing() {
 // An exception an ordinary handler consumed must not lend its capture to
 // the next one.
 struct ConsumesThenThrows final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         try {
             Measure measure;
             stxlib::in_shadow_frame("test.consumed", 0, 0, measure);
@@ -696,7 +696,7 @@ struct ConsumesThenThrows final {
 
 void a_consumed_capture_is_not_reused() {
     ConsumesThenThrows target;
-    const stxlib::Status status = stxlib::call_gate("test.fresh", target);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.fresh", target);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("after an ordinary handler", record);
     CHECK(record.kind() == stxlib::ErrorKind::limit_exceeded);
@@ -719,17 +719,17 @@ struct Deep final {
 };
 
 struct DeepGate final {
-    stxlib::Status operator()() const {
+    stxlib::OperationStatus operator()() const {
         const Deep deep{70};
         deep();
-        return stxlib::Status::success();
+        return stxlib::OperationStatus::success();
     }
 };
 
 void a_deep_stack_counts_what_it_cannot_keep() {
     const stxlib::ShadowStackState before = stxlib::read_shadow_stack(stxlib::MutableView<stxlib::ShadowFrameRecord>());
     DeepGate target;
-    const stxlib::Status status = stxlib::call_gate("test.deep_gate", target);
+    const stxlib::OperationStatus status = stxlib::call_gate("test.deep_gate", target);
     const stxlib::ErrorRecord record = *status.error();
     const ShownShadow shown = show("71 frames", record);
     check_development_record(shown, record);

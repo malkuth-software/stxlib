@@ -24,12 +24,12 @@ bool supported() {
 }
 
 bool sealed_block(stxlib::PageBlock& block, stxlib::Byte*& kept) {
-    stxlib::Result<stxlib::PageBlock> mapped = stxlib::PageBlock::map(64);
+    stxlib::OperationResult<stxlib::PageBlock> mapped = stxlib::PageBlock::map(64);
     if (mapped.failed()) {
         std::printf("skipped: the host refused the pages\n");
         return false;
     }
-    block = static_cast<stxlib::Result<stxlib::PageBlock>&&>(mapped).take_value();
+    block = static_cast<stxlib::OperationResult<stxlib::PageBlock>&&>(mapped).take_value();
     const stxlib::MutableView<stxlib::Byte> writable = block.writable();
     writable[0] = static_cast<stxlib::Byte>(1);
     kept = writable.data();

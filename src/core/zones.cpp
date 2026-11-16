@@ -231,7 +231,7 @@ Zone Zone::utc() noexcept {
     return result;
 }
 
-Result<Zone> Zone::named(const TextView name) noexcept {
+OperationResult<Zone> Zone::named(const TextView name) noexcept {
     usize low = 0;
     usize high = name_count;
     while (low < high) {
@@ -240,7 +240,7 @@ Result<Zone> Zone::named(const TextView name) noexcept {
         const int order = compare_names(entry.name, entry.length, name.data(), name.count());
         if (order == 0) {
             const Zone result(static_cast<u16>(middle));
-            return Result<Zone>::success(result);
+            return OperationResult<Zone>::success(result);
         }
         if (order < 0) {
             low = middle + 1;
@@ -249,7 +249,7 @@ Result<Zone> Zone::named(const TextView name) noexcept {
         }
     }
     const ErrorRecord record = ErrorRecord::make(ErrorKind::not_found, "stxlib.zone.named");
-    return Result<Zone>::failure(record);
+    return OperationResult<Zone>::failure(record);
 }
 
 TextView Zone::name() const noexcept {

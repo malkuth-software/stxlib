@@ -30,12 +30,12 @@ STXLIB_ALLOCATOR_TWO_MODULE_API void library_release(void* block) noexcept;
 STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::memory::Backend library_backend() noexcept;
 STXLIB_ALLOCATOR_TWO_MODULE_API bool library_tags_checked() noexcept;
 // A Path parsed in the library (its storage allocated there).
-STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::Result<stxlib::Path> library_path(stxlib::TextView text) noexcept;
+STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::Path> library_path(stxlib::TextView text) noexcept;
 // A thread started in the library that adds 1 to *counter and returns.
-STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::Result<stxlib::Thread> library_thread(stxlib::u32* counter) noexcept;
+STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::Thread> library_thread(stxlib::u32* counter) noexcept;
 // A pool created in the library.
-STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::Result<stxlib::AtomicPool> library_pool(stxlib::u32 thread_count) noexcept;
+STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::AtomicPool> library_pool(stxlib::u32 thread_count) noexcept;
 // Destroys, in the library, a Path the program made.
-STXLIB_ALLOCATOR_TWO_MODULE_API void library_destroy_path(stxlib::Result<stxlib::Path>&& path) noexcept;
+STXLIB_ALLOCATOR_TWO_MODULE_API void library_destroy_path(stxlib::OperationResult<stxlib::Path>&& path) noexcept;
 
 } // namespace stxlib_allocator_two_module

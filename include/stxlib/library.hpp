@@ -89,12 +89,12 @@ private:
 class Library final {
 public:
     // Loads the library at `path`, which must be absolute.
-    [[nodiscard]] static Result<Library> open(const Path& path) noexcept;
+    [[nodiscard]] static OperationResult<Library> open(const Path& path) noexcept;
     // Loads a host library by file name ("libX11.so.6", "gdi32.dll").
-    [[nodiscard]] static Result<Library> open_system(TextView file_name) noexcept;
+    [[nodiscard]] static OperationResult<Library> open_system(TextView file_name) noexcept;
     // A reference to a library the host has already loaded, by file name;
     // not_found when it has not.
-    [[nodiscard]] static Result<Library> find_loaded(TextView file_name) noexcept;
+    [[nodiscard]] static OperationResult<Library> find_loaded(TextView file_name) noexcept;
 
     Library() noexcept = default;
     // Gives the reference back, discarding a failure (call close() where it
@@ -109,11 +109,11 @@ public:
     [[nodiscard]] bool is_open() const noexcept { return handle_ != 0; }
 
     // The address of the symbol `name`.
-    [[nodiscard]] Result<SymbolAddress> symbol(TextView name) const noexcept;
+    [[nodiscard]] OperationResult<SymbolAddress> symbol(TextView name) const noexcept;
 
     // Gives the reference back; the Library is closed even when the host
     // reports a failure.
-    [[nodiscard]] Status close() noexcept;
+    [[nodiscard]] OperationStatus close() noexcept;
 
 private:
     explicit Library(const uptr host_handle) noexcept : handle_(host_handle) {}

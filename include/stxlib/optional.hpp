@@ -10,7 +10,7 @@
 // through present(), value() (null when absent, never reading inactive
 // storage) and value_or(). No conversion from or to Value is implicit.
 //
-// Unlike Result, an Optional is an ordinary field type: it can be assigned
+// Unlike OperationResult, an Optional is an ordinary field type: it can be assigned
 // (set(), reset(), and copy or move assignment), because the records it
 // replaces std::optional in (layout margins, selected indices, colours) are
 // plain data that callers update. Assignment takes the source's value into

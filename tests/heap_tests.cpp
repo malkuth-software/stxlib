@@ -127,17 +127,17 @@ void refusal_and_shapes() {
     stxlib::PriorityQueue<Item, ByPriority> queue;
     stxlib::detail::arm_vocabulary_refusals(0);
     Item item{1, 77};
-    const stxlib::Status refused = queue.push(static_cast<Item&&>(item));
+    const stxlib::OperationStatus refused = queue.push(static_cast<Item&&>(item));
     stxlib::detail::disarm_vocabulary_refusals();
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::out_of_memory);
     CHECK(queue.empty() && item.priority == 1 && item.tag == 77);
     CHECK(queue.pop().absent());
 
-    stxlib::Result<stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>> made =
+    stxlib::OperationResult<stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>> made =
         stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>::with_capacity(8);
     CHECK(made.succeeded());
     stxlib::PriorityQueue<int, stxlib::LargestFirst<int>> largest =
-        static_cast<stxlib::Result<stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>>&&>(made).take_value();
+        static_cast<stxlib::OperationResult<stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>>&&>(made).take_value();
     const int values[] = {3, 9, -4, 9, 0, 12};
     for (const int value : values) {
         int pushed = value;
@@ -160,9 +160,9 @@ void refusal_and_shapes() {
     stxlib::PriorityQueue<stxlib::Unique<int>, ByPointee> owners;
     const int keys[] = {5, 1, 4};
     for (const int key : keys) {
-        stxlib::Result<stxlib::Unique<int>> owner = stxlib::Unique<int>::make(key);
+        stxlib::OperationResult<stxlib::Unique<int>> owner = stxlib::Unique<int>::make(key);
         CHECK(owner.succeeded());
-        stxlib::Unique<int> held = static_cast<stxlib::Result<stxlib::Unique<int>>&&>(owner).take_value();
+        stxlib::Unique<int> held = static_cast<stxlib::OperationResult<stxlib::Unique<int>>&&>(owner).take_value();
         CHECK(owners.push(static_cast<stxlib::Unique<int>&&>(held)).succeeded());
     }
     stxlib::Optional<stxlib::Unique<int>> smallest = owners.pop();

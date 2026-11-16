@@ -104,7 +104,7 @@ ShadowStackState read_stack_of(const Store& thread, const MutableView<ShadowFram
 }
 
 template <typename Store>
-Result<ShadowSummary> read_record_of(const Store& thread, const ShadowReference reference,
+OperationResult<ShadowSummary> read_record_of(const Store& thread, const ShadowReference reference,
                                      const MutableView<ShadowFrameRecord> frames, const MutableView<uptr> trace) noexcept {
     const typename Store::Record* found = nullptr;
     if (reference.present()) {
@@ -116,7 +116,7 @@ Result<ShadowSummary> read_record_of(const Store& thread, const ShadowReference 
         const ErrorRecord missing = ErrorRecord::make(
             ErrorKind::not_found, "stxlib.shadow.read",
             ErrorDetail{.message = "no such shadow record on this thread (none, or overwritten)"});
-        return Result<ShadowSummary>::failure(missing);
+        return OperationResult<ShadowSummary>::failure(missing);
     }
     const typename Store::Record& record = *found;
     const usize frame_copies = record.frame_count < frames.count() ? record.frame_count : frames.count();
@@ -128,7 +128,7 @@ Result<ShadowSummary> read_record_of(const Store& thread, const ShadowReference 
         static_cast<void>(trace); // a release record, or the reserve's, has no trace (layouts 9, 10)
     }
     const ShadowSummary summary{record.point, record.frame_count, record.frames_lost, record.trace_count};
-    return Result<ShadowSummary>::success(summary);
+    return OperationResult<ShadowSummary>::success(summary);
 }
 
 template <typename Store>
@@ -193,7 +193,7 @@ ShadowStackState read_shadow_stack(const MutableView<ShadowFrameRecord> frames) 
     return read_stack_of(state::current_flags().reserve, frames);
 }
 
-Result<ShadowSummary> read_shadow(const ShadowReference reference, const MutableView<ShadowFrameRecord> frames,
+OperationResult<ShadowSummary> read_shadow(const ShadowReference reference, const MutableView<ShadowFrameRecord> frames,
                                   const MutableView<uptr> trace) noexcept {
     const state::ThreadState* const thread = state::current_thread_state();
     if (thread != nullptr) return read_record_of((*thread).shadow, reference, frames, trace);
@@ -221,15 +221,15 @@ namespace {
 // the record (at most Store::frame_capacity <= shadow_frame_capacity
 // frames, Store::trace_capacity <= shadow_trace_capacity addresses) fits.
 template <typename Store>
-Result<ParkedShadow> park_into_on(Store& store, const MutableView<ShadowFrameRecord> frames,
+OperationResult<ParkedShadow> park_into_on(Store& store, const MutableView<ShadowFrameRecord> frames,
                                   const MutableView<uptr> trace) noexcept {
     const ShadowReference reference = shadow_capture::take_for_handler(store);
-    const Result<ShadowSummary> read = read_record_of(store, reference, frames, trace);
+    const OperationResult<ShadowSummary> read = read_record_of(store, reference, frames, trace);
     if (read.failed()) {
         const ErrorRecord missing = ErrorRecord::make(
             ErrorKind::not_found, "stxlib.shadow.park_into",
             ErrorDetail{.message = "no shadow record could be filed (the thread's shadow sequence is exhausted)"});
-        return Result<ParkedShadow>::failure(missing);
+        return OperationResult<ParkedShadow>::failure(missing);
     }
     const ShadowSummary& summary = *read.value();
     const usize traced = summary.trace_count < trace.count() ? summary.trace_count : trace.count();
@@ -238,12 +238,12 @@ Result<ParkedShadow> park_into_on(Store& store, const MutableView<ShadowFrameRec
                               .frame_count = summary.frame_count,
                               .frames_lost = summary.frames_lost,
                               .trace_count = traced};
-    return Result<ParkedShadow>::success(parked);
+    return OperationResult<ParkedShadow>::success(parked);
 }
 
 } // namespace
 
-Result<ParkedShadow> park_shadow_into(const MutableView<ShadowFrameRecord> frames,
+OperationResult<ParkedShadow> park_shadow_into(const MutableView<ShadowFrameRecord> frames,
                                       const MutableView<uptr> trace) noexcept {
     static_assert(state::FullShadow::frame_capacity <= parked_shadow_frame_room &&
                       state::ReserveShadow::frame_capacity <= parked_shadow_frame_room,
@@ -258,7 +258,7 @@ Result<ParkedShadow> park_shadow_into(const MutableView<ShadowFrameRecord> frame
         const TextView frames_small("the frame room is smaller than parked_shadow_frame_room");
         const ErrorRecord small = ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.shadow.park_into",
                                                     ErrorDetail{.message = frames_fit ? trace_small : frames_small});
-        return Result<ParkedShadow>::failure(small);
+        return OperationResult<ParkedShadow>::failure(small);
     }
     state::ThreadState* const thread = state::current_thread_state();
     if (thread != nullptr) return park_into_on((*thread).shadow, frames, trace);

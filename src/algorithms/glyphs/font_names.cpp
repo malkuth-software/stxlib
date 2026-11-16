@@ -195,12 +195,12 @@ void consider(const Span& table, const usize index, NameChoice& choice) noexcept
 
 } // namespace
 
-Status font_name(const Font& font, const u32 name_id, Vector<char>& text) noexcept {
+OperationStatus font_name(const Font& font, const u32 name_id, Vector<char>& text) noexcept {
     const Operation operation("stxlib.glyphs.font_name");
     text.clear();
     const Span table = table_of(font, font.names);
     NameLayout layout{};
-    if (!layout_of(table, layout)) return Status::success();
+    if (!layout_of(table, layout)) return OperationStatus::success();
     NameChoice choice{};
     for (usize index = 0; index < layout.count; ++index) {
         NameText ignored{};
@@ -218,28 +218,28 @@ Status font_name(const Font& font, const u32 name_id, Vector<char>& text) noexce
     } else {
         chosen = choice.unicode;
     }
-    if (chosen == none) return Status::success();
+    if (chosen == none) return OperationStatus::success();
     NameText place{};
     const bool kept = record_kept(table, layout, chosen, place);
     bool decoded = kept;
     if (kept) decoded = utf16 ? decode_utf16(table, place, text) : decode_mac_roman(table, place, text);
     if (kept && !decoded) {
         text.clear();
-        const Status failed = detail::refuse_font(ErrorKind::out_of_memory, operation);
+        const OperationStatus failed = detail::refuse_font(ErrorKind::out_of_memory, operation);
         return failed;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 namespace {
 
 // The first of up to three names the font has.
-[[nodiscard]] Status first_name(const Font& font, const u32* const ids, const usize count, Vector<char>& text) noexcept {
+[[nodiscard]] OperationStatus first_name(const Font& font, const u32* const ids, const usize count, Vector<char>& text) noexcept {
     for (usize index = 0; index < count; ++index) {
-        const Status found = font_name(font, ids[index], text);
+        const OperationStatus found = font_name(font, ids[index], text);
         if (found.failed() || !text.empty()) return found;
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 [[nodiscard]] bool wws_consistent(const Font& font) noexcept {
@@ -249,19 +249,19 @@ namespace {
 
 } // namespace
 
-Status family_name(const Font& font, Vector<char>& text) noexcept {
+OperationStatus family_name(const Font& font, Vector<char>& text) noexcept {
     const u32 consistent[2] = {name_typographic_family, name_family};
     const u32 otherwise[3] = {name_wws_family, name_typographic_family, name_family};
     const bool wws = wws_consistent(font);
-    const Status found = wws ? first_name(font, consistent, 2, text) : first_name(font, otherwise, 3, text);
+    const OperationStatus found = wws ? first_name(font, consistent, 2, text) : first_name(font, otherwise, 3, text);
     return found;
 }
 
-Status style_name(const Font& font, Vector<char>& text) noexcept {
+OperationStatus style_name(const Font& font, Vector<char>& text) noexcept {
     const u32 consistent[2] = {name_typographic_style, name_style};
     const u32 otherwise[3] = {name_wws_style, name_typographic_style, name_style};
     const bool wws = wws_consistent(font);
-    const Status found = wws ? first_name(font, consistent, 2, text) : first_name(font, otherwise, 3, text);
+    const OperationStatus found = wws ? first_name(font, consistent, 2, text) : first_name(font, otherwise, 3, text);
     return found;
 }
 

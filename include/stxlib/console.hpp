@@ -40,10 +40,10 @@ enum class ConsoleStream : u8 {
 // or absent; otherwise with the host's code); interrupted, with nothing
 // written, when the process is ending on Windows (ExitProcess has stopped
 // the other threads) and another thread holds the output lock.
-[[nodiscard]] Status write_console(ConsoleStream stream, TextView text) noexcept;
+[[nodiscard]] OperationStatus write_console(ConsoleStream stream, TextView text) noexcept;
 // `text` followed by "\n", under the same lock, so no other call's text
 // comes between them.
-[[nodiscard]] Status write_console_line(ConsoleStream stream, TextView text) noexcept;
+[[nodiscard]] OperationStatus write_console_line(ConsoleStream stream, TextView text) noexcept;
 // True when the stream is an interactive terminal rather than a file or pipe.
 [[nodiscard]] bool console_is_terminal(ConsoleStream stream) noexcept;
 
@@ -90,6 +90,6 @@ private:
 // Each line is a string of its own, bounded by
 // `limit` (house style §6, audit A, X10): reading a console line is
 // interactive and never a hot path.
-[[nodiscard]] Result<ConsoleLine> read_console_line(usize limit) noexcept;
+[[nodiscard]] OperationResult<ConsoleLine> read_console_line(usize limit) noexcept;
 
 } // namespace stxlib

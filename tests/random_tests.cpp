@@ -187,8 +187,8 @@ void distributions() {
 }
 
 void entropy() {
-    const stxlib::Result<random::Seed> first = random::entropy_seed();
-    const stxlib::Result<random::Seed> second = random::entropy_seed();
+    const stxlib::OperationResult<random::Seed> first = random::entropy_seed();
+    const stxlib::OperationResult<random::Seed> second = random::entropy_seed();
     CHECK(first.succeeded() && second.succeeded());
     if (first.succeeded() && second.succeeded()) CHECK(!same((*first.value()).words, (*second.value()).words));
 }

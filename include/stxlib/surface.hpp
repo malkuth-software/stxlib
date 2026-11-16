@@ -21,7 +21,7 @@
 //   premultiplied; the screen is opaque, so alpha is ignored.
 // - present(damage) (:95): present(); SurfacePresent::presented and
 //   inactive are SurfacePresentResult::presented and inactive (:46, :54); a
-//   failure Status is ::failed (:56). Nothing is ever pending (:50): the
+//   failure OperationStatus is ::failed (:56). Nothing is ever pending (:50): the
 //   copy is done when present returns.
 // - input() (:87): a thread of the host calls read_events and posts
 //   one SurfaceInputRecord (input/surface_input.hpp:94-113) per event:
@@ -179,20 +179,20 @@ public:
     [[nodiscard]] SurfacePixels pixels() const noexcept;
     // Shows `count` rectangles of the pixels (each within the surface;
     // count 0 shows nothing).
-    [[nodiscard]] Result<SurfacePresent> present(const SurfaceRect* rects, usize count) noexcept;
+    [[nodiscard]] OperationResult<SurfacePresent> present(const SurfaceRect* rects, usize count) noexcept;
     // Reads input into `events` (at most `capacity`), waiting up to
     // `wait_ms` milliseconds for the first (0: no wait; -1: no limit).
     // Returns how many were written; 0 when the wait passed.
-    [[nodiscard]] Result<usize> read_events(SurfaceEvent* events, usize capacity, i64 wait_ms) noexcept;
+    [[nodiscard]] OperationResult<usize> read_events(SurfaceEvent* events, usize capacity, i64 wait_ms) noexcept;
     // Gives the screen back; idempotent.
     void close() noexcept;
 
 private:
-    friend Result<Surface> open_surface() noexcept;
+    friend OperationResult<Surface> open_surface() noexcept;
     explicit Surface(detail::SurfaceState* state) noexcept;
     detail::SurfaceState* state_;
 };
 
-[[nodiscard]] Result<Surface> open_surface() noexcept;
+[[nodiscard]] OperationResult<Surface> open_surface() noexcept;
 
 } // namespace stxlib

@@ -142,7 +142,7 @@ tagged union written by hand, under the same discipline:
 - no flag beside a payload that could contradict it (house style §2 and
   §3): the state is the discriminant.
 
-`Status`, `Result`, `text::Formatted`, `text::Parsed`, `PrvOutcome` and
+`OperationStatus`, `OperationResult`, `text::Formatted`, `text::Parsed`, `PrvOutcome` and
 `ChildEnd` are the examples. Private code (`src/`) may use `std::variant`
 behind the same factories and queries.
 

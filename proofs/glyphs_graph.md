@@ -59,7 +59,7 @@ object of static storage is a `constexpr` table.
 | Leaf | From | Why |
 |---|---|---|
 | `stxlib::detail::vocabulary_allocate`, `vocabulary_release` | `Vector`, `Unique`, `Shared` | the arrays, a hinter's and a face's working memory, a typeface |
-| `stxlib::ErrorRecord::make` | `refuse_font` (`font_file.cpp`), `Status`/`Result` | a refusal's record |
+| `stxlib::ErrorRecord::make` | `refuse_font` (`font_file.cpp`), `OperationStatus`/`OperationResult` | a refusal's record |
 | `stxlib::Mutex` made, `lock`, `unlock`, unmade | `glyph_face.cpp` (`TypefaceState`, `ScopedLock`) | a typeface is the program's |
 | `stxlib::detail::requirement_failed` | `STXLIB_REQUIRE` in the vocabulary types; `STXLIB_GLYPHS_CHECK` in a checked build | a broken requirement stops the program |
 

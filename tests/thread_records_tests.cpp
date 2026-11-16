@@ -26,7 +26,7 @@
 namespace {
 
 using stxlib::ErrorKind;
-using stxlib::Result;
+using stxlib::OperationResult;
 using stxlib::ThreadRecordSlot;
 using stxlib::ThreadRecordType;
 
@@ -84,28 +84,28 @@ void registration_limits() {
     ThreadRecordType empty{};
     empty.size = 0;
     empty.alignment = 8;
-    Result<ThreadRecordSlot> refused = stxlib::register_thread_record(empty);
+    OperationResult<ThreadRecordSlot> refused = stxlib::register_thread_record(empty);
     CHECK(refused.failed() && refused.error()->kind() == ErrorKind::invalid_argument);
     ThreadRecordType odd{};
     odd.size = 8;
     odd.alignment = 3;
-    Result<ThreadRecordSlot> odd_refused = stxlib::register_thread_record(odd);
+    OperationResult<ThreadRecordSlot> odd_refused = stxlib::register_thread_record(odd);
     CHECK(odd_refused.failed() && odd_refused.error()->kind() == ErrorKind::invalid_argument);
     ThreadRecordType wide{};
     wide.size = 8;
     wide.alignment = stxlib::thread_record_alignment_limit * 2;
-    Result<ThreadRecordSlot> wide_refused = stxlib::register_thread_record(wide);
+    OperationResult<ThreadRecordSlot> wide_refused = stxlib::register_thread_record(wide);
     CHECK(wide_refused.failed() && wide_refused.error()->kind() == ErrorKind::invalid_argument);
     ThreadRecordType huge{};
     huge.size = stxlib::thread_record_size_limit + 1;
     huge.alignment = 8;
-    Result<ThreadRecordSlot> huge_refused = stxlib::register_thread_record(huge);
+    OperationResult<ThreadRecordSlot> huge_refused = stxlib::register_thread_record(huge);
     CHECK(huge_refused.failed() && huge_refused.error()->kind() == ErrorKind::invalid_argument);
 }
 
 void register_counted_types() {
-    Result<ThreadRecordSlot> first = stxlib::register_thread_record(counted_type(first_counts));
-    Result<ThreadRecordSlot> second = stxlib::register_thread_record(counted_type(second_counts));
+    OperationResult<ThreadRecordSlot> first = stxlib::register_thread_record(counted_type(first_counts));
+    OperationResult<ThreadRecordSlot> second = stxlib::register_thread_record(counted_type(second_counts));
     CHECK(first.succeeded() && second.succeeded());
     if (first.succeeded()) first_slot = *first.value();
     if (second.succeeded()) second_slot = *second.value();
@@ -115,8 +115,8 @@ void register_counted_types() {
 void first_access_creates_once() {
     std::thread worker([] {
         CHECK(stxlib::existing_thread_record(first_slot) == nullptr);
-        Result<void*> once = stxlib::thread_record(first_slot);
-        Result<void*> twice = stxlib::thread_record(first_slot);
+        OperationResult<void*> once = stxlib::thread_record(first_slot);
+        OperationResult<void*> twice = stxlib::thread_record(first_slot);
         CHECK(once.succeeded() && twice.succeeded());
         if (once.succeeded() && twice.succeeded()) CHECK(*once.value() == *twice.value());
         CHECK(stxlib::existing_thread_record(first_slot) != nullptr);
@@ -151,7 +151,7 @@ ThreadRecordSlot reentrant_slot{};
 std::atomic<int> reentrant_kind{-1};
 
 void reentrant_initialize(void*, void*) noexcept {
-    Result<void*> inner = stxlib::thread_record(reentrant_slot);
+    OperationResult<void*> inner = stxlib::thread_record(reentrant_slot);
     reentrant_kind.store(inner.failed() ? static_cast<int>(inner.error()->kind()) : 0);
 }
 
@@ -160,7 +160,7 @@ void reentry_from_initialize_refused() {
     type.size = 16;
     type.alignment = 8;
     type.initialize = reentrant_initialize;
-    Result<ThreadRecordSlot> registered = stxlib::register_thread_record(type);
+    OperationResult<ThreadRecordSlot> registered = stxlib::register_thread_record(type);
     CHECK(registered.succeeded());
     if (registered.failed()) return;
     reentrant_slot = *registered.value();
@@ -178,7 +178,7 @@ void end_thread_records_releases_now() {
         stxlib::end_thread_records();
         CHECK(first_counts.released.load() == 1);
         CHECK(stxlib::existing_thread_record(first_slot) == nullptr);
-        Result<void*> after = stxlib::thread_record(first_slot);
+        OperationResult<void*> after = stxlib::thread_record(first_slot);
         CHECK(after.failed() && after.error()->kind() == ErrorKind::disposed);
         const stxlib::ErrorRecord made = stxlib::ErrorRecord::make(ErrorKind::internal_failure, "stxlib.tests.after_end");
         CHECK(made.sequence() != 0);
@@ -197,7 +197,7 @@ std::atomic<int> late_refused{0};
 
 struct AsksAtExit final {
     ~AsksAtExit() {
-        Result<void*> asked = stxlib::thread_record(first_slot);
+        OperationResult<void*> asked = stxlib::thread_record(first_slot);
         if (asked.succeeded()) {
             late_created.fetch_add(1);
         } else if (asked.error()->kind() == ErrorKind::disposed) {
@@ -235,7 +235,7 @@ std::atomic<int> later_depth_after{-1};
 std::atomic<int> later_sequence_nonzero{-1};
 
 void later_destructor(void*) {
-    Result<void*> asked = stxlib::thread_record(first_slot);
+    OperationResult<void*> asked = stxlib::thread_record(first_slot);
     later_kind.store(asked.failed() ? static_cast<int>(asked.error()->kind()) : 0);
     const stxlib::ShadowFrameText text{.kind = 1, .subject = "stxlib.tests", .name = "later"};
     const stxlib::ShadowFrameMark mark = stxlib::enter_shadow_frame(text);

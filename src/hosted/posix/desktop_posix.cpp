@@ -43,55 +43,55 @@ constexpr TextView desktop_helper = "xdg-open";
 // Runs the helper detached with its output discarded and does not wait; the
 // Child is abandoned and reaped later (children.hpp). A desktop without its
 // helper program lacks the capability.
-Status run_helper(const View<PathText> arguments) noexcept {
+OperationStatus run_helper(const View<PathText> arguments) noexcept {
     const ChildRequest request{
         .program = desktop_helper, .arguments = arguments, .streams = ChildStreams::discard, .detached = true};
-    const Result<Child> started = Child::start(request);
-    if (started.succeeded()) return Status::success();
+    const OperationResult<Child> started = Child::start(request);
+    if (started.succeeded()) return OperationStatus::success();
     const ErrorRecord& failure = *started.error();
     if (failure.kind() == ErrorKind::not_found) {
         return host_failure::failed(ErrorKind::unsupported, "stxlib.desktop.helper", HostCode::none, failure.foreign());
     }
-    return Status::failure(failure);
+    return OperationStatus::failure(failure);
 }
 
-Status io_failure_errno(const int error) noexcept {
-    const Status result = host_failure::failed(ErrorKind::io_failure, "stxlib.desktop.current_executable",
+OperationStatus io_failure_errno(const int error) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::io_failure, "stxlib.desktop.current_executable",
                                                HostCode::none,
                                                ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
     return result;
 }
 
-Status exhausted() noexcept {
-    const Status result =
+OperationStatus exhausted() noexcept {
+    const OperationStatus result =
         host_failure::failed(ErrorKind::out_of_memory, "stxlib.desktop.current_executable", HostCode::none);
     return result;
 }
 
 } // namespace
 
-Status open_target(const TextView target, const bool is_link) noexcept {
+OperationStatus open_target(const TextView target, const bool is_link) noexcept {
     (void)is_link;
     const PathText arguments[] = {target};
-    const Status result = run_helper(View<PathText>(arguments));
+    const OperationStatus result = run_helper(View<PathText>(arguments));
     return result;
 }
 
-Status reveal(const Path& path) noexcept {
+OperationStatus reveal(const Path& path) noexcept {
 #if defined(__APPLE__)
     const PathText arguments[] = {"-R", path.text()};
-    const Status result = run_helper(View<PathText>(arguments));
+    const OperationStatus result = run_helper(View<PathText>(arguments));
     return result;
 #else
-    Result<Path> directory = path.parent();
-    if (directory.failed()) return Status::failure(*directory.error());
+    OperationResult<Path> directory = path.parent();
+    if (directory.failed()) return OperationStatus::failure(*directory.error());
     const PathText arguments[] = {(*directory.value()).text()};
-    const Status result = run_helper(View<PathText>(arguments));
+    const OperationStatus result = run_helper(View<PathText>(arguments));
     return result;
 #endif
 }
 
-Status executable_name(Growable<char>& text) noexcept {
+OperationStatus executable_name(Growable<char>& text) noexcept {
     text.clear();
 #if defined(__APPLE__)
     uint32_t size = 0;
@@ -107,7 +107,7 @@ Status executable_name(Growable<char>& text) noexcept {
     const bool copied = text.append(resolved, std::strlen(resolved));
     std::free(resolved);
     if (!copied) return exhausted();
-    return Status::success();
+    return OperationStatus::success();
 #elif defined(__linux__)
     usize capacity = 256;
     for (;;) {
@@ -116,7 +116,7 @@ Status executable_name(Growable<char>& text) noexcept {
         if (length < 0) return io_failure_errno(errno);
         if (static_cast<usize>(length) < capacity) {
             text.shrink(static_cast<usize>(length));
-            return Status::success();
+            return OperationStatus::success();
         }
         if (capacity >= 65536) {
             return host_failure::failed(ErrorKind::io_failure, "stxlib.desktop.current_executable", HostCode::too_long);
@@ -141,7 +141,7 @@ Status executable_name(Growable<char>& text) noexcept {
     // The kernel's count includes the terminating NUL.
     while (length > 0 && text[length - 1] == '\0') length = length - 1;
     text.shrink(length);
-    return Status::success();
+    return OperationStatus::success();
 #else
     return host_failure::failed(ErrorKind::unsupported, "stxlib.desktop.current_executable", HostCode::none);
 #endif

@@ -55,7 +55,7 @@ static_assert(stxlib::find_ignoring_ascii_case("\xc3\xa9X", "x", 1) == 2);
 static_assert(stxlib::ascii_lower('Q') == 'q' && stxlib::ascii_upper('q') == 'Q');
 
 stxlib::TextView view_of(const std::string& text) {
-    const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
+    const stxlib::OperationResult<stxlib::TextView> validated = stxlib::validate_utf8(text.data(), text.size());
     if (validated.failed()) {
         std::fprintf(stderr, "test text is not UTF-8\n");
         return stxlib::TextView();

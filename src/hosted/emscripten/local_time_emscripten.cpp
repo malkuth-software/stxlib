@@ -41,7 +41,7 @@ EM_JS(int, stxlib_web_zone_name, (double buffer, int capacity), {
 
 namespace stxlib::local_time_backend {
 
-Status system_zone_text(ZoneText& text) noexcept {
+OperationStatus system_zone_text(ZoneText& text) noexcept {
     ZoneText found{};
     const double buffer = static_cast<double>(reinterpret_cast<uptr>(found.bytes));
     const int written = stxlib_web_zone_name(buffer, static_cast<int>(zone_text_capacity));
@@ -53,12 +53,12 @@ Status system_zone_text(ZoneText& text) noexcept {
         text.bytes[1] = 'T';
         text.bytes[2] = 'C';
         text.count = 3;
-        return Status::success();
+        return OperationStatus::success();
     }
     const usize count = static_cast<usize>(written);
     for (usize index = 0; index < count; ++index) text.bytes[index] = found.bytes[index];
     text.count = count;
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::local_time_backend

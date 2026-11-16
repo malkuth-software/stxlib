@@ -6,8 +6,8 @@
 // Ported from stx_auxlib's btree/tests/optimal_tree_test.cpp at b6e330a.
 // The references and instances are unchanged. Adapted to STXlib's
 // interface: the test keeps its weights in std::vector (OwnedWeights) and
-// passes views; each construction's Result must succeed (take); a refusal
-// is a Result with kind invalid_argument where stx_auxlib threw
+// passes views; each construction's OperationResult must succeed (take); a refusal
+// is a OperationResult with kind invalid_argument where stx_auxlib threw
 // std::invalid_argument; shapes are compared element by element.
 
 #include "algorithms/stx_btree/optimal_tree.hpp"
@@ -69,7 +69,7 @@ struct OwnedWeights final {
 };
 
 // A construction that must succeed.
-SearchTree take(stxlib::Result<SearchTree> built) {
+SearchTree take(stxlib::OperationResult<SearchTree> built) {
     TestFailure::expect(built.succeeded(), "construction", "a construction failed");
     if (!built.succeeded()) {
         return SearchTree{};
@@ -78,18 +78,18 @@ SearchTree take(stxlib::Result<SearchTree> built) {
 }
 
 // A construction that must refuse its weights.
-[[nodiscard]] bool refused(const stxlib::Result<SearchTree>& built) {
+[[nodiscard]] bool refused(const stxlib::OperationResult<SearchTree>& built) {
     return !built.succeeded() && (*built.error()).kind() == stxlib::ErrorKind::invalid_argument;
 }
 
 [[nodiscard]] bool search_tree(const BinaryTreeShape& shape, std::size_t key_count) {
-    const stxlib::Result<bool> checked = BinaryTreeRules::is_search_tree(shape, key_count);
+    const stxlib::OperationResult<bool> checked = BinaryTreeRules::is_search_tree(shape, key_count);
     TestFailure::expect(checked.succeeded(), "shape check", "memory sufficed");
     return checked.succeeded() && *checked.value();
 }
 
 [[nodiscard]] ExactCost cost_of(const BinaryTreeShape& shape, const OwnedWeights& weights) {
-    const stxlib::Result<ExactCost> cost = BinaryTreeRules::cost(shape, weights.view());
+    const stxlib::OperationResult<ExactCost> cost = BinaryTreeRules::cost(shape, weights.view());
     TestFailure::expect(cost.succeeded(), "cost", "memory sufficed");
     return cost.succeeded() ? *cost.value() : ExactCost{-1};
 }
@@ -485,7 +485,7 @@ void check_edges() {
 
 // A construction refused for its size (maximum_table_cells), before it
 // allocates.
-[[nodiscard]] bool too_large(const stxlib::Result<SearchTree>& built) {
+[[nodiscard]] bool too_large(const stxlib::OperationResult<SearchTree>& built) {
     return !built.succeeded() && (*built.error()).kind() == stxlib::ErrorKind::limit_exceeded;
 }
 

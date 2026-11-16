@@ -95,7 +95,7 @@ int visit_object(dl_phdr_info* const information, const std::size_t, void* const
 
 } // namespace
 
-Status visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
+OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
                      const ImageRegionVisitor visitor, void* const context) noexcept {
     static_cast<void>(query); // ELF notes are found by type (images.hpp)
     Search search{};
@@ -107,7 +107,7 @@ Status visit_regions(const ImageRegionQuery& query, const bool containing, const
     if (containing && !search.found) {
         return host_failure::failed(ErrorKind::not_found, "stxlib.images.visit_regions_containing", HostCode::no_image);
     }
-    return Status::success();
+    return OperationStatus::success();
 }
 
 } // namespace stxlib::image_backend
