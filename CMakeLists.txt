@@ -677,6 +677,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
     src/algorithms/case_folding.cpp
+    src/algorithms/bidi/bidi.cpp
     src/algorithms/hash.cpp
     src/algorithms/markdown/blocks.cpp
     src/algorithms/markdown/characters.cpp
@@ -1039,6 +1040,36 @@ if(STXLIB_TESTS)
     endif()
     add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
+    # The bidirectional algorithm (include/stxlib/bidi.hpp): the lookups
+    # against the Unicode files, BidiTest.txt and BidiCharacterTest.txt
+    # (off the repository: STXLIB_UNICODE_TEST_DATA names their directory;
+    # the test says when they are absent) and the exact comparison with the
+    # reference (tests/reference/bidi_reference.hpp). Not for the web
+    # targets (the files are read from the host).
+    set(STXLIB_UNICODE_TEST_DATA "" CACHE PATH
+        "Directory of BidiTest.txt and BidiCharacterTest.txt (Unicode 18.0.0), for stxlib_bidi_tests")
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_bidi_tests tests/bidi_tests.cpp)
+        target_link_libraries(stxlib_bidi_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_bidi_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+        target_compile_options(stxlib_bidi_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_bidi_tests
+            COMMAND stxlib_bidi_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0 ${STXLIB_UNICODE_TEST_DATA})
+        set_tests_properties(stxlib_bidi_tests PROPERTIES TIMEOUT 1200)
+        # Speed against SheenBidi and the differences from it: only with
+        # SheenBidi's source named (stx_text's copy); never installed.
+        set(STXLIB_SHEENBIDI_DIR "" CACHE PATH "SheenBidi source (Headers/, Source/) for stxlib_bidi_bench")
+        if(STXLIB_SHEENBIDI_DIR)
+            enable_language(C)
+            file(GLOB stxlib_sheenbidi_sources ${STXLIB_SHEENBIDI_DIR}/Source/*.c)
+            list(FILTER stxlib_sheenbidi_sources EXCLUDE REGEX "SheenBidi\\.c$")
+            add_library(stxlib_sheenbidi_oracle STATIC ${stxlib_sheenbidi_sources})
+            target_include_directories(stxlib_sheenbidi_oracle PUBLIC ${STXLIB_SHEENBIDI_DIR}/Headers
+                                       PRIVATE ${STXLIB_SHEENBIDI_DIR}/Source)
+            add_executable(stxlib_bidi_bench tests/bidi_bench.cpp)
+            target_link_libraries(stxlib_bidi_bench PRIVATE stxlib::algorithms stxlib_sheenbidi_oracle)
+        endif()
+    endif()
     # stxlib::markdown: the CommonMark specification's examples, the tape's
     # form, and the generated tables against the Unicode file, read by the
     # test's own parser (tests/markdown_tests.cpp); and the committed tables
@@ -1511,6 +1542,10 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_full_table.inc)
+        add_test(NAME stxlib_bidi_tables
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_bidi_tables.py --check
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/bidi/bidi_tables.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})

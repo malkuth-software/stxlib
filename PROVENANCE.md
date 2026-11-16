@@ -874,3 +874,41 @@ Label matching's full case folding is `fold_case_full` of
 now writes and checks beside the simple one, from the same pinned file. The
 CTest check `stxlib_markdown_tables` regenerates and compares. Taking a
 later version of an input: replace the file, update this table, regenerate.
+
+### stxlib::text bidi: UAX #9 after the specification, with SheenBidi as the oracle (2026-11-16)
+
+`include/stxlib/bidi.hpp` and `src/algorithms/bidi/` are first party: an
+implementation of the Unicode Bidirectional Algorithm (UAX #9, Unicode
+18.0.0) written from the specification, ordered on 2026-11-16 to replace
+SheenBidi (stx_text's vendored copy, read only as the oracle; none of its
+code is here). Where the two differ, the specification wins; the differences
+are listed in `docs/BIDI.md`.
+
+Five files were downloaded on 2026-11-16 with the owner's approval of the
+same day (four together, `DerivedBidiClass.txt` asked for and approved
+after them), from <https://www.unicode.org/Public/18.0.0/ucd/>, unmodified:
+
+| File | Where | Bytes | SHA-256 |
+|---|---|---|---|
+| `BidiBrackets.txt` | `third_party/unicode-18.0.0/` | 8,992 | `4b3b62e4a14b84ee752808c810c602534921c09a4a1bf78cfbee566d66c125b3` |
+| `BidiMirroring.txt` | `third_party/unicode-18.0.0/` | 27,294 | `cd54810ebf52f0e61a730c8b9cb25975de6c85f6d788a559b416afd548923fd6` |
+| `extracted/DerivedBidiClass.txt` | `third_party/unicode-18.0.0/DerivedBidiClass.txt` | 176,412 | `d9e23222522551348ea1ccfbb4f62efbf98982afb95840f8959c08ed992c5607` |
+| `BidiTest.txt` | off the repository (below) | 7,959,988 | `9af2f882a4ab50912e388f069a673b94eacd82fa6d07d20a3ff7f3c759e905aa` |
+| `BidiCharacterTest.txt` | off the repository (below) | 6,880,771 | `045b24d2c8ab066951bd32fe8c6b4de34647f72b5b1c7df0265f24ab53573e01` |
+
+Licence: the Unicode License v3, as the other files of the directory
+(`third_party/unicode-18.0.0/LICENSE`, installed as `unicode-LICENSE`).
+The two test files are conformance data only and are not committed: they
+are kept at `/Volumes/Storage/stxlib_workers/unicode-18.0.0/` on the M4
+and read through the CMake cache variable `STXLIB_UNICODE_TEST_DATA`; the
+conformance test says plainly when they are absent.
+
+Generated (first party) by `tools/gen_bidi_tables.py`, each input pinned
+by hash: `src/algorithms/bidi/bidi_tables.inc`. Bidi_Class comes from
+`DerivedBidiClass.txt` (every code point, the unassigned defaults
+included), and the generator stops unless `UnicodeData.txt` field 4 agrees
+at every code point it lists. Bidi_Mirrored comes from `UnicodeData.txt`
+field 9, singleton canonical decompositions (bracket equivalence) from
+field 5, brackets from `BidiBrackets.txt`, mirroring glyphs from
+`BidiMirroring.txt`.
+The CTest check `stxlib_bidi_tables` regenerates and compares.
