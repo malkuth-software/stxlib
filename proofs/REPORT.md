@@ -654,6 +654,17 @@ before its commit (the seat's logs `sc1/dev/logs/tl-quick2-*` and
   surface check passes on the sanitized objects.
 - The oracle comparisons and the timing are in `docs/TEXTLAYOUT.md`.
 
+After the security audit's fixes (A-stxlib-textlayout-01 F1-F4) and the
+byte counts, on the M4 at the fold (the integrator's logs `tl-fix1` and
+`round14-gate`): the seat's run above again passes on the fixed tree
+(`stxlib_textlayout_tests` 53 checks before the byte counts); with the
+byte counts, the full CTest suite passes in Debug, Release, Release
+without exceptions, ASan with UBSan, and the integer checks, with
+`STXLIB_UNICODE_TEST_DATA` set, and in Debug, the integer build and ASan
+with UBSan `stxlib_textlayout_tests` passes 64 checks (LineBreakTest
+19,346 of 19,346) and `stxlib_textlayout_bidi_tests` 50 (BidiTest 770,241
+of 770,241, BidiCharacterTest 91,707 of 91,707).
+
 Open: the 5,264 texts where libunibreak and STXlib differ for an "other"
 cause (`docs/TEXTLAYOUT.md`) have not been examined one by one. LB12a at
 18.0.0 is inferred from LineBreakTest 18.0.0, not read in UAX #14 18.0.0
