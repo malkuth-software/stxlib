@@ -942,6 +942,24 @@ void arguments() {
     }
     paragraph.clear();
     CHECK(paragraph.breaks().count() == 0 && paragraph.script_runs().count() == 0 && paragraph.length() == 0);
+
+    // A moved-from paragraph or line is empty (A-stxlib-textlayout-01-F2):
+    // its accessors give empty views and analyse_line refuses it.
+    const stxlib::TextView hebrew("ab \xd7\x90\xd7\x91 c");
+    CHECK(layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, paragraph).succeeded());
+    layout::Paragraph moved(static_cast<layout::Paragraph&&>(paragraph));
+    CHECK(moved.length() == hebrew.count() && moved.levels().count() == hebrew.count());
+    CHECK(paragraph.length() == 0 && paragraph.levels().count() == 0 && paragraph.breaks().count() == 0 &&
+          paragraph.script_runs().count() == 0);
+    layout::Line line;
+    CHECK(layout::analyse_line(paragraph, 0, hebrew.count(), line).failed());
+    CHECK(layout::analyse_line(moved, 0, moved.length(), line).succeeded() && line.runs().count() == 3);
+    layout::Line moved_line;
+    moved_line = static_cast<layout::Line&&>(line);
+    CHECK(moved_line.runs().count() == 3 && moved_line.levels().count() == hebrew.count());
+    CHECK(line.runs().count() == 0 && line.levels().count() == 0 && line.length() == 0);
+    paragraph = static_cast<layout::Paragraph&&>(moved);
+    CHECK(paragraph.length() == hebrew.count() && moved.length() == 0 && moved.levels().count() == 0);
 }
 
 } // namespace

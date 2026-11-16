@@ -295,8 +295,10 @@ class Line;
 class Paragraph final {
 public:
     Paragraph() noexcept = default;
-    Paragraph(Paragraph&&) noexcept = default;
-    Paragraph& operator=(Paragraph&&) noexcept = default;
+    // A moved-from paragraph is empty, as after clear(), with no capacity
+    // (A-stxlib-textlayout-01-F2).
+    Paragraph(Paragraph&& other) noexcept;
+    Paragraph& operator=(Paragraph&& other) noexcept;
     Paragraph(const Paragraph&) = delete;
     Paragraph& operator=(const Paragraph&) = delete;
 
@@ -379,8 +381,9 @@ private:
 class Line final {
 public:
     Line() noexcept = default;
-    Line(Line&&) noexcept = default;
-    Line& operator=(Line&&) noexcept = default;
+    // A moved-from line is empty, as after clear(), with no capacity.
+    Line(Line&& other) noexcept;
+    Line& operator=(Line&& other) noexcept;
     Line(const Line&) = delete;
     Line& operator=(const Line&) = delete;
 

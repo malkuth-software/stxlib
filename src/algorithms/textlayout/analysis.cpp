@@ -1236,7 +1236,48 @@ BidiBracket bidi_paired_bracket(const u32 code_point) noexcept {
 
 void Paragraph::clear() noexcept { Access::clear(*this); }
 
+// The moves take the storage and the counts, then leave the source empty
+// (A-stxlib-textlayout-01-F2): a defaulted move would leave the counts over
+// the moved-from vectors' empty storage.
+Paragraph::Paragraph(Paragraph&& other) noexcept { *this = static_cast<Paragraph&&>(other); }
+
+Paragraph& Paragraph::operator=(Paragraph&& other) noexcept {
+    if (this == &other) return *this;
+    levels_ = static_cast<Vector<u8>&&>(other.levels_);
+    breaks_ = static_cast<Vector<LineBreak>&&>(other.breaks_);
+    script_runs_ = static_cast<Vector<ScriptRun>&&>(other.script_runs_);
+    classes_ = static_cast<Vector<u8>&&>(other.classes_);
+    units_ = static_cast<Vector<u32>&&>(other.units_);
+    keys_ = static_cast<Vector<u32>&&>(other.keys_);
+    work_ = static_cast<Vector<u8>&&>(other.work_);
+    work_wide_ = static_cast<Vector<u32>&&>(other.work_wide_);
+    offset_ = other.offset_;
+    length_ = other.length_;
+    code_points_ = other.code_points_;
+    unit_count_ = other.unit_count_;
+    key_count_ = other.key_count_;
+    script_run_count_ = other.script_run_count_;
+    classes_present_ = other.classes_present_;
+    base_level_ = other.base_level_;
+    uniform_ = other.uniform_;
+    Access::clear(other);
+    return *this;
+}
+
 void Line::clear() noexcept { Access::clear(*this); }
+
+Line::Line(Line&& other) noexcept { *this = static_cast<Line&&>(other); }
+
+Line& Line::operator=(Line&& other) noexcept {
+    if (this == &other) return *this;
+    runs_ = static_cast<Vector<BidiRun>&&>(other.runs_);
+    levels_ = static_cast<Vector<u8>&&>(other.levels_);
+    offset_ = other.offset_;
+    length_ = other.length_;
+    run_count_ = other.run_count_;
+    Access::clear(other);
+    return *this;
+}
 
 Status analyse_paragraph(const TextView text, const usize offset, const BaseDirection direction,
                          Paragraph& paragraph) noexcept {
