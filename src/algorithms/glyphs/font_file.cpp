@@ -59,6 +59,7 @@ struct Tables final {
     FontTable gpos{};
     FontTable gdef{};
     FontTable kern{};
+    FontTable name{};
 };
 
 // The character maps this reads, and which is taken: a map of all of
@@ -249,7 +250,39 @@ void choose_variation_map(const FontTable& table, Font& font) noexcept {
     return 0;
 }
 
+// OS/2's numbers as FreeType reads them: the table is taken whole for its
+// version or not at all (os2_version 0xFFFF).
+void read_os2_numbers(const Span& os2, Font& font) noexcept {
+    if (!has(os2, 0, 78)) return;
+    const u32 version = read_u16(os2, 0);
+    usize needed = 78;
+    if (version >= 1) needed = 86;
+    if (version >= 2) needed = 96;
+    if (version >= 5) needed = 100;
+    if (!has(os2, 0, needed)) return;
+    font.os2_version = version;
+    font.weight_class = read_u16(os2, 4);
+    font.width_class = read_u16(os2, 6);
+    font.selection = read_u16(os2, 62);
+    font.typo_ascender = read_i16(os2, 68);
+    font.typo_descender = read_i16(os2, 70);
+    font.typo_line_gap = read_i16(os2, 72);
+    font.win_ascent = read_u16(os2, 74);
+    font.win_descent = read_u16(os2, 76);
+}
+
 } // namespace
+
+u32 face_count(const View<u8> bytes) noexcept {
+    const Span whole = span_of(bytes);
+    if (!has(whole, 0, 12)) return 0;
+    const u32 magic = read_u32(whole, 0);
+    if (magic == magic_truetype || magic == magic_true || magic == magic_opentype) return 1;
+    if (magic != magic_collection) return 0;
+    const u32 faces = read_u32(whole, 8);
+    if (faces == 0 || !has(whole, 12, static_cast<usize>(faces) * 4)) return 0;
+    return faces;
+}
 
 Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     const Operation operation("stxlib.glyphs.open_font");
@@ -300,6 +333,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         if (name == tag('g', 'l', 'y', 'f')) tables.glyf = table;
         if (name == tag('C', 'F', 'F', ' ')) tables.cff = table;
         if (name == tag('p', 'o', 's', 't')) tables.post = table;
+        if (name == tag('n', 'a', 'm', 'e')) tables.name = table;
     }
     font.bytes = bytes;
     const Span head = table_of(font, tables.head);
@@ -325,7 +359,14 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     font.ascender = read_i16(hhea, 4);
     font.descender = read_i16(hhea, 6);
     font.height = font.ascender - font.descender + read_i16(hhea, 8);
+    font.hhea_ascender = font.ascender;
+    font.hhea_descender = font.descender;
+    font.hhea_line_gap = read_i16(hhea, 8);
     const Span os2 = table_of(font, tables.os2);
+    read_os2_numbers(os2, font);
+    // The name table, when its header and its records are inside it.
+    const Span names = table_of(font, tables.name);
+    if (has(names, 0, 6) && has(names, 6, static_cast<usize>(read_u16(names, 2)) * 12)) font.names = tables.name;
     font.italic = (read_u16(head, 44) & 0x2U) != 0;
     const Span post = table_of(font, tables.post);
     font.fixed_pitch = has(post, 0, 16) && read_u32(post, 12) != 0;

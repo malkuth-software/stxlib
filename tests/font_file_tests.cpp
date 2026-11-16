@@ -44,6 +44,7 @@
 #include "font_builder.hpp"
 #include "test_support.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -123,7 +124,8 @@ struct Built final {
     Bytes bytes{};
 };
 
-[[nodiscard]] Bytes truetype_font(const Bytes& os2, const Bytes& hhea, const Bytes& cmap, const bool long_offsets) {
+[[nodiscard]] Bytes truetype_font(const Bytes& os2, const Bytes& hhea, const Bytes& cmap, const bool long_offsets,
+                                  const std::vector<NamedTable>& extra = {}) {
     std::vector<Bytes> glyph_bytes{};
     // 0: nothing.
     glyph_bytes.push_back(Bytes{});
@@ -152,14 +154,16 @@ struct Built final {
     glyph_tables(glyph_bytes, metrics, 4, long_offsets, glyf, loca, hmtx);
     Bytes adjusted = hhea;
     adjusted[35] = 4;
-    const Bytes font = font_of(0x00010000U, {{"OS/2", os2},
-                                             {"cmap", cmap},
-                                             {"glyf", glyf},
-                                             {"head", head_table(1000, long_offsets)},
-                                             {"hhea", adjusted},
-                                             {"hmtx", hmtx},
-                                             {"loca", loca},
-                                             {"maxp", maxp_table(8)}});
+    std::vector<NamedTable> tables = {{"OS/2", os2},
+                                      {"cmap", cmap},
+                                      {"glyf", glyf},
+                                      {"head", head_table(1000, long_offsets)},
+                                      {"hhea", adjusted},
+                                      {"hmtx", hmtx},
+                                      {"loca", loca},
+                                      {"maxp", maxp_table(8)}};
+    for (const NamedTable& table : extra) tables.push_back(table);
+    const Bytes font = font_of(0x00010000U, tables);
     return font;
 }
 
@@ -791,6 +795,320 @@ void audit_contracts() {
     CHECK(status.succeeded() && outline.points[0].x == 200000 && outline.points[0].y == -300000);
 }
 
+// ---- the face's names, OS/2, line metrics and collections (font tables for GUI.Forms) -------
+
+struct NameRecord final {
+    u32 platform{0};
+    u32 encoding{0};
+    u32 language{0};
+    u32 id{0};
+    Bytes text{};
+};
+
+// A name table of format 0 (or 1 with `tags` language tags, each pointing
+// at the first record's text) holding the records' text in order.
+[[nodiscard]] Bytes name_table(const std::vector<NameRecord>& records, const u32 format = 0, const u32 tags = 0) {
+    Bytes table{};
+    put16(table, static_cast<i32>(format));
+    put16(table, static_cast<i32>(records.size()));
+    const usize storage = 6 + records.size() * 12 + (format == 1 ? 2 + tags * 4 : 0);
+    put16(table, static_cast<i32>(storage));
+    usize offset = 0;
+    for (const NameRecord& record : records) {
+        put16(table, static_cast<i32>(record.platform));
+        put16(table, static_cast<i32>(record.encoding));
+        put16(table, static_cast<i32>(record.language));
+        put16(table, static_cast<i32>(record.id));
+        put16(table, static_cast<i32>(record.text.size()));
+        put16(table, static_cast<i32>(offset));
+        offset = offset + record.text.size();
+    }
+    if (format == 1) {
+        put16(table, static_cast<i32>(tags));
+        for (u32 tag = 0; tag < tags; ++tag) {
+            put16(table, records.empty() ? 0 : static_cast<i32>(records[0].text.size()));
+            put16(table, 0);
+        }
+    }
+    for (const NameRecord& record : records) append(table, record.text);
+    return table;
+}
+
+[[nodiscard]] Bytes utf16_of(const std::vector<u32>& units) {
+    Bytes bytes{};
+    for (const u32 unit : units) put16(bytes, static_cast<i32>(unit));
+    return bytes;
+}
+
+[[nodiscard]] Bytes ascii_utf16(const std::string& text) {
+    Bytes bytes{};
+    for (const char letter : text) put16(bytes, static_cast<i32>(static_cast<u8>(letter)));
+    return bytes;
+}
+
+[[nodiscard]] Bytes ascii_bytes(const std::string& text) {
+    Bytes bytes{};
+    for (const char letter : text) put8(bytes, static_cast<u8>(letter));
+    return bytes;
+}
+
+[[nodiscard]] std::string text_of(const stxlib::Vector<char>& text) {
+    std::string result{};
+    for (usize index = 0; index < text.count(); ++index) result.push_back(text[index]);
+    return result;
+}
+
+// Whether the bytes are well-formed UTF-8 of scalar values, with no U+0000.
+[[nodiscard]] bool well_formed_utf8(const stxlib::Vector<char>& text) {
+    usize index = 0;
+    while (index < text.count()) {
+        const u32 lead = static_cast<u8>(text[index]);
+        usize length = 0;
+        u32 value = 0;
+        if (lead >= 0x01 && lead < 0x80) {
+            length = 1;
+            value = lead;
+        } else if (lead >= 0xC2 && lead < 0xE0) {
+            length = 2;
+            value = lead & 0x1FU;
+        } else if (lead >= 0xE0 && lead < 0xF0) {
+            length = 3;
+            value = lead & 0x0FU;
+        } else if (lead >= 0xF0 && lead < 0xF5) {
+            length = 4;
+            value = lead & 0x07U;
+        } else {
+            return false;
+        }
+        if (index + length > text.count()) return false;
+        for (usize more = 1; more < length; ++more) {
+            const u32 next = static_cast<u8>(text[index + more]);
+            if ((next & 0xC0U) != 0x80U) return false;
+            value = (value << 6) | (next & 0x3FU);
+        }
+        const u32 least = length == 1 ? 0 : (length == 2 ? 0x80 : (length == 3 ? 0x800 : 0x10000));
+        if (value < least || value > 0x10FFFF || (value >= 0xD800 && value <= 0xDFFF)) return false;
+        index = index + length;
+    }
+    return true;
+}
+
+[[nodiscard]] std::string name_of(const glyphs::Font& font, const u32 id) {
+    stxlib::Vector<char> text{};
+    const stxlib::Status status = glyphs::font_name(font, id, text);
+    CHECK(status.succeeded());
+    return text_of(text);
+}
+
+// Whether the font's family name is asked without failing and is
+// well-formed UTF-8.
+[[nodiscard]] bool name_well_formed(const glyphs::Font& font) {
+    stxlib::Vector<char> text{};
+    const bool result = glyphs::family_name(font, text).succeeded() && well_formed_utf8(text);
+    return result;
+}
+
+// A collection of the fonts given: each font's table offsets moved by where
+// it is put.
+[[nodiscard]] Bytes collection_of(const std::vector<Bytes>& fonts) {
+    Bytes bytes{};
+    put32(bytes, 0x74746366U);
+    put32(bytes, 0x00010000U);
+    put32(bytes, static_cast<u32>(fonts.size()));
+    usize place = 12 + fonts.size() * 4;
+    std::vector<usize> places{};
+    for (const Bytes& font : fonts) {
+        places.push_back(place);
+        put32(bytes, static_cast<u32>(place));
+        place = place + font.size();
+    }
+    for (usize index = 0; index < fonts.size(); ++index) {
+        Bytes font = fonts[index];
+        const usize tables = (static_cast<usize>(font[4]) << 8) | font[5];
+        for (usize table = 0; table < tables; ++table) {
+            const usize record = 12 + table * 16 + 8;
+            const u32 offset = (static_cast<u32>(font[record]) << 24) | (static_cast<u32>(font[record + 1]) << 16) |
+                               (static_cast<u32>(font[record + 2]) << 8) | static_cast<u32>(font[record + 3]);
+            const u32 moved = offset + static_cast<u32>(places[index]);
+            font[record] = static_cast<u8>(moved >> 24);
+            font[record + 1] = static_cast<u8>(moved >> 16);
+            font[record + 2] = static_cast<u8>(moved >> 8);
+            font[record + 3] = static_cast<u8>(moved);
+        }
+        append(bytes, font);
+    }
+    return bytes;
+}
+
+// An OS/2 table of `size` bytes and `version`, with a weight, a width and
+// fsSelection.
+[[nodiscard]] Bytes os2_of(const u32 version, const usize size, const u32 weight, const u32 width, const u32 selection) {
+    Bytes os2 = os2_table(version, selection, 700, -200, 90, 950, 250);
+    os2.resize(size, 0);
+    os2[4] = static_cast<u8>(weight >> 8);
+    os2[5] = static_cast<u8>(weight);
+    os2[6] = static_cast<u8>(width >> 8);
+    os2[7] = static_cast<u8>(width);
+    return os2;
+}
+
+void font_tables() {
+    const Bytes hhea = hhea_table(800, -220, 50, 4);
+    const Bytes os2 = os2_of(3, 96, 700, 5, 0x0021);
+    glyphs::Font font{};
+    // OS/2 and hhea, as the tables have them.
+    Bytes bytes = truetype_font(os2, hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    CHECK(font.os2_version == 3 && font.weight_class == 700 && font.width_class == 5 && font.selection == 0x0021);
+    CHECK(font.typo_ascender == 700 && font.typo_descender == -200 && font.typo_line_gap == 90 && font.win_ascent == 950 &&
+          font.win_descent == 250);
+    CHECK(font.hhea_ascender == 800 && font.hhea_descender == -220 && font.hhea_line_gap == 50);
+    // An OS/2 too short for its version is none, as FreeType has it.
+    bytes = truetype_font(os2_of(3, 78, 700, 5, 0x21), hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.os2_version == 0xFFFFU && font.weight_class == 0);
+    bytes = truetype_font(os2_of(0, 78, 400, 5, 0x40), hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.os2_version == 0 && font.weight_class == 400 && font.selection == 0x40);
+    bytes = truetype_font(os2_of(5, 96, 400, 5, 0x40), hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.os2_version == 0xFFFFU);
+    bytes = truetype_font(os2_of(5, 100, 300, 5, 0x40), hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.os2_version == 5 && font.weight_class == 300);
+    bytes = truetype_font(Bytes{}, hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.os2_version == 0xFFFFU && font.selection == 0);
+
+    // Names: Windows' English before Macintosh's; text decoded.
+    const NameRecord windows_family{3, 1, 0x409, 1, utf16_of({'F', 'a', 'm', 0xE9, 0xD83D, 0xDE00, 0x4E2D})};
+    const NameRecord mac_family{1, 0, 0, 1, ascii_bytes("MacFam\x8E")};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({mac_family, windows_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.names.length != 0);
+    CHECK(name_of(font, 1) == "Fam\xC3\xA9\xF0\x9F\x98\x80\xE4\xB8\xAD" && name_of(font, 2).empty());
+    // A Windows name not in English gives way to a Macintosh one (read as Mac Roman).
+    const NameRecord german_family{3, 1, 0x407, 1, ascii_utf16("Familie")};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({german_family, mac_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "MacFam\xC3\xA9");
+    // Alone, it is taken; English of another country is English.
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({german_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "Familie");
+    const NameRecord british_family{3, 1, 0x809, 1, ascii_utf16("British")};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({british_family, german_family, mac_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "British");
+    // The Unicode platform's last; a lone surrogate is U+FFFD; text ends at U+0000.
+    const NameRecord unicode_family{0, 3, 0, 1, utf16_of({'U', 0xDC00, 'x', 0, 'y'})};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({unicode_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "U\xEF\xBF\xBDx");
+    // A record whose text is outside the table, or empty, is passed over.
+    Bytes cut = name_table({windows_family, german_family});
+    cut[6 + 10] = 0x7F;
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", cut}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "Familie");
+    const NameRecord empty_family{3, 1, 0x409, 1, Bytes{}};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({german_family, empty_family})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1) == "Familie");
+    // Format 1: a record of a language tag that does not exist is passed over.
+    const NameRecord tagged{3, 1, 0x8001, 1, ascii_utf16("Tagged")};
+    const NameRecord tagged_ok{3, 1, 0x8000, 2, ascii_utf16("Ok")};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({tagged, tagged_ok}, 1, 1)}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && name_of(font, 1).empty() && name_of(font, 2) == "Ok");
+    // Family and style by FreeType's rule.
+    const std::vector<NameRecord> all_names = {{3, 1, 0x409, 1, ascii_utf16("Plain")},       {3, 1, 0x409, 2, ascii_utf16("Bold")},
+                                               {3, 1, 0x409, 16, ascii_utf16("Typographic")}, {3, 1, 0x409, 17, ascii_utf16("Heavy")},
+                                               {3, 1, 0x409, 21, ascii_utf16("Wws")},         {3, 1, 0x409, 22, ascii_utf16("WwsStyle")}};
+    stxlib::Vector<char> text{};
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table(all_names)}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    CHECK(glyphs::family_name(font, text).succeeded() && text_of(text) == "Wws");
+    CHECK(glyphs::style_name(font, text).succeeded() && text_of(text) == "WwsStyle");
+    bytes = truetype_font(os2_of(3, 96, 700, 5, 0x0120), hhea, plain_cmap(), false, {{"name", name_table(all_names)}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    CHECK(glyphs::family_name(font, text).succeeded() && text_of(text) == "Typographic");
+    CHECK(glyphs::style_name(font, text).succeeded() && text_of(text) == "Heavy");
+    bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({all_names[0], all_names[1]})}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    CHECK(glyphs::family_name(font, text).succeeded() && text_of(text) == "Plain");
+    CHECK(glyphs::style_name(font, text).succeeded() && text_of(text) == "Bold");
+    // No name table: every name is empty.
+    bytes = truetype_font(os2, hhea, plain_cmap(), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.names.length == 0);
+    CHECK(glyphs::family_name(font, text).succeeded() && text.empty());
+
+    // Collections: the count, and face N.
+    const Bytes first = truetype_font(os2, hhea, plain_cmap(), false, {{"name", name_table({{3, 1, 0x409, 1, ascii_utf16("One")}})}});
+    const Bytes second = truetype_font(os2_of(3, 96, 900, 5, 0x21), hhea, plain_cmap(), true,
+                                       {{"name", name_table({{3, 1, 0x409, 1, ascii_utf16("Two")}})}});
+    const Bytes both = collection_of({first, second});
+    CHECK(glyphs::face_count(view_of(both)) == 2 && glyphs::face_count(view_of(first)) == 1);
+    CHECK(glyphs::open_font(view_of(both), 0, font).succeeded() && name_of(font, 1) == "One" && font.weight_class == 700);
+    CHECK(glyphs::open_font(view_of(both), 1, font).succeeded() && name_of(font, 1) == "Two" && font.weight_class == 900 && font.long_offsets);
+    CHECK(glyphs::open_font(view_of(both), 2, font).failed() && glyphs::open_font(view_of(first), 1, font).failed());
+    Bytes none_inside = both;
+    none_inside[11] = 0;
+    CHECK(glyphs::face_count(view_of(none_inside)) == 0 && glyphs::open_font(view_of(none_inside), 0, font).failed());
+    Bytes too_many = both;
+    too_many[10] = 0x7F;
+    CHECK(glyphs::face_count(view_of(too_many)) == 0);
+    const Bytes zeros(12, 0);
+    CHECK(glyphs::face_count(view_of(zeros)) == 0 && glyphs::face_count(stxlib::View<u8>()) == 0);
+
+    // The bounded search: a name table of four records (Windows, Macintosh,
+    // Unicode; format 0 and 1) and the two-face collection, every prefix and
+    // every byte set in turn to 0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF. Each
+    // font opens or is refused; each name asked is well-formed UTF-8 no
+    // longer than three bytes a byte of the table; face_count is 0 or the
+    // header's count, a face past it is refused, and a face opened has a
+    // well-formed family name.
+    const u8 values[] = {0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF};
+    const std::vector<Bytes> name_tables = {name_table({windows_family, mac_family, unicode_family, german_family}),
+                                            name_table({tagged, tagged_ok, windows_family}, 1, 2)};
+    usize tried = 0;
+    bool kept = true;
+    for (const Bytes& names : name_tables) {
+        std::vector<Bytes> variants{};
+        for (usize length = 0; length <= names.size(); ++length) variants.push_back(Bytes(names.begin(), names.begin() + static_cast<std::ptrdiff_t>(length)));
+        for (usize place = 0; place < names.size(); ++place) {
+            for (const u8 value : values) {
+                Bytes changed = names;
+                changed[place] = value;
+                variants.push_back(changed);
+            }
+        }
+        for (const Bytes& variant : variants) {
+            bytes = truetype_font(os2, hhea, plain_cmap(), false, {{"name", variant}});
+            tried = tried + 1;
+            if (glyphs::open_font(view_of(bytes), 0, font).failed()) continue;
+            const u32 ids[] = {1, 2, 4, 16, 0xFFFF};
+            for (const u32 id : ids) {
+                const stxlib::Status status = glyphs::font_name(font, id, text);
+                kept = kept && status.succeeded() && well_formed_utf8(text) && text.count() <= variant.size() * 3;
+            }
+            kept = kept && glyphs::family_name(font, text).succeeded() && well_formed_utf8(text);
+        }
+    }
+    for (usize length = 0; length <= both.size() && kept; length = length + (length < 64 ? 1 : 97)) {
+        const Bytes prefix(both.begin(), both.begin() + static_cast<std::ptrdiff_t>(length));
+        const u32 count = glyphs::face_count(view_of(prefix));
+        kept = kept && glyphs::open_font(view_of(prefix), count, font).failed();
+        for (u32 face = 0; face < count; ++face) {
+            if (glyphs::open_font(view_of(prefix), face, font).succeeded()) kept = kept && name_well_formed(font);
+        }
+        tried = tried + 1;
+    }
+    for (usize place = 0; place < 64 && kept; ++place) {
+        for (const u8 value : values) {
+            Bytes changed = both;
+            changed[place] = value;
+            const u32 count = glyphs::face_count(view_of(changed));
+            const u32 header = (static_cast<u32>(changed[8]) << 24) | (static_cast<u32>(changed[9]) << 16) | (static_cast<u32>(changed[10]) << 8) | changed[11];
+            kept = kept && (count == 0 || count == header || count == 1);
+            kept = kept && glyphs::open_font(view_of(changed), count, font).failed();
+            for (u32 face = 0; face < count && face < 4; ++face) {
+                if (glyphs::open_font(view_of(changed), face, font).succeeded()) kept = kept && name_well_formed(font);
+            }
+            tried = tried + 1;
+        }
+    }
+    CHECK(kept);
+    std::printf("font tables: %zu fonts and collections tried\n", tried);
+}
+
 // 01-F2: CFF operators FreeType and read-fonts draw. Each glyph is one
 // charstring in a font of its own; `points` the outline's points expected.
 [[nodiscard]] bool cff_draws(const Bytes& code, const std::vector<Expected>& points, const std::vector<u32>& ends) {
@@ -1155,6 +1473,7 @@ int main() {
     character_maps();
     cff();
     audit_contracts();
+    font_tables();
     cff_operators();
     segments();
     refusals();
