@@ -1400,8 +1400,8 @@ constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
 // from today's: region pow(double) is 0.500097 ulp against 0.576). Not
 // frozen yet (0, printed by check_frozen): only one of the two on the region
 // path; the R3 run list builds each to freeze it.
-constexpr std::uint64_t region_pow_double_only_output_hash = 0;
-constexpr std::uint64_t region_pow_float_only_output_hash = 0;
+constexpr std::uint64_t region_pow_double_only_output_hash = 0x9bc52c7be16de26fULL;
+constexpr std::uint64_t region_pow_float_only_output_hash = 0x3a845b9bad3d2534ULL;
 constexpr std::uint64_t region_pow_output_hash = 0x9bc52c7be16de26fULL;
 
 constexpr std::uint64_t pow_expected_hash(const bool double_on_region, const bool float_on_region) {

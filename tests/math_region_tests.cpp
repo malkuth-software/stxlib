@@ -865,7 +865,7 @@ std::uint64_t region_output_hash() {
 // Frozen by the integrator's freezing run (STXLIB_FREEZE_HASHES=1, fused and
 // Dekker builds agreeing); until then the check fails outside freezing mode
 // (frozen_hash.hpp).
-constexpr std::uint64_t expected_region_output_hash = 0;
+constexpr std::uint64_t expected_region_output_hash = 0x0605cb76219f0850ULL;
 
 void region_determinism() {
     const std::uint64_t hash = region_output_hash();
