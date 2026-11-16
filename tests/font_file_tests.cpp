@@ -20,8 +20,25 @@
 //   P8  robustness: every prefix of each font and many copies with bytes
 //       changed are opened, mapped and loaded; each either succeeds or is
 //       refused (the sanitizer builds are what make this a memory check).
+//       The same fonts go through a Face, which is how an application's own
+//       font is met: opened, warmed, fitted in each of the three fits (so
+//       the store, the hinter and the rasterizer read them), measured,
+//       drawn and asked for ink boxes; each call refuses or succeeds, and a
+//       run's mask is as large as its box says.
+//
+// The bound of P8. Four fonts built here (two TrueType, one with character
+// maps of formats 4 and 12; two CFF, by dictionary and not). For each:
+// every prefix, which is every table cut short and every table gone;
+// every byte in turn set to each of 0x00, 0xFF, 0x7F, 0x80 and 0x01, which
+// reaches every field of the table directory, head, maxp, hhea, hmtx, OS/2,
+// cmap, loca, glyf and CFF; and 60,000 copies with one to four bytes
+// changed, from a fixed seed (xorshift64, below), so the cases are the same
+// on every run and host. Every prefix, every single-byte change and every
+// fourth of the copies also goes through a Face. The counts are printed and
+// checked. It is a search of those cases and no proof of the rest.
 
 #include "stxlib/font_file.hpp"
+#include "stxlib/glyph_face.hpp"
 
 #include "font_builder.hpp"
 #include "test_support.hpp"
@@ -749,6 +766,59 @@ void use(const Bytes& bytes, std::uint64_t& opened, std::uint64_t& loaded) {
     }
 }
 
+// The font as an application's own, through a Face. False at the first
+// promise broken; whether a call refuses or succeeds is the font's affair.
+[[nodiscard]] bool face_use(const Bytes& bytes, std::uint64_t& faces, std::uint64_t& drawn) {
+    glyphs::FaceLimits limits{};
+    glyphs::TypefaceLimits typeface_limits{};
+    typeface_limits.font.charstring_steps = 2000;
+    typeface_limits.font.components = 40;
+    glyphs::Face face{};
+    if (face.open(view_of(bytes), 0, limits, typeface_limits).failed()) return true;
+    faces = faces + 1;
+    const glyphs::Font& font = *face.font();
+    static_cast<void>(glyphs::has_feature(font, 0x6C696761U));
+    const u32 letters[] = {'A', 'B', 'C', 'x', 'y', 0x1F600, 0x10FFFF};
+    usize warmed = 0;
+    static_cast<void>(face.warm(stxlib::View<u32>(letters), 13 * 64, glyphs::Fit::light, warmed));
+    if (warmed > 7) return false;
+    // A run of the font's first glyphs and of two it has not.
+    glyphs::RunGlyph run[16] = {};
+    for (u32 index = 0; index < 16; ++index) {
+        const u32 glyph = index < 14 ? index : font.glyph_count + index;
+        run[index] = glyphs::RunGlyph{glyph, static_cast<i32>(index * 700 + index * 5), static_cast<i32>(index * 3)};
+    }
+    glyphs::RunCoverage coverage{};
+    glyphs::RunBox box{};
+    glyphs::FittedGlyph fitted{};
+    const glyphs::Fit fits[] = {glyphs::Fit::light, glyphs::Fit::none, glyphs::Fit::monochrome};
+    for (const glyphs::Fit fit : fits) {
+        glyphs::DrawStyle style{};
+        style.size = 11 * 64 + 5;
+        style.fit = fit;
+        style.thicken = fit == glyphs::Fit::none ? 48 : 0;
+        const bool measured = face.measure_run(stxlib::View<glyphs::RunGlyph>(run), style, box).succeeded();
+        if (measured && box.missing_glyphs < 2) return false;
+        if (face.draw_run(stxlib::View<glyphs::RunGlyph>(run), style, coverage).succeeded()) {
+            drawn = drawn + 1;
+            if (coverage.pixels.count() != static_cast<usize>(coverage.width) * coverage.height) return false;
+            if (measured && !coverage.oversized &&
+                (box.right - box.left != static_cast<i32>(coverage.width) || box.bottom - box.top != static_cast<i32>(coverage.height))) {
+                return false;
+            }
+        }
+        for (u32 glyph = 0; glyph < font.glyph_count && glyph < 14; ++glyph) {
+            if (face.fitted(glyph, 20 * 64, fit, fitted).succeeded() && (fitted.right < fitted.left || fitted.top < fitted.bottom)) return false;
+        }
+    }
+    glyphs::InkBox ink{};
+    for (u32 glyph = 0; glyph < font.glyph_count && glyph < 14; ++glyph) {
+        if ((*face.typeface()).ink_box(glyph, 900, ink).succeeded() && (ink.right < ink.left || ink.top < ink.bottom)) return false;
+    }
+    const bool whole = face.whole();
+    return whole;
+}
+
 void robustness() {
     const Bytes os2 = os2_table(3, 0, 700, -200, 90, 950, 250);
     const std::vector<Bytes> fonts = {
@@ -763,11 +833,20 @@ void robustness() {
     std::uint64_t tried = 0;
     std::uint64_t opened = 0;
     std::uint64_t loaded = 0;
+    std::uint64_t through_a_face = 0;
+    std::uint64_t faces = 0;
+    std::uint64_t drawn = 0;
+    bool kept = true;
     for (const Bytes& font : fonts) {
+        // The font as it should be draws.
+        const std::uint64_t drawn_before = drawn;
+        kept = kept && face_use(font, faces, drawn) && drawn == drawn_before + 3;
         // Every prefix.
         for (usize length = 0; length <= font.size(); ++length) {
             const Bytes prefix(font.begin(), font.begin() + static_cast<std::ptrdiff_t>(length));
             use(prefix, opened, loaded);
+            kept = kept && face_use(prefix, faces, drawn);
+            through_a_face = through_a_face + 1;
             tried = tried + 1;
         }
         // One to four bytes changed, many times; and every byte in turn
@@ -777,6 +856,10 @@ void robustness() {
             const usize changes = 1 + next_random() % 4;
             for (usize change = 0; change < changes; ++change) changed[next_random() % changed.size()] = static_cast<u8>(next_random() & 0xFFU);
             use(changed, opened, loaded);
+            if (round % 4 == 0) {
+                kept = kept && face_use(changed, faces, drawn);
+                through_a_face = through_a_face + 1;
+            }
             tried = tried + 1;
         }
         const u8 values[] = {0x00, 0xFF, 0x7F, 0x80, 0x01};
@@ -785,6 +868,8 @@ void robustness() {
                 Bytes changed = font;
                 changed[at] = value;
                 use(changed, opened, loaded);
+                kept = kept && face_use(changed, faces, drawn);
+                through_a_face = through_a_face + 1;
                 tried = tried + 1;
             }
         }
@@ -792,6 +877,10 @@ void robustness() {
     std::printf("robustness: %llu fonts tried, %llu opened, %llu glyphs loaded\n", static_cast<unsigned long long>(tried),
                 static_cast<unsigned long long>(opened), static_cast<unsigned long long>(loaded));
     CHECK(opened > 1000 && loaded > 1000);
+    std::printf("robustness through a face: %llu fonts, %llu faces opened, %llu runs drawn\n", static_cast<unsigned long long>(through_a_face),
+                static_cast<unsigned long long>(faces), static_cast<unsigned long long>(drawn));
+    CHECK(kept);
+    CHECK(through_a_face > 60000 && faces > 1000 && drawn > 1000);
 }
 
 } // namespace
@@ -804,6 +893,12 @@ int main() {
     segments();
     refusals();
     robustness();
+    // The checked program (CMakeLists.txt, stxlib_glyphs_checked) is this
+    // test on glyph code that checks every structure whole at every exit.
+    std::printf("glyph checks: %s\n", glyphs::glyph_checks_enabled() ? "on" : "off");
+#if defined(STXLIB_GLYPHS_CHECKS_EXPECTED)
+    CHECK(glyphs::glyph_checks_enabled());
+#endif
     const int status = stxlib_tests::finish("stxlib_font_file_tests");
     return status;
 }

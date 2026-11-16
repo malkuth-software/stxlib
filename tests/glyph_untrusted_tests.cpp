@@ -49,6 +49,9 @@
 //   U6  outlines (glyf and loca), through the reader, the segments, the
 //       rasterizer's measure and a Face;
 //   U7  the layout tables.
+// Whole fonts cut short and altered anywhere (the table directory, head,
+// maxp, hhea, OS/2, CFF and the rest), through the reader and through a
+// Face, are font_file_tests.cpp's P8, with its own stated bound.
 //
 // The bound of the search. Every altered table comes from a fixed seed
 // (xorshift64, the seeds below), so the cases are the same on every run
