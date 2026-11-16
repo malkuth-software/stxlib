@@ -150,6 +150,90 @@ void thread_lifetime() {
     CHECK(joiner.join() == JoinResult::joined);
 }
 
+// ---- Abandoning ----------------------------------------------------------------
+
+// What an abandoned thread's entry shares with the test: static storage, so
+// it outlives the thread whatever the schedule (the context an abandoned
+// thread borrows must, threads.hpp).
+struct AbandonReport final {
+    std::atomic<bool> entered{false};
+    std::atomic<bool> released{false};
+    std::atomic<bool> left{false};
+};
+
+AbandonReport held_report{};
+AbandonReport finished_report{};
+AbandonReport self_report{};
+std::atomic<Thread*> self_abandoning{nullptr};
+std::atomic<int> self_abandon_result{-1};
+
+void run_until_released(const StopSignal&, void* const address) noexcept {
+    AbandonReport& report = *static_cast<AbandonReport*>(address);
+    report.entered.store(true, std::memory_order_release);
+    while (!report.released.load(std::memory_order_acquire)) stxlib::yield_thread();
+    report.left.store(true, std::memory_order_release);
+}
+
+void leave_at_once(const StopSignal&, void* const address) noexcept {
+    AbandonReport& report = *static_cast<AbandonReport*>(address);
+    report.left.store(true, std::memory_order_release);
+}
+
+void abandon_self(const StopSignal&, void* const address) noexcept {
+    AbandonReport& report = *static_cast<AbandonReport*>(address);
+    Thread* thread = self_abandoning.load(std::memory_order_acquire);
+    while (thread == nullptr) {
+        stxlib::yield_thread();
+        thread = self_abandoning.load(std::memory_order_acquire);
+    }
+    const stxlib::AbandonResult result = (*thread).abandon();
+    self_abandon_result.store(static_cast<int>(result), std::memory_order_release);
+    report.left.store(true, std::memory_order_release);
+}
+
+void abandoning() {
+    Thread empty{};
+    CHECK(empty.abandon() == stxlib::AbandonResult::not_joinable);
+
+    // A running thread is given up: the Thread is empty at once, no stop is
+    // requested, and the thread runs on to the end of its entry.
+    {
+        Thread thread = start_or_fail(run_until_released, &held_report);
+        while (!held_report.entered.load(std::memory_order_acquire)) stxlib::yield_thread();
+        CHECK(thread.abandon() == stxlib::AbandonResult::abandoned);
+        CHECK(!thread.identity().present());
+        CHECK(thread.join() == JoinResult::not_joinable);
+        CHECK(thread.abandon() == stxlib::AbandonResult::not_joinable);
+    }
+    CHECK(!held_report.left.load(std::memory_order_acquire));
+    held_report.released.store(true, std::memory_order_release);
+    while (!held_report.left.load(std::memory_order_acquire)) stxlib::yield_thread();
+
+    // A thread whose entry has returned: either the exchange saw the return
+    // (joined and released here) or the thread had not reached it yet
+    // (abandoned; it releases its own state). Both leave the Thread empty.
+    Thread finished = start_or_fail(leave_at_once, &finished_report);
+    while (!finished_report.left.load(std::memory_order_acquire)) stxlib::yield_thread();
+    const stxlib::AbandonResult late = finished.abandon();
+    CHECK(late == stxlib::AbandonResult::already_finished || late == stxlib::AbandonResult::abandoned);
+    CHECK(!finished.identity().present());
+
+    // A joined thread cannot be abandoned.
+    Thread joined = start_or_fail(leave_at_once, &finished_report);
+    CHECK(joined.join() == JoinResult::joined);
+    CHECK(joined.abandon() == stxlib::AbandonResult::not_joinable);
+
+    // A thread may abandon its own Thread: its entry is still running, so
+    // the answer is always abandoned. The Thread lives in static storage
+    // here, since the thread reads it.
+    static Thread self{};
+    self = start_or_fail(abandon_self, &self_report);
+    self_abandoning.store(&self, std::memory_order_release);
+    while (!self_report.left.load(std::memory_order_acquire)) stxlib::yield_thread();
+    CHECK(self_abandon_result.load() == static_cast<int>(stxlib::AbandonResult::abandoned));
+    CHECK(!self.identity().present());
+}
+
 // ---- Mutual exclusion ----------------------------------------------------------
 
 struct Counter final {
@@ -406,6 +490,7 @@ void short_sleeps() {
 int main() {
     identities();
     thread_lifetime();
+    abandoning();
     mutual_exclusion();
     conditions();
     once();

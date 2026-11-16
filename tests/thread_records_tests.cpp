@@ -11,6 +11,7 @@
 #include "stxlib/error.hpp"
 #include "stxlib/shadow.hpp"
 #include "stxlib/thread_records.hpp"
+#include "stxlib/threads.hpp"
 
 #include "test_support.hpp"
 
@@ -188,6 +189,26 @@ void end_thread_records_releases_now() {
     CHECK(first_counts.released.load() == 1);
 }
 
+// A Thread STXlib starts ends its records when its entry returns
+// (threads.hpp, "Thread records"): released once, on the thread, before
+// join returns, and the exit hook after it releases nothing again.
+std::atomic<int> entry_took_record{0};
+
+void take_first_record(const stxlib::StopSignal&, void*) noexcept {
+    if (stxlib::thread_record(first_slot).succeeded()) entry_took_record.fetch_add(1);
+}
+
+void stxlib_thread_ends_records() {
+    first_counts.released.store(0);
+    OperationResult<stxlib::Thread> started = stxlib::Thread::start(take_first_record, nullptr);
+    CHECK(started.succeeded());
+    if (started.failed()) return;
+    stxlib::Thread thread = static_cast<OperationResult<stxlib::Thread>&&>(started).take_value();
+    CHECK(thread.join() == stxlib::JoinResult::joined);
+    CHECK(entry_took_record.load() == 1);
+    CHECK(first_counts.released.load() == 1);
+}
+
 // A C++ thread_local destructor that asks for a record: glibc runs it before
 // the key destructors, so the record is created and then released; in the
 // other order it is refused and never created. Either way nothing is
@@ -284,6 +305,7 @@ int main() {
     release_order_at_exit();
     reentry_from_initialize_refused();
     end_thread_records_releases_now();
+    stxlib_thread_ends_records();
     thread_local_destructor_order();
 #if !defined(_WIN32)
     later_key_destructor_sees_reserve();

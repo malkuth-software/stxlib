@@ -113,7 +113,7 @@ Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.
 **Termination frees nothing twice (rule 1, as the owner reworded it).**
 - An owner lets go of a resource, by clearing the pointer or marking the slot released, *before* it releases the resource. This includes destructors.
 - Process termination (`exit`, a return from `main`, fail-fast) releases none of our state: the operating system reclaims it.
-- Only a normal thread exit releases that thread's records, once, through our own hook.
+- Only a normal thread exit releases that thread's records, once, through our own hook, or the end of an STXlib Thread's body just before it (`threads.hpp`, "Thread records"), after which the hook releases nothing.
 
 **Every thread_local is trivially destructible** (a pointer, an index or a flag).
 - Real per-thread state lives in records that `stxlib_state` owns explicitly (`include/stxlib/thread_records.hpp`; notes `planning/stages/E-thread-records.md`).

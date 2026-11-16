@@ -16,6 +16,7 @@
 #include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
+#include "stxlib/thread_records.hpp"
 
 #include <atomic>
 #include <new>
@@ -275,8 +276,20 @@ void call_once_slow(OnceFlag& flag, void (*const entry)(void* context) noexcept,
 
 // ---- Thread -------------------------------------------------------------------
 
-// Owned by the Thread; the host thread borrows it until joined. `joined` and
-// `host` are the owner's alone.
+// Who releases a Thread's state: the owner (after join), or, once the owner
+// abandoned it, the thread itself when its entry returns. One atomic
+// exchange by each side decides it.
+namespace {
+enum class StateHolder : u32 {
+    owner = 0,          // the Thread holds it and the entry is running
+    entry_returned = 1, // the entry returned while the Thread still held it
+    abandoned = 2,      // the Thread gave it up while the entry was running
+};
+} // namespace
+
+// Owned by the Thread; the host thread borrows it until joined, or owns it
+// once abandoned. `joined` and `host` are the owner's alone; `holder` is
+// exchanged once by each side (StateHolder).
 struct Thread::State final {
     Entry entry{nullptr};
     void* context{nullptr};
@@ -284,17 +297,8 @@ struct Thread::State final {
     ThreadIdentity identity{};
     u64 host{0};
     bool joined{false};
+    std::atomic<u32> holder{static_cast<u32>(StateHolder::owner)};
 };
-
-// The host thread's body (thread_backend.hpp): adopt the identity the owner
-// issued, record the thread's stack bounds while nothing has failed yet
-// (state.hpp, note_thread_stack), then run the entry.
-void thread_backend::run_started_thread(void* const address) noexcept {
-    Thread::State& started = *static_cast<Thread::State*>(address);
-    state::current_flags().thread_identity = started.identity.value();
-    state::note_current_stack();
-    started.entry(started.stop, started.context);
-}
 
 namespace {
 
@@ -302,6 +306,29 @@ void release_state(Thread::State* const state) noexcept {
     (*state).~State();
     memory::release(state);
 }
+
+} // namespace
+
+// The host thread's body (thread_backend.hpp): adopt the identity the owner
+// issued, record the thread's stack bounds while nothing has failed yet
+// (state.hpp, note_thread_stack), run the entry, end the thread's records
+// (threads.hpp, "Thread records"), then hand the state back: released here
+// when the owner abandoned the thread, else left to the owner's join.
+// Nothing touches `started` after the exchange unless this side owns it.
+void thread_backend::run_started_thread(void* const address) noexcept {
+    Thread::State& started = *static_cast<Thread::State*>(address);
+    state::current_flags().thread_identity = started.identity.value();
+    state::note_current_stack();
+    started.entry(started.stop, started.context);
+    STXLIB_EARLY_EXIT_WHOLE("the entry has returned and no STXlib lock is held; the release callbacks are the "
+                            "consumer's, and an early exit out of one leaves the thread's state to the owner");
+    end_thread_records();
+    const u32 previous =
+        started.holder.exchange(static_cast<u32>(StateHolder::entry_returned), std::memory_order_acq_rel);
+    if (previous == static_cast<u32>(StateHolder::abandoned)) release_state(&started);
+}
+
+namespace {
 
 // Requests a stop and joins; a thread disposing of its own Thread cannot join
 // itself, which is a defect.
@@ -395,6 +422,29 @@ JoinResult Thread::join() noexcept {
     thread_backend::thread_join(started.host);
     started.joined = true;
     return JoinResult::joined;
+}
+
+// The owner lets go of the state first (AGENTS.md, rule 1), then exchanges
+// the holder with the thread's end. The host handle is read before the
+// exchange: once it is published as abandoned, the thread may release the
+// state at any moment.
+AbandonResult Thread::abandon() noexcept {
+    if (state_ == nullptr || (*state_).joined) return AbandonResult::not_joinable;
+    State* const held = state_;
+    state_ = nullptr;
+    State& started = *held;
+    const u64 host = started.host;
+    const u32 previous = started.holder.exchange(static_cast<u32>(StateHolder::abandoned), std::memory_order_acq_rel);
+    if (previous == static_cast<u32>(StateHolder::entry_returned)) {
+        // Only the body's last steps are left: join, then release here. A
+        // thread abandoning itself cannot reach this branch, since its own
+        // entry has not returned.
+        thread_backend::thread_join(host);
+        release_state(held);
+        return AbandonResult::already_finished;
+    }
+    thread_backend::thread_detach(host);
+    return AbandonResult::abandoned;
 }
 
 } // namespace stxlib

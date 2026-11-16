@@ -37,6 +37,15 @@
 // OperationStatus. Thread identities and their issuer live in stxlib_state, so every
 // module sees one identity per thread. Times are IntervalTime and Duration.
 //
+// Thread records (thread_records.hpp): a thread STXlib starts (a Thread, so
+// also every AtomicPool worker) ends its records with end_thread_records as
+// the last act of its body, on the thread, after the entry returns. The
+// release callbacks then run outside the loader lock that a Windows
+// thread's exit hook runs under, and the exit hook after them releases
+// nothing again. This was GUI.Forms' gui_forms_atomic_pool_thread_ending
+// for its own pool's threads, moved here with the pool (augmentation,
+// 2026-11-16).
+//
 // Modules: a Thread's shared state is a block of STXlib's allocator, which
 // every module shares (memory.hpp), so a Thread may be started in one of
 // STXlib's modules and joined or destroyed in another.
@@ -263,6 +272,17 @@ enum class JoinResult : u8 {
     self_join = 2,
 };
 
+enum class AbandonResult : u8 {
+    // The thread runs on, unowned; it releases its own shared state when its
+    // entry returns.
+    abandoned = 0,
+    // The entry had already returned: the thread was joined (its body had
+    // only its last steps left) and its state released here.
+    already_finished = 1,
+    // An empty thread, or one already joined.
+    not_joinable = 2,
+};
+
 // One started thread, owned. Its entry receives the thread's StopSignal and
 // the context it was started with, and must not throw (it is noexcept: an
 // exception ends the process). The context is borrowed until the thread is
@@ -270,7 +290,8 @@ enum class JoinResult : u8 {
 // joined first.
 //
 // Destruction and move assignment request a stop and join, like
-// std::jthread; a thread never outlives its owner. Moving transfers the
+// std::jthread; a thread outlives its owner only when the owner abandons it
+// (abandon, below). Moving transfers the
 // thread and leaves the source empty. identity() is known before the thread
 // runs and equals current_thread() inside it.
 //
@@ -307,6 +328,17 @@ public:
     void request_stop() noexcept;
     // Blocks until the thread's entry returns. Only the owner calls it.
     [[nodiscard]] JoinResult join() noexcept;
+    // Gives the thread up instead of joining it: the host thread is
+    // detached and runs on until its entry returns, and the process's exit
+    // ends it if it never does. Afterwards this Thread is empty (no
+    // identity; join answers not_joinable). No stop is requested. The
+    // context stays borrowed by the abandoned thread until its entry
+    // returns, so the caller hands it state the entry owns or that outlives
+    // the thread, and the entry releases what it owns. Only the owner calls
+    // it; a thread may abandon its own Thread. The shared state's ownership
+    // passes by one atomic exchange with the thread's end, so exactly one of
+    // the two releases it.
+    [[nodiscard]] AbandonResult abandon() noexcept;
 
     // The started thread's shared state, defined in src/core/threads.cpp.
     struct State;

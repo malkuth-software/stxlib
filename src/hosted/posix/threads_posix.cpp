@@ -232,6 +232,15 @@ void thread_join(const u64 handle) noexcept {
     if (error != 0) defect("pthread_join failed", error);
 }
 
+// pthread_detach of a thread that ended but was not joined releases it
+// (POSIX: the thread's storage is reclaimed when it terminates or at once).
+void thread_detach(const u64 handle) noexcept {
+    pthread_t thread{};
+    std::memcpy(&thread, &handle, sizeof thread);
+    const int error = ::pthread_detach(thread);
+    if (error != 0) defect("pthread_detach failed", error);
+}
+
 void sleep_for(const Duration interval) noexcept {
     timespec remaining = timespec_of(interval.count_nanoseconds());
     while (::nanosleep(&remaining, &remaining) != 0) {

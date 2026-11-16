@@ -48,6 +48,9 @@ STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void condition_notify_all(un
 void run_started_thread(void* argument) noexcept;
 // Waits for the thread to end and releases the handle.
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void thread_join(u64 handle) noexcept;
+// Detaches the thread: it runs on, and the host releases it when it ends.
+// The handle is released; a host error is a defect.
+STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT void thread_detach(u64 handle) noexcept;
 
 // Blocks for at least `interval` (positive), resuming after interruptions.
 STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL void sleep_for(Duration interval) noexcept;

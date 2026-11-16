@@ -168,6 +168,13 @@ void thread_join(const u64 handle) noexcept {
     if (!CloseHandle(thread)) defect("CloseHandle failed", GetLastError());
 }
 
+// Closing the handle detaches the thread: it runs on, and its kernel object
+// goes when it ends (Microsoft's CloseHandle page).
+void thread_detach(const u64 handle) noexcept {
+    const HANDLE thread = reinterpret_cast<HANDLE>(static_cast<uintptr_t>(handle));
+    if (!CloseHandle(thread)) defect("CloseHandle failed", GetLastError());
+}
+
 namespace {
 
 #ifndef CREATE_WAITABLE_TIMER_HIGH_RESOLUTION
