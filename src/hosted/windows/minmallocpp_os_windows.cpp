@@ -47,8 +47,8 @@
 // sets a flag that says the same from then on. A FreeLibrary of the module
 // (lpReserved null) leaves the other threads running and sets nothing.
 
-// Not yet built. The MinGW form of the callback (MSYS2 CLANG64) is the one
-// written; no other Windows toolchain is supported.
+// Two forms of the callback: MinGW's (MSYS2 CLANG64) and the MSVC target's
+// (clang on x86_64-pc-windows-msvc); no other Windows toolchain is supported.
 
 #include "state/stx_minmallocpp/os.hpp"
 
@@ -176,6 +176,20 @@ __attribute__((used)) static const void* const stx_minmallocpp_tls_used = &_tls_
 __attribute__((used, section(".CRT$XLY"))) PIMAGE_TLS_CALLBACK stx_minmallocpp_thread_callback =
     &stxlib::stx_minmallocpp::os::thread_callback;
 }
+#elif defined(_MSC_VER)
+// The MSVC target (x86_64-pc-windows-msvc, compiled by clang): the same
+// callback in the Microsoft C runtime's spelling. The TLS directory,
+// _tls_used, is the startup objects' (tlssup), kept by an /INCLUDE as the
+// callback is; the entry is const data in .CRT$XLY, as in
+// thread_exit_windows.cpp.
+#pragma comment(linker, "/INCLUDE:_tls_used")
+#pragma comment(linker, "/INCLUDE:stx_minmallocpp_thread_callback")
+extern "C" {
+#pragma const_seg(".CRT$XLY")
+extern const PIMAGE_TLS_CALLBACK stx_minmallocpp_thread_callback;
+const PIMAGE_TLS_CALLBACK stx_minmallocpp_thread_callback = &stxlib::stx_minmallocpp::os::thread_callback;
+#pragma const_seg()
+}
 #else
-#error "stx_minmallocpp on Windows is written for MinGW (MSYS2 CLANG64) only"
+#error "stx_minmallocpp on Windows is written for MinGW (MSYS2 CLANG64) and the MSVC target only"
 #endif
