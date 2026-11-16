@@ -50,10 +50,13 @@ bool apply_device_plan(int console, const DevicePlan& plan) noexcept {
         return false;
     }
     // Old rules of the ruleset (a restarted supervisor applies it again):
-    // DEVFSIO_RDEL each number the plan uses; an absent rule is ESRCH.
+    // DEVFSIO_RDEL each number the plan uses. An absent rule is ENOENT
+    // (sys/fs/devfs/devfs_rule.c:241-248, releng/15.2); ESRCH is taken as
+    // absent too. Taking ENOENT as a failure left every boot without the
+    // ruleset (c2_m4's surface check).
     for (std::size_t index = 0; index < plan.count; index += 1) {
         devfs_rid id = mkrid(device_ruleset, static_cast<devfs_rnum>(index + 1u));
-        if (ioctl(devices, DEVFSIO_RDEL, &id) != 0 && errno != ESRCH) {
+        if (ioctl(devices, DEVFSIO_RDEL, &id) != 0 && errno != ENOENT && errno != ESRCH) {
             report(console, "delete", errno, plan.count);
             (void)close(devices);
             return false;
