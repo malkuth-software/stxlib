@@ -80,6 +80,8 @@ struct FaceState final {
     Vector<Point> turned{};
     Vector<Point> thick{};
     Vector<u8> glyph_pixels{};
+    // A quarter-turned glyph's mask, turned from glyph_pixels.
+    Vector<u8> turned_pixels{};
     Vector<PlacedGlyph> placed{};
 };
 
@@ -414,6 +416,28 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     return Status::success();
 }
 
+
+// a * b + c * d over 65536, each product rounded on its own, halves away
+// from zero: a coordinate through a row of a matrix.
+[[nodiscard]] constexpr i64 fixed_product(const i64 a, const i64 b) noexcept {
+    const i64 product = a * b;
+    const i64 size = product < 0 ? -product : product;
+    const i64 rounded = (size + 0x8000) >> 16;
+    const i64 result = product < 0 ? -rounded : rounded;
+    return result;
+}
+
+[[nodiscard]] constexpr i64 turned_sum(const i64 a, const i64 b, const i64 c, const i64 d) noexcept {
+    const i64 result = fixed_product(a, b) + fixed_product(c, d);
+    return result;
+}
+
+// Coordinates are kept within what a mask's limits can speak of.
+[[nodiscard]] constexpr i32 far_clamped(const i64 value) noexcept {
+    const i64 far = static_cast<i64>(1) << 30;
+    const i32 result = static_cast<i32>(value < -far ? -far : (value > far ? far : value));
+    return result;
+}
 // A glyph as it is drawn: its fitted outline, taken through the style's
 // matrix if it has one (into `turned`) and thickened if the style says so
 // (into `thick`).
@@ -426,9 +450,16 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     if (style.transformed) {
         const usize count = fitted.outline.points.count();
         if (state.turned.resize(count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        // One fixed loop: every point through the matrix, whatever the
+        // glyph. A result too far out to draw is held at the edge of what
+        // can be measured, where the mask's limits refuse it.
+        const i64 xx = style.xx;
+        const i64 xy = style.xy;
+        const i64 yx = style.yx;
+        const i64 yy = style.yy;
         for (usize index = 0; index < count; ++index) {
             const Point point = fitted.outline.points[index];
-            state.turned[index] = Point{.x = times(point.x, style.xx) + times(point.y, style.xy), .y = times(point.x, style.yx) + times(point.y, style.yy)};
+            state.turned[index] = Point{.x = far_clamped(turned_sum(point.x, xx, point.y, xy)), .y = far_clamped(turned_sum(point.x, yx, point.y, yy))};
         }
         outline.points = state.turned.view();
     }
@@ -439,10 +470,87 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     return Status::success();
 }
 
+// ---- quarter turns ---------------------------------------------------------------------------------------
+//
+// A matrix that is a quarter turn, a half turn or three quarters is not
+// drawn from the turned outline: the upright mask is drawn, moved by the
+// part of a pixel the turn would bring to where it is wanted, and turned
+// pixel for pixel. So a quarter-turned glyph is the upright glyph's own
+// bytes, hinting and all. (Drawn from the turned outline it would differ
+// by a level here and there on curves, the drawing being worked a row at a
+// time.) Thickened text goes the general way: its shift is along the
+// surface's axes and does not turn.
+
+// 1, 2 or 3 for that many quarter turns counter-clockwise; 0 for no matrix
+// or the matrix of no change; 4 for any other matrix.
+[[nodiscard]] u32 quarter_of(const DrawStyle& style) noexcept {
+    if (!style.transformed) return 0;
+    const i32 one = 0x10000;
+    u32 result = 4;
+    if (style.xx == one && style.xy == 0 && style.yx == 0 && style.yy == one) result = 0;
+    if (style.xx == 0 && style.xy == -one && style.yx == one && style.yy == 0) result = 1;
+    if (style.xx == -one && style.xy == 0 && style.yx == 0 && style.yy == -one) result = 2;
+    if (style.xx == 0 && style.xy == one && style.yx == -one && style.yy == 0) result = 3;
+    if (result != 0 && result != 4 && style.thicken != 0) result = 4;
+    return result;
+}
+
+// What the upright outline is moved by so that, turned, it is moved by
+// `shift`: the shift through the turn the other way.
+[[nodiscard]] constexpr Point shift_before_quarter(const u32 quarter, const Point shift) noexcept {
+    Point result = shift;
+    if (quarter == 1) result = Point{.x = shift.y, .y = -shift.x};
+    if (quarter == 2) result = Point{.x = -shift.x, .y = -shift.y};
+    if (quarter == 3) result = Point{.x = -shift.y, .y = shift.x};
+    return result;
+}
+
+// The box of the turned mask from the upright one's: (x, y) goes to
+// (-y, x), to (-x, -y), or to (y, -x).
+[[nodiscard]] constexpr Bounds bounds_after_quarter(const u32 quarter, const Bounds& upright) noexcept {
+    const i32 width = static_cast<i32>(upright.width);
+    const i32 height = static_cast<i32>(upright.height);
+    Bounds result = upright;
+    if (quarter == 1) result = Bounds{.left = -upright.top, .top = upright.left + width, .width = upright.height, .height = upright.width};
+    if (quarter == 2) result = Bounds{.left = -(upright.left + width), .top = height - upright.top, .width = upright.width, .height = upright.height};
+    if (quarter == 3) result = Bounds{.left = upright.top - height, .top = -upright.left, .width = upright.height, .height = upright.width};
+    return result;
+}
+
+[[nodiscard]] constexpr Bounds bounds_before_quarter(const u32 quarter, const Bounds& turned) noexcept {
+    const i32 width = static_cast<i32>(turned.width);
+    const i32 height = static_cast<i32>(turned.height);
+    Bounds result = turned;
+    if (quarter == 1) result = Bounds{.left = turned.top - height, .top = -turned.left, .width = turned.height, .height = turned.width};
+    if (quarter == 2) result = Bounds{.left = -(turned.left + width), .top = height - turned.top, .width = turned.width, .height = turned.height};
+    if (quarter == 3) result = Bounds{.left = -turned.top, .top = turned.left + width, .width = turned.height, .height = turned.width};
+    return result;
+}
+
+// The upright mask's bytes into the turned mask's places: one loop for
+// each of the three turns, none of which asks anything of a pixel.
+void turn_pixels(const u32 quarter, const Bounds& upright, const u8* const from, u8* const to) noexcept {
+    const usize width = upright.width;
+    const usize height = upright.height;
+    if (quarter == 1) {
+        // Rows become columns from the left; columns, rows from the bottom.
+        for (usize row = 0; row < height; ++row) {
+            for (usize column = 0; column < width; ++column) to[(width - 1 - column) * height + row] = from[row * width + column];
+        }
+    } else if (quarter == 2) {
+        const usize count = width * height;
+        for (usize index = 0; index < count; ++index) to[count - 1 - index] = from[index];
+    } else if (quarter == 3) {
+        // Rows become columns from the right; columns, rows from the top.
+        for (usize row = 0; row < height; ++row) {
+            for (usize column = 0; column < width; ++column) to[column * height + (height - 1 - row)] = from[row * width + column];
+        }
+    }
+}
+
 // Whether a style can be drawn in at all.
 [[nodiscard]] bool style_is_valid(const DrawStyle& style) noexcept {
-    const bool result = !(style.transformed && style.fit != Fit::none) && style.size > 0 && style.size <= largest_size && style.thicken >= 0 &&
-                        style.thicken <= largest_thickening;
+    const bool result = style.size > 0 && style.size <= largest_size && style.thicken >= 0 && style.thicken <= largest_thickening;
     return result;
 }
 
@@ -462,8 +570,20 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     i64 top = 0;
     i64 right = 0;
     i64 bottom = 0;
+    // How the run's glyphs are drawn is settled once: upright, by quarter
+    // turns of the upright mask, or through the matrix.
+    const u32 quarter = quarter_of(style);
+    const bool by_quarters = quarter >= 1 && quarter <= 3;
+    DrawStyle upright_style = style;
+    upright_style.transformed = false;
     for (usize index = 0; index < glyphs.count(); ++index) {
-        const RunGlyph glyph = glyphs[index];
+        RunGlyph glyph = glyphs[index];
+        if (style.transformed && style.turn_places) {
+            const TextMatrix matrix{.xx = style.xx, .xy = style.xy, .yx = style.yx, .yy = style.yy};
+            const Point turned = turn_place(matrix, Point{.x = glyph.x, .y = glyph.y});
+            glyph.x = turned.x;
+            glyph.y = turned.y;
+        }
         PlacedGlyph placed{};
         placed.pixel_x = pixel_of(glyph.x);
         placed.pixel_y = pixel_of(glyph.y);
@@ -471,9 +591,20 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         // outline's axes is toward less y.
         placed.shift = Point{.x = glyph.x - placed.pixel_x * 64, .y = -(glyph.y - placed.pixel_y * 64)};
         Outline outline{};
-        const Status had = styled_outline(state, glyph.glyph, style, outline);
-        Status measured = had;
-        if (had.succeeded()) measured = measure(outline, placed.shift, state.limits.mask, placed.bounds);
+        Status had = Status::success();
+        Status measured = Status::success();
+        if (by_quarters) {
+            // The upright glyph's box, turned.
+            Bounds upright{};
+            had = styled_outline(state, glyph.glyph, upright_style, outline);
+            measured = had;
+            if (had.succeeded()) measured = measure(outline, shift_before_quarter(quarter, placed.shift), state.limits.mask, upright);
+            if (measured.succeeded()) placed.bounds = bounds_after_quarter(quarter, upright);
+        } else {
+            had = styled_outline(state, glyph.glyph, style, outline);
+            measured = had;
+            if (had.succeeded()) measured = measure(outline, placed.shift, state.limits.mask, placed.bounds);
+        }
         if (out_of_memory(had) || out_of_memory(measured)) return refuse_font(ErrorKind::out_of_memory, operation);
         if (measured.failed()) {
             box.missing_glyphs = box.missing_glyphs + 1;
@@ -534,7 +665,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
                          state.fitting.points.capacity() * sizeof(Point) + state.fitting.tags.capacity() * sizeof(PointTag) +
                          state.fitting.contour_ends.capacity() * sizeof(u32) + state.work_kinds.capacity() * sizeof(Segment) +
                          state.work_points.capacity() * sizeof(Point) + state.turned.capacity() * sizeof(Point) +
-                         state.thick.capacity() * sizeof(Point) + state.glyph_pixels.capacity() + state.placed.capacity() * sizeof(PlacedGlyph);
+                         state.thick.capacity() * sizeof(Point) + state.glyph_pixels.capacity() + state.turned_pixels.capacity() + state.placed.capacity() * sizeof(PlacedGlyph);
     return result;
 }
 
@@ -592,6 +723,131 @@ void note_peak(FaceState& state) noexcept {
 } // namespace
 
 // ---- the program's typeface ---------------------------------------------------------------------
+
+// ---- turned text: the matrix of an angle, places, the way back, boxes ---------------------------------
+
+namespace {
+
+inline constexpr i64 quarter_turn = static_cast<i64>(90) << 16;
+inline constexpr i64 full_turn = static_cast<i64>(360) << 16;
+inline constexpr i64 one_q30 = static_cast<i64>(1) << 30;
+// pi / 180 * 2^44, to the nearest whole number.
+inline constexpr i64 radians_per_degree_q44 = 307041569098LL;
+
+// Two numbers of 30 fraction bits, neither negative, multiplied.
+[[nodiscard]] constexpr i64 times_q30(const i64 a, const i64 b) noexcept {
+    const i64 result = (a * b) >> 30;
+    return result;
+}
+
+// The sine and cosine of an angle from 0 to 45 degrees (16.16), as 16.16:
+// the series of each to the eleventh and twelfth power, in whole numbers
+// of 30 fraction bits, rounded once at the end. Every step is the same on
+// every host; the result is within 0.5001 of a 65536th of the true value.
+void sine_cosine(const i64 degrees, i32& sine, i32& cosine) noexcept {
+    const i64 x = (degrees * radians_per_degree_q44) >> 30;
+    const i64 z = times_q30(x, x);
+    i64 p = one_q30 - z / 110;
+    p = one_q30 - times_q30(z, p) / 72;
+    p = one_q30 - times_q30(z, p) / 42;
+    p = one_q30 - times_q30(z, p) / 20;
+    p = one_q30 - times_q30(z, p) / 6;
+    const i64 s = times_q30(x, p);
+    p = one_q30 - z / 132;
+    p = one_q30 - times_q30(z, p) / 90;
+    p = one_q30 - times_q30(z, p) / 56;
+    p = one_q30 - times_q30(z, p) / 30;
+    p = one_q30 - times_q30(z, p) / 12;
+    const i64 c = one_q30 - times_q30(z, p) / 2;
+    sine = static_cast<i32>((s + 8192) >> 14);
+    cosine = static_cast<i32>((c + 8192) >> 14);
+}
+
+// n / d to the nearest whole number, halves away from zero (d not 0).
+[[nodiscard]] constexpr i64 rounded_quotient(const i64 n, const i64 d) noexcept {
+    const i64 quotient = n / d;
+    const i64 rest = n % d;
+    const i64 rest_size = rest < 0 ? -rest : rest;
+    const i64 d_size = d < 0 ? -d : d;
+    const bool away = rest_size >= d_size - rest_size;
+    const bool negative = (n < 0) != (d < 0);
+    const i64 result = away ? (negative ? quotient - 1 : quotient + 1) : quotient;
+    return result;
+}
+
+} // namespace
+
+TextMatrix turn_matrix(const i64 degrees) noexcept {
+    // The angle within one turn, the quarter it is in, and how far into
+    // that quarter: the first half of a quarter is worked out directly,
+    // the second from its complement, so that sines and cosines of angles
+    // that add to a quarter turn are the same numbers.
+    i64 within = degrees % full_turn;
+    if (within < 0) within = within + full_turn;
+    const i64 quarter = within / quarter_turn;
+    const i64 rest = within % quarter_turn;
+    i32 s = 0;
+    i32 c = 0x10000;
+    if (rest <= quarter_turn / 2) {
+        sine_cosine(rest, s, c);
+    } else {
+        sine_cosine(quarter_turn - rest, c, s);
+    }
+    i32 sine = s;
+    i32 cosine = c;
+    if (quarter == 1) {
+        sine = c;
+        cosine = -s;
+    } else if (quarter == 2) {
+        sine = -s;
+        cosine = -c;
+    } else if (quarter == 3) {
+        sine = -c;
+        cosine = s;
+    }
+    const TextMatrix result{.xx = cosine, .xy = -sine, .yx = sine, .yy = cosine};
+    return result;
+}
+
+Point turn_place(const TextMatrix& matrix, const Point place) noexcept {
+    // The surface's y runs downward, the matrix's upward.
+    const i64 x = place.x;
+    const i64 up = -static_cast<i64>(place.y);
+    const i64 turned_x = turned_sum(x, matrix.xx, up, matrix.xy);
+    const i64 turned_up = turned_sum(x, matrix.yx, up, matrix.yy);
+    const Point result{.x = far_clamped(turned_x), .y = far_clamped(-turned_up)};
+    return result;
+}
+
+bool invert_matrix(const TextMatrix& matrix, TextMatrix& inverse) noexcept {
+    inverse = TextMatrix{};
+    const i64 least = -2147483647LL - 1;
+    if (matrix.xx == least || matrix.xy == least || matrix.yx == least || matrix.yy == least) return false;
+    const i64 determinant = static_cast<i64>(matrix.xx) * matrix.yy - static_cast<i64>(matrix.xy) * matrix.yx;
+    if (determinant == 0) return false;
+    // Each entry of the adjugate over the determinant, as 16.16.
+    const i64 xx = rounded_quotient(static_cast<i64>(matrix.yy) << 32, determinant);
+    const i64 xy = rounded_quotient(-static_cast<i64>(matrix.xy) << 32, determinant);
+    const i64 yx = rounded_quotient(-static_cast<i64>(matrix.yx) << 32, determinant);
+    const i64 yy = rounded_quotient(static_cast<i64>(matrix.xx) << 32, determinant);
+    const i64 most = 2147483647LL;
+    if (xx > most || xx < -most || xy > most || xy < -most || yx > most || yx < -most || yy > most || yy < -most) return false;
+    inverse = TextMatrix{.xx = static_cast<i32>(xx), .xy = static_cast<i32>(xy), .yx = static_cast<i32>(yx), .yy = static_cast<i32>(yy)};
+    return true;
+}
+
+PlaceBox turn_box(const TextMatrix& matrix, const PlaceBox& box) noexcept {
+    const Point corners[4] = {turn_place(matrix, Point{.x = box.left, .y = box.top}), turn_place(matrix, Point{.x = box.right, .y = box.top}),
+                              turn_place(matrix, Point{.x = box.left, .y = box.bottom}), turn_place(matrix, Point{.x = box.right, .y = box.bottom})};
+    PlaceBox result{.left = corners[0].x, .top = corners[0].y, .right = corners[0].x, .bottom = corners[0].y};
+    for (usize index = 1; index < 4; ++index) {
+        result.left = corners[index].x < result.left ? corners[index].x : result.left;
+        result.right = corners[index].x > result.right ? corners[index].x : result.right;
+        result.top = corners[index].y < result.top ? corners[index].y : result.top;
+        result.bottom = corners[index].y > result.bottom ? corners[index].y : result.bottom;
+    }
+    return result;
+}
 
 Typeface::Typeface() noexcept = default;
 Typeface::Typeface(Typeface&&) noexcept = default;
@@ -839,6 +1095,28 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
     if (state_.empty() || !style_is_valid(style)) return refuse_font(ErrorKind::invalid_argument, operation);
     FaceState& state = *state_;
     Outline outline{};
+    const u32 quarter = quarter_of(style);
+    if (quarter >= 1 && quarter <= 3) {
+        // The upright mask, turned pixel for pixel.
+        DrawStyle upright_style = style;
+        upright_style.transformed = false;
+        const Point upright_shift = shift_before_quarter(quarter, shift);
+        Bounds upright{};
+        const Status had_upright = styled_outline(state, glyph, upright_style, outline);
+        if (had_upright.failed()) return had_upright;
+        const Status measured_upright = measure(outline, upright_shift, state.limits.mask, upright);
+        if (measured_upright.failed()) return measured_upright;
+        bounds = bounds_after_quarter(quarter, upright);
+        const usize upright_bytes = static_cast<usize>(upright.width) * upright.height;
+        if (upright_bytes == 0) return Status::success();
+        if (state.glyph_pixels.resize(upright_bytes).failed() || pixels.resize(upright_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        const Status drawn_upright =
+            style.fit == Fit::monochrome ? state.rasterizer.render_monochrome(outline, upright_shift, upright, state.limits.mask, state.glyph_pixels.mutable_view())
+                                         : state.rasterizer.render(outline, upright_shift, upright, state.limits.mask, state.glyph_pixels.mutable_view());
+        if (drawn_upright.succeeded()) turn_pixels(quarter, upright, state.glyph_pixels.view().data(), pixels.mutable_view().data());
+        note_peak(state);
+        return drawn_upright;
+    }
     const Status had = styled_outline(state, glyph, style, outline);
     if (had.failed()) return had;
     const Status measured = measure(outline, shift, state.limits.mask, bounds);
@@ -894,23 +1172,35 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCo
     coverage.left = box.left;
     coverage.top = box.top;
     const bool monochrome = style.fit == Fit::monochrome;
+    const u32 quarter = quarter_of(style);
+    const bool by_quarters = quarter >= 1 && quarter <= 3;
+    DrawStyle upright_style = style;
+    upright_style.transformed = false;
     for (usize index = 0; index < glyphs.count(); ++index) {
         const PlacedGlyph glyph = state.placed[index];
         if (!glyph.shown) continue;
         Outline outline{};
-        const Status had = styled_outline(state, glyphs[index].glyph, style, outline);
+        const Status had = styled_outline(state, glyphs[index].glyph, by_quarters ? upright_style : style, outline);
         if (had.failed()) return had;
         const usize glyph_bytes = static_cast<usize>(glyph.bounds.width) * glyph.bounds.height;
         if (state.glyph_pixels.resize(glyph_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-        const Status drawn = monochrome ? state.rasterizer.render_monochrome(outline, glyph.shift, glyph.bounds, state.limits.mask,
+        // By quarter turns the upright mask is drawn, in the box and with
+        // the part of a pixel it has before the turn, and turned.
+        const Bounds drawn_bounds = by_quarters ? bounds_before_quarter(quarter, glyph.bounds) : glyph.bounds;
+        const Point drawn_shift = by_quarters ? shift_before_quarter(quarter, glyph.shift) : glyph.shift;
+        const Status drawn = monochrome ? state.rasterizer.render_monochrome(outline, drawn_shift, drawn_bounds, state.limits.mask,
                                                                              state.glyph_pixels.mutable_view())
-                                        : state.rasterizer.render(outline, glyph.shift, glyph.bounds, state.limits.mask,
+                                        : state.rasterizer.render(outline, drawn_shift, drawn_bounds, state.limits.mask,
                                                                   state.glyph_pixels.mutable_view());
         if (drawn.failed()) return drawn;
+        if (by_quarters) {
+            if (state.turned_pixels.resize(glyph_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+            turn_pixels(quarter, drawn_bounds, state.glyph_pixels.view().data(), state.turned_pixels.mutable_view().data());
+        }
         // The glyph's mask goes into the run's, row by row.
         const usize column = static_cast<usize>(static_cast<i64>(glyph.pixel_x) + glyph.bounds.left - box.left);
         const usize first_row = static_cast<usize>(static_cast<i64>(glyph.pixel_y) - glyph.bounds.top - box.top);
-        const u8* const glyph_pixels = state.glyph_pixels.view().data();
+        const u8* const glyph_pixels = by_quarters ? state.turned_pixels.view().data() : state.glyph_pixels.view().data();
         for (usize row = 0; row < glyph.bounds.height; ++row) {
             u8* const target = run_pixels + (first_row + row) * width + column;
             const u8* const source = glyph_pixels + row * glyph.bounds.width;

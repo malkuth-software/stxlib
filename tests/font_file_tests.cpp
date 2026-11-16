@@ -23,8 +23,9 @@
 //       The same fonts go through a Face, which is how an application's own
 //       font is met: opened, warmed, fitted in each of the three fits (so
 //       the store, the hinter and the rasterizer read them), measured,
-//       drawn and asked for ink boxes; each call refuses or succeeds, and a
-//       run's mask is as large as its box says.
+//       drawn (upright, turned 17 degrees and a quarter turn) and asked
+//       for ink boxes; each call refuses or succeeds, and a run's mask is
+//       as large as its box says.
 //
 // The bound of P8. Four fonts built here (two TrueType, one with character
 // maps of formats 4 and 12; two CFF, by dictionary and not). For each:
@@ -811,6 +812,25 @@ void use(const Bytes& bytes, std::uint64_t& opened, std::uint64_t& loaded) {
             if (face.fitted(glyph, 20 * 64, fit, fitted).succeeded() && (fitted.right < fitted.left || fitted.top < fitted.bottom)) return false;
         }
     }
+    // Turned: fitted at 17 degrees with the places through the matrix, and
+    // by a quarter turn.
+    const stxlib::i64 angles[] = {static_cast<stxlib::i64>(17) << 16, static_cast<stxlib::i64>(90) << 16};
+    for (const stxlib::i64 angle : angles) {
+        glyphs::DrawStyle style{};
+        style.size = 11 * 64 + 5;
+        style.fit = glyphs::Fit::light;
+        style.turn_places = true;
+        glyphs::set_matrix(style, glyphs::turn_matrix(angle));
+        const bool measured = face.measure_run(stxlib::View<glyphs::RunGlyph>(run), style, box).succeeded();
+        if (face.draw_run(stxlib::View<glyphs::RunGlyph>(run), style, coverage).succeeded()) {
+            drawn = drawn + 1;
+            if (coverage.pixels.count() != static_cast<usize>(coverage.width) * coverage.height) return false;
+            if (measured && !coverage.oversized &&
+                (box.right - box.left != static_cast<i32>(coverage.width) || box.bottom - box.top != static_cast<i32>(coverage.height))) {
+                return false;
+            }
+        }
+    }
     glyphs::InkBox ink{};
     for (u32 glyph = 0; glyph < font.glyph_count && glyph < 14; ++glyph) {
         if ((*face.typeface()).ink_box(glyph, 900, ink).succeeded() && (ink.right < ink.left || ink.top < ink.bottom)) return false;
@@ -840,7 +860,7 @@ void robustness() {
     for (const Bytes& font : fonts) {
         // The font as it should be draws.
         const std::uint64_t drawn_before = drawn;
-        kept = kept && face_use(font, faces, drawn) && drawn == drawn_before + 3;
+        kept = kept && face_use(font, faces, drawn) && drawn == drawn_before + 5;
         // Every prefix.
         for (usize length = 0; length <= font.size(); ++length) {
             const Bytes prefix(font.begin(), font.begin() + static_cast<std::ptrdiff_t>(length));

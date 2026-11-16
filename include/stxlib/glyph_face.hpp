@@ -36,8 +36,8 @@
 // The fit (Fit). light: grey coverage, the outline hinted along y only;
 // this is the fit for text. monochrome: one bit a pixel, hinted along both
 // axes, drawn by the monochrome rule. none: the outline scaled and no
-// more, for text that is turned or sheared (a matrix is given with it) and
-// for measuring. The unfitted outline is the one a TrueType or CFF scaler
+// more, for measuring and for text that is to match an unhinted layout
+// point for point. The unfitted outline is the one a TrueType or CFF scaler
 // gives without hinting, point for point: a TrueType glyph's parts and
 // their offsets are each scaled and rounded on their own (load_scaled_glyph),
 // so such a glyph is read from the font at the size and not scaled from
@@ -46,6 +46,27 @@
 // A glyph's ink box at a size (Typeface::ink_box) is the box of that
 // unfitted outline's points, control points included: what a shaper that
 // asks FreeType for a glyph's extents without hinting is given.
+//
+// Turned text (DrawStyle's matrix; turn_matrix makes one for an angle).
+// A glyph is fitted to its size as for upright text, in the text's own
+// frame, and that fitted outline is what is taken through the matrix and
+// drawn. So text at any angle has what fitting gives that does not depend
+// on the pixel grid: stems of one weight, letters on common heights,
+// accents kept apart. What it cannot have off the axes is edges that lie
+// on pixel boundaries. Because the outline is the same at every angle,
+// text that turns through 0 degrees does not change shape on the way: at
+// 0 the matrix changes nothing and the bytes are the upright ones. At a
+// quarter turn, a half turn and three quarters (matrices of 0, 65536 and
+// -65536 only) a glyph is the upright glyph's mask turned pixel for pixel:
+// the same bytes, edges on pixel boundaries and all (thickened text
+// excepted, which goes through the matrix like any other angle). The fitted outline is kept as for upright text, so a turned
+// glyph costs its points through the matrix and the drawing. Glyphs are
+// placed by the layout's own advances, which are not fitted, so turning
+// never moves glyphs against one another; with DrawStyle::turn_places the
+// places are taken through the matrix as well, each rounded once to a
+// 64th of a pixel, and the part of a pixel left over goes to the drawing
+// along both axes. Everything is whole-number arithmetic, the sine and
+// cosine included: the same bytes on every host.
 //
 // Thicker strokes (DrawStyle::thicken), for a bold or a small capital a
 // font has not. This is the definition:
@@ -183,14 +204,18 @@ struct DrawStyle final {
     // Thicker strokes, by this much (26.6 pixels, 0 to 1024): the rule is
     // at the head of this file.
     i32 thicken{0};
-    // With Fit::none only: each outline is taken through this matrix
-    // (16.16, on the outline's own axes, y upward) about its origin before
-    // it is placed: x' = xx x + xy y, y' = yx x + yy y.
+    // Each fitted outline is taken through this matrix (16.16, on the
+    // outline's own axes, y upward) about its origin before it is placed:
+    // x' = xx x + xy y, y' = yx x + yy y. With any fit.
     bool transformed{false};
     i32 xx{0x10000};
     i32 xy{0};
     i32 yx{0};
     i32 yy{0x10000};
+    // For a run with a matrix: the glyphs' places are given as laid out
+    // before the turn and are taken through the matrix too, about the
+    // run's origin (turn_place).
+    bool turn_places{false};
     // For a run: only glyphs that can show in these pixels are drawn:
     // [left, right) by [top, bottom), from the run's origin pixel, y
     // downward.
@@ -200,6 +225,56 @@ struct DrawStyle final {
     i32 window_right{0};
     i32 window_bottom{0};
 };
+
+// A matrix for DrawStyle: 16.16, on axes with y upward.
+struct TextMatrix final {
+    i32 xx{0x10000};
+    i32 xy{0};
+    i32 yx{0};
+    i32 yy{0x10000};
+};
+
+// The turn by an angle in degrees (16.16; 90 degrees is 90 << 16), counter-
+// clockwise as the text is seen: xx = yy = the cosine, yx = the sine,
+// xy = minus the sine. Worked out in whole numbers, the same on every
+// host; each entry is within one 65536th of the true value, the quarter
+// turns are exact (0, 65536 and -65536), and the turn by minus an angle
+// is this one's transpose, which undoes it.
+[[nodiscard]] TextMatrix turn_matrix(i64 degrees) noexcept;
+
+inline void set_matrix(DrawStyle& style, const TextMatrix& matrix) noexcept {
+    style.transformed = true;
+    style.xx = matrix.xx;
+    style.xy = matrix.xy;
+    style.yx = matrix.yx;
+    style.yy = matrix.yy;
+}
+
+// A place on the surface (26.6 pixels from the run's origin, x rightward,
+// y DOWNWARD) through the matrix: where a point of upright text is when
+// the text is turned. Each coordinate rounded to the nearest 64th, halves
+// away from zero. This is the rule a run's places are turned by.
+[[nodiscard]] Point turn_place(const TextMatrix& matrix, Point place) noexcept;
+
+// The matrix that undoes `matrix`, for finding what a point of the surface
+// is in the upright text (hit testing, carets, selection): through
+// turn_place with it. False when the matrix has no inverse or its inverse
+// does not fit. For a turn, turn_matrix of minus the angle is exact;
+// this is within a 65536th an entry.
+[[nodiscard]] bool invert_matrix(const TextMatrix& matrix, TextMatrix& inverse) noexcept;
+
+// A box on the surface (26.6, y downward): [left, right) by [top, bottom).
+struct PlaceBox final {
+    i32 left{0};
+    i32 top{0};
+    i32 right{0};
+    i32 bottom{0};
+};
+
+// The box around a box's four corners taken through the matrix: where the
+// upright text's box is when the text is turned (for damage, clipping and
+// what is told of the text's place).
+[[nodiscard]] PlaceBox turn_box(const TextMatrix& matrix, const PlaceBox& box) noexcept;
 
 // Where a run's ink can be: whole pixels from the run's origin pixel, y
 // downward, [left, right) by [top, bottom). Empty: all 0.
