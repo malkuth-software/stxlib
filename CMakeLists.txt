@@ -678,6 +678,13 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/calendar.cpp
     src/algorithms/case_folding.cpp
     src/algorithms/hash.cpp
+    src/algorithms/markdown/blocks.cpp
+    src/algorithms/markdown/characters.cpp
+    src/algorithms/markdown/entities.cpp
+    src/algorithms/markdown/inlines.cpp
+    src/algorithms/markdown/lines.cpp
+    src/algorithms/markdown/links.cpp
+    src/algorithms/markdown/parse.cpp
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
@@ -1021,6 +1028,42 @@ if(STXLIB_TESTS)
     endif()
     add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
+    # stxlib::markdown: the CommonMark specification's examples, the tape's
+    # form, and the generated tables against the Unicode file, read by the
+    # test's own parser (tests/markdown_tests.cpp); and the committed tables
+    # are the generator's output for the pinned inputs. Not built for the
+    # web tests yet (two data files to embed).
+    #
+    # The specification's text (CC-BY-SA 4.0, attributed in
+    # third_party/commonmark-0.31.2/LICENSE; test data only) is in the tree
+    # by the owner's decision of 2026-11-15, so the test runs it everywhere.
+    # STXLIB_COMMONMARK_SPEC can name another copy; when no file is there the
+    # test runs everything but the specification's examples, and says so.
+    set(STXLIB_COMMONMARK_SPEC "${CMAKE_CURRENT_SOURCE_DIR}/third_party/commonmark-0.31.2/spec.txt"
+        CACHE FILEPATH "The CommonMark 0.31.2 spec.txt for stxlib_markdown_tests")
+    set(stxlib_commonmark_argument -)
+    if(EXISTS "${STXLIB_COMMONMARK_SPEC}")
+        set(stxlib_commonmark_argument "${STXLIB_COMMONMARK_SPEC}")
+    else()
+        message(STATUS "STXlib: no CommonMark specification at ${STXLIB_COMMONMARK_SPEC}; "
+                       "stxlib_markdown_tests runs without its examples")
+    endif()
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_markdown_tests tests/markdown_tests.cpp)
+        target_link_libraries(stxlib_markdown_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_markdown_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_markdown_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_markdown_tests
+            COMMAND stxlib_markdown_tests
+                    ${stxlib_commonmark_argument}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/UnicodeData.txt)
+        set_tests_properties(stxlib_markdown_tests PROPERTIES TIMEOUT 600)
+        find_package(Python3 COMPONENTS Interpreter)
+        if(Python3_Interpreter_FOUND)
+            add_test(NAME stxlib_markdown_tables
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_markdown_tables.py --check)
+        endif()
+    endif()
     # calendar_tests' reference is std::chrono's year_month_day, whose libc++
     # civil-from-days adds a negative int to an unsigned month by design
     # (__chrono/year_month_day.h:88, LLVM 22.1.8: -9 converted to unsigned,
@@ -1455,7 +1498,8 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_case_folding_table
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_case_folding.py --check
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_full_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
@@ -1652,12 +1696,24 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/stx_btree/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME stx_btree-NOTICE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/tzdata/LICENSE
         DESTINATION ${stxlib_licence_directory} RENAME tzdata-LICENSE)
-# The Unicode License v3 for the case-folding table generated from
-# CaseFolding.txt (src/algorithms/case_folding_table.inc, compiled into
-# stxlib_algorithms in every configuration; PROVENANCE.md, M2 C7).
+# The Unicode License v3 for the tables generated from CaseFolding.txt and
+# UnicodeData.txt (src/algorithms/case_folding_table.inc and
+# case_folding_full_table.inc, and src/algorithms/markdown/
+# unicode_classes.inc, compiled into stxlib_algorithms in every
+# configuration; PROVENANCE.md, M2 C7 and stxlib::markdown).
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/LICENSE
         DESTINATION ${stxlib_licence_directory} RENAME unicode-LICENSE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/state/stx_minmallocpp/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME stx_minmallocpp-NOTICE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/glyphs/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME glyphs-NOTICE)
+# stxlib::markdown (compiled into stxlib_algorithms in every configuration):
+# its NOTICE carries MD4C's licence, and its table of named character
+# references is generated from the HTML Standard's list (PROVENANCE.md). Its
+# Unicode tables are covered by unicode-LICENSE above. The CommonMark
+# specification's text (third_party/commonmark-0.31.2, CC-BY-SA 4.0) is test
+# data: compiled into nothing and not installed.
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/markdown/NOTICE
+        DESTINATION ${stxlib_licence_directory} RENAME markdown-NOTICE)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/whatwg-entities/LICENSE
+        DESTINATION ${stxlib_licence_directory} RENAME whatwg-entities-LICENSE)

@@ -20,6 +20,11 @@
 //       order of the reference foldings; equal_folded agrees with it;
 //   F6  texts of several scalars: known cases (final sigma, the Kelvin sign,
 //       sharp s not matching "ss", prefixes, empty text).
+//   F7  fold_case_full: every code point 0 to 0x10FFFF folds to the file's
+//       F mapping where it has one (105 of them, each two or three code
+//       points), otherwise to its simple folding; values above 0x10FFFF
+//       are unchanged; folding each folded code point again changes
+//       nothing.
 // F1 to F3 are exhaustive over their domains (a proof by enumeration once
 // the test passes); F5 is exhaustive over its stated set only.
 
@@ -285,6 +290,49 @@ void known_texts() {
     CHECK(folded("A\xc3\x80\xe2\x84\xaa\xf0\x90\x90\x80z") == "a\xc3\xa0k\xf0\x90\x90\xa8z");
 }
 
+// F7. The F lines are read here again, on their own.
+void full_folding(const char* const path, const Reference& reference) {
+    std::vector<std::vector<u32>> full(code_points);
+    usize listed = 0;
+    std::FILE* const file = std::fopen(path, "rb");
+    CHECK(file != nullptr);
+    if (file == nullptr) return;
+    char buffer[512];
+    while (std::fgets(buffer, sizeof buffer, file) != nullptr) {
+        const std::string line(buffer);
+        if (line.empty() || line[0] == '#' || line[0] == '\n' || line[0] == '\r') continue;
+        usize index = 0;
+        const u32 source = hex_at(line, index);
+        if (line.compare(index, 5, "; F; ") != 0 || source >= code_points) continue;
+        index = index + 5;
+        while (index < line.size() && line[index] != ';') {
+            full[source].push_back(hex_at(line, index));
+            if (index < line.size() && line[index] == ' ') index = index + 1;
+        }
+        listed = listed + 1;
+    }
+    std::fclose(file);
+    CHECK(listed == 105);
+    for (u32 code_point = 0; code_point < code_points; ++code_point) {
+        const text::FullFold folded = text::fold_case_full(code_point);
+        if (full[code_point].empty()) {
+            expect(folded.count == 1 && folded.scalars[0] == reference.folding[code_point], "F7 simple", code_point);
+        } else {
+            bool same = folded.count == full[code_point].size() && folded.count >= 2 && folded.count <= text::full_fold_longest;
+            for (u32 index = 0; same && index < folded.count; ++index) same = folded.scalars[index] == full[code_point][index];
+            expect(same, "F7 full", code_point);
+        }
+        for (u32 index = 0; index < folded.count && index < text::full_fold_longest; ++index) {
+            const text::FullFold again = text::fold_case_full(folded.scalars[index]);
+            expect(again.count == 1 && again.scalars[0] == folded.scalars[index], "F7 idempotent", code_point);
+        }
+    }
+    const text::FullFold beyond = text::fold_case_full(0x110000);
+    CHECK(beyond.count == 1 && beyond.scalars[0] == 0x110000);
+    const text::FullFold sharp_s = text::fold_case_full(0xdf);
+    CHECK(sharp_s.count == 2 && sharp_s.scalars[0] == 's' && sharp_s.scalars[1] == 's');
+}
+
 } // namespace
 
 int main(const int argc, char** const argv) {
@@ -298,6 +346,7 @@ int main(const int argc, char** const argv) {
     storage_rules();
     pairs(reference);
     known_texts();
+    full_folding(argv[1], reference);
     std::printf("stxlib_case_folding_tests: %llu comparisons, %llu mismatches\n",
                 static_cast<unsigned long long>(comparisons), static_cast<unsigned long long>(mismatches));
     const int harness = mismatches == 0 ? 0 : 1;
