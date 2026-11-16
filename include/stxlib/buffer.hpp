@@ -13,10 +13,12 @@
 // floating-point numbers, enumerations and object pointers.
 //
 // Layout: a pointer to the first element, then the count. A Buffer is a
-// unique owner: copying is deleted; moving transfers the storage and leaves
+// owner: copying makes a second block (copy() reports exhaustion, the copy
+// constructor and assignment fail fast on it); moving transfers the storage and leaves
 // the source empty.
 
 #include "stxlib/error.hpp"
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/result.hpp"
@@ -62,8 +64,38 @@ public:
         return Result<Buffer>::success(static_cast<Buffer&&>(result));
     }
 
-    Buffer(const Buffer&) = delete;
-    Buffer& operator=(const Buffer&) = delete;
+    // A second buffer with the same elements. Fails with out_of_memory when
+    // the allocator refuses (nothing changes). The empty buffer copies to
+    // the empty buffer without allocating.
+    [[nodiscard]] Result<Buffer> copy() const noexcept {
+        if (count_ == 0) return Result<Buffer>::success(Buffer());
+        const usize bytes = count_ * sizeof(Element);
+        void* const block = memory::allocate(bytes, alignof(Element));
+        if (block == nullptr) {
+            const ErrorRecord exhausted = ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.buffer.copy");
+            return Result<Buffer>::failure(exhausted);
+        }
+        __builtin_memcpy(block, elements_, bytes);
+        Buffer result;
+        result.elements_ = static_cast<Element*>(block);
+        result.count_ = count_;
+        return Result<Buffer>::success(static_cast<Buffer&&>(result));
+    }
+
+    // The ordinary copy (owner 2026-11-16, notes decisions/2026-11-16-
+    // vocabulary-copy.md): an allocation it cannot have ends the process
+    // through fail_fast with copy()'s out_of_memory record.
+    Buffer(const Buffer& other) noexcept : Buffer(take_or_fail_fast(other.copy())) {}
+
+    // The copy is made whole first, then moved in (the move releases the
+    // old storage only after taking the new); self-assignment changes
+    // nothing.
+    Buffer& operator=(const Buffer& other) noexcept {
+        if (this == &other) return *this;
+        Buffer made = take_or_fail_fast(other.copy());
+        *this = static_cast<Buffer&&>(made);
+        return *this;
+    }
 
     Buffer(Buffer&& other) noexcept : elements_(other.elements_), count_(other.count_) {
         other.elements_ = nullptr;

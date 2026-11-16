@@ -59,8 +59,9 @@
 // (files.hpp); Windows supports both ("/" is the current drive's root). UNC
 // names ("//server/share") are not supported: their leading "//" collapses.
 //
-// Changes from stx_auxlib: a Path owns its text on STXlib's allocator and is
-// move-only (copy() makes a second one); every operation that allocates
+// Changes from stx_auxlib: a Path owns its text on STXlib's allocator; it
+// copies as an ordinary value (owner 2026-11-16: exhaustion during a copy
+// fails fast; copy() reports it); every other operation that allocates
 // returns a Result, so exhaustion is out_of_memory, not an abort; join and
 // parent bound only their result (stx_auxlib refused a join whose operands
 // together exceeded the bound, and parent returned the path unchanged when
@@ -196,8 +197,12 @@ public:
 
     Path(Path&&) noexcept = default;
     Path& operator=(Path&&) noexcept = default;
-    Path(const Path&) = delete;
-    Path& operator=(const Path&) = delete;
+    // The ordinary copy (owner 2026-11-16): a second Path with the same
+    // text. An allocation it cannot have ends the process through fail_fast
+    // with copy()'s out_of_memory record. Assignment makes the copy whole
+    // first, then moves it in; self-assignment changes nothing.
+    Path(const Path& other) noexcept;
+    Path& operator=(const Path& other) noexcept;
     ~Path() = default;
 
     // A second Path with the same text.

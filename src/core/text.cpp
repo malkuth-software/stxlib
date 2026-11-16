@@ -5,6 +5,7 @@
 #include "stxlib/detail/utf8.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/detail/growth.hpp"
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/require.hpp"
 
 #include <cstring>
@@ -92,6 +93,15 @@ Utf8String::Utf8String(Utf8String&& other) noexcept : count_(other.count_), capa
     other.count_ = 0;
     other.capacity_ = inline_capacity;
     std::memset(other.storage_.inline_bytes, 0, inline_capacity + 1);
+}
+
+Utf8String::Utf8String(const Utf8String& other) noexcept : Utf8String(take_or_fail_fast(other.copy())) {}
+
+Utf8String& Utf8String::operator=(const Utf8String& other) noexcept {
+    if (this == &other) return *this;
+    Utf8String made = take_or_fail_fast(other.copy());
+    *this = static_cast<Utf8String&&>(made);
+    return *this;
 }
 
 Utf8String& Utf8String::operator=(Utf8String&& other) noexcept {

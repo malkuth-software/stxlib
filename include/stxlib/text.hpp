@@ -53,8 +53,11 @@ namespace stxlib {
 // + 1 bytes (the NUL included). Layout (defined here, the same on every
 // host, 32 bytes): the count, the capacity (inline_capacity while the text
 // is inline), then a 16-byte union of the block pointer and the inline
-// bytes. Unique owner: copying is deleted (copy() is the named copy);
-// moving leaves the source empty.
+// bytes. Copying makes a new string with the same text (owner 2026-11-16,
+// notes decisions/2026-11-16-vocabulary-copy.md); text that does not fit
+// inline allocates, and an allocation the copy cannot have ends the process
+// through fail_fast (copy() and copy_of() report it instead). Moving leaves
+// the source empty.
 //
 // Borrows: view(), c_text() and data borrowed from them stay valid until an
 // operation that changes the text, a move from the string, or its
@@ -76,8 +79,14 @@ public:
 
     Utf8String(Utf8String&& other) noexcept;
     Utf8String& operator=(Utf8String&& other) noexcept;
-    Utf8String(const Utf8String&) = delete;
-    Utf8String& operator=(const Utf8String&) = delete;
+    // The ordinary copy: a new string holding other's text. Exhaustion fails
+    // fast with copy_of's out_of_memory record.
+    Utf8String(const Utf8String& other) noexcept;
+    // The copy is made whole first (failing fast leaves this string as it
+    // was), then moved in, so the old text is released only once this
+    // string holds the new one; assigning a string to itself changes
+    // nothing.
+    Utf8String& operator=(const Utf8String& other) noexcept;
     ~Utf8String();
 
     // ---- queries ----------------------------------------------------------

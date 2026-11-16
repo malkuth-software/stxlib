@@ -167,8 +167,28 @@ class PriorityQueue final {
 
 public:
     PriorityQueue() noexcept = default;
-    PriorityQueue(const PriorityQueue&) = delete;
-    PriorityQueue& operator=(const PriorityQueue&) = delete;
+    // A second queue with the same entries and sequence, so it removes the
+    // same values in the same order. Needs Value's nothrow copy
+    // constructor. Fails with out_of_memory when the allocator refuses.
+    [[nodiscard]] Result<PriorityQueue> copy() const noexcept {
+        Result<Vector<HeapEntry<Value>>> entries = entries_.copy();
+        if (entries.failed()) return Result<PriorityQueue>::failure(*entries.error());
+        PriorityQueue result;
+        result.entries_ = static_cast<Result<Vector<HeapEntry<Value>>>&&>(entries).take_value();
+        result.next_sequence_ = next_sequence_;
+        return Result<PriorityQueue>::success(static_cast<PriorityQueue&&>(result));
+    }
+    // The ordinary copy (owner 2026-11-16, notes decisions/2026-11-16-
+    // vocabulary-copy.md): exhaustion fails fast with copy()'s record.
+    // Assignment makes the copy whole first, then moves it in;
+    // self-assignment changes nothing.
+    PriorityQueue(const PriorityQueue& other) noexcept : PriorityQueue(take_or_fail_fast(other.copy())) {}
+    PriorityQueue& operator=(const PriorityQueue& other) noexcept {
+        if (this == &other) return *this;
+        PriorityQueue made = take_or_fail_fast(other.copy());
+        *this = static_cast<PriorityQueue&&>(made);
+        return *this;
+    }
     PriorityQueue(PriorityQueue&& other) noexcept
         : entries_(static_cast<Vector<HeapEntry<Value>>&&>(other.entries_)), next_sequence_(other.next_sequence_) {
         other.next_sequence_ = 0;

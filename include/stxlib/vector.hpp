@@ -8,16 +8,26 @@
 // Status or a Result, and a refused allocation is the named failure
 // out_of_memory (or limit_exceeded when the size is not representable) with
 // the vector unchanged: same elements, same order, same capacity, and an
-// argument passed by rvalue reference not moved from. Nothing throws and
-// nothing ends the process on exhaustion.
+// argument passed by rvalue reference not moved from. Nothing throws. The
+// one exception to reporting is the ordinary copy (the copy constructor and
+// copy assignment, owner 2026-11-16, notes decisions/2026-11-16-
+// vocabulary-copy.md: "copying is simply creating a new string and setting
+// its contents to the content of the old string", "that's an allocation
+// problem, not a copy problem"): a copy has no result to carry a failure,
+// so an allocation it cannot have goes to the allocator's policy, which
+// fails fast (take_or_fail_fast, the out_of_memory record of copy_of).
+// copy() and copy_of() report exhaustion for callers that handle it.
 //
 // Elements: any type whose move constructor and destructor cannot throw
 // (checked below). Elements are relocated by move construction followed by
 // destruction. Insert and erase shift by move assignment when Element has a
 // nothrow one, and otherwise by construction and destruction, so an element
-// type needs no assignment operator. Copying operations (copy, copy_of, push_copy, append_copies)
-// additionally need a non-throwing copy constructor and are named, never
-// implicit (house style, section 1: name large copies).
+// type needs no assignment operator. Copying operations (the copy
+// constructor and copy assignment, copy, copy_of, push_copy, append_copies)
+// additionally need a non-throwing copy constructor. The copy constructor
+// and copy assignment are declared for every Element (as std::vector's
+// are, so a type that holds a Vector of itself stays declarable) and check
+// that requirement where they are instantiated.
 //
 // Layout (defined here, the same on every host): a pointer to the first
 // element, the count of live elements, then the capacity, in elements. The
@@ -76,6 +86,7 @@
 #include "stxlib/detail/growth.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/error.hpp"
+#include "stxlib/fail_fast.hpp"
 #include "stxlib/require.hpp"
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"
@@ -94,6 +105,11 @@ class Vector final {
         static_assert(__is_nothrow_constructible(Element, Element&&),
                       "Vector's Element must be nothrow move constructible (relocation has no failure path)");
         static_assert(detail::nothrow_destructible<Element>, "Vector's Element must be nothrow destructible");
+    }
+
+    static constexpr void check_copyable() noexcept {
+        static_assert(__is_nothrow_constructible(Element, const Element&),
+                      "copying a Vector needs Element's nothrow copy constructor");
     }
 
     // Whether insert and erase can shift by move assignment (form 1, above).
@@ -144,8 +160,24 @@ public:
         return result;
     }
 
-    Vector(const Vector&) = delete;
-    Vector& operator=(const Vector&) = delete;
+    // The ordinary copy: copies of other's elements, capacity exactly their
+    // count. An allocation the copy cannot have ends the process through
+    // fail_fast with copy_of's out_of_memory or limit_exceeded record (see
+    // "Semantics"); copy() reports it instead.
+    Vector(const Vector& other) noexcept : Vector(take_or_fail_fast(other.copy())) { check_copyable(); }
+
+    // Copy assignment: the copy is built whole first (it may fail fast,
+    // leaving this vector as it was), then taken by the move assignment,
+    // which releases the old elements only after this vector holds the new
+    // ones (form 1). Safe when other is this vector, or lives inside one of
+    // its elements: other is read completely before anything is released.
+    Vector& operator=(const Vector& other) noexcept {
+        check_copyable();
+        if (this == &other) return *this;
+        Vector made = take_or_fail_fast(other.copy());
+        *this = static_cast<Vector&&>(made);
+        return *this;
+    }
 
     // Takes other's storage; other is the empty vector.
     Vector(Vector&& other) noexcept : elements_(other.elements_), count_(other.count_), capacity_(other.capacity_) {
