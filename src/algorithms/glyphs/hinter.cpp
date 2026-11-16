@@ -35,13 +35,9 @@ struct Fitted final {
     bool no_memory{false};
 };
 
-[[nodiscard]] Fitted hint_outline(HintOutline& outline, const StyleMetrics& metrics, const HintScale& wanted, const u32 glyph_style,
-                                  const u32 adjustment, HintScratch& scratch, ScaledStyleMetrics& scaled) noexcept {
+[[nodiscard]] Fitted hint_outline(HintOutline& outline, const StyleMetrics& metrics, const u32 glyph_style, const u32 adjustment,
+                                  HintScratch& scratch, const ScaledStyleMetrics& scaled) noexcept {
     Fitted fitted{};
-    if (detail::scale_style_metrics(metrics, wanted, scaled).failed()) {
-        fitted.no_memory = true;
-        return fitted;
-    }
     const HintScale& scale = scaled.scale;
     const detail::TableScript& script = detail::script_of_style(metrics.style);
     const bool cjk = script.group != detail::group_default;
@@ -101,59 +97,52 @@ struct Fitted final {
     return fitted;
 }
 
-} // namespace
-
-Status Hinter::prepare(const Font& font) noexcept {
-    metrics_.clear();
-    Status status = detail::compute_glyph_styles(font, styles_);
-    if (status.succeeded()) status = detail::compute_glyph_adjustments(font, adjustments_);
-    if (status.failed()) {
-        styles_.clear();
-        adjustments_.clear();
-    }
-    return status;
-}
-
-Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, const HintMode mode, const FontLimits& limits,
-                          GlyphOutline& outline, i32& advance) noexcept {
+// The measures of a style, taken from the font the first time a glyph of
+// the style is hinted. `found` is their place in `all`.
+[[nodiscard]] Status measures_of(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch, Vector<StyleMetrics>& all,
+                                 usize& found) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
-    advance = 0;
-    outline.points.clear();
-    outline.tags.clear();
-    outline.contour_ends.clear();
-    if (glyph >= font.glyph_count || styles_.count() != font.glyph_count || adjustments_.count() != font.glyph_count || size <= 0 ||
-        size > (static_cast<i64>(1) << 24)) {
-        return refuse_font(ErrorKind::invalid_argument, operation);
-    }
-    const u32 glyph_style = styles_[glyph];
-    const u32 style = glyph_style & detail::style_mask;
-    HintScratch scratch{};
-    // The style's measures: taken the first time a glyph of it is hinted.
-    usize found = no_index;
-    for (usize index = 0; index < metrics_.count(); ++index) {
-        if (metrics_[index].style == style) {
+    found = no_index;
+    for (usize index = 0; index < all.count(); ++index) {
+        if (all[index].style == style) {
             found = index;
             break;
         }
     }
-    if (found == no_index) {
-        StyleMetrics measured{};
-        const Status status = detail::compute_style_metrics(font, style, limits, scratch, measured);
-        if (status.failed()) return status;
-        if (metrics_.push(static_cast<StyleMetrics&&>(measured)).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-        found = metrics_.count() - 1;
-    }
-    const StyleMetrics& metrics = metrics_[found];
-    const Status loaded = load_glyph(font, glyph, limits, scratch.glyph);
-    if (loaded.failed()) return loaded;
+    if (found != no_index) return Status::success();
+    StyleMetrics measured{};
+    const Status status = detail::compute_style_metrics(font, style, limits, scratch, measured);
+    if (status.failed()) return status;
+    if (all.push(static_cast<StyleMetrics&&>(measured)).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+    found = all.count() - 1;
+    return Status::success();
+}
+
+// A glyph's outline in font units, hinted.
+[[nodiscard]] Status hint_loaded(const Font& font, const StyleMetrics& metrics, const u32 glyph_style, const u32 adjustment,
+                                 const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends,
+                                 const i32 unscaled_advance, const i64 size, const HintMode mode, detail::HintWork& work, GlyphOutline& outline,
+                                 i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    HintScratch& scratch = work.scratch;
+    const u32 style = glyph_style & detail::style_mask;
     const i32 units = static_cast<i32>(font.units_per_em);
-    const i32 unscaled_advance = advance_of(font, glyph);
-    const Status filled = detail::fill_hint_outline(scratch.glyph, units, unscaled_advance, scratch.outline);
+    const Status filled = detail::fill_hint_outline(glyph_points, glyph_tags, contour_ends, units, unscaled_advance, scratch.outline);
     if (filled.failed()) return filled;
-    const u32 group = detail::script_of_style(style).group;
-    const HintScale scale = detail::make_scale(font, size, mode, group);
-    ScaledStyleMetrics scaled{};
-    const Fitted fitted = hint_outline(scratch.outline, metrics, scale, glyph_style, adjustments_[glyph], scratch, scaled);
+    // The style's measures at this size and mode: those of the last glyph
+    // if it was of the same style, size and mode.
+    if (!work.scaled_held || work.scaled_style != style || work.scaled_size != size || work.scaled_mode != mode) {
+        const u32 group = detail::script_of_style(style).group;
+        const HintScale wanted = detail::make_scale(font, size, mode, group);
+        work.scaled_held = false;
+        if (detail::scale_style_metrics(metrics, wanted, work.scaled).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        work.scaled_held = true;
+        work.scaled_style = style;
+        work.scaled_size = size;
+        work.scaled_mode = mode;
+    }
+    const HintScale& scale = work.scaled.scale;
+    const Fitted fitted = hint_outline(scratch.outline, metrics, glyph_style, adjustment, scratch, work.scaled);
     if (fitted.no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
     // The advance: the scaled advance to a whole pixel, and in monochrome
     // mode made to follow where the outermost edges went.
@@ -187,12 +176,12 @@ Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, con
         outline.points[index] = Point{.x = point.x - left_point, .y = point.y};
         outline.tags[index] = point.tag;
     }
-    for (usize index = 0; index < scratch.glyph.contour_ends.count(); ++index) {
-        if (outline.contour_ends.push_copy(scratch.glyph.contour_ends[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+    for (usize index = 0; index < contour_ends.count(); ++index) {
+        if (outline.contour_ends.push_copy(contour_ends[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     }
     i32 fitted_advance = 0;
     if (!light && (font.fixed_pitch || (metrics.digits_same_width && (glyph_style & detail::style_digit) != 0))) {
-        fitted_advance = times_fixed(unscaled_advance, scale.x_scale);
+        fitted_advance = times_fixed(unscaled_advance, detail::make_scale(font, size, mode, detail::script_of_style(style).group).x_scale);
     } else if (unscaled_advance != 0) {
         fitted_advance = right_point - left_point;
     }
@@ -200,10 +189,83 @@ Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, con
     return Status::success();
 }
 
+} // namespace
+
+Hinter::Hinter() noexcept = default;
+Hinter::Hinter(Hinter&&) noexcept = default;
+Hinter& Hinter::operator=(Hinter&&) noexcept = default;
+Hinter::~Hinter() noexcept = default;
+
+Status Hinter::prepare(const Font& font) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    metrics_.clear();
+    if (work_.empty()) {
+        Result<Unique<detail::HintWork>> made = Unique<detail::HintWork>::make();
+        if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        work_ = static_cast<Result<Unique<detail::HintWork>>&&>(made).take_value();
+    }
+    (*work_).scaled_held = false;
+    Status status = detail::compute_glyph_styles(font, styles_);
+    if (status.succeeded()) status = detail::compute_glyph_adjustments(font, adjustments_);
+    if (status.failed()) {
+        styles_.clear();
+        adjustments_.clear();
+    }
+    return status;
+}
+
+Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, const HintMode mode, const FontLimits& limits,
+                          GlyphOutline& outline, i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    advance = 0;
+    outline.points.clear();
+    outline.tags.clear();
+    outline.contour_ends.clear();
+    if (glyph >= font.glyph_count || work_.empty() || styles_.count() != font.glyph_count || adjustments_.count() != font.glyph_count ||
+        size <= 0 || size > (static_cast<i64>(1) << 24)) {
+        return refuse_font(ErrorKind::invalid_argument, operation);
+    }
+    detail::HintWork& work = *work_;
+    const u32 glyph_style = styles_[glyph];
+    usize found = no_index;
+    const Status measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_, found);
+    if (measured.failed()) return measured;
+    // The glyph is read from the font here, each time: a caller with many
+    // glyphs to hint keeps them in a GlyphStore and calls hint_stored.
+    GlyphOutline& loaded = work.scratch.glyph;
+    const Status read = load_glyph(font, glyph, limits, loaded);
+    if (read.failed()) return read;
+    const Status status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], loaded.points.view(), loaded.tags.view(),
+                                      loaded.contour_ends.view(), advance_of(font, glyph), size, mode, work, outline, advance);
+    return status;
+}
+
+Status Hinter::hint_stored(const Font& font, const u32 glyph, const StoredGlyph& stored, const i64 size, const HintMode mode,
+                           const FontLimits& limits, GlyphOutline& outline, i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    advance = 0;
+    outline.points.clear();
+    outline.tags.clear();
+    outline.contour_ends.clear();
+    if (glyph >= font.glyph_count || work_.empty() || styles_.count() != font.glyph_count || adjustments_.count() != font.glyph_count ||
+        size <= 0 || size > (static_cast<i64>(1) << 24) || stored.points.count() > limits.points) {
+        return refuse_font(ErrorKind::invalid_argument, operation);
+    }
+    detail::HintWork& work = *work_;
+    const u32 glyph_style = styles_[glyph];
+    usize found = no_index;
+    const Status measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_, found);
+    if (measured.failed()) return measured;
+    const Status status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], stored.points, stored.tags, stored.contour_ends,
+                                      stored.advance, size, mode, work, outline, advance);
+    return status;
+}
+
 void Hinter::release() noexcept {
     styles_.release();
     adjustments_.release();
     metrics_.release();
+    work_.reset();
 }
 
 } // namespace stxlib::glyphs

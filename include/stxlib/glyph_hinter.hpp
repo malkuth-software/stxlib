@@ -38,6 +38,11 @@
 // 2.14.2's own (PROVENANCE.md). It is held to FreeType 2.14.2's
 // auto-hinter on the fonts GUI.Forms bundles.
 //
+// Where the glyph comes from. A glyph's outline is read from the font
+// once, into a GlyphStore (glyph_store.hpp), and hinted from there at
+// every size it is wanted at (hint_stored). The hinter reads the font
+// itself only for what it measures a style by, once for a style.
+//
 // Bounds. prepare is linear in the characters of the table of scripts
 // (about 116,000 look-ups in the character map). A style's measures are
 // taken the first time a glyph of it is hinted: a few tens of glyphs
@@ -49,11 +54,18 @@
 // FontLimits bound. out_of_memory. Nothing throws.
 
 #include "stxlib/font_file.hpp"
+#include "stxlib/glyph_store.hpp"
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"
+#include "stxlib/unique.hpp"
 #include "stxlib/vector.hpp"
 
 namespace stxlib::glyphs {
+
+namespace detail {
+// The hinter's working memory (src/algorithms/glyphs/hinter.hpp).
+struct HintWork;
+} // namespace detail
 
 // How the glyph will be drawn.
 enum class HintMode : u8 {
@@ -96,11 +108,12 @@ struct StyleMetrics final {
 
 class Hinter final {
 public:
-    Hinter() noexcept = default;
-    Hinter(Hinter&&) noexcept = default;
-    Hinter& operator=(Hinter&&) noexcept = default;
+    Hinter() noexcept;
+    Hinter(Hinter&&) noexcept;
+    Hinter& operator=(Hinter&&) noexcept;
     Hinter(const Hinter&) = delete;
     Hinter& operator=(const Hinter&) = delete;
+    ~Hinter() noexcept;
 
     // Gives every glyph of `font` its style. To be done once for a font,
     // before any glyph of it is hinted; doing it again begins afresh.
@@ -109,8 +122,18 @@ public:
     // The outline of `glyph` hinted at `size` (26.6 pixels to the em), in
     // 26.6 pixels, and its advance (26.6, a whole number of pixels).
     // `font` is the font prepared.
+    // This reads the glyph from the font each time it is called: it is for
+    // a glyph now and then. Text is hinted from a GlyphStore, by
+    // hint_stored.
     [[nodiscard]] Status hint_glyph(const Font& font, u32 glyph, i64 size, HintMode mode, const FontLimits& limits, GlyphOutline& outline,
                                     i32& advance) noexcept;
+
+    // The same for a glyph a GlyphStore holds (glyph_store.hpp): `stored`
+    // is glyph `glyph` of `font` as the store gave it. Nothing of the
+    // glyph is read from the font, and once the hinter has met the glyph's
+    // style and `outline` has room, nothing is allocated.
+    [[nodiscard]] Status hint_stored(const Font& font, u32 glyph, const StoredGlyph& stored, i64 size, HintMode mode, const FontLimits& limits,
+                                     GlyphOutline& outline, i32& advance) noexcept;
 
     // Frees what was kept.
     void release() noexcept;
@@ -121,6 +144,8 @@ private:
     Vector<u16> styles_{};
     Vector<u16> adjustments_{};
     Vector<StyleMetrics> metrics_{};
+    // What it works in, kept from glyph to glyph.
+    Unique<detail::HintWork> work_{};
 };
 
 } // namespace stxlib::glyphs

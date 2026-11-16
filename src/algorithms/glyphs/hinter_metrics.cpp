@@ -119,7 +119,9 @@ void compute_widths(const Font& font, const TableScript& script, const FontLimit
         const u32 glyph = glyph_of_cluster(font, first, count);
         if (glyph == 0) continue;
         filled = load(font, glyph, limits, scratch.glyph) &&
-                 fill_hint_outline(scratch.glyph, units, advance_of(font, glyph), scratch.outline).succeeded();
+                 fill_hint_outline(scratch.glyph.points.view(), scratch.glyph.tags.view(), scratch.glyph.contour_ends.view(), units,
+                                   advance_of(font, glyph), scratch.outline)
+                     .succeeded();
         break;
     }
     if (filled && !scratch.outline.points.empty()) {

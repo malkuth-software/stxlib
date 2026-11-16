@@ -196,26 +196,27 @@ void compute_winding(HintOutline& outline) noexcept {
 
 } // namespace
 
-Status fill_hint_outline(const GlyphOutline& glyph, const i32 units_per_em, const i32 advance, HintOutline& outline) noexcept {
+Status fill_hint_outline(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 units_per_em,
+                         const i32 advance, HintOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     outline.points.clear();
     outline.contours.clear();
     outline.units_per_em = units_per_em;
     outline.advance = advance;
     outline.winding = Winding::none;
-    const usize count = glyph.points.count();
-    if (glyph.tags.count() != count) return refuse_font(ErrorKind::invalid_argument, operation);
+    const usize count = glyph_points.count();
+    if (glyph_tags.count() != count) return refuse_font(ErrorKind::invalid_argument, operation);
     if (outline.points.resize(count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     HintPoint* const points = outline.points.mutable_view().data();
     for (usize index = 0; index < count; ++index) {
         points[index] = HintPoint{};
-        points[index].tag = glyph.tags[index];
-        points[index].fx = glyph.points[index].x;
-        points[index].fy = glyph.points[index].y;
+        points[index].tag = glyph_tags[index];
+        points[index].fx = glyph_points[index].x;
+        points[index].fy = glyph_points[index].y;
     }
     usize first = 0;
-    for (usize index = 0; index < glyph.contour_ends.count(); ++index) {
-        const usize last = glyph.contour_ends[index];
+    for (usize index = 0; index < contour_ends.count(); ++index) {
+        const usize last = contour_ends[index];
         if (last < first || last >= count) return refuse_font(ErrorKind::invalid_argument, operation);
         const HintContour contour{.first = static_cast<u32>(first), .last = static_cast<u32>(last)};
         if (outline.contours.push_copy(contour).failed()) return refuse_font(ErrorKind::out_of_memory, operation);

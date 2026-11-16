@@ -352,6 +352,18 @@ struct HintScratch final {
     Vector<ContourReach> reaches{};
 };
 
+// A Hinter's working memory, kept from glyph to glyph: the scratch, and
+// the measures of the last style hinted at the last size and mode (a line
+// of text is mostly one style at one size).
+struct HintWork final {
+    HintScratch scratch{};
+    ScaledStyleMetrics scaled{};
+    bool scaled_held{false};
+    u32 scaled_style{0};
+    i64 scaled_size{0};
+    HintMode scaled_mode{HintMode::light};
+};
+
 // ---- accents (hinter_accents.cpp) --------------------------------------------------------------
 
 // What is done for a glyph by the character it is the glyph of
@@ -432,7 +444,8 @@ void link_segments(const HintOutline& outline, HintAxis& axis, i32 scale, bool c
 
 // The outline of a glyph as loaded (font units), with every point's
 // neighbours, directions and marks worked out.
-[[nodiscard]] Status fill_hint_outline(const GlyphOutline& glyph, i32 units_per_em, i32 advance, HintOutline& outline) noexcept;
+[[nodiscard]] Status fill_hint_outline(View<Point> glyph_points, View<PointTag> glyph_tags, View<u32> contour_ends, i32 units_per_em, i32 advance,
+                                       HintOutline& outline) noexcept;
 
 } // namespace stxlib::glyphs::detail
 

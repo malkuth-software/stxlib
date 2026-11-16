@@ -28,6 +28,16 @@
 //       again and one released and prepared give it too;
 //   H6  a font with none of the letters that blue zones are measured from
 //       is left as scaled; a glyph of no points succeeds;
+//   H9  the glyph store: a glyph is read from the font once (after that a
+//       font with its bytes taken away serves as well), what it holds is
+//       what load_glyph gives, a refused glyph stays refused, and a glyph
+//       hinted from the store is the glyph hinted from the font, at every
+//       size and in both modes;
+//   H10 the store's size: glyphs named in advance are kept while there is
+//       room and never given up; of the rest, one that goes unused while
+//       a half fills twice is read again and one in use is not; a glyph
+//       too large for a half is served and not kept; by count of readings
+//       worked out by hand, every outline checked against the reader;
 //   H7  robustness: every prefix of the font and many copies with bytes
 //       changed are prepared and hinted; each either succeeds or is
 //       refused (the sanitizer builds are what make this a memory check).
@@ -37,6 +47,7 @@
 
 #include "stxlib/font_file.hpp"
 #include "stxlib/glyph_hinter.hpp"
+#include "stxlib/glyph_store.hpp"
 
 #include "font_builder.hpp"
 #include "test_support.hpp"
@@ -705,6 +716,149 @@ void repeated() {
     }
 }
 
+void stored() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    glyphs::GlyphStore store{};
+    glyphs::StoredGlyph glyph{};
+    // A store not opened holds no font's glyphs.
+    const stxlib::Status unopened = store.glyph(opened.font, glyph_H, glyph);
+    CHECK(unopened.failed() && (*unopened.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    CHECK(store.open(opened.font, opened.limits).succeeded());
+    CHECK(store.glyphs_read() == 0);
+    const stxlib::Status beyond = store.glyph(opened.font, glyph_count, glyph);
+    CHECK(beyond.failed() && (*beyond.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    // What it holds is what the reader gives.
+    for (u32 index = 0; index < glyph_count; ++index) {
+        glyphs::GlyphOutline loaded{};
+        const bool read = glyphs::load_glyph(opened.font, index, opened.limits, loaded).succeeded() && store.glyph(opened.font, index, glyph).succeeded();
+        CHECK(read);
+        if (!read) continue;
+        bool same = glyph.points.count() == loaded.points.count() && glyph.tags.count() == loaded.tags.count() &&
+                    glyph.contour_ends.count() == loaded.contour_ends.count() && glyph.advance == glyphs::advance_of(opened.font, index);
+        for (usize point = 0; same && point < loaded.points.count(); ++point) {
+            same = glyph.points[point].x == loaded.points[point].x && glyph.points[point].y == loaded.points[point].y &&
+                   glyph.tags[point] == loaded.tags[point];
+        }
+        for (usize contour = 0; same && contour < loaded.contour_ends.count(); ++contour) same = glyph.contour_ends[contour] == loaded.contour_ends[contour];
+        CHECK(same);
+    }
+    CHECK(store.glyphs_read() == glyph_count);
+    // Read once: a font with no bytes behind it serves from here on, and
+    // nothing more is counted as read.
+    glyphs::Font hollow = opened.font;
+    hollow.bytes = stxlib::View<u8>();
+    hollow.glyf = glyphs::FontTable{};
+    hollow.loca = glyphs::FontTable{};
+    hollow.hmtx = glyphs::FontTable{};
+    for (u32 index = 0; index < glyph_count; ++index) CHECK(store.glyph(hollow, index, glyph).succeeded());
+    CHECK(store.glyphs_read() == glyph_count);
+    // Hinted from the store, a glyph is the glyph hinted from the font.
+    const glyphs::HintMode modes[] = {glyphs::HintMode::light, glyphs::HintMode::monochrome};
+    glyphs::GlyphOutline from_store{};
+    glyphs::GlyphOutline from_font{};
+    for (const glyphs::HintMode mode : modes) {
+        for (i64 size = 8 * 64; size <= 40 * 64; size = size + 53) {
+            for (u32 index = 0; index < glyph_count; ++index) {
+                i32 store_advance = 0;
+                i32 font_advance = 0;
+                const bool done = store.glyph(opened.font, index, glyph).succeeded() &&
+                                  opened.hinter.hint_stored(opened.font, index, glyph, size, mode, opened.limits, from_store, store_advance).succeeded() &&
+                                  opened.hinter.hint_glyph(opened.font, index, size, mode, opened.limits, from_font, font_advance).succeeded();
+                CHECK(done && same_outline(from_store, from_font) && store_advance == font_advance);
+            }
+        }
+    }
+    // A glyph the reader refuses is refused each time, and read once: H
+    // under a limit of eleven points.
+    glyphs::FontLimits few{};
+    few.points = 11;
+    glyphs::GlyphStore strict{};
+    CHECK(strict.open(opened.font, few).succeeded());
+    const stxlib::Status first = strict.glyph(opened.font, glyph_H, glyph);
+    const stxlib::Status second = strict.glyph(hollow, glyph_H, glyph);
+    CHECK(first.failed() && (*first.error()).kind() == stxlib::ErrorKind::limit_exceeded);
+    CHECK(second.failed() && (*second.error()).kind() == stxlib::ErrorKind::limit_exceeded);
+    CHECK(strict.glyphs_read() == 1 && glyph.points.empty());
+    // An outline larger than the hinter's limit is not taken from a store.
+    CHECK(store.glyph(opened.font, glyph_H, glyph).succeeded());
+    i32 advance = 0;
+    const stxlib::Status over = opened.hinter.hint_stored(opened.font, glyph_H, glyph, 1024, glyphs::HintMode::light, few, from_store, advance);
+    CHECK(over.failed() && (*over.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    // Released, it holds nothing.
+    store.release();
+    CHECK(store.glyphs_read() == 0 && store.glyph(opened.font, glyph_H, glyph).failed());
+}
+
+// What the store gives for `glyph` is what the reader gives.
+[[nodiscard]] bool serves(const Opened& opened, glyphs::GlyphStore& store, const u32 glyph) {
+    glyphs::GlyphOutline loaded{};
+    glyphs::StoredGlyph stored{};
+    if (glyphs::load_glyph(opened.font, glyph, opened.limits, loaded).failed() || store.glyph(opened.font, glyph, stored).failed()) return false;
+    bool same = stored.points.count() == loaded.points.count() && stored.tags.count() == loaded.tags.count() &&
+                stored.contour_ends.count() == loaded.contour_ends.count() && stored.advance == glyphs::advance_of(opened.font, glyph);
+    for (usize point = 0; same && point < loaded.points.count(); ++point) {
+        same = stored.points[point].x == loaded.points[point].x && stored.points[point].y == loaded.points[point].y &&
+               stored.tags[point] == loaded.tags[point];
+    }
+    for (usize contour = 0; same && contour < loaded.contour_ends.count(); ++contour) same = stored.contour_ends[contour] == loaded.contour_ends[contour];
+    return same;
+}
+
+void store_size() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    // Points: 1 has 4; i, n and o 8; h and p 10; H and m 12; O and 0 16.
+    // Room for 40 points kept, and two halves of 32.
+    const glyphs::StoreLimits small{.kept_points = 40, .recent_points = 64};
+    glyphs::GlyphStore store{};
+    CHECK(store.open(opened.font, opened.limits, small).succeeded());
+    // H (12), O (16) and m (12) fill the kept part; n (8) has no room
+    // there and goes with the recent ones; the font has no z.
+    const u32 likely[] = {'H', 'O', 'm', 'n', 'z'};
+    usize kept = 0;
+    CHECK(store.keep(opened.font, stxlib::View<u32>(likely), kept).succeeded() && kept == 3);
+    CHECK(store.glyphs_read() == 4);
+    // Named again, nothing changes.
+    CHECK(store.keep(opened.font, stxlib::View<u32>(likely), kept).succeeded() && kept == 3 && store.glyphs_read() == 4);
+    // The newer half: n, i, o are 24 points; p (10) does not fit, so the
+    // (empty) older half is given up and p begins a new one.
+    CHECK(serves(opened, store, glyph_i) && serves(opened, store, glyph_o) && serves(opened, store, glyph_p));
+    CHECK(store.glyphs_read() == 7);
+    // n is in the older half: it is moved to the newer, not read.
+    CHECK(serves(opened, store, glyph_n) && store.glyphs_read() == 7);
+    // h (10) and 1 (4) fill the newer half: p, n, h, 1 are 32.
+    CHECK(serves(opened, store, glyph_h) && serves(opened, store, glyph_one) && store.glyphs_read() == 9);
+    // 0 (16) does not fit: the older half (i and o; n has left it) is
+    // given up.
+    CHECK(serves(opened, store, glyph_zero) && store.glyphs_read() == 10);
+    // n, in use all along, is still held; i is read again.
+    CHECK(serves(opened, store, glyph_n) && store.glyphs_read() == 10);
+    CHECK(serves(opened, store, glyph_i) && store.glyphs_read() == 11);
+    // The kept glyphs were never given up.
+    CHECK(serves(opened, store, glyph_H) && serves(opened, store, glyph_O) && serves(opened, store, glyph_m) && store.glyphs_read() == 11);
+    // Round and round: every glyph, many times, is always the reader's.
+    bool all = true;
+    for (u32 round = 0; round < 50; ++round) {
+        for (u32 glyph = 0; glyph < glyph_count; ++glyph) all = all && serves(opened, store, (glyph * 7 + round) % glyph_count);
+    }
+    CHECK(all);
+    // Halves of 8: H (12) is too large for one. It is served, and read
+    // each time.
+    const glyphs::StoreLimits tiny{.kept_points = 0, .recent_points = 16};
+    glyphs::GlyphStore narrow{};
+    CHECK(narrow.open(opened.font, opened.limits, tiny).succeeded());
+    CHECK(serves(opened, narrow, glyph_H) && serves(opened, narrow, glyph_H) && narrow.glyphs_read() == 2);
+    CHECK(serves(opened, narrow, glyph_i) && serves(opened, narrow, glyph_i) && narrow.glyphs_read() == 3);
+    // Nothing kept at all still serves.
+    const glyphs::StoreLimits none{.kept_points = 0, .recent_points = 0};
+    glyphs::GlyphStore empty{};
+    CHECK(empty.open(opened.font, opened.limits, none).succeeded());
+    CHECK(serves(opened, empty, glyph_m) && serves(opened, empty, glyph_one) && empty.glyphs_read() == 2);
+}
+
 // A font whose only characters are A and B, each a square: no blue zone
 // can be measured, and its glyphs are left as scaled.
 void without_blue_zones() {
@@ -757,11 +911,17 @@ void use(const Bytes& bytes, std::uint64_t& prepared, std::uint64_t& hinted) {
     glyphs::FontLimits limits{};
     limits.components = 40;
     glyphs::GlyphOutline outline{};
+    glyphs::GlyphStore store{};
+    const bool store_open = store.open(font, limits).succeeded();
     const u32 count = font.glyph_count < 16 ? font.glyph_count : 16;
     for (u32 glyph = 0; glyph < count; ++glyph) {
         i32 advance = 0;
         if (hinter.hint_glyph(font, glyph, 11 * 64, glyphs::HintMode::light, limits, outline, advance).succeeded()) hinted = hinted + 1;
         if (hinter.hint_glyph(font, glyph, 23 * 64 + 5, glyphs::HintMode::monochrome, limits, outline, advance).succeeded()) hinted = hinted + 1;
+        glyphs::StoredGlyph stored{};
+        if (store_open && store.glyph(font, glyph, stored).succeeded()) {
+            if (hinter.hint_stored(font, glyph, stored, 17 * 64, glyphs::HintMode::monochrome, limits, outline, advance).succeeded()) hinted = hinted + 1;
+        }
     }
 }
 
@@ -820,6 +980,8 @@ int main(const int argument_count, const char* const* const arguments) {
     light_at_sizes();
     monochrome_at_sizes();
     accents();
+    stored();
+    store_size();
     repeated();
     without_blue_zones();
     robustness();
