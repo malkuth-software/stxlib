@@ -135,7 +135,6 @@ boot c2-boot1 --ssh-forward-port "$ssh_port" \
     --step 'expect:5:STXHELLO own-folder=written' \
     --step 'expect:5:STXHELLO other-folder=refused' \
     --step 'expect:5:STXHELLO store=refused' \
-    --step 'expect:20:STXIDLE version=1 folder=/data/targets/idle' \
     --step "$login_step" \
     --step 'expect:60:STXSURFACE done' \
     --step 'expect:90:STXSUPERVISOR boot good slot=A' \
@@ -149,6 +148,10 @@ boot c2-boot1 --ssh-forward-port "$ssh_port" \
     --step 'expect:10:STXSUPERVISOR reboot requested=system-update' \
     --step 'exit:60' || { echo "c2_m4: boot 1 failed"; exit 1; }
 boot1_log=$(ls -d "$storage/appliance/logs/scenarios/$vm/"*-c2-boot1 | tail -1)/serial.lines
+# The second target's start, read from the whole boot: two targets' output
+# reaches the console in either order, and the steps above are ordered.
+grep -q 'STXIDLE version=1 folder=/data/targets/idle' "$boot1_log" \
+    || { echo "c2_m4: idle did not start in boot 1"; exit 1; }
 python3 -I check_surface.py "$boot1_log" --device 'ttyv*' --device fb0 --device 'input/*' --port tcp/8080 \
     || { echo "c2_m4: the run-time surface has findings"; exit 1; }
 

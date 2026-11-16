@@ -115,6 +115,7 @@
 #include <stdio.h>
 #include <sys/reboot.h>
 #include <sys/wait.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -619,6 +620,10 @@ constexpr std::uint64_t stop_wait_ms = stxconfig::service_stop_grace_ms + 300u;
     stxruntime::append_text(line, service_registry.all_stopped() ? "stopped\n" : "left-running\n");
     stxruntime::write_line(STDOUT_FILENO, line);
     if (then_reboot) {
+        // The line out of the console's queue first: the kernel's shutdown
+        // messages otherwise land inside it (seen in c2_web). Not a
+        // terminal: nothing to wait for.
+        (void)tcdrain(STDOUT_FILENO);
         sync();
         (void)reboot(RB_AUTOBOOT);
         const int error_number = errno;
