@@ -505,7 +505,7 @@ std::uint64_t completion_output_hash() {
 // host's std::exp2): the integrator's freezing run (STXLIB_FREEZE_HASHES=1,
 // both product forms and both hosts agreeing) writes it here. Until then the
 // check fails outside freezing mode (frozen_hash.hpp).
-constexpr std::uint64_t expected_completion_output_hash = 0;
+constexpr std::uint64_t expected_completion_output_hash = 0xca9124667dc5040fULL;
 
 void determinism() {
     const std::uint64_t hash = completion_output_hash();
