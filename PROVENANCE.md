@@ -617,6 +617,41 @@ v3.6.1's `LICENSE` unchanged (Git blob
 `82ade5d7d9b029044b5fbbc326207fc47c2d44ee4dd71e8a559c36d728217de9`, as
 pinned while it was vendored).
 
+### stxlib::glyphs, the font reader: after ttf-parser and Skrifa (2026-11-15)
+
+`include/stxlib/font_file.hpp` and `src/algorithms/glyphs/font_file.cpp`,
+`font_truetype.cpp`, `font_cff.cpp` and `font_reader.hpp` are first party: a
+conversion to house-style C++ of the design of two projects, ordered by the
+owner on 2026-11-15 (the font stack that replaces FreeType; the references
+are the ones the design names).
+
+- ttf-parser 0.25.1 (<https://github.com/harfbuzz/ttf-parser>, MIT OR
+  Apache-2.0): the table directory, the face's numbers, the character
+  maps, advances, glyf's simple glyphs, CFF's indexes, dictionaries and
+  charstring operators.
+- Skrifa 0.50.0 and read-fonts 0.47.0
+  (<https://github.com/googlefonts/fontations>, MIT OR Apache-2.0):
+  composite glyphs in whole numbers, the outline placed by its left side
+  bearing, scaled loading, and CFF coordinates in whole font units.
+
+The sources were read from the crates as published on crates.io, fetched
+with the owner's approval on 2026-11-15 into the seat's read-only research
+directory (not in this tree):
+
+| Crate | Bytes | SHA-256 |
+|---|---|---|
+| `ttf-parser-0.25.1.crate` | 201,121 | `d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31` |
+| `skrifa-0.50.0.crate` | 350,239 | `e85ba678a6023a063d0a78c8770f1c166674ef46af13523d05eff67430f79dfe` |
+| `read-fonts-0.47.0.crate` | 938,260 | `a39d2f8f681030a7bcbbcf3e8568775ac2393afd51401a2e2133ee89e3953897` |
+| `font-types-0.12.7.crate` | 33,312 | `835ae9d781464a79026cde387f9cbc650c9a4909d7cf7e658b127e3c35d2f35d` |
+
+They are taken under the MIT licence; `src/algorithms/glyphs/NOTICE`
+carries both notices and is installed as `glyphs-NOTICE`. Nothing of
+either is compiled or linked. The reader departs from them where it must
+be whole numbers on every host (ttf-parser works in floating point) and
+states its own limits; the source says so at the place. FreeType 2.14.2 is
+not a source of this code: it is what the seat compares results with.
+
 ## Third party
 
 ### mimalloc (removed, 2026-11-15)

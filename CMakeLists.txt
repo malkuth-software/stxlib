@@ -681,6 +681,9 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
+    src/algorithms/glyphs/font_cff.cpp
+    src/algorithms/glyphs/font_file.cpp
+    src/algorithms/glyphs/font_truetype.cpp
     src/algorithms/glyphs/mask.cpp
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
@@ -965,6 +968,12 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_mask_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_mask_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_mask_tests COMMAND stxlib_glyph_mask_tests)
+    # stxlib::glyphs: the font reader against fonts the test builds in
+    # memory (tests/font_file_tests.cpp).
+    add_executable(stxlib_font_file_tests tests/font_file_tests.cpp)
+    target_link_libraries(stxlib_font_file_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_font_file_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_font_file_tests COMMAND stxlib_font_file_tests)
     # Simple case folding (C7): every code point against CaseFolding.txt,
     # read by the test's own parser; and the committed table is the
     # generator's output for the pinned file.
@@ -1634,3 +1643,5 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/LICENSE
         DESTINATION ${stxlib_licence_directory} RENAME unicode-LICENSE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/state/stx_minmallocpp/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME stx_minmallocpp-NOTICE)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/glyphs/NOTICE
+        DESTINATION ${stxlib_licence_directory} RENAME glyphs-NOTICE)
