@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measures how text falls into the bidi fast forms (src/algorithms/bidi/).
+"""Measures how text falls into the bidi fast forms (src/algorithms/textlayout/).
 
 Usage:
   python3 -I tools/bidi_case_histogram.py <DerivedBidiClass.txt> <corpus file or directory>...

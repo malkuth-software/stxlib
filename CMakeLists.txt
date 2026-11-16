@@ -677,7 +677,8 @@ set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
     src/algorithms/case_folding.cpp
-    src/algorithms/bidi/bidi.cpp
+    src/algorithms/textlayout/analysis.cpp
+    src/algorithms/textlayout/line_break.cpp
     src/algorithms/hash.cpp
     src/algorithms/markdown/blocks.cpp
     src/algorithms/markdown/characters.cpp
@@ -1040,34 +1041,70 @@ if(STXLIB_TESTS)
     endif()
     add_test(NAME stxlib_case_folding_tests COMMAND stxlib_case_folding_tests ${stxlib_case_folding_argument})
     set_tests_properties(stxlib_case_folding_tests PROPERTIES TIMEOUT 600)
-    # The bidirectional algorithm (include/stxlib/bidi.hpp): the lookups
-    # against the Unicode files, BidiTest.txt and BidiCharacterTest.txt
-    # (off the repository: STXLIB_UNICODE_TEST_DATA names their directory;
-    # the test says when they are absent) and the exact comparison with the
-    # reference (tests/reference/bidi_reference.hpp). Not for the web
-    # targets (the files are read from the host).
+    # Text layout analysis (include/stxlib/textlayout.hpp). Two programs:
+    # the bidirectional algorithm (the lookups against the Unicode files,
+    # BidiTest.txt and BidiCharacterTest.txt, and the exact comparison with
+    # the reference, tests/reference/bidi_reference.hpp), and line breaking,
+    # scripts and the one walk (tests/textlayout_tests.cpp: the tables
+    # against the Unicode files, the automaton against the rule chain over
+    # every reachable state, LineBreakTest.txt, a bounded fuzz). The
+    # conformance files are off the repository: STXLIB_UNICODE_TEST_DATA
+    # names their directory, and each test says when one is absent. Not for
+    # the web targets (the files are read from the host).
     set(STXLIB_UNICODE_TEST_DATA "" CACHE PATH
-        "Directory of BidiTest.txt and BidiCharacterTest.txt (Unicode 18.0.0), for stxlib_bidi_tests")
+        "Directory of BidiTest.txt, BidiCharacterTest.txt and LineBreakTest.txt (Unicode 18.0.0)")
     if(NOT stxlib_web_tests)
-        add_executable(stxlib_bidi_tests tests/bidi_tests.cpp)
-        target_link_libraries(stxlib_bidi_tests PRIVATE stxlib::algorithms)
-        target_include_directories(stxlib_bidi_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
-        target_compile_options(stxlib_bidi_tests PRIVATE ${stxlib_test_warnings})
-        add_test(NAME stxlib_bidi_tests
-            COMMAND stxlib_bidi_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0 ${STXLIB_UNICODE_TEST_DATA})
-        set_tests_properties(stxlib_bidi_tests PROPERTIES TIMEOUT 1200)
-        # Speed against SheenBidi and the differences from it: only with
-        # SheenBidi's source named (stx_text's copy); never installed.
-        set(STXLIB_SHEENBIDI_DIR "" CACHE PATH "SheenBidi source (Headers/, Source/) for stxlib_bidi_bench")
-        if(STXLIB_SHEENBIDI_DIR)
+        add_executable(stxlib_textlayout_bidi_tests tests/textlayout_bidi_tests.cpp)
+        target_link_libraries(stxlib_textlayout_bidi_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_textlayout_bidi_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+        target_compile_options(stxlib_textlayout_bidi_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_textlayout_bidi_tests
+            COMMAND stxlib_textlayout_bidi_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0 ${STXLIB_UNICODE_TEST_DATA})
+        set_tests_properties(stxlib_textlayout_bidi_tests PROPERTIES TIMEOUT 1200)
+        add_executable(stxlib_textlayout_tests tests/textlayout_tests.cpp)
+        target_link_libraries(stxlib_textlayout_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_textlayout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_textlayout_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_textlayout_tests
+            COMMAND stxlib_textlayout_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0 ${STXLIB_UNICODE_TEST_DATA})
+        set_tests_properties(stxlib_textlayout_tests PROPERTIES TIMEOUT 1200)
+        # What the two objects reach outside themselves
+        # (tools/check_textlayout_surface.py; proofs/REPORT.md).
+        find_package(Python3 COMPONENTS Interpreter)
+        if(Python3_Interpreter_FOUND AND CMAKE_NM AND NOT MSVC AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+            set(stxlib_textlayout_sanitized)
+            if(stxlib_sanitized)
+                set(stxlib_textlayout_sanitized --sanitized)
+            endif()
+            add_test(NAME stxlib_textlayout_surface
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_textlayout_surface.py
+                        --nm ${CMAKE_NM} --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_algorithms.dir
+                        ${stxlib_textlayout_sanitized})
+        endif()
+        # Speed against SheenBidi and libunibreak and the differences from
+        # them: only with both sources named (stx_text's copies); never
+        # installed.
+        set(STXLIB_SHEENBIDI_DIR "" CACHE PATH "SheenBidi source (Headers/, Source/) for stxlib_textlayout_bench")
+        set(STXLIB_LIBUNIBREAK_DIR "" CACHE PATH "libunibreak source (src/) for stxlib_textlayout_bench")
+        if(STXLIB_SHEENBIDI_DIR AND STXLIB_LIBUNIBREAK_DIR)
             enable_language(C)
             file(GLOB stxlib_sheenbidi_sources ${STXLIB_SHEENBIDI_DIR}/Source/*.c)
             list(FILTER stxlib_sheenbidi_sources EXCLUDE REGEX "SheenBidi\\.c$")
             add_library(stxlib_sheenbidi_oracle STATIC ${stxlib_sheenbidi_sources})
             target_include_directories(stxlib_sheenbidi_oracle PUBLIC ${STXLIB_SHEENBIDI_DIR}/Headers
                                        PRIVATE ${STXLIB_SHEENBIDI_DIR}/Source)
-            add_executable(stxlib_bidi_bench tests/bidi_bench.cpp)
-            target_link_libraries(stxlib_bidi_bench PRIVATE stxlib::algorithms stxlib_sheenbidi_oracle)
+            add_library(stxlib_libunibreak_oracle STATIC
+                ${STXLIB_LIBUNIBREAK_DIR}/src/unibreakbase.c
+                ${STXLIB_LIBUNIBREAK_DIR}/src/unibreakdef.c
+                ${STXLIB_LIBUNIBREAK_DIR}/src/linebreak.c
+                ${STXLIB_LIBUNIBREAK_DIR}/src/linebreakdata.c
+                ${STXLIB_LIBUNIBREAK_DIR}/src/linebreakdef.c
+                ${STXLIB_LIBUNIBREAK_DIR}/src/eastasianwidthdef.c)
+            target_include_directories(stxlib_libunibreak_oracle PUBLIC ${STXLIB_LIBUNIBREAK_DIR}/src)
+            add_executable(stxlib_textlayout_bench tests/textlayout_bench.cpp)
+            target_link_libraries(stxlib_textlayout_bench PRIVATE stxlib::algorithms stxlib_sheenbidi_oracle
+                                  stxlib_libunibreak_oracle)
         endif()
     endif()
     # stxlib::markdown: the CommonMark specification's examples, the tape's
@@ -1542,10 +1579,10 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/CaseFolding.txt
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_full_table.inc)
-        add_test(NAME stxlib_bidi_tables
-            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_bidi_tables.py --check
+        add_test(NAME stxlib_textlayout_tables
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_textlayout_tables.py --check
                     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0
-                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/bidi/bidi_tables.inc)
+                    ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/textlayout/textlayout_tables.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})

@@ -1,4 +1,4 @@
-// Tests of include/stxlib/bidi.hpp (UAX #9, Unicode 18.0.0).
+// Tests of include/stxlib/textlayout.hpp (UAX #9, Unicode 18.0.0).
 //
 // Arguments: <unicode directory> [<conformance directory>] [--exhaustive N]
 // [--random N]. The unicode directory is third_party/unicode-18.0.0; the
@@ -7,9 +7,9 @@
 // properties are reported as not run, plainly, and the rest still runs.
 //
 // The references are the Unicode files themselves, read here by parsers of
-// the test's own (independent of tools/gen_bidi_tables.py), and
+// the test's own (independent of tools/gen_textlayout_tables.py), and
 // tests/reference/bidi_reference.hpp, a per-code-point reading of the
-// specification independent of src/algorithms/bidi/bidi.cpp.
+// specification independent of src/algorithms/textlayout/analysis.cpp.
 //
 // Properties:
 //   B1  every code point 0 to 0x10FFFF: bidi_class is DerivedBidiClass.txt's
@@ -43,7 +43,7 @@
 // over their stated sets (a proof by enumeration once the test passes);
 // B4's random part and B5 are sampled.
 
-#include "stxlib/bidi.hpp"
+#include "stxlib/textlayout.hpp"
 #include "stxlib/text.hpp"
 
 #include "reference/bidi_reference.hpp"
@@ -58,7 +58,7 @@
 
 namespace {
 
-namespace text = stxlib::text;
+namespace text = stxlib::textlayout;
 namespace ref = bidi_reference;
 using stxlib::u32;
 using stxlib::u8;
@@ -283,14 +283,14 @@ struct Outcome final {
 
 Outcome run_library(const std::vector<u32>& input, const text::BaseDirection direction) {
     Outcome outcome;
-    text::BidiParagraph paragraph;
+    text::Paragraph paragraph;
     const stxlib::Status analysed =
         text::analyse_paragraph(View<u32>(input.data(), input.size()), 0, direction, paragraph);
     if (analysed.failed() || paragraph.length() != input.size()) return outcome;
     outcome.base_level = paragraph.base_level();
     const View<u8> levels = paragraph.levels();
     for (usize index = 0; index < levels.count(); ++index) outcome.levels.push_back(levels[index]);
-    text::BidiLine line;
+    text::Line line;
     const stxlib::Status lined = text::analyse_line(paragraph, 0, input.size(), line);
     if (lined.failed()) return outcome;
     const View<u8> line_levels = line.levels();
@@ -607,8 +607,8 @@ void utf8_agrees(const int count, Random& random) {
         usize point = 0;
         const text::BaseDirection direction = direction_of(static_cast<int>(random.next(4)));
         while (point < input.size()) {
-            text::BidiParagraph by_point;
-            text::BidiParagraph by_byte;
+            text::Paragraph by_point;
+            text::Paragraph by_byte;
             const stxlib::Status a = text::analyse_paragraph(View<u32>(input.data(), input.size()), point, direction, by_point);
             const stxlib::Status b = text::analyse_paragraph(view, byte_of[point], direction, by_byte);
             paragraphs = paragraphs + 1;
@@ -621,8 +621,8 @@ void utf8_agrees(const int count, Random& random) {
                 }
             }
             if (same) {
-                text::BidiLine line_point;
-                text::BidiLine line_byte;
+                text::Line line_point;
+                text::Line line_byte;
                 const stxlib::Status c = text::analyse_line(by_point, by_point.offset(), by_point.length(), line_point);
                 const stxlib::Status d = text::analyse_line(by_byte, by_byte.offset(), by_byte.length(), line_byte);
                 same = c.succeeded() && d.succeeded() && line_point.runs().count() == line_byte.runs().count();
@@ -660,14 +660,14 @@ void arguments() {
     const stxlib::Result<stxlib::TextView> validated = stxlib::validate_utf8(bytes, 4);
     CHECK(validated.succeeded());
     const stxlib::TextView view = *validated.value();
-    text::BidiParagraph paragraph;
+    text::Paragraph paragraph;
     CHECK(text::analyse_paragraph(view, 4, text::BaseDirection::left_to_right, paragraph).failed());
     CHECK(text::analyse_paragraph(view, 2, text::BaseDirection::left_to_right, paragraph).failed());
     CHECK(paragraph.length() == 0 && paragraph.levels().count() == 0);
     CHECK(text::analyse_paragraph(view, 0, text::BaseDirection::left_to_right, paragraph).succeeded());
     CHECK(paragraph.length() == 4);
     CHECK(paragraph.levels().count() == 4 && paragraph.levels()[1] == 1 && paragraph.levels()[2] == 1);
-    text::BidiLine line;
+    text::Line line;
     CHECK(text::analyse_line(paragraph, 0, 0, line).failed());
     CHECK(text::analyse_line(paragraph, 0, 5, line).failed());
     CHECK(text::analyse_line(paragraph, 2, 2, line).failed()); // inside U+05D0
@@ -691,7 +691,7 @@ void arguments() {
 
 int main(const int argc, char** const argv) {
     if (argc < 2) {
-        std::fprintf(stderr, "usage: stxlib_bidi_tests <unicode directory> [<conformance directory>] [--exhaustive N] [--random N]\n");
+        std::fprintf(stderr, "usage: stxlib_textlayout_bidi_tests <unicode directory> [<conformance directory>] [--exhaustive N] [--random N]\n");
         return 2;
     }
     std::string conformance;
@@ -711,7 +711,7 @@ int main(const int argc, char** const argv) {
     }
     const Data data = read_data(argv[1]);
     CHECK(data.read);
-    if (!data.read) return stxlib_tests::finish("stxlib_bidi_tests");
+    if (!data.read) return stxlib_tests::finish("stxlib_textlayout_bidi_tests");
     lookups(data);
     if (conformance.empty()) {
         std::printf("B2, B3: NOT RUN: no conformance directory given (STXLIB_UNICODE_TEST_DATA)\n");
@@ -734,5 +734,5 @@ int main(const int argc, char** const argv) {
                 static_cast<unsigned long long>(compared - after_brackets), static_cast<unsigned long long>(differing));
     utf8_agrees(random_count / 4, random);
     arguments();
-    return stxlib_tests::finish("stxlib_bidi_tests");
+    return stxlib_tests::finish("stxlib_textlayout_bidi_tests");
 }

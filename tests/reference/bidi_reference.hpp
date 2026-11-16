@@ -1,7 +1,7 @@
 #pragma once
 
 // An independent reading of UAX #9 (Unicode 18.0.0), per code point, for
-// tests/bidi_tests.cpp: the reference src/algorithms/bidi/bidi.cpp is
+// tests/textlayout_bidi_tests.cpp: the reference src/algorithms/textlayout/analysis.cpp is
 // compared with exactly. Written from the specification's text rule by
 // rule, in its order, with no attention to speed: each rule is a pass over
 // the code points (or the isolating run sequence) and every backward
@@ -9,7 +9,7 @@
 // numbering (BidiClass's order).
 //
 // The choices UAX #9 leaves open are made as the library makes them
-// (include/stxlib/bidi.hpp): a removed character (X9) takes the level of
+// (include/stxlib/textlayout.hpp): a removed character (X9) takes the level of
 // the nearest preceding character not removed, else of the nearest
 // following one, else the paragraph level; BD16 stops at the 64th opener
 // and keeps the pairs found.
