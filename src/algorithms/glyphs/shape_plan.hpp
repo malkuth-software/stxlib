@@ -86,6 +86,11 @@ struct PlanSubtable final {
     u32 format{0};
     usize coverage{0};
     GlyphDigest digest{};
+    // For ligatures: the digest of the second glyphs of all of them, when
+    // every one has a second glyph (`seconds_known`): a glyph followed by
+    // one not in it begins no ligature.
+    GlyphDigest seconds{};
+    bool seconds_known{false};
 };
 
 // A lookup of the plan.
@@ -102,6 +107,10 @@ struct PlanLookup final {
     u32 first_subtable{0};
     u32 subtable_count{0};
     GlyphDigest digest{};
+    // A positioning lookup that is plain kerning: pairs, each adjusting the
+    // first glyph's advance and nothing else. On a run it sees every glyph
+    // of, it is a fixed loop over neighbours (shape_apply.cpp, kern_run).
+    bool kerning{false};
 };
 
 inline constexpr usize plan_digest_budget = static_cast<usize>(1) << 20;
@@ -114,6 +123,11 @@ struct ShapePlan final {
     u32 script{0};
     u32 language{0};
     ShaperKind shaper{ShaperKind::plain};
+    // A number of its own among the plans of whoever keeps it (0: none),
+    // by which what is remembered of its lookups is told apart.
+    u64 serial{0};
+    // The way the script is written (unset: either way).
+    ShapeDirection native{ShapeDirection::left_to_right};
     // The font's tables, as the plan read them: [0] substitutions, [1]
     // positions.
     LayoutTable tables[2]{};

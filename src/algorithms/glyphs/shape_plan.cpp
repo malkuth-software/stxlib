@@ -226,6 +226,31 @@ void digest_coverage(const Span& table, const usize coverage, usize& budget, Gly
     }
 }
 
+// The second glyphs of every ligature of a ligature subtable; false when
+// one has none, the table cannot be read through, or the budget is spent.
+[[nodiscard]] bool digest_seconds(const Span& table, const usize place, usize& budget, GlyphDigest& seconds) noexcept {
+    if (peek_u16(table, place) != 1) return false;
+    const usize sets = peek_u16(table, place + 4);
+    if (sets > budget || !has(table, place + 6, sets * 2)) return false;
+    budget = budget - sets;
+    for (usize index = 0; index < sets; ++index) {
+        const usize set_offset = read_u16(table, place + 6 + index * 2);
+        if (set_offset == 0) continue;
+        const usize set = place + set_offset;
+        const usize count = peek_u16(table, set);
+        if (count > budget || !has(table, set + 2, count * 2)) return false;
+        budget = budget - count;
+        for (usize number = 0; number < count; ++number) {
+            const usize ligature_offset = read_u16(table, set + 2 + number * 2);
+            if (ligature_offset == 0) continue;
+            const usize ligature = set + ligature_offset;
+            if (!has(table, ligature, 6) || read_u16(table, ligature + 2) < 2) return false;
+            digest_add(seconds, read_u16(table, ligature + 4));
+        }
+    }
+    return true;
+}
+
 // The lookups of one stage as they are gathered: a lookup named by several
 // features is applied once, for the glyphs of any of them.
 struct Gathering final {
@@ -359,6 +384,7 @@ Status compile_plan(const Font& font, const ShapeDirection direction, const u32 
     plan.direction = direction;
     plan.script = script;
     plan.language = language;
+    plan.native = script != 0 ? way_of_script(script) : ShapeDirection::left_to_right;
     plan.shaper = ShaperKind::plain;
     if (script == layout_tag('H', 'e', 'b', 'r')) plan.shaper = ShaperKind::hebrew;
     if (script == layout_tag('H', 'a', 'n', 'g')) plan.shaper = ShaperKind::hangul;
@@ -540,21 +566,28 @@ Status compile_plan(const Font& font, const ShapeDirection direction, const u32 
             if (!lookup_at(layout, planned.index, lookup) || lookup.kind == 0) continue;
             planned.kind = lookup.kind;
             planned.props = props_of(lookup);
+            bool kerning = table == 1 && lookup.kind == 2 && lookup.subtable_count != 0;
             for (u32 number = 0; number < lookup.subtable_count; ++number) {
                 usize place = 0;
                 if (!subtable_at(layout, lookup, number, place)) continue;
                 PlanSubtable subtable{};
                 describe_subtable(layout, lookup.kind, place, subtable);
+                // Plain kerning: of the four adjustments only the first
+                // glyph's advance along the line, nothing for the second.
+                kerning = kerning && (subtable.format == 1 || subtable.format == 2) && (peek_u16(layout.table, place + 4) & 0x000FU) == 0x0004U &&
+                          peek_u16(layout.table, place + 6) == 0;
                 if (subtable.coverage == 0) continue;
                 if (budget == 0) {
                     digest_fill(subtable.digest);
                 } else {
                     digest_coverage(layout.table, subtable.coverage, budget, subtable.digest);
                 }
+                if (table == 0 && lookup.kind == 4 && budget != 0) subtable.seconds_known = digest_seconds(layout.table, place, budget, subtable.seconds);
                 digest_join(planned.digest, subtable.digest);
                 if (plan.subtables[table].push_copy(subtable).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
             }
             planned.subtable_count = static_cast<u32>(plan.subtables[table].count()) - planned.first_subtable;
+            planned.kerning = kerning && planned.subtable_count == lookup.subtable_count;
         }
     }
 

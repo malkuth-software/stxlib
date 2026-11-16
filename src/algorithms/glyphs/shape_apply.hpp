@@ -254,10 +254,101 @@ struct ApplyFrame final {
     bool stopped{false};
 };
 
+// What has been read of a font's tables for a glyph, remembered: its place
+// in a coverage, its class in a class definition, its properties, the
+// glyph of a character. A table of fixed size, each answer at the place
+// its question hashes to, a later one over an earlier: an answer found is
+// the answer the font gives, and one not found is read again. It is for
+// one font (a Shaper's), whose tables do not change.
+inline constexpr usize memo_size = 2048;
+inline constexpr u32 memo_coverage = 1;
+inline constexpr u32 memo_class = 2;
+inline constexpr u32 memo_properties = 3;
+inline constexpr u32 memo_character = 4;
+inline constexpr u32 memo_ligature = 5;
+// Which table a place is in: substitutions 0, positions 1, definitions 2,
+// the character map 3.
+struct MemoEntry final {
+    u64 key{0};
+    u32 value{0};
+};
+
+[[nodiscard]] constexpr u64 memo_key(const u32 what, const u32 table, const usize place, const u32 number) noexcept {
+    const u64 result = (static_cast<u64>(1) << 63) | (static_cast<u64>(what & 7U) << 55) | (static_cast<u64>(table & 3U) << 53) |
+                       ((static_cast<u64>(place) & 0xFFFFFFFFU) << 21) | (number & 0x1FFFFFU);
+    return result;
+}
+
+[[nodiscard]] constexpr usize memo_slot(const u64 key) noexcept {
+    const usize result = static_cast<usize>((key ^ (key >> 19) ^ (key >> 37) ^ (key >> 53)) & (memo_size - 1));
+    return result;
+}
+
+[[nodiscard]] inline bool memo_find(const Vector<MemoEntry>& memo, const u64 key, u32& value) noexcept {
+    if (memo.count() != memo_size) return false;
+    const MemoEntry& entry = memo[memo_slot(key)];
+    if (entry.key != key) return false;
+    value = entry.value;
+    return true;
+}
+
+inline void memo_keep(Vector<MemoEntry>& memo, const u64 key, const u32 value) noexcept {
+    if (memo.count() == memo_size) memo[memo_slot(key)] = MemoEntry{.key = key, .value = value};
+}
+
+// A pair of glyphs and what a kerning lookup of a plan gives it,
+// remembered: text repeats its pairs.
+inline constexpr usize pair_memo_size = 1024;
+struct PairEntry final {
+    u64 serial{0};
+    u16 lookup{0};
+    u16 first{0};
+    u16 second{0};
+    i16 value{0};
+};
+
+// The different glyphs a run has had, as far as there are few: a lookup
+// that begins at none of them is not gone through at all.
+inline constexpr usize apply_most_distinct = 96;
+
 // The working memory of applying lookups, kept from run to run.
 struct ApplyWork final {
     Vector<ApplyFrame> frames{};
+    Vector<MemoEntry> memo{};
+    Vector<PairEntry> pairs{};
+    // Of the run as it stands when its positions begin: the glyph
+    // properties any item has, the mask bits every item has, and whether
+    // any is a character not to show. A lookup that sees every item alike
+    // needs no looking at each.
+    u32 run_props{0};
+    u32 run_mask{0};
+    bool run_ignorable{false};
+    u32 distinct[apply_most_distinct]{};
+    usize distinct_count{0};
+    // More different glyphs than the list holds: it says nothing.
+    bool distinct_over{false};
+    // Which glyphs are in the list, each at the place it hashes to with
+    // the number of the run, so that nothing is cleared between runs.
+    u64 seen[256]{};
+    u64 run_number{0};
 };
+
+// A glyph of the run, for the list of its different glyphs.
+inline void note_glyph(ApplyWork& work, const u32 glyph) noexcept {
+    const usize slot = (glyph ^ (glyph >> 8)) & 0xFFU;
+    const u64 mark = (work.run_number << 16) | (glyph & 0xFFFFU);
+    if (work.seen[slot] == mark) return;
+    work.seen[slot] = mark;
+    if (work.distinct_count < apply_most_distinct) {
+        work.distinct[work.distinct_count] = glyph;
+        work.distinct_count = work.distinct_count + 1;
+    } else {
+        work.distinct_over = true;
+    }
+}
+
+// Room for the frames and the memo; false for want of memory.
+[[nodiscard]] bool prepare_work(ApplyWork& work) noexcept;
 
 // The substitutions of the plan. The buffer's items are glyphs with their
 // masks; their glyph and ligature properties are set here.
@@ -275,7 +366,7 @@ void finish_positions(ShapeBuffer& buffer) noexcept;
 
 // Every item's glyph properties from the font's glyph classes, its
 // ligature properties cleared, and the digest of the run's glyphs.
-void start_substitutions(const ShapePlan& plan, ShapeBuffer& buffer, GlyphDigest& digest) noexcept;
+void start_substitutions(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, GlyphDigest& digest) noexcept;
 
 // The old kerning table, for a font whose positions have no kerning.
 void apply_old_kerning(const Font& font, const ShapePlan& plan, ShapeBuffer& buffer, const ShapeScale& scale) noexcept;

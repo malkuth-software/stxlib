@@ -366,7 +366,9 @@ void limits() {
     detail::ShapeBuffer broken{};
     fill(broken, {{'a', 0}, {'b', 1}});
     CHECK(broken.whole());
-    broken.len = 3;
+    // (The arrays keep room past what is in use: more items than they
+    // have room for is what cannot be.)
+    broken.len = broken.info.count() + 1;
     CHECK(!broken.whole());
     broken.len = 2;
     broken.out_len = 1;

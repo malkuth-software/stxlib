@@ -161,7 +161,8 @@ struct ShapeBuffer final {
     usize max_len{0x3FFFFFFF};
     i32 max_ops{0x1FFFFFFF};
 
-    // Empties the buffer; how the text is treated stays.
+    // Empties the buffer; how the text is treated stays. The arrays keep
+    // their room (release gives it back).
     void clear() noexcept;
     // Empties it and puts how the text is treated back as at first.
     void reset() noexcept;
@@ -184,8 +185,14 @@ struct ShapeBuffer final {
 
     // How many items lie behind the one being read, and how many from it
     // on.
-    [[nodiscard]] usize backtrack_len() const noexcept;
-    [[nodiscard]] usize lookahead_len() const noexcept;
+    [[nodiscard]] usize backtrack_len() const noexcept {
+        const usize result = have_output ? out_len : idx;
+        return result;
+    }
+    [[nodiscard]] usize lookahead_len() const noexcept {
+        const usize result = len - idx;
+        return result;
+    }
 
     // Substitution: the output begun, items passed to it, and the output
     // made the items. sync is false when the shaping has failed.
@@ -201,9 +208,31 @@ struct ShapeBuffer final {
     void output_glyph(u32 glyph) noexcept;
     void output_info(const ShapeGlyph& item) noexcept;
     void copy_glyph() noexcept;
-    void next_glyph() noexcept;
-    void next_glyphs(usize count) noexcept;
-    void skip_glyph() noexcept;
+    void next_glyph() noexcept {
+        if (have_output) {
+            if (!ensure(out_len + 1)) return;
+            if (idx >= len) {
+                successful = false;
+                return;
+            }
+            out[out_len] = info[idx];
+            out_len = out_len + 1;
+        }
+        idx = idx + 1;
+    }
+    void next_glyphs(const usize count) noexcept {
+        if (have_output) {
+            if (!ensure(out_len + count)) return;
+            if (idx + count > len) {
+                successful = false;
+                return;
+            }
+            for (usize index = 0; index < count; ++index) out[out_len + index] = info[idx + index];
+            out_len = out_len + count;
+        }
+        idx = idx + count;
+    }
+    void skip_glyph() noexcept { idx = idx + 1; }
     // Reading goes to output place `place`: forward by passing items on,
     // back by taking written items back.
     [[nodiscard]] bool move_to(usize place) noexcept;
@@ -237,9 +266,25 @@ struct ShapeBuffer final {
     void sort(usize start, usize end, SortsAfter after) noexcept;
 
     // Room for `size` items, within the most length.
-    [[nodiscard]] bool ensure(usize size) noexcept;
+    [[nodiscard]] bool ensure(const usize size) noexcept {
+        // The most length holds whatever room the arrays have.
+        if (size > max_len) {
+            successful = false;
+            return false;
+        }
+        const bool result = size <= info.count() || grow(size);
+        return result;
+    }
+    // The arrays made larger, for ensure.
+    [[nodiscard]] bool grow(usize size) noexcept;
     // `count` operations are spent; false when no more are left.
-    [[nodiscard]] bool charge(usize count) noexcept;
+    [[nodiscard]] bool charge(const usize count) noexcept {
+        const i64 left = static_cast<i64>(max_ops) - static_cast<i64>(count < 0x7FFFFFFF ? count : 0x7FFFFFFF);
+        max_ops = left < -0x7FFFFFFF ? -0x7FFFFFFF : static_cast<i32>(left);
+        if (max_ops < 0) successful = false;
+        const bool result = max_ops >= 0;
+        return result;
+    }
     // Around a shaping: the limits set from the run's length, and put back.
     void enter() noexcept;
     void leave() noexcept;

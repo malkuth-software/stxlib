@@ -734,7 +734,7 @@ std::uint64_t random_state = 0x6A09E667F3BCC909ULL;
             run.size = direction == 0 ? 0 : 13 * 64;
             if (shaper.shape(run, shaped).succeeded()) {
                 shaped_runs = shaped_runs + 1;
-                const usize most = text.size() * 64 > 16384 ? text.size() * 64 : 16384;
+                const usize most = text.size() * 256 > 65536 ? text.size() * 256 : 65536;
                 kept = shaped.count() <= most;
             } else {
                 refused_runs = refused_runs + 1;

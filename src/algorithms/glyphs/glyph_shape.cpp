@@ -103,6 +103,7 @@ inline constexpr i64 largest_size = static_cast<i64>(1) << 24;
         return compiled;
     }
     state.made = state.made + 1;
+    kept.plan.serial = state.made;
     plan = &kept.plan;
     return Status::success();
 }
@@ -129,8 +130,13 @@ Status Shaper::open(const Shared<Typeface>& typeface, const ShaperLimits& limits
 }
 
 Status Shaper::shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
+    const Status status = shape_into(run, glyphs);
+    if (status.failed()) glyphs.clear();
+    return status;
+}
+
+Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
     const Operation operation("stxlib.glyphs.shaper");
-    glyphs.clear();
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     ShaperState& state = *state_;
     const usize count = run.characters.count();
@@ -138,7 +144,10 @@ Status Shaper::shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept {
         return refuse_font(ErrorKind::invalid_argument, operation);
     }
     if (count > state.limits.characters || count > 0x3FFFFFFFU) return refuse_font(ErrorKind::limit_exceeded, operation);
-    if (count == 0) return Status::success();
+    if (count == 0) {
+        glyphs.clear();
+        return Status::success();
+    }
 
     detail::ShapeBuffer& buffer = state.buffer;
     buffer.reset();
@@ -197,7 +206,8 @@ usize Shaper::bytes_held() const noexcept {
     const ShaperState& state = *state_;
     usize bytes = sizeof(ShaperState) + state.plans.capacity() * sizeof(detail::KeptPlan) + state.requests.capacity() * sizeof(detail::PlanRequest) +
                   state.buffer.info.capacity() * sizeof(detail::ShapeGlyph) + state.buffer.out.capacity() * sizeof(detail::ShapeGlyph) +
-                  state.buffer.pos.capacity() * sizeof(detail::ShapePosition) + state.work.frames.capacity() * sizeof(detail::ApplyFrame);
+                  state.buffer.pos.capacity() * sizeof(detail::ShapePosition) + state.work.frames.capacity() * sizeof(detail::ApplyFrame) +
+                  state.work.memo.capacity() * sizeof(detail::MemoEntry) + state.work.pairs.capacity() * sizeof(detail::PairEntry);
     for (usize index = 0; index < state.plans.count(); ++index) {
         bytes = bytes + detail::bytes_of(state.plans[index].plan) - sizeof(detail::ShapePlan) +
                 state.plans[index].requests.capacity() * sizeof(detail::PlanRequest);

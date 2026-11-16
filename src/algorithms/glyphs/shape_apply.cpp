@@ -90,13 +90,38 @@ void fail(ShapeBuffer& buffer) noexcept { buffer.successful = false; }
     return result;
 }
 
-[[nodiscard]] u32 glyph_props_of(const GlyphDefinitions& definitions, const u32 glyph) noexcept {
-    const u32 glyph_class_number = glyph_class(definitions, glyph);
+[[nodiscard]] u32 glyph_props_of(const GlyphDefinitions& definitions, Vector<MemoEntry>& memo, const u32 glyph) noexcept {
+    const u64 key = memo_key(memo_properties, 2, 0, glyph);
     u32 props = 0;
+    if (memo_find(memo, key, props)) return props;
+    const u32 glyph_class_number = glyph_class(definitions, glyph);
     if (glyph_class_number == glyph_class_base) props = glyph_is_base;
     if (glyph_class_number == glyph_class_ligature) props = glyph_is_ligature;
     if (glyph_class_number == glyph_class_mark) props = glyph_is_mark | (mark_attachment_class(definitions, glyph) << 8);
+    memo_keep(memo, key, props);
     return props;
+}
+
+// A glyph's place in a coverage and its class in a class definition of the
+// table at work, remembered.
+[[nodiscard]] u32 covered(const Applying& applying, const usize coverage, const u32 glyph) noexcept {
+    Vector<MemoEntry>& memo = (*applying.work).memo;
+    const u64 key = memo_key(memo_coverage, applying.substitution ? 0U : 1U, coverage, glyph);
+    u32 index = 0;
+    if (memo_find(memo, key, index)) return index;
+    index = coverage_index((*applying.layout).table, coverage, glyph);
+    memo_keep(memo, key, index);
+    return index;
+}
+
+[[nodiscard]] u32 classed(const Applying& applying, const usize class_definition, const u32 glyph) noexcept {
+    Vector<MemoEntry>& memo = (*applying.work).memo;
+    const u64 key = memo_key(memo_class, applying.substitution ? 0U : 1U, class_definition, glyph);
+    u32 number = 0;
+    if (memo_find(memo, key, number)) return number;
+    number = class_of((*applying.layout).table, class_definition, glyph);
+    memo_keep(memo, key, number);
+    return number;
 }
 
 // Whether a lookup with these props sees the item at all.
@@ -139,10 +164,10 @@ void update_matchers(Applying& applying) noexcept {
     if (rule.by == MatchBy::glyph) {
         result = has(table, place, 2) && read_u16(table, place) == item.glyph;
     } else if (rule.by == MatchBy::glyph_class) {
-        result = has(table, place, 2) && class_of(table, rule.base, item.glyph) == read_u16(table, place);
+        result = has(table, place, 2) && classed(applying, rule.base, item.glyph) == read_u16(table, place);
     } else if (rule.by == MatchBy::coverage) {
         const usize offset = peek_u16(table, place);
-        result = offset != 0 && coverage_index(table, rule.base + offset, item.glyph) != not_covered;
+        result = offset != 0 && covered(applying, rule.base + offset, item.glyph) != not_covered;
     }
     return result;
 }
@@ -337,6 +362,7 @@ struct Skipper final {
 void set_glyph_class(Applying& applying, const u32 glyph, const u32 class_guess, const bool ligature, const bool component) noexcept {
     ShapeBuffer& buffer = *applying.buffer;
     digest_add(*applying.digest, glyph);
+    note_glyph(*applying.work, glyph);
     if (!has_current(buffer)) return;
     ShapeGlyph& item = buffer.info[buffer.idx];
     u32 props = item.glyph_props | glyph_substituted;
@@ -347,7 +373,7 @@ void set_glyph_class(Applying& applying, const u32 glyph, const u32 class_guess,
     }
     if (component) props = props | glyph_multiplied;
     if (applying.has_classes) {
-        props = (props & glyph_preserved_bits) | glyph_props_of(*applying.definitions, glyph);
+        props = (props & glyph_preserved_bits) | glyph_props_of(*applying.definitions, (*applying.work).memo, glyph);
     } else if (class_guess != 0) {
         props = (props & glyph_preserved_bits) | class_guess;
     }
@@ -579,8 +605,22 @@ void ligate_input(Applying& applying, const usize count, const usize match_end, 
             }
         }
     }
+    // No ligature of the subtable has this second glyph; or this set is
+    // remembered to have none that begins with it.
+    if (second_known && subtable.seconds_known && !digest_may_have(subtable.seconds, second)) {
+        buffer.unsafe_to_concat(buffer.idx, unsafe_to);
+        return false;
+    }
+    Vector<MemoEntry>& memo = (*applying.work).memo;
+    const u64 key = memo_key(memo_ligature, 0, set, second);
+    u32 none_begin = 0;
+    if (second_known && memo_find(memo, key, none_begin) && none_begin == 1) {
+        buffer.unsafe_to_concat(buffer.idx, unsafe_to);
+        return false;
+    }
     bool applied = false;
     bool passed_over = false;
+    bool tried = false;
     for (usize number = 0; number < count && !applied; ++number) {
         const usize ligature_offset = read_u16(table, set + 2 + number * 2);
         if (ligature_offset == 0) continue;
@@ -589,8 +629,10 @@ void ligate_input(Applying& applying, const usize count, const usize match_end, 
             passed_over = true;
             continue;
         }
+        tried = true;
         applied = apply_ligature(applying, ligature);
     }
+    if (second_known && !tried) memo_keep(memo, key, 1);
     if (passed_over) buffer.unsafe_to_concat(buffer.idx, unsafe_to);
     return applied;
 }
@@ -755,7 +797,7 @@ struct Rule final {
             set_count = peek_u16(table, place + 10);
             sets = place + 12;
         }
-        number = class_of(table, input_base, buffer.info[buffer.idx].glyph);
+        number = classed(applying, input_base, buffer.info[buffer.idx].glyph);
     } else {
         return false;
     }
@@ -782,9 +824,13 @@ inline constexpr u32 value_x_advance = 0x0004;
 inline constexpr u32 value_y_advance = 0x0008;
 
 [[nodiscard]] usize value_size(const u32 format) noexcept {
-    usize fields = 0;
-    for (u32 bit = 0; bit < 8; ++bit) fields = fields + ((format >> bit) & 1U);
-    const usize result = fields * 2;
+    // How many of the eight fields the record has: the bits of the format
+    // counted two, then four, then eight at a time.
+    u32 bits = format & 0xFFU;
+    bits = bits - ((bits >> 1) & 0x55U);
+    bits = (bits & 0x33U) + ((bits >> 2) & 0x33U);
+    bits = (bits + (bits >> 4)) & 0x0FU;
+    const usize result = static_cast<usize>(bits) * 2;
     return result;
 }
 
@@ -887,8 +933,8 @@ inline constexpr u32 value_y_advance = 0x0008;
         }
     } else {
         // By the classes of the two glyphs.
-        const u32 class1 = class_of(table, subtable.place + peek_u16(table, subtable.place + 8), buffer.info[buffer.idx].glyph);
-        const u32 class2 = class_of(table, subtable.place + peek_u16(table, subtable.place + 10), second);
+        const u32 class1 = classed(applying, subtable.place + peek_u16(table, subtable.place + 8), buffer.info[buffer.idx].glyph);
+        const u32 class2 = classed(applying, subtable.place + peek_u16(table, subtable.place + 10), second);
         const u32 count1 = peek_u16(table, subtable.place + 12);
         const u32 count2 = peek_u16(table, subtable.place + 14);
         if (class1 < count1 && class2 < count2) {
@@ -1055,7 +1101,7 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
     }
     const usize before = skipper.index;
     const usize after = buffer.idx;
-    const u32 previous = coverage_index(table, subtable.coverage, buffer.info[before].glyph);
+    const u32 previous = covered(applying, subtable.coverage, buffer.info[before].glyph);
     if (previous == not_covered || previous >= count) return false;
     const Anchor exit = read_anchor(table, subtable.place, peek_u16(table, subtable.place + 6 + static_cast<usize>(previous) * 4 + 2));
     if (!exit.found) {
@@ -1136,7 +1182,6 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
 // is no mark, and (for a glyph that was one of several made from one) the
 // first of them. Remembered from mark to mark.
 [[nodiscard]] bool find_mark_base(Applying& applying, const bool ligature, const usize coverage, usize& base) noexcept {
-    const Span& table = (*applying.layout).table;
     ShapeBuffer& buffer = *applying.buffer;
     if (applying.last_base_until > buffer.idx) {
         applying.last_base_until = 0;
@@ -1163,7 +1208,7 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
                                info_lig_comp(item) != info_lig_comp(earlier) + 1;
                 }
             }
-            if (!accepted && coverage_index(table, coverage, item.glyph) == not_covered) matched = Matched::skip;
+            if (!accepted && covered(applying, coverage, item.glyph) == not_covered) matched = Matched::skip;
         }
         if (matched == Matched::yes) {
             last_base = static_cast<i64>(back) - 1;
@@ -1203,7 +1248,7 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
     usize base = 0;
     if (!find_mark_base(applying, ligature, base_coverage, base)) return false;
     const ShapeGlyph base_item = buffer.info[base];
-    const u32 base_index = coverage_index(table, base_coverage, base_item.glyph);
+    const u32 base_index = covered(applying, base_coverage, base_item.glyph);
     if (base_index == not_covered) {
         buffer.unsafe_to_concat_from_output(base, buffer.idx + 1);
         return false;
@@ -1282,7 +1327,7 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
     }
     const usize other_coverage = peek_u16(table, place + 4);
     if (other_coverage == 0) return false;
-    const u32 other_index = coverage_index(table, place + other_coverage, other_item.glyph);
+    const u32 other_index = covered(applying, place + other_coverage, other_item.glyph);
     if (other_index == not_covered) return false;
     const u32 class_count = peek_u16(table, place + 6);
     const usize marks = place + peek_u16(table, place + 8);
@@ -1302,7 +1347,6 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
 // ---- a lookup at a place --------------------------------------------------------------------------------
 
 [[nodiscard]] bool apply_subtable(Applying& applying, const u32 kind, const PlanSubtable& subtable, Pending& pending) noexcept {
-    const Span& table = (*applying.layout).table;
     ShapeBuffer& buffer = *applying.buffer;
     if (!has_current(buffer)) return false;
     const u32 glyph = buffer.info[buffer.idx].glyph;
@@ -1310,7 +1354,7 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
     const u32 context = applying.substitution ? 5U : 7U;
     const u32 chain = applying.substitution ? 6U : 8U;
     const bool by_class = (kind == context || kind == chain) && subtable.format == 2;
-    index = coverage_index(table, subtable.coverage, glyph);
+    index = covered(applying, subtable.coverage, glyph);
     if (index == not_covered) return false;
     static_cast<void>(by_class);
     bool applied = false;
@@ -1511,6 +1555,134 @@ void after_nested(Applying& applying, ApplyFrame& frame) noexcept {
     return true;
 }
 
+// Whether any glyph the run has had is one a subtable of the lookup begins
+// at: by the coverages themselves, so a lookup passed over here could not
+// have applied. With too many different glyphs to list, it is not known.
+[[nodiscard]] bool run_may_use(const Applying& applying, const PlanLookup& lookup) noexcept {
+    const ApplyWork& work = *applying.work;
+    if (work.distinct_over) return true;
+    const Vector<PlanSubtable>& subtables = (*applying.plan).subtables[applying.substitution ? 0 : 1];
+    // No more coverages are asked than this: past it, the lookup is gone
+    // through as if it might apply.
+    const usize most_asked = 64;
+    usize asked = 0;
+    bool found = false;
+    for (usize index = 0; index < work.distinct_count && !found; ++index) {
+        const u32 glyph = work.distinct[index];
+        if (!digest_may_have(lookup.digest, glyph)) continue;
+        for (u32 number = 0; number < lookup.subtable_count && !found; ++number) {
+            const PlanSubtable& subtable = subtables[lookup.first_subtable + number];
+            if (!digest_may_have(subtable.digest, glyph)) continue;
+            asked = asked + 1;
+            found = asked > most_asked || covered(applying, subtable.coverage, glyph) != not_covered;
+        }
+    }
+    return found;
+}
+
+// What a kerning lookup gives a pair of glyphs, in the font's units: the
+// first of its subtables that has the first glyph and (by glyph) the pair
+// or (by class) both classes decides, as when the lookup is applied to
+// the first glyph with the second after it.
+[[nodiscard]] i32 kerning_of(const Applying& applying, const PlanLookup& lookup, const u32 first, const u32 second) noexcept {
+    const Span& table = (*applying.layout).table;
+    const Vector<PlanSubtable>& subtables = (*applying.plan).subtables[1];
+    i32 value = 0;
+    bool decided = false;
+    for (u32 number = 0; number < lookup.subtable_count && !decided; ++number) {
+        const PlanSubtable& subtable = subtables[lookup.first_subtable + number];
+        if (!digest_may_have(subtable.digest, first)) continue;
+        const u32 index = covered(applying, subtable.coverage, first);
+        if (index == not_covered) continue;
+        const usize record_size = value_size(peek_u16(table, subtable.place + 4));
+        if (subtable.format == 1) {
+            if (index >= peek_u16(table, subtable.place + 8)) continue;
+            const usize set_offset = peek_u16(table, subtable.place + 10 + static_cast<usize>(index) * 2);
+            if (set_offset == 0 || !has(table, subtable.place + set_offset, 2)) continue;
+            const usize set = subtable.place + set_offset;
+            const usize record = 2 + record_size;
+            usize low = 0;
+            usize high = read_u16(table, set);
+            if (!has(table, set + 2, high * record)) continue;
+            while (low < high && !decided) {
+                const usize middle = low + (high - low) / 2;
+                const u32 listed = read_u16(table, set + 2 + middle * record);
+                if (listed < second) {
+                    low = middle + 1;
+                } else if (listed > second) {
+                    high = middle;
+                } else {
+                    value = read_i16(table, set + 2 + middle * record + 2);
+                    decided = true;
+                }
+            }
+        } else {
+            const u32 class1 = classed(applying, subtable.place + peek_u16(table, subtable.place + 8), first);
+            const u32 class2 = classed(applying, subtable.place + peek_u16(table, subtable.place + 10), second);
+            const u32 count1 = peek_u16(table, subtable.place + 12);
+            const u32 count2 = peek_u16(table, subtable.place + 14);
+            if (class1 < count1 && class2 < count2) {
+                // A record not all inside the table adjusts nothing.
+                const usize place = subtable.place + 16 + (static_cast<usize>(class1) * count2 + class2) * record_size;
+                value = has(table, place, record_size) ? read_i16(table, place) : 0;
+                decided = true;
+            }
+        }
+    }
+    return value;
+}
+
+// A kerning lookup over a run all of whose items it sees: each glyph and
+// the one after it, the pair's value remembered. No item is looked at for
+// whether the lookup applies to it; that was settled for the run.
+void kern_run(Applying& applying, const PlanLookup& lookup, const u16 lookup_number) noexcept {
+    ShapeBuffer& buffer = *applying.buffer;
+    Vector<PairEntry>& pairs = (*applying.work).pairs;
+    const u64 serial = (*applying.plan).serial;
+    const bool remembering = serial != 0 && pairs.count() == pair_memo_size;
+    const i64 mult = applying.scale.x_mult;
+    for (usize index = 0; index + 1 < buffer.len; ++index) {
+        const u32 first = buffer.info[index].glyph;
+        const u32 second = buffer.info[index + 1].glyph;
+        i32 value = 0;
+        const usize slot = ((first * 31U) ^ second ^ (static_cast<u32>(lookup_number) * 7U)) & (pair_memo_size - 1);
+        bool known = false;
+        if (remembering) {
+            const PairEntry& entry = pairs[slot];
+            if (entry.serial == serial && entry.lookup == lookup_number && entry.first == first && entry.second == second) {
+                value = entry.value;
+                known = true;
+            }
+        }
+        if (!known) {
+            value = digest_may_have(lookup.digest, first) ? kerning_of(applying, lookup, first, second) : 0;
+            if (remembering && first <= 0xFFFFU && second <= 0xFFFFU) {
+                pairs[slot] = PairEntry{.serial = serial,
+                                        .lookup = lookup_number,
+                                        .first = static_cast<u16>(first),
+                                        .second = static_cast<u16>(second),
+                                        .value = static_cast<i16>(value)};
+            }
+        }
+        if (value != 0) {
+            ShapePosition& position = buffer.pos[index];
+            position.x_advance = saturate(static_cast<i64>(position.x_advance) + scale_value(value, mult));
+            buffer.unsafe_to_break(index, index + 2);
+        }
+    }
+}
+
+// Whether the lookup sees every item of the run, and is on for every one:
+// no glyph class it passes over is in the run, no mark it would have to
+// ask about, nothing that is not to show.
+[[nodiscard]] bool sees_whole_run(const Applying& applying, const PlanLookup& lookup) noexcept {
+    const ApplyWork& work = *applying.work;
+    const bool marks_asked_about = (lookup.props & (lookup_use_mark_set | lookup_mark_class_mask)) != 0;
+    const bool result = (work.run_props & lookup.props & glyph_class_bits) == 0 && ((work.run_props & glyph_is_mark) == 0 || !marks_asked_about) &&
+                        !work.run_ignorable && (work.run_mask & lookup.mask) != 0;
+    return result;
+}
+
 [[nodiscard]] bool may_begin(const Applying& applying, const PlanLookup& lookup, const ShapeGlyph& item) noexcept {
     const bool result = digest_may_have(lookup.digest, item.glyph) && (item.mask & applying.lookup_mask) != 0 && check_property(applying, item, lookup.props);
     return result;
@@ -1520,10 +1692,17 @@ void after_nested(Applying& applying, ApplyFrame& frame) noexcept {
 void apply_string(Applying& applying, const PlanLookup& lookup) noexcept {
     ShapeBuffer& buffer = *applying.buffer;
     if (buffer.len == 0 || applying.lookup_mask == 0 || lookup.subtable_count == 0) return;
+    // Every lookup gone into is charged for the run's length, as HarfBuzz
+    // charges it: a font with very many lookups runs out of operations.
     if (!buffer.charge(buffer.len / 16)) return;
     applying.lookup_props = lookup.props;
     update_matchers(applying);
     const bool backward = applying.substitution && lookup.kind == 8;
+    // Nothing in the run that the lookup could begin at: nothing to do, and
+    // the run is not gone through a second time to say so.
+    usize first = 0;
+    while (first < buffer.len && !may_begin(applying, lookup, buffer.info[first])) first = first + 1;
+    if (first == buffer.len) return;
     if (!backward) {
         if (applying.substitution) buffer.clear_output();
         buffer.idx = 0;
@@ -1562,7 +1741,7 @@ void apply_string(Applying& applying, const PlanLookup& lookup) noexcept {
 void apply_table(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, const ShapeScale& scale, GlyphDigest& digest, const bool substitution) noexcept {
     const usize table = substitution ? 0 : 1;
     if (plan.lookups[table].count() == 0 || buffer.len == 0) return;
-    if (work.frames.count() < apply_most_nesting && work.frames.resize(apply_most_nesting).failed()) {
+    if (!prepare_work(work)) {
         buffer.successful = false;
         return;
     }
@@ -1577,11 +1756,21 @@ void apply_table(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, co
     applying.substitution = substitution;
     applying.has_classes = plan.definitions.classes != 0;
     const bool concat = (buffer.flags & buffer_produce_unsafe_to_concat) != 0;
-    static_cast<void>(concat);
+    const bool horizontal = buffer.direction == ShapeDirection::left_to_right || buffer.direction == ShapeDirection::right_to_left;
     for (usize index = 0; index < plan.lookups[table].count() && buffer.successful; ++index) {
         const PlanLookup& lookup = plan.lookups[table][index];
-        // No glyph of the run is one this lookup begins at.
+        // No glyph of the run is one this lookup begins at: by the digests,
+        // then by the coverages.
         if (!digest_may_intersect(lookup.digest, digest)) continue;
+        if (!run_may_use(applying, lookup)) {
+            static_cast<void>(buffer.charge(buffer.len / 16));
+            continue;
+        }
+        // Plain kerning on a run it sees all of: the fixed loop.
+        if (lookup.kerning && horizontal && !concat && index <= 0xFFFFU && sees_whole_run(applying, lookup)) {
+            if (buffer.charge(buffer.len / 16)) kern_run(applying, lookup, static_cast<u16>(index));
+            continue;
+        }
         applying.lookup_mask = lookup.mask;
         applying.last_base = -1;
         applying.last_base_until = 0;
@@ -1594,12 +1783,23 @@ void apply_table(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, co
 
 } // namespace
 
-void start_substitutions(const ShapePlan& plan, ShapeBuffer& buffer, GlyphDigest& digest) noexcept {
+bool prepare_work(ApplyWork& work) noexcept {
+    const bool result = (work.frames.count() >= apply_most_nesting || work.frames.resize(apply_most_nesting).succeeded()) &&
+                        (work.memo.count() == memo_size || work.memo.resize(memo_size).succeeded()) &&
+                        (work.pairs.count() == pair_memo_size || work.pairs.resize(pair_memo_size).succeeded());
+    return result;
+}
+
+void start_substitutions(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, GlyphDigest& digest) noexcept {
     digest = GlyphDigest{};
+    work.run_number = work.run_number + 1;
+    work.distinct_count = 0;
+    work.distinct_over = false;
     for (usize index = 0; index < buffer.len; ++index) {
         ShapeGlyph& item = buffer.info[index];
         digest_add(digest, item.glyph);
-        item.glyph_props = static_cast<u16>(glyph_props_of(plan.definitions, item.glyph));
+        note_glyph(work, item.glyph);
+        item.glyph_props = static_cast<u16>(glyph_props_of(plan.definitions, work.memo, item.glyph));
         item.lig_props = 0;
     }
 }
@@ -1706,10 +1906,12 @@ void apply_old_kerning(const Font& font, const ShapePlan& plan, ShapeBuffer& buf
     // passed over.
     Applying applying{};
     GlyphDigest unused{};
+    ApplyWork none{};
     applying.plan = &plan;
     applying.buffer = &buffer;
     applying.layout = &plan.tables[1];
     applying.definitions = &plan.definitions;
+    applying.work = &none;
     applying.digest = &unused;
     applying.substitution = false;
     applying.lookup_mask = plan.kern_mask;
@@ -1736,8 +1938,8 @@ void apply_old_kerning(const Font& font, const ShapePlan& plan, ShapeBuffer& buf
                 index = index + 1;
                 continue;
             }
-            const MatchRule none{};
-            Skipper skipper = skipper_of(applying, false, none, index);
+            const MatchRule any{};
+            Skipper skipper = skipper_of(applying, false, any, index);
             usize unsafe_to = 0;
             if (!skipper_next(applying, skipper, unsafe_to)) {
                 index = index + 1;

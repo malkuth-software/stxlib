@@ -144,7 +144,27 @@ bool is_extended_pictographic(const u32 character) noexcept {
     return result;
 }
 
+// The pages of 256 characters that have a mirrored character on them: a
+// character of any other page has no mirror, which is most characters.
+struct MirrorPages final {
+    u64 bits[(0x110000 >> 8) / 64]{};
+};
+
+[[nodiscard]] constexpr MirrorPages mirror_pages_of() noexcept {
+    MirrorPages pages{};
+    for (usize index = 0; index < mirror_count; ++index) {
+        const u32 page = unicode_mirrors[index].character >> 8;
+        pages.bits[page >> 6] = pages.bits[page >> 6] | (static_cast<u64>(1) << (page & 63U));
+    }
+    return pages;
+}
+
+inline constexpr MirrorPages mirror_pages = mirror_pages_of();
+
 u32 mirror_of(const u32 character) noexcept {
+    if (character > last_character) return 0;
+    const u32 page = character >> 8;
+    if (((mirror_pages.bits[page >> 6] >> (page & 63U)) & 1U) == 0) return 0;
     usize low = 0;
     usize high = mirror_count;
     while (low < high) {

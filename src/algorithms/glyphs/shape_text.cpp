@@ -34,9 +34,15 @@ struct Shaping final {
     ShapeDirection target{ShapeDirection::unset};
 };
 
+// A character's glyph, remembered.
 [[nodiscard]] u32 nominal_glyph(const Shaping& shaping, const u32 character) noexcept {
-    const u32 result = glyph_of(*(*shaping.font).font, character);
-    return result;
+    Vector<MemoEntry>& memo = (*shaping.work).memo;
+    const u64 key = memo_key(memo_character, 3, 0, character);
+    u32 glyph = 0;
+    if (character <= 0x1FFFFFU && memo_find(memo, key, glyph)) return glyph;
+    glyph = glyph_of(*(*shaping.font).font, character);
+    if (character <= 0x1FFFFFU) memo_keep(memo, key, glyph);
+    return glyph;
 }
 
 // ---- properties and clusters -------------------------------------------------------------------------
@@ -103,26 +109,22 @@ void insert_dotted_circle(Shaping& shaping) noexcept {
     return result;
 }
 
-[[nodiscard]] bool same_cluster(const ShapeGlyph& before, const ShapeGlyph& after) noexcept {
-    const bool result = before.cluster == after.cluster;
-    return result;
-}
-
 void form_clusters(ShapeBuffer& buffer) noexcept {
     if ((buffer.scratch & scratch_has_continuations) == 0) return;
     usize start = 0;
     while (start < buffer.len) {
-        const usize end = buffer.group_end(start, same_grapheme);
-        buffer.merge_grapheme_clusters(start, end);
+        usize end = start + 1;
+        while (end < buffer.len && info_is_continuation(buffer.info[end])) end = end + 1;
+        if (end - start > 1) buffer.merge_grapheme_clusters(start, end);
         start = end;
     }
 }
 
 // A run set against the way its script is written is turned, grapheme by
 // grapheme: the lookups of a right-to-left script expect it that way.
-void ensure_native_direction(ShapeBuffer& buffer) noexcept {
+void ensure_native_direction(ShapeBuffer& buffer, const ShapePlan& plan) noexcept {
     const ShapeDirection direction = buffer.direction;
-    ShapeDirection native = buffer.script != 0 ? way_of_script(buffer.script) : ShapeDirection::left_to_right;
+    ShapeDirection native = plan.native;
     if (native == ShapeDirection::right_to_left && direction == ShapeDirection::left_to_right) {
         // Numbers in a right-to-left script go left to right.
         bool found_number = false;
@@ -561,6 +563,18 @@ void normalize(Shaping& shaping) noexcept {
     ShapeBuffer& buffer = *shaping.buffer;
     const ShapePlan& plan = *shaping.plan;
     if (buffer.len == 0) return;
+    // The run of every day: no marks, and a glyph for every character.
+    // Each character is its glyph and nothing moves.
+    usize plain = 0;
+    while (plain < buffer.len) {
+        ShapeGlyph& item = buffer.info[plain];
+        if (info_is_unicode_mark(item)) break;
+        const u32 glyph = nominal_glyph(shaping, item.glyph);
+        if (glyph == 0) break;
+        item.stage_data = static_cast<u16>(glyph);
+        plain = plain + 1;
+    }
+    if (plain == buffer.len) return;
     // Composed where the font has the composed character; a character the
     // font has is not taken apart. Hangul is left as it was prepared.
     const bool composing = plan.shaper != ShaperKind::hangul;
@@ -1049,11 +1063,15 @@ void propagate_flags(ShapeBuffer& buffer) noexcept {
     if ((buffer.flags & buffer_produce_safe_to_insert_tatweel) == 0) kept = kept & ~glyph_safe_to_insert_tatweel;
     usize start = 0;
     while (start < buffer.len) {
-        const usize end = buffer.group_end(start, same_cluster);
-        u32 mask = 0;
-        for (usize index = start; index < end; ++index) mask = mask | buffer.info[index].mask;
+        const u32 cluster = buffer.info[start].cluster;
+        u32 mask = buffer.info[start].mask;
+        usize end = start + 1;
+        while (end < buffer.len && buffer.info[end].cluster == cluster) {
+            mask = mask | buffer.info[end].mask;
+            end = end + 1;
+        }
         mask = mask & kept;
-        for (usize index = start; index < end; ++index) buffer.info[index].mask = end - start == 1 ? (buffer.info[index].mask & kept) : mask;
+        for (usize index = start; index < end; ++index) buffer.info[index].mask = mask;
         start = end;
     }
 }
@@ -1065,7 +1083,7 @@ void shape_internal(Shaping& shaping) noexcept {
     set_unicode_props(shaping);
     insert_dotted_circle(shaping);
     form_clusters(buffer);
-    ensure_native_direction(buffer);
+    ensure_native_direction(buffer, plan);
     if (plan.shaper == ShaperKind::hangul) preprocess_hangul(shaping);
 
     // Characters to glyphs.
@@ -1077,7 +1095,7 @@ void shape_internal(Shaping& shaping) noexcept {
 
     // The font's substitutions.
     GlyphDigest digest{};
-    start_substitutions(plan, buffer, digest);
+    start_substitutions(plan, buffer, *shaping.work, digest);
     if (plan.fallback_glyph_classes) {
         // A font that does not say which glyphs are marks: the characters
         // do.
@@ -1090,8 +1108,22 @@ void shape_internal(Shaping& shaping) noexcept {
     apply_substitutions(plan, buffer, *shaping.work, digest);
 
     // Advances, then the font's positions or what stands in for them.
+    // What the run is made of is noted on the way, for the lookups that
+    // can then take it whole.
     buffer.clear_positions();
-    for (usize index = 0; index < buffer.len; ++index) buffer.pos[index].x_advance = shape_advance(font, buffer.info[index].glyph);
+    u32 run_props = 0;
+    u32 run_mask = 0xFFFFFFFFU;
+    bool run_ignorable = false;
+    for (usize index = 0; index < buffer.len; ++index) {
+        const ShapeGlyph& item = buffer.info[index];
+        buffer.pos[index].x_advance = shape_advance(font, item.glyph);
+        run_props = run_props | item.glyph_props;
+        run_mask = run_mask & item.mask;
+        run_ignorable = run_ignorable || info_is_default_ignorable(item);
+    }
+    (*shaping.work).run_props = run_props;
+    (*shaping.work).run_mask = run_mask;
+    (*shaping.work).run_ignorable = run_ignorable;
     if ((buffer.scratch & scratch_has_space_fallback) != 0) fallback_spaces(shaping);
     const bool adjust_offsets = plan.adjust_mark_positioning_when_zeroing && is_forward(buffer.direction);
     start_positions(buffer);
@@ -1114,6 +1146,12 @@ ShapeFont shape_font_of(const Font& font, const i64 size) noexcept {
     ShapeFont result{};
     result.font = &font;
     result.scale.em = font.units_per_em;
+    const Span advances = table_of(font, font.hmtx);
+    if (font.advance_count != 0 && has(advances, 0, static_cast<usize>(font.advance_count) * 4)) {
+        result.advances = advances;
+        result.advance_count = font.advance_count;
+    }
+    result.glyph_count = font.glyph_count;
     if (size <= 0 || font.units_per_em == 0) return result;
     // FreeType's scale for the size, HarfBuzz's scale from that, and its
     // two multipliers from its scale.
@@ -1130,7 +1168,13 @@ ShapeFont shape_font_of(const Font& font, const i64 size) noexcept {
 }
 
 i32 shape_advance(const ShapeFont& font, const u32 glyph) noexcept {
-    const i64 units = advance_of(*font.font, glyph);
+    // A glyph past the last advance has the last one; a glyph the font has
+    // not, none.
+    i64 units = 0;
+    if (glyph < font.glyph_count && font.advance_count != 0) {
+        const usize index = glyph < font.advance_count ? glyph : font.advance_count - 1;
+        units = read_u16(font.advances, index * 4);
+    }
     if (font.advance_scale == 0) return static_cast<i32>(units);
     // The advance in 16.16 pixels, rounded, and that to 26.6, rounded.
     const i64 fine = (units * font.advance_scale + 32) / 64;
@@ -1145,6 +1189,10 @@ bool shape_run(const ShapePlan& plan, const ShapeFont& font, ShapeBuffer& buffer
     shaping.buffer = &buffer;
     shaping.work = &work;
     shaping.target = buffer.direction;
+    if (!prepare_work(work)) {
+        buffer.successful = false;
+        return false;
+    }
     buffer.enter();
     if (buffer.len > 0) shape_internal(shaping);
     buffer.leave();

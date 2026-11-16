@@ -25,6 +25,7 @@
 #ifndef STXLIB_ALGORITHMS_GLYPHS_SHAPE_TEXT_HPP
 #define STXLIB_ALGORITHMS_GLYPHS_SHAPE_TEXT_HPP
 
+#include "algorithms/glyphs/font_reader.hpp"
 #include "algorithms/glyphs/shape_apply.hpp"
 #include "algorithms/glyphs/shape_buffer.hpp"
 #include "algorithms/glyphs/shape_plan.hpp"
@@ -48,6 +49,10 @@ struct ShapeFont final {
     ShapeScale scale{};
     // The 16.16 scale advances are taken with; 0: font units.
     i64 advance_scale{0};
+    // The table of advances, checked to hold `advance_count` of them.
+    Span advances{};
+    u32 advance_count{0};
+    u32 glyph_count{0};
     // A glyph's box at that size; false when it has none. Asked only when
     // marks are placed without the font's help.
     using Boxes = bool (*)(void* context, u32 glyph, GlyphBox& box) noexcept;

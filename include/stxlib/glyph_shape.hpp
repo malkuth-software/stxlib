@@ -26,12 +26,13 @@
 // features is made once and kept (ShaperLimits::plans of them, the least
 // recently used given up). Shaping a run with a plan is linear in the run
 // for a font's ordinary lookups; a lookup that cannot touch any glyph of
-// the run is passed over with one test. A font's lookups may make a run
-// longer or call one another: a result is no longer than 64 times the run
-// (or 16,384 glyphs if that is more), the work no more than 1,024
-// operations a character (or 16,384), lookups nest no deeper than 64, and
-// a run that passes any of these is refused, not cut. Nothing is read
-// outside the font's bytes whatever they hold.
+// the run is passed over with one test, and what has been read of the
+// font's tables for a glyph is remembered in a small table of fixed size.
+// A font's lookups may make a run longer or call one another: a result is
+// no longer than 256 times the run (or 65,536 glyphs if that is more), the
+// work no more than 4,096 operations a character (or 65,536), lookups nest
+// no deeper than 64, and a run that passes any of these is refused, not
+// cut. Nothing is read outside the font's bytes whatever they hold.
 //
 // A Shaper is for one thread; the Typeface it reads is the program's.
 
@@ -157,6 +158,8 @@ public:
     void release() noexcept;
 
 private:
+    [[nodiscard]] Status shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
+
     Unique<detail::ShaperState> state_{};
 };
 

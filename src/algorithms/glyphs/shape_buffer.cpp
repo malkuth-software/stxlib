@@ -221,9 +221,6 @@ void ShapeBuffer::clear() noexcept {
     idx = 0;
     len = 0;
     out_len = 0;
-    info.clear();
-    out.clear();
-    pos.clear();
     context_len[0] = 0;
     context_len[1] = 0;
     serial = 0;
@@ -240,13 +237,18 @@ void ShapeBuffer::reset() noexcept {
     invisible = 0;
 }
 
-bool ShapeBuffer::ensure(const usize size) noexcept {
+bool ShapeBuffer::grow(const usize size) noexcept {
     if (size <= info.count()) return true;
     if (size > max_len) {
         successful = false;
         return false;
     }
-    if (info.resize(size).failed() || out.resize(size).failed() || pos.resize(size).failed()) {
+    // At least twice what there is, so that a run added a character at a
+    // time grows the arrays a few times and not once a character.
+    usize wanted = info.count() * 2 > 32 ? info.count() * 2 : 32;
+    if (wanted < size) wanted = size;
+    if (wanted > max_len) wanted = max_len;
+    if (info.resize(wanted).failed() || out.resize(wanted).failed() || pos.resize(wanted).failed()) {
         successful = false;
         return false;
     }
@@ -314,16 +316,6 @@ usize ShapeBuffer::group_end(const usize start, const SameGroup same) const noex
     usize end = start + 1;
     while (end < len && same(info[end - 1], info[end])) end = end + 1;
     return end;
-}
-
-usize ShapeBuffer::backtrack_len() const noexcept {
-    const usize result = have_output ? out_len : idx;
-    return result;
-}
-
-usize ShapeBuffer::lookahead_len() const noexcept {
-    const usize result = len - idx;
-    return result;
 }
 
 void ShapeBuffer::clear_output() noexcept {
@@ -428,34 +420,6 @@ void ShapeBuffer::copy_glyph() noexcept {
     out[out_len] = info[idx];
     out_len = out_len + 1;
 }
-
-void ShapeBuffer::next_glyph() noexcept {
-    if (have_output) {
-        if (!ensure(out_len + 1)) return;
-        if (idx >= len) {
-            successful = false;
-            return;
-        }
-        out[out_len] = info[idx];
-        out_len = out_len + 1;
-    }
-    idx = idx + 1;
-}
-
-void ShapeBuffer::next_glyphs(const usize count) noexcept {
-    if (have_output) {
-        if (!ensure(out_len + count)) return;
-        if (idx + count > len) {
-            successful = false;
-            return;
-        }
-        for (usize index = 0; index < count; ++index) out[out_len + index] = info[idx + index];
-        out_len = out_len + count;
-    }
-    idx = idx + count;
-}
-
-void ShapeBuffer::skip_glyph() noexcept { idx = idx + 1; }
 
 bool ShapeBuffer::move_to(const usize place) noexcept {
     if (!have_output) {
@@ -621,11 +585,6 @@ void ShapeBuffer::sort(const usize start, const usize end, const SortsAfter afte
         for (usize back = index; back > place; --back) info[back] = info[back - 1];
         info[place] = moved;
     }
-}
-
-bool ShapeBuffer::charge(const usize count) noexcept {
-    const bool result = spend(*this, count);
-    return result;
 }
 
 void ShapeBuffer::enter() noexcept {
