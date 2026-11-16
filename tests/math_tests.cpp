@@ -45,6 +45,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include "frozen_hash.hpp"
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -71,14 +72,17 @@ void report_misrounded(const char* const name, const double x, const double resu
 
 // A frozen output hash per kernel path (src/algorithms/math/paths.hpp):
 // `expected` is the value for the paths this build's switches choose; 0
-// means not frozen yet for those paths (printed with today's frozen value,
-// to freeze from the first M4 run), so it does not fail.
+// means not frozen yet for those paths: printed with today's frozen value,
+// and a failure unless the run is in freezing mode (STXLIB_FREEZE_HASHES,
+// frozen_hash.hpp; security audit 2026-11-15, B-stxlib-tests-proofs-01-F1).
 void check_frozen(const char* const name, const std::uint64_t hash, const std::uint64_t expected,
                   const std::uint64_t today_value, const char* const message) {
     std::printf("%s output hash %016llx\n", name, static_cast<unsigned long long>(hash));
     if (expected == 0) {
         std::printf("%s output hash not frozen yet for this build's region paths (today's paths: %016llx)\n", name,
                     static_cast<unsigned long long>(today_value));
+        require(stxlib_tests::freezing_hashes(), "an output hash is not frozen for this build's paths "
+                                                 "(set STXLIB_FREEZE_HASHES=1 only to freeze it)");
         return;
     }
     require(hash == expected, message);
