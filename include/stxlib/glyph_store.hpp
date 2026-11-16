@@ -29,7 +29,8 @@
 // each time it is asked for and not kept.
 //
 // Bounds. Memory: at most kept_points + recent_points points (9 bytes a
-// point and at most 4 more a contour), and 24 bytes a glyph of the font.
+// point and at most 4 more a contour, 24 a glyph held), and 4 bytes a glyph
+// of the font.
 // Asking for a glyph that is held is constant time; moving one to the
 // newer half is linear in its points; giving up a half is linear in the
 // glyphs that were in it.
@@ -92,14 +93,16 @@ public:
     // How many times a glyph has been read from the font so far.
     [[nodiscard]] usize glyphs_read() const noexcept { return read_; }
 
+    // The bytes held, as allocated now.
+    [[nodiscard]] usize bytes_held() const noexcept;
+
     // Frees what is held.
     void release() noexcept;
 
 private:
-    struct Entry final {
-        // Where the glyph is (0: nowhere), then its place there; for a
-        // refused glyph `first_point` is the kind of refusal.
-        u32 where{0};
+    // A glyph held in a part of the store.
+    struct Record final {
+        u32 glyph{0};
         u32 first_point{0};
         u32 point_count{0};
         u32 first_contour{0};
@@ -107,20 +110,22 @@ private:
         // In font units.
         i32 advance{0};
     };
-    // One part of the store: outlines end to end, and whose they are.
+    // One part of the store: outlines end to end, and a record for each.
     struct Part final {
         Vector<Point> points{};
         Vector<PointTag> tags{};
         Vector<u32> contour_ends{};
-        Vector<u32> glyphs{};
+        Vector<Record> records{};
     };
 
-    [[nodiscard]] bool put(Part& part, u32 where, u32 glyph, i32 advance, View<Point> points, View<PointTag> tags,
-                           View<u32> contour_ends) noexcept;
-    void give_up(Part& part) noexcept;
+    [[nodiscard]] bool put(u32 part, u32 glyph, i32 advance, View<Point> points, View<PointTag> tags, View<u32> contour_ends) noexcept;
+    void give_up(u32 part) noexcept;
     [[nodiscard]] Status place(const Font& font, u32 glyph, bool in_kept, StoredGlyph& stored) noexcept;
 
-    Vector<Entry> entries_{};
+    // For each glyph of the font, where it is: 0 for nowhere; else the
+    // part in the low two bits (3: refused) and above them the record's
+    // number in the part plus one (or the kind of refusal).
+    Vector<u32> index_{};
     // 0: the kept glyphs; 1 and 2: the halves of the recent ones.
     Part parts_[3]{};
     u32 newer_{1};

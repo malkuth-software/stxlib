@@ -8,6 +8,7 @@
 //       scaled offset; the outline placed by the left side bearing;
 //   P2  the face's height by each of its three sources;
 //   P3  character maps of formats 0, 4, 6 and 12, and which one is taken;
+//       going through a map a stretch at a time meets what glyph_of has;
 //   P4  a CFF font, plain and with font dictionaries: lines, curves, flex,
 //       stems and masks, local and global subroutines, the point that
 //       repeats a contour's start left out, fractions dropped;
@@ -268,6 +269,33 @@ void heights() {
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.ascender == 950 && font.descender == -250 && font.height == 1200);
 }
 
+// Going through the map a stretch at a time meets exactly the characters
+// glyph_of has a glyph for, each with that glyph, in order.
+[[nodiscard]] bool walk_is_glyph_of(const glyphs::Font& font) {
+    u32 character = 0;
+    u32 next_to_check = 0;
+    bool same = true;
+    for (u32 step = 0; step < 200000 && same; ++step) {
+        glyphs::MappedStretch stretch{};
+        if (!glyphs::next_stretch(font, character, stretch)) break;
+        if (stretch.last < stretch.first || stretch.last < character) return false;
+        const u32 from = stretch.first > character ? stretch.first : character;
+        // Nothing between the stretches has a glyph.
+        for (u32 between = next_to_check; between < from && same; ++between) same = glyphs::glyph_of(font, between) == 0;
+        for (u32 mapped = from; mapped <= stretch.last && same; ++mapped) {
+            same = glyphs::glyph_in_stretch(font, stretch, mapped) == glyphs::glyph_of(font, mapped);
+            if (mapped == 0xFFFFFFFFU) break;
+        }
+        // A character outside the stretch has no glyph by it.
+        same = same && (stretch.first == 0 || glyphs::glyph_in_stretch(font, stretch, stretch.first - 1) == 0);
+        next_to_check = stretch.last + 1;
+        if (stretch.last >= 0x10FFFF) break;
+        character = stretch.last + 1;
+    }
+    for (u32 after = next_to_check; after <= 0x30000 && same; ++after) same = glyphs::glyph_of(font, after) == 0;
+    return same;
+}
+
 void character_maps() {
     const Bytes os2 = os2_table(3, 0, 700, -200, 90, 950, 250);
     const Bytes hhea = hhea_table(800, -220, 50, 4);
@@ -278,25 +306,31 @@ void character_maps() {
     // each is in the table.
     Bytes bytes = truetype_font(os2, hhea, cmap_table({{3, 1, four}, {3, 10, twelve}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 12);
+    CHECK(walk_is_glyph_of(font));
     CHECK(glyphs::glyph_of(font, 'A') == 3 && glyphs::glyph_of(font, 'B') == 4 && glyphs::glyph_of(font, 'C') == 0);
     CHECK(glyphs::glyph_of(font, 0x1F600) == 5 && glyphs::glyph_of(font, 0x1F602) == 7 && glyphs::glyph_of(font, 0x1F603) == 0);
     // A glyph the font has not is no glyph.
     CHECK(glyphs::glyph_of(font, 0x20000) == 0 && glyphs::glyph_of(font, 0x10FFFF) == 0 && glyphs::glyph_of(font, 0xFFFFFFFFU) == 0);
     bytes = truetype_font(os2, hhea, cmap_table({{0, 4, twelve}, {3, 1, four}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 12);
+    CHECK(walk_is_glyph_of(font));
     // Windows' before Unicode's of the same reach; a map for another
     // platform is not taken.
     bytes = truetype_font(os2, hhea, cmap_table({{0, 3, map_format_6('a', {2, 3})}, {1, 0, map_format_0('A', 7)}, {3, 1, four}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 4 && glyphs::glyph_of(font, 'B') == 2);
+    CHECK(walk_is_glyph_of(font));
     bytes = truetype_font(os2, hhea, cmap_table({{1, 0, map_format_0('A', 7)}, {0, 3, map_format_6('a', {2, 3})}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 6);
+    CHECK(walk_is_glyph_of(font));
     CHECK(glyphs::glyph_of(font, 'a') == 2 && glyphs::glyph_of(font, 'b') == 3 && glyphs::glyph_of(font, 'c') == 0 && glyphs::glyph_of(font, 'A') == 0);
     bytes = truetype_font(os2, hhea, cmap_table({{0, 3, map_format_0('Q', 6)}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 0);
+    CHECK(walk_is_glyph_of(font));
     CHECK(glyphs::glyph_of(font, 'Q') == 6 && glyphs::glyph_of(font, 'R') == 0 && glyphs::glyph_of(font, 256 + 'Q') == 0);
     // No map it reads: every character is no glyph, and the font opens.
     bytes = truetype_font(os2, hhea, cmap_table({{1, 0, map_format_0('A', 7)}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && glyphs::glyph_of(font, 'A') == 0);
+    CHECK(walk_is_glyph_of(font));
 }
 
 // ---- the CFF font --------------------------------------------------------------------------
@@ -688,6 +722,16 @@ void use(const Bytes& bytes, std::uint64_t& opened, std::uint64_t& loaded) {
     static_cast<void>(glyphs::glyph_of(font, 'A'));
     static_cast<void>(glyphs::glyph_of(font, 'y'));
     static_cast<void>(glyphs::glyph_of(font, 0x1F600));
+    // The map gone through a stretch at a time, a bounded way in.
+    u32 character = 0;
+    for (u32 step = 0; step < 64; ++step) {
+        glyphs::MappedStretch stretch{};
+        if (!glyphs::next_stretch(font, character, stretch)) break;
+        static_cast<void>(glyphs::glyph_in_stretch(font, stretch, stretch.first));
+        static_cast<void>(glyphs::glyph_in_stretch(font, stretch, stretch.last));
+        if (stretch.last >= 0x10FFFF) break;
+        character = stretch.last + 1;
+    }
     glyphs::FontLimits limits{};
     limits.charstring_steps = 2000;
     limits.components = 40;

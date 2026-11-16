@@ -132,6 +132,24 @@ struct GlyphOutline final {
 // The glyph for a character, or 0 when the font has none.
 [[nodiscard]] u32 glyph_of(const Font& font, u32 character) noexcept;
 
+// A stretch of characters in a row that the character map has an entry
+// for: `first` to `last`, and the entry's own number in the map.
+struct MappedStretch final {
+    u32 first{0};
+    u32 last{0};
+    u32 place{0};
+};
+
+// The stretch that holds `from`, or the first one after it (then
+// stretch.first is past `from`); false when the map has none. One search
+// of the map. For going through what a font maps without asking for every
+// character there is.
+[[nodiscard]] bool next_stretch(const Font& font, u32 from, MappedStretch& stretch) noexcept;
+
+// The glyph of a character of a stretch next_stretch gave for this font
+// (glyph_of's answer, without the search), or 0.
+[[nodiscard]] u32 glyph_in_stretch(const Font& font, const MappedStretch& stretch, u32 character) noexcept;
+
 // A glyph's advance in font units, or 0 for a glyph the font has not.
 [[nodiscard]] i32 advance_of(const Font& font, u32 glyph) noexcept;
 

@@ -118,13 +118,35 @@ void choose_character_map(const Span& whole, const FontTable& table, Font& font)
 
 // Format 4: segments of the first 65,536 characters, by a search for the
 // first segment that ends at or after the character.
-[[nodiscard]] u32 glyph_in_segments(const Span& map, const u32 character) noexcept {
-    if (character > 0xFFFFU) return 0;
-    const usize segments = read_u16(map, 6) / 2;
+// The glyph of a character by segment `segment` of a format 4 map of
+// `segments` segments: 0 if the segment begins after it.
+[[nodiscard]] u32 glyph_in_segment(const Span& map, const usize segments, const usize segment, const u32 character) noexcept {
     const usize ends = 14;
     const usize starts = ends + segments * 2 + 2;
     const usize deltas = starts + segments * 2;
     const usize offsets = deltas + segments * 2;
+    const u32 start = read_u16(map, starts + segment * 2);
+    if (start > character) return 0;
+    const u32 delta = read_u16(map, deltas + segment * 2);
+    const u32 range_offset = read_u16(map, offsets + segment * 2);
+    if (range_offset == 0) {
+        const u32 result = (character + delta) & 0xFFFFU;
+        return result;
+    }
+    if (range_offset == 0xFFFFU) return 0;
+    // The offset is from its own place in the table.
+    const usize place = offsets + segment * 2 + range_offset + static_cast<usize>(character - start) * 2;
+    if (!has(map, place, 2)) return 0;
+    const u32 listed = read_u16(map, place);
+    if (listed == 0) return 0;
+    const u32 result = (listed + delta) & 0xFFFFU;
+    return result;
+}
+
+[[nodiscard]] u32 glyph_in_segments(const Span& map, const u32 character) noexcept {
+    if (character > 0xFFFFU) return 0;
+    const usize segments = read_u16(map, 6) / 2;
+    const usize ends = 14;
     usize low = 0;
     usize high = segments;
     while (low < high) {
@@ -136,21 +158,7 @@ void choose_character_map(const Span& whole, const FontTable& table, Font& font)
         }
     }
     if (low == segments) return 0;
-    const u32 start = read_u16(map, starts + low * 2);
-    if (start > character) return 0;
-    const u32 delta = read_u16(map, deltas + low * 2);
-    const u32 range_offset = read_u16(map, offsets + low * 2);
-    if (range_offset == 0) {
-        const u32 result = (character + delta) & 0xFFFFU;
-        return result;
-    }
-    if (range_offset == 0xFFFFU) return 0;
-    // The offset is from its own place in the table.
-    const usize place = offsets + low * 2 + range_offset + static_cast<usize>(character - start) * 2;
-    if (!has(map, place, 2)) return 0;
-    const u32 listed = read_u16(map, place);
-    if (listed == 0) return 0;
-    const u32 result = (listed + delta) & 0xFFFFU;
+    const u32 result = glyph_in_segment(map, segments, low, character);
     return result;
 }
 
@@ -304,6 +312,102 @@ u32 glyph_of(const Font& font, const u32 character) noexcept {
         glyph = character >= first && character - first < count ? read_u16(map, 10 + static_cast<usize>(character - first) * 2) : 0;
     } else {
         glyph = glyph_in_groups(map, character);
+    }
+    const u32 result = glyph < font.glyph_count ? glyph : 0;
+    return result;
+}
+
+bool next_stretch(const Font& font, const u32 from, MappedStretch& stretch) noexcept {
+    const Span map = table_of(font, font.character_map);
+    const u32 format = font.character_map_format;
+    stretch = MappedStretch{};
+    if (!map_readable(map, format)) return false;
+    bool found = false;
+    if (format == 0) {
+        found = from < 256;
+        stretch.last = 255;
+    } else if (format == 4) {
+        if (from > 0xFFFFU) return false;
+        // The first segment that ends at or after `from`.
+        const usize segments = read_u16(map, 6) / 2;
+        const usize ends = 14;
+        const usize starts = ends + segments * 2 + 2;
+        usize low = 0;
+        usize high = segments;
+        while (low < high) {
+            const usize middle = low + (high - low) / 2;
+            if (read_u16(map, ends + middle * 2) < from) {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        if (low < segments) {
+            found = true;
+            stretch.first = read_u16(map, starts + low * 2);
+            stretch.last = read_u16(map, ends + low * 2);
+            stretch.place = static_cast<u32>(low);
+        }
+    } else if (format == 6) {
+        const u32 first = read_u16(map, 6);
+        const u32 count = read_u16(map, 8);
+        found = count != 0 && from < first + count;
+        stretch.first = first;
+        stretch.last = first + count - 1;
+    } else {
+        // The first group that ends at or after `from`.
+        usize low = 0;
+        usize high = read_u32(map, 12);
+        const usize groups = high;
+        while (low < high) {
+            const usize middle = low + (high - low) / 2;
+            if (read_u32(map, 16 + middle * 12 + 4) < from) {
+                low = middle + 1;
+            } else {
+                high = middle;
+            }
+        }
+        if (low < groups) {
+            found = true;
+            stretch.first = read_u32(map, 16 + low * 12);
+            stretch.last = read_u32(map, 16 + low * 12 + 4);
+            stretch.place = static_cast<u32>(low);
+        }
+    }
+    // A stretch that ends before it begins (a map that is not in order)
+    // holds nothing.
+    if (!found || stretch.last < stretch.first || stretch.last < from) {
+        stretch = MappedStretch{};
+        return false;
+    }
+    return true;
+}
+
+u32 glyph_in_stretch(const Font& font, const MappedStretch& stretch, const u32 character) noexcept {
+    const Span map = table_of(font, font.character_map);
+    const u32 format = font.character_map_format;
+    if (!map_readable(map, format) || character < stretch.first || character > stretch.last) return 0;
+    u32 glyph = 0;
+    if (format == 0) {
+        glyph = character < 256 ? detail::read_u8(map, 6 + character) : 0;
+    } else if (format == 4) {
+        const usize segments = read_u16(map, 6) / 2;
+        if (stretch.place < segments && character <= 0xFFFFU) glyph = glyph_in_segment(map, segments, stretch.place, character);
+    } else if (format == 6) {
+        const u32 first = read_u16(map, 6);
+        const u32 count = read_u16(map, 8);
+        glyph = character >= first && character - first < count ? read_u16(map, 10 + static_cast<usize>(character - first) * 2) : 0;
+    } else {
+        const usize groups = read_u32(map, 12);
+        if (stretch.place < groups) {
+            const usize group = 16 + static_cast<usize>(stretch.place) * 12;
+            const u32 first = read_u32(map, group);
+            const u32 last = read_u32(map, group + 4);
+            if (character >= first && character <= last) {
+                const u64 number = static_cast<u64>(read_u32(map, group + 8)) + (character - first);
+                glyph = number <= 0xFFFFU ? static_cast<u32>(number) : 0;
+            }
+        }
     }
     const u32 result = glyph < font.glyph_count ? glyph : 0;
     return result;

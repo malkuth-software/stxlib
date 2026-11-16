@@ -679,11 +679,25 @@ Status compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept {
     for (usize index = 0; index < range_count; ++index) {
         const TableRange& range = table_ranges[index];
         const u32 marked = range.style | (range.non_base ? style_non_base : 0U);
-        for (u32 character = range.first; character <= range.last; ++character) {
-            const u32 glyph = glyph_of(font, character);
-            if (glyph == 0) continue;
-            const u32 current = all[glyph];
-            if ((marked & style_mask) <= (current & style_mask)) all[glyph] = static_cast<u16>((current & ~style_mask) | marked);
+        // Only the characters the font maps are gone through: each step
+        // goes to the next one the character map has.
+        // Only the characters the font maps are gone through: a stretch
+        // of the character map at a time.
+        u32 character = range.first;
+        const u32 most = range.last - range.first + 1;
+        for (u32 step = 0; step < most && character <= range.last; ++step) {
+            MappedStretch stretch{};
+            if (!next_stretch(font, character, stretch) || stretch.first > range.last) break;
+            const u32 from = stretch.first > character ? stretch.first : character;
+            const u32 to = stretch.last < range.last ? stretch.last : range.last;
+            for (u32 mapped = from; mapped <= to; ++mapped) {
+                const u32 glyph = glyph_in_stretch(font, stretch, mapped);
+                if (glyph == 0) continue;
+                const u32 current = all[glyph];
+                if ((marked & style_mask) <= (current & style_mask)) all[glyph] = static_cast<u16>((current & ~style_mask) | marked);
+            }
+            if (to == range.last) break;
+            character = to + 1;
         }
     }
     // What is left is given the style of Han.

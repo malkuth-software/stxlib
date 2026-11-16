@@ -50,8 +50,9 @@ Portions of this software are copyright (c) 2025 The FreeType Project
 (www.freetype.org). All rights reserved.
 
 The rasterizer of stxlib::glyphs (glyph_mask.hpp, mask.cpp, chords.hpp,
-flatten.hpp, centres.hpp, reciprocal.hpp) and its glyph store
-(glyph_store.hpp, glyph_store.cpp) are not a conversion of any of these.
+flatten.hpp, centres.hpp, reciprocal.hpp), its glyph store
+(glyph_store.hpp, glyph_store.cpp) and its face (glyph_face.hpp,
+glyph_face.cpp) are not a conversion of any of these.
 
 ----------------------------------------------------------------------------
 

@@ -43,8 +43,8 @@
 // every size it is wanted at (hint_stored). The hinter reads the font
 // itself only for what it measures a style by, once for a style.
 //
-// Bounds. prepare is linear in the characters of the table of scripts
-// (about 116,000 look-ups in the character map). A style's measures are
+// Bounds. prepare is linear in the characters of the table of scripts that
+// the font maps (and at most all of them, about 116,000). A style's measures are
 // taken the first time a glyph of it is hinted: a few tens of glyphs
 // loaded. hint_glyph is linear in the glyph's points, times the number of
 // its edges where points are carried between edges. No recursion.
