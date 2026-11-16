@@ -684,6 +684,13 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/font_cff.cpp
     src/algorithms/glyphs/font_file.cpp
     src/algorithms/glyphs/font_truetype.cpp
+    src/algorithms/glyphs/hinter.cpp
+    src/algorithms/glyphs/hinter_align.cpp
+    src/algorithms/glyphs/hinter_edges.cpp
+    src/algorithms/glyphs/hinter_fit.cpp
+    src/algorithms/glyphs/hinter_metrics.cpp
+    src/algorithms/glyphs/hinter_outline.cpp
+    src/algorithms/glyphs/hinter_segments.cpp
     src/algorithms/glyphs/mask.cpp
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
@@ -974,6 +981,12 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_font_file_tests PRIVATE stxlib::algorithms)
     target_compile_options(stxlib_font_file_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_font_file_tests COMMAND stxlib_font_file_tests)
+    # stxlib::glyphs: the hinter against letters the test draws
+    # (tests/glyph_hinter_tests.cpp).
+    add_executable(stxlib_glyph_hinter_tests tests/glyph_hinter_tests.cpp)
+    target_link_libraries(stxlib_glyph_hinter_tests PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_glyph_hinter_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_hinter_tests COMMAND stxlib_glyph_hinter_tests)
     # Simple case folding (C7): every code point against CaseFolding.txt,
     # read by the test's own parser; and the committed table is the
     # generator's output for the pinned file.

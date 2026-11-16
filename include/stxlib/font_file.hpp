@@ -91,6 +91,11 @@ struct Font final {
     i32 height{0};
     // loca's entries are 32 bits wide, not 16.
     bool long_offsets{false};
+    // The face is slanted: OS/2 says oblique or italic, or, with no OS/2,
+    // head does.
+    bool italic{false};
+    // Every glyph has one advance (post says so).
+    bool fixed_pitch{false};
     u32 advance_count{0};
     // CFF: the charstrings, the global subroutines, and where each glyph's
     // font dictionary is found (src/algorithms/glyphs/font_cff.cpp).

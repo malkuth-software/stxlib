@@ -1,0 +1,195 @@
+// stxlib::glyphs: the hinter (include/stxlib/glyph_hinter.hpp). After
+// Skrifa 0.50.0, outline/autohint/hint/mod.rs and instance.rs: a glyph's
+// outline measured, fitted and moved, one axis and then the other, and its
+// advance.
+
+#include "stxlib/glyph_hinter.hpp"
+
+#include "algorithms/glyphs/hinter.hpp"
+
+namespace stxlib::glyphs {
+
+namespace {
+
+using detail::axis_horizontal;
+using detail::axis_vertical;
+using detail::HintOutline;
+using detail::HintPoint;
+using detail::HintScale;
+using detail::HintScratch;
+using detail::no_index;
+using detail::pixel_round;
+using detail::refuse_font;
+using detail::ScaledStyleMetrics;
+using detail::times_fixed;
+
+// What hinting an outline leaves for its advance.
+struct Fitted final {
+    i32 x_scale{0};
+    bool has_edges{false};
+    i32 left_original{0};
+    i32 left{0};
+    i32 right_original{0};
+    i32 right{0};
+    bool no_memory{false};
+};
+
+[[nodiscard]] Fitted hint_outline(HintOutline& outline, const StyleMetrics& metrics, const HintScale& wanted, const u32 glyph_style,
+                                  HintScratch& scratch, ScaledStyleMetrics& scaled) noexcept {
+    Fitted fitted{};
+    if (detail::scale_style_metrics(metrics, wanted, scaled).failed()) {
+        fitted.no_memory = true;
+        return fitted;
+    }
+    const HintScale& scale = scaled.scale;
+    const detail::TableScript& script = detail::script_of_style(metrics.style);
+    const bool cjk = script.group != detail::group_default;
+    // Every point at the size, before and after hinting.
+    HintPoint* const points = outline.points.mutable_view().data();
+    const usize point_count = outline.points.count();
+    for (usize index = 0; index < point_count; ++index) {
+        const i32 x = times_fixed(points[index].fx, scale.x_scale) + scale.x_delta;
+        const i32 y = times_fixed(points[index].fy, scale.y_scale) + scale.y_delta;
+        points[index].ox = x;
+        points[index].x = x;
+        points[index].oy = y;
+        points[index].y = y;
+    }
+    fitted.x_scale = scale.x_scale;
+    // A default script with no blue zones is not hinted at all.
+    if (!cjk && scaled.axes[1].blues.empty()) return fitted;
+    detail::HintAxis& axis = scratch.axis;
+    for (u32 dimension = 0; dimension < 2; ++dimension) {
+        if (dimension == axis_horizontal && (scale.flags & detail::scale_no_horizontal) != 0) continue;
+        if (dimension == axis_vertical && (scale.flags & detail::scale_no_vertical) != 0) continue;
+        detail::reset_axis(axis, dimension, outline.winding);
+        static_cast<void>(detail::compute_segments(outline, axis, fitted.no_memory));
+        const Vector<i32>& widths = metrics.axes[dimension].widths;
+        const i32 widest = widths.empty() ? 0 : widths[widths.count() - 1];
+        detail::link_segments(outline, axis, scaled.axes[dimension].scale, cjk, widest);
+        if (!detail::compute_edges(axis, scaled.axes[dimension], script.top_to_bottom, scale.y_scale, cjk)) fitted.no_memory = true;
+        if (dimension == axis_vertical) {
+            // Marks (accents) are not caught by blue zones.
+            if (cjk || (glyph_style & detail::style_non_base) == 0) {
+                detail::compute_blue_edges(axis, scale, metrics.axes[dimension].blues.view(), scaled.axes[dimension].blues.view(), cjk);
+            }
+        } else {
+            fitted.x_scale = scaled.axes[0].scale;
+        }
+        detail::hint_edges(axis, scaled.axes[dimension], cjk, scale, script.top_to_bottom);
+        detail::align_edge_points(outline, axis, cjk, scale);
+        detail::align_strong_points(outline, axis);
+        detail::align_weak_points(outline, dimension);
+        if (dimension == axis_horizontal && axis.edges.count() > 1) {
+            const detail::HintEdge& left = axis.edges[0];
+            const detail::HintEdge& right = axis.edges[axis.edges.count() - 1];
+            fitted.has_edges = true;
+            fitted.left_original = left.original;
+            fitted.left = left.position;
+            fitted.right_original = right.original;
+            fitted.right = right.position;
+        }
+    }
+    return fitted;
+}
+
+} // namespace
+
+Status Hinter::prepare(const Font& font) noexcept {
+    metrics_.clear();
+    const Status status = detail::compute_glyph_styles(font, styles_);
+    if (status.failed()) styles_.clear();
+    return status;
+}
+
+Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, const HintMode mode, const FontLimits& limits,
+                          GlyphOutline& outline, i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    advance = 0;
+    outline.points.clear();
+    outline.tags.clear();
+    outline.contour_ends.clear();
+    if (glyph >= font.glyph_count || styles_.count() != font.glyph_count || size <= 0 || size > (static_cast<i64>(1) << 24)) {
+        return refuse_font(ErrorKind::invalid_argument, operation);
+    }
+    const u32 glyph_style = styles_[glyph];
+    const u32 style = glyph_style & detail::style_mask;
+    HintScratch scratch{};
+    // The style's measures: taken the first time a glyph of it is hinted.
+    usize found = no_index;
+    for (usize index = 0; index < metrics_.count(); ++index) {
+        if (metrics_[index].style == style) {
+            found = index;
+            break;
+        }
+    }
+    if (found == no_index) {
+        StyleMetrics measured{};
+        const Status status = detail::compute_style_metrics(font, style, limits, scratch, measured);
+        if (status.failed()) return status;
+        if (metrics_.push(static_cast<StyleMetrics&&>(measured)).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        found = metrics_.count() - 1;
+    }
+    const StyleMetrics& metrics = metrics_[found];
+    const Status loaded = load_glyph(font, glyph, limits, scratch.glyph);
+    if (loaded.failed()) return loaded;
+    const i32 units = static_cast<i32>(font.units_per_em);
+    const i32 unscaled_advance = advance_of(font, glyph);
+    const Status filled = detail::fill_hint_outline(scratch.glyph, units, unscaled_advance, scratch.outline);
+    if (filled.failed()) return filled;
+    const u32 group = detail::script_of_style(style).group;
+    const HintScale scale = detail::make_scale(font, size, mode, group);
+    ScaledStyleMetrics scaled{};
+    const Fitted fitted = hint_outline(scratch.outline, metrics, scale, glyph_style, scratch, scaled);
+    if (fitted.no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
+    // The advance: the scaled advance to a whole pixel, and in monochrome
+    // mode made to follow where the outermost edges went.
+    i32 left_point = 0;
+    i32 right_point = times_fixed(unscaled_advance, fitted.x_scale);
+    const bool light = mode == HintMode::light;
+    if (!light && (scale.flags & detail::scale_no_advance) == 0 && fitted.has_edges) {
+        const i32 old_right_bearing = right_point - fitted.right_original;
+        const i32 old_left_bearing = fitted.left_original;
+        const i32 new_left_bearing = fitted.left;
+        i32 left_unrounded = new_left_bearing - old_left_bearing;
+        i32 right_unrounded = fitted.right + old_right_bearing;
+        // A glyph that began close to its origin, or ended close to its
+        // advance, is given a little room.
+        if (old_left_bearing < 24) left_unrounded = left_unrounded - 8;
+        if (old_right_bearing < 24) right_unrounded = right_unrounded + 8;
+        left_point = pixel_round(left_unrounded);
+        right_point = pixel_round(right_unrounded);
+        if (left_point >= new_left_bearing && old_left_bearing > 0) left_point = left_point - 64;
+        if (right_point <= fitted.right && old_right_bearing > 0) right_point = right_point + 64;
+    } else {
+        left_point = pixel_round(left_point);
+        right_point = pixel_round(right_point);
+    }
+    const usize point_count = scratch.outline.points.count();
+    if (outline.points.resize(point_count).failed() || outline.tags.resize(point_count).failed()) {
+        return refuse_font(ErrorKind::out_of_memory, operation);
+    }
+    for (usize index = 0; index < point_count; ++index) {
+        const HintPoint& point = scratch.outline.points[index];
+        outline.points[index] = Point{.x = point.x - left_point, .y = point.y};
+        outline.tags[index] = point.tag;
+    }
+    for (usize index = 0; index < scratch.glyph.contour_ends.count(); ++index) {
+        if (outline.contour_ends.push_copy(scratch.glyph.contour_ends[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+    }
+    i32 fitted_advance = 0;
+    if (!light && (font.fixed_pitch || (metrics.digits_same_width && (glyph_style & detail::style_digit) != 0))) {
+        fitted_advance = times_fixed(unscaled_advance, scale.x_scale);
+    } else if (unscaled_advance != 0) {
+        fitted_advance = right_point - left_point;
+    }
+    advance = pixel_round(fitted_advance);
+    return Status::success();
+}
+
+void Hinter::release() noexcept {
+    styles_.release();
+    metrics_.release();
+}
+
+} // namespace stxlib::glyphs

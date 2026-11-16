@@ -1,12 +1,15 @@
-stxlib::glyphs, the font reader
+stxlib::glyphs, the font reader and the hinter
 
 The font reader of stxlib::glyphs (include/stxlib/font_file.hpp and
 src/algorithms/glyphs/font_file.cpp, font_truetype.cpp, font_cff.cpp,
-font_reader.hpp) is part of STXlib and is STXlib's own code, under STXlib's
-licence (the repository's LICENSE). It is a conversion to house-style C++
-of the design of two projects, each offered under the MIT licence or the
-Apache License 2.0; it is taken under the MIT licence, and carries their
-notices, which follow unchanged.
+font_reader.hpp) and its hinter (include/stxlib/glyph_hinter.hpp and
+src/algorithms/glyphs/hinter.hpp, hinter.cpp, hinter_outline.cpp,
+hinter_segments.cpp, hinter_edges.cpp, hinter_metrics.cpp, hinter_fit.cpp,
+hinter_align.cpp, hinter_tables.inc) are part of STXlib and are STXlib's own
+code, under STXlib's licence (the repository's LICENSE). They are a
+conversion to house-style C++ of the design of two projects, each offered
+under the MIT licence or the Apache License 2.0; it is taken under the MIT
+licence, and carries their notices, which follow unchanged.
 
 - ttf-parser 0.25.1 (https://github.com/harfbuzz/ttf-parser), by Yevhenii
   Reizner: the table directory and collections, the face's numbers, the
@@ -17,10 +20,22 @@ notices, which follow unchanged.
   fontations), by the Fontations developers: a composite glyph put together
   in whole numbers, the outline placed by its left side bearing, a scaled
   glyph's parts scaled on their own, and a CFF glyph's coordinates in whole
-  font units with the lines and points that are left out.
+  font units with the lines and points that are left out; and the whole of
+  the hinter: Skrifa's auto-hinter (src/outline/autohint), with its table of
+  scripts, styles, blue zone characters and character ranges
+  (generated/generated_autohint_styles.rs), from which hinter_tables.inc is
+  made by tools/gen_hinter_tables.py.
+
+Skrifa's auto-hinter follows the auto-hinter of the FreeType Project (the
+autofit module, by David Turner, Robert Wilhelm and Werner Lemberg) place
+by place, as its source says at each, and its table is made from that
+module's. STXlib's hinter was converted from Skrifa's and not from
+FreeType's source; it owes its method to both. Portions of this software are copyright (c) The
+FreeType Project (https://freetype.org). All rights reserved.
 
 The rasterizer of stxlib::glyphs (glyph_mask.hpp, mask.cpp, chords.hpp,
-flatten.hpp, centres.hpp, reciprocal.hpp) is not a conversion of either.
+flatten.hpp, centres.hpp, reciprocal.hpp) is not a conversion of any of
+these.
 
 ----------------------------------------------------------------------------
 

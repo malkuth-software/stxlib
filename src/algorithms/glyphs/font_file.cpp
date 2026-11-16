@@ -53,6 +53,7 @@ struct Tables final {
     FontTable loca{};
     FontTable glyf{};
     FontTable cff{};
+    FontTable post{};
 };
 
 // The character maps this reads, and which is taken: a map of all of
@@ -214,6 +215,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         if (name == tag('l', 'o', 'c', 'a')) tables.loca = table;
         if (name == tag('g', 'l', 'y', 'f')) tables.glyf = table;
         if (name == tag('C', 'F', 'F', ' ')) tables.cff = table;
+        if (name == tag('p', 'o', 's', 't')) tables.post = table;
     }
     font.bytes = bytes;
     const Span head = table_of(font, tables.head);
@@ -240,6 +242,10 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     font.descender = read_i16(hhea, 6);
     font.height = font.ascender - font.descender + read_i16(hhea, 8);
     const Span os2 = table_of(font, tables.os2);
+    font.italic = (read_u16(head, 44) & 0x2U) != 0;
+    const Span post = table_of(font, tables.post);
+    font.fixed_pitch = has(post, 0, 16) && read_u32(post, 12) != 0;
+    if (has(os2, 0, 64)) font.italic = (read_u16(os2, 62) & 0x201U) != 0;
     if (has(os2, 0, 78)) {
         const i32 typo_ascender = read_i16(os2, 68);
         const i32 typo_descender = read_i16(os2, 70);
