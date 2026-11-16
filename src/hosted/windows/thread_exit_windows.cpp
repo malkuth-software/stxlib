@@ -133,6 +133,11 @@ bool arm(void* const block) noexcept {
     return true;
 }
 
+u64 os_thread_id() noexcept {
+    const u64 result = static_cast<u64>(::GetCurrentThreadId());
+    return result;
+}
+
 // The anchor's storage is live through the DLL_THREAD_DETACH callbacks
 // (this file's callback reads armed_block from the same TLS), so after the
 // hook the anchor itself says ended; nothing here frees it early, as macOS

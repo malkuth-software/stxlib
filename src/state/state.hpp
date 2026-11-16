@@ -41,7 +41,9 @@
 // 2026-11-15; notes decisions/2026-11-15-boundary-sideloading.md) gives the
 // anchor the thread's stack bounds, recorded by STXlib on a path that is
 // not a failure (note_thread_stack, below) so the frame walk never asks the
-// host at failure time.
+// host at failure time. Layout 13 (the coordinator, 2026-11-15, for
+// GUI.Forms' Windows debugger filter) gives the process state the debugger
+// registry (debugger_threads, below; include/stxlib/debugger_anchor.hpp).
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -71,6 +73,7 @@
 // of stxlib_state with constant initialisation. The allocator's backend is
 // stx_minmallocpp (the default) or malloc.
 
+#include "stxlib/debugger_anchor.hpp"
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"
@@ -96,7 +99,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 12;
+inline constexpr u32 layout_version = 13;
 
 // The build type's part of the layout: development builds (STXLIB_SHADOW)
 // lay ThreadState out differently from release builds, so the key the
@@ -325,6 +328,19 @@ inline constexpr usize saved_signal_action_bytes = 256;
 inline constexpr usize watched_signal_count = 5;
 inline constexpr usize abandoned_child_capacity = 256;
 
+// One entry of the debugger registry (stxlib/debugger_anchor.hpp,
+// DebuggerThreadEntry, whose layout this mirrors with atomics; state.cpp
+// claims and clears it).
+struct DebuggerThreadSlot final {
+    std::atomic<u64> os_thread_id{0};
+    std::atomic<u64> store_address{0};
+    std::atomic<u32> frame_capacity{0};
+    u32 reserved{0};
+};
+
+static_assert(sizeof(DebuggerThreadSlot) == sizeof(DebuggerThreadEntry),
+              "the registry entry matches its public layout");
+
 enum class ReporterPhase : int {
     none = 0,
     installing = 1,
@@ -397,6 +413,11 @@ struct ProcessState final {
     // The SIMD level (algorithms simd.cpp): simd_unset, a request (16 plus
     // the level) or the selected level (0 to 2); a selection is final.
     std::atomic<i32> simd_selection{simd_unset};
+    // The debugger registry (layout 13; stxlib/debugger_anchor.hpp): one
+    // entry per registered live thread, found by a debugger through the
+    // `.stxshdw` descriptor (state.cpp). Aligned so that each entry's
+    // fields are where the public layout puts them.
+    alignas(8) DebuggerThreadSlot debugger_threads[debugger_thread_capacity]{};
 };
 
 // What memory::release did with an address (allocator.cpp).

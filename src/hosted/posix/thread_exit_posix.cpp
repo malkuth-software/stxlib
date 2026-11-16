@@ -57,6 +57,12 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#if defined(__linux__)
+#include <sys/syscall.h>
+#elif defined(__FreeBSD__)
+#include <pthread_np.h>
+#endif
+
 namespace stxlib {
 
 namespace {
@@ -100,6 +106,27 @@ bool arm(void* const block) noexcept {
     if (!key_ready()) return false;
     const bool result = ::pthread_setspecific(key, block) == 0;
     return result;
+}
+
+u64 os_thread_id() noexcept {
+#if defined(__APPLE__)
+    __uint64_t thread = 0;
+    if (::pthread_threadid_np(nullptr, &thread) != 0) return 0;
+    const u64 result = static_cast<u64>(thread);
+    return result;
+#elif defined(__linux__) && !defined(__EMSCRIPTEN__)
+    // SYS_gettid through syscall, which glibc and musl both declare
+    // (process_linux.cpp says why not gettid).
+    const long thread = ::syscall(SYS_gettid);
+    const u64 result = thread > 0 ? static_cast<u64>(thread) : 0;
+    return result;
+#elif defined(__FreeBSD__)
+    const int thread = ::pthread_getthreadid_np();
+    const u64 result = thread > 0 ? static_cast<u64>(thread) : 0;
+    return result;
+#else
+    return 0;
+#endif
 }
 
 bool ended() noexcept {
