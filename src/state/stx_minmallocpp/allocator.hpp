@@ -42,6 +42,9 @@
 // memory goes with the process, as termination's rule says (rule 1:
 // termination releases nothing). Only the exiting thread runs then, so the
 // moment the answer turns true needs no ordering with other threads.
+// The host backend is stricter (src/state/allocator.cpp): there every
+// allocation fails and every release returns at once, whatever the size
+// (memory.hpp, "Process end", compares them).
 //
 // Not yet built, run or proved (proofs/REPORT.md, stx_minmallocpp).
 
