@@ -410,12 +410,13 @@ owner asked that what was done for stx_minmallocpp be done here: the code
 traced as a graph, its leaves checked on the compiled objects, its carried
 state checked at run time in a checked build. Written on Neo. Built and run
 on the M4 on 2026-11-16 (macOS arm64, Clang; the seat's logs
-`stx_gtraster/dev/logs/gt-75` to `gt-77`), and on no other host.
+`stx_gtraster/dev/logs/gt-75` to `gt-81`), and on no other host.
 
 What ran on the M4, all passing:
-- the whole suite (107 of 107 tests, no compiler warning);
-- the glyph tests, with the three programs built with the checks on
-  (`stxlib_glyph_hinter_checked_tests`, `stxlib_glyph_untrusted_checked_tests`,
+- the whole suite (109 of 109 tests, no compiler warning);
+- the glyph tests, with the four programs built with the checks on
+  (`stxlib_font_file_checked_tests`, `stxlib_glyph_hinter_checked_tests`,
+  `stxlib_glyph_untrusted_checked_tests`,
   `stxlib_glyph_shape_buffer_checked_tests`), under AddressSanitizer with
   UndefinedBehaviorSanitizer: no report;
 - the same under the integer sanitizers this host's compiler accepts (signed
@@ -435,7 +436,7 @@ These are evidence over the paths the tests take, not proof.
 |---|---|---|---|
 | the glyph code, as a graph | every entry; every call that leaves the glyph code; no function calls itself; every cycle has a stated bound | read off the source, not run (`proofs/glyphs_graph.md`). The exits, with what is written before each, are tabled for the reader's first entries (`open_font`, `glyph_of`, `next_stretch`, `glyph_in_stretch`, `has_feature`, `advance_of`, the top of `load_glyph`), the glyph store and the face; the outline loaders, the hinter and the rasterizer have their cycles and bounds stated and their exits not yet tabled | the same, section 6 for what is missing |
 | the leaves | the glyph objects call nothing but the allocator, the error record, the mutex, the requirement handler and the compiler's helpers: no file, stream, environment, clock, host call, C library function, `operator new` or exception runtime | checked on the compiled objects on macOS arm64 (ctest `stxlib_glyphs_surface`); the tool's parsing tried with stand-in listings, 79 checks (ctest `stxlib_glyphs_surface_tool`); its Microsoft spellings written from the mangling rules and not run on that toolchain | `tools/check_glyphs_surface.py`, `tests/check_glyphs_surface_tests.py` |
-| `font_file.cpp` (the reader's entries) | every read of the font's bytes is inside them; an entry given any bytes returns, refuses or answers "nothing", and writes only its results | argued from the code (every read behind `has`, whose two comparisons cannot wrap) and tabled exit by exit; not proved. Searched within a bound: `stxlib_glyph_untrusted_tests` (1,202 wrong character maps and their prefixes, 60,600 altered maps, 30,744 altered fonts, 31,080 altered layout tables, from fixed seeds), each answer checked against the promise stated in the header, under the sanitizers above | `proofs/glyphs_graph.md` 3; `tests/glyph_untrusted_tests.cpp` |
+| `font_file.cpp` (the reader's entries) | every read of the font's bytes is inside them; an entry given any bytes returns, refuses or answers "nothing", and writes only its results | argued from the code (every read behind `has`, whose two comparisons cannot wrap) and tabled exit by exit; not proved. Searched within a bound: `stxlib_glyph_untrusted_tests` (1,202 wrong character maps and their prefixes, 60,600 altered maps, 30,744 altered fonts, 31,080 altered layout tables, from fixed seeds), each answer checked against the promise stated in the header, and `stxlib_font_file_tests` P8 (four whole fonts, TrueType and CFF: every prefix, every byte set to each of five values, 60,000 altered copies each; 256,012 fonts through the reader, 76,012 of them through a `Face` in all three fits), under the sanitizers above | `proofs/glyphs_graph.md` 3; `tests/glyph_untrusted_tests.cpp`, `tests/font_file_tests.cpp` |
 | `font_file.cpp` (`next_stretch`) | going through a character map, in order or not, takes no more calls than it has entries, and one | argued (`proofs/glyphs_graph.md` 3.3: the search's answer rises with `from` and cannot stay); the count is checked on every map the search above tries | the same |
 | `font_truetype.cpp`, `font_cff.cpp` | a glyph that names itself, or runs without end, is refused within `FontLimits`; an outline given is whole (as many tags as points, contours in order and ending at the last point, within the limits) | the bounds read off the source (a fixed number of turns over a fixed stack; a count of operators); "whole" checked at the exits in a checked build and on the 415,410 outlines the search loads; exits not tabled | `proofs/glyphs_graph.md` 3.6; `glyph_checks.hpp` (`outline_whole`) |
 | `glyph_store.cpp` | the index and the three parts agree after every call, whatever was refused or ran out of memory on the way | tabled (`proofs/glyphs_graph.md` 4.1) and checked at every exit of `glyph` and `keep` in a checked build (`GlyphStore::whole`); evidence over the tests' paths only. No test makes the allocator refuse inside the store | `tests/glyph_hinter_tests.cpp` (the store's and the face's cases) |

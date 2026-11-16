@@ -22,7 +22,7 @@ Three kinds of fact follow from the graph, each with its own check:
 |---|---|---|
 | Shape | which exits exist; what leaves the glyph code | this file, by reading; the leaves by `tools/check_glyphs_surface.py` on the compiled objects (ctest `stxlib_glyphs_surface`) |
 | Local | an offset is inside its table; a sum cannot wrap | every read is behind `has` (`font_reader.hpp`); the AddressSanitizer, UBSan and integer-check builds on `stxlib_glyph_untrusted_tests` and the other glyph tests |
-| Carried state | the store's index agrees with its parts; a face's table finds every outline it holds | assumed at each entry and checked at each exit when `STXLIB_GLYPHS_CHECKS` is defined (`glyph_checks.hpp`: `GlyphStore::whole`, `Face::whole`, `ShapeBuffer::whole`, `outline_whole`), which the three `_checked_tests` programs are built with |
+| Carried state | the store's index agrees with its parts; a face's table finds every outline it holds | assumed at each entry and checked at each exit when `STXLIB_GLYPHS_CHECKS` is defined (`glyph_checks.hpp`: `GlyphStore::whole`, `Face::whole`, `ShapeBuffer::whole`, `outline_whole`), which the four `_checked_tests` programs are built with |
 
 The call graph has no cycle: no function of the glyph code calls itself,
 directly or through another; there is no virtual call. The only calls
