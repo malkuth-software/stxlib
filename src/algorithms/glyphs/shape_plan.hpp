@@ -15,10 +15,17 @@
 // that may begin at it.
 //
 // Bounds. A plan has no more features than were asked for and no more
-// lookups than the font lists for them; reading a coverage for a digest is
-// charged against a budget (plan_digest_budget entries for the whole
-// plan), and a lookup read after the budget is spent has a digest of
-// everything, which is always right and only slower.
+// lookups than the font lists for them. What making it visits of a table
+// and the records it keeps for the table are charged against a budget, as
+// harfrust's budget.rs charges them: 256 times the table's size of each,
+// no less than 4 MB and no more than 128 MB, and a lookup the budget has no
+// room for is left out (its subtables are none, and it applies nothing).
+// A font's lists may name one lookup or one subtable over and over; the
+// budget, not the lists, bounds what is made of them. Sorting is n log n.
+// Reading a coverage for a digest is charged against a budget of its own
+// (plan_digest_budget entries for the whole plan), and a lookup read after
+// that budget is spent has a digest of everything, which is always right
+// and only slower.
 //
 // Not converted: feature variations (variable fonts), Apple's layout tables
 // (morx, kerx, trak), and the table of language names: a caller names a

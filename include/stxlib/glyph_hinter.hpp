@@ -47,7 +47,12 @@
 // the font maps (and at most all of them, about 116,000). A style's measures are
 // taken the first time a glyph of it is hinted: a few tens of glyphs
 // loaded. hint_glyph is linear in the glyph's points, times the number of
-// its edges where points are carried between edges. No recursion.
+// its edges where points are carried between edges. No recursion. The
+// hinter's arithmetic is 32-bit, made for coordinates of 2^19 units and
+// scales of 8 pixels to the unit: a glyph with a coordinate or advance
+// beyond 2^19 units, or any glyph at a greater scale, is given unhinted
+// (scaled as Fit::none, its advance to a whole pixel), and such a glyph is
+// not measured for a style.
 //
 // Failure. invalid_argument: a glyph the font has not, a font other than
 // the one prepared, or what load_glyph refuses. limit_exceeded: a

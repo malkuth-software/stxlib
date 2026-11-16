@@ -41,7 +41,7 @@ inline constexpr usize deepest = 16;
 // units or, scaled, in 1/64 of a pixel: one that is, in a font not well
 // formed or at a scale beyond any use, is refused before any arithmetic
 // could leave 32 bits.
-inline constexpr i64 farthest = static_cast<i64>(1) << 30;
+inline constexpr i64 farthest = farthest_point;
 
 [[nodiscard]] constexpr bool near_enough(const i64 x, const i64 y) noexcept {
     const bool result = x >= -farthest && x <= farthest && y >= -farthest && y <= farthest;
@@ -64,7 +64,19 @@ inline constexpr i64 farthest = static_cast<i64>(1) << 30;
         begin = static_cast<usize>(read_u16(loca, static_cast<usize>(glyph) * 2)) * 2;
         end = static_cast<usize>(read_u16(loca, static_cast<usize>(glyph) * 2 + 2)) * 2;
     }
-    if (begin >= end || !has(glyf, begin, end - begin)) return Span{};
+    // As FreeType reads a loca not well formed: a glyph that begins past
+    // glyf has nothing; the last glyph's end past glyf is glyf's end (any
+    // other glyph's is nothing); an end before the beginning is glyf's end.
+    // The glyph's own reading is bounded by what it is given.
+    const usize entry = font.long_offsets ? 4 : 2;
+    const bool last_glyph = loca.size / entry >= 2 && static_cast<usize>(glyph) == loca.size / entry - 2;
+    if (begin > glyf.size) return Span{};
+    if (end > glyf.size) {
+        if (!last_glyph) return Span{};
+        end = glyf.size;
+    }
+    if (end < begin) end = glyf.size;
+    if (begin == end || !has(glyf, begin, end - begin)) return Span{};
     const Span result = part(glyf, begin, end - begin);
     return result;
 }

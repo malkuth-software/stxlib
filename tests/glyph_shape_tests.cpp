@@ -706,6 +706,125 @@ void refusals_and_plans() {
     CHECK(small.bytes_held() == 0 && small.shape(run, shaped).failed());
 }
 
+// ---- the audit of 2026-11-16 (A-stxlib-glyphs-02) -------------------------------------------------------
+
+// A font of four squares, 'a' to 'c' glyphs 1 to 3, with the layout tables given.
+[[nodiscard]] Bytes small_font(const Bytes& gsub, const Bytes& gpos) {
+    std::vector<Bytes> glyph_bytes{};
+    std::vector<Metric> metrics{};
+    for (u32 glyph = 0; glyph < 4; ++glyph) {
+        glyph_bytes.push_back(simple_glyph({{{50, 0, true}, {50, 500, true}, {450, 500, true}, {450, 0, true}}}));
+        metrics.push_back(Metric{glyph == 0 ? 500U : 600U, 0});
+    }
+    Bytes glyf{};
+    Bytes loca{};
+    Bytes hmtx{};
+    glyph_tables(glyph_bytes, metrics, 4, true, glyf, loca, hmtx);
+    std::vector<NamedTable> tables = {};
+    if (!gpos.empty()) tables.push_back({"GPOS", gpos});
+    if (!gsub.empty()) tables.push_back({"GSUB", gsub});
+    tables.push_back({"cmap", cmap_table({{3, 10, map_format_12({{'a', 'c', 1}})}})});
+    tables.push_back({"glyf", glyf});
+    tables.push_back({"head", head_table(1000, true)});
+    tables.push_back({"hhea", hhea_table(800, -200, 0, 4)});
+    tables.push_back({"hmtx", hmtx});
+    tables.push_back({"loca", loca});
+    tables.push_back({"maxp", maxp_table(4)});
+    const Bytes font = font_of(0x00010000U, tables);
+    return font;
+}
+
+// A GSUB whose one feature names lookup 0 `count` times, and whose lookup 0
+// names one single substitution (b to c) `count` times: about 4 x count bytes
+// that ask a plan without a budget for count x count subtable records.
+[[nodiscard]] Bytes aliased_gsub(const u32 count) {
+    Bytes table = layout_of({{"liga", {0}}}, {{1, {single_substitution({{2, 3}})}}});
+    // The script list is layout_of's (20 bytes); the feature list and the
+    // lookup list are written here.
+    const Bytes subtable = single_substitution({{2, 3}});
+    Bytes scripts(table.begin() + 10, table.begin() + 10 + 20);
+    Bytes feature_list{};
+    put16(feature_list, 1);
+    for (const char letter : std::string("liga")) put8(feature_list, static_cast<u8>(letter));
+    put16(feature_list, 8);
+    put16(feature_list, 0);
+    put16(feature_list, static_cast<i32>(count));
+    for (u32 index = 0; index < count; ++index) put16(feature_list, 0);
+    Bytes lookup_list{};
+    put16(lookup_list, 1);
+    put16(lookup_list, 4);
+    put16(lookup_list, 1);
+    put16(lookup_list, 0);
+    put16(lookup_list, static_cast<i32>(count));
+    for (u32 index = 0; index < count; ++index) put16(lookup_list, static_cast<i32>(6 + count * 2));
+    append(lookup_list, subtable);
+    table.clear();
+    put32(table, 0x00010000U);
+    put16(table, 10);
+    put16(table, static_cast<i32>(10 + scripts.size()));
+    put16(table, static_cast<i32>(10 + scripts.size() + feature_list.size()));
+    append(table, scripts);
+    append(table, feature_list);
+    append(table, lookup_list);
+    return table;
+}
+
+[[nodiscard]] bool small_shapes(const Bytes& bytes, const std::u32string& text, std::vector<u32>& glyphs_out, std::vector<i32>& advances,
+                                const glyphs::ShaperLimits& limits = glyphs::ShaperLimits{}, const std::vector<glyphs::TextFeature>& features = {}) {
+    stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(bytes), 0);
+    if (made.failed()) return false;
+    glyphs::Shaper shaper{};
+    if (shaper.open(*made.value(), limits).failed()) return false;
+    glyphs::TextRun run{};
+    run.characters = stxlib::View<u32>(reinterpret_cast<const u32*>(text.data()), text.size());
+    run.features = stxlib::View<glyphs::TextFeature>(features.data(), features.size());
+    stxlib::Vector<glyphs::ShapedGlyph> shaped{};
+    if (shaper.shape(run, shaped).failed()) return false;
+    glyphs_out.clear();
+    advances.clear();
+    for (usize index = 0; index < shaped.count(); ++index) {
+        glyphs_out.push_back(shaped[index].glyph);
+        advances.push_back(shaped[index].x_advance);
+    }
+    return true;
+}
+
+void audit_findings() {
+    std::vector<u32> shaped_glyphs{};
+    std::vector<i32> advances{};
+    // 02-F1, 02-F3: a feature that names one lookup 30,000 times and a lookup
+    // that names one subtable 30,000 times. The plan's budget (256 x the
+    // table's size, at least 4 MB) stops it; the run is shaped. Without the
+    // budget this asks for 9 x 10^8 subtable records.
+    const Bytes aliased = small_font(aliased_gsub(30000), Bytes{});
+    CHECK(small_shapes(aliased, U"abc", shaped_glyphs, advances));
+    CHECK(shaped_glyphs.size() == 3 && shaped_glyphs[0] == 1 && (shaped_glyphs[1] == 2 || shaped_glyphs[1] == 3) && shaped_glyphs[2] == 3);
+    // A table of reasonable size is not cut by the budget.
+    const Bytes plain = small_font(aliased_gsub(1), Bytes{});
+    CHECK(small_shapes(plain, U"abc", shaped_glyphs, advances) && shaped_glyphs.size() == 3 && shaped_glyphs[1] == 3);
+    // More features than the limit: refused.
+    std::vector<glyphs::TextFeature> many(300);
+    for (usize index = 0; index < many.size(); ++index) many[index].tag = 0x61616100U + static_cast<u32>(index % 200);
+    CHECK(!small_shapes(plain, U"abc", shaped_glyphs, advances, glyphs::ShaperLimits{}, many));
+    many.resize(256);
+    CHECK(small_shapes(plain, U"abc", shaped_glyphs, advances, glyphs::ShaperLimits{}, many));
+    // 02-F9: a class definition whose offset is 0 is class 0 for every glyph.
+    // a then b, the first in class 1, the second's definition null: the
+    // pair's value is that of classes 1 and 0.
+    Bytes pairs = pairs_by_class({1}, {{1, 1, 1}}, {{2, 2, 1}}, 0);
+    pairs[10] = 0;
+    pairs[11] = 0;
+    pairs[20] = 0xFF;
+    pairs[21] = 0xCE;
+    const Bytes kerned = small_font(Bytes{}, layout_of({{"kern", {0}}}, {{2, {pairs}}}));
+    CHECK(small_shapes(kerned, U"ab", shaped_glyphs, advances) && advances.size() == 2 && advances[0] == 550 && advances[1] == 600);
+    CHECK(small_shapes(kerned, U"ac", shaped_glyphs, advances) && advances.size() == 2 && advances[0] == 550);
+    // A long run with a pair at its start (shaped; its time is not measured here).
+    std::u32string marks(30001, U'b');
+    marks[0] = U'a';
+    CHECK(small_shapes(kerned, marks, shaped_glyphs, advances) && shaped_glyphs.size() == 30001);
+}
+
 // ---- the layout tables altered ----------------------------------------------------------------------------
 
 std::uint64_t random_state = 0x6A09E667F3BCC909ULL;
@@ -793,6 +912,7 @@ int main() {
     hangul();
     hidden_and_spaces();
     refusals_and_plans();
+    audit_findings();
     altered_tables();
     std::printf("glyph checks: %s\n", glyphs::glyph_checks_enabled() ? "on" : "off");
 #if defined(STXLIB_GLYPHS_CHECKS_EXPECTED)

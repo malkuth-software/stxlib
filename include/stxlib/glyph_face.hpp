@@ -159,7 +159,11 @@
 //
 // Threads. A Typeface: any threads at once (it locks; a Face goes to it
 // only for a glyph it has not fitted). A Face: one thread at a time. The
-// font's bytes are borrowed: they must outlive the Typeface. What a call
+// font's bytes are borrowed: they must outlive the Typeface and must not
+// change while it is open (a count read from them is read again where it
+// is used, so bytes that change under it, a file mapped for writing, can
+// take a read outside a table; a caller who cannot promise that opens a
+// copy). What a call
 // hands back as a view (FittedGlyph) is good until the next call on the
 // Face.
 //
@@ -210,6 +214,18 @@ struct TypefaceLimits final {
 };
 
 struct FaceLimits final {
+    // A mask's and a run's box. Nothing ties a glyph's extent to its em, so
+    // one glyph of a hostile font may fill these at an ordinary size (a font
+    // of 64 units to the em allows 512 ems a side). What one glyph can then
+    // cost a draw, at the defaults (16,384 by 16,384 pixels, most_mask_side):
+    // a mask of up to 2.7 x 10^8 bytes, drawn in bands (65 at the side's
+    // limit, 386 for a monochrome mask) with the outline flattened again for
+    // each, of the order of 10^8 to 10^9 operations; a run's own coverage is
+    // as large again. It is bounded by these limits and by nothing smaller.
+    // DrawStyle::windowed leaves out glyphs wholly outside the window but
+    // draws one that touches it whole. A caller drawing untrusted fonts that
+    // wants a smaller bound sets smaller limits here (for text, 2,048 a side
+    // holds any glyph of a few ems at the sizes text is read at).
     Limits mask{};
     // The storage for fitted outlines never exceeds this many bytes. An
     // outline takes 9 bytes a point of its segments and 96 for itself.
@@ -391,6 +407,9 @@ public:
     // Opens face `face_index` of the font in `bytes` (0 for a font that is
     // not a collection). Nothing of its glyphs is read. To be done before
     // the typeface is shared: this one call is not for several threads.
+    // A typeface is opened once: open on one already open is refused
+    // (invalid_argument), since the faces and shapers that hold it hold
+    // its font.
     [[nodiscard]] Status open(View<u8> bytes, u32 face_index, const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
     // The font opened (its numbers, and glyph_of, advance_of and
@@ -470,7 +489,8 @@ public:
     // measure gives them for the outline drawn (for a glyph turned by its
     // mask's surface, the pixels whose centres the turned mask reaches:
     // turn_lattice.hpp, rule 3), `pixels` bounds.width * bounds.height
-    // bytes, the top row first.
+    // bytes, the top row first. A shift farther than 2^30 either way is
+    // invalid_argument.
     [[nodiscard]] Status mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
 
     // Where the run's ink can be, without drawing it.

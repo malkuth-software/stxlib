@@ -50,7 +50,9 @@
 // every dividend where a quotient changes). Longer chords divide. The
 // result does not depend on which was used.
 //
-// Ranges. Mask coordinates are 16.16 fixed point in [0, 16384 * 65536], so
+// Ranges. A mask's side is never more than most_mask_side (16384) pixels,
+// whatever the limits say: measure and check refuse a larger one. Mask
+// coordinates are 16.16 fixed point in [0, 16384 * 65536], so
 // a difference of two is below 2^31, a product of a difference and a
 // height (at most 2^30) below 2^61, and a cell's value for one piece below
 // 2^34. With at most 2^16 chords for each of at most 16384 points, every
@@ -188,7 +190,9 @@ Status measure(const Outline& outline, const Point offset, const Limits& limits,
     const i64 top = (y_high + 63) >> 6;
     const i64 width = right - left;
     const i64 height = top - bottom;
-    if (width > limits.width || height > limits.height) return refuse(ErrorKind::limit_exceeded, operation);
+    if (width > limits.width || height > limits.height || width > most_mask_side || height > most_mask_side) {
+        return refuse(ErrorKind::limit_exceeded, operation);
+    }
     // i32 sums of two i32 values fit 33 bits; a box that does not fit 32 is
     // far outside any mask.
     if (left < -0x40000000LL || top > 0x40000000LL || left > 0x40000000LL || top < -0x40000000LL) {
@@ -223,7 +227,9 @@ struct Checked final {
         const Status refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
         return refused;
     }
-    if (bounds.width > limits.width || bounds.height > limits.height) return refuse(ErrorKind::limit_exceeded, operation);
+    if (bounds.width > limits.width || bounds.height > limits.height || bounds.width > most_mask_side || bounds.height > most_mask_side) {
+        return refuse(ErrorKind::limit_exceeded, operation);
+    }
     const usize width = bounds.width;
     const usize height = bounds.height;
     if (mask.count() != width * height) return refuse(ErrorKind::invalid_argument, operation);

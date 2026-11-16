@@ -216,8 +216,22 @@ struct ShapeScale final {
     i64 em{0};
 };
 
+[[nodiscard]] constexpr i32 saturate(const i64 value) noexcept {
+    const i64 low = -2147483647LL - 1;
+    const i64 high = 2147483647LL;
+    const i32 result = static_cast<i32>(value < low ? low : (value > high ? high : value));
+    return result;
+}
+
+// A value of the font (a 16-bit field; a wider one is taken at the nearest
+// 16-bit value) at a multiplier of no more than 2^47 either way (a size of
+// 2^24 pixels at 16 units to the em is 2^36): the product is inside 63
+// bits, and the result is saturated to 32.
 [[nodiscard]] constexpr i32 scale_value(const i32 value, const i64 mult) noexcept {
-    const i32 result = static_cast<i32>((static_cast<i64>(value) * mult + 32768) >> 16);
+    const i64 most_mult = static_cast<i64>(1) << 47;
+    const i64 field = value < -32768 ? -32768 : (value > 32767 ? 32767 : value);
+    const i64 factor = mult < -most_mult ? -most_mult : (mult > most_mult ? most_mult : mult);
+    const i32 result = saturate((field * factor + 32768) >> 16);
     return result;
 }
 
@@ -231,12 +245,6 @@ struct ShapeScale final {
     return result;
 }
 
-[[nodiscard]] constexpr i32 saturate(const i64 value) noexcept {
-    const i64 low = -2147483647LL - 1;
-    const i64 high = 2147483647LL;
-    const i32 result = static_cast<i32>(value < low ? low : (value > high ? high : value));
-    return result;
-}
 
 // ---- the work of applying ----------------------------------------------------------------------------
 
@@ -316,6 +324,9 @@ struct ApplyWork final {
     Vector<ApplyFrame> frames{};
     Vector<MemoEntry> memo{};
     Vector<PairEntry> pairs{};
+    // The advances of the run summed from its beginning, along x then y,
+    // as finish_positions takes them back for a mark.
+    Vector<i64> totals{};
     // Of the run as it stands when its positions begin: the glyph
     // properties any item has, the mask bits every item has, and whether
     // any is a character not to show. A lookup that sees every item alike
@@ -362,7 +373,10 @@ void apply_positions(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work
 // Before the positions: nothing is attached. After: each attached glyph's
 // offset takes in that of what it is attached to.
 void start_positions(ShapeBuffer& buffer) noexcept;
-void finish_positions(ShapeBuffer& buffer) noexcept;
+// Linear in the run: the advances between a mark and its base are taken
+// from running totals. Fails (the buffer not successful) only for want of
+// memory for them.
+void finish_positions(ShapeBuffer& buffer, ApplyWork& work) noexcept;
 
 // Every item's glyph properties from the font's glyph classes, its
 // ligature properties cleared, and the digest of the run's glyphs.

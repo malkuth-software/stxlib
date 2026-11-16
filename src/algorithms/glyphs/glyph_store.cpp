@@ -25,6 +25,11 @@ inline constexpr u32 part_refused = 3;
     return result;
 }
 
+[[nodiscard]] bool same_table(const FontTable& first, const FontTable& second) noexcept {
+    const bool result = first.offset == second.offset && first.length == second.length;
+    return result;
+}
+
 } // namespace
 
 // The outline goes to the end of the part. False: out of memory, and the
@@ -72,12 +77,24 @@ void GlyphStore::give_up(const u32 part_number) noexcept {
     held_[part_number] = 0;
 }
 
+bool GlyphStore::opened_for(const Font& font) const noexcept {
+    const bool result = index_.count() == font.glyph_count && font_bytes_ == font.bytes.data() && font_size_ == font.bytes.count() &&
+                        same_table(font_glyf_, font.glyf) && same_table(font_charstrings_, font.charstrings) &&
+                        same_table(font_map_, font.character_map);
+    return result;
+}
+
 Status GlyphStore::open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     release();
     limits_ = limits;
     store_limits_ = store_limits;
     if (index_.resize(font.glyph_count).failed()) return detail::refuse_font(ErrorKind::out_of_memory, operation);
+    font_bytes_ = font.bytes.data();
+    font_size_ = font.bytes.count();
+    font_glyf_ = font.glyf;
+    font_charstrings_ = font.charstrings;
+    font_map_ = font.character_map;
     return Status::success();
 }
 
@@ -86,7 +103,7 @@ Status GlyphStore::open(const Font& font, const FontLimits& limits, const StoreL
 Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, StoredGlyph& stored) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     stored = StoredGlyph{};
-    if (index_.count() != font.glyph_count || glyph >= font.glyph_count) return detail::refuse_font(ErrorKind::invalid_argument, operation);
+    if (!opened_for(font) || glyph >= font.glyph_count) return detail::refuse_font(ErrorKind::invalid_argument, operation);
     const u32 code = index_[glyph];
     const u32 held_in = code & 3U;
     if (code != nowhere && held_in == part_refused) return detail::refuse_font(static_cast<ErrorKind>(code >> 2), operation);
@@ -200,7 +217,7 @@ bool GlyphStore::whole() const noexcept {
 Status GlyphStore::keep(const Font& font, const View<u32> characters, usize& kept) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     kept = parts_[part_kept].records.count();
-    if (index_.count() != font.glyph_count) return detail::refuse_font(ErrorKind::invalid_argument, operation);
+    if (!opened_for(font)) return detail::refuse_font(ErrorKind::invalid_argument, operation);
     for (usize index = 0; index < characters.count(); ++index) {
         const u32 glyph = glyph_of(font, characters[index]);
         if (glyph == 0 || glyph >= font.glyph_count) continue;
@@ -234,6 +251,11 @@ void GlyphStore::release() noexcept {
         held_[index] = 0;
     }
     newer_ = 1;
+    font_bytes_ = nullptr;
+    font_size_ = 0;
+    font_glyf_ = FontTable{};
+    font_charstrings_ = FontTable{};
+    font_map_ = FontTable{};
     loaded_.points.release();
     loaded_.tags.release();
     loaded_.contour_ends.release();

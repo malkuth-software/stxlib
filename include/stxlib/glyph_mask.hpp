@@ -134,8 +134,14 @@ struct Bounds final {
     u32 height{0};
 };
 
+// The widest and tallest mask there is, whatever Limits say: the
+// rasterizer's arithmetic is sized for it (mask.cpp, "Ranges"), and
+// measure and the renderers refuse a larger side (limit_exceeded).
+inline constexpr u32 most_mask_side = 16384;
+
 struct Limits final {
     u32 points{16384};
+    // No more than most_mask_side takes effect.
     u32 width{16384};
     u32 height{16384};
     usize work_cells{static_cast<usize>(1) << 22};

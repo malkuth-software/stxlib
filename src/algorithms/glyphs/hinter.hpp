@@ -442,8 +442,26 @@ void reset_axis(HintAxis& axis, u32 dimension, Winding winding) noexcept;
 // width, or 0.
 void link_segments(const HintOutline& outline, HintAxis& axis, i32 scale, bool cjk, i32 widest) noexcept;
 
+// The bounds the hinter's arithmetic is made for. Its steps are 32-bit, as
+// in the sources it was converted from, where a coordinate is 16 bits; the
+// reader gives coordinates up to 2^30. A glyph with a coordinate or advance
+// farther than hint_most_units from 0 is not hinted, nor any glyph at a
+// scale above hint_most_scale (16.16; 8 pixels to the font unit): with
+// both, a coordinate is no more than 2^19 units and 2^28 scaled, so a
+// difference of two is no more than 2^20 and 2^29, the widest product of
+// font units (a distance shifted by 10, for the demerit of a stem) is
+// below 2^31, and a scaled sum of two is below 2^30. A glyph not hinted
+// for these is given unhinted (scaled in 64 bits, as Fit::none, with its
+// advance rounded to a whole pixel).
+inline constexpr i64 hint_most_units = static_cast<i64>(1) << 19;
+inline constexpr i64 hint_most_scale = static_cast<i64>(1) << 25;
+
+// Whether every point and the advance are within hint_most_units.
+[[nodiscard]] bool within_hint_bounds(View<Point> glyph_points, i32 advance) noexcept;
+
 // The outline of a glyph as loaded (font units), with every point's
-// neighbours, directions and marks worked out.
+// neighbours, directions and marks worked out. limit_exceeded for a glyph
+// not within_hint_bounds (nothing of it is then worked out).
 [[nodiscard]] Status fill_hint_outline(View<Point> glyph_points, View<PointTag> glyph_tags, View<u32> contour_ends, i32 units_per_em, i32 advance,
                                        HintOutline& outline) noexcept;
 

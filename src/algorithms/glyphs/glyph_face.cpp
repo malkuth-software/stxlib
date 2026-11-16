@@ -169,6 +169,76 @@ inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;
     return normal;
 }
 
+[[nodiscard]] bool same_point(const Point a, const Point b) noexcept {
+    const bool result = a.x == b.x && a.y == b.y;
+    return result;
+}
+
+// One point moved out by half the thickening, along the mean of the
+// normals of the steps from the nearest point before it and to the nearest
+// point after it that are not at it.
+[[nodiscard]] Point moved_point(const Point before, const Point point, const Point after, const i64 half, const i64 sign) noexcept {
+    const Point first_normal = normal_of(static_cast<i64>(point.x) - before.x, static_cast<i64>(point.y) - before.y, sign);
+    const Point second_normal = normal_of(static_cast<i64>(after.x) - point.x, static_cast<i64>(after.y) - point.y, sign);
+    const i64 sum_x = static_cast<i64>(first_normal.x) + second_normal.x;
+    const i64 sum_y = static_cast<i64>(first_normal.y) + second_normal.y;
+    const i64 product = static_cast<i64>(first_normal.x) * second_normal.x + static_cast<i64>(first_normal.y) * second_normal.y;
+    // Rounded down to a 65536th.
+    const i64 cosine = product >= 0 ? product / 65536 : -((-product + 65535) / 65536);
+    const i64 divisor = 65536 + cosine < 16384 ? 16384 : 65536 + cosine;
+    const i64 move_x = half * sum_x / divisor;
+    const i64 move_y = half * sum_y / divisor;
+    const Point result{.x = static_cast<i32>(point.x + move_x + half), .y = static_cast<i32>(point.y + move_y + half)};
+    return result;
+}
+
+// The points of one contour, `first` to `last`, moved. Points at one place
+// one after another (a run, which may go round from the last point to the
+// first) have the same nearest points not at them: the point before the
+// run and the point after it. The contour is gone round once from a point
+// that begins a run, so the cost is linear in the contour. A contour all
+// of whose points are at one place has none to move by: each point is
+// moved by half the thickening alone.
+void move_contour(const Outline& source, const usize first, const usize last, const i64 half, const i64 sign, Vector<Point>& target) noexcept {
+    const usize length = last - first + 1;
+    // A point that is not at the place of the one before it, going round.
+    usize start = first;
+    bool found = false;
+    for (usize index = first; index <= last && !found; ++index) {
+        const usize previous = index == first ? last : index - 1;
+        found = !same_point(source.points[index], source.points[previous]);
+        if (found) start = index;
+    }
+    if (!found) {
+        for (usize index = first; index <= last; ++index) {
+            const Point point = source.points[index];
+            target[index] = Point{.x = static_cast<i32>(point.x + half), .y = static_cast<i32>(point.y + half)};
+        }
+        return;
+    }
+    usize walked = 0;
+    usize run_start = start;
+    while (walked < length) {
+        // The run from run_start: as far as the points stay at its place.
+        usize run_length = 1;
+        usize next = run_start == last ? first : run_start + 1;
+        while (walked + run_length < length && same_point(source.points[next], source.points[run_start])) {
+            run_length = run_length + 1;
+            next = next == last ? first : next + 1;
+        }
+        const usize before_index = run_start == first ? last : run_start - 1;
+        const Point before = source.points[before_index];
+        const Point after = source.points[next];
+        usize index = run_start;
+        for (usize step = 0; step < run_length; ++step) {
+            target[index] = moved_point(before, source.points[index], after, half, sign);
+            index = index == last ? first : index + 1;
+        }
+        walked = walked + run_length;
+        run_start = next;
+    }
+}
+
 // The rule for thicker strokes (glyph_face.hpp): `source` thickened by
 // `thickening` into `target`. False: out of memory.
 [[nodiscard]] bool thicken(const Outline& source, const i32 thickening, Vector<Point>& target) noexcept {
@@ -194,45 +264,14 @@ inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;
             const bool ends = kind == kinds || source.segments[kind] == Segment::move;
             if (ends && next_point > first) {
                 const usize last = next_point - 1;
-                const usize length = last - first + 1;
-                for (usize index = first; index <= last; ++index) {
-                    const Point point = source.points[index];
-                    if (pass == 0) {
+                if (pass == 0) {
+                    for (usize index = first; index <= last; ++index) {
+                        const Point point = source.points[index];
                         const Point after = source.points[index == last ? first : index + 1];
                         area = area + static_cast<i64>(point.x) * after.y - static_cast<i64>(after.x) * point.y;
-                        continue;
                     }
-                    // The nearest points before and after that are not at
-                    // this one.
-                    usize before_index = index;
-                    usize after_index = index;
-                    bool has_before = false;
-                    bool has_after = false;
-                    for (usize step = 1; step < length && !has_before; ++step) {
-                        before_index = before_index == first ? last : before_index - 1;
-                        has_before = source.points[before_index].x != point.x || source.points[before_index].y != point.y;
-                    }
-                    for (usize step = 1; step < length && !has_after; ++step) {
-                        after_index = after_index == last ? first : after_index + 1;
-                        has_after = source.points[after_index].x != point.x || source.points[after_index].y != point.y;
-                    }
-                    i64 move_x = 0;
-                    i64 move_y = 0;
-                    if (has_before && has_after) {
-                        const Point before = source.points[before_index];
-                        const Point after = source.points[after_index];
-                        const Point first_normal = normal_of(static_cast<i64>(point.x) - before.x, static_cast<i64>(point.y) - before.y, sign);
-                        const Point second_normal = normal_of(static_cast<i64>(after.x) - point.x, static_cast<i64>(after.y) - point.y, sign);
-                        const i64 sum_x = static_cast<i64>(first_normal.x) + second_normal.x;
-                        const i64 sum_y = static_cast<i64>(first_normal.y) + second_normal.y;
-                        const i64 product = static_cast<i64>(first_normal.x) * second_normal.x + static_cast<i64>(first_normal.y) * second_normal.y;
-                        // Rounded down to a 65536th.
-                        const i64 cosine = product >= 0 ? product / 65536 : -((-product + 65535) / 65536);
-                        const i64 divisor = 65536 + cosine < 16384 ? 16384 : 65536 + cosine;
-                        move_x = half * sum_x / divisor;
-                        move_y = half * sum_y / divisor;
-                    }
-                    target[index] = Point{.x = static_cast<i32>(point.x + move_x + half), .y = static_cast<i32>(point.y + move_y + half)};
+                } else {
+                    move_contour(source, first, last, half, sign, target);
                 }
             }
             if (ends) first = next_point;
@@ -246,12 +285,16 @@ inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;
     return true;
 }
 
-// a * b / 65536, rounded to the nearest, halves away from zero.
+// a * b / 65536, rounded to the nearest, halves away from zero, and held
+// to 2^30 either way (the reader's bound on a coordinate). For |a| below
+// 2^31 and b no more than 2^36 (scale_of's most), the product is inside
+// 64 bits.
 [[nodiscard]] constexpr i32 times(const i64 a, const i64 b) noexcept {
     const i64 product = a * b;
     const i64 size = product < 0 ? -product : product;
     const i64 rounded = (size + 0x8000) >> 16;
-    const i32 result = static_cast<i32>(product < 0 ? -rounded : rounded);
+    const i64 held = rounded > detail::farthest_point ? detail::farthest_point : rounded;
+    const i32 result = static_cast<i32>(product < 0 ? -held : held);
     return result;
 }
 
@@ -1148,7 +1191,7 @@ Typeface::~Typeface() noexcept = default;
 
 Status Typeface::open(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
     const Operation operation("stxlib.glyphs.typeface");
-    state_.reset();
+    if (!state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     Result<Unique<detail::TypefaceState>> made = Unique<detail::TypefaceState>::make();
     if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     Unique<detail::TypefaceState> fresh = static_cast<Result<Unique<detail::TypefaceState>>&&>(made).take_value();
@@ -1201,16 +1244,28 @@ Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutlin
     StoredGlyph stored{};
     Status status = state.store.glyph(state.font, glyph, stored);
     if (status.succeeded() && fit == Fit::none) {
+        // Scaled as load_scaled_glyph scales a CFF glyph (scale_outline:
+        // the same rounding as times, and the reader's bound on the result).
         const usize point_count = stored.points.count();
         const i64 scale = scale_of(state.font, size);
         bool room = outline.points.resize(point_count).succeeded() && outline.tags.resize(point_count).succeeded();
         for (usize index = 0; room && index < point_count; ++index) {
-            outline.points[index] = Point{.x = times(stored.points[index].x, scale), .y = times(stored.points[index].y, scale)};
+            outline.points[index] = stored.points[index];
             outline.tags[index] = stored.tags[index];
         }
         for (usize index = 0; room && index < stored.contour_ends.count(); ++index) room = outline.contour_ends.push_copy(stored.contour_ends[index]).succeeded();
         advance = times(stored.advance, scale);
-        if (!room) status = refuse_font(ErrorKind::out_of_memory, operation);
+        if (!room) {
+            status = refuse_font(ErrorKind::out_of_memory, operation);
+        } else {
+            status = scale_outline(outline, scale, scale);
+        }
+        if (status.failed()) {
+            outline.points.clear();
+            outline.tags.clear();
+            outline.contour_ends.clear();
+            advance = 0;
+        }
     } else if (status.succeeded()) {
         // The hinter is prepared when the first glyph is fitted.
         if (!state.prepared) {
@@ -1244,6 +1299,36 @@ Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept 
     if (glyph >= state.font.glyph_count || size <= 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
     const ScopedLock held(state.lock);
     const i64 scale = scale_of(state.font, size);
+    if (state.font.outlines == OutlineKind::cff) {
+        // A CFF glyph from the store, so that its charstring is run once
+        // (and a refusal remembered): its box in font units, scaled.
+        // Scaling is rounding of a product by a scale above 0, which never
+        // puts two points in the other order, so the box of the scaled
+        // points is the scaled box, and it is load_scaled_glyph's.
+        StoredGlyph stored{};
+        const Status found = state.store.glyph(state.font, glyph, stored);
+        note_peak(state);
+        if (found.failed()) return found;
+        if (stored.points.empty()) return Status::success();
+        GlyphOutline& corners = state.measuring;
+        corners.points.clear();
+        corners.tags.clear();
+        corners.contour_ends.clear();
+        Point least = stored.points[0];
+        Point most = stored.points[0];
+        for (usize index = 1; index < stored.points.count(); ++index) {
+            const Point point = stored.points[index];
+            least = Point{.x = point.x < least.x ? point.x : least.x, .y = point.y < least.y ? point.y : least.y};
+            most = Point{.x = point.x > most.x ? point.x : most.x, .y = point.y > most.y ? point.y : most.y};
+        }
+        if (corners.points.push_copy(least).failed() || corners.points.push_copy(most).failed()) {
+            return refuse_font(ErrorKind::out_of_memory, operation);
+        }
+        const Status scaled = scale_outline(corners, scale, scale);
+        if (scaled.failed()) return scaled;
+        box = InkBox{.left = corners.points[0].x, .bottom = corners.points[0].y, .right = corners.points[1].x, .top = corners.points[1].y};
+        return Status::success();
+    }
     GlyphOutline& outline = state.measuring;
     const Status scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
     if (scaled.succeeded() && !outline.points.empty()) {
@@ -1383,7 +1468,11 @@ bool Face::whole() const noexcept {
 Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
     const Operation operation("stxlib.glyphs.face");
     bounds = Bounds{};
-    if (state_.empty() || !style_is_valid(style)) {
+    // A shift farther than 2^30 either way puts no pixel in any mask; it is
+    // refused before it is turned (and negated).
+    const i32 far = static_cast<i32>(detail::farthest_point);
+    const bool near = shift.x >= -far && shift.x <= far && shift.y >= -far && shift.y <= far;
+    if (state_.empty() || !style_is_valid(style) || !near) {
         pixels.clear();
         return refuse_font(ErrorKind::invalid_argument, operation);
     }

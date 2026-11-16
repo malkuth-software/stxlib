@@ -29,10 +29,18 @@
 // the run is passed over with one test, and what has been read of the
 // font's tables for a glyph is remembered in a small table of fixed size.
 // A font's lookups may make a run longer or call one another: a result is
-// no longer than 256 times the run (or 65,536 glyphs if that is more), the
-// work no more than 4,096 operations a character (or 65,536), lookups nest
-// no deeper than 64, and a run that passes any of these is refused, not
-// cut. Nothing is read outside the font's bytes whatever they hold.
+// no longer than 256 times the run (or 65,536 glyphs if that is more) nor
+// than ShaperLimits::glyphs, the work no more than 4,096 operations a
+// character (or 65,536), lookups nest no deeper than 64, and a run that
+// passes any of these is refused, not cut. An operation is a bounded step:
+// an item looked at by a rule (matched or passed over), a subtable, rule or
+// ligature tried, 64 subtable digests tested, a cursive link followed; a
+// glyph's box read from the font for marks placed without the font's help
+// is 64 (boxes are remembered for a run, refusals too), an old kerning
+// subtable's walk of the run its length. Making a plan has a
+// budget of its own (256 times the table's size, from 4 MB to 128 MB, of
+// visits and of bytes; a lookup past it is left out). Nothing is read
+// outside the font's bytes whatever they hold.
 //
 // A Shaper is for one thread; the Typeface it reads is the program's.
 
@@ -121,6 +129,12 @@ struct ShaperLimits final {
     usize plans{8};
     // The longest run taken, in characters.
     usize characters{static_cast<usize>(1) << 20};
+    // The most features a run may ask for.
+    usize features{256};
+    // The most glyphs a run may come to, whatever its length: the bound on
+    // the buffer (about 60 bytes a glyph) and on the result (28), besides
+    // the factor of 256 above. Never less than the run's characters.
+    usize glyphs{static_cast<usize>(1) << 21};
 };
 
 namespace detail {
@@ -143,8 +157,9 @@ public:
     // The run's glyphs, in the order they are drawn from left to right.
     // Failures: invalid_argument for a shaper not opened, clusters that
     // are not as many as the characters, or a size out of range;
-    // limit_exceeded for a run longer than the limit, or one whose shaping
-    // passes the bounds above; out_of_memory. `glyphs` is then empty.
+    // limit_exceeded for a run longer than the limit, with more features
+    // than the limit, or one whose shaping passes the bounds above;
+    // out_of_memory. `glyphs` is then empty.
     [[nodiscard]] Status shape(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexcept;
 
     // How many plans have been made since the shaper was opened (a count

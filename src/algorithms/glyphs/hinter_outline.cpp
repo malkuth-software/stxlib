@@ -196,6 +196,15 @@ void compute_winding(HintOutline& outline) noexcept {
 
 } // namespace
 
+bool within_hint_bounds(const View<Point> glyph_points, const i32 advance) noexcept {
+    bool within = advance >= -hint_most_units && advance <= hint_most_units;
+    for (usize index = 0; index < glyph_points.count() && within; ++index) {
+        const Point point = glyph_points[index];
+        within = point.x >= -hint_most_units && point.x <= hint_most_units && point.y >= -hint_most_units && point.y <= hint_most_units;
+    }
+    return within;
+}
+
 Status fill_hint_outline(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 units_per_em,
                          const i32 advance, HintOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
@@ -206,6 +215,8 @@ Status fill_hint_outline(const View<Point> glyph_points, const View<PointTag> gl
     outline.winding = Winding::none;
     const usize count = glyph_points.count();
     if (glyph_tags.count() != count) return refuse_font(ErrorKind::invalid_argument, operation);
+    // The bound every step below is sized for (hinter.hpp).
+    if (!within_hint_bounds(glyph_points, advance)) return refuse_font(ErrorKind::limit_exceeded, operation);
     if (outline.points.resize(count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     HintPoint* const points = outline.points.mutable_view().data();
     for (usize index = 0; index < count; ++index) {

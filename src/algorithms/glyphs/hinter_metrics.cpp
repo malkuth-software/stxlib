@@ -99,9 +99,11 @@ void sort_and_quantize(Vector<i32>& widths, const i32 threshold) noexcept {
     widths.truncate(current);
 }
 
-// The glyph's outline in font units, as loaded; false when it cannot be.
+// The glyph's outline in font units, as loaded; false when it cannot be,
+// or when it is not within the hinter's bounds (hinter.hpp): such a glyph
+// is not measured, as one the font has not.
 [[nodiscard]] bool load(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
-    const bool result = load_glyph(font, glyph, limits, outline).succeeded();
+    const bool result = load_glyph(font, glyph, limits, outline).succeeded() && within_hint_bounds(outline.points.view(), advance_of(font, glyph));
     return result;
 }
 
@@ -748,7 +750,10 @@ Status compute_style_metrics(const Font& font, const u32 style, const FontLimits
 
 HintScale make_scale(const Font& font, const i64 size, const HintMode mode, const u32 group) noexcept {
     HintScale scale{};
-    const i32 value = static_cast<i32>(scale_of(font, size));
+    // Held to hint_most_scale: a glyph is hinted only at no greater scale
+    // (hint_loaded), so the cut never changes one that is.
+    const i64 full = scale_of(font, size);
+    const i32 value = static_cast<i32>(full < hint_most_scale ? full : hint_most_scale);
     scale.x_scale = value;
     scale.y_scale = value;
     scale.units_per_em = static_cast<i32>(font.units_per_em);
