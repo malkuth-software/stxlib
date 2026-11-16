@@ -10,7 +10,7 @@ Three kinds of fact follow from the graph, each with its own check:
 
 | Kind | Example | Check |
 |---|---|---|
-| Shape | which exits exist; no write before a refusal; which host calls are reachable | this file, by reading; the leaves by `tools/check_stx_minmallocpp_surface.py` on the compiled objects |
+| Shape | which exits exist; no write before a refusal; which host calls are reachable | this file, by reading; the leaves by `tools/check_object_surface.py` (component file `tools/object_surface/stx_minmallocpp.toml`) on the compiled objects |
 | Local | an index is in range; a shift is below 64; a sum cannot wrap | the entry and exit checks (`STX_MINMALLOCPP_CHECK`, on in the direct tests and a Debug `stxlib_state`); the integer-check build; the exhaustive arithmetic tests |
 | Carried state | the bitmaps agree with what is live; the run index is whole | assumed at each entry and checked at each exit (`page_whole`, the run tags); not yet proved for all cases |
 

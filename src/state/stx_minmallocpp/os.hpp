@@ -23,8 +23,8 @@
 // abort is called only by stop, which ends the process; it raises SIGABRT,
 // so a handler the program installed runs first. The allocator makes each
 // call with its tables whole and needs no cancellation guard.
-// tools/check_stx_minmallocpp_surface.py checks this list against the
-// compiled objects.
+// tools/check_object_surface.py checks this list, as written in
+// tools/object_surface/stx_minmallocpp.toml, against the compiled objects.
 //
 // Nothing here reads the environment, writes to a stream, draws entropy or
 // reads the clock.

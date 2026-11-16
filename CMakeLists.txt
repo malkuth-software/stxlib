@@ -954,9 +954,11 @@ if(STXLIB_TESTS)
         target_link_options(stxlib_stx_minmallocpp_interleave PRIVATE ${stxlib_stx_minmallocpp_web_links})
     endif()
     # The allocator's leaves: every symbol its objects leave undefined is a
-    # listed host call or a toolchain helper (tools/
-    # check_stx_minmallocpp_surface.py). The objects are the checked
-    # library's, laid out as the Ninja and Makefile generators do.
+    # listed host call or a toolchain helper (tools/check_object_surface.py,
+    # template_harness's object surface check, with the component file
+    # tools/object_surface/stx_minmallocpp.toml; it needs Python 3.11 for
+    # tomllib). The objects are the checked library's, laid out as the Ninja
+    # and Makefile generators do.
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_Interpreter_FOUND AND CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
         if(WIN32)
@@ -974,7 +976,8 @@ if(STXLIB_TESTS)
             set(stxlib_stx_minmallocpp_sanitized --sanitized)
         endif()
         add_test(NAME stxlib_stx_minmallocpp_surface
-            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_stx_minmallocpp_surface.py
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_object_surface.py
+                    --config ${CMAKE_CURRENT_SOURCE_DIR}/tools/object_surface/stx_minmallocpp.toml
                     --nm ${CMAKE_NM} --family ${stxlib_stx_minmallocpp_family}
                     --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_stx_minmallocpp_checked.dir
                     ${stxlib_stx_minmallocpp_sanitized})
@@ -1514,9 +1517,10 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
-        # The allocator surface check's own tests (every family, no nm).
+        # The object surface check on the allocator's component file (every
+        # family, no nm).
         add_test(NAME stxlib_stx_minmallocpp_surface_tool
-            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_stx_minmallocpp_surface_tests.py
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_object_surface_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
