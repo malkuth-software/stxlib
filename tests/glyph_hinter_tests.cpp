@@ -870,12 +870,14 @@ void store_size() {
     CHECK(serves(opened, store, glyph_i) && store.glyphs_read() == 11);
     // The kept glyphs were never given up.
     CHECK(serves(opened, store, glyph_H) && serves(opened, store, glyph_O) && serves(opened, store, glyph_m) && store.glyphs_read() == 11);
+    // Through all of that the store agrees with itself.
+    CHECK(store.whole());
     // Round and round: every glyph, many times, is always the reader's.
     bool all = true;
     for (u32 round = 0; round < 50; ++round) {
         for (u32 glyph = 0; glyph < glyph_count; ++glyph) all = all && serves(opened, store, (glyph * 7 + round) % glyph_count);
     }
-    CHECK(all);
+    CHECK(all && store.whole());
     // The storage is never more than its limits, the index and the room a
     // glyph is read into.
     CHECK(store.bytes_held() <= 900 + 1640 + 4 * glyph_count + 600);
@@ -1358,6 +1360,10 @@ void face_size() {
         if (step == 30) after_first = busy.bytes_held();
     }
     CHECK(busy.glyphs_fitted() == 120 * glyph_count && after_first > 0 && busy.bytes_held() <= after_first + 8192);
+    // Every face here, after everything done to it, agrees with itself.
+    CHECK(busy.whole() && warm.whole() && face.whole() && narrow.whole() && probe.whole() && shared.whole());
+    glyphs::Face unopened{};
+    CHECK(unopened.whole());
 }
 
 // Thicker strokes, by hand. 1 is an upright bar: at 16 pixels, unfitted,
@@ -1827,6 +1833,12 @@ int main(const int argument_count, const char* const* const arguments) {
     repeated();
     without_blue_zones();
     robustness();
+    // The checked program (CMakeLists.txt, stxlib_glyphs_checked) is this
+    // test on glyph code that checks every structure whole at every exit.
+    std::printf("glyph checks: %s\n", glyphs::glyph_checks_enabled() ? "on" : "off");
+#if defined(STXLIB_GLYPHS_CHECKS_EXPECTED)
+    CHECK(glyphs::glyph_checks_enabled());
+#endif
     const int status = stxlib_tests::finish("stxlib_glyph_hinter_tests");
     return status;
 }

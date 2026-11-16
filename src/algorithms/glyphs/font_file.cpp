@@ -7,6 +7,7 @@
 #include "stxlib/font_file.hpp"
 
 #include "algorithms/glyphs/font_reader.hpp"
+#include "algorithms/glyphs/glyph_checks.hpp"
 
 namespace stxlib::glyphs {
 
@@ -453,6 +454,32 @@ i32 advance_of(const Font& font, const u32 glyph) noexcept {
     return result;
 }
 
+bool glyph_checks_enabled() noexcept {
+#if defined(STXLIB_GLYPHS_CHECKS)
+    return true;
+#else
+    return false;
+#endif
+}
+
+namespace detail {
+
+bool outline_whole(const GlyphOutline& outline) noexcept {
+    const usize count = outline.points.count();
+    bool whole = outline.tags.count() == count;
+    usize before = 0;
+    for (usize contour = 0; whole && contour < outline.contour_ends.count(); ++contour) {
+        const usize last = outline.contour_ends[contour];
+        whole = last < count && (contour == 0 || last > before);
+        before = last;
+    }
+    if (whole && outline.contour_ends.count() > 0) whole = before + 1 == count;
+    if (whole && outline.contour_ends.count() == 0) whole = count == 0;
+    return whole;
+}
+
+} // namespace detail
+
 Status load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     outline.points.clear();
@@ -461,10 +488,16 @@ Status load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, G
     if (glyph >= font.glyph_count) return refuse_font(ErrorKind::invalid_argument, operation);
     if (font.outlines == OutlineKind::truetype) {
         const Status status = detail::load_truetype_glyph(font, glyph, 0, 0, limits, outline);
+        STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() <= limits.points &&
+                                                outline.contour_ends.count() <= limits.contours),
+                            "load_glyph: the outline is not whole");
         return status;
     }
     if (font.outlines == OutlineKind::cff) {
         const Status status = detail::load_cff_glyph(font, glyph, limits, outline);
+        STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() <= limits.points &&
+                                                outline.contour_ends.count() <= limits.contours),
+                            "load_glyph: the outline is not whole");
         return status;
     }
     return refuse_font(ErrorKind::invalid_argument, operation);
@@ -479,6 +512,7 @@ Status load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, c
     if (glyph >= font.glyph_count || x_scale <= 0 || y_scale <= 0) return refuse_font(ErrorKind::invalid_argument, operation);
     if (font.outlines == OutlineKind::truetype) {
         const Status status = detail::load_truetype_glyph(font, glyph, x_scale, y_scale, limits, outline);
+        STXLIB_GLYPHS_CHECK(status.failed() || detail::outline_whole(outline), "load_scaled_glyph: the outline is not whole");
         return status;
     }
     if (font.outlines == OutlineKind::cff) {

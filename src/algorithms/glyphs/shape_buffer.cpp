@@ -2,6 +2,8 @@
 
 #include "algorithms/glyphs/shape_buffer.hpp"
 
+#include "algorithms/glyphs/glyph_checks.hpp"
+
 namespace stxlib::glyphs::detail {
 
 namespace {
@@ -351,7 +353,15 @@ bool ShapeBuffer::sync() noexcept {
     have_output = false;
     out_len = 0;
     idx = 0;
+    STXLIB_GLYPHS_CHECK(whole(), "ShapeBuffer::sync: the buffer is not whole");
     return true;
+}
+
+bool ShapeBuffer::whole() const noexcept {
+    const bool result = info.count() == out.count() && info.count() == pos.count() && len <= info.count() && out_len <= out.count() &&
+                        (have_output || out_len == 0) && (!successful || idx <= len) && context_len[0] <= context_length &&
+                        context_len[1] <= context_length;
+    return result;
 }
 
 void ShapeBuffer::clear_positions() noexcept {

@@ -15,7 +15,9 @@
 //   B6  reading moved back and forward; a sort that joins clusters;
 //       groups reversed;
 //   B7  unsafe to break: which items are marked;
-//   B8  the limits: a most length, operations spent, and ligature ids.
+//   B8  the limits: a most length, operations spent, and ligature ids;
+//       and the check that a buffer agrees with itself, which sees one
+//       that does not.
 
 #include "algorithms/glyphs/shape_buffer.hpp"
 
@@ -359,8 +361,26 @@ void limits() {
     for (u32 index = 0; index < 1000; ++index) buffer.add('a', index);
     buffer.enter();
     CHECK(buffer.max_len == 256000 && buffer.max_ops == 4096000);
+    CHECK(buffer.whole());
+    // The check sees a buffer that does not agree with itself.
+    detail::ShapeBuffer broken{};
+    fill(broken, {{'a', 0}, {'b', 1}});
+    CHECK(broken.whole());
+    broken.len = 3;
+    CHECK(!broken.whole());
+    broken.len = 2;
+    broken.out_len = 1;
+    CHECK(!broken.whole());
+    broken.out_len = 0;
+    broken.idx = 3;
+    CHECK(!broken.whole());
+    broken.idx = 0;
+    broken.context_len[1] = 6;
+    CHECK(!broken.whole());
+    broken.context_len[1] = 0;
+    CHECK(broken.whole());
     buffer.release();
-    CHECK(buffer.len == 0 && buffer.info.count() == 0);
+    CHECK(buffer.len == 0 && buffer.info.count() == 0 && buffer.whole());
 }
 
 } // namespace

@@ -100,6 +100,13 @@ public:
     // The bytes held, as allocated now.
     [[nodiscard]] usize bytes_held() const noexcept;
 
+    // Whether what the store holds agrees with itself: each part's outlines
+    // lie end to end and are counted right, each within its limit, and
+    // every glyph the index names is where the index says. Linear in the
+    // font's glyphs and in what is held: for tests and checked builds
+    // (which check it at the end of every call).
+    [[nodiscard]] bool whole() const noexcept;
+
     // Frees what is held.
     void release() noexcept;
 

@@ -3,6 +3,7 @@
 #include "stxlib/glyph_store.hpp"
 
 #include "algorithms/glyphs/font_reader.hpp"
+#include "algorithms/glyphs/glyph_checks.hpp"
 
 namespace stxlib::glyphs {
 
@@ -161,7 +162,39 @@ Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, 
 
 Status GlyphStore::glyph(const Font& font, const u32 glyph, StoredGlyph& stored) noexcept {
     const Status status = place(font, glyph, false, stored);
+    STXLIB_GLYPHS_CHECK(whole(), "GlyphStore::glyph: the store is not whole");
+    STXLIB_GLYPHS_CHECK(status.failed() || (stored.tags.count() == stored.points.count() && stored.contour_ends.count() <= stored.points.count()),
+                        "GlyphStore::glyph: the glyph given is not whole");
     return status;
+}
+
+bool GlyphStore::whole() const noexcept {
+    bool good = newer_ == 1 || newer_ == 2;
+    for (u32 number = 0; good && number < 3; ++number) {
+        const Part& part = parts_[number];
+        usize points = 0;
+        usize contours = 0;
+        usize cost = 0;
+        for (usize index = 0; good && index < part.records.count(); ++index) {
+            const Record& record = part.records[index];
+            good = record.first_point == points && record.first_contour == contours && record.glyph < index_.count();
+            points = points + record.point_count;
+            contours = contours + record.contour_count;
+            cost = cost + cost_of(record.point_count, record.contour_count);
+        }
+        good = good && points == part.points.count() && part.tags.count() == points && contours == part.contour_ends.count() &&
+               held_[number] == cost;
+        const usize limit = number == part_kept ? store_limits_.kept_bytes / 2 : store_limits_.recent_bytes / 4;
+        good = good && cost <= limit;
+    }
+    for (usize glyph = 0; good && glyph < index_.count(); ++glyph) {
+        const u32 code = index_[glyph];
+        const u32 held_in = code & 3U;
+        if (code == nowhere || held_in == part_refused) continue;
+        const usize number = (code >> 2) - 1;
+        good = number < parts_[held_in].records.count() && parts_[held_in].records[number].glyph == glyph;
+    }
+    return good;
 }
 
 Status GlyphStore::keep(const Font& font, const View<u32> characters, usize& kept) noexcept {
@@ -176,6 +209,7 @@ Status GlyphStore::keep(const Font& font, const View<u32> characters, usize& kep
         if (status.failed() && (*status.error()).kind() == ErrorKind::out_of_memory) return status;
     }
     kept = parts_[part_kept].records.count();
+    STXLIB_GLYPHS_CHECK(whole(), "GlyphStore::keep: the store is not whole");
     return Status::success();
 }
 

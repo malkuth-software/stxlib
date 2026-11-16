@@ -812,6 +812,12 @@ int main() {
     search_maps();
     advances_and_outlines();
     layout_tables();
+    // The checked program (CMakeLists.txt, stxlib_glyphs_checked) is this
+    // test on glyph code that checks every structure whole at every exit.
+    std::printf("glyph checks: %s\n", glyphs::glyph_checks_enabled() ? "on" : "off");
+#if defined(STXLIB_GLYPHS_CHECKS_EXPECTED)
+    CHECK(glyphs::glyph_checks_enabled());
+#endif
     const int status = stxlib_tests::finish("stxlib_glyph_untrusted_tests");
     return status;
 }

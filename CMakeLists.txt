@@ -1007,6 +1007,44 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_shape_buffer_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_shape_buffer_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_shape_buffer_tests COMMAND stxlib_glyph_shape_buffer_tests)
+    # stxlib::glyphs with every check on (src/algorithms/glyphs/
+    # glyph_checks.hpp): the glyph sources compiled again with
+    # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call
+    # is checked whole at the end of every call, and three of the glyph
+    # tests run on them. The objects come before the library in the link,
+    # so the library's unchecked ones are not taken.
+    file(GLOB stxlib_glyph_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/glyphs/*.cpp)
+    add_library(stxlib_glyphs_checked OBJECT ${stxlib_glyph_sources})
+    target_include_directories(stxlib_glyphs_checked PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_glyphs_checked PRIVATE cxx_std_20)
+    target_compile_definitions(stxlib_glyphs_checked PRIVATE STXLIB_GLYPHS_CHECKS)
+    target_compile_options(stxlib_glyphs_checked PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
+    foreach(test_name IN ITEMS glyph_hinter glyph_untrusted glyph_shape_buffer)
+        add_executable(stxlib_${test_name}_checked_tests tests/${test_name}_tests.cpp $<TARGET_OBJECTS:stxlib_glyphs_checked>)
+        target_link_libraries(stxlib_${test_name}_checked_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_${test_name}_checked_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_compile_options(stxlib_${test_name}_checked_tests PRIVATE ${stxlib_test_warnings})
+        target_compile_definitions(stxlib_${test_name}_checked_tests PRIVATE STXLIB_GLYPHS_CHECKS_EXPECTED)
+        add_test(NAME stxlib_${test_name}_checked_tests COMMAND stxlib_${test_name}_checked_tests)
+    endforeach()
+    # The glyph code's leaves: every symbol its objects leave undefined is
+    # STXlib's allocator, lock, error record or requirement failure, or a
+    # toolchain helper (tools/check_glyphs_surface.py). The objects are the
+    # library's, laid out as the Ninja and Makefile generators do.
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND AND CMAKE_NM AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+        set(stxlib_glyphs_surface_options)
+        if(stxlib_sanitized)
+            list(APPEND stxlib_glyphs_surface_options --sanitized)
+        endif()
+        if(STXLIB_HOST_FAMILY STREQUAL "emscripten")
+            list(APPEND stxlib_glyphs_surface_options --web)
+        endif()
+        add_test(NAME stxlib_glyphs_surface
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_glyphs_surface.py
+                    --nm ${CMAKE_NM} --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_algorithms.dir
+                    --under src/algorithms/glyphs/ ${stxlib_glyphs_surface_options})
+    endif()
     # stxlib::glyphs against font tables that are wrong on purpose: what each
     # reader promises of untrusted input, and a bounded search of altered
     # tables (tests/glyph_untrusted_tests.cpp); it reads the internal header
@@ -1484,6 +1522,10 @@ if(STXLIB_TESTS)
                     ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/case_folding_table.inc)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # The glyph surface check's own tests (no nm).
+        add_test(NAME stxlib_glyphs_surface_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_glyphs_surface_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The allocator surface check's own tests (every family, no nm).
         add_test(NAME stxlib_stx_minmallocpp_surface_tool

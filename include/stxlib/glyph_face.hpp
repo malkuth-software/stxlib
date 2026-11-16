@@ -280,6 +280,10 @@ public:
     // far.
     [[nodiscard]] usize glyphs_read() const noexcept;
 
+    // Whether what the typeface holds agrees with itself (GlyphStore::whole).
+    // For tests and checked builds.
+    [[nodiscard]] bool whole() const noexcept;
+
     // The bytes held, as allocated now, and the most that has been since
     // the typeface was opened or reset_peak was last called.
     [[nodiscard]] usize bytes_held() const noexcept;
@@ -341,6 +345,13 @@ public:
 
     // How many times an outline has been fitted so far.
     [[nodiscard]] usize glyphs_fitted() const noexcept;
+
+    // Whether what the face holds agrees with itself: each half's fitted
+    // outlines lie end to end, are counted right and are within the limit,
+    // each can be found by its glyph, size and fit, and each has as many
+    // points as its segments need. Linear in what is held: for tests and
+    // checked builds (which check it at the end of every call).
+    [[nodiscard]] bool whole() const noexcept;
 
     // The bytes this face holds (its fitted outlines and working storage;
     // not the typeface's, which the typeface gives), as allocated now, and

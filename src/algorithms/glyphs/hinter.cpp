@@ -6,6 +6,7 @@
 
 #include "stxlib/glyph_hinter.hpp"
 
+#include "algorithms/glyphs/glyph_checks.hpp"
 #include "algorithms/glyphs/hinter.hpp"
 
 namespace stxlib::glyphs {
@@ -258,6 +259,8 @@ Status Hinter::hint_stored(const Font& font, const u32 glyph, const StoredGlyph&
     if (measured.failed()) return measured;
     const Status status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], stored.points, stored.tags, stored.contour_ends,
                                       stored.advance, size, mode, work, outline, advance);
+    STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() == stored.points.count()),
+                        "Hinter::hint_stored: the outline is not whole");
     return status;
 }
 

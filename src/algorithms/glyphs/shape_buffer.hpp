@@ -233,6 +233,10 @@ struct ShapeBuffer final {
     // A number from 1 to 7 for a ligature made now.
     [[nodiscard]] u32 allocate_ligature_id() noexcept;
 
+    // Whether the buffer agrees with itself: the three arrays one length,
+    // what is read and written inside them, the contexts within their five.
+    [[nodiscard]] bool whole() const noexcept;
+
     // Frees the arrays.
     void release() noexcept;
 };

@@ -166,6 +166,11 @@ struct MappedStretch final {
 // A glyph's advance in font units, or 0 for a glyph the font has not.
 [[nodiscard]] i32 advance_of(const Font& font, u32 glyph) noexcept;
 
+// Whether this build checks, at run time, that what stxlib::glyphs holds
+// agrees with itself at the end of every call (a checked test build:
+// src/algorithms/glyphs/glyph_checks.hpp).
+[[nodiscard]] bool glyph_checks_enabled() noexcept;
+
 // A glyph's outline in font units. An empty glyph (a space) succeeds with
 // no points.
 [[nodiscard]] Status load_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;

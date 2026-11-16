@@ -3,6 +3,7 @@
 #include "stxlib/glyph_face.hpp"
 
 #include "algorithms/glyphs/font_reader.hpp"
+#include "algorithms/glyphs/glyph_checks.hpp"
 #include "core/checked.hpp"
 #include "stxlib/glyph_hinter.hpp"
 #include "stxlib/threads.hpp"
@@ -537,6 +538,47 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     return result;
 }
 
+// Whether the fitted outlines a face holds agree with themselves
+// (Face::whole).
+[[nodiscard]] bool fitted_whole(const FaceState& state) noexcept {
+    bool good = state.newer < 2;
+    const usize half_bytes = state.limits.fitted_bytes / 5;
+    for (u32 number = 0; good && number < 2; ++number) {
+        const FittedHalf& half = state.halves[number];
+        usize kinds = 0;
+        usize points = 0;
+        usize cost = 0;
+        for (usize index = 0; good && index < half.records.count(); ++index) {
+            const FittedRecord& record = half.records[index];
+            good = record.first_kind == kinds && record.first_point == points && record.kind_count <= half.kinds.count() - kinds &&
+                   record.point_count <= half.points.count() - points;
+            // As many points as its segments need.
+            usize needed = 0;
+            for (usize kind = 0; good && kind < record.kind_count; ++kind) {
+                const Segment segment = half.kinds[kinds + kind];
+                needed = needed + (segment == Segment::quadratic ? 2 : (segment == Segment::cubic ? 3 : 1));
+            }
+            good = good && needed == record.point_count && find(half, record.glyph, record.size, record.fit) == index;
+            kinds = kinds + record.kind_count;
+            points = points + record.point_count;
+            cost = cost + cost_of(record.point_count);
+        }
+        good = good && kinds == half.kinds.count() && points == half.points.count() && cost == state.held[number] && cost <= half_bytes;
+        // The table: nothing, or a power of two no more than half full,
+        // each of its entries a record and each record in it once.
+        const usize slots = half.table.count();
+        usize used = 0;
+        for (usize slot = 0; good && slot < slots; ++slot) {
+            const u32 entry = half.table[slot];
+            good = entry <= half.records.count();
+            used = used + (entry != 0 ? 1U : 0U);
+        }
+        const bool power_of_two = slots != 0 && (slots & (slots - 1)) == 0;
+        good = good && used == half.records.count() && (slots == 0 ? used == 0 : (power_of_two && used * 2 <= slots));
+    }
+    return good;
+}
+
 void note_peak(TypefaceState& state) noexcept {
     const usize now = bytes_of(state);
     state.peak = now > state.peak ? now : state.peak;
@@ -633,7 +675,17 @@ Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutlin
         }
     }
     note_peak(state);
+    STXLIB_GLYPHS_CHECK(status.failed() || detail::outline_whole(outline), "Typeface::fit: the outline is not whole");
+    STXLIB_GLYPHS_CHECK(state.store.whole(), "Typeface::fit: the store is not whole");
     return status;
+}
+
+bool Typeface::whole() const noexcept {
+    if (state_.empty()) return true;
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    const bool result = state.store.whole();
+    return result;
 }
 
 Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept {
@@ -770,7 +822,14 @@ Status Face::fitted(const u32 glyph, const i64 size, const Fit fit, FittedGlyph&
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     const Status status = fitted_of(*state_, glyph, size, fit, glyph_out);
     note_peak(*state_);
+    STXLIB_GLYPHS_CHECK(fitted_whole(*state_), "Face::fitted: the fitted outlines are not whole");
     return status;
+}
+
+bool Face::whole() const noexcept {
+    if (state_.empty()) return true;
+    const bool result = fitted_whole(*state_) && (*(*state_).typeface).whole();
+    return result;
 }
 
 Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
@@ -791,6 +850,7 @@ Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bo
                              ? state.rasterizer.render_monochrome(outline, shift, bounds, state.limits.mask, pixels.mutable_view())
                              : state.rasterizer.render(outline, shift, bounds, state.limits.mask, pixels.mutable_view());
     note_peak(state);
+    STXLIB_GLYPHS_CHECK(fitted_whole(state), "Face::mask: the fitted outlines are not whole");
     return drawn;
 }
 
@@ -800,6 +860,7 @@ Status Face::measure_run(const View<RunGlyph> glyphs, const DrawStyle& style, Ru
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     const Status status = place_run(*state_, glyphs, style, box);
     note_peak(*state_);
+    STXLIB_GLYPHS_CHECK(fitted_whole(*state_), "Face::measure_run: the fitted outlines are not whole");
     return status;
 }
 
@@ -865,6 +926,8 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCo
         }
     }
     note_peak(state);
+    STXLIB_GLYPHS_CHECK(fitted_whole(state), "Face::draw_run: the fitted outlines are not whole");
+    STXLIB_GLYPHS_CHECK(coverage.pixels.count() == static_cast<usize>(coverage.width) * coverage.height, "Face::draw_run: the mask is not its box");
     return Status::success();
 }
 
