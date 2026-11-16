@@ -25,6 +25,33 @@ inline constexpr u32 state_bits = 0x0fffu;
 inline constexpr u32 action_shift = 12;
 inline constexpr u32 first_look = 3;
 
+// The automaton's and the look tables' value ranges (A-stxlib-textlayout-01-F4):
+// every entry's state is a row, every action at first_look or above names
+// a row of lb_look_first, every lb_look_first entry is 0, 1 or 2 + a row of
+// lb_look_second, and lb_look_second gives 0 or 1.
+[[nodiscard]] constexpr bool automaton_in_range() noexcept {
+    for (const u16 entry : tables::lb_dfa) {
+        if ((entry & state_bits) >= tables::lb_dfa_state_count) return false;
+        const u32 action = static_cast<u32>(entry) >> action_shift;
+        if (action >= first_look && action - first_look >= tables::lb_look_first_count) return false;
+    }
+    for (const u8 (&row)[tables::lb_symbol_count + 1] : tables::lb_look_first) {
+        for (const u8 decision : row) {
+            if (decision >= 2 && decision - 2u >= tables::lb_look_second_count) return false;
+        }
+    }
+    for (const u8 (&row)[tables::lb_symbol_count + 1] : tables::lb_look_second) {
+        for (const u8 decision : row) {
+            if (decision >= 2) return false;
+        }
+    }
+    return true;
+}
+
+static_assert(tables::lb_dfa_letter_state < tables::lb_dfa_state_count && tables::lb_dfa_letter_symbol < tables::lb_symbol_count,
+              "stx_textlayout: the letters form's state and symbol");
+static_assert(automaton_in_range(), "stx_textlayout: the automaton and look tables keep their ranges");
+
 // One code point of well-formed UTF-8 at `bytes`.
 struct Decoded final {
     u32 value;

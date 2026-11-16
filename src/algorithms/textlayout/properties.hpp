@@ -42,6 +42,56 @@ inline constexpr u32 opens_bit = 0x80000000u;
 inline constexpr u32 highest_code_point = 0x10ffffu;
 inline constexpr u32 replacement_character = 0xfffdu;
 
+// The generated table's value ranges, checked at compile time against the
+// arrays the code indexes with them (A-stxlib-textlayout-01-F4), so that a
+// regenerated table that drifts from the code fails to compile instead of
+// reading outside static data. Each walk is linear in its table.
+static_assert((static_cast<u32>(sizeof(property_stage1) / sizeof(property_stage1[0])) << property_block_shift) ==
+                  highest_code_point + 1,
+              "stx_textlayout: stage 1 covers every code point");
+static_assert(property_block_mask + 1 == (1u << property_block_shift), "stx_textlayout: the block mask");
+static_assert(lb_symbol_count < (1u << lb_dfa_shift), "stx_textlayout: a symbol fits an automaton row");
+static_assert(lb_symbol_count <= symbol_bits && script_count <= script_bits + 1 && script_extension_set_count <= 0xffu,
+              "stx_textlayout: the record's fields hold their counts");
+
+[[nodiscard]] constexpr bool stage1_in_range() noexcept {
+    for (const u16 block : property_stage1) {
+        if (static_cast<usize>(block) >= property_block_count) return false;
+    }
+    return true;
+}
+
+// Every record: Bidi_Class below bidi_class_count (23: the analysis's
+// per-class arrays), the symbol below lb_symbol_count, Script below
+// script_count, the set at most script_extension_set_count.
+[[nodiscard]] constexpr bool records_in_range(const u32 class_count) noexcept {
+    for (const u32 (&block)[property_block_mask + 1] : property_stage2) {
+        for (const u32 properties : block) {
+            if ((properties & class_bits) >= class_count) return false;
+            if (((properties >> symbol_shift) & symbol_bits) >= lb_symbol_count) return false;
+            if (((properties >> script_shift) & script_bits) >= script_count) return false;
+            if ((properties >> extension_shift) > script_extension_set_count) return false;
+        }
+    }
+    return true;
+}
+
+[[nodiscard]] constexpr bool extensions_in_range() noexcept {
+    constexpr usize member_count = sizeof(script_extension_members) / sizeof(script_extension_members[0]);
+    if (script_extension_begin[0] != 0) return false;
+    for (u32 set = 1; set <= script_extension_set_count; ++set) {
+        if (script_extension_begin[set] < script_extension_begin[set - 1]) return false;
+    }
+    if (static_cast<usize>(script_extension_begin[script_extension_set_count]) > member_count) return false;
+    for (const u8 member : script_extension_members) {
+        if (static_cast<u32>(member) >= script_count) return false;
+    }
+    return true;
+}
+
+static_assert(stage1_in_range(), "stx_textlayout: every stage-1 entry names a block");
+static_assert(extensions_in_range(), "stx_textlayout: the extension sets lie within their members");
+
 // The records of U+0000 to U+007F, contiguous (block 0).
 inline constexpr const u32* ascii_records = property_stage2[0];
 static_assert(property_stage1[0] == 0, "stx_textlayout: block 0 is the ASCII block");

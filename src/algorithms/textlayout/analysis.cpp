@@ -255,6 +255,10 @@ constexpr u8 increase_even[bidi_class_count] = {0, 1, 1, 2, 0, 0, 2, 0, 0, 0, 0,
 constexpr u8 increase_odd[bidi_class_count] = {1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0,
                                                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+// Every record's Bidi_Class indexes the per-class arrays above
+// (A-stxlib-textlayout-01-F4).
+static_assert(tables::records_in_range(bidi_class_count), "stx_textlayout: every record's fields are in range");
+
 // BD16 over the candidates: marks each pair's opening run with its
 // closing run. 63 openers at most; at the 64th, pairing stops for the
 // rest of the sequence and the pairs found stand.
