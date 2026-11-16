@@ -468,11 +468,27 @@ STXLIB_MODULAR void hash_word(std::uint64_t& hash, const std::uint64_t word) {
     hash *= 1099511628211ULL;
 }
 
+// The hash's inputs, the same bits on every host: no host library call
+// (std::exp2 here gave x, and the host's exp2 is not correctly rounded:
+// macOS's misrounds 483 of the first 300,000 such exponents, Neo, Python
+// 3.15.2 against a 45-digit decimal reference; wasm32's musl rounds
+// differently, so the M4 and node hashed different inputs), and the two
+// draws sequenced (the operands of one * are unsequenced in C++). The spread
+// is 2^-12 to 2^12, linear within each octave: floor and ldexp are exact.
+double completion_input(Lcg& lcg) {
+    const double sign_part = lcg.unit() - 0.5;
+    const double exponent = 24.0 * lcg.unit() - 12.0;
+    const double whole = std::floor(exponent);
+    const double scale = std::ldexp(1.0 + (exponent - whole), static_cast<int>(whole));
+    const double result = sign_part * scale;
+    return result;
+}
+
 std::uint64_t completion_output_hash() {
     std::uint64_t hash = 1469598103934665603ULL;
     Lcg lcg{95};
     for (int i = 0; i < 1000000; ++i) {
-        const double x = (lcg.unit() - 0.5) * std::exp2(24.0 * lcg.unit() - 12.0);
+        const double x = completion_input(lcg);
         const float xf = static_cast<float>(x);
         hash_word(hash, std::bit_cast<std::uint64_t>(stxlib::math::exp2(x)));
         hash_word(hash, std::bit_cast<std::uint64_t>(stxlib::math::expm1(x)));
@@ -484,10 +500,12 @@ std::uint64_t completion_output_hash() {
     return hash;
 }
 
-// Not yet frozen (0): the integrator's freezing run (STXLIB_FREEZE_HASHES=1,
-// both product forms agreeing) prints it and writes it here. Until then the
+// Not frozen (0) since the inputs became host-independent (was
+// 0x119df3c383ff0bfe on the M4 and 8bff36753c803718 on wasm32, from the
+// host's std::exp2): the integrator's freezing run (STXLIB_FREEZE_HASHES=1,
+// both product forms and both hosts agreeing) writes it here. Until then the
 // check fails outside freezing mode (frozen_hash.hpp).
-constexpr std::uint64_t expected_completion_output_hash = 0x119df3c383ff0bfeULL;
+constexpr std::uint64_t expected_completion_output_hash = 0;
 
 void determinism() {
     const std::uint64_t hash = completion_output_hash();
