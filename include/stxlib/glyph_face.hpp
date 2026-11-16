@@ -50,10 +50,17 @@
 // Turned text (DrawStyle's matrix; turn_matrix makes one for an angle).
 // A glyph is fitted to its size as for upright text, in the text's own
 // frame, and that fitted outline is what is taken through the matrix and
-// drawn. So text at any angle has what fitting gives that does not depend
-// on the pixel grid: stems of one weight, letters on common heights,
-// accents kept apart. What it cannot have off the axes is edges that lie
-// on pixel boundaries. Because the outline is the same at every angle,
+// drawn. WHICH FIT TO TURN. Fitting moves a glyph's features onto whole
+// pixels of the upright frame, and that is a gain only while the text
+// stands on the pixel grid: at 0 degrees and the quarter turns. Between
+// them the whole pixels mean nothing and what fitting moved is simply
+// moved: measured on the bundled Arimo at 13 pixels, the gap under the dot
+// of an i is 1.45 pixels unfitted and 1.00 fitted (at 11 pixels 1.24 and
+// 1.06), and a gap of one pixel that is not on a pixel row is grey, so
+// the dot closes up against its stem. Between the axes Fit::none draws the
+// truer letter, and Fit::light with a matrix is for text at rest on an
+// axis or passing through one. Because the fitted outline is the same at
+// every angle,
 // text that turns through 0 degrees does not change shape on the way: at
 // 0 the matrix changes nothing and the bytes are the upright ones. At a
 // quarter turn, a half turn and three quarters (matrices of 0, 65536 and
