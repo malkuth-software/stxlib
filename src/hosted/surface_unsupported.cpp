@@ -7,7 +7,7 @@
 namespace stxlib::surface_backend {
 
 Result<detail::SurfaceState*> open() noexcept {
-    const Result<detail::SurfaceState*> result = Result<detail::SurfaceState*>::failure(
+    Result<detail::SurfaceState*> result = Result<detail::SurfaceState*>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.open", HostCode::none));
     return result;
 }
@@ -35,7 +35,7 @@ Result<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceR
     (void)state;
     (void)rects;
     (void)count;
-    const Result<SurfacePresent> result = Result<SurfacePresent>::failure(
+    Result<SurfacePresent> result = Result<SurfacePresent>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.present", HostCode::none));
     return result;
 }
@@ -46,7 +46,7 @@ Result<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const
     (void)events;
     (void)capacity;
     (void)wait_ms;
-    const Result<usize> result = Result<usize>::failure(
+    Result<usize> result = Result<usize>::failure(
         host_failure::record(ErrorKind::unsupported, "stxlib.surface.read_events", HostCode::none));
     return result;
 }
