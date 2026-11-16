@@ -51,10 +51,11 @@
 // The offset is added to every point before anything else: one outline
 // serves every position, to 1/64 of a pixel.
 //
-// Bounds. An outline has at most Limits::points points; a mask is at most
+// Bounds. An outline has at most Limits::points points (and never more
+// than 2^30, whatever the limit); a mask is at most
 // Limits::width by Limits::height pixels; the working storage is 8 bytes
 // for each of (width + 2) * height cells, at most Limits::work_cells, and
-// five kilobytes for the chords in hand. The
+// 27 kilobytes for the chords and segments in hand. The
 // work is linear in the points, the chords (at most 2^16 a curve) and the
 // mask's area. No recursion.
 //
@@ -136,7 +137,8 @@ public:
 
 private:
     Vector<i64> cells_{};
-    // Chords in hand (src/algorithms/glyphs/chords.hpp).
+    // Chords in hand (src/algorithms/glyphs/chords.hpp) and the lists of
+    // segments (src/algorithms/glyphs/mask.cpp).
     Vector<i32> block_{};
 };
 

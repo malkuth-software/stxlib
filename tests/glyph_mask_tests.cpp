@@ -38,11 +38,15 @@
 //       all along it.)
 //   M11 the forms: chords of every form, drawn through the block and its
 //       loops, give every cell the integers the arithmetic in full gives
-//       (src/algorithms/glyphs/chords.hpp).
+//       (src/algorithms/glyphs/chords.hpp);
+//   M12 the quadratics by number of chords: a quadratic of one, two or four
+//       chords, through its list's loop, puts the chords the rule in full
+//       puts (src/algorithms/glyphs/flatten.hpp).
 
 #include "stxlib/glyph_mask.hpp"
 
 #include "algorithms/glyphs/chords.hpp"
+#include "algorithms/glyphs/flatten.hpp"
 #include "algorithms/glyphs/reciprocal.hpp"
 
 #include "test_support.hpp"
@@ -317,6 +321,77 @@ void shared_edges() {
     CHECK(equal);
 }
 
+// M12.
+[[nodiscard]] bool same_chords(const stxlib::glyphs::detail::Block& a, const stxlib::glyphs::detail::Block& b) {
+    namespace detail = stxlib::glyphs::detail;
+    if (a.count != b.count) return false;
+    for (usize form = 0; form < detail::form_count; ++form) {
+        if (a.listed[form] != b.listed[form]) return false;
+        const usize words = a.listed[form] * detail::chord_words;
+        for (usize word = 0; word < words; ++word) {
+            if (a.words[form * detail::list_words + word] != b.words[form * detail::list_words + word]) return false;
+        }
+    }
+    return true;
+}
+
+void quadratics_by_chords() {
+    namespace detail = stxlib::glyphs::detail;
+    // A mask of 16 by 16 pixels; points in 26.6.
+    std::vector<i32> listed_words(detail::block_words, 0);
+    std::vector<i32> full_words(detail::block_words, 0);
+    std::vector<i32> lists(detail::lists_words, 0);
+    detail::Work by_list{.cells = detail::Cells{},
+                         .block = detail::Block{.words = listed_words.data(), .count = 0, .listed = {}},
+                         .lists = lists.data(),
+                         .shift_x = 0,
+                         .shift_y = 0,
+                         .height = 16 * 256};
+    detail::Work in_full{.cells = detail::Cells{},
+                         .block = detail::Block{.words = full_words.data(), .count = 0, .listed = {}},
+                         .lists = nullptr,
+                         .shift_x = 0,
+                         .shift_y = 0,
+                         .height = 16 * 256};
+    std::uint64_t tried[4] = {};
+    bool equal = true;
+    for (int round = 0; round < 400000; ++round) {
+        // A start anywhere; the control and the end near it, nearer or
+        // farther, so that every number of chords comes up.
+        const i32 reach = 8 + random_coordinate(next_random() % 3 == 0 ? 400 : 60);
+        const glyphs::Point start{.x = random_coordinate(1025), .y = random_coordinate(1025)};
+        glyphs::Point control{.x = start.x + random_coordinate(2 * reach + 1) - reach, .y = start.y + random_coordinate(2 * reach + 1) - reach};
+        glyphs::Point end{.x = control.x + random_coordinate(2 * reach + 1) - reach, .y = control.y + random_coordinate(2 * reach + 1) - reach};
+        control.x = control.x < 0 ? 0 : (control.x > 1024 ? 1024 : control.x);
+        control.y = control.y < 0 ? 0 : (control.y > 1024 ? 1024 : control.y);
+        end.x = end.x < 0 ? 0 : (end.x > 1024 ? 1024 : end.x);
+        end.y = end.y < 0 ? 0 : (end.y > 1024 ? 1024 : end.y);
+        const glyphs::Point points[3] = {start, control, end};
+        const i32 list[1] = {1};
+        const detail::Sorted sorted = detail::sort_quadratics(points, list, 1, lists.data());
+        detail::add_quadratics_of_one(by_list, points, lists.data(), sorted.of_one);
+        detail::add_quadratics_of_two(by_list, points, lists.data() + detail::segment_block, sorted.of_two);
+        detail::add_quadratics_of_four(by_list, points, lists.data() + 2 * detail::segment_block, sorted.of_four);
+        tried[0] = tried[0] + sorted.of_one;
+        tried[1] = tried[1] + sorted.of_two;
+        tried[2] = tried[2] + sorted.of_four;
+        tried[3] = tried[3] + sorted.of_more;
+        if (sorted.of_more == 0) {
+            detail::add_quadratic(in_full, detail::to_frame(in_full, start), detail::to_frame(in_full, control),
+                                  detail::to_frame(in_full, end));
+            if (!same_chords(by_list.block, in_full.block)) equal = false;
+        }
+        // Nothing is drawn: the blocks are only emptied.
+        by_list.block = detail::Block{.words = listed_words.data(), .count = 0, .listed = {}};
+        in_full.block = detail::Block{.words = full_words.data(), .count = 0, .listed = {}};
+    }
+    std::printf("quadratics by chords: one %llu, two %llu, four %llu, more %llu\n", static_cast<unsigned long long>(tried[0]),
+                static_cast<unsigned long long>(tried[1]), static_cast<unsigned long long>(tried[2]),
+                static_cast<unsigned long long>(tried[3]));
+    CHECK(equal);
+    for (int kind = 0; kind < 4; ++kind) CHECK(tried[kind] > 10000);
+}
+
 // M11.
 void forms() {
     namespace detail = stxlib::glyphs::detail;
@@ -334,16 +409,23 @@ void forms() {
     bool equal = true;
     for (int round = 0; round < 40000; ++round) {
         for (int chord = 0; chord < 60; ++chord) {
-            // An end anywhere; the other near it or anywhere; some
-            // coordinates on cell edges.
+            // An end anywhere; the other near it, above or below it,
+            // beside it, or anywhere; some coordinates on cell edges.
             detail::Fixed begin{.x = random_coordinate(extent + 1), .y = random_coordinate(extent + 1)};
             detail::Fixed end{.x = random_coordinate(extent + 1), .y = random_coordinate(extent + 1)};
-            if (next_random() % 8 != 0) {
+            const std::uint64_t kind = next_random() % 8;
+            if (kind < 4) {
                 const i32 reach = 16 + random_coordinate(600);
                 end.x = begin.x + random_coordinate(2 * reach + 1) - reach;
                 end.y = begin.y + random_coordinate(2 * reach + 1) - reach;
                 if (next_random() % 6 == 0) end.x = begin.x;
                 if (next_random() % 12 == 0) end.y = begin.y;
+            } else if (kind < 6) {
+                end.x = begin.x + random_coordinate(601) - 300;
+                end.y = begin.y + random_coordinate(2801) - 1400;
+            } else if (kind < 7) {
+                end.x = begin.x + random_coordinate(1601) - 800;
+                end.y = begin.y + random_coordinate(401) - 200;
             }
             if (next_random() % 4 == 0) begin.x = (begin.x / 256) * 256;
             if (next_random() % 4 == 0) begin.y = (begin.y / 256) * 256;
@@ -368,12 +450,11 @@ void forms() {
         detail::add_block(form_cells, block);
         if (by_forms != in_full) equal = false;
     }
-    std::printf("forms: in a cell %llu, across two cells %llu, down two rows %llu, over four cells %llu, other %llu, along a row %llu\n",
-                static_cast<unsigned long long>(drawn[0]), static_cast<unsigned long long>(drawn[1]),
-                static_cast<unsigned long long>(drawn[2]), static_cast<unsigned long long>(drawn[3]),
-                static_cast<unsigned long long>(drawn[4]), static_cast<unsigned long long>(level));
+    std::printf("forms:");
+    for (usize form = 0; form < detail::form_count; ++form) std::printf(" %llu", static_cast<unsigned long long>(drawn[form]));
+    std::printf(", along a row %llu\n", static_cast<unsigned long long>(level));
     CHECK(equal);
-    for (usize form = 0; form < detail::form_count; ++form) CHECK(drawn[form] > 100000);
+    for (usize form = 0; form < detail::form_count; ++form) CHECK(drawn[form] > 20000);
     CHECK(level > 1000);
 }
 
@@ -382,9 +463,12 @@ void reciprocals() {
     namespace detail = stxlib::glyphs::detail;
     std::uint64_t compared = 0;
     std::uint64_t wrong = 0;
-    for (stxlib::i64 divisor = 1; divisor < detail::brief_extent; ++divisor) {
+    // Divisors below brief_extent up to brief_dividend; the rest of the
+    // table up to the dividends of a chord narrower than two cells.
+    constexpr stxlib::i64 narrow_dividend = (static_cast<stxlib::i64>(1) << 25) + 2048;
+    for (stxlib::i64 divisor = 1; divisor < static_cast<stxlib::i64>(detail::reciprocal_count); ++divisor) {
         const stxlib::u64 reciprocal = detail::reciprocals.of[divisor];
-        const stxlib::i64 greatest = static_cast<stxlib::i64>(detail::brief_dividend);
+        const stxlib::i64 greatest = divisor < detail::brief_extent ? static_cast<stxlib::i64>(detail::brief_dividend) : narrow_dividend;
         if (detail::quotient(0, divisor, reciprocal) != 0) wrong = wrong + 1;
         if (detail::quotient(greatest, divisor, reciprocal) != greatest / divisor) wrong = wrong + 1;
         const stxlib::i64 last = greatest / divisor;
@@ -645,6 +729,7 @@ int main() {
     many_chords();
     reciprocals();
     forms();
+    quadratics_by_chords();
     const int status = stxlib_tests::finish("stxlib_glyph_mask_tests");
     return status;
 }
