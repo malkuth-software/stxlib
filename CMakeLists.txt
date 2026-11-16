@@ -704,6 +704,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/frozen_map.cpp
     src/algorithms/glyphs/font_cff.cpp
     src/algorithms/glyphs/font_file.cpp
+    src/algorithms/glyphs/font_names.cpp
     src/algorithms/glyphs/font_truetype.cpp
     src/algorithms/glyphs/glyph_face.cpp
     src/algorithms/glyphs/glyph_store.cpp
@@ -712,6 +713,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/layout_tables.cpp
     src/algorithms/glyphs/shape_buffer.cpp
     src/algorithms/glyphs/shape_unicode.cpp
+    src/algorithms/glyphs/unicode_properties.cpp
     src/algorithms/glyphs/shape_plan.cpp
     src/algorithms/glyphs/shape_apply.cpp
     src/algorithms/glyphs/shape_text.cpp
@@ -1125,6 +1127,16 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_untrusted_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_untrusted_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_untrusted_tests COMMAND stxlib_glyph_untrusted_tests)
+    # General category and canonical composition (unicode_properties.hpp):
+    # every code point against UnicodeData.txt, read by the test's own
+    # parser. Not on the web (the file is the host's).
+    if(NOT stxlib_web_tests)
+        add_executable(stxlib_unicode_properties_tests tests/unicode_properties_tests.cpp)
+        target_link_libraries(stxlib_unicode_properties_tests PRIVATE stxlib::algorithms)
+        target_compile_options(stxlib_unicode_properties_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_unicode_properties_tests
+            COMMAND stxlib_unicode_properties_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0/UnicodeData.txt)
+    endif()
     # Simple case folding (C7): every code point against CaseFolding.txt,
     # read by the test's own parser; and the committed table is the
     # generator's output for the pinned file.

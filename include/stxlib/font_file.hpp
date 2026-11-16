@@ -8,7 +8,8 @@
 // drawing operators with fixed limits.
 //
 // What is read: the table directory (and a collection's, for one face of
-// it); head, maxp, hhea, hmtx and OS/2 for the face's numbers; cmap formats
+// it, and its count of faces); head, maxp, hhea, hmtx and OS/2 for the
+// face's numbers; name for its names when they are asked for; cmap formats
 // 0, 4, 6 and 12 for characters; loca and glyf, composite glyphs included,
 // for TrueType outlines; CFF for PostScript outlines.
 //
@@ -135,7 +136,40 @@ struct Font final {
     FontTable local_subroutines{};
     FontTable font_dictionaries{};
     FontTable dictionary_select{};
+    // The name table (font_name, family_name and style_name read it);
+    // empty when the font has none or its header and records are not
+    // inside it.
+    FontTable names{};
+    // hhea's own numbers, as the table has them (ascender and descender
+    // above are the face's by FreeType's rule).
+    i32 hhea_ascender{0};
+    i32 hhea_descender{0};
+    i32 hhea_line_gap{0};
+    // OS/2, as FreeType 2.14.2 reads it: os2_version is 0xFFFF, and the
+    // rest 0, when the font has no OS/2 or one too short for its version
+    // (78 bytes for version 0, 86 for 1, 96 for 2 to 4, 100 for 5 and
+    // later). selection is fsSelection: bit 0 italic, 5 bold, 6 regular,
+    // 7 use the typographic metrics, 8 WWS, 9 oblique.
+    u32 os2_version{0xFFFF};
+    u32 weight_class{0};
+    u32 width_class{0};
+    u32 selection{0};
+    i32 typo_ascender{0};
+    i32 typo_descender{0};
+    i32 typo_line_gap{0};
+    u32 win_ascent{0};
+    u32 win_descent{0};
 };
+
+// Name identifiers of the name table.
+inline constexpr u32 name_family = 1;
+inline constexpr u32 name_style = 2;
+inline constexpr u32 name_full = 4;
+inline constexpr u32 name_postscript = 6;
+inline constexpr u32 name_typographic_family = 16;
+inline constexpr u32 name_typographic_style = 17;
+inline constexpr u32 name_wws_family = 21;
+inline constexpr u32 name_wws_style = 22;
 
 // How a point of a GlyphOutline is used (FreeType's tag values).
 enum class PointTag : u8 {
@@ -159,6 +193,33 @@ struct GlyphOutline final {
 // Reads face `face` of the font in `bytes` (0 for a font that is not a
 // collection).
 [[nodiscard]] Status open_font(View<u8> bytes, u32 face, Font& font) noexcept;
+
+// How many faces the bytes hold: a collection's count (TTC or OTC), 1 for
+// one font, 0 for bytes that are neither (a collection of no face, or one
+// whose list of faces is not inside the bytes, is neither). Only the
+// header is read: a face counted may still be refused by open_font.
+[[nodiscard]] u32 face_count(View<u8> bytes) noexcept;
+
+// A name of the font, as UTF-8 in `text` (emptied first; empty when the
+// font has no such name). The record is chosen as FreeType 2.14.2 chooses
+// it: Windows' (encodings 0, 1 and 10, read as UTF-16) in English (US or
+// any other English) or, when there is none in English, the last Windows
+// one, unless there is a Macintosh one and the Windows one is not in
+// English; then Macintosh's in English, else in Roman; else the Unicode
+// platform's (UTF-16). Records whose text is not inside the table, or is
+// empty, are passed over. Unlike FreeType, the text is not cut to ASCII:
+// UTF-16 is decoded (a lone surrogate is U+FFFD) and Macintosh text is
+// read as Mac Roman. It ends at a U+0000, as FreeType's does. Linear in
+// the table's records; the text is at most 3 bytes for each byte of the
+// record's string. out_of_memory is the only failure.
+[[nodiscard]] Status font_name(const Font& font, u32 name_id, Vector<char>& text) noexcept;
+
+// The family and style names, by FreeType 2.14.2's rule (its
+// family_name and style_name): when OS/2's fsSelection has bit 8, the
+// typographic name (16, 17) and then the plain one (1, 2); otherwise the
+// WWS name (21, 22), then the typographic one, then the plain one.
+[[nodiscard]] Status family_name(const Font& font, Vector<char>& text) noexcept;
+[[nodiscard]] Status style_name(const Font& font, Vector<char>& text) noexcept;
 
 // The glyph for a character, or 0 when the font has none.
 [[nodiscard]] u32 glyph_of(const Font& font, u32 character) noexcept;
