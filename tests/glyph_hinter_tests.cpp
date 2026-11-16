@@ -55,6 +55,15 @@
 //       fitted again and one in use is not, by count; warming; and
 //       drawing a text again reads nothing, fits nothing and holds no
 //       more bytes;
+//   F7  thicker strokes: a bar and a ring by hand (the left and bottom
+//       stay, a pixel more to the right and up, the ink is the area, the
+//       counter stays clear); in a run, in every fit; out of range refused;
+//   F8  a typeface for the program: faces share what is read; four threads
+//       drawing at once from one typeface draw what one draws alone, each
+//       glyph read once; byte limits hold and the peak is kept;
+//   F9  the font's numbers an application's own font code used to give:
+//       heights of small letters and capitals, whether a feature is
+//       listed (and a table cut short), a glyph's box at a size;
 //   H7  robustness: every prefix of the font and many copies with bytes
 //       changed are prepared and hinted; each either succeeds or is
 //       refused (the sanitizer builds are what make this a memory check).
@@ -67,6 +76,8 @@
 #include "stxlib/glyph_hinter.hpp"
 #include "stxlib/glyph_mask.hpp"
 #include "stxlib/glyph_store.hpp"
+#include "stxlib/shared.hpp"
+#include "stxlib/threads.hpp"
 
 #include "font_builder.hpp"
 #include "test_support.hpp"
@@ -829,28 +840,29 @@ void store_size() {
     Opened opened{};
     open_letters(opened);
     if (!opened.ready) return;
-    // Points: 1 has 4; i, n and o 8; h and p 10; H and m 12; O and 0 16.
-    // Room for 40 points kept, and two halves of 32.
-    const glyphs::StoreLimits small{.kept_points = 40, .recent_points = 64};
+    // A glyph takes 9 bytes a point, 4 a contour and 24: 1 takes 64; n 100;
+    // i and o 104; h 118; p 122; H and m 136; O and 0 176. A part holds
+    // half its storage: room for 450 bytes kept, and two halves of 410.
+    const glyphs::StoreLimits small{.kept_bytes = 900, .recent_bytes = 1640};
     glyphs::GlyphStore store{};
     CHECK(store.open(opened.font, opened.limits, small).succeeded());
-    // H (12), O (16) and m (12) fill the kept part; n (8) has no room
-    // there and goes with the recent ones; the font has no z.
+    // H, O and m, 448 bytes, fill the kept part; n has no room there and
+    // goes with the recent ones; the font has no z.
     const u32 likely[] = {'H', 'O', 'm', 'n', 'z'};
     usize kept = 0;
     CHECK(store.keep(opened.font, stxlib::View<u32>(likely), kept).succeeded() && kept == 3);
     CHECK(store.glyphs_read() == 4);
     // Named again, nothing changes.
     CHECK(store.keep(opened.font, stxlib::View<u32>(likely), kept).succeeded() && kept == 3 && store.glyphs_read() == 4);
-    // The newer half: n, i, o are 24 points; p (10) does not fit, so the
+    // The newer half: n, i, o are 308 bytes; p (122) does not fit, so the
     // (empty) older half is given up and p begins a new one.
     CHECK(serves(opened, store, glyph_i) && serves(opened, store, glyph_o) && serves(opened, store, glyph_p));
     CHECK(store.glyphs_read() == 7);
     // n is in the older half: it is moved to the newer, not read.
     CHECK(serves(opened, store, glyph_n) && store.glyphs_read() == 7);
-    // h (10) and 1 (4) fill the newer half: p, n, h, 1 are 32.
+    // h and 1 fill the newer half: p, n, h, 1 are 404 bytes.
     CHECK(serves(opened, store, glyph_h) && serves(opened, store, glyph_one) && store.glyphs_read() == 9);
-    // 0 (16) does not fit: the older half (i and o; n has left it) is
+    // 0 (176) does not fit: the older half (i and o; n has left it) is
     // given up.
     CHECK(serves(opened, store, glyph_zero) && store.glyphs_read() == 10);
     // n, in use all along, is still held; i is read again.
@@ -864,15 +876,18 @@ void store_size() {
         for (u32 glyph = 0; glyph < glyph_count; ++glyph) all = all && serves(opened, store, (glyph * 7 + round) % glyph_count);
     }
     CHECK(all);
-    // Halves of 8: H (12) is too large for one. It is served, and read
-    // each time.
-    const glyphs::StoreLimits tiny{.kept_points = 0, .recent_points = 16};
+    // The storage is never more than its limits, the index and the room a
+    // glyph is read into.
+    CHECK(store.bytes_held() <= 900 + 1640 + 4 * glyph_count + 600);
+    // Halves of 110 bytes: H (136) is too large for one. It is served, and
+    // read each time; i (104) is held.
+    const glyphs::StoreLimits tiny{.kept_bytes = 0, .recent_bytes = 440};
     glyphs::GlyphStore narrow{};
     CHECK(narrow.open(opened.font, opened.limits, tiny).succeeded());
     CHECK(serves(opened, narrow, glyph_H) && serves(opened, narrow, glyph_H) && narrow.glyphs_read() == 2);
     CHECK(serves(opened, narrow, glyph_i) && serves(opened, narrow, glyph_i) && narrow.glyphs_read() == 3);
     // Nothing kept at all still serves.
-    const glyphs::StoreLimits none{.kept_points = 0, .recent_points = 0};
+    const glyphs::StoreLimits none{.kept_bytes = 0, .recent_bytes = 0};
     glyphs::GlyphStore empty{};
     CHECK(empty.open(opened.font, opened.limits, none).succeeded());
     CHECK(serves(opened, empty, glyph_m) && serves(opened, empty, glyph_one) && empty.glyphs_read() == 2);
@@ -928,12 +943,12 @@ void face_basics() {
     CHECK(face.open(view_of(opened.bytes), 0).succeeded());
     CHECK(face.font() != nullptr && (*face.font()).glyph_count == glyph_count);
     // Opening reads no glyph and fits none.
-    CHECK(face.glyphs_read() == 0 && face.glyphs_fitted() == 0);
+    CHECK((*face.typeface()).glyphs_read() == 0 && face.glyphs_fitted() == 0);
     const stxlib::Status beyond = face.fitted(glyph_count, 1024, glyphs::Fit::light, fitted);
     const stxlib::Status no_size = face.fitted(glyph_H, 0, glyphs::Fit::light, fitted);
     const stxlib::Status huge = face.fitted(glyph_H, (static_cast<i64>(1) << 24) + 1, glyphs::Fit::light, fitted);
     CHECK(beyond.failed() && no_size.failed() && huge.failed());
-    CHECK(face.glyphs_read() == 0 && face.glyphs_fitted() == 0);
+    CHECK((*face.typeface()).glyphs_read() == 0 && face.glyphs_fitted() == 0);
     // A fitted outline is the hinter's, cut into segments; its box is the
     // box of its points; asked for again it is not fitted again.
     const glyphs::Fit fits[] = {glyphs::Fit::none, glyphs::Fit::light, glyphs::Fit::monochrome};
@@ -972,9 +987,9 @@ void face_basics() {
         }
     }
     // Each glyph was read from the font once for all three fits.
-    CHECK(face.glyphs_read() == glyph_count);
+    CHECK((*face.typeface()).glyphs_read() == glyph_count);
     face.release();
-    CHECK(face.font() == nullptr && face.bytes_held() == 0 && face.glyphs_read() == 0);
+    CHECK(face.font() == nullptr && face.bytes_held() == 0 && face.typeface().empty());
 }
 
 void face_masks() {
@@ -996,7 +1011,10 @@ void face_masks() {
                 for (u32 glyph = 0; glyph < glyph_count; ++glyph) {
                     glyphs::Bounds bounds{};
                     glyphs::Bounds expected_bounds{};
-                    const bool had = face.mask(glyph, size, fit, shift, bounds, pixels).succeeded() &&
+                    glyphs::DrawStyle style{};
+                    style.size = size;
+                    style.fit = fit;
+                    const bool had = face.mask(glyph, style, shift, bounds, pixels).succeeded() &&
                                      long_way(opened, glyph, size, fit, shift, expected_bounds, expected);
                     bool same = had && same_bounds(bounds, expected_bounds) && pixels.count() == expected.size();
                     for (usize index = 0; same && index < expected.size(); ++index) {
@@ -1014,7 +1032,9 @@ void face_masks() {
     // Rows run from the top: i's first rows of ink are its dot, which is
     // shorter than the stem under it.
     glyphs::Bounds bounds{};
-    CHECK(face.mask(glyph_i, 32 * 64, glyphs::Fit::light, glyphs::Point{0, 0}, bounds, pixels).succeeded());
+    glyphs::DrawStyle large{};
+    large.size = 32 * 64;
+    CHECK(face.mask(glyph_i, large, glyphs::Point{0, 0}, bounds, pixels).succeeded());
     usize first_block = 0;
     usize gap = 0;
     usize second_block = 0;
@@ -1041,7 +1061,8 @@ struct OwnRun final {
     i64 height{0};
 };
 
-[[nodiscard]] bool own_run(glyphs::Face& face, const std::vector<glyphs::RunGlyph>& run, const i64 size, const glyphs::Fit fit, OwnRun& own) {
+[[nodiscard]] bool own_run(glyphs::Face& face, const std::vector<glyphs::RunGlyph>& run, const glyphs::DrawStyle& style, OwnRun& own) {
+    const glyphs::Fit fit = style.fit;
     struct Piece final {
         std::vector<u8> pixels{};
         i64 left{0};
@@ -1062,7 +1083,7 @@ struct OwnRun final {
         const glyphs::Point shift{static_cast<i32>(glyph.x - pixel_x * 64), static_cast<i32>(-(glyph.y - pixel_y * 64))};
         glyphs::Bounds bounds{};
         stxlib::Vector<u8> pixels{};
-        if (face.mask(glyph.glyph, size, fit, shift, bounds, pixels).failed()) return false;
+        if (face.mask(glyph.glyph, style, shift, bounds, pixels).failed()) return false;
         if (bounds.width == 0 || bounds.height == 0) continue;
         Piece piece{};
         piece.left = pixel_x + bounds.left;
@@ -1115,7 +1136,7 @@ void face_runs() {
     glyphs::RunBox box{};
     const glyphs::Fit fits[] = {glyphs::Fit::none, glyphs::Fit::light, glyphs::Fit::monochrome};
     // A run of no glyphs.
-    glyphs::RunStyle style{};
+    glyphs::DrawStyle style{};
     style.size = 16 * 64;
     CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(), style, coverage).succeeded() && coverage.pixels.empty() && coverage.width == 0);
     // One glyph, on a pixel and off it, here and far from the origin.
@@ -1125,7 +1146,7 @@ void face_runs() {
         for (const glyphs::RunGlyph& place : places) {
             const std::vector<glyphs::RunGlyph> run = {place};
             OwnRun own{};
-            const bool had = own_run(face, run, style.size, fit, own) &&
+            const bool had = own_run(face, run, style, own) &&
                              face.draw_run(stxlib::View<glyphs::RunGlyph>(run.data(), run.size()), style, coverage).succeeded();
             CHECK(had && run_is(coverage, own) && coverage.missing_glyphs == 0 && !coverage.oversized);
         }
@@ -1141,7 +1162,7 @@ void face_runs() {
             style.size = size;
             OwnRun own{};
             const stxlib::View<glyphs::RunGlyph> view(line.data(), line.size());
-            const bool had = own_run(face, line, size, fit, own) && face.draw_run(view, style, coverage).succeeded() &&
+            const bool had = own_run(face, line, style, own) && face.draw_run(view, style, coverage).succeeded() &&
                              face.measure_run(view, style, box).succeeded();
             CHECK(had && run_is(coverage, own));
             // The box measured is the box drawn.
@@ -1174,7 +1195,7 @@ void face_windows() {
     glyphs::Face face{};
     CHECK(face.open(view_of(opened.bytes), 0).succeeded());
     glyphs::RunCoverage coverage{};
-    glyphs::RunStyle style{};
+    glyphs::DrawStyle style{};
     style.size = 16 * 64;
     // H at 16 pixels is 8 wide and 11 tall, from its origin up. Three of
     // them 100 pixels apart; a window that shows the middle one only.
@@ -1218,7 +1239,7 @@ void face_turned() {
     if (!opened.ready) return;
     glyphs::Face face{};
     CHECK(face.open(view_of(opened.bytes), 0).succeeded());
-    glyphs::RunStyle style{};
+    glyphs::DrawStyle style{};
     style.size = 20 * 64;
     style.fit = glyphs::Fit::none;
     const glyphs::RunGlyph run[] = {{glyph_h, 33, 0}, {glyph_p, 700, 10}};
@@ -1266,10 +1287,11 @@ void face_size() {
         points_of[glyph] = fitted.outline.points.count();
     }
     CHECK(points_of[glyph_one] == 4 && points_of[glyph_i] == 8 && points_of[glyph_n] == 8 && points_of[glyph_o] == 8 && points_of[glyph_H] == 12);
-    // Halves of 16 points: two of i, n and o fit in one, not three.
+    // An outline takes 9 bytes a point and 96: i, n and o 168, 1 132, H
+    // 204. A half holds a fifth of the limit: halves of 400 bytes, in
+    // which two of i, n and o fit and not three.
     glyphs::FaceLimits small{};
-    small.fitted_points = 32;
-    small.fitted_glyphs = 64;
+    small.fitted_bytes = 2000;
     glyphs::Face face{};
     CHECK(face.open(view_of(opened.bytes), 0, small).succeeded());
     const i64 size = 1024;
@@ -1279,7 +1301,7 @@ void face_size() {
     CHECK(face.fitted(glyph_o, size, fit, fitted).succeeded() && face.glyphs_fitted() == 3);
     // n is moved to the newer half, not fitted again: o and n fill it.
     CHECK(face.fitted(glyph_n, size, fit, fitted).succeeded() && face.glyphs_fitted() == 3);
-    // 1 (4 points) does not fit: the older half, with i, is given up, and
+    // 1 (132 bytes) does not fit: the older half, with i, is given up, and
     // o and n are the older half now.
     CHECK(face.fitted(glyph_one, size, fit, fitted).succeeded() && face.glyphs_fitted() == 4);
     // n, in use all along, is held; i is fitted again; the same glyph at
@@ -1289,34 +1311,304 @@ void face_size() {
     CHECK(face.fitted(glyph_i, size + 64, fit, fitted).succeeded() && face.glyphs_fitted() == 6);
     CHECK(face.fitted(glyph_i, size + 64, glyphs::Fit::none, fitted).succeeded() && face.glyphs_fitted() == 7);
     // Through all of that each glyph was read from the font once.
-    CHECK(face.glyphs_read() == 4);
-    // H (12 points) is too large for a half of 4: served, fitted each time.
+    CHECK((*face.typeface()).glyphs_read() == 4);
+    // H (204 bytes) is too large for a half of 100: served, fitted each
+    // time.
     glyphs::FaceLimits tiny{};
-    tiny.fitted_points = 8;
+    tiny.fitted_bytes = 500;
     glyphs::Face narrow{};
     CHECK(narrow.open(view_of(opened.bytes), 0, tiny).succeeded());
     CHECK(narrow.fitted(glyph_H, size, fit, fitted).succeeded() && fitted.outline.points.count() == 12 &&
-          narrow.fitted(glyph_H, size, fit, fitted).succeeded() && narrow.glyphs_fitted() == 2 && narrow.glyphs_read() == 1);
+          narrow.fitted(glyph_H, size, fit, fitted).succeeded() && narrow.glyphs_fitted() == 2 && (*narrow.typeface()).glyphs_read() == 1);
     // Warming: the characters' glyphs are read, and fitted if a size is
     // given; the font has no z.
     const u32 likely[] = {'H', 'O', 'n', 'z', 'o'};
     glyphs::Face warm{};
     usize warmed = 0;
     CHECK(warm.open(view_of(opened.bytes), 0).succeeded());
-    CHECK(warm.warm(stxlib::View<u32>(likely), 0, fit, warmed).succeeded() && warmed == 4 && warm.glyphs_read() == 4 && warm.glyphs_fitted() == 0);
-    CHECK(warm.warm(stxlib::View<u32>(likely), size, fit, warmed).succeeded() && warmed == 4 && warm.glyphs_read() == 4 && warm.glyphs_fitted() == 4);
+    const glyphs::Typeface& shared = *warm.typeface();
+    CHECK(warm.warm(stxlib::View<u32>(likely), 0, fit, warmed).succeeded() && warmed == 4 && shared.glyphs_read() == 4 && warm.glyphs_fitted() == 0);
+    CHECK(warm.warm(stxlib::View<u32>(likely), size, fit, warmed).succeeded() && warmed == 4 && shared.glyphs_read() == 4 && warm.glyphs_fitted() == 4);
     // A text drawn again reads nothing, fits nothing and holds no more.
     const glyphs::RunGlyph text[] = {{glyph_H, 0, 0}, {glyph_O, 520, 0}, {glyph_n, 1040, 0}, {glyph_o, 1500, 0}, {glyph_n, 1960, 0}};
-    glyphs::RunStyle style{};
+    glyphs::DrawStyle style{};
     style.size = size;
     glyphs::RunCoverage coverage{};
     CHECK(warm.draw_run(stxlib::View<glyphs::RunGlyph>(text), style, coverage).succeeded());
-    const usize read = warm.glyphs_read();
+    const usize read = shared.glyphs_read();
     const usize fittings = warm.glyphs_fitted();
     const usize bytes = warm.bytes_held();
-    CHECK(read == 4 && fittings == 4 && bytes > 0);
+    const usize shared_bytes = shared.bytes_held();
+    CHECK(read == 4 && fittings == 4 && bytes > 0 && shared_bytes > 0);
     for (int again = 0; again < 20; ++again) CHECK(warm.draw_run(stxlib::View<glyphs::RunGlyph>(text), style, coverage).succeeded());
-    CHECK(warm.glyphs_read() == read && warm.glyphs_fitted() == fittings && warm.bytes_held() == bytes);
+    CHECK(shared.glyphs_read() == read && warm.glyphs_fitted() == fittings && warm.bytes_held() == bytes && shared.bytes_held() == shared_bytes);
+    // The most held is at least what is held; reset, it is what is held.
+    CHECK(warm.bytes_peak() >= bytes && shared.bytes_peak() >= shared_bytes);
+    warm.reset_peak();
+    CHECK(warm.bytes_peak() == warm.bytes_held());
+    // The fitted outlines' storage stays under its limit however much is
+    // fitted: a face of 8,192 bytes, every glyph at 120 sizes.
+    glyphs::FaceLimits bounded{};
+    bounded.fitted_bytes = 8192;
+    glyphs::Face busy{};
+    CHECK(busy.open(view_of(opened.bytes), 0, bounded).succeeded());
+    usize after_first = 0;
+    for (i64 step = 0; step < 120; ++step) {
+        for (u32 glyph = 0; glyph < glyph_count; ++glyph) CHECK(busy.fitted(glyph, 600 + step * 13, fit, fitted).succeeded());
+        if (step == 30) after_first = busy.bytes_held();
+    }
+    CHECK(busy.glyphs_fitted() == 120 * glyph_count && after_first > 0 && busy.bytes_held() <= after_first + 8192);
+}
+
+// Thicker strokes, by hand. 1 is an upright bar: at 16 pixels, unfitted,
+// from 215 to 297 across (26.6) and 0 to 717 up. Thickened by a pixel (64)
+// its left and bottom stay and it grows a pixel right and up: 215 to 361,
+// 0 to 781.
+void face_thicker() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    glyphs::Face face{};
+    CHECK(face.open(view_of(opened.bytes), 0).succeeded());
+    glyphs::DrawStyle style{};
+    style.size = 16 * 64;
+    style.fit = glyphs::Fit::none;
+    glyphs::Bounds plain{};
+    glyphs::Bounds thick{};
+    stxlib::Vector<u8> plain_pixels{};
+    stxlib::Vector<u8> thick_pixels{};
+    CHECK(face.mask(glyph_one, style, glyphs::Point{0, 0}, plain, plain_pixels).succeeded());
+    style.thicken = 64;
+    CHECK(face.mask(glyph_one, style, glyphs::Point{0, 0}, thick, thick_pixels).succeeded());
+    CHECK(plain.left == 3 && plain.width == 2 && plain.top == 12 && plain.height == 12);
+    if (!(thick.left == 3 && thick.width == 3 && thick.top == 13 && thick.height == 13)) {
+        std::fprintf(stderr, "  thick 1: left %d width %u top %d height %u\n", thick.left, thick.width, thick.top, thick.height);
+    }
+    CHECK(thick.left == 3 && thick.width == 3 && thick.top == 13 && thick.height == 13);
+    // Its ink is its area: 146 by 781 sixty-fourths, 27.84 pixels.
+    unsigned long long ink = 0;
+    for (usize index = 0; index < thick_pixels.count(); ++index) ink = ink + thick_pixels[index];
+    if (!(ink > 27 * 255 + 138 && ink < 28 * 255 + 80)) std::fprintf(stderr, "  thick 1: ink %llu\n", ink);
+    CHECK(ink > 27 * 255 + 138 && ink < 28 * 255 + 80);
+    // o at 20 pixels is 64 to 512 across and 0 to 640 up with a counter
+    // from 166 to 410: thickened by a pixel it is a pixel wider and
+    // taller, and its counter, a pixel narrower from the left, is still
+    // clear at its middle.
+    style.size = 20 * 64;
+    style.thicken = 0;
+    CHECK(face.mask(glyph_o, style, glyphs::Point{0, 0}, plain, plain_pixels).succeeded());
+    style.thicken = 64;
+    CHECK(face.mask(glyph_o, style, glyphs::Point{0, 0}, thick, thick_pixels).succeeded());
+    CHECK(plain.left == 1 && plain.width == 7 && plain.height == 10);
+    CHECK(thick.left == 1 && thick.width == 8 && thick.height == 11 && thick.top == 11);
+    // The pixel at column 5 (x from 5 to 6), six rows down: in the counter.
+    const usize middle = static_cast<usize>(6) * thick.width + 4;
+    CHECK(thick_pixels.count() > middle && thick_pixels[middle] == 0);
+    // The stem to its left (x from 1 to 3.59) is solid ink there.
+    CHECK(thick_pixels.count() > middle && thick_pixels[static_cast<usize>(6) * thick.width + 1] == 255);
+    // No thickening is no change; too much, or less than none, is refused.
+    style.thicken = 0;
+    glyphs::Bounds again{};
+    CHECK(face.mask(glyph_o, style, glyphs::Point{0, 0}, again, thick_pixels).succeeded() && same_bounds(again, plain) &&
+          thick_pixels.count() == plain_pixels.count());
+    style.thicken = 1025;
+    const stxlib::Status much = face.mask(glyph_o, style, glyphs::Point{0, 0}, again, thick_pixels);
+    style.thicken = -1;
+    const stxlib::Status less = face.mask(glyph_o, style, glyphs::Point{0, 0}, again, thick_pixels);
+    CHECK(much.failed() && (*much.error()).kind() == stxlib::ErrorKind::invalid_argument && less.failed());
+    // In a run, with hinting, at parts of a pixel: each glyph's thickened
+    // mask put together by the rule, and never less ink than without.
+    const std::vector<glyphs::RunGlyph> line = {{glyph_H, 3, 0}, {glyph_o, 600 + 13, 0}, {glyph_n_tilde, 1100, 20}, {glyph_O, 1700, 0}, {glyph_p, 2300, 7}};
+    const glyphs::Fit fits[] = {glyphs::Fit::none, glyphs::Fit::light, glyphs::Fit::monochrome};
+    for (const glyphs::Fit fit : fits) {
+        for (i32 thicken = 16; thicken <= 96; thicken = thicken + 40) {
+            style = glyphs::DrawStyle{};
+            style.size = 18 * 64 + 5;
+            style.fit = fit;
+            glyphs::RunCoverage thin{};
+            glyphs::RunCoverage bold{};
+            const stxlib::View<glyphs::RunGlyph> view(line.data(), line.size());
+            CHECK(face.draw_run(view, style, thin).succeeded());
+            style.thicken = thicken;
+            OwnRun own{};
+            CHECK(own_run(face, line, style, own) && face.draw_run(view, style, bold).succeeded() && run_is(bold, own));
+            unsigned long long thin_ink = 0;
+            unsigned long long bold_ink = 0;
+            for (usize index = 0; index < thin.pixels.count(); ++index) thin_ink = thin_ink + thin.pixels[index];
+            for (usize index = 0; index < bold.pixels.count(); ++index) bold_ink = bold_ink + bold.pixels[index];
+            CHECK(bold_ink > thin_ink && bold.width >= thin.width && bold.height >= thin.height);
+        }
+    }
+}
+
+// A typeface for the program: faces on several threads draw from one, each
+// glyph read from the font once for all of them.
+struct ThreadWork final {
+    stxlib::Shared<glyphs::Typeface> typeface{};
+    u32 number{0};
+    unsigned long long sum{0};
+    bool good{false};
+};
+
+[[nodiscard]] unsigned long long draw_all(glyphs::Face& face, const u32 number, bool& good) {
+    unsigned long long sum = 0;
+    glyphs::RunCoverage coverage{};
+    good = true;
+    for (u32 round = 0; round < 40; ++round) {
+        glyphs::RunGlyph run[glyph_count] = {};
+        for (u32 glyph = 0; glyph < glyph_count; ++glyph) run[glyph] = glyphs::RunGlyph{(glyph + round) % glyph_count, static_cast<i32>(glyph * 700 + round), 0};
+        glyphs::DrawStyle style{};
+        // Every thread goes through the same sizes, in an order of its own.
+        style.size = 600 + static_cast<i64>((round * 7 + number * 11) % 40) * 29;
+        style.fit = (round + number) % 3 == 0 ? glyphs::Fit::monochrome : glyphs::Fit::light;
+        good = good && face.draw_run(stxlib::View<glyphs::RunGlyph>(run), style, coverage).succeeded();
+        unsigned long long ink = 0;
+        for (usize index = 0; index < coverage.pixels.count(); ++index) ink = ink + coverage.pixels[index];
+        sum = sum + ink * static_cast<unsigned long long>(style.size) + coverage.width;
+    }
+    return sum;
+}
+
+void draw_on_thread(const stxlib::StopSignal& stop, void* const context) noexcept {
+    static_cast<void>(stop);
+    ThreadWork& work = *static_cast<ThreadWork*>(context);
+    glyphs::Face face{};
+    if (face.open(work.typeface).failed()) return;
+    bool good = false;
+    work.sum = draw_all(face, work.number, good);
+    work.good = good;
+}
+
+void shared_typeface() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(opened.bytes), 0);
+    CHECK(made.succeeded());
+    if (made.failed()) return;
+    const stxlib::Shared<glyphs::Typeface> typeface = *made.value();
+    CHECK((*typeface).font() != nullptr && (*typeface).glyphs_read() == 0);
+    // Two faces of it: what one has read, the other finds there.
+    glyphs::Face first{};
+    glyphs::Face second{};
+    CHECK(first.open(typeface).succeeded() && second.open(typeface).succeeded());
+    glyphs::FittedGlyph fitted{};
+    CHECK(first.fitted(glyph_H, 1024, glyphs::Fit::light, fitted).succeeded() && (*typeface).glyphs_read() == 1);
+    const i32 advance = fitted.advance;
+    const usize points = fitted.outline.points.count();
+    CHECK(second.fitted(glyph_H, 1024, glyphs::Fit::light, fitted).succeeded() && (*typeface).glyphs_read() == 1);
+    CHECK(fitted.advance == advance && fitted.outline.points.count() == points && first.glyphs_fitted() == 1 && second.glyphs_fitted() == 1);
+    // A face holds its typeface: the caller's own hold can go.
+    glyphs::Face lasting{};
+    {
+        stxlib::Result<stxlib::Shared<glyphs::Typeface>> brief = glyphs::open_typeface(view_of(opened.bytes), 0);
+        CHECK(brief.succeeded() && lasting.open(*brief.value()).succeeded());
+    }
+    CHECK(lasting.fitted(glyph_p, 1024, glyphs::Fit::light, fitted).succeeded() && fitted.outline.points.count() > 0);
+    // An empty typeface is no typeface.
+    glyphs::Face none{};
+    CHECK(none.open(stxlib::Shared<glyphs::Typeface>()).failed());
+    // What one thread alone draws.
+    unsigned long long alone[4] = {};
+    for (u32 number = 0; number < 4; ++number) {
+        glyphs::Face face{};
+        bool good = false;
+        CHECK(face.open(view_of(opened.bytes), 0).succeeded());
+        alone[number] = draw_all(face, number, good);
+        CHECK(good && alone[number] != 0);
+    }
+    // Four threads at once, each with a face of the one typeface, draw the
+    // same: every glyph was read once for all four.
+    stxlib::Result<stxlib::Shared<glyphs::Typeface>> common = glyphs::open_typeface(view_of(opened.bytes), 0);
+    CHECK(common.succeeded());
+    if (common.failed()) return;
+    ThreadWork work[4] = {};
+    stxlib::Thread threads[4] = {};
+    bool started = true;
+    for (u32 number = 0; number < 4; ++number) {
+        work[number].typeface = *common.value();
+        work[number].number = number;
+        stxlib::Result<stxlib::Thread> thread = stxlib::Thread::start(draw_on_thread, &work[number]);
+        if (thread.failed()) {
+            started = false;
+            break;
+        }
+        threads[number] = static_cast<stxlib::Result<stxlib::Thread>&&>(thread).take_value();
+    }
+    for (u32 number = 0; number < 4; ++number) static_cast<void>(threads[number].join());
+    CHECK(started);
+    for (u32 number = 0; number < 4; ++number) CHECK(started && work[number].good && work[number].sum == alone[number]);
+    CHECK((*(*common.value())).glyphs_read() == glyph_count);
+}
+
+// What Pocket Library's FontSet gave, from the one interface: the font's
+// numbers, whether it has a feature, a glyph's box, and a glyph's mask
+// moved and thickened.
+void font_numbers() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    // The font of the letters says nothing of small letters' height and
+    // has no substitutions.
+    CHECK(opened.font.x_height == 0 && opened.font.cap_height == 0 && !glyphs::has_feature(opened.font, 0x736D6370U));
+    // With an OS/2 of version 2 that says so, and a table of substitutions
+    // that lists 'liga' and 'smcp'.
+    Bytes os2 = os2_table(2, 0, 750, -200, 50, 950, 250);
+    os2.resize(96, 0);
+    os2[86] = 0x01;
+    os2[87] = 0xF4;
+    os2[88] = 0x02;
+    os2[89] = 0xBC;
+    Bytes gsub{};
+    font_builder::put32(gsub, 0x00010000U);
+    font_builder::put16(gsub, 0);
+    font_builder::put16(gsub, 10);
+    font_builder::put16(gsub, 0);
+    font_builder::put16(gsub, 2);
+    font_builder::put32(gsub, 0x6C696761U);
+    font_builder::put16(gsub, 0);
+    font_builder::put32(gsub, 0x736D6370U);
+    font_builder::put16(gsub, 0);
+    Bytes glyf{};
+    Bytes loca{};
+    Bytes hmtx{};
+    const std::vector<Bytes> glyph_bytes = {Bytes{}, simple_glyph({{{0, 0, true}, {0, 100, true}, {100, 100, true}, {100, 0, true}}})};
+    const std::vector<Metric> metrics = {{500, 0}, {500, 0}};
+    glyph_tables(glyph_bytes, metrics, 2, true, glyf, loca, hmtx);
+    const Bytes bytes = font_of(0x00010000U, {{"GSUB", gsub},
+                                              {"OS/2", os2},
+                                              {"cmap", cmap_table({{3, 1, map_format_4({{'A', 'A', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}})},
+                                              {"glyf", glyf},
+                                              {"head", head_table(1000, true)},
+                                              {"hhea", hhea_table(800, -220, 50, 2)},
+                                              {"hmtx", hmtx},
+                                              {"loca", loca},
+                                              {"maxp", maxp_table(2)}});
+    glyphs::Font font{};
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    CHECK(font.x_height == 500 && font.cap_height == 700);
+    CHECK(glyphs::has_feature(font, 0x6C696761U) && glyphs::has_feature(font, 0x736D6370U) && !glyphs::has_feature(font, 0x6F6E756DU));
+    // A table of substitutions cut short lists nothing, and nothing is
+    // read past it.
+    for (usize length = 0; length < gsub.size(); ++length) {
+        const Bytes cut(gsub.begin(), gsub.begin() + static_cast<std::ptrdiff_t>(length));
+        const Bytes cut_font = font_of(0x00010000U, {{"GSUB", cut},
+                                                     {"cmap", cmap_table({{3, 1, map_format_4({{'A', 'A', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}})},
+                                                     {"glyf", glyf},
+                                                     {"head", head_table(1000, true)},
+                                                     {"hhea", hhea_table(800, -220, 50, 2)},
+                                                     {"hmtx", hmtx},
+                                                     {"loca", loca},
+                                                     {"maxp", maxp_table(2)}});
+        glyphs::Font other{};
+        CHECK(glyphs::open_font(view_of(cut_font), 0, other).succeeded() && !glyphs::has_feature(other, 0x736D6370U));
+    }
+    // A glyph's box at a size, unfitted: the square at 16 pixels is 0 to
+    // 102 (26.6) each way.
+    glyphs::Face face{};
+    glyphs::FittedGlyph fitted{};
+    CHECK(face.open(view_of(bytes), 0).succeeded() && face.fitted(1, 1024, glyphs::Fit::none, fitted).succeeded());
+    CHECK(fitted.left == 0 && fitted.bottom == 0 && fitted.right == 102 && fitted.top == 102 && fitted.advance == 512);
 }
 
 // A font whose only characters are A and B, each a square: no blue zone
@@ -1389,7 +1681,7 @@ void use(const Bytes& bytes, std::uint64_t& prepared, std::uint64_t& hinted) {
     glyphs::RunGlyph run[16] = {};
     for (u32 glyph = 0; glyph < 16; ++glyph) run[glyph] = glyphs::RunGlyph{glyph, static_cast<i32>(glyph * 700 + glyph), static_cast<i32>(glyph * 3)};
     glyphs::RunCoverage coverage{};
-    glyphs::RunStyle style{};
+    glyphs::DrawStyle style{};
     style.size = 14 * 64 + 9;
     static_cast<void>(face.draw_run(stxlib::View<glyphs::RunGlyph>(run), style, coverage));
     style.fit = glyphs::Fit::monochrome;
@@ -1397,7 +1689,9 @@ void use(const Bytes& bytes, std::uint64_t& prepared, std::uint64_t& hinted) {
     style.fit = glyphs::Fit::none;
     style.transformed = true;
     style.xy = 0x4000;
+    style.thicken = 37;
     static_cast<void>(face.draw_run(stxlib::View<glyphs::RunGlyph>(run), style, coverage));
+    static_cast<void>(glyphs::has_feature(font, 0x6C696761U));
 }
 
 void robustness() {
@@ -1463,6 +1757,9 @@ int main(const int argument_count, const char* const* const arguments) {
     face_windows();
     face_turned();
     face_size();
+    face_thicker();
+    shared_typeface();
+    font_numbers();
     repeated();
     without_blue_zones();
     robustness();

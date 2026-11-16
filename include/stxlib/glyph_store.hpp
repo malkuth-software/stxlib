@@ -12,7 +12,7 @@
 // (points in contour order, each tagged, and the last point of each
 // contour) and its advance in font units: one entry serves every size.
 //
-// What is kept, and for how long. The store is of a fixed size
+// What is kept, and for how long. The store is of a fixed size in bytes
 // (StoreLimits), in two parts.
 // - The kept glyphs: those the caller names in advance (keep: the letters
 //   a text is most likely made of). They stay until the store is released.
@@ -28,9 +28,9 @@
 // refusal, and is not read again. A glyph too large for a half is read
 // each time it is asked for and not kept.
 //
-// Bounds. Memory: at most kept_points + recent_points points (9 bytes a
-// point and at most 4 more a contour, 24 a glyph held), and 4 bytes a glyph
-// of the font.
+// Bounds. Memory: at most kept_bytes + recent_bytes for the glyphs held,
+// 4 bytes a glyph of the font for finding them, and the largest glyph met
+// once more to read into; bytes_held gives what is allocated now.
 // Asking for a glyph that is held is constant time; moving one to the
 // newer half is linear in its points; giving up a half is linear in the
 // glyphs that were in it.
@@ -52,12 +52,16 @@
 
 namespace stxlib::glyphs {
 
-// How much a store holds, in points of outline.
+// How much a store holds, in bytes of storage. A glyph takes 9 bytes a
+// point, 4 a contour and 24 for itself. The storage for the kept glyphs
+// never exceeds kept_bytes, nor that for the recent ones recent_bytes
+// (storage grows by doubling, so what is held is at most half of each).
 struct StoreLimits final {
-    // The glyphs named in advance: about a thousand Latin letters.
-    u32 kept_points{32768};
+    // The glyphs named in advance. Storage is taken as it is needed, not all
+    // at once: these are where it stops.
+    usize kept_bytes{1048576};
     // The glyphs in recent use, both halves together.
-    u32 recent_points{131072};
+    usize recent_bytes{4194304};
 };
 
 // A glyph as the store holds it: borrowed from the store.
@@ -128,6 +132,8 @@ private:
     Vector<u32> index_{};
     // 0: the kept glyphs; 1 and 2: the halves of the recent ones.
     Part parts_[3]{};
+    // What each part holds, in bytes (StoreLimits' measure).
+    usize held_[3]{};
     u32 newer_{1};
     GlyphOutline loaded_{};
     FontLimits limits_{};

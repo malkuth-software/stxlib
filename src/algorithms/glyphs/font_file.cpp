@@ -54,6 +54,7 @@ struct Tables final {
     FontTable glyf{};
     FontTable cff{};
     FontTable post{};
+    FontTable gsub{};
 };
 
 // The character maps this reads, and which is taken: a map of all of
@@ -219,6 +220,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         if (name == tag('h', 'h', 'e', 'a')) tables.hhea = table;
         if (name == tag('h', 'm', 't', 'x')) tables.hmtx = table;
         if (name == tag('O', 'S', '/', '2')) tables.os2 = table;
+        if (name == tag('G', 'S', 'U', 'B')) tables.gsub = table;
         if (name == tag('c', 'm', 'a', 'p')) tables.cmap = table;
         if (name == tag('l', 'o', 'c', 'a')) tables.loca = table;
         if (name == tag('g', 'l', 'y', 'f')) tables.glyf = table;
@@ -254,6 +256,11 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     const Span post = table_of(font, tables.post);
     font.fixed_pitch = has(post, 0, 16) && read_u32(post, 12) != 0;
     if (has(os2, 0, 64)) font.italic = (read_u16(os2, 62) & 0x201U) != 0;
+    if (has(os2, 0, 90) && read_u16(os2, 0) >= 2) {
+        font.x_height = read_i16(os2, 86);
+        font.cap_height = read_i16(os2, 88);
+    }
+    font.substitutions = tables.gsub;
     if (has(os2, 0, 78)) {
         const i32 typo_ascender = read_i16(os2, 68);
         const i32 typo_descender = read_i16(os2, 70);
@@ -411,6 +418,20 @@ u32 glyph_in_stretch(const Font& font, const MappedStretch& stretch, const u32 c
     }
     const u32 result = glyph < font.glyph_count ? glyph : 0;
     return result;
+}
+
+bool has_feature(const Font& font, const u32 wanted) noexcept {
+    const Span table = table_of(font, font.substitutions);
+    // The header: version, then the offsets of the lists of scripts,
+    // features and lookups. A feature record is its tag and an offset.
+    if (!has(table, 0, 10)) return false;
+    const usize list = read_u16(table, 6);
+    if (list == 0 || !has(table, list, 2)) return false;
+    const usize count = read_u16(table, list);
+    if (!has(table, list + 2, count * 6)) return false;
+    bool found = false;
+    for (usize index = 0; index < count && !found; ++index) found = read_u32(table, list + 2 + index * 6) == wanted;
+    return found;
 }
 
 i32 advance_of(const Font& font, const u32 glyph) noexcept {
