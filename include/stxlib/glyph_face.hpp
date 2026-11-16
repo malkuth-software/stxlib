@@ -37,7 +37,15 @@
 // this is the fit for text. monochrome: one bit a pixel, hinted along both
 // axes, drawn by the monochrome rule. none: the outline scaled and no
 // more, for text that is turned or sheared (a matrix is given with it) and
-// for measuring.
+// for measuring. The unfitted outline is the one a TrueType or CFF scaler
+// gives without hinting, point for point: a TrueType glyph's parts and
+// their offsets are each scaled and rounded on their own (load_scaled_glyph),
+// so such a glyph is read from the font at the size and not scaled from
+// the store.
+//
+// A glyph's ink box at a size (Typeface::ink_box) is the box of that
+// unfitted outline's points, control points included: what a shaper that
+// asks FreeType for a glyph's extents without hinting is given.
 //
 // Thicker strokes (DrawStyle::thicken), for a bold or a small capital a
 // font has not. This is the definition:
@@ -220,6 +228,15 @@ struct RunCoverage final {
     bool oversized{false};
 };
 
+// A glyph's box at a size, 26.6 pixels, y upward from the baseline: left
+// to right and bottom to top. All 0 for a glyph of no points.
+struct InkBox final {
+    i32 left{0};
+    i32 bottom{0};
+    i32 right{0};
+    i32 top{0};
+};
+
 namespace detail {
 // What a typeface and a face hold (src/algorithms/glyphs/glyph_face.cpp).
 // Neither is part of this interface, so that it can change without a
@@ -255,7 +272,12 @@ public:
     // Fit::none, hinted otherwise. This is what a Face fits from.
     [[nodiscard]] Status fit(u32 glyph, i64 size, Fit fit, GlyphOutline& outline, i32& advance) noexcept;
 
-    // How many times a glyph has been read from the font so far.
+    // The glyph's ink box at `size`, unfitted. Nothing is kept of it: a
+    // caller that asks often keeps the answer.
+    [[nodiscard]] Status ink_box(u32 glyph, i64 size, InkBox& box) noexcept;
+
+    // How many times a glyph has been read from the font into the store so
+    // far.
     [[nodiscard]] usize glyphs_read() const noexcept;
 
     // The bytes held, as allocated now, and the most that has been since

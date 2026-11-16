@@ -1603,12 +1603,76 @@ void font_numbers() {
         glyphs::Font other{};
         CHECK(glyphs::open_font(view_of(cut_font), 0, other).succeeded() && !glyphs::has_feature(other, 0x736D6370U));
     }
+    // A glyph put together from another: the square, and the square again
+    // 33 across and 17 up. Its parts and their offsets are scaled each on
+    // their own, as TrueType has it: at 13 pixels and a bit the unfitted
+    // outline and the ink box are load_scaled_glyph's, point for point.
+    {
+        const std::vector<Bytes> parts = {Bytes{}, simple_glyph({{{0, 0, true}, {0, 101, true}, {101, 101, true}, {101, 0, true}}}),
+                                          font_builder::composite_glyph(0, {{0x0003, 1, 0, 0, {}}, {0x0003, 1, 33, 17, {}}})};
+        const std::vector<Metric> part_metrics = {{500, 0}, {500, 0}, {500, 0}};
+        Bytes part_glyf{};
+        Bytes part_loca{};
+        Bytes part_hmtx{};
+        glyph_tables(parts, part_metrics, 3, true, part_glyf, part_loca, part_hmtx);
+        const Bytes composite_font = font_of(0x00010000U, {{"cmap", cmap_table({{3, 1, map_format_4({{'A', 'B', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}})},
+                                                           {"glyf", part_glyf},
+                                                           {"head", head_table(1000, true)},
+                                                           {"hhea", hhea_table(800, -220, 50, 3)},
+                                                           {"hmtx", part_hmtx},
+                                                           {"loca", part_loca},
+                                                           {"maxp", maxp_table(3)}});
+        stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(composite_font), 0);
+        CHECK(made.succeeded());
+        if (made.succeeded()) {
+            glyphs::Typeface& typeface = *(*made.value());
+            const glyphs::Font& parts_font = *typeface.font();
+            bool all = true;
+            bool some_differ_from_whole = false;
+            for (i64 size = 500; size < 1500; size = size + 7) {
+                const i64 scale = glyphs::scale_of(parts_font, size);
+                glyphs::GlyphOutline expected{};
+                glyphs::GlyphOutline whole{};
+                glyphs::GlyphOutline got{};
+                i32 advance = 0;
+                glyphs::InkBox box{};
+                const glyphs::FontLimits limits{};
+                all = all && glyphs::load_scaled_glyph(parts_font, 2, scale, scale, limits, expected).succeeded() &&
+                      glyphs::load_glyph(parts_font, 2, limits, whole).succeeded() &&
+                      typeface.fit(2, size, glyphs::Fit::none, got, advance).succeeded() && typeface.ink_box(2, size, box).succeeded() &&
+                      same_outline(expected, got) && expected.points.count() == 8;
+                if (!all) break;
+                glyphs::scale_outline(whole, scale, scale);
+                some_differ_from_whole = some_differ_from_whole || !same_outline(whole, expected);
+                i32 left = expected.points[0].x;
+                i32 right = left;
+                i32 bottom = expected.points[0].y;
+                i32 top = bottom;
+                for (usize index = 0; index < expected.points.count(); ++index) {
+                    left = expected.points[index].x < left ? expected.points[index].x : left;
+                    right = expected.points[index].x > right ? expected.points[index].x : right;
+                    bottom = expected.points[index].y < bottom ? expected.points[index].y : bottom;
+                    top = expected.points[index].y > top ? expected.points[index].y : top;
+                }
+                all = all && box.left == left && box.right == right && box.bottom == bottom && box.top == top;
+            }
+            CHECK(all);
+            // The test means something: scaling the whole glyph at once
+            // is not the same at some of these sizes.
+            CHECK(some_differ_from_whole);
+            glyphs::InkBox box{};
+            CHECK(typeface.ink_box(0, 1024, box).succeeded() && box.left == 0 && box.right == 0 && box.top == 0 && box.bottom == 0);
+            CHECK(typeface.ink_box(3, 1024, box).failed() && typeface.ink_box(1, 0, box).failed());
+        }
+    }
     // A glyph's box at a size, unfitted: the square at 16 pixels is 0 to
     // 102 (26.6) each way.
     glyphs::Face face{};
     glyphs::FittedGlyph fitted{};
     CHECK(face.open(view_of(bytes), 0).succeeded() && face.fitted(1, 1024, glyphs::Fit::none, fitted).succeeded());
     CHECK(fitted.left == 0 && fitted.bottom == 0 && fitted.right == 102 && fitted.top == 102 && fitted.advance == 512);
+    glyphs::InkBox square{};
+    CHECK((*face.typeface()).ink_box(1, 1024, square).succeeded() && square.left == 0 && square.bottom == 0 && square.right == 102 && square.top == 102);
 }
 
 // A font whose only characters are A and B, each a square: no blue zone

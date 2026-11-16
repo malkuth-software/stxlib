@@ -53,6 +53,8 @@ struct TypefaceState final {
     Hinter hinter{};
     bool prepared{false};
     usize peak{0};
+    // Where a glyph is read to for its ink box.
+    GlyphOutline measuring{};
 };
 
 // One thread's.
@@ -517,7 +519,9 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
 }
 
 [[nodiscard]] usize bytes_of(const TypefaceState& state) noexcept {
-    const usize result = sizeof(TypefaceState) + state.store.bytes_held() + state.hinter.bytes_held();
+    const usize result = sizeof(TypefaceState) + state.store.bytes_held() + state.hinter.bytes_held() +
+                         state.measuring.points.capacity() * sizeof(Point) + state.measuring.tags.capacity() * sizeof(PointTag) +
+                         state.measuring.contour_ends.capacity() * sizeof(u32);
     return result;
 }
 
@@ -592,6 +596,15 @@ Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutlin
     TypefaceState& state = *state_;
     if (glyph >= state.font.glyph_count || size <= 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
     const ScopedLock held(state.lock);
+    if (fit == Fit::none && state.font.outlines == OutlineKind::truetype) {
+        // A TrueType glyph's parts are scaled each on its own: read at the
+        // size, as its scaler has it.
+        const i64 scale = scale_of(state.font, size);
+        const Status scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
+        if (scaled.succeeded()) advance = times(advance_of(state.font, glyph), scale);
+        note_peak(state);
+        return scaled;
+    }
     StoredGlyph stored{};
     Status status = state.store.glyph(state.font, glyph, stored);
     if (status.succeeded() && fit == Fit::none) {
@@ -618,6 +631,30 @@ Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutlin
     }
     note_peak(state);
     return status;
+}
+
+Status Typeface::ink_box(const u32 glyph, const i64 size, InkBox& box) noexcept {
+    const Operation operation("stxlib.glyphs.typeface");
+    box = InkBox{};
+    if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
+    TypefaceState& state = *state_;
+    if (glyph >= state.font.glyph_count || size <= 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
+    const ScopedLock held(state.lock);
+    const i64 scale = scale_of(state.font, size);
+    GlyphOutline& outline = state.measuring;
+    const Status scaled = load_scaled_glyph(state.font, glyph, scale, scale, state.limits.font, outline);
+    if (scaled.succeeded() && !outline.points.empty()) {
+        box = InkBox{.left = outline.points[0].x, .bottom = outline.points[0].y, .right = outline.points[0].x, .top = outline.points[0].y};
+        for (usize index = 1; index < outline.points.count(); ++index) {
+            const Point point = outline.points[index];
+            box.left = point.x < box.left ? point.x : box.left;
+            box.right = point.x > box.right ? point.x : box.right;
+            box.bottom = point.y < box.bottom ? point.y : box.bottom;
+            box.top = point.y > box.top ? point.y : box.top;
+        }
+    }
+    note_peak(state);
+    return scaled;
 }
 
 usize Typeface::glyphs_read() const noexcept {
