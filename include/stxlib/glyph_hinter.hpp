@@ -135,6 +135,10 @@ public:
     [[nodiscard]] Status hint_stored(const Font& font, u32 glyph, const StoredGlyph& stored, i64 size, HintMode mode, const FontLimits& limits,
                                      GlyphOutline& outline, i32& advance) noexcept;
 
+    // The bytes held, as allocated now: each glyph's style, the measures
+    // of the styles met, and the working memory.
+    [[nodiscard]] usize bytes_held() const noexcept;
+
     // Frees what was kept.
     void release() noexcept;
 

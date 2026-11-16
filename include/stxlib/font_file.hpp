@@ -96,6 +96,12 @@ struct Font final {
     bool italic{false};
     // Every glyph has one advance (post says so).
     bool fixed_pitch{false};
+    // The height of small letters and of capitals in font units, as OS/2
+    // (version 2 and later) gives them; 0 when it does not.
+    i32 x_height{0};
+    i32 cap_height{0};
+    // The table of substitutions (GSUB), for has_feature.
+    FontTable substitutions{};
     u32 advance_count{0};
     // CFF: the charstrings, the global subroutines, and where each glyph's
     // font dictionary is found (src/algorithms/glyphs/font_cff.cpp).
@@ -149,6 +155,10 @@ struct MappedStretch final {
 // The glyph of a character of a stretch next_stretch gave for this font
 // (glyph_of's answer, without the search), or 0.
 [[nodiscard]] u32 glyph_in_stretch(const Font& font, const MappedStretch& stretch, u32 character) noexcept;
+
+// Whether the font's table of substitutions lists the feature `tag` (four
+// letters as one number, the first highest: 'smcp' is 0x736D6370).
+[[nodiscard]] bool has_feature(const Font& font, u32 tag) noexcept;
 
 // A glyph's advance in font units, or 0 for a glyph the font has not.
 [[nodiscard]] i32 advance_of(const Font& font, u32 glyph) noexcept;

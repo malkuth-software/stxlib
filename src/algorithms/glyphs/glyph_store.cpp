@@ -13,6 +13,12 @@ inline constexpr u32 nowhere = 0;
 inline constexpr u32 part_kept = 0;
 inline constexpr u32 part_refused = 3;
 
+// What a glyph takes of a part's storage.
+[[nodiscard]] constexpr usize cost_of(const usize points, const usize contours) noexcept {
+    const usize result = points * 9 + contours * 4 + 24;
+    return result;
+}
+
 [[nodiscard]] constexpr u32 code_of(const u32 part, const u32 number) noexcept {
     const u32 result = ((number + 1) << 2) | part;
     return result;
@@ -39,6 +45,7 @@ bool GlyphStore::put(const u32 part_number, const u32 glyph, const i32 advance, 
     }
     for (usize index = 0; held && index < contour_ends.count(); ++index) held = part.contour_ends.push_copy(contour_ends[index]).succeeded();
     held = held && part.records.push_copy(record).succeeded();
+    if (held) held_[part_number] = held_[part_number] + cost_of(points.count(), contour_ends.count());
     if (!held) {
         if (part.points.count() > first_point) part.points.truncate(first_point);
         if (part.tags.count() > first_point) part.tags.truncate(first_point);
@@ -61,6 +68,7 @@ void GlyphStore::give_up(const u32 part_number) noexcept {
     part.tags.clear();
     part.contour_ends.clear();
     part.records.clear();
+    held_[part_number] = 0;
 }
 
 Status GlyphStore::open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits) noexcept {
@@ -109,16 +117,18 @@ Status GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, 
             if (loaded_.tags.count() != loaded_.points.count()) return detail::refuse_font(ErrorKind::invalid_argument, operation);
             advance = advance_of(font, glyph);
         }
-        const usize point_count = loaded_.points.count();
-        const usize half = store_limits_.recent_points / 2;
-        if (in_kept && parts_[part_kept].points.count() + point_count <= store_limits_.kept_points) {
+        // Storage grows by doubling, so a part holds half of what its
+        // storage may come to.
+        const usize cost = cost_of(loaded_.points.count(), loaded_.contour_ends.count());
+        const usize half = store_limits_.recent_bytes / 4;
+        if (in_kept && held_[part_kept] + cost <= store_limits_.kept_bytes / 2) {
             if (!put(part_kept, glyph, advance, loaded_.points.view(), loaded_.tags.view(), loaded_.contour_ends.view())) {
                 return detail::refuse_font(ErrorKind::out_of_memory, operation);
             }
         } else if (code != nowhere && held_in == newer_) {
             // Asked to be kept, with no room there: it stays where it is.
-        } else if (point_count <= half) {
-            if (parts_[newer_].points.count() + point_count > half) {
+        } else if (cost <= half) {
+            if (held_[newer_] + cost > half) {
                 // The newer half is full: the older is given up and a new
                 // one begun.
                 const u32 older = newer_ == 1 ? 2U : 1U;
@@ -187,6 +197,7 @@ void GlyphStore::release() noexcept {
         parts_[index].tags.release();
         parts_[index].contour_ends.release();
         parts_[index].records.release();
+        held_[index] = 0;
     }
     newer_ = 1;
     loaded_.points.release();

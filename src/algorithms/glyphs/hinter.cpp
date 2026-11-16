@@ -261,6 +261,29 @@ Status Hinter::hint_stored(const Font& font, const u32 glyph, const StoredGlyph&
     return status;
 }
 
+usize Hinter::bytes_held() const noexcept {
+    usize bytes = styles_.capacity() * sizeof(u16) + adjustments_.capacity() * sizeof(u16) + metrics_.capacity() * sizeof(StyleMetrics);
+    for (usize index = 0; index < metrics_.count(); ++index) {
+        for (u32 dimension = 0; dimension < 2; ++dimension) {
+            bytes = bytes + metrics_[index].axes[dimension].widths.capacity() * sizeof(i32) +
+                    metrics_[index].axes[dimension].blues.capacity() * sizeof(UnscaledBlue);
+        }
+    }
+    if (!work_.empty()) {
+        const detail::HintWork& work = *work_;
+        const HintScratch& scratch = work.scratch;
+        bytes = bytes + sizeof(detail::HintWork) + scratch.glyph.points.capacity() * sizeof(Point) + scratch.glyph.tags.capacity() * sizeof(PointTag) +
+                scratch.glyph.contour_ends.capacity() * sizeof(u32) + scratch.outline.points.capacity() * sizeof(HintPoint) +
+                scratch.outline.contours.capacity() * sizeof(detail::HintContour) + scratch.axis.segments.capacity() * sizeof(detail::HintSegment) +
+                scratch.axis.edges.capacity() * sizeof(detail::HintEdge) + scratch.reaches.capacity() * sizeof(detail::ContourReach);
+        for (u32 dimension = 0; dimension < 2; ++dimension) {
+            bytes = bytes + work.scaled.axes[dimension].widths.capacity() * sizeof(detail::ScaledWidth) +
+                    work.scaled.axes[dimension].blues.capacity() * sizeof(detail::ScaledBlue);
+        }
+    }
+    return bytes;
+}
+
 void Hinter::release() noexcept {
     styles_.release();
     adjustments_.release();

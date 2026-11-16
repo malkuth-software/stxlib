@@ -167,6 +167,9 @@ public:
     [[nodiscard]] Status render_monochrome(const Outline& outline, Point offset, const Bounds& bounds, const Limits& limits,
                                            MutableView<u8> mask) noexcept;
 
+    // The bytes of the working storage, as allocated now.
+    [[nodiscard]] usize bytes_held() const noexcept { return cells_.capacity() * sizeof(i64) + block_.capacity() * sizeof(i32); }
+
     // Frees the working storage.
     void release() noexcept;
 

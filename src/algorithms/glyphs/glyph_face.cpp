@@ -1,9 +1,10 @@
-// stxlib::glyphs: a face to draw text from (include/stxlib/glyph_face.hpp).
+// stxlib::glyphs: faces to draw text from (include/stxlib/glyph_face.hpp).
 
 #include "stxlib/glyph_face.hpp"
 
 #include "algorithms/glyphs/font_reader.hpp"
 #include "stxlib/glyph_hinter.hpp"
+#include "stxlib/threads.hpp"
 
 namespace stxlib::glyphs {
 
@@ -43,22 +44,37 @@ struct PlacedGlyph final {
     bool shown{false};
 };
 
-struct FaceState final {
+// The program's: everything here but the font is reached under the lock.
+struct TypefaceState final {
     Font font{};
-    FaceLimits limits{};
+    TypefaceLimits limits{};
+    Mutex lock{};
     GlyphStore store{};
     Hinter hinter{};
+    bool prepared{false};
+    usize peak{0};
+};
+
+// One thread's.
+struct FaceState final {
+    Shared<Typeface> typeface{};
+    Font font{};
+    FaceLimits limits{};
     Rasterizer rasterizer{};
     FittedHalf halves[2]{};
+    // What each half holds, in bytes (FaceLimits' measure).
+    usize held[2]{};
     u32 newer{0};
-    bool prepared{false};
     usize fittings{0};
+    usize peak{0};
     // Working storage: the outline being fitted, its segments, a turned
-    // outline's points, a glyph's mask, and a run's glyphs as placed.
+    // and a thickened outline's points, a glyph's mask, and a run's glyphs
+    // as placed.
     GlyphOutline fitting{};
     Vector<Segment> work_kinds{};
     Vector<Point> work_points{};
     Vector<Point> turned{};
+    Vector<Point> thick{};
     Vector<u8> glyph_pixels{};
     Vector<PlacedGlyph> placed{};
 };
@@ -68,6 +84,7 @@ struct FaceState final {
 namespace {
 
 using detail::FaceState;
+using detail::TypefaceState;
 using detail::FittedHalf;
 using detail::FittedRecord;
 using detail::PlacedGlyph;
@@ -75,6 +92,119 @@ using detail::refuse_font;
 
 inline constexpr usize not_found = ~static_cast<usize>(0);
 inline constexpr i64 largest_size = static_cast<i64>(1) << 24;
+inline constexpr i32 largest_thickening = 1024;
+// Coordinates beyond this (26.6) are not thickened: no mask is that large.
+inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;
+
+// What an outline takes of a half's storage.
+[[nodiscard]] constexpr usize cost_of(const usize points) noexcept {
+    const usize result = points * 9 + 96;
+    return result;
+}
+
+// The whole number square root, rounded down.
+[[nodiscard]] constexpr i64 root_of(const i64 value) noexcept {
+    i64 root = 0;
+    i64 bit = static_cast<i64>(1) << 62;
+    i64 rest = value;
+    while (bit > rest) bit = bit >> 2;
+    while (bit != 0) {
+        if (rest >= root + bit) {
+            rest = rest - (root + bit);
+            root = (root >> 1) + bit;
+        } else {
+            root = root >> 1;
+        }
+        bit = bit >> 2;
+    }
+    return root;
+}
+
+// The outward normal of the step (dx, dy), 16.16, for an outline whose
+// contours' sum of cross products has the sign `sign`.
+[[nodiscard]] Point normal_of(const i64 dx, const i64 dy, const i64 sign) noexcept {
+    const i64 length = root_of(dx * dx + dy * dy);
+    Point normal{};
+    if (length > 0) normal = Point{.x = static_cast<i32>(sign * dy * 65536 / length), .y = static_cast<i32>(-sign * dx * 65536 / length)};
+    return normal;
+}
+
+// The rule for thicker strokes (glyph_face.hpp): `source` thickened by
+// `thickening` into `target`. False: out of memory.
+[[nodiscard]] bool thicken(const Outline& source, const i32 thickening, Vector<Point>& target) noexcept {
+    const usize count = source.points.count();
+    if (target.resize(count).failed()) return false;
+    const i64 half = thickening / 2;
+    bool in_reach = true;
+    for (usize index = 0; index < count; ++index) {
+        const Point point = source.points[index];
+        target[index] = point;
+        in_reach = in_reach && point.x > -thickening_reach && point.x < thickening_reach && point.y > -thickening_reach && point.y < thickening_reach;
+    }
+    if (!in_reach || half == 0 || count == 0) return true;
+    // The contours: a move begins one, and it runs to the next move.
+    const usize kinds = source.segments.count();
+    i64 area = 0;
+    for (usize pass = 0; pass < 2; ++pass) {
+        const i64 sign = area > 0 ? 1 : -1;
+        if (pass == 1 && area == 0) break;
+        usize first = 0;
+        usize next_point = 0;
+        for (usize kind = 0; kind <= kinds; ++kind) {
+            const bool ends = kind == kinds || source.segments[kind] == Segment::move;
+            if (ends && next_point > first) {
+                const usize last = next_point - 1;
+                const usize length = last - first + 1;
+                for (usize index = first; index <= last; ++index) {
+                    const Point point = source.points[index];
+                    if (pass == 0) {
+                        const Point after = source.points[index == last ? first : index + 1];
+                        area = area + static_cast<i64>(point.x) * after.y - static_cast<i64>(after.x) * point.y;
+                        continue;
+                    }
+                    // The nearest points before and after that are not at
+                    // this one.
+                    usize before_index = index;
+                    usize after_index = index;
+                    bool has_before = false;
+                    bool has_after = false;
+                    for (usize step = 1; step < length && !has_before; ++step) {
+                        before_index = before_index == first ? last : before_index - 1;
+                        has_before = source.points[before_index].x != point.x || source.points[before_index].y != point.y;
+                    }
+                    for (usize step = 1; step < length && !has_after; ++step) {
+                        after_index = after_index == last ? first : after_index + 1;
+                        has_after = source.points[after_index].x != point.x || source.points[after_index].y != point.y;
+                    }
+                    i64 move_x = 0;
+                    i64 move_y = 0;
+                    if (has_before && has_after) {
+                        const Point before = source.points[before_index];
+                        const Point after = source.points[after_index];
+                        const Point first_normal = normal_of(static_cast<i64>(point.x) - before.x, static_cast<i64>(point.y) - before.y, sign);
+                        const Point second_normal = normal_of(static_cast<i64>(after.x) - point.x, static_cast<i64>(after.y) - point.y, sign);
+                        const i64 sum_x = static_cast<i64>(first_normal.x) + second_normal.x;
+                        const i64 sum_y = static_cast<i64>(first_normal.y) + second_normal.y;
+                        const i64 product = static_cast<i64>(first_normal.x) * second_normal.x + static_cast<i64>(first_normal.y) * second_normal.y;
+                        // Rounded down to a 65536th.
+                        const i64 cosine = product >= 0 ? product / 65536 : -((-product + 65535) / 65536);
+                        const i64 divisor = 65536 + cosine < 16384 ? 16384 : 65536 + cosine;
+                        move_x = half * sum_x / divisor;
+                        move_y = half * sum_y / divisor;
+                    }
+                    target[index] = Point{.x = static_cast<i32>(point.x + move_x + half), .y = static_cast<i32>(point.y + move_y + half)};
+                }
+            }
+            if (ends) first = next_point;
+            if (kind < kinds) {
+                const Segment segment = source.segments[kind];
+                const usize takes = segment == Segment::quadratic ? 2 : (segment == Segment::cubic ? 3 : 1);
+                next_point = next_point + takes < count ? next_point + takes : count;
+            }
+        }
+    }
+    return true;
+}
 
 // a * b / 65536, rounded to the nearest, halves away from zero.
 [[nodiscard]] constexpr i32 times(const i64 a, const i64 b) noexcept {
@@ -147,11 +277,22 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
 
 // The outline in work_kinds and work_points goes to the end of the half.
 // False: out of memory, and the half is as it was.
-[[nodiscard]] bool put(FaceState& state, FittedHalf& half, FittedRecord record, const usize half_records) noexcept {
-    const usize slots = slots_for(half_records);
-    if (half.table.count() != slots) {
+[[nodiscard]] bool put(FaceState& state, const u32 half_number, FittedRecord record, const usize half_records) noexcept {
+    FittedHalf& half = state.halves[half_number];
+    // The table is as large as the records in it need (never more than
+    // half full), and no larger than the half's most records would need:
+    // it grows with them, each record put in again.
+    const usize wanted = half.records.count() + 1 < half_records ? half.records.count() + 1 : half_records;
+    const usize slots = slots_for(wanted);
+    if (half.table.count() < slots) {
         if (half.table.resize(slots).failed()) return false;
         for (usize index = 0; index < slots; ++index) half.table[index] = 0;
+        for (usize number = 0; number < half.records.count(); ++number) {
+            const FittedRecord& held = half.records[number];
+            usize place = slot_of(held.glyph, held.size, held.fit, slots);
+            for (usize probe = 0; probe < slots && half.table[place] != 0; ++probe) place = (place + 1) & (slots - 1);
+            half.table[place] = static_cast<u32>(number + 1);
+        }
     }
     const usize first_kind = half.kinds.count();
     const usize first_point = half.points.count();
@@ -168,47 +309,20 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         if (half.points.count() > first_point) half.points.truncate(first_point);
         return false;
     }
-    usize slot = slot_of(record.glyph, record.size, record.fit, slots);
-    for (usize probe = 0; probe < slots && half.table[slot] != 0; ++probe) slot = (slot + 1) & (slots - 1);
+    const usize table_slots = half.table.count();
+    usize slot = slot_of(record.glyph, record.size, record.fit, table_slots);
+    for (usize probe = 0; probe < table_slots && half.table[slot] != 0; ++probe) slot = (slot + 1) & (table_slots - 1);
     half.table[slot] = static_cast<u32>(half.records.count());
+    state.held[half_number] = state.held[half_number] + cost_of(state.work_points.count());
     return true;
 }
 
-// The glyph's outline at the size, made afresh into work_kinds and
-// work_points; `record` gets its advance and its box.
+// The glyph's outline at the size, made afresh from the typeface into
+// work_kinds and work_points; `record` gets its advance and its box.
 [[nodiscard]] Status fit_outline(FaceState& state, const u32 glyph, const i64 size, const Fit fit, FittedRecord& record) noexcept {
-    const Operation operation("stxlib.glyphs.face");
-    StoredGlyph stored{};
-    const Status had = state.store.glyph(state.font, glyph, stored);
-    if (had.failed()) return had;
     i32 advance = 0;
-    if (fit == Fit::none) {
-        const usize point_count = stored.points.count();
-        const i64 scale = scale_of(state.font, size);
-        GlyphOutline& outline = state.fitting;
-        outline.contour_ends.clear();
-        if (outline.points.resize(point_count).failed() || outline.tags.resize(point_count).failed()) {
-            return refuse_font(ErrorKind::out_of_memory, operation);
-        }
-        for (usize index = 0; index < point_count; ++index) {
-            outline.points[index] = Point{.x = times(stored.points[index].x, scale), .y = times(stored.points[index].y, scale)};
-            outline.tags[index] = stored.tags[index];
-        }
-        for (usize index = 0; index < stored.contour_ends.count(); ++index) {
-            if (outline.contour_ends.push_copy(stored.contour_ends[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-        }
-        advance = times(stored.advance, scale);
-    } else {
-        // The hinter is prepared when the first glyph is fitted.
-        if (!state.prepared) {
-            const Status prepared = state.hinter.prepare(state.font);
-            if (prepared.failed()) return prepared;
-            state.prepared = true;
-        }
-        const HintMode mode = fit == Fit::monochrome ? HintMode::monochrome : HintMode::light;
-        const Status hinted = state.hinter.hint_stored(state.font, glyph, stored, size, mode, state.limits.font, state.fitting, advance);
-        if (hinted.failed()) return hinted;
-    }
+    const Status made = (*state.typeface).fit(glyph, size, fit, state.fitting, advance);
+    if (made.failed()) return made;
     const Status cut = to_segments(state.fitting, state.work_kinds, state.work_points);
     if (cut.failed()) return cut;
     state.fittings = state.fittings + 1;
@@ -264,9 +378,13 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         const Status made = fit_outline(state, glyph, size, fit, record);
         if (made.failed()) return made;
     }
-    const usize half_points = state.limits.fitted_points / 2;
-    const usize half_records = state.limits.fitted_glyphs / 2;
-    if (state.work_points.count() > half_points || half_records == 0) {
+    // A half holds a fifth of the limit: its storage grows by doubling,
+    // and its table is a sixth as much again, so the two halves' storage
+    // stays under the limit.
+    const usize half_bytes = state.limits.fitted_bytes / 5;
+    const usize half_records = half_bytes / 96;
+    const usize cost = cost_of(state.work_points.count());
+    if (cost > half_bytes || half_records == 0) {
         // Too large to hold: served from the working storage.
         glyph_out.outline.segments = state.work_kinds.view();
         glyph_out.outline.points = state.work_points.view();
@@ -277,35 +395,49 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         glyph_out.top = record.top;
         return Status::success();
     }
-    if (newer.points.count() + state.work_points.count() > half_points || newer.records.count() >= half_records) {
+    if (state.held[state.newer] + cost > half_bytes || newer.records.count() >= half_records) {
         // The newer half is full: the older is given up and a new one
         // begun.
         empty(older);
+        state.held[older_index] = 0;
         state.newer = older_index;
     }
     FittedHalf& target = state.halves[state.newer];
-    if (!put(state, target, record, half_records)) return refuse_font(ErrorKind::out_of_memory, operation);
+    if (!put(state, state.newer, record, half_records)) return refuse_font(ErrorKind::out_of_memory, operation);
     give(target, target.records[target.records.count() - 1], glyph_out);
     return Status::success();
 }
 
-// A run's glyph as it is drawn: its fitted outline, taken through the
-// style's matrix if it has one (into `turned`).
-[[nodiscard]] Status run_outline(FaceState& state, const RunGlyph& glyph, const RunStyle& style, Outline& outline) noexcept {
+// A glyph as it is drawn: its fitted outline, taken through the style's
+// matrix if it has one (into `turned`) and thickened if the style says so
+// (into `thick`).
+[[nodiscard]] Status styled_outline(FaceState& state, const u32 glyph, const DrawStyle& style, Outline& outline) noexcept {
     const Operation operation("stxlib.glyphs.face");
     FittedGlyph fitted{};
-    const Status had = fitted_of(state, glyph.glyph, style.size, style.fit, fitted);
+    const Status had = fitted_of(state, glyph, style.size, style.fit, fitted);
     if (had.failed()) return had;
     outline = fitted.outline;
-    if (!style.transformed) return Status::success();
-    const usize count = fitted.outline.points.count();
-    if (state.turned.resize(count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    for (usize index = 0; index < count; ++index) {
-        const Point point = fitted.outline.points[index];
-        state.turned[index] = Point{.x = times(point.x, style.xx) + times(point.y, style.xy), .y = times(point.x, style.yx) + times(point.y, style.yy)};
+    if (style.transformed) {
+        const usize count = fitted.outline.points.count();
+        if (state.turned.resize(count).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+        for (usize index = 0; index < count; ++index) {
+            const Point point = fitted.outline.points[index];
+            state.turned[index] = Point{.x = times(point.x, style.xx) + times(point.y, style.xy), .y = times(point.x, style.yx) + times(point.y, style.yy)};
+        }
+        outline.points = state.turned.view();
     }
-    outline.points = state.turned.view();
+    if (style.thicken != 0) {
+        if (!thicken(outline, style.thicken, state.thick)) return refuse_font(ErrorKind::out_of_memory, operation);
+        outline.points = state.thick.view();
+    }
     return Status::success();
+}
+
+// Whether a style can be drawn in at all.
+[[nodiscard]] bool style_is_valid(const DrawStyle& style) noexcept {
+    const bool result = !(style.transformed && style.fit != Fit::none) && style.size > 0 && style.size <= largest_size && style.thicken >= 0 &&
+                        style.thicken <= largest_thickening;
+    return result;
 }
 
 [[nodiscard]] bool out_of_memory(const Status& status) noexcept {
@@ -314,11 +446,10 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
 }
 
 // Every glyph of the run is placed (state.placed) and the run's box taken.
-[[nodiscard]] Status place_run(FaceState& state, const View<RunGlyph> glyphs, const RunStyle& style, RunBox& box) noexcept {
+[[nodiscard]] Status place_run(FaceState& state, const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
     const Operation operation("stxlib.glyphs.face");
     box = RunBox{};
-    if (style.transformed && style.fit != Fit::none) return refuse_font(ErrorKind::invalid_argument, operation);
-    if (style.size <= 0 || style.size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
+    if (!style_is_valid(style)) return refuse_font(ErrorKind::invalid_argument, operation);
     if (state.placed.resize(glyphs.count()).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     bool any = false;
     i64 left = 0;
@@ -334,7 +465,7 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
         // outline's axes is toward less y.
         placed.shift = Point{.x = glyph.x - placed.pixel_x * 64, .y = -(glyph.y - placed.pixel_y * 64)};
         Outline outline{};
-        const Status had = run_outline(state, glyph, style, outline);
+        const Status had = styled_outline(state, glyph.glyph, style, outline);
         Status measured = had;
         if (had.succeeded()) measured = measure(outline, placed.shift, state.limits.mask, placed.bounds);
         if (out_of_memory(had) || out_of_memory(measured)) return refuse_font(ErrorKind::out_of_memory, operation);
@@ -385,31 +516,187 @@ void give(const FittedHalf& half, const FittedRecord& record, FittedGlyph& glyph
     return result;
 }
 
+[[nodiscard]] usize bytes_of(const TypefaceState& state) noexcept {
+    const usize result = sizeof(TypefaceState) + state.store.bytes_held() + state.hinter.bytes_held();
+    return result;
+}
+
+[[nodiscard]] usize bytes_of(const FaceState& state) noexcept {
+    const usize result = sizeof(FaceState) + state.rasterizer.bytes_held() + bytes_of(state.halves[0]) + bytes_of(state.halves[1]) +
+                         state.fitting.points.capacity() * sizeof(Point) + state.fitting.tags.capacity() * sizeof(PointTag) +
+                         state.fitting.contour_ends.capacity() * sizeof(u32) + state.work_kinds.capacity() * sizeof(Segment) +
+                         state.work_points.capacity() * sizeof(Point) + state.turned.capacity() * sizeof(Point) +
+                         state.thick.capacity() * sizeof(Point) + state.glyph_pixels.capacity() + state.placed.capacity() * sizeof(PlacedGlyph);
+    return result;
+}
+
+void note_peak(TypefaceState& state) noexcept {
+    const usize now = bytes_of(state);
+    state.peak = now > state.peak ? now : state.peak;
+}
+
+void note_peak(FaceState& state) noexcept {
+    const usize now = bytes_of(state);
+    state.peak = now > state.peak ? now : state.peak;
+}
+
 } // namespace
+
+// ---- the program's typeface ---------------------------------------------------------------------
+
+Typeface::Typeface() noexcept = default;
+Typeface::Typeface(Typeface&&) noexcept = default;
+Typeface& Typeface::operator=(Typeface&&) noexcept = default;
+Typeface::~Typeface() noexcept = default;
+
+Status Typeface::open(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
+    const Operation operation("stxlib.glyphs.typeface");
+    state_.reset();
+    Result<Unique<detail::TypefaceState>> made = Unique<detail::TypefaceState>::make();
+    if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+    Unique<detail::TypefaceState> fresh = static_cast<Result<Unique<detail::TypefaceState>>&&>(made).take_value();
+    TypefaceState& state = *fresh;
+    state.limits = limits;
+    const Status opened = open_font(bytes, face_index, state.font);
+    if (opened.failed()) return opened;
+    const Status stored = state.store.open(state.font, limits.font, limits.store);
+    if (stored.failed()) return stored;
+    note_peak(state);
+    state_ = static_cast<Unique<detail::TypefaceState>&&>(fresh);
+    return Status::success();
+}
+
+const Font* Typeface::font() const noexcept {
+    const Font* const result = state_.empty() ? nullptr : &(*state_).font;
+    return result;
+}
+
+Status Typeface::keep(const View<u32> characters, usize& kept) noexcept {
+    const Operation operation("stxlib.glyphs.typeface");
+    kept = 0;
+    if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    const Status status = state.store.keep(state.font, characters, kept);
+    note_peak(state);
+    return status;
+}
+
+Status Typeface::fit(const u32 glyph, const i64 size, const Fit fit, GlyphOutline& outline, i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.typeface");
+    advance = 0;
+    outline.points.clear();
+    outline.tags.clear();
+    outline.contour_ends.clear();
+    if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
+    TypefaceState& state = *state_;
+    if (glyph >= state.font.glyph_count || size <= 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
+    const ScopedLock held(state.lock);
+    StoredGlyph stored{};
+    Status status = state.store.glyph(state.font, glyph, stored);
+    if (status.succeeded() && fit == Fit::none) {
+        const usize point_count = stored.points.count();
+        const i64 scale = scale_of(state.font, size);
+        bool room = outline.points.resize(point_count).succeeded() && outline.tags.resize(point_count).succeeded();
+        for (usize index = 0; room && index < point_count; ++index) {
+            outline.points[index] = Point{.x = times(stored.points[index].x, scale), .y = times(stored.points[index].y, scale)};
+            outline.tags[index] = stored.tags[index];
+        }
+        for (usize index = 0; room && index < stored.contour_ends.count(); ++index) room = outline.contour_ends.push_copy(stored.contour_ends[index]).succeeded();
+        advance = times(stored.advance, scale);
+        if (!room) status = refuse_font(ErrorKind::out_of_memory, operation);
+    } else if (status.succeeded()) {
+        // The hinter is prepared when the first glyph is fitted.
+        if (!state.prepared) {
+            status = state.hinter.prepare(state.font);
+            state.prepared = status.succeeded();
+        }
+        if (status.succeeded()) {
+            const HintMode mode = fit == Fit::monochrome ? HintMode::monochrome : HintMode::light;
+            status = state.hinter.hint_stored(state.font, glyph, stored, size, mode, state.limits.font, outline, advance);
+        }
+    }
+    note_peak(state);
+    return status;
+}
+
+usize Typeface::glyphs_read() const noexcept {
+    if (state_.empty()) return 0;
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    const usize result = state.store.glyphs_read();
+    return result;
+}
+
+usize Typeface::bytes_held() const noexcept {
+    if (state_.empty()) return 0;
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    const usize result = bytes_of(state);
+    return result;
+}
+
+usize Typeface::bytes_peak() const noexcept {
+    if (state_.empty()) return 0;
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    const usize result = state.peak;
+    return result;
+}
+
+void Typeface::reset_peak() noexcept {
+    if (state_.empty()) return;
+    TypefaceState& state = *state_;
+    const ScopedLock held(state.lock);
+    state.peak = bytes_of(state);
+}
+
+Result<Shared<Typeface>> open_typeface(const View<u8> bytes, const u32 face_index, const TypefaceLimits& limits) noexcept {
+    Result<Shared<Typeface>> made = Shared<Typeface>::make();
+    if (made.failed()) return made;
+    const Status opened = (*(*made.value())).open(bytes, face_index, limits);
+    if (opened.failed()) return Result<Shared<Typeface>>::failure(*opened.error());
+    return made;
+}
+
+// ---- a thread's face ----------------------------------------------------------------------------
 
 Face::Face() noexcept = default;
 Face::Face(Face&&) noexcept = default;
 Face& Face::operator=(Face&&) noexcept = default;
 Face::~Face() noexcept = default;
 
-Status Face::open(const View<u8> bytes, const u32 face_index, const FaceLimits& limits) noexcept {
+Status Face::open(const Shared<Typeface>& typeface, const FaceLimits& limits) noexcept {
     const Operation operation("stxlib.glyphs.face");
     release();
+    if (typeface.empty() || (*typeface).font() == nullptr) return refuse_font(ErrorKind::invalid_argument, operation);
     Result<Unique<detail::FaceState>> made = Unique<detail::FaceState>::make();
     if (made.failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    Unique<detail::FaceState> fresh = static_cast<Result<Unique<detail::FaceState>>&&>(made).take_value();
-    FaceState& state = *fresh;
+    state_ = static_cast<Result<Unique<detail::FaceState>>&&>(made).take_value();
+    FaceState& state = *state_;
+    state.typeface = typeface;
+    state.font = *(*typeface).font();
     state.limits = limits;
-    const Status opened = open_font(bytes, face_index, state.font);
-    if (opened.failed()) return opened;
-    const Status stored = state.store.open(state.font, limits.font, limits.store);
-    if (stored.failed()) return stored;
-    state_ = static_cast<Unique<detail::FaceState>&&>(fresh);
+    note_peak(state);
     return Status::success();
+}
+
+Status Face::open(const View<u8> bytes, const u32 face_index, const FaceLimits& limits, const TypefaceLimits& typeface_limits) noexcept {
+    release();
+    Result<Shared<Typeface>> made = open_typeface(bytes, face_index, typeface_limits);
+    if (made.failed()) return Status::failure(*made.error());
+    const Status status = open(*made.value(), limits);
+    return status;
 }
 
 const Font* Face::font() const noexcept {
     const Font* const result = state_.empty() ? nullptr : &(*state_).font;
+    return result;
+}
+
+Shared<Typeface> Face::typeface() const noexcept {
+    Shared<Typeface> result{};
+    if (!state_.empty()) result = (*state_).typeface;
     return result;
 }
 
@@ -419,14 +706,13 @@ Status Face::warm(const View<u32> characters, const i64 size, const Fit fit, usi
     if (state_.empty() || size < 0 || size > largest_size) return refuse_font(ErrorKind::invalid_argument, operation);
     FaceState& state = *state_;
     usize kept = 0;
-    const Status keeping = state.store.keep(state.font, characters, kept);
+    const Status keeping = (*state.typeface).keep(characters, kept);
     if (keeping.failed()) return keeping;
     for (usize index = 0; index < characters.count(); ++index) {
         const u32 glyph = glyph_of(state.font, characters[index]);
         if (glyph == 0 || glyph >= state.font.glyph_count) continue;
         if (size == 0) {
-            StoredGlyph stored{};
-            if (state.store.glyph(state.font, glyph, stored).succeeded()) warmed = warmed + 1;
+            warmed = warmed + 1;
             continue;
         }
         FittedGlyph fitted{};
@@ -434,6 +720,7 @@ Status Face::warm(const View<u32> characters, const i64 size, const Fit fit, usi
         if (out_of_memory(had)) return had;
         if (had.succeeded()) warmed = warmed + 1;
     }
+    note_peak(state);
     return Status::success();
 }
 
@@ -442,38 +729,41 @@ Status Face::fitted(const u32 glyph, const i64 size, const Fit fit, FittedGlyph&
     glyph_out = FittedGlyph{};
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     const Status status = fitted_of(*state_, glyph, size, fit, glyph_out);
+    note_peak(*state_);
     return status;
 }
 
-Status Face::mask(const u32 glyph, const i64 size, const Fit fit, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
+Status Face::mask(const u32 glyph, const DrawStyle& style, const Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept {
     const Operation operation("stxlib.glyphs.face");
     bounds = Bounds{};
     pixels.clear();
-    if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
+    if (state_.empty() || !style_is_valid(style)) return refuse_font(ErrorKind::invalid_argument, operation);
     FaceState& state = *state_;
-    FittedGlyph fitted{};
-    const Status had = fitted_of(state, glyph, size, fit, fitted);
+    Outline outline{};
+    const Status had = styled_outline(state, glyph, style, outline);
     if (had.failed()) return had;
-    const Status measured = measure(fitted.outline, shift, state.limits.mask, bounds);
+    const Status measured = measure(outline, shift, state.limits.mask, bounds);
     if (measured.failed()) return measured;
     const usize bytes = static_cast<usize>(bounds.width) * bounds.height;
     if (bytes == 0) return Status::success();
     if (pixels.resize(bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
-    const Status drawn = fit == Fit::monochrome
-                             ? state.rasterizer.render_monochrome(fitted.outline, shift, bounds, state.limits.mask, pixels.mutable_view())
-                             : state.rasterizer.render(fitted.outline, shift, bounds, state.limits.mask, pixels.mutable_view());
+    const Status drawn = style.fit == Fit::monochrome
+                             ? state.rasterizer.render_monochrome(outline, shift, bounds, state.limits.mask, pixels.mutable_view())
+                             : state.rasterizer.render(outline, shift, bounds, state.limits.mask, pixels.mutable_view());
+    note_peak(state);
     return drawn;
 }
 
-Status Face::measure_run(const View<RunGlyph> glyphs, const RunStyle& style, RunBox& box) noexcept {
+Status Face::measure_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept {
     const Operation operation("stxlib.glyphs.face");
     box = RunBox{};
     if (state_.empty()) return refuse_font(ErrorKind::invalid_argument, operation);
     const Status status = place_run(*state_, glyphs, style, box);
+    note_peak(*state_);
     return status;
 }
 
-Status Face::draw_run(const View<RunGlyph> glyphs, const RunStyle& style, RunCoverage& coverage) noexcept {
+Status Face::draw_run(const View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept {
     const Operation operation("stxlib.glyphs.face");
     coverage.pixels.clear();
     coverage.width = 0;
@@ -507,7 +797,7 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const RunStyle& style, RunCov
         const PlacedGlyph glyph = state.placed[index];
         if (!glyph.shown) continue;
         Outline outline{};
-        const Status had = run_outline(state, glyphs[index], style, outline);
+        const Status had = styled_outline(state, glyphs[index].glyph, style, outline);
         if (had.failed()) return had;
         const usize glyph_bytes = static_cast<usize>(glyph.bounds.width) * glyph.bounds.height;
         if (state.glyph_pixels.resize(glyph_bytes).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
@@ -534,12 +824,8 @@ Status Face::draw_run(const View<RunGlyph> glyphs, const RunStyle& style, RunCov
             }
         }
     }
+    note_peak(state);
     return Status::success();
-}
-
-usize Face::glyphs_read() const noexcept {
-    const usize result = state_.empty() ? 0 : (*state_).store.glyphs_read();
-    return result;
 }
 
 usize Face::glyphs_fitted() const noexcept {
@@ -548,14 +834,17 @@ usize Face::glyphs_fitted() const noexcept {
 }
 
 usize Face::bytes_held() const noexcept {
-    if (state_.empty()) return 0;
-    const FaceState& state = *state_;
-    const usize result = sizeof(FaceState) + state.store.bytes_held() + bytes_of(state.halves[0]) + bytes_of(state.halves[1]) +
-                         state.fitting.points.capacity() * sizeof(Point) + state.fitting.tags.capacity() * sizeof(PointTag) +
-                         state.fitting.contour_ends.capacity() * sizeof(u32) + state.work_kinds.capacity() * sizeof(Segment) +
-                         state.work_points.capacity() * sizeof(Point) + state.turned.capacity() * sizeof(Point) +
-                         state.glyph_pixels.capacity() + state.placed.capacity() * sizeof(PlacedGlyph);
+    const usize result = state_.empty() ? 0 : bytes_of(*state_);
     return result;
+}
+
+usize Face::bytes_peak() const noexcept {
+    const usize result = state_.empty() ? 0 : (*state_).peak;
+    return result;
+}
+
+void Face::reset_peak() noexcept {
+    if (!state_.empty()) (*state_).peak = bytes_of(*state_);
 }
 
 void Face::release() noexcept { state_.reset(); }
