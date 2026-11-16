@@ -1,0 +1,17 @@
+# The C2 VM scenario's disk (appliance/vm/c2_m4.sh): a throwaway test key
+# and the test packages made here (appliance/disk/build_test_packages.sh),
+# the image on vtbd1 with that key trusted and the factory packages
+# installed, the system image version 2 from the new root, then the files
+# the host serves over HTTPS sent back to it. The private key never leaves
+# this VM and is deleted before the last command.
+fetch -q -o /tmp/build_image.sh {http}/build_image.sh
+test "$(sha256 -q /tmp/build_image.sh)" = "{build_sha256}"
+fetch -q -o /tmp/build_test_packages.sh {http}/build_test_packages.sh
+test "$(sha256 -q /tmp/build_test_packages.sh)" = "{test_sha256}"
+fetch -q -o /tmp/make_package.sh {http}/make_package.sh
+test "$(sha256 -q /tmp/make_package.sh)" = "{package_sha256}"
+sh /tmp/build_test_packages.sh prepare /tmp/stxtest {https}
+sh /tmp/build_image.sh {http} vtbd1 vm /tmp/stxtest/extra
+sh /tmp/build_test_packages.sh system /tmp/stxtest vtbd1 {https}
+test ! -e /tmp/stxtest/key
+tar -cf - -C /tmp/stxtest/serve . | nc -N {recv}

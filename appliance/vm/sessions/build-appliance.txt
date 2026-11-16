@@ -1,0 +1,5 @@
+# Build the appliance disk (C1 step S4) on the second disk, vtbd1, from the
+# host's payload directory (appliance/disk/build_disk.sh).
+fetch -q -o /tmp/build_disk.sh {http}/build_disk.sh
+test "$(sha256 -q /tmp/build_disk.sh)" = "{build_sha256}"
+sh /tmp/build_disk.sh {http} vtbd1

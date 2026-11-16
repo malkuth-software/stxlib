@@ -87,9 +87,13 @@ enum class Capability : u8 {
     cross_origin_isolated = 31, // isolated from other origins (the web: COOP and COEP; Node: a process)
     fixed_thread_pool = 32,     // threads come from a pool fixed at start (threads.hpp, thread_pool_limit)
     web_storage = 33,           // volumes that outlive the page, and their close hook (web.hpp)
+    // One display surface with input and present (surface.hpp; owner
+    // decision 2026-11-15): FreeBSD's framebuffer, terminal and evdev, for
+    // the appliance's foreground target.
+    display_surface = 34,
 };
 
-inline constexpr usize capability_count = 34;
+inline constexpr usize capability_count = 35;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.

@@ -1,0 +1,7 @@
+#
+# STXLIB-GENERIC-NOTSLOG -- discriminating build for the C1 hang: FreeBSD's
+# arm64 GENERIC unchanged (no TSLOG), built with our toolchain. If it boots
+# where STXLIB-GENERIC hangs before the console, TSLOG is the cause.
+#
+include 	"GENERIC"
+ident		STXLIB-GENERIC-NOTSLOG

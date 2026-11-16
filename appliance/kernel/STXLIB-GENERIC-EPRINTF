@@ -1,0 +1,12 @@
+#
+# STXLIB-GENERIC-EPRINTF -- discriminating build for the C1 hang:
+# STXLIB-GENERIC plus early printf on QEMU virt's PL011 (MMIO 0x09000000),
+# so kernel printf reaches the serial line before the console is set up.
+# locore maps SOCDEV_PA (sys/arm64/arm64/locore.S:750-762); the putc is
+# sys/dev/uart/uart_dev_pl011.c:291-303; the example is sys/arm64/conf/NOTES:121-122.
+#
+include 	"STXLIB-GENERIC"
+ident		STXLIB-GENERIC-EPRINTF
+
+options 	SOCDEV_PA=0x09000000
+options 	EARLY_PRINTF=pl011

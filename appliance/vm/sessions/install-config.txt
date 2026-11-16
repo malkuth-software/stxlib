@@ -1,0 +1,11 @@
+# Install a boot configuration ({config_file} from the served directory) as
+# /etc/stx/appliance.conf, the supervisor's provisional configuration path
+# (runtime/supervisor/config/system_actions.h; S4 settles the partitions).
+# Run before install-programs, which ends the login path.
+mkdir -p /etc/stx
+fetch -q -o /etc/stx/appliance.conf {http}/{config_file}
+test "$(sha256 -q /etc/stx/appliance.conf)" = "{config_sha256}"
+chmod 444 /etc/stx/appliance.conf
+# For the record only (the S2 configuration's guarded mount uses them).
+ls /dev/gpt /boot/efi || true
+sync

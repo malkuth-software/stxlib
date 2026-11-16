@@ -1,0 +1,176 @@
+<!doctype html>
+<!-- The appliance's web interface (C2). No inline script or style: the
+     server's Content-Security-Policy is default-src 'self'. app.js builds
+     every page from the JSON interface (runtime/web/api.h) and writes text
+     with textContent only. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STX appliance</title>
+<link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header>
+  <span class="brand">STX appliance</span>
+  <nav id="nav" hidden>
+    <a href="#status">Status</a>
+    <a href="#targets">Targets</a>
+    <a href="#updates">Updates</a>
+    <a href="#network">Network</a>
+    <a href="#access">Access</a>
+    <a href="#settings">Settings</a>
+    <a href="#reboot">Reboot</a>
+    <button type="button" id="logout" class="link">Log out</button>
+  </nav>
+</header>
+<div id="notice" class="notice" hidden></div>
+<main>
+  <section id="page-login" hidden>
+    <h1>Log in</h1>
+    <form id="login-form">
+      <label>Password <input type="password" id="login-password" autocomplete="current-password" required></label>
+      <button type="submit">Log in</button>
+    </form>
+  </section>
+
+  <section id="page-setup" hidden>
+    <h1>First password</h1>
+    <p>Type the setup code the appliance's console shows, and choose the
+      password for this interface (at least 8 characters).</p>
+    <form id="setup-form">
+      <label>Setup code <input type="text" id="setup-code" autocomplete="off" required></label>
+      <label>Password <input type="password" id="setup-password" autocomplete="new-password" required minlength="8"></label>
+      <label>Repeat <input type="password" id="setup-repeat" autocomplete="new-password" required minlength="8"></label>
+      <button type="submit">Set the password</button>
+    </form>
+  </section>
+
+  <section id="page-status" hidden>
+    <h1>Status</h1>
+    <div id="pending-banner" class="banner" hidden>Settings were saved since this boot: they take effect at the next reboot.</div>
+    <h2>Supervisor</h2>
+    <dl id="status-supervisor" class="facts"></dl>
+    <h2>Boot slots</h2>
+    <dl id="status-slots" class="facts"></dl>
+    <h2>System services</h2>
+    <table id="status-services" class="grid"></table>
+    <h2>Boot log</h2>
+    <pre id="status-log" class="log"></pre>
+    <button type="button" id="status-refresh">Refresh</button>
+  </section>
+
+  <section id="page-targets" hidden>
+    <h1>Targets</h1>
+    <p class="hint">Targets are the programs this appliance runs. Changes to
+      their settings take effect at the next reboot; start, stop and restart
+      act now.</p>
+    <div id="targets-list"></div>
+    <div id="target-log-box" hidden>
+      <h2 id="target-log-title">Output</h2>
+      <p class="hint">The newest output the target wrote (standard output and
+        error), as the supervisor keeps it in memory: about 4 KiB.</p>
+      <pre id="target-log" class="log"></pre>
+      <button type="button" id="target-log-refresh" class="secondary">Refresh</button>
+      <button type="button" id="target-log-close" class="secondary">Close</button>
+    </div>
+    <h2 id="target-form-title">Add a target</h2>
+    <form id="target-form">
+      <label>Name <input type="text" id="target-name" required maxlength="31" pattern="[A-Za-z0-9_.\-]+"></label>
+      <label>Settings, one <code>name = value</code> per line
+        <textarea id="target-settings" rows="6" spellcheck="false"
+          placeholder="role = server&#10;id = 1&#10;command = bin/radiod --port 8000&#10;folder = /data/targets/radio&#10;ports = tcp/8000"></textarea></label>
+      <p class="hint">Required: <code>role</code> (server or foreground), <code>id</code> (1 to 999, never reused),
+        <code>command</code> (a path inside the package) and <code>folder</code> (below /data/targets).
+        Optional: program, ports, devices, restart, update-url, update-interval, healthy-after.
+        Whether it starts at boot is the box below, not a setting.</p>
+      <label class="inline"><input type="checkbox" id="target-enabled" checked> Start at boot</label>
+      <button type="submit">Save the target</button>
+      <button type="button" id="target-clear" class="secondary">Clear</button>
+    </form>
+  </section>
+
+  <section id="page-updates" hidden>
+    <h1>Updates</h1>
+    <h2>Program package</h2>
+    <p class="hint">Upload a signed program package; then install it from a
+      target's entry on the Targets page.</p>
+    <form id="upload-package-form">
+      <input type="file" id="upload-package-file" required>
+      <button type="submit">Upload</button>
+    </form>
+    <h2>System image</h2>
+    <p class="hint">Upload a signed system image; it is written to the other
+      root slot and tried at the next boot.</p>
+    <form id="upload-system-form">
+      <input type="file" id="upload-system-file" required>
+      <button type="submit">Upload</button>
+    </form>
+    <button type="button" id="system-update">Install the uploaded system image</button>
+    <progress id="upload-progress" max="100" value="0" hidden></progress>
+    <h2>Operation</h2>
+    <dl id="operation" class="facts"></dl>
+  </section>
+
+  <section id="page-network" hidden>
+    <h1>Network</h1>
+    <h2>Addresses now</h2>
+    <table id="network-addresses" class="grid"></table>
+    <h2>Settings (next boot)</h2>
+    <form id="network-form">
+      <label>Host name <input type="text" id="network-hostname" maxlength="253"></label>
+      <label>Mode
+        <select id="network-mode">
+          <option value="dhcp">DHCP</option>
+          <option value="static">Static</option>
+        </select></label>
+      <label>Address and prefix <input type="text" id="network-address" placeholder="192.168.1.20/24"></label>
+      <label>Gateway <input type="text" id="network-gateway" placeholder="192.168.1.1"></label>
+      <label>DNS server <input type="text" id="network-dns" placeholder="192.168.1.1"></label>
+      <button type="submit">Save</button>
+    </form>
+  </section>
+
+  <section id="page-access" hidden>
+    <h1>Access</h1>
+    <h2>Password</h2>
+    <form id="password-form">
+      <label>Current <input type="password" id="password-current" autocomplete="current-password" required></label>
+      <label>New <input type="password" id="password-new" autocomplete="new-password" required minlength="8"></label>
+      <label>Repeat <input type="password" id="password-repeat" autocomplete="new-password" required minlength="8"></label>
+      <button type="submit">Change the password</button>
+    </form>
+    <h2>SSH keys (next boot)</h2>
+    <p class="hint">One OpenSSH public key per line (ssh-ed25519 or ECDSA), at most 8.</p>
+    <form id="keys-form">
+      <textarea id="keys-text" rows="6" spellcheck="false"></textarea>
+      <button type="submit">Save the keys</button>
+    </form>
+  </section>
+
+  <section id="page-settings" hidden>
+    <h1>Settings</h1>
+    <p class="hint">The whole user configuration, as text. It takes effect at
+      the next reboot. The factory configuration, below it, cannot be
+      changed here.</p>
+    <dl id="settings-facts" class="facts"></dl>
+    <textarea id="settings-text" rows="18" spellcheck="false"></textarea>
+    <div class="buttons">
+      <button type="button" id="settings-check">Check</button>
+      <button type="button" id="settings-save">Save</button>
+      <button type="button" id="settings-reload" class="secondary">Reload</button>
+    </div>
+    <h2>Factory configuration</h2>
+    <pre id="settings-factory" class="log"></pre>
+  </section>
+
+  <section id="page-reboot" hidden>
+    <h1>Reboot</h1>
+    <p>Stops every service and restarts the appliance. Saved settings take
+      effect then. This page reconnects when the appliance is back.</p>
+    <button type="button" id="reboot-button" class="danger">Reboot now</button>
+  </section>
+</main>
+</body>
+</html>

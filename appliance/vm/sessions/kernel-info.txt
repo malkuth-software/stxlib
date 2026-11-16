@@ -1,0 +1,6 @@
+# The running kernel's identity and clocks. (TSLOG is gone: it hangs arm64
+# before the console; see appliance/kernel/STXLIB-VM.)
+uname -v
+sysctl kern.timecounter.hardware kern.timecounter.choice
+sysctl -a | grep -E '^kern\.timecounter\.tc\..*\.frequency'
+sysctl kern.boottime

@@ -1,0 +1,9 @@
+# Install a built kernel ({kernconf}) beside the stock one and select it.
+# The stock kernel stays in /boot/kernel; removing the kernel= line returns to it.
+mkdir -p /boot/{kernconf}
+fetch -q -o /boot/{kernconf}/kernel {http}/kernel
+test "$(sha256 -q /boot/{kernconf}/kernel)" = "{kernel_sha256}"
+sed -i '' '/^kernel=/d' /boot/loader.conf.local
+printf '%s\n' 'kernel="{kernconf}"' >> /boot/loader.conf.local
+cat /boot/loader.conf.local
+sync

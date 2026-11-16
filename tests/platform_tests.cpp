@@ -65,7 +65,7 @@ void capabilities_report() {
     CHECK(stxlib::capability_name(stxlib::Capability::atomic_replace) == stxlib::TextView("atomic_replace"));
     CHECK(stxlib::capability_name(stxlib::Capability::process_identity) == stxlib::TextView("process_identity"));
     CHECK(stxlib::capability_name(stxlib::Capability::web_storage) == stxlib::TextView("web_storage"));
-    CHECK(stxlib::capability_count == 34);
+    CHECK(stxlib::capability_count == 35);
 #if defined(__EMSCRIPTEN__)
     // The Emscripten family (core/capabilities.cpp has the reasons). Run
     // under Node by ctest: no fixed pool there, and a process is isolated.
@@ -84,7 +84,8 @@ void capabilities_report() {
         stxlib::Capability::process_arguments, stxlib::Capability::main_thread,
         stxlib::Capability::dynamic_libraries, stxlib::Capability::address_lookup,
         stxlib::Capability::image_regions,     stxlib::Capability::stack_trace,
-        stxlib::Capability::page_protection,   stxlib::Capability::process_identity};
+        stxlib::Capability::page_protection,   stxlib::Capability::process_identity,
+        stxlib::Capability::display_surface};
     for (const stxlib::Capability capability : absent) CHECK(!stxlib::capability_supported(capability));
 #else
     CHECK(stxlib::capability_supported(stxlib::Capability::shared_memory));
