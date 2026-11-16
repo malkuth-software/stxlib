@@ -1236,6 +1236,18 @@ BidiBracket bidi_paired_bracket(const u32 code_point) noexcept {
 
 void Paragraph::clear() noexcept { Access::clear(*this); }
 
+void Paragraph::release() noexcept {
+    Access::clear(*this);
+    levels_.release();
+    breaks_.release();
+    script_runs_.release();
+    classes_.release();
+    units_.release();
+    keys_.release();
+    work_.release();
+    work_wide_.release();
+}
+
 // The moves take the storage and the counts, then leave the source empty
 // (A-stxlib-textlayout-01-F2): a defaulted move would leave the counts over
 // the moved-from vectors' empty storage.
@@ -1265,6 +1277,12 @@ Paragraph& Paragraph::operator=(Paragraph&& other) noexcept {
 }
 
 void Line::clear() noexcept { Access::clear(*this); }
+
+void Line::release() noexcept {
+    Access::clear(*this);
+    runs_.release();
+    levels_.release();
+}
 
 Line::Line(Line&& other) noexcept { *this = static_cast<Line&&>(other); }
 

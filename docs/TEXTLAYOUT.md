@@ -270,6 +270,30 @@ SheenBidi 2.9.0 carries older Script data and no Script_Extensions.
   know (among them Jurc and Seal) rest on ScriptExtensions.txt where it
   names them, and otherwise on the author's reading of ISO 15924.
 
+## Memory
+
+A `Paragraph` keeps its storage grown to the largest paragraph it has held
+(nothing is allocated per character). What one paragraph makes it hold
+(the security audit of 2026-11-16, A-stxlib-textlayout-01-F3):
+
+| Storage | Per | Bytes |
+|---|---|---|
+| levels | code unit | 1 |
+| breaks (doubling) | code unit | 1 to 2 |
+| classes | code point, not one level | 1 |
+| code unit offsets | code point, not one level | 4 |
+| working bytes | code point | 3 implicit, 6 explicit |
+| working words | code point | 20 implicit, 40 explicit |
+| bracket keys | bracket | 8 |
+| script runs (doubling) | script run | 12 to 24 |
+
+So about 6 bytes per byte of text when the paragraph is one level
+throughout, 31 to 39 with a right-to-left character, and up to about 62
+with an explicit formatting character. The input's only bound is 2^32 - 2
+bytes: a caller that analyses text from outside bounds a paragraph's
+length itself, and `Paragraph::release()` (and `Line::release()`) gives the
+storage back. A moved-from paragraph or line is empty.
+
 ## GUI.Forms swap note
 
 GUI.Forms' calls are in:

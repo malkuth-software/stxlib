@@ -63,7 +63,13 @@
 //
 // Memory: a Paragraph and a Line own their storage, grown to the largest
 // paragraph or line they have held and reused; nothing is allocated per
-// character. A failure (out_of_memory when storage cannot grow,
+// character. What one paragraph holds is linear in its length but not
+// small: about 6 bytes per byte of text when it is one level throughout,
+// 31 to 39 with a right-to-left character, and up to about 62 with an
+// explicit formatting character (A-stxlib-textlayout-01-F3; the table is in
+// docs/TEXTLAYOUT.md). The only bound is that of the input (2^32 - 2
+// bytes), so a caller that takes text from outside bounds a paragraph
+// itself before analysing it; release() gives the storage back. A failure (out_of_memory when storage cannot grow,
 // invalid_argument or out_of_range for a bad offset) leaves the object
 // empty. No function here uses a host call, a locale or a hidden state;
 // every one is noexcept.
@@ -336,6 +342,9 @@ public:
     // Ends the analysis; capacity remains.
     void clear() noexcept;
 
+    // Ends the analysis and frees the storage, as a new paragraph.
+    void release() noexcept;
+
 private:
     friend struct Access;
 
@@ -403,6 +412,9 @@ public:
 
     // Ends the analysis; capacity remains.
     void clear() noexcept;
+
+    // Ends the analysis and frees the storage, as a new line.
+    void release() noexcept;
 
 private:
     friend struct Access;

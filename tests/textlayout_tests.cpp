@@ -960,6 +960,12 @@ void arguments() {
     CHECK(line.runs().count() == 0 && line.levels().count() == 0 && line.length() == 0);
     paragraph = static_cast<layout::Paragraph&&>(moved);
     CHECK(paragraph.length() == hebrew.count() && moved.length() == 0 && moved.levels().count() == 0);
+    // release() empties it and frees its storage; it can be analysed into again.
+    paragraph.release();
+    moved_line.release();
+    CHECK(paragraph.length() == 0 && paragraph.levels().count() == 0 && moved_line.runs().count() == 0);
+    CHECK(layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, paragraph).succeeded());
+    CHECK(paragraph.length() == hebrew.count());
 }
 
 } // namespace
