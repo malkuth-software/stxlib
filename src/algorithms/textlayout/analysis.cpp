@@ -186,14 +186,14 @@ struct Source final {
     u32 high = source.key_count;
     while (low < high) {
         const u32 middle = low + (high - low) / 2;
-        if (source.keys[2 * middle] < point) {
+        if (source.keys[usize{2} * middle] < point) {
             low = middle + 1;
         } else {
             high = middle;
         }
     }
     u32 result = 0;
-    if (low < source.key_count && source.keys[2 * low] == point) result = source.keys[2 * low + 1];
+    if (low < source.key_count && source.keys[usize{2} * low] == point) result = source.keys[usize{2} * low + 1];
     return result;
 }
 
@@ -984,8 +984,10 @@ struct Access final {
             u32 written = 0;
             for (u32 point = 0; point < points; ++point) {
                 if ((classes[point] & bracket_bit) == 0) continue;
-                keys[2 * written] = point;
-                keys[2 * written + 1] = bracket_key(next.at(offset + units[point]).value);
+                // usize: twice a count of 2^31 or more brackets does not fit
+                // u32 (A-stxlib-textlayout-01-F1).
+                keys[usize{2} * written] = point;
+                keys[usize{2} * written + 1] = bracket_key(next.at(offset + units[point]).value);
                 written = written + 1;
             }
             paragraph.key_count_ = brackets;
