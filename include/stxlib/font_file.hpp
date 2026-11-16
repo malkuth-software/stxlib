@@ -100,8 +100,16 @@ struct Font final {
     // (version 2 and later) gives them; 0 when it does not.
     i32 x_height{0};
     i32 cap_height{0};
-    // The table of substitutions (GSUB), for has_feature.
+    // The layout tables: substitutions (GSUB), positions (GPOS) and glyph
+    // definitions (GDEF). has_feature reads the first; the shaper all three.
     FontTable substitutions{};
+    FontTable positions{};
+    FontTable definitions{};
+    // The character map's list of variation sequences (a base character
+    // and a variation selector that together name a glyph), and the old
+    // kerning table; the shaper reads both. Empty when the font has none.
+    FontTable variation_map{};
+    FontTable kerning{};
     u32 advance_count{0};
     // CFF: the charstrings, the global subroutines, and where each glyph's
     // font dictionary is found (src/algorithms/glyphs/font_cff.cpp).
@@ -160,8 +168,18 @@ struct MappedStretch final {
 // letters as one number, the first highest: 'smcp' is 0x736D6370).
 [[nodiscard]] bool has_feature(const Font& font, u32 tag) noexcept;
 
+// The glyph of a character followed by a variation selector: 0 when the
+// font lists no such sequence; `use_default` set when the font says the
+// sequence is the character's own glyph (glyph_of gives it).
+[[nodiscard]] u32 variation_glyph(const Font& font, u32 character, u32 selector, bool& use_default) noexcept;
+
 // A glyph's advance in font units, or 0 for a glyph the font has not.
 [[nodiscard]] i32 advance_of(const Font& font, u32 glyph) noexcept;
+
+// Whether this build checks, at run time, that what stxlib::glyphs holds
+// agrees with itself at the end of every call (a checked test build:
+// src/algorithms/glyphs/glyph_checks.hpp).
+[[nodiscard]] bool glyph_checks_enabled() noexcept;
 
 // A glyph's outline in font units. An empty glyph (a space) succeeds with
 // no points.

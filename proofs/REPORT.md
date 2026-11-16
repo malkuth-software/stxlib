@@ -402,6 +402,58 @@ zeroing (`src/hosted/emscripten/minmallocpp_os_emscripten.cpp`). To run:
 
 None of these has been compiled or run: the integrator builds them.
 
+## stxlib::glyphs, the allocator's securing approach (the owner, 2026-11-16)
+
+The font reader, the glyph store, the hinter, the rasterizer and the face
+(`src/algorithms/glyphs/`) take a font as an application hands it in. The
+owner asked that what was done for stx_minmallocpp be done here: the code
+traced as a graph, its leaves checked on the compiled objects, its carried
+state checked at run time in a checked build. Written on Neo. Built and run
+on the M4 on 2026-11-16 (macOS arm64, Clang; the seat's logs
+`stx_gtraster/dev/logs/gt-75` to `gt-81`), and on no other host.
+
+What ran on the M4, all passing:
+- the whole suite (109 of 109 tests, no compiler warning);
+- the glyph tests, with the four programs built with the checks on
+  (`stxlib_font_file_checked_tests`, `stxlib_glyph_hinter_checked_tests`,
+  `stxlib_glyph_untrusted_checked_tests`,
+  `stxlib_glyph_shape_buffer_checked_tests`), under AddressSanitizer with
+  UndefinedBehaviorSanitizer: no report;
+- the same under the integer sanitizers this host's compiler accepts (signed
+  and unsigned overflow, shift, implicit truncation, pointer overflow),
+  halting on any report: none. `implicit-integer-sign-change` is refused by
+  Apple's compiler on arm64, so that one check is still to run on Linux;
+- `stxlib_glyph_hinter_tests`, with the checks off and on, under
+  ThreadSanitizer (its case of four threads, each with a face of its own on
+  one typeface): no report;
+- `stxlib_glyphs_surface`: the objects' leaves are exactly the allocator
+  (`vocabulary_allocate`, `vocabulary_release`), `ErrorRecord::make`,
+  `Mutex` (made, `lock`, `unlock`, unmade), `requirement_failed`, and the
+  compiler's `bzero`, `memcpy`, `memset_pattern16` and stack protection.
+These are evidence over the paths the tests take, not proof.
+
+Turned text by a mask's surface (the owner, 2026-11-16) was added after
+that run and built and run on the M4 the same day (logs `gt-116` to
+`gt-120`): the whole suite, 113 of 113 with no compiler warning; the glyph
+tests, now with six programs built with the checks on (the two more are
+`stxlib_glyph_shape_checked_tests` and `stxlib_glyph_turn_checked_tests`),
+under AddressSanitizer with UndefinedBehaviorSanitizer, under the integer
+sanitizers as above, and the hinter tests under ThreadSanitizer: no report.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| the glyph code, as a graph | every entry; every call that leaves the glyph code; no function calls itself; every cycle has a stated bound | read off the source, not run (`proofs/glyphs_graph.md`). The exits, with what is written before each, are tabled for the reader's first entries (`open_font`, `glyph_of`, `next_stretch`, `glyph_in_stretch`, `has_feature`, `advance_of`, the top of `load_glyph`), the glyph store and the face; the outline loaders, the hinter and the rasterizer have their cycles and bounds stated and their exits not yet tabled | the same, section 6 for what is missing |
+| the leaves | the glyph objects call nothing but the allocator, the error record, the mutex, the requirement handler and the compiler's helpers: no file, stream, environment, clock, host call, C library function, `operator new` or exception runtime | checked on the compiled objects on macOS arm64 (ctest `stxlib_glyphs_surface`); the tool's parsing tried with stand-in listings, 79 checks (ctest `stxlib_glyphs_surface_tool`); its Microsoft spellings written from the mangling rules and not run on that toolchain | `tools/check_glyphs_surface.py`, `tests/check_glyphs_surface_tests.py` |
+| `font_file.cpp` (the reader's entries) | every read of the font's bytes is inside them; an entry given any bytes returns, refuses or answers "nothing", and writes only its results | argued from the code (every read behind `has`, whose two comparisons cannot wrap) and tabled exit by exit; not proved. Searched within a bound: `stxlib_glyph_untrusted_tests` (1,202 wrong character maps and their prefixes, 60,600 altered maps, 30,744 altered fonts, 31,080 altered layout tables, from fixed seeds), each answer checked against the promise stated in the header, and `stxlib_font_file_tests` P8 (four whole fonts, TrueType and CFF: every prefix, every byte set to each of five values, 60,000 altered copies each; 256,012 fonts through the reader, 76,012 of them through a `Face` in all three fits), under the sanitizers above | `proofs/glyphs_graph.md` 3; `tests/glyph_untrusted_tests.cpp`, `tests/font_file_tests.cpp` |
+| `font_file.cpp` (`next_stretch`) | going through a character map, in order or not, takes no more calls than it has entries, and one | argued (`proofs/glyphs_graph.md` 3.3: the search's answer rises with `from` and cannot stay); the count is checked on every map the search above tries | the same |
+| `font_truetype.cpp`, `font_cff.cpp` | a glyph that names itself, or runs without end, is refused within `FontLimits`; an outline given is whole (as many tags as points, contours in order and ending at the last point, within the limits) | the bounds read off the source (a fixed number of turns over a fixed stack; a count of operators); "whole" checked at the exits in a checked build and on the 415,410 outlines the search loads; exits not tabled | `proofs/glyphs_graph.md` 3.6; `glyph_checks.hpp` (`outline_whole`) |
+| `glyph_store.cpp` | the index and the three parts agree after every call, whatever was refused or ran out of memory on the way | tabled (`proofs/glyphs_graph.md` 4.1) and checked at every exit of `glyph` and `keep` in a checked build (`GlyphStore::whole`); evidence over the tests' paths only. No test makes the allocator refuse inside the store | `tests/glyph_hinter_tests.cpp` (the store's and the face's cases) |
+| `glyph_face.cpp` (`Typeface`) | one lock, taken once and released on every exit; nothing called under it takes another or leaves the glyph code except to the allocator | read off the code (`ScopedLock`; the leaves above). Four threads on one typeface, each with its own face, under ThreadSanitizer: no report, and a sum over what each thread draws equals the single thread's; evidence over that one case's orderings, not a search of orderings | `proofs/glyphs_graph.md` 4.2; `tests/glyph_hinter_tests.cpp` (F8) |
+| `glyph_face.cpp` (`Face`) | the fitted outlines lie end to end, each with the points its segments need, each found by its glyph, size and fit; the table is never more than half full, so a search of it ends | tabled (4.3) and checked at the exits of `fitted`, `mask`, `measure_run` and `draw_run` in a checked build (`Face::whole`); evidence over the tests' paths only | the same tests |
+| the hinter | the same numbers as FreeType 2.14.2's on every glyph of the 37 bundled faces at seven sizes, light and monochrome; a glyph with more segments than the limit is left unhinted on that axis | measured in the seat against FreeType (412,244 glyph sizes a mode, all equal), not a test of this repository: FreeType is not in the tree. The bounds read off the source; exits not tabled | the seat's notes (`stx_gtraster/dev/SEAT-NOTES.md`); `proofs/glyphs_graph.md` 5 |
+| integer arithmetic | no signed or unsigned wrap outside a function marked `STXLIB_MODULAR` (one: the fitted table's hash) | run under the integer sanitizers this host accepts, over the glyph tests: no report. Not proved; `implicit-integer-sign-change` not run | `src/core/checked.hpp`; the seat's `mm_gt16.sh` |
+| `turn_lattice.cpp`, `turn_lattice.hpp` (a mask's surface, by which lightly fitted text is turned) | the cell is stx_conv's line cell exactly (whole numbers of 14400ths, every division exact); a lattice's controls at the mask's pixels are the pixels; no turn at a whole pixel gives the mask back, box and bytes; a turn writes every byte of the box it is given and reads nothing outside the lattice; no step leaves 64 bits in the cell or 32 in a pixel's sums | the bounds argued at the head of `turn_lattice.hpp` and tabled (`proofs/glyphs_graph.md` 4.4); not proved. Tested against numbers worked out apart from the code, by `tools/turn_lattice_oracle.py` (stx_conv's formula in exact fractions): 40 cells, a whole lattice, 6 turns byte for byte, 36 more masks and turns as two sums; and searched within a bound: masks of 1 to 256 pixels a side of four kinds at turns and shifts of every size, under the sanitizers above. Measured in the seat against stx_conv's own compiled cell in binary64 (not a test of this repository) on four bundled faces at five sizes: of 4,097,030 controls, 520 differ, each by one 32nd of a level | `tests/glyph_turn_tests.cpp`, `tests/glyph_hinter_tests.cpp` (`face_turned_surface`) |
+
 ## stxlib::boundary, the Emscripten family (owner decision 2026-11-15)
 
 Hosted modules only: no pure core was added, so nothing here is in proof

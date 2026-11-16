@@ -49,6 +49,11 @@
 //       arithmetic), at positions to 1/64 of a pixel; a glyph over itself
 //       is p + p (255 - p) / 255; the box measured is the box drawn;
 //   F4  a run's window, a glyph the font has not, and a run too large;
+//   F10 fitted text at an angle: the matrix of an angle in whole numbers
+//       (quarter turns exact, known values, the same sweep on every host),
+//       no turn changes no byte, a quarter turn is the upright mask turned
+//       pixel for pixel, a run's places through the matrix, a slight turn
+//       changes the drawing slightly, the way back, a turned box;
 //   F5  turned text: the matrix of no change changes nothing, a quarter
 //       turn turns the box, and a matrix with a hinted fit is refused;
 //   F6  the fitted outlines' size: one unused while a half fills twice is
@@ -80,8 +85,10 @@
 #include "stxlib/threads.hpp"
 
 #include "font_builder.hpp"
+#include "algorithms/glyphs/turn_lattice.hpp"
 #include "test_support.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -870,12 +877,14 @@ void store_size() {
     CHECK(serves(opened, store, glyph_i) && store.glyphs_read() == 11);
     // The kept glyphs were never given up.
     CHECK(serves(opened, store, glyph_H) && serves(opened, store, glyph_O) && serves(opened, store, glyph_m) && store.glyphs_read() == 11);
+    // Through all of that the store agrees with itself.
+    CHECK(store.whole());
     // Round and round: every glyph, many times, is always the reader's.
     bool all = true;
     for (u32 round = 0; round < 50; ++round) {
         for (u32 glyph = 0; glyph < glyph_count; ++glyph) all = all && serves(opened, store, (glyph * 7 + round) % glyph_count);
     }
-    CHECK(all);
+    CHECK(all && store.whole());
     // The storage is never more than its limits, the index and the room a
     // glyph is read into.
     CHECK(store.bytes_held() <= 900 + 1640 + 4 * glyph_count + 600);
@@ -1265,10 +1274,454 @@ void face_turned() {
         std::fprintf(stderr, "  h on its side: %u by %u at %d, %d\n", turned.width, turned.height, turned.left, turned.top);
     }
     CHECK(turned.width == 15 && turned.height == 7 && turned.left == -15 && turned.top == -8);
-    // A matrix with a hinted fit is refused.
+}
+
+// The mask of a glyph, fitted, through a matrix, with a part of a pixel.
+struct TurnedMask final {
+    glyphs::Bounds bounds{};
+    std::vector<u8> pixels{};
+    bool had{false};
+};
+
+[[nodiscard]] TurnedMask mask_of(glyphs::Face& face, const u32 glyph, const i64 size, const glyphs::Fit fit, const glyphs::TextMatrix* const matrix,
+                                 const glyphs::Point shift) {
+    TurnedMask result{};
+    glyphs::DrawStyle style{};
+    style.size = size;
+    style.fit = fit;
+    if (matrix != nullptr) glyphs::set_matrix(style, *matrix);
+    stxlib::Vector<u8> pixels{};
+    result.had = face.mask(glyph, style, shift, result.bounds, pixels).succeeded();
+    result.pixels.assign(pixels.view().data(), pixels.view().data() + pixels.count());
+    return result;
+}
+
+// Fitted text at an angle (glyph_face.hpp, "Turned text").
+void face_turned_fitted() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    glyphs::Face face{};
+    CHECK(face.open(view_of(opened.bytes), 0).succeeded());
+    const i64 quarter = static_cast<i64>(90) << 16;
+    // The matrix of an angle: the quarter turns exactly, known values, and
+    // minus an angle the transpose.
+    const glyphs::TextMatrix none = glyphs::turn_matrix(0);
+    const glyphs::TextMatrix left = glyphs::turn_matrix(quarter);
+    const glyphs::TextMatrix half = glyphs::turn_matrix(2 * quarter);
+    const glyphs::TextMatrix right = glyphs::turn_matrix(3 * quarter);
+    CHECK(none.xx == 0x10000 && none.xy == 0 && none.yx == 0 && none.yy == 0x10000);
+    CHECK(left.xx == 0 && left.xy == -0x10000 && left.yx == 0x10000 && left.yy == 0);
+    CHECK(half.xx == -0x10000 && half.xy == 0 && half.yx == 0 && half.yy == -0x10000);
+    CHECK(right.xx == 0 && right.xy == 0x10000 && right.yx == -0x10000 && right.yy == 0);
+    const glyphs::TextMatrix whole = glyphs::turn_matrix(4 * quarter);
+    const glyphs::TextMatrix back = glyphs::turn_matrix(-quarter);
+    CHECK(whole.xx == none.xx && whole.yx == none.yx && back.xx == right.xx && back.xy == right.xy && back.yx == right.yx && back.yy == right.yy);
+    // The sine of 30 degrees is a half, of 45 the root of a half (46341 of
+    // 65536, rounded), of 60 it is 56756.
+    const glyphs::TextMatrix thirty = glyphs::turn_matrix(static_cast<i64>(30) << 16);
+    const glyphs::TextMatrix forty_five = glyphs::turn_matrix(static_cast<i64>(45) << 16);
+    const glyphs::TextMatrix sixty = glyphs::turn_matrix(static_cast<i64>(60) << 16);
+    CHECK(thirty.yx == 32768 && thirty.xx == 56756 && thirty.xy == -32768 && thirty.yy == 56756);
+    CHECK(forty_five.yx == 46341 && forty_five.xx == 46341 && sixty.yx == 56756 && sixty.xx == 32768);
+    // Every 1009th 65536th of a degree over three turns: each entry within
+    // one 65536th of the true value, minus the angle the transpose, and the
+    // whole sweep's numbers the same on every host.
+    bool near = true;
+    bool transposed = true;
+    std::uint64_t sweep = 0;
+    const i64 full = 4 * quarter;
+    for (i64 degrees = -full; degrees < 2 * full; degrees = degrees + 1009) {
+        const glyphs::TextMatrix matrix = glyphs::turn_matrix(degrees);
+        const glyphs::TextMatrix minus = glyphs::turn_matrix(-degrees);
+        const double radians = static_cast<double>(degrees) / 65536.0 * 3.14159265358979323846 / 180.0;
+        near = near && std::fabs(static_cast<double>(matrix.yx) - std::sin(radians) * 65536.0) <= 1.0 &&
+               std::fabs(static_cast<double>(matrix.xx) - std::cos(radians) * 65536.0) <= 1.0 && matrix.yy == matrix.xx && matrix.xy == -matrix.yx;
+        transposed = transposed && minus.xx == matrix.xx && minus.xy == matrix.yx && minus.yx == matrix.xy && minus.yy == matrix.yy;
+        const i32 entries[4] = {matrix.xx, matrix.xy, matrix.yx, matrix.yy};
+        for (const i32 entry : entries) {
+            sweep = sweep ^ static_cast<std::uint32_t>(entry);
+            sweep = sweep ^ (sweep << 13);
+            sweep = sweep ^ (sweep >> 7);
+            sweep = sweep ^ (sweep << 17);
+        }
+    }
+    CHECK(near);
+    CHECK(transposed);
+    if (sweep != 0xf454c44177900624ULL) std::fprintf(stderr, "  the sweep of angles: %016llx\n", static_cast<unsigned long long>(sweep));
+    CHECK(sweep == 0xf454c44177900624ULL);
+
+    // The matrix of no turn changes nothing of fitted text, with any part
+    // of a pixel: the bytes are the upright ones.
+    const glyphs::Fit fits[] = {glyphs::Fit::light, glyphs::Fit::monochrome, glyphs::Fit::none};
+    const u32 letters[] = {glyph_H, glyph_h, glyph_o, glyph_p};
+    const glyphs::Point shifts[] = {{0, 0}, {21, -40}, {63, -1}};
+    bool unchanged = true;
+    for (const glyphs::Fit fit : fits) {
+        for (const u32 letter : letters) {
+            for (const glyphs::Point shift : shifts) {
+                const TurnedMask upright = mask_of(face, letter, 13 * 64, fit, nullptr, shift);
+                const TurnedMask through = mask_of(face, letter, 13 * 64, fit, &none, shift);
+                unchanged = unchanged && upright.had && through.had && same_bounds(upright.bounds, through.bounds) && upright.pixels == through.pixels &&
+                            !upright.pixels.empty();
+            }
+        }
+    }
+    CHECK(unchanged);
+
+    // A quarter turn of fitted text is the upright mask turned pixel for
+    // pixel: a point (x, y) goes to (-y, x), so the mask's rows become
+    // columns, the part of a pixel turned with it.
+    bool turned_exactly = true;
+    usize differing = 0;
+    usize compared = 0;
+    for (const glyphs::Fit fit : fits) {
+        for (const u32 letter : letters) {
+            for (const glyphs::Point shift : shifts) {
+                // The upright mask moved by what the turn takes to `shift`.
+                const glyphs::Point upright_shift{shift.y, -shift.x};
+                const TurnedMask upright = mask_of(face, letter, 13 * 64, fit, nullptr, upright_shift);
+                const TurnedMask turned = mask_of(face, letter, 13 * 64, fit, &left, shift);
+                const bool shaped = upright.had && turned.had && turned.bounds.width == upright.bounds.height && turned.bounds.height == upright.bounds.width &&
+                                    turned.bounds.left == -upright.bounds.top &&
+                                    turned.bounds.top == upright.bounds.left + static_cast<i32>(upright.bounds.width);
+                turned_exactly = turned_exactly && shaped;
+                if (!shaped) continue;
+                const usize width = upright.bounds.width;
+                const usize height = upright.bounds.height;
+                for (usize row = 0; row < height; ++row) {
+                    for (usize column = 0; column < width; ++column) {
+                        const u8 was = upright.pixels[row * width + column];
+                        const u8 is = turned.pixels[(width - 1 - column) * height + row];
+                        compared = compared + 1;
+                        if (was != is) differing = differing + 1;
+                    }
+                }
+                // A half turn: (x, y) goes to (-x, -y), the mask read from
+                // its end. Three quarters: (x, y) goes to (y, -x).
+                const TurnedMask upright_half = mask_of(face, letter, 13 * 64, fit, nullptr, glyphs::Point{-shift.x, -shift.y});
+                const TurnedMask halved = mask_of(face, letter, 13 * 64, fit, &half, shift);
+                bool half_same = upright_half.had && halved.had && halved.bounds.width == upright_half.bounds.width &&
+                                 halved.bounds.height == upright_half.bounds.height &&
+                                 halved.bounds.left == -(upright_half.bounds.left + static_cast<i32>(upright_half.bounds.width)) &&
+                                 halved.bounds.top == static_cast<i32>(upright_half.bounds.height) - upright_half.bounds.top &&
+                                 halved.pixels.size() == upright_half.pixels.size();
+                for (usize index = 0; half_same && index < halved.pixels.size(); ++index) {
+                    half_same = halved.pixels[halved.pixels.size() - 1 - index] == upright_half.pixels[index];
+                }
+                const TurnedMask upright_right = mask_of(face, letter, 13 * 64, fit, nullptr, glyphs::Point{-shift.y, shift.x});
+                const TurnedMask righted = mask_of(face, letter, 13 * 64, fit, &right, shift);
+                bool right_same = upright_right.had && righted.had && righted.bounds.width == upright_right.bounds.height &&
+                                  righted.bounds.height == upright_right.bounds.width &&
+                                  righted.bounds.left == upright_right.bounds.top - static_cast<i32>(upright_right.bounds.height) &&
+                                  righted.bounds.top == -upright_right.bounds.left;
+                const usize right_width = upright_right.bounds.width;
+                const usize right_height = upright_right.bounds.height;
+                for (usize row = 0; right_same && row < right_height; ++row) {
+                    for (usize column = 0; right_same && column < right_width; ++column) {
+                        right_same = righted.pixels[column * right_height + (right_height - 1 - row)] == upright_right.pixels[row * right_width + column];
+                    }
+                }
+                turned_exactly = turned_exactly && half_same && right_same;
+            }
+        }
+    }
+    std::printf("quarter turns: %zu pixels compared, %zu differ\n", compared, differing);
+    CHECK(turned_exactly && compared > 1000 && differing == 0);
+    // In a run too: one glyph a quarter turned is its mask in its place.
+    {
+        glyphs::DrawStyle quarter_style{};
+        quarter_style.size = 13 * 64;
+        quarter_style.fit = glyphs::Fit::light;
+        glyphs::set_matrix(quarter_style, left);
+        const glyphs::RunGlyph one_glyph[] = {{glyph_p, 5 * 64 + 21, 3 * 64 + 40}};
+        glyphs::RunCoverage in_run{};
+        CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(one_glyph), quarter_style, in_run).succeeded());
+        const TurnedMask alone = mask_of(face, glyph_p, 13 * 64, glyphs::Fit::light, &left, glyphs::Point{21, -40});
+        bool placed = alone.had && in_run.width == alone.bounds.width && in_run.height == alone.bounds.height && in_run.left == 5 + alone.bounds.left &&
+                      in_run.top == 3 - alone.bounds.top && in_run.pixels.count() == alone.pixels.size();
+        for (usize index = 0; placed && index < alone.pixels.size(); ++index) placed = in_run.pixels[index] == alone.pixels[index];
+        CHECK(placed);
+    }
+
+    // A fitted run at an angle: the places taken through the matrix by the
+    // face are the caller's own through turn_place.
+    const glyphs::TextMatrix slant = glyphs::turn_matrix(static_cast<i64>(17) << 16);
+    const glyphs::RunGlyph laid_out[] = {{glyph_H, 0, 0}, {glyph_o, 9 * 64 + 13, 0}, {glyph_p, 18 * 64 + 40, 0}};
+    glyphs::RunGlyph placed_by_hand[3] = {};
+    for (usize index = 0; index < 3; ++index) {
+        const glyphs::Point place = glyphs::turn_place(slant, glyphs::Point{laid_out[index].x, laid_out[index].y});
+        placed_by_hand[index] = glyphs::RunGlyph{laid_out[index].glyph, place.x, place.y};
+    }
+    glyphs::DrawStyle style{};
+    style.size = 13 * 64;
     style.fit = glyphs::Fit::light;
-    const stxlib::Status refused = face.draw_run(stxlib::View<glyphs::RunGlyph>(one), style, turned);
-    CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    glyphs::set_matrix(style, slant);
+    glyphs::RunCoverage by_hand{};
+    glyphs::RunCoverage by_face{};
+    glyphs::RunBox box{};
+    CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(placed_by_hand), style, by_hand).succeeded());
+    style.turn_places = true;
+    CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(laid_out), style, by_face).succeeded() &&
+          face.measure_run(stxlib::View<glyphs::RunGlyph>(laid_out), style, box).succeeded());
+    bool same = by_hand.width == by_face.width && by_hand.height == by_face.height && by_hand.left == by_face.left && by_hand.top == by_face.top &&
+                by_hand.pixels.count() == by_face.pixels.count() && by_face.missing_glyphs == 0 && by_face.width > 0;
+    for (usize index = 0; same && index < by_hand.pixels.count(); ++index) same = by_hand.pixels[index] == by_face.pixels[index];
+    CHECK(same);
+    // The run measured is the run drawn; turned 17 degrees counter-
+    // clockwise, text that ran rightward climbs: it is taller than upright
+    // and its last glyph is above its first.
+    CHECK(box.right - box.left == static_cast<i32>(by_face.width) && box.bottom - box.top == static_cast<i32>(by_face.height) && box.left == by_face.left &&
+          box.top == by_face.top);
+    CHECK(placed_by_hand[2].y < placed_by_hand[0].y && placed_by_hand[2].x > placed_by_hand[1].x && by_face.height > 13);
+
+    // Turning a little changes the drawing a little: the same fitted
+    // outline at every angle, so no shape is exchanged for another near 0.
+    const glyphs::TextMatrix slight = glyphs::turn_matrix(4096);
+    const TurnedMask upright_H = mask_of(face, glyph_H, 13 * 64, glyphs::Fit::light, nullptr, glyphs::Point{0, 0});
+    const TurnedMask slight_H = mask_of(face, glyph_H, 13 * 64, glyphs::Fit::light, &slight, glyphs::Point{0, 0});
+    long long ink_upright = 0;
+    long long ink_slight = 0;
+    for (const u8 pixel : upright_H.pixels) ink_upright = ink_upright + pixel;
+    for (const u8 pixel : slight_H.pixels) ink_slight = ink_slight + pixel;
+    const long long ink_change = ink_upright > ink_slight ? ink_upright - ink_slight : ink_slight - ink_upright;
+    CHECK(upright_H.had && slight_H.had && ink_upright > 0 && ink_change * 100 < ink_upright);
+
+    // The way back, for a point of the surface: a quarter turn's inverse
+    // is the turn the other way, exactly; a turn's is its transpose to
+    // within a 65536th; a matrix that flattens has none.
+    glyphs::TextMatrix inverse{};
+    CHECK(glyphs::invert_matrix(left, inverse) && inverse.xx == right.xx && inverse.xy == right.xy && inverse.yx == right.yx && inverse.yy == right.yy);
+    CHECK(glyphs::invert_matrix(slant, inverse) && inverse.xx - slant.xx <= 1 && slant.xx - inverse.xx <= 1 && inverse.xy - slant.yx <= 1 &&
+          slant.yx - inverse.xy <= 1);
+    const glyphs::TextMatrix flat{0x10000, 0x20000, 0x8000, 0x10000};
+    CHECK(!glyphs::invert_matrix(flat, inverse));
+    // A place and back: (10, 4) pixels through 17 degrees and its inverse
+    // is itself to within a 64th or two.
+    const glyphs::Point place{10 * 64, 4 * 64};
+    const glyphs::Point there = glyphs::turn_place(slant, place);
+    const glyphs::Point again = glyphs::turn_place(glyphs::turn_matrix(-(static_cast<i64>(17) << 16)), there);
+    CHECK(again.x - place.x <= 2 && place.x - again.x <= 2 && again.y - place.y <= 2 && place.y - again.y <= 2);
+    // On the surface (y downward) a quarter turn counter-clockwise takes
+    // what was to the right to above: (64, 0) goes to (0, -64).
+    const glyphs::Point up = glyphs::turn_place(left, glyphs::Point{64, 0});
+    CHECK(up.x == 0 && up.y == -64);
+    // A box 100 by 20 from the origin, turned a quarter: 20 by 100, above
+    // the origin.
+    const glyphs::PlaceBox turned_box = glyphs::turn_box(left, glyphs::PlaceBox{0, 0, 100 * 64, 20 * 64});
+    CHECK(turned_box.left == 0 && turned_box.right == 20 * 64 && turned_box.top == -100 * 64 && turned_box.bottom == 0);
+}
+
+// Lightly fitted text at an angle is turned by its masks' surfaces
+// (glyph_face.hpp, "Turned text"; the rules, turn_lattice.hpp).
+[[nodiscard]] TurnedMask styled_mask(glyphs::Face& face, const u32 glyph, const glyphs::DrawStyle& style, const glyphs::Point shift) {
+    TurnedMask result{};
+    stxlib::Vector<u8> pixels{};
+    result.had = face.mask(glyph, style, shift, result.bounds, pixels).succeeded();
+    result.pixels.assign(pixels.view().data(), pixels.view().data() + pixels.count());
+    return result;
+}
+
+// What the rules give for a glyph: its upright mask at no part of a pixel
+// made a lattice, and that turned.
+[[nodiscard]] TurnedMask by_the_rules(glyphs::Face& face, const u32 glyph, const glyphs::DrawStyle& style, const glyphs::Point shift) {
+    TurnedMask result{};
+    glyphs::DrawStyle upright_style = style;
+    upright_style.transformed = false;
+    const TurnedMask upright = styled_mask(face, glyph, upright_style, glyphs::Point{0, 0});
+    stxlib::Vector<stxlib::i16> controls{};
+    stxlib::Vector<i64> rows{};
+    if (!upright.had || upright.pixels.empty() ||
+        !glyphs::detail::build_lattice(upright.pixels.data(), upright.bounds.width, upright.bounds.height, rows, controls)) {
+        return result;
+    }
+    if (!glyphs::detail::turned_bounds(upright.bounds, style.xx, style.yx, shift, glyphs::Limits{}, result.bounds)) return result;
+    result.pixels.assign(static_cast<usize>(result.bounds.width) * result.bounds.height, 0);
+    const glyphs::detail::TurnLattice lattice{controls.view().data(), upright.bounds};
+    glyphs::detail::turn_lattice(lattice, style.xx, style.yx, shift, result.bounds, result.pixels.data());
+    result.had = true;
+    return result;
+}
+
+void face_turned_surface() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    glyphs::Face face{};
+    CHECK(face.open(view_of(opened.bytes), 0).succeeded());
+    const glyphs::TextMatrix slant = glyphs::turn_matrix(static_cast<i64>(17) << 16);
+    const glyphs::TextMatrix steep = glyphs::turn_matrix(-(static_cast<i64>(71) << 16) - 12345);
+    glyphs::DrawStyle style{};
+    style.size = 13 * 64;
+    style.fit = glyphs::Fit::light;
+    glyphs::set_matrix(style, slant);
+    const u32 letters[] = {glyph_H, glyph_h, glyph_o, glyph_p, glyph_i, glyph_n_tilde};
+    const glyphs::Point shifts[] = {{0, 0}, {21, -40}, {63, -1}};
+
+    // A glyph's surface is made once, whatever the angle and the part of a
+    // pixel, and the mask is the one the rules give.
+    CHECK(face.lattices_made() == 0);
+    bool by_rule = true;
+    for (const u32 letter : letters) {
+        for (const glyphs::Point shift : shifts) {
+            const glyphs::TextMatrix* const turns_used[] = {&slant, &steep};
+            for (const glyphs::TextMatrix* const matrix : turns_used) {
+                glyphs::set_matrix(style, *matrix);
+                const TurnedMask drawn = styled_mask(face, letter, style, shift);
+                const TurnedMask ruled = by_the_rules(face, letter, style, shift);
+                by_rule = by_rule && drawn.had && ruled.had && same_bounds(drawn.bounds, ruled.bounds) && drawn.pixels == ruled.pixels && !drawn.pixels.empty();
+            }
+        }
+    }
+    CHECK(by_rule);
+    CHECK(face.lattices_made() == 6);
+    CHECK(face.whole());
+    glyphs::set_matrix(style, slant);
+
+    // It is the upright letter that is turned: the ink is the upright
+    // mask's within a fifth, at every angle tried (a surface read at
+    // points is not a sum of areas, and is held to 0 .. 255).
+    bool ink_kept = true;
+    for (const u32 letter : letters) {
+        const TurnedMask upright = mask_of(face, letter, 13 * 64, glyphs::Fit::light, nullptr, glyphs::Point{0, 0});
+        long long ink_upright = 0;
+        for (const u8 pixel : upright.pixels) ink_upright = ink_upright + pixel;
+        for (i64 degrees = 5; degrees < 360; degrees = degrees + 23) {
+            const glyphs::TextMatrix matrix = glyphs::turn_matrix(degrees << 16);
+            const TurnedMask turned = mask_of(face, letter, 13 * 64, glyphs::Fit::light, &matrix, glyphs::Point{17, -9});
+            long long ink_turned = 0;
+            for (const u8 pixel : turned.pixels) ink_turned = ink_turned + pixel;
+            const long long change = ink_turned > ink_upright ? ink_turned - ink_upright : ink_upright - ink_turned;
+            ink_kept = ink_kept && turned.had && ink_upright > 0 && change * 5 < ink_upright;
+        }
+    }
+    CHECK(ink_kept);
+    CHECK(face.lattices_made() == 6);
+
+    // The other fits, a matrix that is not a turn, a size above the limit
+    // and a face told never to: by the outline, and no surface is made.
+    const usize made_before = face.lattices_made();
+    const TurnedMask plain = mask_of(face, glyph_p, 13 * 64, glyphs::Fit::none, &slant, glyphs::Point{21, -40});
+    const TurnedMask single = mask_of(face, glyph_p, 13 * 64, glyphs::Fit::monochrome, &slant, glyphs::Point{21, -40});
+    const glyphs::TextMatrix leaning{0x10000, 0x4000, 0, 0x10000};
+    const TurnedMask leant = mask_of(face, glyph_p, 13 * 64, glyphs::Fit::light, &leaning, glyphs::Point{21, -40});
+    const TurnedMask large = mask_of(face, glyph_p, 21 * 64, glyphs::Fit::light, &slant, glyphs::Point{21, -40});
+    const TurnedMask at_limit = mask_of(face, glyph_p, 20 * 64, glyphs::Fit::light, &slant, glyphs::Point{21, -40});
+    CHECK(plain.had && single.had && leant.had && large.had && !plain.pixels.empty() && !single.pixels.empty() && !leant.pixels.empty() && !large.pixels.empty());
+    CHECK(at_limit.had && face.lattices_made() == made_before + 1);
+    glyphs::FaceLimits never{};
+    never.lattice_size = 0;
+    glyphs::Face outline_face{};
+    CHECK(outline_face.open(view_of(opened.bytes), 0, never).succeeded());
+    const TurnedMask by_outline = mask_of(outline_face, glyph_p, 13 * 64, glyphs::Fit::light, &slant, glyphs::Point{21, -40});
+    const TurnedMask by_surface = mask_of(face, glyph_p, 13 * 64, glyphs::Fit::light, &slant, glyphs::Point{21, -40});
+    CHECK(by_outline.had && by_surface.had && outline_face.lattices_made() == 0 && !by_outline.pixels.empty() &&
+          (!same_bounds(by_outline.bounds, by_surface.bounds) || by_outline.pixels != by_surface.pixels));
+
+    // What is held makes no difference to what is drawn: a face that may
+    // hold no lattice, and one that may hold two or three, draw the same
+    // bytes. Each letter is drawn twice running: the first face makes a
+    // surface every time, the second finds the one it has just made but
+    // has given up others for it by the time the letters come round
+    // again, and each stays whole (which is within its limit).
+    glyphs::FaceLimits none_held{};
+    none_held.lattice_bytes = 0;
+    glyphs::FaceLimits few_held{};
+    few_held.lattice_bytes = 40000;
+    glyphs::Face bare{};
+    glyphs::Face tight{};
+    CHECK(bare.open(view_of(opened.bytes), 0, none_held).succeeded() && tight.open(view_of(opened.bytes), 0, few_held).succeeded());
+    bool same_held = true;
+    usize draws = 0;
+    for (u32 round = 0; round < 3; ++round) {
+        for (const u32 letter : letters) {
+            for (u32 again = 0; again < 2; ++again) {
+                const glyphs::Point shift = shifts[(round + letter + again) % 3];
+                const TurnedMask want = styled_mask(face, letter, style, shift);
+                const TurnedMask from_bare = styled_mask(bare, letter, style, shift);
+                const TurnedMask from_tight = styled_mask(tight, letter, style, shift);
+                same_held = same_held && want.had && from_bare.had && from_tight.had && same_bounds(want.bounds, from_bare.bounds) &&
+                            want.pixels == from_bare.pixels && same_bounds(want.bounds, from_tight.bounds) && want.pixels == from_tight.pixels && bare.whole() &&
+                            tight.whole();
+                draws = draws + 1;
+            }
+        }
+    }
+    CHECK(same_held);
+    if (!(bare.lattices_made() == draws && tight.lattices_made() > 6 && tight.lattices_made() < draws)) {
+        std::fprintf(stderr, "  surfaces made: %zu and %zu in %zu draws\n", bare.lattices_made(), tight.lattices_made(), draws);
+    }
+    CHECK(bare.lattices_made() == draws && tight.lattices_made() > 6 && tight.lattices_made() < draws);
+
+    // Thicker strokes: the upright letter is thickened and that is turned.
+    // Its surface is its own, beside the plain letter's.
+    glyphs::DrawStyle thick_style = style;
+    thick_style.thicken = 48;
+    const usize made_thin = face.lattices_made();
+    const TurnedMask thick_drawn = styled_mask(face, glyph_h, thick_style, glyphs::Point{21, -40});
+    const TurnedMask thick_ruled = by_the_rules(face, glyph_h, thick_style, glyphs::Point{21, -40});
+    const TurnedMask thin_drawn = styled_mask(face, glyph_h, style, glyphs::Point{21, -40});
+    long long thick_ink = 0;
+    long long thin_ink = 0;
+    for (const u8 pixel : thick_drawn.pixels) thick_ink = thick_ink + pixel;
+    for (const u8 pixel : thin_drawn.pixels) thin_ink = thin_ink + pixel;
+    CHECK(thick_drawn.had && thick_ruled.had && same_bounds(thick_drawn.bounds, thick_ruled.bounds) && thick_drawn.pixels == thick_ruled.pixels);
+    CHECK(face.lattices_made() == made_thin + 1 && thick_ink > thin_ink && thin_ink > 0);
+    // And at a quarter turn, where thickened text does not go by quarters.
+    glyphs::set_matrix(thick_style, glyphs::turn_matrix(static_cast<i64>(90) << 16));
+    const TurnedMask thick_quarter = styled_mask(face, glyph_h, thick_style, glyphs::Point{21, -40});
+    const TurnedMask thick_quarter_ruled = by_the_rules(face, glyph_h, thick_style, glyphs::Point{21, -40});
+    CHECK(thick_quarter.had && thick_quarter_ruled.had && same_bounds(thick_quarter.bounds, thick_quarter_ruled.bounds) &&
+          thick_quarter.pixels == thick_quarter_ruled.pixels && face.lattices_made() == made_thin + 1);
+
+    // A run: each glyph's mask in its place, put together by the run's
+    // rule, and measured as drawn.
+    const glyphs::RunGlyph laid_out[] = {{glyph_H, 0, 0}, {glyph_o, 9 * 64 + 13, 0}, {0, 14 * 64, 0}, {glyph_p, 18 * 64 + 40, 0}, {glyph_i, 22 * 64 + 5, 64}};
+    glyphs::DrawStyle run_style = style;
+    run_style.turn_places = true;
+    glyphs::RunCoverage coverage{};
+    glyphs::RunBox box{};
+    CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(laid_out), run_style, coverage).succeeded() &&
+          face.measure_run(stxlib::View<glyphs::RunGlyph>(laid_out), run_style, box).succeeded());
+    CHECK(box.right - box.left == static_cast<i32>(coverage.width) && box.bottom - box.top == static_cast<i32>(coverage.height) && box.left == coverage.left &&
+          box.top == coverage.top && coverage.width > 0 && coverage.missing_glyphs == box.missing_glyphs);
+    std::vector<u8> together(static_cast<usize>(coverage.width) * coverage.height, 0);
+    bool fitted_in = true;
+    for (const glyphs::RunGlyph& glyph : laid_out) {
+        const glyphs::Point place = glyphs::turn_place(slant, glyphs::Point{glyph.x, glyph.y});
+        const i32 pixel_x = place.x >> 6;
+        const i32 pixel_y = place.y >> 6;
+        const glyphs::Point shift{place.x - pixel_x * 64, -(place.y - pixel_y * 64)};
+        const TurnedMask alone = styled_mask(face, glyph.glyph, style, shift);
+        if (!alone.had) continue;
+        for (usize row = 0; row < alone.bounds.height; ++row) {
+            for (usize column = 0; column < alone.bounds.width; ++column) {
+                const i64 x = static_cast<i64>(pixel_x) + alone.bounds.left + static_cast<i64>(column) - coverage.left;
+                const i64 y = static_cast<i64>(pixel_y) - alone.bounds.top + static_cast<i64>(row) - coverage.top;
+                if (x < 0 || y < 0 || x >= coverage.width || y >= coverage.height) {
+                    fitted_in = false;
+                    continue;
+                }
+                u8& target = together[static_cast<usize>(y) * coverage.width + static_cast<usize>(x)];
+                const u32 fresh = alone.pixels[row * alone.bounds.width + column];
+                target = static_cast<u8>(fresh + target * (255U - fresh) / 255U);
+            }
+        }
+    }
+    bool run_same = fitted_in && coverage.pixels.count() == together.size();
+    for (usize index = 0; run_same && index < together.size(); ++index) run_same = coverage.pixels[index] == together[index];
+    CHECK(run_same);
+    // A window that leaves glyphs out counts them, by their turned boxes.
+    glyphs::DrawStyle windowed = run_style;
+    windowed.windowed = true;
+    windowed.window_left = coverage.left;
+    windowed.window_top = coverage.top;
+    windowed.window_right = coverage.left + 8;
+    windowed.window_bottom = coverage.top + static_cast<i32>(coverage.height);
+    glyphs::RunCoverage part{};
+    CHECK(face.draw_run(stxlib::View<glyphs::RunGlyph>(laid_out), windowed, part).succeeded() && part.outside_glyphs >= 1 && part.width > 0 &&
+          part.width < coverage.width);
+    CHECK(face.whole() && bare.whole() && tight.whole());
 }
 
 void face_size() {
@@ -1358,6 +1811,10 @@ void face_size() {
         if (step == 30) after_first = busy.bytes_held();
     }
     CHECK(busy.glyphs_fitted() == 120 * glyph_count && after_first > 0 && busy.bytes_held() <= after_first + 8192);
+    // Every face here, after everything done to it, agrees with itself.
+    CHECK(busy.whole() && warm.whole() && face.whole() && narrow.whole() && probe.whole() && shared.whole());
+    glyphs::Face unopened{};
+    CHECK(unopened.whole());
 }
 
 // Thicker strokes, by hand. 1 is an upright bar: at 16 pixels, unfitted,
@@ -1603,12 +2060,76 @@ void font_numbers() {
         glyphs::Font other{};
         CHECK(glyphs::open_font(view_of(cut_font), 0, other).succeeded() && !glyphs::has_feature(other, 0x736D6370U));
     }
+    // A glyph put together from another: the square, and the square again
+    // 33 across and 17 up. Its parts and their offsets are scaled each on
+    // their own, as TrueType has it: at 13 pixels and a bit the unfitted
+    // outline and the ink box are load_scaled_glyph's, point for point.
+    {
+        const std::vector<Bytes> parts = {Bytes{}, simple_glyph({{{0, 0, true}, {0, 101, true}, {101, 101, true}, {101, 0, true}}}),
+                                          font_builder::composite_glyph(0, {{0x0003, 1, 0, 0, {}}, {0x0003, 1, 33, 17, {}}})};
+        const std::vector<Metric> part_metrics = {{500, 0}, {500, 0}, {500, 0}};
+        Bytes part_glyf{};
+        Bytes part_loca{};
+        Bytes part_hmtx{};
+        glyph_tables(parts, part_metrics, 3, true, part_glyf, part_loca, part_hmtx);
+        const Bytes composite_font = font_of(0x00010000U, {{"cmap", cmap_table({{3, 1, map_format_4({{'A', 'B', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}})},
+                                                           {"glyf", part_glyf},
+                                                           {"head", head_table(1000, true)},
+                                                           {"hhea", hhea_table(800, -220, 50, 3)},
+                                                           {"hmtx", part_hmtx},
+                                                           {"loca", part_loca},
+                                                           {"maxp", maxp_table(3)}});
+        stxlib::Result<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(composite_font), 0);
+        CHECK(made.succeeded());
+        if (made.succeeded()) {
+            glyphs::Typeface& typeface = *(*made.value());
+            const glyphs::Font& parts_font = *typeface.font();
+            bool all = true;
+            bool some_differ_from_whole = false;
+            for (i64 size = 500; size < 1500; size = size + 7) {
+                const i64 scale = glyphs::scale_of(parts_font, size);
+                glyphs::GlyphOutline expected{};
+                glyphs::GlyphOutline whole{};
+                glyphs::GlyphOutline got{};
+                i32 advance = 0;
+                glyphs::InkBox box{};
+                const glyphs::FontLimits limits{};
+                all = all && glyphs::load_scaled_glyph(parts_font, 2, scale, scale, limits, expected).succeeded() &&
+                      glyphs::load_glyph(parts_font, 2, limits, whole).succeeded() &&
+                      typeface.fit(2, size, glyphs::Fit::none, got, advance).succeeded() && typeface.ink_box(2, size, box).succeeded() &&
+                      same_outline(expected, got) && expected.points.count() == 8;
+                if (!all) break;
+                glyphs::scale_outline(whole, scale, scale);
+                some_differ_from_whole = some_differ_from_whole || !same_outline(whole, expected);
+                i32 left = expected.points[0].x;
+                i32 right = left;
+                i32 bottom = expected.points[0].y;
+                i32 top = bottom;
+                for (usize index = 0; index < expected.points.count(); ++index) {
+                    left = expected.points[index].x < left ? expected.points[index].x : left;
+                    right = expected.points[index].x > right ? expected.points[index].x : right;
+                    bottom = expected.points[index].y < bottom ? expected.points[index].y : bottom;
+                    top = expected.points[index].y > top ? expected.points[index].y : top;
+                }
+                all = all && box.left == left && box.right == right && box.bottom == bottom && box.top == top;
+            }
+            CHECK(all);
+            // The test means something: scaling the whole glyph at once
+            // is not the same at some of these sizes.
+            CHECK(some_differ_from_whole);
+            glyphs::InkBox box{};
+            CHECK(typeface.ink_box(0, 1024, box).succeeded() && box.left == 0 && box.right == 0 && box.top == 0 && box.bottom == 0);
+            CHECK(typeface.ink_box(3, 1024, box).failed() && typeface.ink_box(1, 0, box).failed());
+        }
+    }
     // A glyph's box at a size, unfitted: the square at 16 pixels is 0 to
     // 102 (26.6) each way.
     glyphs::Face face{};
     glyphs::FittedGlyph fitted{};
     CHECK(face.open(view_of(bytes), 0).succeeded() && face.fitted(1, 1024, glyphs::Fit::none, fitted).succeeded());
     CHECK(fitted.left == 0 && fitted.bottom == 0 && fitted.right == 102 && fitted.top == 102 && fitted.advance == 512);
+    glyphs::InkBox square{};
+    CHECK((*face.typeface()).ink_box(1, 1024, square).succeeded() && square.left == 0 && square.bottom == 0 && square.right == 102 && square.top == 102);
 }
 
 // A font whose only characters are A and B, each a square: no blue zone
@@ -1756,6 +2277,8 @@ int main(const int argument_count, const char* const* const arguments) {
     face_runs();
     face_windows();
     face_turned();
+    face_turned_fitted();
+    face_turned_surface();
     face_size();
     face_thicker();
     shared_typeface();
@@ -1763,6 +2286,12 @@ int main(const int argument_count, const char* const* const arguments) {
     repeated();
     without_blue_zones();
     robustness();
+    // The checked program (CMakeLists.txt, stxlib_glyphs_checked) is this
+    // test on glyph code that checks every structure whole at every exit.
+    std::printf("glyph checks: %s\n", glyphs::glyph_checks_enabled() ? "on" : "off");
+#if defined(STXLIB_GLYPHS_CHECKS_EXPECTED)
+    CHECK(glyphs::glyph_checks_enabled());
+#endif
     const int status = stxlib_tests::finish("stxlib_glyph_hinter_tests");
     return status;
 }
