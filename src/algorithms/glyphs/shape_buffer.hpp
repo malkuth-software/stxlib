@@ -94,6 +94,15 @@ enum class ClusterLevel : u8 {
     graphemes = 3,
 };
 
+// Which way a run is set. unset: not said yet.
+enum class ShapeDirection : u8 {
+    unset = 0,
+    left_to_right = 1,
+    right_to_left = 2,
+    top_to_bottom = 3,
+    bottom_to_top = 4,
+};
+
 // How the text is to be treated, as bits.
 inline constexpr u32 buffer_beginning_of_text = 0x01;
 inline constexpr u32 buffer_end_of_text = 0x02;
@@ -130,6 +139,10 @@ struct ShapeBuffer final {
     // The glyph for a character that is not to show, when there is one.
     bool has_invisible{false};
     u32 invisible{0};
+    // The run's direction and its script (an ISO 15924 tag; 0: not said
+    // yet). clear unsets both.
+    ShapeDirection direction{ShapeDirection::unset};
+    u32 script{0};
     // What it holds.
     bool successful{true};
     bool have_output{false};

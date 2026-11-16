@@ -689,6 +689,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/hinter.cpp
     src/algorithms/glyphs/layout_tables.cpp
     src/algorithms/glyphs/shape_buffer.cpp
+    src/algorithms/glyphs/shape_unicode.cpp
     src/algorithms/glyphs/hinter_accents.cpp
     src/algorithms/glyphs/hinter_align.cpp
     src/algorithms/glyphs/hinter_edges.cpp
@@ -1007,6 +1008,13 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_shape_buffer_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_shape_buffer_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_shape_buffer_tests COMMAND stxlib_glyph_shape_buffer_tests)
+    # stxlib::glyphs: what the shaper knows of a character
+    # (tests/glyph_shape_unicode_tests.cpp); it reads the internal header.
+    add_executable(stxlib_glyph_shape_unicode_tests tests/glyph_shape_unicode_tests.cpp)
+    target_link_libraries(stxlib_glyph_shape_unicode_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_glyph_shape_unicode_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_glyph_shape_unicode_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_shape_unicode_tests COMMAND stxlib_glyph_shape_unicode_tests)
     # stxlib::glyphs with every check on (src/algorithms/glyphs/
     # glyph_checks.hpp): the glyph sources compiled again with
     # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call

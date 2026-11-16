@@ -213,6 +213,8 @@ void set_cluster(ShapeGlyph& item, const u32 cluster, const u32 mask) noexcept {
 }
 
 void ShapeBuffer::clear() noexcept {
+    direction = ShapeDirection::unset;
+    script = 0;
     successful = true;
     have_output = false;
     have_positions = false;
