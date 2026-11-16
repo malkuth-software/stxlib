@@ -312,9 +312,20 @@ void Targets::tick(std::uint64_t now_ms) noexcept {
             return;
         }
     }
-    if (system_next_check_ms_.has_value() && now_ms >= *system_next_check_ms_ && !reboot_requested_) {
+    if (system_next_check_ms_.has_value() && now_ms >= *system_next_check_ms_ && !reboot_requested_ &&
+        !trial_running()) {
         start_system_update(now_ms);
     }
+}
+
+bool Targets::trial_running() const noexcept {
+    bool trial = false;
+    for (std::size_t index = 0; index < entry_count_ && !trial; index += 1) {
+        const Entry& entry = entries_[index];
+        trial = entry.running.has_value() && entry.stored.has_value() &&
+                (*entry.stored).state.as_good_with_trial() != nullptr;
+    }
+    return trial;
 }
 
 std::optional<std::uint64_t> Targets::next_due_ms() const noexcept {
@@ -336,7 +347,9 @@ std::optional<std::uint64_t> Targets::next_due_ms() const noexcept {
             due = at;
         }
     }
-    if (!job_.has_value() && system_next_check_ms_.has_value() &&
+    // During a trial the system check waits for it (tick); the trial's own
+    // time is already in due, so the loop does not spin.
+    if (!job_.has_value() && system_next_check_ms_.has_value() && !trial_running() &&
         (!due.has_value() || *system_next_check_ms_ < *due)) {
         due = system_next_check_ms_;
     }

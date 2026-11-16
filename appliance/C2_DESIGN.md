@@ -233,7 +233,10 @@ system.
 The system image is a package named `system` with one file, `root.img`. The
 image is a whole slot. `stxpkg system-update <slot> <url>` (the update
 service, from `[system] update-url`) and `stxpkg system-install <slot> <file>`
-(sc2's staged `/user/stx/staging/system.img`) run these steps:
+(sc2's staged `/user/stx/staging/system.img`) run these steps. The update
+service's check waits while a running target is on trial: the reboot would
+end the trial before it could be kept, so it runs once the trial is kept or
+falls back.
 1. Verify the head; the version must be newer than `/etc/stx/version`.
 2. Write the image raw to the inactive slot's device
    (`/etc/stx/root-devices`).

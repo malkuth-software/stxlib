@@ -15,7 +15,9 @@
 //   update goes on trial at once (the target is restarted);
 // - the system update service: [system] update-url and update-interval, as
 //   "stxpkg system-update <inactive slot>"; when it succeeds the slot is
-//   armed (boot_slots_system.h) and the unit reboots;
+//   armed (boot_slots_system.h) and the unit reboots. It does not start
+//   while a running target is on trial: the reboot would end the trial
+//   before it could be kept;
 // - the requests the web configuration (sc2) makes through the
 //   supervisor's control channel: update now, install a package file,
 //   roll back, status.
@@ -185,6 +187,9 @@ private:
     [[nodiscard]] std::optional<std::size_t> entry_of_service(std::size_t service_index) const noexcept;
     [[nodiscard]] std::optional<std::size_t> entry_of_name(const char* name) const noexcept;
     [[nodiscard]] const stxconfig::TargetSettings& settings(const Entry& entry) const noexcept;
+    // Whether a running target is on trial (its update not yet kept): the
+    // system update waits, since its reboot would end the trial.
+    [[nodiscard]] bool trial_running() const noexcept;
     [[nodiscard]] const char* program(const Entry& entry) const noexcept;
     [[nodiscard]] const char* name(const Entry& entry) const noexcept;
     void apply(Entry& entry, const stxpackage::SlotTransition& transition) noexcept;
