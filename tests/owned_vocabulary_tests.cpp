@@ -145,9 +145,21 @@ enum class VectorStep : unsigned char {
     release,
     reserve,       // reserve(first)
     resize,        // resize(first)
-    append_self,   // append_copies(view().first(first))
-    append_outside // append_copies({fresh, fresh + 1})
+    append_self,    // append_copies(view().first(first))
+    append_outside, // append_copies({fresh, fresh + 1})
+    copy_named,     // vector = take(vector.copy()): reports exhaustion
+    copy_construct, // vector = Vector(vector): the ordinary copy constructor
+    copy_assign,    // other = Vector(vector) over `first` old elements, then vector = other (copy assignment)
+    copy_self       // vector = vector (copy assignment to itself)
 };
+
+// The ordinary copy steps fail fast when the allocator refuses, so the
+// explorer's refused branch leaves them out (copy_named is their reporting
+// form and is refused there).
+bool fails_fast_when_refused(const VectorStep step) {
+    const bool result = step == VectorStep::copy_construct || step == VectorStep::copy_assign;
+    return result;
+}
 
 struct VectorOperation final {
     VectorStep step;
@@ -199,6 +211,11 @@ std::vector<VectorOperation> vector_candidates(const usize count) {
     if (count * 2 <= vector_count_cap) {
         for (usize length = 0; length <= count; ++length) add(result, VectorStep::append_self, length, 0);
     }
+    add(result, VectorStep::copy_named, 0, 0);
+    add(result, VectorStep::copy_construct, 0, 0);
+    const usize old_counts[3] = {0, 1, 4};
+    for (const usize old : old_counts) add(result, VectorStep::copy_assign, old, 0);
+    add(result, VectorStep::copy_self, 0, 0);
     return result;
 }
 
@@ -329,6 +346,43 @@ stxlib::Status apply_vector(const VectorOperation& operation, stxlib::Vector<Ele
         }
         return status;
     }
+    case VectorStep::copy_named: {
+        stxlib::Result<stxlib::Vector<Element>> copied = vector.copy();
+        if (copied.failed()) return stxlib::Status::failure(*copied.error());
+        const stxlib::Vector<Element>& made = *copied.value();
+        if (made.capacity() != made.count() || !same_as_model(made, model)) {
+            vector_tally.mismatches = vector_tally.mismatches + 1;
+        }
+        vector = static_cast<stxlib::Result<stxlib::Vector<Element>>&&>(copied).take_value();
+        return stxlib::Status::success();
+    }
+    case VectorStep::copy_construct: {
+        stxlib::Vector<Element> made(vector);
+        if (made.capacity() != made.count() || !same_as_model(made, model) || !same_as_model(vector, model)) {
+            vector_tally.mismatches = vector_tally.mismatches + 1;
+        }
+        vector = static_cast<stxlib::Vector<Element>&&>(made);
+        return stxlib::Status::success();
+    }
+    case VectorStep::copy_assign: {
+        stxlib::Vector<Element> other;
+        for (usize index = 0; index < first; ++index) {
+            if (other.emplace(fresh).failed()) vector_tally.mismatches = vector_tally.mismatches + 1;
+        }
+        other = vector;
+        if (!same_as_model(other, model) || !same_as_model(vector, model)) {
+            vector_tally.mismatches = vector_tally.mismatches + 1;
+        }
+        vector = other;
+        return stxlib::Status::success();
+    }
+    case VectorStep::copy_self: {
+        const usize capacity = vector.capacity();
+        stxlib::Vector<Element>& alias = vector;
+        vector = alias;
+        if (vector.capacity() != capacity) vector_tally.mismatches = vector_tally.mismatches + 1;
+        return stxlib::Status::success();
+    }
     case VectorStep::append_outside: {
         const Element outside[2] = {Element(fresh), Element(fresh + 1)};
         const stxlib::View<Element> source(outside);
@@ -366,7 +420,7 @@ void explore_vector(std::vector<VectorOperation>& path, const usize depth) {
     for (const VectorOperation& candidate : candidates) {
         // Refused: the operation's allocation (if it makes one) fails, and
         // the vector must be exactly as before.
-        {
+        if (!fails_fast_when_refused(candidate.step)) {
             stxlib::Vector<Element> vector;
             std::vector<int> model;
             replay<Element>(path, vector, model);
@@ -789,6 +843,126 @@ void vector_of_its_own_node() {
     CHECK(ledger.errors == errors_before);
 }
 
+// ---- ordinary copies (owner, 2026-11-16) ------------------------------------
+
+static_assert(__is_nothrow_constructible(stxlib::Utf8String, const stxlib::Utf8String&), "Utf8String copies");
+static_assert(__is_nothrow_assignable(stxlib::Utf8String&, const stxlib::Utf8String&), "Utf8String copy-assigns");
+static_assert(stxlib::Optional<stxlib::Utf8String>::copyable, "Optional<Utf8String> copies (Optional's rule unchanged)");
+static_assert(__is_nothrow_constructible(stxlib::Optional<stxlib::Utf8String>, const stxlib::Optional<stxlib::Utf8String>&),
+              "Optional<Utf8String> copy-constructs");
+static_assert(__is_nothrow_constructible(stxlib::Vector<stxlib::Utf8String>, const stxlib::Vector<stxlib::Utf8String>&),
+              "Vector<Utf8String> copies");
+static_assert(__is_nothrow_constructible(TreeNode, const TreeNode&), "a tree node holding a Vector of itself copies");
+
+// Text of `length` bytes, distinct per seed: "a" + seed letter repeated.
+stxlib::Utf8String text_of(const usize length, const char seed) {
+    char bytes[64];
+    for (usize index = 0; index < length; ++index) bytes[index] = static_cast<char>(seed + static_cast<char>(index % 7));
+    stxlib::Result<stxlib::TextView> view = stxlib::validate_utf8(bytes, length);
+    stxlib::Utf8String result = stxlib::take_or_fail_fast(stxlib::Utf8String::copy_of(*view.value()));
+    return result;
+}
+
+void ordinary_copies() {
+    // Utf8String: every length 0 to 40 (inline up to 15 bytes, then a
+    // block), copy-constructed and copy-assigned over every length 0 to 40.
+    long long string_cases = 0;
+    long long string_mismatches = 0;
+    for (usize length = 0; length <= 40; ++length) {
+        const stxlib::Utf8String original = text_of(length, 'a');
+        stxlib::Utf8String copied(original);
+        string_cases = string_cases + 1;
+        if (copied != original || copied.count() != length || (length > 0 && copied.view().data() == original.view().data())) {
+            string_mismatches = string_mismatches + 1;
+        }
+        // Independent storage: changing the copy leaves the original.
+        if (copied.append(stxlib::TextView("z")).failed() || original.count() != length) string_mismatches = string_mismatches + 1;
+        for (usize old = 0; old <= 40; ++old) {
+            stxlib::Utf8String target = text_of(old, 'k');
+            target = original;
+            string_cases = string_cases + 1;
+            if (target != original) string_mismatches = string_mismatches + 1;
+        }
+        stxlib::Utf8String self = text_of(length, 'q');
+        const stxlib::Utf8String expected = text_of(length, 'q');
+        stxlib::Utf8String& alias = self;
+        self = alias;
+        if (self != expected) string_mismatches = string_mismatches + 1;
+    }
+    CHECK(string_mismatches == 0);
+    std::printf("ordinary copies: Utf8String %lld cases, %lld mismatches\n", string_cases, string_mismatches);
+
+    // Vector<Utf8String>: copy, and an element assigned from another
+    // element of the same vector.
+    stxlib::Vector<stxlib::Utf8String> names;
+    for (usize length = 0; length <= 20; length = length + 5) CHECK(names.push(text_of(length, 'm')).succeeded());
+    stxlib::Vector<stxlib::Utf8String> names_copy(names);
+    CHECK(names_copy == names && names_copy.capacity() == names.count());
+    names[0] = names[4];
+    CHECK(names[0] == names[4] && names[0].count() == 20);
+    names = names_copy;
+    CHECK(names == names_copy);
+
+    // A tree: copy a node holding a Vector of itself, and assign the
+    // children from a grandchild's children (the source lives inside an
+    // element the assignment destroys).
+    const long long live_before = ledger.live;
+    const long long errors_before = ledger.errors;
+    {
+        TreeNode root(1);
+        CHECK(root.children.push(TreeNode(2)).succeeded());
+        CHECK(root.children[0].children.push(TreeNode(4)).succeeded());
+        CHECK(root.children[0].children.push(TreeNode(5)).succeeded());
+        const TreeNode duplicate(root);
+        CHECK(duplicate.children.count() == 1 && duplicate.children[0].children.count() == 2 &&
+              duplicate.children[0].children[1].tracked.value == 5);
+        root.children = root.children[0].children;
+        CHECK(root.children.count() == 2 && root.children[0].tracked.value == 4 && root.children[1].tracked.value == 5);
+        CHECK(ledger.live == live_before + 3 + 4);
+    }
+    CHECK(ledger.live == live_before);
+    CHECK(ledger.errors == errors_before);
+
+    // Optional<Utf8String>.
+    const stxlib::Optional<stxlib::Utf8String> some = stxlib::Optional<stxlib::Utf8String>::of(text_of(30, 'r'));
+    stxlib::Optional<stxlib::Utf8String> other = some;
+    CHECK(other.present() && *other.value() == *some.value());
+    other = stxlib::Optional<stxlib::Utf8String>::none();
+    other = some;
+    CHECK(other.present() && *other.value() == *some.value());
+
+    // Buffer, Path, PriorityQueue.
+    stxlib::Result<stxlib::Buffer<u32>> made = stxlib::Buffer<u32>::allocate_zeroed(9);
+    CHECK(made.succeeded());
+    stxlib::Buffer<u32> buffer = static_cast<stxlib::Result<stxlib::Buffer<u32>>&&>(made).take_value();
+    for (usize index = 0; index < buffer.count(); ++index) buffer[index] = static_cast<u32>(index * 3);
+    const stxlib::Buffer<u32> buffer_copy(buffer);
+    CHECK(buffer_copy.count() == 9 && buffer_copy[8] == 24 && buffer_copy.view().data() != buffer.view().data());
+    stxlib::Buffer<u32> empty;
+    empty = buffer_copy;
+    CHECK(empty.count() == 9 && empty[4] == 12);
+
+    stxlib::Result<stxlib::Path> parsed = stxlib::Path::parse(stxlib::TextView("alpha/beta/gamma.txt"));
+    CHECK(parsed.succeeded());
+    const stxlib::Path path = static_cast<stxlib::Result<stxlib::Path>&&>(parsed).take_value();
+    stxlib::Path path_copy(path);
+    CHECK(path_copy.text() == path.text());
+    path_copy = path;
+    CHECK(path_copy.text() == path.text());
+
+    stxlib::PriorityQueue<int, stxlib::LargestFirst<int>> queue;
+    const int pushed[6] = {4, 9, 1, 9, 7, 3};
+    for (const int value : pushed) CHECK(queue.push(int{value}).succeeded());
+    stxlib::PriorityQueue<int, stxlib::LargestFirst<int>> queue_copy(queue);
+    bool same_order = queue_copy.count() == queue.count();
+    while (!queue.empty()) {
+        const stxlib::Optional<int> a = queue.pop();
+        const stxlib::Optional<int> b = queue_copy.pop();
+        same_order = same_order && b.present() && *a.value() == *b.value();
+    }
+    CHECK(same_order && queue_copy.empty());
+}
+
 // A node that owns its successor through Shared and observes its
 // predecessor through Weak, both named while SharedNode is incomplete.
 struct SharedNode final {
@@ -1081,6 +1255,7 @@ int main(const int argc, char** const argv) {
     optional_from_inside_its_value();
     vector_emplace_and_exact_copies();
     vector_of_its_own_node();
+    ordinary_copies();
     shared_of_its_own_node();
     shared_exhaustive(depth);
     shared_self_and_casts();

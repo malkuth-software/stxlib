@@ -287,6 +287,7 @@ unwind through). The headers state the same at their call sites.
 |---|---|---|
 | `vector.hpp` | Element constructors, destructor, move assignment, operator== | form 1 for growth (built in the new block, the old one adopted out only when complete), in-capacity appends (count after each construction), removal (count before each destruction), insert and erase when Element is nothrow move assignable (every counted slot live). **Termination, accepted by the owner (2026-11-15, decisions/2026-11-15-thread-local-exit-safety.md):** insert before the end and erase for an Element without a nothrow move assignment (none, or one that can throw) rely on the noexcept boundary, so an unwind ends the process. That fits rule 1 as reworded ("termination frees nothing twice"): termination releases none of our state, so the dead slot is never destroyed or freed. A longjmp is undefined behaviour and is not defended. The exhaustive vector test now runs both element kinds |
 | `optional.hpp` | Value constructors, destructor, operator== | form 1: presence set after construction, cleared before destruction |
+| ordinary copies (`Vector`, `Utf8String`, `Buffer`, `Path`, `PriorityQueue`; owner 2026-11-16) | Element copy constructors (inside copy()) | form 1: the copy is built whole in a new object by copy(), then taken by the move assignment, which holds the new storage before releasing the old (rule 1: let go, then release); self-assignment returns at once; a source inside an element is read completely before anything is released. Exhaustion goes to the allocator's policy (take_or_fail_fast: fail fast with copy()'s record) |
 | `unique.hpp`, `shared.hpp` | the object's constructor and destructor | form 1: built in an unowned block; fields repointed and counts final before the destructor runs |
 | `heap.hpp` | Order::before (required noexcept), Value moves and destructor | form 2: every storage slot is a live entry at every call; only a local entry can be lost |
 | `text.hpp` (Utf8String) | host memcpy, memmove | form 1 for growth; form 2 in place (the destructor reads only pointer and capacity) |
@@ -727,3 +728,42 @@ that the bidi rules are UAX #9 beyond BidiTest, BidiCharacterTest and the
 exact comparison with the reference; the script rules against any
 conformance suite (UAX #24 has none), only against the test's own
 itemiser and the oracle. Run on one host only (macOS arm64, Clang).
+
+## Ordinary copies of the owned vocabulary (branch `claude/vocab-copy`; owner, 2026-11-16)
+
+The owner's direction: copying is creating a new object with the old one's
+contents; exhaustion is an allocation problem, not a copy problem (notes
+`decisions/2026-11-16-vocabulary-copy.md`). The following now have noexcept
+copy constructors and copy assignment:
+- `Utf8String`;
+- `Vector<T>`, for any T with a nothrow copy constructor (checked where the
+  copy is instantiated, so a type holding a Vector of itself stays
+  declarable);
+- `Buffer<T>`, `Path` and `PriorityQueue<V, O>`. `Buffer` and
+  `PriorityQueue` gain a reporting `copy()` to match.
+
+The copy allocates through STXlib's allocator. An allocation it cannot have
+ends the process through `take_or_fail_fast`, with the out_of_memory record
+of `copy()`. `copy()` and `copy_of()` still return `Result`. Q1 is
+unchanged.
+
+`Optional`'s rule does not change: it is copyable whenever its value has a
+nothrow copy constructor, so `Optional<Utf8String>` and
+`Optional<Vector<T>>` copy now.
+
+Still not copyable:
+- `Unique`: one owner by definition;
+- `FrozenMap` and `FrozenTextMap`: they own an opaque search structure, and
+  a copy would rebuild or clone it, so `build` stays the way to make a
+  second map;
+- `Result`: a return vehicle;
+- the objects that own host resources (File, Thread, Child and the rest).
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `vector.hpp` (copies) | the copy constructor and copy assignment (over 0, 1 and 4 old elements, and to itself) give the model's elements, capacity exactly the count for a fresh copy, with no leak, double destruction or use after destruction; `copy()` refused fails with out_of_memory and changes nothing | **not yet run.** Proved for every sequence of up to 4 operations over `vector_candidates`, which now include the four copy steps, for both element forms, once the test passes. The refused branch leaves out the two ordinary copy steps, which fail fast by design | `tests/owned_vocabulary_tests.cpp` (`vector_exhaustive`) |
+| `text.hpp` (copies) | a copy equals the original, has its own storage, and is unchanged by changing the original; assignment over every other length gives the source | **not yet run.** Proved for every length from 0 to 40 bytes (inline and allocated) against every old length from 0 to 40, and for self-assignment, once the test passes | `tests/owned_vocabulary_tests.cpp` (`ordinary_copies`) |
+| aliasing and the other types | a tree node's children assigned from a grandchild's children (the source dies in the assignment); an element assigned from a sibling; `Optional<Utf8String>`, `Buffer`, `Path` and `PriorityQueue` copies (same contents, same pop order) | tested | `tests/owned_vocabulary_tests.cpp` (`ordinary_copies`) |
+| fail fast on exhaustion in a copy | the process ends with the out_of_memory record | not tested: the copy constructor has no refusal hook, and arming the vocabulary refusals would end the test program; argued from `take_or_fail_fast`, which is already tested by the death tests | `include/stxlib/fail_fast.hpp` |
+
+Nothing on this branch has been compiled or run yet (no compiler on Neo).

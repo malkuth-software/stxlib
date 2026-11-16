@@ -292,6 +292,15 @@ Result<Path> Path::from_windows_name(const u16* const units, const usize count) 
     return result;
 }
 
+Path::Path(const Path& other) noexcept : Path(take_or_fail_fast(other.copy())) {}
+
+Path& Path::operator=(const Path& other) noexcept {
+    if (this == &other) return *this;
+    Path made = take_or_fail_fast(other.copy());
+    *this = static_cast<Path&&>(made);
+    return *this;
+}
+
 Result<Path> Path::copy() const noexcept {
     if (text_.empty()) return Result<Path>::success(Path());
     Result<Buffer<char>> owned = owned_copy(text_.view().data(), text_.count());
