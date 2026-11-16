@@ -966,6 +966,42 @@ void arguments() {
     CHECK(paragraph.length() == 0 && paragraph.levels().count() == 0 && moved_line.runs().count() == 0);
     CHECK(layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, paragraph).succeeded());
     CHECK(paragraph.length() == hebrew.count());
+
+    // bytes_held is the storage's capacity, bytes_peak its most since the
+    // last reset_peak or release; 1,000 analyses of the same paragraph and
+    // line hold steady (GUI.Forms' text_layout ledger).
+    {
+        layout::Paragraph held_paragraph;
+        layout::Line held_line;
+        CHECK(held_paragraph.bytes_held() == 0 && held_paragraph.bytes_peak() == 0 && held_line.bytes_held() == 0);
+        CHECK(layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, held_paragraph)
+                  .succeeded());
+        CHECK(layout::analyse_line(held_paragraph, 0, held_paragraph.length(), held_line).succeeded());
+        const stxlib::usize paragraph_held = held_paragraph.bytes_held();
+        const stxlib::usize line_held = held_line.bytes_held();
+        CHECK(paragraph_held > 0 && held_paragraph.bytes_peak() == paragraph_held);
+        CHECK(line_held > 0 && held_line.bytes_peak() == line_held);
+        bool steady = true;
+        for (int round = 0; round < 1000; ++round) {
+            steady = steady &&
+                     layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, held_paragraph)
+                         .succeeded() &&
+                     layout::analyse_line(held_paragraph, 0, held_paragraph.length(), held_line).succeeded() &&
+                     held_paragraph.bytes_held() == paragraph_held && held_line.bytes_held() == line_held &&
+                     held_paragraph.bytes_peak() == paragraph_held && held_line.bytes_peak() == line_held;
+        }
+        CHECK(steady);
+        layout::Paragraph taken(static_cast<layout::Paragraph&&>(held_paragraph));
+        CHECK(taken.bytes_held() == paragraph_held && taken.bytes_peak() == paragraph_held);
+        CHECK(held_paragraph.bytes_held() == 0 && held_paragraph.bytes_peak() == 0);
+        taken.release();
+        held_line.release();
+        CHECK(taken.bytes_held() == 0 && taken.bytes_peak() == 0 && held_line.bytes_held() == 0 &&
+              held_line.bytes_peak() == 0);
+        CHECK(layout::analyse_paragraph(hebrew, 0, layout::BaseDirection::automatic_left_to_right, taken).succeeded());
+        taken.reset_peak();
+        CHECK(taken.bytes_peak() == taken.bytes_held() && taken.bytes_held() > 0);
+    }
 }
 
 } // namespace

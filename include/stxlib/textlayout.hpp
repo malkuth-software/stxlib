@@ -345,6 +345,15 @@ public:
     // Ends the analysis and frees the storage, as a new paragraph.
     void release() noexcept;
 
+    // The bytes the paragraph's storage holds, as allocated now, and the
+    // most that has been since it was made, released or reset_peak was
+    // last called (as Typeface's and Face's); a move carries both with the
+    // storage. The storage grows only within analyse_paragraph, so the peak
+    // is taken at its end.
+    [[nodiscard]] usize bytes_held() const noexcept;
+    [[nodiscard]] usize bytes_peak() const noexcept;
+    void reset_peak() noexcept;
+
 private:
     friend struct Access;
 
@@ -368,6 +377,7 @@ private:
     u32 classes_present_{0}; // bit c set when a code point of class c occurs
     u8 base_level_{0};
     bool uniform_{true};     // one level throughout; classes_ and units_ not kept
+    usize peak_{0};          // bytes_peak
 };
 
 // Analyses the paragraph that starts at byte `offset` of `text`: up to
@@ -416,6 +426,12 @@ public:
     // Ends the analysis and frees the storage, as a new line.
     void release() noexcept;
 
+    // As Paragraph's, for the line's storage (grown only within
+    // analyse_line).
+    [[nodiscard]] usize bytes_held() const noexcept;
+    [[nodiscard]] usize bytes_peak() const noexcept;
+    void reset_peak() noexcept;
+
 private:
     friend struct Access;
 
@@ -426,6 +442,7 @@ private:
     u32 offset_{0};
     u32 length_{0};
     u32 run_count_{0};
+    usize peak_{0}; // bytes_peak
 };
 
 // Analyses the line [offset, offset + length) of `paragraph` (offsets in

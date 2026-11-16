@@ -294,6 +294,12 @@ bytes: a caller that analyses text from outside bounds a paragraph's
 length itself, and `Paragraph::release()` (and `Line::release()`) gives the
 storage back. A moved-from paragraph or line is empty.
 
+`bytes_held()` gives what a paragraph's or line's storage holds now and
+`bytes_peak()` the most since it was made, released or `reset_peak()` was
+called (a move carries both), as the glyph `Typeface` and `Face` give theirs;
+GUI.Forms charges them to its text_layout ledger. The storage grows only
+within an analysis, so the peak is taken where each analysis ends.
+
 ## GUI.Forms swap note
 
 GUI.Forms' calls are in:

@@ -1041,6 +1041,18 @@ struct Access final {
         line.run_count_ = 0;
     }
 
+    // Raises the peak to what is held now; called where an analysis ends,
+    // since the storage grows only within one.
+    static void note_peak(Paragraph& paragraph) noexcept {
+        const usize held = paragraph.bytes_held();
+        if (held > paragraph.peak_) paragraph.peak_ = held;
+    }
+
+    static void note_peak(Line& line) noexcept {
+        const usize held = line.bytes_held();
+        if (held > line.peak_) line.peak_ = held;
+    }
+
     // Whether a code point starts at code unit `unit` of the paragraph, or
     // the paragraph ends there: the decision after the code unit before it
     // is not inside_character. Requirement: unit <= length.
@@ -1250,7 +1262,20 @@ void Paragraph::release() noexcept {
     keys_.release();
     work_.release();
     work_wide_.release();
+    peak_ = 0;
 }
+
+usize Paragraph::bytes_held() const noexcept {
+    const usize result = levels_.capacity() * sizeof(u8) + breaks_.capacity() * sizeof(LineBreak) +
+                         script_runs_.capacity() * sizeof(ScriptRun) + classes_.capacity() * sizeof(u8) +
+                         units_.capacity() * sizeof(u32) + keys_.capacity() * sizeof(u32) +
+                         work_.capacity() * sizeof(u8) + work_wide_.capacity() * sizeof(u32);
+    return result;
+}
+
+usize Paragraph::bytes_peak() const noexcept { return peak_; }
+
+void Paragraph::reset_peak() noexcept { peak_ = bytes_held(); }
 
 // The moves take the storage and the counts, then leave the source empty
 // (A-stxlib-textlayout-01-F2): a defaulted move would leave the counts over
@@ -1276,7 +1301,9 @@ Paragraph& Paragraph::operator=(Paragraph&& other) noexcept {
     classes_present_ = other.classes_present_;
     base_level_ = other.base_level_;
     uniform_ = other.uniform_;
+    peak_ = other.peak_;
     Access::clear(other);
+    other.peak_ = 0;
     return *this;
 }
 
@@ -1286,7 +1313,17 @@ void Line::release() noexcept {
     Access::clear(*this);
     runs_.release();
     levels_.release();
+    peak_ = 0;
 }
+
+usize Line::bytes_held() const noexcept {
+    const usize result = runs_.capacity() * sizeof(BidiRun) + levels_.capacity() * sizeof(u8);
+    return result;
+}
+
+usize Line::bytes_peak() const noexcept { return peak_; }
+
+void Line::reset_peak() noexcept { peak_ = bytes_held(); }
 
 Line::Line(Line&& other) noexcept { *this = static_cast<Line&&>(other); }
 
@@ -1297,7 +1334,9 @@ Line& Line::operator=(Line&& other) noexcept {
     offset_ = other.offset_;
     length_ = other.length_;
     run_count_ = other.run_count_;
+    peak_ = other.peak_;
     Access::clear(other);
+    other.peak_ = 0;
     return *this;
 }
 
@@ -1319,11 +1358,13 @@ Status analyse_paragraph(const TextView text, const usize offset, const BaseDire
         Access::scan_utf8(paragraph, bytes, static_cast<u32>(offset), static_cast<u32>(text.count()), scan);
     if (scanned.failed()) {
         Access::clear(paragraph);
+        Access::note_peak(paragraph);
         return scanned;
     }
     const Utf8Next next{bytes};
     const Status result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
     if (result.failed()) Access::clear(paragraph);
+    Access::note_peak(paragraph);
     return result;
 }
 
@@ -1341,11 +1382,13 @@ Status analyse_paragraph(const View<u32> code_points, const usize offset, const 
                                                     static_cast<u32>(code_points.count()), scan);
     if (scanned.failed()) {
         Access::clear(paragraph);
+        Access::note_peak(paragraph);
         return scanned;
     }
     const CodePointNext next{code_points.data()};
     const Status result = Access::analyse(paragraph, scan, static_cast<u32>(offset), direction, next);
     if (result.failed()) Access::clear(paragraph);
+    Access::note_peak(paragraph);
     return result;
 }
 
@@ -1353,6 +1396,7 @@ Status analyse_line(const Paragraph& paragraph, const usize offset, const usize 
     Access::clear(line);
     const Status result = Access::line(paragraph, offset, length, line);
     if (result.failed()) Access::clear(line);
+    Access::note_peak(line);
     return result;
 }
 
