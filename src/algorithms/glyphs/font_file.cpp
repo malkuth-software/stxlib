@@ -55,6 +55,8 @@ struct Tables final {
     FontTable cff{};
     FontTable post{};
     FontTable gsub{};
+    FontTable gpos{};
+    FontTable gdef{};
 };
 
 // The character maps this reads, and which is taken: a map of all of
@@ -221,6 +223,8 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         if (name == tag('h', 'm', 't', 'x')) tables.hmtx = table;
         if (name == tag('O', 'S', '/', '2')) tables.os2 = table;
         if (name == tag('G', 'S', 'U', 'B')) tables.gsub = table;
+        if (name == tag('G', 'P', 'O', 'S')) tables.gpos = table;
+        if (name == tag('G', 'D', 'E', 'F')) tables.gdef = table;
         if (name == tag('c', 'm', 'a', 'p')) tables.cmap = table;
         if (name == tag('l', 'o', 'c', 'a')) tables.loca = table;
         if (name == tag('g', 'l', 'y', 'f')) tables.glyf = table;
@@ -261,6 +265,8 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         font.cap_height = read_i16(os2, 88);
     }
     font.substitutions = tables.gsub;
+    font.positions = tables.gpos;
+    font.definitions = tables.gdef;
     if (has(os2, 0, 78)) {
         const i32 typo_ascender = read_i16(os2, 68);
         const i32 typo_descender = read_i16(os2, 70);

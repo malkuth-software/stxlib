@@ -100,8 +100,11 @@ struct Font final {
     // (version 2 and later) gives them; 0 when it does not.
     i32 x_height{0};
     i32 cap_height{0};
-    // The table of substitutions (GSUB), for has_feature.
+    // The layout tables: substitutions (GSUB), positions (GPOS) and glyph
+    // definitions (GDEF). has_feature reads the first; the shaper all three.
     FontTable substitutions{};
+    FontTable positions{};
+    FontTable definitions{};
     u32 advance_count{0};
     // CFF: the charstrings, the global subroutines, and where each glyph's
     // font dictionary is found (src/algorithms/glyphs/font_cff.cpp).

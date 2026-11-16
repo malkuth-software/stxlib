@@ -687,6 +687,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/glyph_face.cpp
     src/algorithms/glyphs/glyph_store.cpp
     src/algorithms/glyphs/hinter.cpp
+    src/algorithms/glyphs/layout_tables.cpp
     src/algorithms/glyphs/hinter_accents.cpp
     src/algorithms/glyphs/hinter_align.cpp
     src/algorithms/glyphs/hinter_edges.cpp
@@ -990,6 +991,14 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_glyph_hinter_tests PRIVATE stxlib::algorithms)
     target_compile_options(stxlib_glyph_hinter_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_hinter_tests COMMAND stxlib_glyph_hinter_tests)
+    # stxlib::glyphs: reading the layout tables (GDEF, GSUB, GPOS), against
+    # tables the test writes (tests/glyph_layout_tests.cpp); it reads the
+    # internal header.
+    add_executable(stxlib_glyph_layout_tests tests/glyph_layout_tests.cpp)
+    target_link_libraries(stxlib_glyph_layout_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_glyph_layout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_glyph_layout_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_layout_tests COMMAND stxlib_glyph_layout_tests)
     # Simple case folding (C7): every code point against CaseFolding.txt,
     # read by the test's own parser; and the committed table is the
     # generator's output for the pinned file.
