@@ -432,6 +432,14 @@ What ran on the M4, all passing:
   compiler's `bzero`, `memcpy`, `memset_pattern16` and stack protection.
 These are evidence over the paths the tests take, not proof.
 
+Turned text by a mask's surface (the owner, 2026-11-16) was added after
+that run and built and run on the M4 the same day (logs `gt-116` to
+`gt-120`): the whole suite, 113 of 113 with no compiler warning; the glyph
+tests, now with six programs built with the checks on (the two more are
+`stxlib_glyph_shape_checked_tests` and `stxlib_glyph_turn_checked_tests`),
+under AddressSanitizer with UndefinedBehaviorSanitizer, under the integer
+sanitizers as above, and the hinter tests under ThreadSanitizer: no report.
+
 | Module | Property | Status | Evidence |
 |---|---|---|---|
 | the glyph code, as a graph | every entry; every call that leaves the glyph code; no function calls itself; every cycle has a stated bound | read off the source, not run (`proofs/glyphs_graph.md`). The exits, with what is written before each, are tabled for the reader's first entries (`open_font`, `glyph_of`, `next_stretch`, `glyph_in_stretch`, `has_feature`, `advance_of`, the top of `load_glyph`), the glyph store and the face; the outline loaders, the hinter and the rasterizer have their cycles and bounds stated and their exits not yet tabled | the same, section 6 for what is missing |
@@ -444,6 +452,7 @@ These are evidence over the paths the tests take, not proof.
 | `glyph_face.cpp` (`Face`) | the fitted outlines lie end to end, each with the points its segments need, each found by its glyph, size and fit; the table is never more than half full, so a search of it ends | tabled (4.3) and checked at the exits of `fitted`, `mask`, `measure_run` and `draw_run` in a checked build (`Face::whole`); evidence over the tests' paths only | the same tests |
 | the hinter | the same numbers as FreeType 2.14.2's on every glyph of the 37 bundled faces at seven sizes, light and monochrome; a glyph with more segments than the limit is left unhinted on that axis | measured in the seat against FreeType (412,244 glyph sizes a mode, all equal), not a test of this repository: FreeType is not in the tree. The bounds read off the source; exits not tabled | the seat's notes (`stx_gtraster/dev/SEAT-NOTES.md`); `proofs/glyphs_graph.md` 5 |
 | integer arithmetic | no signed or unsigned wrap outside a function marked `STXLIB_MODULAR` (one: the fitted table's hash) | run under the integer sanitizers this host accepts, over the glyph tests: no report. Not proved; `implicit-integer-sign-change` not run | `src/core/checked.hpp`; the seat's `mm_gt16.sh` |
+| `turn_lattice.cpp`, `turn_lattice.hpp` (a mask's surface, by which lightly fitted text is turned) | the cell is stx_conv's line cell exactly (whole numbers of 14400ths, every division exact); a lattice's controls at the mask's pixels are the pixels; no turn at a whole pixel gives the mask back, box and bytes; a turn writes every byte of the box it is given and reads nothing outside the lattice; no step leaves 64 bits in the cell or 32 in a pixel's sums | the bounds argued at the head of `turn_lattice.hpp` and tabled (`proofs/glyphs_graph.md` 4.4); not proved. Tested against numbers worked out apart from the code, by `tools/turn_lattice_oracle.py` (stx_conv's formula in exact fractions): 40 cells, a whole lattice, 6 turns byte for byte, 36 more masks and turns as two sums; and searched within a bound: masks of 1 to 256 pixels a side of four kinds at turns and shifts of every size, under the sanitizers above. Measured in the seat against stx_conv's own compiled cell in binary64 (not a test of this repository) on four bundled faces at five sizes: of 4,097,030 controls, 520 differ, each by one 32nd of a level | `tests/glyph_turn_tests.cpp`, `tests/glyph_hinter_tests.cpp` (`face_turned_surface`) |
 
 ## stxlib::boundary, the Emscripten family (owner decision 2026-11-15)
 

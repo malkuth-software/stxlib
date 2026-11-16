@@ -43,11 +43,13 @@ halving (`flatten.hpp`: 16 deep).
 | `glyph_store.hpp` | `GlyphStore::open`, `keep`, `glyph`, `glyphs_read`, `bytes_held`, `whole`, `release` |
 | `glyph_hinter.hpp` | `Hinter::prepare`, `hint_glyph`, `hint_stored`, `bytes_held`, `release` |
 | `glyph_mask.hpp` | `measure`, `Rasterizer::render`, `render_monochrome`, `bytes_held`, `release` |
-| `glyph_face.hpp` | `open_typeface`; `Typeface::open`, `font`, `keep`, `fit`, `ink_box`, `glyphs_read`, `whole`, `bytes_held`, `bytes_peak`, `reset_peak`; `Face::open` (two), `font`, `typeface`, `warm`, `fitted`, `mask`, `measure_run`, `draw_run`, `glyphs_fitted`, `whole`, `bytes_held`, `bytes_peak`, `reset_peak`, `release` |
+| `glyph_face.hpp` | `open_typeface`; `Typeface::open`, `font`, `keep`, `fit`, `ink_box`, `glyphs_read`, `whole`, `bytes_held`, `bytes_peak`, `reset_peak`; `Face::open` (two), `font`, `typeface`, `warm`, `fitted`, `mask`, `measure_run`, `draw_run`, `glyphs_fitted`, `lattices_made`, `whole`, `bytes_held`, `bytes_peak`, `reset_peak`, `release` |
 
 The layout tables (`layout_tables.hpp`) and the shaper's buffer
 (`shape_buffer.hpp`) are internal: nothing outside the glyph code and its
-tests calls them yet.
+tests calls them yet. So is a mask's surface (`turn_lattice.hpp`:
+`lattice_cell`, `build_lattice`, `is_turn`, `turned_bounds`,
+`turn_lattice`), which the face calls and section 4.4 tables.
 
 Nothing runs at load, at process exit, or in a static constructor: every
 object of static storage is a `constexpr` table.
@@ -244,13 +246,14 @@ allocator. `ink_box` and `keep` are the same shape.
 | Exit | Condition | Writes before it | Result |
 |---|---|---|---|
 | R1 | the face is not opened | the result emptied | invalid_argument |
-| R2 | a style that cannot be drawn in (size or thickening out of range; a matrix with a hinted fit) | the result emptied | invalid_argument |
+| R2 | a style that cannot be drawn in (size or thickening out of range) | the result emptied | invalid_argument |
 | R3 | `fitted`, `mask`: the glyph cannot be had (the font has not it; `Typeface::fit`, `to_segments` or `measure` refuses) | none kept | the refusal |
 | R4 | a run: a glyph cannot be had or measured, other than for memory | `missing_glyphs` + 1; the run goes on | (not an exit) |
 | R5 | a run with nothing to show (no glyphs, or all missing, empty or outside the window) | counts only; an empty box, no pixels | success |
 | R6 | a run's box is wider or taller than the mask limit, or lies beyond 2^30 pixels from the origin | `oversized` set; an empty box, no pixels | success |
 | R7 | out of memory at any growth | fitted outlines already held stay whole; `draw_run`'s `coverage` may hold its box and the glyphs drawn before | out_of_memory |
-| R8 | otherwise | fitted outlines newly made are held (two halves, as the store's); for `draw_run`, `coverage` is its box's width times height bytes | success |
+| R8 | otherwise | fitted outlines newly made are held (two halves, as the store's), and lattices newly made (the same); for `draw_run`, `coverage` is its box's width times height bytes | success |
+| R9 | `mask`, a glyph turned by its surface: its turned box is larger than the mask limit or beyond 2^30 pixels | the result emptied | limit_exceeded (in a run this is R4) |
 
 In `draw_run`'s second pass a glyph is had again (it may have left the
 fitted outlines since the first), and a refusal there is an exit with the
@@ -266,7 +269,59 @@ rows and columns.
 Carried state (`Face::whole`): in each half the fitted outlines lie end to
 end; each has as many points as its segments need; each is found by its
 glyph, size and fit at its own place; the table is a power of two, no more
-than half full, and holds each record once.
+than half full, and holds each record once. The lattices are held the same
+way and checked the same way: in each half they lie end to end, each as
+many controls as its box needs, its box one a lattice can have (1 to 256
+pixels a side), each found by its glyph, size and thickening, the bytes
+counted right and within a fifth of `FaceLimits::lattice_bytes`.
+
+How a call's glyphs are drawn is settled once, before any glyph
+(`drawing_of`): by the outline, by quarter turns, or by the surface (light
+fit, a matrix that `is_turn` and is not a quarter turn, a size within
+`FaceLimits::lattice_size`). In a run settled for the surface, one thing is
+asked of each glyph: whether its upright mask is 1 to 256 pixels a side
+(`takes_lattice`); one that is not goes by its outline, and one of no ink
+draws nothing.
+
+### 4.4 A mask's surface (`turn_lattice.hpp`), called by the face
+
+`lattice_cell` (rule 1): no exit but its end, no loop but four of five
+steps, no memory. Given values within 2^31 either way, every step is within
+2^53 (the head of `turn_lattice.hpp` has the sum); the face gives it
+levels (0 to 255) and then its own results for those, which are within
+2^27. `tests/glyph_turn_tests.cpp` T1 runs it at 2^31 in every order of
+sign under the integer sanitizers.
+
+| Function | Exit | Condition | Writes before it | Result |
+|---|---|---|---|---|
+| `build_lattice` | B1 | either vector cannot grow | the vectors may have grown; their contents are not a lattice | false |
+| | B2 | otherwise | `rows`: (h + 6)(5 w + 6) + w + 6 numbers; `controls`: (5 w + 6)(5 h + 6), every one written | true |
+| `is_turn` | I1 | always | none | whether xx = yy, xy = -yx and xx^2 + yx^2 is within 2^18 of 2^32 (in 64 bits: each square is at most 2^62) |
+| `turned_bounds` | T1 | the box is empty, wider or taller than the limits, or beyond 2^30 pixels | `turned` emptied | false |
+| | T2 | otherwise | `turned` | true |
+| `turn_lattice` | L1 | always | every byte of `pixels` (`turned.width` by `turned.height`) | none |
+
+Cycles and bounds. `build_lattice`: h rows of w + 1 cells, then 5 w + 6
+columns of h + 1 cells, each read at fixed offsets from storage that has
+three rows (or pixels) of nothing either side, so no read asks where the
+mask ends; with w and h at most 256, 67,584 + 331,662 cells. `turn_lattice`:
+for each row of the box, which of its pixels lie on the lattice is found
+first (`within`: two divisions a row, each quotient rounded down, giving
+the first and one past the last column k with 0 <= u0 + k c < limit and
+the same for v); the loop over those pixels asks nothing, and reads 36
+controls at `5 (v >> 16)` rows and `5 (u >> 16)` columns, which are inside
+the lattice because u and v are inside their limits. Pixels before and
+after are written 0. A turned box is at most w + h + 3 pixels a side, so a
+glyph's turn is at most 515 squared pixels of 36 products.
+
+Where a pixel's sums can reach: the weights are not negative and sum to
+16,384, a control is within 2^15, so a row's sum is within 2^29 and, after
+its shift by 14, the six rows' sum is within 2^29 again: no step leaves 32
+bits. The preconditions a caller must keep (`turned_bounds` and
+`turn_lattice`: the cosine and sine are a turn's, so the products of a
+coordinate up to 2^37 by them stay within 2^55; `build_lattice`: sides 1 to
+256) are checked at entry in a checked build; the face keeps them by
+`is_turn` and `takes_lattice`.
 
 ## 5. The hinter and the rasterizer: cycles and bounds
 

@@ -770,6 +770,46 @@ direction given, script guessed, no features): on the 37 bundled faces at
 four sizes, in both directions, 2,213,160 runs of the scripts shaped, every
 glyph, cluster, advance and offset equal.
 
+### stxlib::glyphs, turned text: after stx_conv's line cell (2026-11-16)
+
+`src/algorithms/glyphs/turn_lattice.hpp` and `turn_lattice.cpp` (the surface
+of a glyph's mask, by which lightly fitted text is turned) are first party:
+a conversion to house-style C++, in whole numbers, of one function of
+stx_conv, the owner's CONV resampler (malkuth-software/stx, `stx_conv/`,
+last changed at `2da6cbc`; the same licence as STXlib's, by the same
+holder). Read from the GUI.Forms workspace's clone.
+
+| stx_conv file | SHA-256 | What was taken |
+|---|---|---|
+| `src/detail/surface_kernel.hpp` | `32a87f33a0801a2c84a23aa8259d3826aa1ea6c8cc3802d10210918904702952` | `compile_cell`, `node_jet` (the interior jet only), `capacity_threshold` |
+
+What was converted is the cell of a line away from any end, without the
+bubble term (the owner, 2026-11-16: the bubble is not needed here): a
+glyph's mask stands in nothing, so no cell of it is at an end. stx_conv
+works in binary64; here every number is a whole number of 14400ths of its
+input's unit, in which the cell's divisions (by 12, 20, 5, 4, 3 and 2) are
+exact, so the cell is stx_conv's to the last digit and not to a rounding.
+The neighbouring cells' end currents, which stx_conv works out again at a
+seam, are the cell's own away from one, and are taken so. Not converted:
+the seams and end closures, the bubble, the derivative, `Surface`, the
+stream and warp kernels and everything else of stx_conv.
+
+STXlib's own, not stx_conv's: the lattice (the cell applied along a mask's
+rows and then down the columns of what the rows gave, kept as whole numbers
+of 32nds of a level, where stx_conv's `Surface` works the second direction
+anew for every point asked); the weights and the reading of a turned pixel;
+the turned mask's box. The rules are at the head of `turn_lattice.hpp`.
+
+The expected numbers of `tests/glyph_turn_tests.cpp` come from
+`tools/turn_lattice_oracle.py`, which is stx_conv's formula as its source
+has it, in exact fractions, and shares nothing with the conversion.
+Measured in the seat against stx_conv's own compiled `compile_cell` (not a
+test of this repository: stx_conv is not in the tree), in binary64, on
+four bundled faces at five sizes from 11 to 32 pixels: of 4,097,030
+controls, 520 differ, each by one 32nd of a level (stx_conv's are binary64
+values rounded to a 32nd; these are the exact values rounded).
+Nothing of stx_conv is compiled or linked.
+
 ## Third party
 
 ### mimalloc (removed, 2026-11-15)

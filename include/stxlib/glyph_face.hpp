@@ -48,39 +48,77 @@
 // asks FreeType for a glyph's extents without hinting is given.
 //
 // Turned text (DrawStyle's matrix; turn_matrix makes one for an angle).
-// A glyph is fitted to its size as for upright text, in the text's own
-// frame, and that fitted outline is what is taken through the matrix and
-// drawn. WHICH FIT TO TURN. Fitting moves a glyph's features onto whole
-// pixels of the upright frame, and that is a gain only while the text
-// stands on the pixel grid: at 0 degrees and the quarter turns. Between
-// them the whole pixels mean nothing and what fitting moved is simply
-// moved: measured on the bundled Arimo at 13 pixels, the gap under the dot
-// of an i is 1.45 pixels unfitted and 1.00 fitted (at 11 pixels 1.24 and
-// 1.06), and a gap of one pixel that is not on a pixel row is grey, so
-// the dot closes up against its stem. Between the axes Fit::none draws the
-// truer letter, and Fit::light with a matrix is for text at rest on an
-// axis or passing through one. Because the fitted outline is the same at
-// every angle,
-// text that turns through 0 degrees does not change shape on the way: at
-// 0 the matrix changes nothing and the bytes are the upright ones. At a
-// quarter turn, a half turn and three quarters (matrices of 0, 65536 and
-// -65536 only) a glyph is the upright glyph's mask turned pixel for pixel:
-// the same bytes, edges on pixel boundaries and all (thickened text
-// excepted, which goes through the matrix like any other angle). The fitted outline is kept as for upright text, so a turned
-// glyph costs its points through the matrix and the drawing. Glyphs are
-// placed by the layout's own advances, which are not fitted, so turning
-// never moves glyphs against one another; with DrawStyle::turn_places the
-// places are taken through the matrix as well, each rounded once to a
-// 64th of a pixel, and the part of a pixel left over goes to the drawing
-// along both axes. Everything is whole-number arithmetic, the sine and
-// cosine included: the same bytes on every host.
+// A glyph with a matrix is drawn one of three ways, settled by the style:
+// - BY QUARTERS. At a quarter turn, a half turn and three quarters
+//   (matrices of 0, 65536 and -65536 only) a glyph is the upright glyph's
+//   mask turned pixel for pixel: the same bytes, edges on pixel boundaries
+//   and all. (Thickened text excepted, which goes one of the ways below.)
+// - BY THE MASK'S SURFACE. Fit::light at any other turn, at sizes up to
+//   FaceLimits::lattice_size. The glyph is fitted and drawn upright, at no
+//   part of a pixel, exactly as text at rest is. That mask is made a
+//   smooth surface through its pixels (CONV, the interpolant of the
+//   owner's stx_conv, which puts no ripple between pixels that they do
+//   not have), and the turned mask is the surface read at each turned
+//   pixel's centre. What is turned is the letter as it is seen upright,
+//   fitting and all. The surface is made once for a glyph at a size and
+//   kept, as a lattice of whole numbers about fifty times the mask's
+//   bytes (FaceLimits::lattice_bytes); every angle and every part of a
+//   pixel is read from the one lattice. The rules, which are the
+//   definition, are at the head of src/algorithms/glyphs/turn_lattice.hpp.
+// - BY THE OUTLINE. Anything else with a matrix: Fit::none, Fit::monochrome,
+//   a matrix that is not a turn, a larger size, a glyph whose upright mask
+//   is more than 256 pixels a side. The outline, fitted as the style says,
+//   is taken through the matrix and drawn.
+// WHY THE SURFACE. Fitting moves a glyph's features onto whole pixels of
+// the upright frame. A fitted outline that is then turned keeps what was
+// moved and loses the whole pixels that made it worth moving: measured on
+// the bundled Arimo at 13 pixels, the gap under the dot of an i is 1.45
+// pixels unfitted and 1.00 fitted (at 11 pixels 1.24 and 1.06), and a gap
+// of one pixel that is not on a pixel row is grey, so the dot closes up
+// against its stem. In the upright mask that gap is a clear row, and the
+// surface turns the clear row. By 20 pixels the two gaps agree (2.25 and
+// 2.28) and a lattice grows with the mask's area, which is why larger
+// text goes by its outline. For text to match an unhinted layout point
+// for point, Fit::none with the matrix is the plain outline turned.
+// PASSING THROUGH 0 DEGREES. With no turn the matrix changes nothing and
+// the bytes are the upright ones. Just off it a glyph by its surface is
+// the upright mask of NO part of a pixel, read at the part of a pixel the
+// glyph has. For a glyph placed on a whole pixel that is the upright mask
+// byte for byte, so nothing changes as the turn begins. For one placed
+// between pixels it is that mask read between its pixels, where upright
+// text draws the outline anew at the part of a pixel, and the two differ
+// along the letter's upright edges: a stem that the whole-pixel mask has
+// across two columns of pixels stays across two, where drawn anew a part
+// of a pixel over it may fall on one. The letter does not move or change
+// shape; its edges change. Measured on four bundled faces at 13 pixels, a
+// twentieth of a degree off 0: between pixels the inked pixels differ by
+// 17 to 23 levels of 255 on average (the most at any pixel about 110); at
+// whole pixels by under half a level (the most, 2). A caller that wants no
+// change as a turn begins places its glyphs on whole pixels while the
+// text turns.
+// WHAT IT COSTS. Measured on the M4 (the bundled Arimo and Noto Sans CJK,
+// the mean of 7, 17, 30 and 45 degrees): a glyph's mask by its surface
+// takes 0.8 to 1.2 times what its fitted outline turned takes at 11 to 16
+// pixels (485 ns against 434 at 13 pixels; the upright mask 307), and 1.3
+// to 1.6 times at 24 to 32, which is the other reason for the limit on
+// size. Making a surface, once for a glyph at a size, takes 6 to 7
+// microseconds at 11 to 13 pixels and 10 at 16.
+// Glyphs are placed by the layout's own advances, which are not fitted,
+// so turning never moves glyphs against one another; with
+// DrawStyle::turn_places the places are taken through the matrix as well,
+// each rounded once to a 64th of a pixel, and the part of a pixel left
+// over goes to the drawing along both axes. Everything is whole-number
+// arithmetic, the sine and cosine and the surface included: the same
+// bytes on every host.
 //
 // Thicker strokes (DrawStyle::thicken), for a bold or a small capital a
 // font has not. This is the definition:
 // 1. t is the thickening in 26.6 pixels and h is t / 2, rounded down. The
 //    outline is the one about to be drawn: fitted, and through the matrix
-//    if there is one. Its points are taken contour by contour, control
-//    points as any others.
+//    if there is one. (For text turned by its mask's surface the outline
+//    drawn is the upright one, so that is what is thickened, and the
+//    letters grow along the text's own axes.) Its points are taken contour
+//    by contour, control points as any others.
 // 2. A is the sum over every contour of x[i] * y[i+1] - x[i+1] * y[i], the
 //    last point followed by the first. If A is 0 nothing is done. s is 1
 //    if A is more than 0 and -1 if less.
@@ -114,7 +152,8 @@
 // each never exceeds its limit. Besides those there is, for a Typeface, 4
 // bytes a glyph of the font and the hinter's measures (4 bytes a glyph and
 // a few kilobytes), and for a Face the working storage, which grows to the
-// largest glyph and run met and is kept. bytes_held gives all of it as
+// largest glyph and run met and is kept; and the lattices of glyphs turned
+// by their surfaces, bounded by FaceLimits::lattice_bytes. bytes_held gives all of it as
 // allocated now, and bytes_peak the most it has been. Once the glyphs of a
 // text are held, drawing it again allocates nothing.
 //
@@ -134,8 +173,8 @@
 // what is here.
 //
 // Failure. invalid_argument: a face not opened, a glyph the font has not,
-// a size or a thickening out of range, a matrix with a hinted fit, or what
-// the reader refuses. limit_exceeded: a limit. out_of_memory. In a run, a glyph that
+// a size or a thickening out of range, or what the reader refuses.
+// limit_exceeded: a limit. out_of_memory. In a run, a glyph that
 // cannot be had is counted (missing_glyphs) and draws nothing: the run is
 // still drawn. Nothing throws.
 
@@ -178,6 +217,18 @@ struct FaceLimits final {
     // where it stops, and a text face in use holds a few tens of
     // kilobytes.
     usize fitted_bytes{4194304};
+    // Lightly fitted text is turned by its masks' surfaces at sizes up to
+    // this (26.6 pixels to the em; 20 pixels), and by its outlines above
+    // it. 0: never by surfaces.
+    i64 lattice_size{1280};
+    // The storage for those surfaces' lattices never exceeds this many
+    // bytes. A lattice takes 50 bytes a pixel of the glyph's upright mask
+    // and its margin ((5 w + 6)(5 h + 6) numbers of two bytes for a mask of
+    // w by h) and 64 for itself: about 3.5 kilobytes a glyph at 13 pixels
+    // and 10 at 24. Taken as needed, as fitted_bytes is. A glyph whose
+    // lattice is more than a fifth of this is made one each time it is
+    // drawn, and none is kept for it.
+    usize lattice_bytes{4194304};
 };
 
 // A glyph's outline at a size: borrowed from the face. 26.6 pixels, y
@@ -211,9 +262,10 @@ struct DrawStyle final {
     // Thicker strokes, by this much (26.6 pixels, 0 to 1024): the rule is
     // at the head of this file.
     i32 thicken{0};
-    // Each fitted outline is taken through this matrix (16.16, on the
-    // outline's own axes, y upward) about its origin before it is placed:
-    // x' = xx x + xy y, y' = yx x + yy y. With any fit.
+    // Each glyph is taken through this matrix (16.16, on the glyph's own
+    // axes, y upward) about its origin before it is placed:
+    // x' = xx x + xy y, y' = yx x + yy y. With any fit; which of three
+    // ways it is drawn is at the head of this file ("Turned text").
     bool transformed{false};
     i32 xx{0x10000};
     i32 xy{0};
@@ -414,9 +466,11 @@ public:
     [[nodiscard]] Status fitted(u32 glyph, i64 size, Fit fit, FittedGlyph& glyph_out) noexcept;
 
     // The glyph's mask in `style` (its size, fit, thickening and matrix),
-    // with its outline moved by `shift` (26.6, y upward) last: `bounds` as
-    // glyph_mask.hpp's measure gives them, `pixels` bounds.width *
-    // bounds.height bytes, the top row first.
+    // moved by `shift` (26.6, y upward) last: `bounds` as glyph_mask.hpp's
+    // measure gives them for the outline drawn (for a glyph turned by its
+    // mask's surface, the pixels whose centres the turned mask reaches:
+    // turn_lattice.hpp, rule 3), `pixels` bounds.width * bounds.height
+    // bytes, the top row first.
     [[nodiscard]] Status mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
 
     // Where the run's ink can be, without drawing it.
@@ -428,10 +482,14 @@ public:
     // How many times an outline has been fitted so far.
     [[nodiscard]] usize glyphs_fitted() const noexcept;
 
+    // How many times a glyph's mask has been made a surface so far.
+    [[nodiscard]] usize lattices_made() const noexcept;
+
     // Whether what the face holds agrees with itself: each half's fitted
     // outlines lie end to end, are counted right and are within the limit,
     // each can be found by its glyph, size and fit, and each has as many
-    // points as its segments need. Linear in what is held: for tests and
+    // points as its segments need; and the same of the lattices it holds.
+    // Linear in what is held: for tests and
     // checked builds (which check it at the end of every call).
     [[nodiscard]] bool whole() const noexcept;
 

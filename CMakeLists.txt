@@ -686,6 +686,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/font_truetype.cpp
     src/algorithms/glyphs/glyph_face.cpp
     src/algorithms/glyphs/glyph_store.cpp
+    src/algorithms/glyphs/turn_lattice.cpp
     src/algorithms/glyphs/hinter.cpp
     src/algorithms/glyphs/layout_tables.cpp
     src/algorithms/glyphs/shape_buffer.cpp
@@ -995,6 +996,7 @@ if(STXLIB_TESTS)
     # (tests/glyph_hinter_tests.cpp).
     add_executable(stxlib_glyph_hinter_tests tests/glyph_hinter_tests.cpp)
     target_link_libraries(stxlib_glyph_hinter_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_glyph_hinter_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_hinter_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_hinter_tests COMMAND stxlib_glyph_hinter_tests)
     # stxlib::glyphs: reading the layout tables (GDEF, GSUB, GPOS), against
@@ -1005,6 +1007,14 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_layout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_layout_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_layout_tests COMMAND stxlib_glyph_layout_tests)
+    # stxlib::glyphs: a mask's surface and its turning, against numbers
+    # worked out by tools/turn_lattice_oracle.py (tests/glyph_turn_tests.cpp);
+    # it reads the internal header.
+    add_executable(stxlib_glyph_turn_tests tests/glyph_turn_tests.cpp)
+    target_link_libraries(stxlib_glyph_turn_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_glyph_turn_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_glyph_turn_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_glyph_turn_tests COMMAND stxlib_glyph_turn_tests)
     # stxlib::glyphs: the shaper's buffer (tests/glyph_shape_buffer_tests.cpp);
     # it reads the internal header.
     add_executable(stxlib_glyph_shape_buffer_tests tests/glyph_shape_buffer_tests.cpp)
@@ -1028,7 +1038,7 @@ if(STXLIB_TESTS)
     # stxlib::glyphs with every check on (src/algorithms/glyphs/
     # glyph_checks.hpp): the glyph sources compiled again with
     # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call
-    # is checked whole at the end of every call, and four of the glyph
+    # is checked whole at the end of every call, and six of the glyph
     # tests run on them. The objects come before the library in the link,
     # so the library's unchecked ones are not taken.
     file(GLOB stxlib_glyph_sources CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/glyphs/*.cpp)
@@ -1037,7 +1047,7 @@ if(STXLIB_TESTS)
     target_compile_features(stxlib_glyphs_checked PRIVATE cxx_std_20)
     target_compile_definitions(stxlib_glyphs_checked PRIVATE STXLIB_GLYPHS_CHECKS)
     target_compile_options(stxlib_glyphs_checked PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
-    foreach(test_name IN ITEMS font_file glyph_hinter glyph_untrusted glyph_shape_buffer glyph_shape)
+    foreach(test_name IN ITEMS font_file glyph_hinter glyph_untrusted glyph_shape_buffer glyph_shape glyph_turn)
         add_executable(stxlib_${test_name}_checked_tests tests/${test_name}_tests.cpp $<TARGET_OBJECTS:stxlib_glyphs_checked>)
         target_link_libraries(stxlib_${test_name}_checked_tests PRIVATE stxlib::algorithms)
         target_include_directories(stxlib_${test_name}_checked_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
