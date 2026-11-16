@@ -533,3 +533,186 @@ pointers once the rows marked fixed are in.
 | needs a check: restored frames' text counts | `file_copy` cuts each restored frame's counts to the arrays and to the well-formed UTF-8 prefix | tested: `tests/shadow_tests.cpp` (`a_park_into_too_little_room_parks_nothing`) |
 
 Nothing on this branch has been compiled or run yet (no compiler on Neo).
+
+## stxlib::textlayout (bidi, line breaking, script runs; branch `claude/stx-textlayout`)
+
+`include/stxlib/textlayout.hpp`, `src/algorithms/textlayout/`. The code is
+the model: the statements below are about the call graph of the two
+objects (`analysis.cpp`, `line_break.cpp`), its entries and its exits, each
+checked on the code or on the compiled objects, and about small finite
+domains that a test covers whole. "Enumerated" means such a test: a proof
+once it has run. What ran, and where, is at the end.
+
+### The graph
+
+- **No recursion.** The functions of the two files, by what they call:
+  - `line_break.cpp`: `find_line_breaks` (two) → `break_utf8` or
+    `break_code_points` → `kernel::decode`, `tables::record`,
+    `kernel::look_*` → `kernel::peek_*` → `decode`, `record`. The property
+    queries call `tables::record` only.
+  - `analysis.cpp`: `analyse_paragraph` (two) → `Access::clear`,
+    `Access::scan_*` (→ `grow_breaks`, `decode`, `record`, `look_*`,
+    `script_event` → `append_script_run`), `Access::analyse` (→ `grow`,
+    `prepare`, `append_runs` → `key_at`; `resolve_sequence` →
+    `pair_brackets`; `write_levels`; `resolve_explicit` → `first_strong`,
+    `append_runs`, `resolve_sequence`, `write_levels`). `analyse_line` →
+    `Access::clear`, `Access::line` (→ `starts_code_point`, `point_at`,
+    `grow`, `fill`).
+  The calls go down by layer (entry, walk or resolver, rule, lookup); no
+  function is reachable from itself. Read off the code; the object check
+  below bounds what the graph can reach outside the two files.
+- **No callbacks.** No function pointer, virtual call, lambda or
+  `std::function` in the two files; the reader of the input in the second
+  pass (`Utf8Next`, `CodePointNext`) is a template argument, resolved at
+  compile time.
+- **Foreign calls: a short list of leaves.** The two objects leave
+  undefined only symbols of namespace stxlib and the compiler's block
+  helpers. Checked on the objects by `tools/check_textlayout_surface.py`
+  (CTest `stxlib_textlayout_surface`), which fails on any other symbol: no
+  C library function, no `operator new`, no exception runtime, no guard of
+  a local static. The leaves it listed on the M4:
+  `stxlib::ErrorRecord::make` (two overloads), `stxlib::detail::
+  vocabulary_allocate` and `vocabulary_release` (the allocator, through
+  `Vector`), and `bzero`, `memcpy`, `memset` and the stack protector's two
+  symbols. In the Debug build the same check passed.
+  `line_break.cpp` allocates nothing; `analysis.cpp` allocates only
+  through `Vector::resize` on the caller's `Paragraph` and `Line`.
+
+### Bounds
+
+Every loop of the two files, with its bound. `n` is the number of code
+units of the paragraph (or text), `p ≤ n` its code points, `r ≤ p` the runs
+of a sequence.
+
+| Function | Loop | Bound |
+|---|---|---|
+| `break_utf8`, `break_code_points` | the walk | `index` rises by at least 1 each step: ≤ n steps |
+| `break_utf8`, `scan_utf8` | the letters search and fill | each visits the run's code units once; the walk resumes after them, so the walk and its letters loops together visit each code unit once |
+| `kernel::peek_*` | forward to the next base | ≤ n − index; over a whole walk each code point is read by the look-aheads of at most the two bases before it (a look-ahead stops at the second base), so ≤ 2p reads in all |
+| `scan_*` | blocks, then code points | ≤ ⌈n / 65,536⌉ blocks; `index` rises by at least 1 each inner step |
+| `grow_breaks` | none; it at least doubles | ≤ 32 reallocations for any input (n < 2^32) |
+| `script_event` | search of the open brackets; settling them | ≤ 32 each (`script_bracket_depth`) |
+| `append_script_run` | none; doubles | amortised constant |
+| `key_at`, `point_at`, `bidi_mirroring_glyph`, the level-run search in `resolve_explicit` | binary searches | ≤ 32 steps |
+| `append_runs` | code points of a level run | each code point of the paragraph is in one level run, so ≤ p over a paragraph |
+| `pair_brackets` | runs; the stack search | r; ≤ 63 per closing bracket |
+| `resolve_sequence` | W1 to W7, N1, N2, I1, I2: one pass each over the runs; the ET stretch scan advances `stretch_end` monotonically | a fixed number of passes of r |
+| `resolve_sequence`, N0 | per pair, the runs between its brackets; then back to the last strong run | at most 63 pairs are open at any run (BD16), so the forward scans sum to ≤ 63 · r; the backward scan is ≤ r per pair, so ≤ r · pairs in the worst case, pairs ≤ r / 2. This is the one bound that is not linear |
+| `resolve_explicit` | BD9, X1 to X8, level runs: one pass each of p; the stack unwind at a PDI | ≤ p each; the unwind ≤ 127 (the stack's depth) |
+| `resolve_explicit` | sequences: `while (true)` following an initiator to its PDI | `current` strictly increases (the search starts at `current + 1`): ≤ level runs ≤ p; over all sequences each level run is appended once |
+| `analyse`, second pass | code points; brackets | p each |
+| `Access::line` | copy; L1 backwards; runs; L2 | n; p; n; L2: at most 126 passes (levels) over the line's runs, each run swapped at most once per pass |
+| `fill`, `fill_breaks`, `write_levels` | the range | its length; `write_levels` writes each code unit of the sequence once |
+
+So `find_line_breaks` is linear in the text, with at most three reads per
+code point; `analyse_paragraph` is linear except rule N0 on adversarial
+bracket nesting; `analyse_line` is linear in the line times the number of
+levels present.
+
+### Exit tables
+
+Every public entry is `noexcept` and returns by value. "Writes" are the
+writes that have happened when the exit is taken.
+
+`find_line_breaks(output, text)` and `(output, code_points)`:
+
+| Condition | Writes before it | Result |
+|---|---|---|
+| `output.count()` differs from the input's count | none | `invalid_argument` |
+| the input is empty | none | success |
+| otherwise | every element of `output` (the last one twice: by the walk, then by LB3) | success |
+
+`analyse_paragraph(text, offset, direction, paragraph)` and the code-point form:
+
+| Condition | Writes before it | Result |
+|---|---|---|
+| the input has more than 2^32 − 2 elements | the paragraph cleared | `limit_exceeded` |
+| `offset` ≥ the count | cleared | `out_of_range` |
+| (UTF-8) `offset` is inside a code point | cleared | `invalid_argument` |
+| storage for the decisions or the script runs cannot grow (in the walk) | cleared; what the walk stored is in the vectors but unreachable (`length() == 0`, `script_runs()` empty) | the allocator's failure |
+| storage for levels, classes, units, keys or the workspace cannot grow | cleared, as above | the same |
+| otherwise | offset, length, base level, the level of every code unit, decisions, script runs | success |
+
+`analyse_line(paragraph, offset, length, line)`:
+
+| Condition | Writes before it | Result |
+|---|---|---|
+| `length == 0`, or the range is not inside the paragraph | the line cleared | `out_of_range` |
+| either end is inside a code point | cleared | `invalid_argument` |
+| storage for the line's levels or runs cannot grow | cleared | the allocator's failure |
+| otherwise | the line's levels and runs | success |
+
+The queries (`bidi_class`, `bidi_mirrored`, `bidi_mirroring_glyph`,
+`bidi_paired_bracket`, `line_break_class`, `east_asian_wide`, `script_of`,
+`script_extends_to`, `script_tag`) have one or two exits each and write
+nothing; a value above U+10FFFF takes the stated default without a table
+read.
+
+### Facts per node
+
+| Node | Entry condition | Fact | Status |
+|---|---|---|---|
+| `tables::record` | `code_point ≤ 0x10FFFF` | both table indices are in range | the generator's check on the table it writes; every caller tests the range, or passes a decoded scalar or `record_of_input`'s substitute |
+| `kernel::decode` | at the first byte of a code point of well-formed UTF-8 | reads only that code point's bytes; the value is a scalar | `TextView`'s invariant; `analyse_paragraph` checks the byte at the offset itself |
+| the automaton step | `state < 103`, `symbol < 62` | the index `(state << 6) | symbol` is inside `lb_dfa`, and the entry's state is again below 103 | enumerated by the generator over the table it writes; T2 visits every reachable entry |
+| the look-ahead | the action is ≥ 3 | the first row is below `lb_look_first_count`, the symbol index at most 62 (62 is the end of text), a second row below `lb_look_second_count` | enumerated by the generator over every entry |
+| the automaton against the rules | none | from the start of text, for every sequence of symbols of every length, the automaton and its look-ahead give the rule chain's decision at every boundary | enumerated (T2): the pairs (chain state, automaton state) reachable from the start are closed under every symbol, the decisions agree at each for every look-ahead the chain reads, and the pairing is a function |
+| the rule chain against UAX #14 | none | the chain gives LineBreakTest.txt's expected result on every case | the conformance suite (T4), all cases; not a proof beyond what the suite exercises |
+| the letters form | the byte before was an ASCII letter and has been stepped | the automaton is in the letter state; every further ASCII letter gives "no break" and stays there; ASCII letters are bidi L, Latin, without extensions, not brackets | enumerated (T3) over every state and the 52 letters, and checked by the generator |
+| decisions as boundaries | after a successful walk | the decision after a code unit is `inside_character` exactly when the next code unit continues the same code point | by construction of the walk (the only writer of `inside_character`); T6 and the fuzz compare it with the input |
+| `prepare` | `points` = code points + 1 | the arrays carved from the two workspaces are disjoint and each holds `points` entries | read off the code: consecutive offsets of `points` in blocks of 3 or 6 (bytes) and 5 or 10 (words) times `points` |
+| run lists | `append_runs` over a level run | at most one run per code point, so the arrays of `points` entries hold them | read off the code |
+| the X1 to X8 stack | depth 125 | at most 127 entries are used (UAX #9, 3.3.2) | constants in the code; BidiTest's and BidiCharacterTest's deep cases under the sanitizers |
+| `script_event` | none | `depth ≤ 32` at every array access | read off the code: reset to 0 before the write when it is 32 |
+| u32 arithmetic | the input has at most 2^32 − 2 elements | no offset or count overflows | the entries refuse a longer input; the integer sanitizers halt on any wrap in the tested runs |
+
+### Tests
+
+`tests/textlayout_tests.cpp` (line breaking, scripts, the walk) and
+`tests/textlayout_bidi_tests.cpp` (the bidi rules):
+
+| Test | Domain | Kind | Result on the M4 |
+|---|---|---|---|
+| T1 | every code point: Line_Break after LB1, East Asian width, Script, Script_Extensions against the Unicode files, read by the test's own parsers | enumerated | 1,114,112 code points, 0 mismatches |
+| T2 | the automaton against the rule chain | enumerated | 6,749 chain states paired with all 103 automaton states, 729,781 decisions, 0 differ |
+| T3 | the letters form's facts | enumerated | 103 states, 52 letters, 0 wrong |
+| T4 | LineBreakTest.txt, through the chain and both entries | conformance suite | 19,346 of 19,346 |
+| T5 | `find_line_breaks` against the chain on every sequence of symbols to length 4 (one code point per symbol), and random ones | enumerated to length 4; then sampled | 15,018,570 sequences and 20,000 random, 0 differ |
+| T6 | `analyse_paragraph`: breaks against `find_line_breaks` of the paragraph alone, script runs against the test's itemiser, UTF-8 against code points, paragraphs longer than two blocks | sampled | 34,198 paragraphs, 0 fail |
+| T7 | bounded fuzz: random bytes kept when well formed, random scalars; structural invariants of every entry | sampled | 1,000,000 inputs under the sanitizers (760,777 well formed), 0 fail |
+| T8 | arguments and a two-script example | examples | pass |
+| B1 | every code point: Bidi_Class, mirroring, brackets against the Unicode files | enumerated | 1,114,112, 0 mismatches |
+| B2, B3 | BidiTest.txt, BidiCharacterTest.txt | conformance suites | 770,241 of 770,241; 91,707 of 91,707 |
+| B4 | the library against the per-code-point reference: every class sequence to length 5, bracket sequences to length 6, random | enumerated over those domains; then sampled | 55,092,732 comparisons, 0 differ |
+| B5 | paragraphs and lines | sampled | 46,148 paragraphs, 0 mismatches |
+
+### What ran
+
+On the M4 (macOS arm64, Apple Clang), 2026-11-16, from the working tree
+before its commit (the seat's logs `sc1/dev/logs/tl-quick2-*` and
+`tl-full1-*`):
+- Release: both test programs pass (42 and 50 checks) with the counts
+  above, no compiler warning in the new files; the surface check passes;
+  the generator's `--check` passes.
+- Debug: CTest `stxlib_textlayout_bidi_tests`, `stxlib_textlayout_tests`,
+  `stxlib_textlayout_surface`, `stxlib_textlayout_tables`,
+  `stxlib_public_headers`, `stxlib_std_rules`: 6 of 6 pass.
+- AddressSanitizer, UndefinedBehaviorSanitizer and Clang's integer group
+  (`-fsanitize=address,undefined,integer -fno-sanitize-recover=all`),
+  Debug: `stxlib_textlayout_tests` with a fuzz of 1,000,000 inputs passes
+  with no report; `stxlib_textlayout_bidi_tests` passes its 50 checks
+  with no report (BidiTest 770,241 of 770,241, BidiCharacterTest 91,707 of
+  91,707, 33,541,180 comparisons with the reference, 0 differ), and the
+  surface check passes on the sanitized objects.
+- The oracle comparisons and the timing are in `docs/TEXTLAYOUT.md`.
+
+Open: the 5,264 texts where libunibreak and STXlib differ for an "other"
+cause (`docs/TEXTLAYOUT.md`) have not been examined one by one. LB12a at
+18.0.0 is inferred from LineBreakTest 18.0.0, not read in UAX #14 18.0.0
+(unconfirmed).
+
+Not proved: that the rule chain is UAX #14 beyond its conformance suite;
+that the bidi rules are UAX #9 beyond BidiTest, BidiCharacterTest and the
+exact comparison with the reference; the script rules against any
+conformance suite (UAX #24 has none), only against the test's own
+itemiser and the oracle. Run on one host only (macOS arm64, Clang).

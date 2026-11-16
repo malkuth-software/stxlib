@@ -974,3 +974,80 @@ Label matching's full case folding is `fold_case_full` of
 now writes and checks beside the simple one, from the same pinned file. The
 CTest check `stxlib_markdown_tables` regenerates and compares. Taking a
 later version of an input: replace the file, update this table, regenerate.
+
+### stxlib::textlayout: UAX #9, UAX #14 and UAX #24 after the specifications (2026-11-16)
+
+`include/stxlib/textlayout.hpp` and `src/algorithms/textlayout/` are first
+party: the Unicode Bidirectional Algorithm (UAX #9), the Line Breaking
+Algorithm (UAX #14) and script runs (UAX #24) at Unicode 18.0.0, written
+from the specifications and the Unicode data files, ordered on 2026-11-16
+to replace SheenBidi (bidi and its script locator) and libunibreak (line
+breaking). Both were read only as oracles, from stx_text's vendored copies
+(SheenBidi 2.9.0, commit `829d99918adf05761e9f35611dc13e76e6810f80`;
+libunibreak 8.0); none of their code is here. Where an oracle and the
+specification differ, the specification wins; every difference found is
+listed in `docs/TEXTLAYOUT.md`.
+
+Eleven files were downloaded on 2026-11-16 with the owner's approval of the
+same day, from <https://www.unicode.org/Public/18.0.0/ucd/>, unmodified:
+
+| File | Where | Bytes | SHA-256 |
+|---|---|---|---|
+| `BidiBrackets.txt` | `third_party/unicode-18.0.0/` | 8,992 | `4b3b62e4a14b84ee752808c810c602534921c09a4a1bf78cfbee566d66c125b3` |
+| `BidiMirroring.txt` | `third_party/unicode-18.0.0/` | 27,294 | `cd54810ebf52f0e61a730c8b9cb25975de6c85f6d788a559b416afd548923fd6` |
+| `extracted/DerivedBidiClass.txt` | `third_party/unicode-18.0.0/DerivedBidiClass.txt` | 176,412 | `d9e23222522551348ea1ccfbb4f62efbf98982afb95840f8959c08ed992c5607` |
+| `LineBreak.txt` | `third_party/unicode-18.0.0/` | 266,206 | `ae8cf1970c73f3f1a12d77852df96c4b2b1723ca8b388e36bb5739250c6849de` |
+| `EastAsianWidth.txt` | `third_party/unicode-18.0.0/` | 204,705 | `a0cf29eacd00cfcaec4381c6b7c281685f18dbb4e7ff82b4076ccb342ca839aa` |
+| `emoji/emoji-data.txt` | `third_party/unicode-18.0.0/emoji-data.txt` | 108,719 | `80d00f8e616a0ef27fd6b8de3b758c06383b5d917e2977709578e68baf733bf1` |
+| `Scripts.txt` | `third_party/unicode-18.0.0/` | 196,089 | `0071fd81b6aeae25f6e8bce8efec3066a6476a91b49bdb2f52dc76e817862a6a` |
+| `ScriptExtensions.txt` | `third_party/unicode-18.0.0/` | 21,145 | `5c9d34a922f687726f2a8bcf57d49f905987e51f1b21b58c95a00fbe255cec23` |
+| `BidiTest.txt` | off the repository (below) | 7,959,988 | `9af2f882a4ab50912e388f069a673b94eacd82fa6d07d20a3ff7f3c759e905aa` |
+| `BidiCharacterTest.txt` | off the repository (below) | 6,880,771 | `045b24d2c8ab066951bd32fe8c6b4de34647f72b5b1c7df0265f24ab53573e01` |
+| `auxiliary/LineBreakTest.txt` | off the repository (below) | 3,178,750 | `fd9ff9eca411080085b41471bba79ae19d9db2e16924f9770b8509f1affd3f95` |
+
+Licence: the Unicode License v3, as the other files of the directory
+(`third_party/unicode-18.0.0/LICENSE`, installed as `unicode-LICENSE`).
+The three test files are conformance data only and are not committed: they
+are kept at `/Volumes/Storage/stxlib_workers/unicode-18.0.0/` on the M4
+and read through the CMake cache variable `STXLIB_UNICODE_TEST_DATA`; each
+conformance test says plainly when its file is absent.
+
+Generated (first party) by `tools/gen_textlayout_tables.py`, each of its
+nine inputs pinned by hash: `src/algorithms/textlayout/textlayout_tables.inc`,
+one record per code point and the tables of the rules.
+- Bidi_Class comes from `DerivedBidiClass.txt` (every code point, the
+  unassigned defaults included), and the generator stops unless
+  `UnicodeData.txt` field 4 agrees at every code point it lists.
+  Bidi_Mirrored comes from `UnicodeData.txt` field 9, singleton canonical
+  decompositions (bracket equivalence) from field 5, brackets from
+  `BidiBrackets.txt`, mirroring glyphs from `BidiMirroring.txt`.
+- Line_Break comes from `LineBreak.txt`, resolved by rule LB1 with
+  General_Category from `UnicodeData.txt`; East_Asian_Width from
+  `EastAsianWidth.txt`; Extended_Pictographic from `emoji-data.txt`.
+- The line-break automaton is built by the generator from its own
+  statement of the rules LB2 to LB31 (the rule chain), which it can run
+  over `LineBreakTest.txt` (`--line-break-test`). The same chain is
+  written again in C++ (`src/algorithms/textlayout/line_break_chain.hpp`),
+  and the test proves the committed automaton equal to it.
+- Script comes from `Scripts.txt` and Script_Extensions from
+  `ScriptExtensions.txt`. The four-letter ISO 15924 codes of the scripts
+  are written in the generator (the file that lists them,
+  `PropertyValueAliases.txt`, was not among the approved downloads); the
+  generator stops unless every code `ScriptExtensions.txt` uses is among
+  them and every character it lists has its own script in its set, which
+  confirms the codes of the scripts that file names; the comparison with
+  SheenBidi's tags (`tests/textlayout_bench.cpp`) covers the scripts both
+  know.
+  Of the scripts with characters in `Scripts.txt`, 74 have codes that
+  `ScriptExtensions.txt` does not use; those SheenBidi does not know
+  (among them Jurc, Seal and the other scripts new since its data) are
+  confirmed by no file and rest on the author's reading of ISO 15924.
+The CTest check `stxlib_textlayout_tables` regenerates and compares.
+
+The text of UAX #14 for Unicode 18.0.0 was not downloaded. The rules were
+written from the published algorithm as the author knows it (revision 55,
+Unicode 17.0.0) and brought to 18.0.0 by `LineBreakTest.txt` of 18.0.0,
+which the chain passes case for case; `docs/TEXTLAYOUT.md` names the one
+rule this changed. That rule's 18.0.0 form (LB12a no longer excepting BA)
+is therefore inferred from the conformance file and unconfirmed against
+the text of UAX #14 18.0.0.
