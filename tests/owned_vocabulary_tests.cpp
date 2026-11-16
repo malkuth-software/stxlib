@@ -30,6 +30,7 @@
 
 namespace {
 
+using stxlib::u32;
 using stxlib::u64;
 using stxlib::usize;
 
