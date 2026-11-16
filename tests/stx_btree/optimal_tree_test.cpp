@@ -7,7 +7,7 @@
 // The references and instances are unchanged. Adapted to STXlib's
 // interface: the test keeps its weights in std::vector (OwnedWeights) and
 // passes views; each construction's OperationResult must succeed (take); a refusal
-// is a OperationResult with kind invalid_argument where stx_auxlib threw
+// is an OperationResult with kind invalid_argument where stx_auxlib threw
 // std::invalid_argument; shapes are compared element by element.
 
 #include "algorithms/stx_btree/optimal_tree.hpp"

@@ -47,14 +47,14 @@ enum class LoadMode : u8 {
 [[nodiscard]] OperationStatus find_symbol(uptr handle, const char* name, uptr& address) noexcept;
 
 // describe_address's work, rooms already checked.
-[[nodiscard]] OperationStatus describe(uptr address, MutableView<char> image_name_room, MutableView<char> symbol_name_room,
-                              AddressDescription& description) noexcept;
+[[nodiscard]] OperationStatus describe(uptr address, MutableView<char> image_name_room,
+                                       MutableView<char> symbol_name_room, AddressDescription& description) noexcept;
 
 // Visits the query's region in every image (`containing` false) or in the
 // image holding `address` only. The query's names are checked; the
 // visitor is not null.
 [[nodiscard]] OperationStatus visit_regions(const ImageRegionQuery& query, bool containing, uptr address,
-                                   ImageRegionVisitor visitor, void* context) noexcept;
+                                            ImageRegionVisitor visitor, void* context) noexcept;
 
 // Copies `count` host bytes into `room`, cut to its capacity; the copied
 // view and whether it was cut. Shared by the families.

@@ -262,15 +262,16 @@ struct MappedStretch final {
 
 // A glyph's outline in font units. An empty glyph (a space) succeeds with
 // no points.
-[[nodiscard]] OperationStatus load_glyph(const Font& font, u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept;
+[[nodiscard]] OperationStatus load_glyph(const Font& font, u32 glyph, const FontLimits& limits,
+                                         GlyphOutline& outline) noexcept;
 
 // A glyph's outline in 26.6 pixels, without hinting, at 16.16 scales
 // (scale_of). For a TrueType glyph put together from others this is not
 // load_glyph's outline scaled: each part's points and each part's offset
 // are scaled and rounded on their own, as TrueType has it, and a point can
 // fall 1/64 of a pixel from where scaling the whole would put it.
-[[nodiscard]] OperationStatus load_scaled_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale, const FontLimits& limits,
-                                       GlyphOutline& outline) noexcept;
+[[nodiscard]] OperationStatus load_scaled_glyph(const Font& font, u32 glyph, i64 x_scale, i64 y_scale,
+                                                const FontLimits& limits, GlyphOutline& outline) noexcept;
 
 // The scale that takes font units to 26.6 pixels at a size given in 26.6
 // pixels to the em, as 16.16: size * 65536 / units per em, rounded.
@@ -288,6 +289,7 @@ struct MappedStretch final {
 // them, their mean with each coordinate rounded down; a contour that
 // begins on a control point begins at its last point if that is on the
 // curve, else between the two.
-[[nodiscard]] OperationStatus to_segments(const GlyphOutline& outline, Vector<Segment>& segments, Vector<Point>& points) noexcept;
+[[nodiscard]] OperationStatus to_segments(const GlyphOutline& outline, Vector<Segment>& segments,
+                                          Vector<Point>& points) noexcept;
 
 } // namespace stxlib::glyphs

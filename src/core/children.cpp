@@ -55,7 +55,8 @@ bool keep_output(const Byte* const bytes, const usize count, const usize limit, 
     return result;
 }
 
-OperationResult<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit, const Operation operation) noexcept {
+OperationResult<Buffer<Byte>> finish_output(Growable<Byte>& output, const bool over_limit,
+                                            const Operation operation) noexcept {
     if (over_limit) {
         return OperationResult<Buffer<Byte>>::failure(
             host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));

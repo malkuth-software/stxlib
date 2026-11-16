@@ -60,7 +60,8 @@ int main() {
     const stxlib::OperationResult<int> refused = stxlib::call_gate("stxlib.tests.gate", halves, odd);
     CHECK(refused.failed() && (*refused.error()).kind() == stxlib::ErrorKind::invalid_argument);
     int six = 6;
-    const stxlib::OperationResult<int> framed = stxlib::call_gate(stxlib::GateFrame{"stxlib.tests.gate", 24, 3}, halves, six);
+    const stxlib::OperationResult<int> framed = stxlib::call_gate(stxlib::GateFrame{"stxlib.tests.gate", 24, 3}, halves,
+                                                                  six);
     CHECK(framed.succeeded() && *framed.value() == 3);
     Squares squares;
     int four = 4;
@@ -80,7 +81,8 @@ int main() {
     const stxlib::GateFrame square_frame{"stxlib.tests.square", 1, 2};
     stxlib::OperationResult<int> framed_square = stxlib::call_as_result(square_frame, squares, four);
     CHECK(framed_square.succeeded() && *framed_square.value() == 16);
-    stxlib::OperationResult<int> classified_square = stxlib::call_as_result_classified(classifier, event, squares, four);
+    stxlib::OperationResult<int> classified_square = stxlib::call_as_result_classified(classifier, event, squares,
+                                                                                       four);
     CHECK(stxlib::take_or_fail_fast(static_cast<stxlib::OperationResult<int>&&>(classified_square)) == 16);
     Counts counts;
     const stxlib::OperationStatus counted = stxlib::call_as_result("stxlib.tests.count", counts);

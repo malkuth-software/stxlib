@@ -348,8 +348,9 @@ typename detail::FrameTargetReturn<Target, Arguments...>::Type in_shadow_frame(c
 // first (none in a release build). not_found when it is empty or has been
 // overwritten (each thread keeps shadow_record_capacity in a development
 // build, 1 in a release build).
-[[nodiscard]] OperationResult<ShadowSummary> read_shadow(ShadowReference reference, MutableView<ShadowFrameRecord> frames,
-                                                MutableView<uptr> trace) noexcept;
+[[nodiscard]] OperationResult<ShadowSummary> read_shadow(ShadowReference reference,
+                                                         MutableView<ShadowFrameRecord> frames,
+                                                         MutableView<uptr> trace) noexcept;
 
 // For code that carries an exception as a value and rethrows it later
 // (GUI.Forms' class tables park an exception_ptr; A1 design, section 3.3).
@@ -415,7 +416,7 @@ struct ParkedShadow final {
 //   records) and no record could be filed; the pending capture is
 //   cleared, as park_shadow clears it.
 [[nodiscard]] OperationResult<ParkedShadow> park_shadow_into(MutableView<ShadowFrameRecord> frames,
-                                                    MutableView<uptr> trace) noexcept;
+                                                             MutableView<uptr> trace) noexcept;
 
 // Called just before the rethrow, in place of restore_shadow: files the
 // frames and trace park_shadow_into copied (`frames` and `trace` are the

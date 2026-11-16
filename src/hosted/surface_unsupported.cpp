@@ -31,7 +31,7 @@ SurfacePixels pixels(const detail::SurfaceState* const state) noexcept {
 }
 
 OperationResult<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
-                               const usize count) noexcept {
+                                        const usize count) noexcept {
     (void)state;
     (void)rects;
     (void)count;
@@ -41,7 +41,7 @@ OperationResult<SurfacePresent> present(detail::SurfaceState* const state, const
 }
 
 OperationResult<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
-                          const i64 wait_ms) noexcept {
+                                   const i64 wait_ms) noexcept {
     (void)state;
     (void)events;
     (void)capacity;

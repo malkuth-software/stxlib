@@ -206,8 +206,8 @@ OperationStatus find_symbol(const uptr handle, const char* const name, uptr& add
     return OperationStatus::success();
 }
 
-OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
-                AddressDescription& description) noexcept {
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room,
+                         const MutableView<char> symbol_name_room, AddressDescription& description) noexcept {
     description = AddressDescription{};
     const Operation operation = "stxlib.images.describe_address";
     HMODULE module = nullptr;
@@ -235,7 +235,8 @@ OperationStatus describe(const uptr address, const MutableView<char> image_name_
     const uptr base = reinterpret_cast<uptr>(image.data());
     if (address < base || address - base >= image.count()) return OperationStatus::success();
     pe_image::Export found{};
-    if (!pe_image::nearest_export(image, headers, static_cast<u32>(address - base), found)) return OperationStatus::success();
+    if (!pe_image::nearest_export(image, headers, static_cast<u32>(address - base),
+                                  found)) return OperationStatus::success();
     const char* const symbol = reinterpret_cast<const char*>(image.data() + found.name_rva);
     description.symbol_name = copy_into(symbol, found.name_count, symbol_name_room, description.symbol_name_truncated);
     description.symbol_address = base + found.rva;
@@ -243,7 +244,7 @@ OperationStatus describe(const uptr address, const MutableView<char> image_name_
 }
 
 OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
-                     const ImageRegionVisitor visitor, void* const context) noexcept {
+                              const ImageRegionVisitor visitor, void* const context) noexcept {
     const View<char> name(query.pe_section.data(), query.pe_section.count());
     if (containing) {
         HMODULE module = nullptr;

@@ -59,11 +59,13 @@ double wait_milliseconds(const Duration remaining) noexcept {
 OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation,
+                                                                          HostCode::none));
     }
     void* const block = memory::allocate(sizeof(u32), alignof(u32));
     if (block == nullptr) {
-        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::out_of_memory, operation,
+                                                                          HostCode::none));
     }
     u32* const flag = ::new (block) u32(0);
     const i64 handle = static_cast<i64>(reinterpret_cast<uptr>(flag));
@@ -104,7 +106,8 @@ bool WakeChannel::drain() noexcept {
 OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation,
+                                                                       HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
         return OperationResult<WakeWait>::failure(
@@ -112,7 +115,8 @@ OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Durat
     }
     // A page has no host handles to wait on (wake.hpp).
     if (handles.count() != 0) {
-        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::unsupported, operation,
+                                                                       HostCode::none));
     }
     u32* const flag = flag_of(read_handle_);
     const IntervalTime deadline = IntervalTime::now().after(timeout);

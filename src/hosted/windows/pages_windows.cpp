@@ -42,12 +42,14 @@ usize page_size() noexcept {
 OperationResult<PageBlock> PageBlock::map(const usize bytes) noexcept {
     const Operation operation = "stxlib.pages.map";
     if (!capability_supported(Capability::page_protection)) {
-        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::unsupported, operation,
+                                                                        HostCode::none));
     }
     if (bytes == 0) return OperationResult<PageBlock>::success(PageBlock());
     const usize page = page_size();
     if (bytes > usize_max - (page - 1)) {
-        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::too_long));
+        return OperationResult<PageBlock>::failure(host_failure::record(ErrorKind::limit_exceeded, operation,
+                                                                        HostCode::too_long));
     }
     const usize whole = (bytes + page - 1) / page * page;
     void* const mapped = VirtualAlloc(nullptr, static_cast<SIZE_T>(whole), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);

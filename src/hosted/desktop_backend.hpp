@@ -29,6 +29,7 @@ inline constexpr bool byte_names = true;
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN OperationStatus reveal(const Path& path) noexcept;
 // The executable's host name ('/' separators; WTF-8 on Windows, raw bytes on
 // POSIX), not yet parsed; or a failure.
-[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT OperationStatus executable_name(Growable<char>& text) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT OperationStatus executable_name(
+    Growable<char>& text) noexcept;
 
 } // namespace stxlib::desktop_backend

@@ -280,7 +280,7 @@ void Utf8String::release() noexcept {
 // The one editing operation: every change of the text is a replacement of
 // one boundary-delimited range by a well-formed text.
 OperationStatus Utf8String::replace_checked(const usize offset, const usize length, const TextView text,
-                                   const Operation operation) noexcept {
+                                            const Operation operation) noexcept {
     // Validate before mutating (house style, section 2).
     if (offset > count_ || length > count_ - offset) {
         const ErrorRecord refused = ErrorRecord::make(ErrorKind::out_of_range, operation,

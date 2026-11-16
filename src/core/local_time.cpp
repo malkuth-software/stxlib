@@ -98,7 +98,9 @@ OperationResult<Zone> host_zone() noexcept {
             return result;
         }
     }
-    if (!from_module && (*tz.error()).kind() != ErrorKind::not_found) return OperationResult<Zone>::failure(*tz.error());
+    if (!from_module && (*tz.error()).kind() != ErrorKind::not_found) {
+        return OperationResult<Zone>::failure(*tz.error());
+    }
     local_time_backend::ZoneText text{};
     const OperationStatus read = local_time_backend::system_zone_text(text);
     if (read.failed()) return OperationResult<Zone>::failure(*read.error());

@@ -60,7 +60,9 @@ struct OperationResult final {
     T value{};
     ErrorKind kind{ErrorKind::none};
     static OperationResult success(const T value) noexcept { return OperationResult{true, value, ErrorKind::none}; }
-    static OperationResult failure(const ErrorRecord record) noexcept { return OperationResult{false, T{}, record.kind}; }
+    static OperationResult failure(const ErrorRecord record) noexcept {
+        return OperationResult{false, T{}, record.kind};
+    }
 };
 
 template <typename T>

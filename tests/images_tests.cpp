@@ -356,7 +356,8 @@ void regions_found() {
     const uptr address = reinterpret_cast<uptr>(&test_note);
 
     RegionSearch own{};
-    const OperationStatus containing = stxlib::visit_image_regions_containing(address, test_query(), search_visitor, &own);
+    const OperationStatus containing = stxlib::visit_image_regions_containing(address, test_query(), search_visitor,
+                                                                              &own);
     CHECK(containing.succeeded());
     CHECK(own.visits >= 1);
     CHECK(own.found);

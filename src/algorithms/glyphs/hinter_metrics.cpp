@@ -713,7 +713,8 @@ OperationStatus compute_glyph_styles(const Font& font, Vector<u16>& styles) noex
     return OperationStatus::success();
 }
 
-OperationStatus compute_style_metrics(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch, StyleMetrics& metrics) noexcept {
+OperationStatus compute_style_metrics(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch,
+                                      StyleMetrics& metrics) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     metrics.style = style;
     metrics.digits_same_width = true;
@@ -772,7 +773,8 @@ HintScale make_scale(const Font& font, const i64 size, const HintMode mode, cons
     return scale;
 }
 
-OperationStatus scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale, ScaledStyleMetrics& scaled) noexcept {
+OperationStatus scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale,
+                                    ScaledStyleMetrics& scaled) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     scaled.scale = scale;
     const bool is_default = script_of_style(metrics.style).group == group_default;

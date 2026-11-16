@@ -138,11 +138,13 @@ CivilTime civil_from_wall(const WallTime instant) noexcept {
 
 OperationResult<WallTime> wall_from_civil(const CivilTime& time) noexcept {
     if (!is_valid_civil_time(time)) {
-        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.calendar.wall_from_civil"));
+        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::invalid_argument,
+                                                                    "stxlib.calendar.wall_from_civil"));
     }
     WallTime instant{};
     if (!wall_from_seconds(civil::seconds_from_civil(time), time.nanosecond, instant)) {
-        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::out_of_range, "stxlib.calendar.wall_from_civil"));
+        return OperationResult<WallTime>::failure(ErrorRecord::make(ErrorKind::out_of_range,
+                                                                    "stxlib.calendar.wall_from_civil"));
     }
     return OperationResult<WallTime>::success(instant);
 }

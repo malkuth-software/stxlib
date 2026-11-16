@@ -157,7 +157,8 @@ OperationStatus errno_failure(const Operation operation, const int error, const 
 }
 
 OperationStatus main_thread_refusal(const Operation operation) noexcept {
-    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_state);
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation,
+                                                        HostCode::invalid_state);
     return result;
 }
 

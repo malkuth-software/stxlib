@@ -142,7 +142,8 @@ u32 script_tag(const Script script) noexcept {
 
 OperationStatus find_line_breaks(const MutableView<LineBreak> output, const TextView text) noexcept {
     if (output.count() != text.count()) {
-        return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.find_line_breaks"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument,
+                                                          "stxlib.textlayout.find_line_breaks"));
     }
     if (text.count() == 0) return OperationStatus::success();
     const unsigned char* const bytes = reinterpret_cast<const unsigned char*>(text.data());
@@ -152,7 +153,8 @@ OperationStatus find_line_breaks(const MutableView<LineBreak> output, const Text
 
 OperationStatus find_line_breaks(const MutableView<LineBreak> output, const View<u32> code_points) noexcept {
     if (output.count() != code_points.count()) {
-        return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.textlayout.find_line_breaks"));
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument,
+                                                          "stxlib.textlayout.find_line_breaks"));
     }
     if (code_points.count() == 0) return OperationStatus::success();
     break_code_points(code_points.data(), code_points.count(), output.data());

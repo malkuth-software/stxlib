@@ -36,7 +36,7 @@ bool acceptable_query(const ImageRegionQuery& query) noexcept {
 }
 
 OperationStatus visit(const ImageRegionQuery& query, const bool containing, const uptr address,
-             const ImageRegionVisitor visitor, void* const context, const Operation operation) noexcept {
+                      const ImageRegionVisitor visitor, void* const context, const Operation operation) noexcept {
     if (!capability_supported(Capability::image_regions)) {
         return host_failure::failed(ErrorKind::unsupported, operation, HostCode::none);
     }
@@ -50,7 +50,7 @@ OperationStatus visit(const ImageRegionQuery& query, const bool containing, cons
 } // namespace
 
 OperationResult<AddressDescription> describe_address(const uptr address, const MutableView<char> image_name_room,
-                                            const MutableView<char> symbol_name_room) noexcept {
+                                                     const MutableView<char> symbol_name_room) noexcept {
     if (!capability_supported(Capability::address_lookup)) {
         const ErrorRecord record =
             host_failure::record(ErrorKind::unsupported, "stxlib.images.describe_address", HostCode::none);
@@ -63,14 +63,15 @@ OperationResult<AddressDescription> describe_address(const uptr address, const M
 }
 
 OperationStatus visit_image_regions(const ImageRegionQuery& query, const ImageRegionVisitor visitor,
-                           void* const context) noexcept {
+                                    void* const context) noexcept {
     const OperationStatus result = visit(query, false, 0, visitor, context, "stxlib.images.visit_regions");
     return result;
 }
 
 OperationStatus visit_image_regions_containing(const uptr address, const ImageRegionQuery& query,
-                                      const ImageRegionVisitor visitor, void* const context) noexcept {
-    const OperationStatus result = visit(query, true, address, visitor, context, "stxlib.images.visit_regions_containing");
+                                               const ImageRegionVisitor visitor, void* const context) noexcept {
+    const OperationStatus result = visit(query, true, address, visitor, context,
+                                         "stxlib.images.visit_regions_containing");
     return result;
 }
 

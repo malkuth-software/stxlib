@@ -57,8 +57,8 @@ OperationStatus run_helper(const View<PathText> arguments) noexcept {
 
 OperationStatus io_failure_errno(const int error) noexcept {
     const OperationStatus result = host_failure::failed(ErrorKind::io_failure, "stxlib.desktop.current_executable",
-                                               HostCode::none,
-                                               ForeignCode::of(ForeignFamily::posix_errno, static_cast<i64>(error)));
+                                                        HostCode::none, ForeignCode::of(ForeignFamily::posix_errno,
+                                                                                         static_cast<i64>(error)));
     return result;
 }
 

@@ -137,7 +137,8 @@ void refusal_and_shapes() {
         stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>::with_capacity(8);
     CHECK(made.succeeded());
     stxlib::PriorityQueue<int, stxlib::LargestFirst<int>> largest =
-        static_cast<stxlib::OperationResult<stxlib::PriorityQueue<int, stxlib::LargestFirst<int>>>&&>(made).take_value();
+        static_cast<stxlib::OperationResult<stxlib::PriorityQueue<int,
+        stxlib::LargestFirst<int>>>&&>(made).take_value();
     const int values[] = {3, 9, -4, 9, 0, 12};
     for (const int value : values) {
         int pushed = value;

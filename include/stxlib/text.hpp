@@ -44,7 +44,7 @@ namespace stxlib {
 // invalid_argument; neither changes anything.
 //
 // Allocation (D8 = a, as answered): every operation that may allocate
-// returns a OperationStatus or a OperationResult; a refused allocation is out_of_memory (or
+// returns an OperationStatus or an OperationResult; a refused allocation is out_of_memory (or
 // limit_exceeded when the size is not representable) and changes nothing.
 // A TextView argument may borrow from this same string.
 //
@@ -139,7 +139,8 @@ private:
     [[nodiscard]] bool on_heap() const noexcept { return capacity_ > inline_capacity; }
     [[nodiscard]] char* bytes() noexcept;
     [[nodiscard]] const char* bytes() const noexcept;
-    [[nodiscard]] OperationStatus replace_checked(usize offset, usize length, TextView text, Operation operation) noexcept;
+    [[nodiscard]] OperationStatus replace_checked(usize offset, usize length, TextView text,
+                                                  Operation operation) noexcept;
 
     union Storage {
         char* block;

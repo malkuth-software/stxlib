@@ -79,7 +79,8 @@ OperationStatus open_library(const char* const name, const LoadMode mode, uptr& 
 OperationStatus close_library(const uptr handle) noexcept {
     static_cast<void>(::dlerror());
     if (::dlclose(handle_of(handle)) != 0) {
-        return OperationStatus::failure(loader_failure(ErrorKind::foreign_failure, "stxlib.library.close", HostCode::none));
+        return OperationStatus::failure(loader_failure(ErrorKind::foreign_failure, "stxlib.library.close",
+                                                       HostCode::none));
     }
     return OperationStatus::success();
 }
@@ -92,14 +93,15 @@ OperationStatus find_symbol(const uptr handle, const char* const name, uptr& add
     static_cast<void>(::dlerror());
     void* const found = ::dlsym(handle_of(handle), name);
     if (found == nullptr) {
-        return OperationStatus::failure(loader_failure(ErrorKind::not_found, "stxlib.library.symbol", HostCode::symbol_not_found));
+        return OperationStatus::failure(loader_failure(ErrorKind::not_found, "stxlib.library.symbol",
+                                                       HostCode::symbol_not_found));
     }
     address = reinterpret_cast<uptr>(found);
     return OperationStatus::success();
 }
 
-OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
-                AddressDescription& description) noexcept {
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room,
+                         const MutableView<char> symbol_name_room, AddressDescription& description) noexcept {
     description = AddressDescription{};
     Dl_info information{};
     // dladdr returns 0 when no loaded object holds the address.

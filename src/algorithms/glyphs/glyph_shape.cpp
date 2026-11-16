@@ -106,8 +106,8 @@ void give_back(ShaperState& state, const usize characters) noexcept {
 
 // The plan for the run's direction, script, language and features: one
 // kept, or made now in the place of the one longest unused.
-[[nodiscard]] OperationStatus plan_for(ShaperState& state, const detail::ShapeDirection direction, const u32 script, const u32 language,
-                              const detail::ShapePlan*& plan) noexcept {
+[[nodiscard]] OperationStatus plan_for(ShaperState& state, const detail::ShapeDirection direction, const u32 script,
+                                       const u32 language, const detail::ShapePlan*& plan) noexcept {
     const Operation operation("stxlib.glyphs.shaper");
     plan = nullptr;
     state.uses = state.uses + 1;
@@ -134,7 +134,8 @@ void give_back(ShaperState& state, const usize characters) noexcept {
     for (usize index = 0; index < state.requests.count(); ++index) {
         if (kept.requests.push_copy(state.requests[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     }
-    const OperationStatus compiled = detail::compile_plan(*state.font, direction, script, language, state.requests.view(), kept.plan);
+    const OperationStatus compiled = detail::compile_plan(*state.font, direction, script, language,
+                                                          state.requests.view(), kept.plan);
     if (compiled.failed()) {
         // A plan half made is no plan: its place is for the next.
         kept.plan = detail::ShapePlan{};

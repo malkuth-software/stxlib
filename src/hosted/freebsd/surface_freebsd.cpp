@@ -325,15 +325,17 @@ SurfacePixels pixels(const detail::SurfaceState* const state) noexcept {
 }
 
 OperationResult<SurfacePresent> present(detail::SurfaceState* const state, const SurfaceRect* const rects,
-                               const usize count) noexcept {
-    if (!(*state).active.load(std::memory_order_acquire)) return OperationResult<SurfacePresent>::success(SurfacePresent::inactive);
+                                        const usize count) noexcept {
+    if (!(*state).active.load(std::memory_order_acquire)) {
+        return OperationResult<SurfacePresent>::success(SurfacePresent::inactive);
+    }
     const SurfacePixels from = pixels(state);
     for (usize index = 0U; index < count; ++index) surface_blit::copy_rect(from, (*state).view, rects[index]);
     return OperationResult<SurfacePresent>::success(SurfacePresent::presented);
 }
 
 OperationResult<usize> read_events(detail::SurfaceState* const state, SurfaceEvent* const events, const usize capacity,
-                          const i64 wait_ms) noexcept {
+                                   const i64 wait_ms) noexcept {
     SurfaceState& surface = *state;
     usize written = 0U;
     while (surface.backlog_next < surface.backlog_count && written < capacity) {

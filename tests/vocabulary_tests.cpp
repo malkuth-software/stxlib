@@ -72,7 +72,8 @@ void strings_own_their_bytes() {
 void buffers_zero_and_refuse() {
     stxlib::OperationResult<stxlib::Buffer<stxlib::u32>> made = stxlib::Buffer<stxlib::u32>::allocate_zeroed(100);
     CHECK(made.succeeded());
-    stxlib::Buffer<stxlib::u32> buffer = static_cast<stxlib::OperationResult<stxlib::Buffer<stxlib::u32>>&&>(made).take_value();
+    stxlib::Buffer<stxlib::u32> buffer =
+        static_cast<stxlib::OperationResult<stxlib::Buffer<stxlib::u32>>&&>(made).take_value();
     CHECK(buffer.count() == 100);
     bool all_zero = true;
     for (usize index = 0; index < buffer.count(); ++index) {

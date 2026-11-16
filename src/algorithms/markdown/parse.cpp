@@ -69,11 +69,12 @@ void Document::clear() noexcept {
 }
 
 OperationStatus parse(const View<char> source, const Options& options, const Limits& limits, Document& document,
-             const StopSignal* const stop) noexcept {
+                      const StopSignal* const stop) noexcept {
     const Operation operation("stxlib.markdown.parse");
     document.clear();
     if (source.count() > limits.source_bytes || source.count() > largest_source_bytes) {
-        const OperationStatus too_large = OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded, operation));
+        const OperationStatus too_large = OperationStatus::failure(ErrorRecord::make(ErrorKind::limit_exceeded,
+                                                                                     operation));
         return too_large;
     }
     detail::Context ctx{};

@@ -331,7 +331,7 @@ OperationResult<Chain> Chain::with_storage() noexcept {
 }
 
 OperationResult<Chain> Chain::from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
-                                const WallTime now) noexcept {
+                                         const WallTime now) noexcept {
     OperationResult<Chain> made = with_storage();
     if (made.failed()) return made;
     Chain& chain = *made.value();

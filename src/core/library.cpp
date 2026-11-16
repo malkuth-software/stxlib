@@ -129,7 +129,8 @@ OperationResult<Library> Library::find_loaded(const TextView file_name) noexcept
     Growable<char> name;
     if (!terminated(file_name, name)) return failed_library(exhausted(operation));
     uptr handle = 0;
-    const OperationStatus opened = image_backend::open_library(name.data(), image_backend::LoadMode::loaded_only, handle);
+    const OperationStatus opened = image_backend::open_library(name.data(), image_backend::LoadMode::loaded_only,
+                                                               handle);
     if (opened.failed()) return failed_library(opened);
     return OperationResult<Library>::success(Library(handle));
 }

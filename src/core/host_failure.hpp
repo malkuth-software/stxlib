@@ -22,12 +22,13 @@ namespace stxlib::host_failure {
 }
 
 [[nodiscard]] inline OperationStatus failed(const ErrorKind kind, const Operation operation, const HostCode code,
-                                   const ForeignCode foreign) noexcept {
+                                            const ForeignCode foreign) noexcept {
     const OperationStatus result = OperationStatus::failure(record(kind, operation, code, foreign));
     return result;
 }
 
-[[nodiscard]] inline OperationStatus failed(const ErrorKind kind, const Operation operation, const HostCode code) noexcept {
+[[nodiscard]] inline OperationStatus failed(const ErrorKind kind, const Operation operation,
+                                            const HostCode code) noexcept {
     const OperationStatus result = OperationStatus::failure(record(kind, operation, code));
     return result;
 }

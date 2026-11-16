@@ -410,7 +410,8 @@ public:
     // A typeface is opened once: open on one already open is refused
     // (invalid_argument), since the faces and shapers that hold it hold
     // its font.
-    [[nodiscard]] OperationStatus open(View<u8> bytes, u32 face_index, const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(View<u8> bytes, u32 face_index,
+                                       const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
     // The font opened (its numbers, and glyph_of, advance_of and
     // has_feature of it), or null. It does not change once opened.
@@ -450,7 +451,7 @@ private:
 // A typeface for the program to share: opened, and owned by however many
 // faces and callers hold it.
 [[nodiscard]] OperationResult<Shared<Typeface>> open_typeface(View<u8> bytes, u32 face_index,
-                                                     const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
+                                                              const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
 class Face final {
 public:
@@ -463,12 +464,13 @@ public:
 
     // A face of the program's typeface: it holds the typeface for as long
     // as it is open.
-    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface, const FaceLimits& limits = FaceLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface,
+                                       const FaceLimits& limits = FaceLimits{}) noexcept;
 
     // A face with a typeface of its own, for a program with one thread of
     // text, or a font nothing else uses.
     [[nodiscard]] OperationStatus open(View<u8> bytes, u32 face_index, const FaceLimits& limits = FaceLimits{},
-                              const TypefaceLimits& typeface_limits = TypefaceLimits{}) noexcept;
+                                       const TypefaceLimits& typeface_limits = TypefaceLimits{}) noexcept;
 
     // The font, or null for a face not opened.
     [[nodiscard]] const Font* font() const noexcept;
@@ -491,13 +493,15 @@ public:
     // turn_lattice.hpp, rule 3), `pixels` bounds.width * bounds.height
     // bytes, the top row first. A shift farther than 2^30 either way is
     // invalid_argument.
-    [[nodiscard]] OperationStatus mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
+    [[nodiscard]] OperationStatus mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds,
+                                       Vector<u8>& pixels) noexcept;
 
     // Where the run's ink can be, without drawing it.
     [[nodiscard]] OperationStatus measure_run(View<RunGlyph> glyphs, const DrawStyle& style, RunBox& box) noexcept;
 
     // The run's mask. `coverage` is replaced; its storage is reused.
-    [[nodiscard]] OperationStatus draw_run(View<RunGlyph> glyphs, const DrawStyle& style, RunCoverage& coverage) noexcept;
+    [[nodiscard]] OperationStatus draw_run(View<RunGlyph> glyphs, const DrawStyle& style,
+                                           RunCoverage& coverage) noexcept;
 
     // How many times an outline has been fitted so far.
     [[nodiscard]] usize glyphs_fitted() const noexcept;

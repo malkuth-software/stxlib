@@ -409,11 +409,13 @@ struct TableAdjust final {
 // The style of every glyph of the font, from its character map.
 [[nodiscard]] OperationStatus compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept;
 // The measures of one style of the font.
-[[nodiscard]] OperationStatus compute_style_metrics(const Font& font, u32 style, const FontLimits& limits, HintScratch& scratch, StyleMetrics& metrics) noexcept;
+[[nodiscard]] OperationStatus compute_style_metrics(const Font& font, u32 style, const FontLimits& limits,
+                                                    HintScratch& scratch, StyleMetrics& metrics) noexcept;
 // The scale for a size (26.6 pixels to the em) and a mode.
 [[nodiscard]] HintScale make_scale(const Font& font, i64 size, HintMode mode, u32 group) noexcept;
 // A style's measures at a scale.
-[[nodiscard]] OperationStatus scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale, ScaledStyleMetrics& scaled) noexcept;
+[[nodiscard]] OperationStatus scale_style_metrics(const StyleMetrics& metrics, const HintScale& scale,
+                                                  ScaledStyleMetrics& scaled) noexcept;
 
 // The edges of an axis from its segments, in order of position.
 // `cjk`: the rule of the CJK scripts. False: out of memory.
@@ -462,8 +464,9 @@ inline constexpr i64 hint_most_scale = static_cast<i64>(1) << 25;
 // The outline of a glyph as loaded (font units), with every point's
 // neighbours, directions and marks worked out. limit_exceeded for a glyph
 // not within_hint_bounds (nothing of it is then worked out).
-[[nodiscard]] OperationStatus fill_hint_outline(View<Point> glyph_points, View<PointTag> glyph_tags, View<u32> contour_ends, i32 units_per_em, i32 advance,
-                                       HintOutline& outline) noexcept;
+[[nodiscard]] OperationStatus fill_hint_outline(View<Point> glyph_points, View<PointTag> glyph_tags,
+                                                View<u32> contour_ends, i32 units_per_em, i32 advance,
+                                                HintOutline& outline) noexcept;
 
 } // namespace stxlib::glyphs::detail
 

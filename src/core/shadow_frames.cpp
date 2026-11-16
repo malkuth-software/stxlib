@@ -105,7 +105,8 @@ ShadowStackState read_stack_of(const Store& thread, const MutableView<ShadowFram
 
 template <typename Store>
 OperationResult<ShadowSummary> read_record_of(const Store& thread, const ShadowReference reference,
-                                     const MutableView<ShadowFrameRecord> frames, const MutableView<uptr> trace) noexcept {
+                                              const MutableView<ShadowFrameRecord> frames,
+                                              const MutableView<uptr> trace) noexcept {
     const typename Store::Record* found = nullptr;
     if (reference.present()) {
         for (usize index = 0; index < thread.shadow_count; ++index) {
@@ -194,7 +195,7 @@ ShadowStackState read_shadow_stack(const MutableView<ShadowFrameRecord> frames) 
 }
 
 OperationResult<ShadowSummary> read_shadow(const ShadowReference reference, const MutableView<ShadowFrameRecord> frames,
-                                  const MutableView<uptr> trace) noexcept {
+                                           const MutableView<uptr> trace) noexcept {
     const state::ThreadState* const thread = state::current_thread_state();
     if (thread != nullptr) return read_record_of((*thread).shadow, reference, frames, trace);
     return read_record_of(state::current_flags().reserve, reference, frames, trace);
@@ -222,7 +223,7 @@ namespace {
 // frames, Store::trace_capacity <= shadow_trace_capacity addresses) fits.
 template <typename Store>
 OperationResult<ParkedShadow> park_into_on(Store& store, const MutableView<ShadowFrameRecord> frames,
-                                  const MutableView<uptr> trace) noexcept {
+                                           const MutableView<uptr> trace) noexcept {
     const ShadowReference reference = shadow_capture::take_for_handler(store);
     const OperationResult<ShadowSummary> read = read_record_of(store, reference, frames, trace);
     if (read.failed()) {
@@ -244,7 +245,7 @@ OperationResult<ParkedShadow> park_into_on(Store& store, const MutableView<Shado
 } // namespace
 
 OperationResult<ParkedShadow> park_shadow_into(const MutableView<ShadowFrameRecord> frames,
-                                      const MutableView<uptr> trace) noexcept {
+                                               const MutableView<uptr> trace) noexcept {
     static_assert(state::FullShadow::frame_capacity <= parked_shadow_frame_room &&
                       state::ReserveShadow::frame_capacity <= parked_shadow_frame_room,
                   "a shadow record never holds more frames than parked_shadow_frame_room");

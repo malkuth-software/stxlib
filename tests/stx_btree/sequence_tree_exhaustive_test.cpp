@@ -380,7 +380,8 @@ public:
             invalid = invalid || value.value < 0 || value.value > height_limit;
         }
         invalid = invalid && !values.empty();
-        const stxlib::OperationStatus done = index_.set_heights(row, stxlib::View<stxlib::i64>(plain.data(), plain.size()));
+        const stxlib::OperationStatus done = index_.set_heights(row, stxlib::View<stxlib::i64>(plain.data(),
+                                                                                               plain.size()));
         return accepted(done, invalid ? stxlib::ErrorKind::invalid_argument : stxlib::ErrorKind::limit_exceeded);
     }
     bool insert(RowCount row, RowCount rows) {
@@ -413,7 +414,8 @@ public:
 
 private:
     [[nodiscard]] static stxlib::RowHeightIndex make(Units estimate) {
-        stxlib::OperationResult<stxlib::RowHeightIndex> made = stxlib::RowHeightIndex::create(static_cast<stxlib::i64>(estimate));
+        stxlib::OperationResult<stxlib::RowHeightIndex> made =
+            stxlib::RowHeightIndex::create(static_cast<stxlib::i64>(estimate));
         if (!made.succeeded()) facade_defect("create failed");
         return static_cast<stxlib::OperationResult<stxlib::RowHeightIndex>&&>(made).take_value();
     }

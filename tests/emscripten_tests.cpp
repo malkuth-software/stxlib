@@ -237,7 +237,8 @@ void memory_volume() {
 void browser_volumes_absent() {
     const OperationStatus indexed = stxlib::mount_web_storage(path_of("/stxlib-web/indexed"), StorageKind::indexed_db);
     CHECK(kind_of(indexed) == ErrorKind::unsupported);
-    const OperationStatus origin = stxlib::mount_web_storage(path_of("/stxlib-web/origin"), StorageKind::origin_private);
+    const OperationStatus origin = stxlib::mount_web_storage(path_of("/stxlib-web/origin"),
+                                                             StorageKind::origin_private);
 #if defined(STXLIB_TEST_WASMFS)
     // WasmFS refuses OPFS on the main browser thread first.
     CHECK(kind_of(origin) == ErrorKind::invalid_argument && code_of(origin) == HostCode::invalid_state);

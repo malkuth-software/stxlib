@@ -60,7 +60,8 @@ DWORD wait_milliseconds(const Duration remaining) noexcept {
 OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation,
+                                                                          HostCode::none));
     }
     const HANDLE event = CreateEventW(nullptr, TRUE, FALSE, nullptr);
     if (event == nullptr) {
@@ -106,7 +107,8 @@ bool WakeChannel::drain() noexcept {
 OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation,
+                                                                       HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
         return OperationResult<WakeWait>::failure(

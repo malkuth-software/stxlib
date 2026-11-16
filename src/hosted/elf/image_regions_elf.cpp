@@ -96,7 +96,7 @@ int visit_object(dl_phdr_info* const information, const std::size_t, void* const
 } // namespace
 
 OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
-                     const ImageRegionVisitor visitor, void* const context) noexcept {
+                              const ImageRegionVisitor visitor, void* const context) noexcept {
     static_cast<void>(query); // ELF notes are found by type (images.hpp)
     Search search{};
     search.containing = containing;

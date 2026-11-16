@@ -388,12 +388,12 @@ private:
 // out_of_range when offset >= text.count(), limit_exceeded when the text
 // has more than 2^32 - 2 bytes; out_of_memory when storage cannot grow.
 [[nodiscard]] OperationStatus analyse_paragraph(TextView text, usize offset, BaseDirection direction,
-                                       Paragraph& paragraph) noexcept;
+                                                Paragraph& paragraph) noexcept;
 
 // The same over code points, one code unit each. A value that is not a
 // scalar value is taken as U+FFFD (Bidi_Class ON).
 [[nodiscard]] OperationStatus analyse_paragraph(View<u32> code_points, usize offset, BaseDirection direction,
-                                       Paragraph& paragraph) noexcept;
+                                                Paragraph& paragraph) noexcept;
 
 // One line of an analysed paragraph: its levels after rule L1 and its runs
 // in visual order, left to right (rule L2).
@@ -451,7 +451,6 @@ private:
 // paragraph separator. invalid_argument when either end is not at a code
 // point boundary, out_of_range when the line is empty or not within the
 // paragraph; out_of_memory when storage cannot grow.
-[[nodiscard]] OperationStatus analyse_line(const Paragraph& paragraph, usize offset, usize length,
-                                  Line& line) noexcept;
+[[nodiscard]] OperationStatus analyse_line(const Paragraph& paragraph, usize offset, usize length, Line& line) noexcept;
 
 } // namespace stxlib::textlayout

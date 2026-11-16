@@ -5,7 +5,7 @@
 // surface (owner, D15 before 1.0, notes decisions/2026-11-15-roadmap-choices.md).
 //
 // Semantics (D8 = a, as answered): every operation that allocates returns a
-// OperationStatus or a OperationResult, and a refused allocation is the named failure
+// OperationStatus or an OperationResult, and a refused allocation is the named failure
 // out_of_memory (or limit_exceeded when the size is not representable) with
 // the vector unchanged: same elements, same order, same capacity, and an
 // argument passed by rvalue reference not moved from. Nothing throws. The
@@ -356,7 +356,9 @@ public:
                       "Vector::append_copies needs a nothrow copy constructor");
         const usize added = elements.count();
         if (added == 0) return OperationStatus::success();
-        if (added > usize_max - count_) return OperationStatus::failure(not_representable("stxlib.vector.append_copies"));
+        if (added > usize_max - count_) {
+            return OperationStatus::failure(not_representable("stxlib.vector.append_copies"));
+        }
         const usize wanted = count_ + added;
         if (wanted <= capacity_) {
             // The source is live elements or foreign storage, never the

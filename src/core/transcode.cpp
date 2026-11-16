@@ -290,7 +290,9 @@ void write_text_as_utf16(const TextView text, u16* const output) noexcept {
 
 OperationResult<usize> write_utf16(const TextView text, const MutableView<u16> output) noexcept {
     const usize needed = utf16_count(text);
-    if (needed > output.count()) return OperationResult<usize>::failure(output_too_short("stxlib.transcode.write_utf16"));
+    if (needed > output.count()) {
+        return OperationResult<usize>::failure(output_too_short("stxlib.transcode.write_utf16"));
+    }
     write_text_as_utf16(text, output.data());
     return OperationResult<usize>::success(needed);
 }
@@ -322,7 +324,8 @@ OperationResult<Vector<u16>> utf16_of(const TextView text) noexcept {
 OperationStatus append_utf16(Utf8String& text, const View<u16> units) noexcept {
     const UnitsMeasure measured = measure_units(units, true);
     if (!measured.well_formed) {
-        return OperationStatus::failure(bad_unit("stxlib.transcode.append_utf16", measured.bad_index, "an unpaired surrogate"));
+        return OperationStatus::failure(bad_unit("stxlib.transcode.append_utf16", measured.bad_index,
+                                                 "an unpaired surrogate"));
     }
     const OperationStatus reserved = reserve_more(text, measured.bytes, "stxlib.transcode.append_utf16");
     if (reserved.failed()) return reserved;

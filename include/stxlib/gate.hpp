@@ -254,7 +254,8 @@ template <typename Target, typename... Arguments>
                                                                                   Target& target,
                                                                                   Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-    static_assert(detail::IsGateResult<Return>::value, "a gated target returns OperationStatus or OperationResult<Value>");
+    static_assert(detail::IsGateResult<Return>::value,
+                  "a gated target returns OperationStatus or OperationResult<Value>");
 #if defined(__cpp_exceptions)
     try {
         detail::ShadowFrameScope frame(detail::push_of(frame_at));
@@ -287,7 +288,8 @@ template <typename Target, typename... Arguments>
 [[nodiscard]] typename detail::TargetReturn<Target, Arguments...>::Type call_gate_classified(
     const ExceptionClassifier& classifier, const GateFrame frame_at, Target& target, Arguments&... arguments) noexcept {
     using Return = typename detail::TargetReturn<Target, Arguments...>::Type;
-    static_assert(detail::IsGateResult<Return>::value, "a gated target returns OperationStatus or OperationResult<Value>");
+    static_assert(detail::IsGateResult<Return>::value,
+                  "a gated target returns OperationStatus or OperationResult<Value>");
 #if defined(__cpp_exceptions)
     try {
         detail::ShadowFrameScope frame(detail::push_of(frame_at));

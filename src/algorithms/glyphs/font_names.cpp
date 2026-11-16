@@ -234,7 +234,8 @@ OperationStatus font_name(const Font& font, const u32 name_id, Vector<char>& tex
 namespace {
 
 // The first of up to three names the font has.
-[[nodiscard]] OperationStatus first_name(const Font& font, const u32* const ids, const usize count, Vector<char>& text) noexcept {
+[[nodiscard]] OperationStatus first_name(const Font& font, const u32* const ids, const usize count,
+                                         Vector<char>& text) noexcept {
     for (usize index = 0; index < count; ++index) {
         const OperationStatus found = font_name(font, ids[index], text);
         if (found.failed() || !text.empty()) return found;

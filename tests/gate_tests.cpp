@@ -53,7 +53,9 @@ struct ThrowsRuntimeError final {
     stxlib::OperationStatus operator()() const { throw std::runtime_error("ran badly"); }
 };
 struct ThrowsSystemError final {
-    stxlib::OperationStatus operator()() const { throw std::system_error(std::make_error_code(std::errc::permission_denied)); }
+    stxlib::OperationStatus operator()() const {
+        throw std::system_error(std::make_error_code(std::errc::permission_denied));
+    }
 };
 struct ThrowsInteger final {
     stxlib::OperationStatus operator()() const { throw 7; }
@@ -198,7 +200,8 @@ void foreign_text_is_cut_at_the_first_bad_byte() {
 void the_classifier_comes_first() {
     const stxlib::ExceptionClassifier classifier{classify_wrong_thread, nullptr};
     ThrowsWrongThread wrong_thread;
-    const stxlib::OperationStatus classified = stxlib::call_gate_classified(classifier, "stxlib.tests.gate", wrong_thread);
+    const stxlib::OperationStatus classified = stxlib::call_gate_classified(classifier, "stxlib.tests.gate",
+                                                                            wrong_thread);
     CHECK(classified.failed());
     CHECK((*classified.error()).kind() == stxlib::ErrorKind::wrong_thread);
     CHECK((*classified.error()).code() == 77);
@@ -262,7 +265,8 @@ void plain_targets_become_results() {
     CHECK(stxlib::call_as_result("stxlib.tests.count", counts, succeed).succeeded());
     const stxlib::ExceptionClassifier classifier{classify_wrong_thread, nullptr};
     const bool fail = true;
-    const stxlib::OperationStatus classified = stxlib::call_as_result_classified(classifier, "stxlib.tests.count", counts, fail);
+    const stxlib::OperationStatus classified = stxlib::call_as_result_classified(classifier, "stxlib.tests.count",
+                                                                                 counts, fail);
     CHECK(classified.failed() && (*classified.error()).kind() == stxlib::ErrorKind::wrong_thread);
     CHECK((*classified.error()).code() == 77);
     const stxlib::OperationStatus unclassified = stxlib::call_as_result("stxlib.tests.count", counts, fail);

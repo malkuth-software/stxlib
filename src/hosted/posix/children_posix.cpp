@@ -470,7 +470,8 @@ OperationResult<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     (void)::close(descriptor);
     if (failed_errno != 0) return OperationResult<Buffer<Byte>>::failure(record_of_errno(failed_errno, operation));
     if (exhausted) {
-        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation,
+                                                                           HostCode::none));
     }
     OperationResult<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
     return result;

@@ -690,7 +690,8 @@ bool outline_whole(const GlyphOutline& outline) noexcept {
 
 } // namespace detail
 
-OperationStatus load_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
+OperationStatus load_glyph(const Font& font, const u32 glyph, const FontLimits& limits,
+                           GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     outline.points.clear();
     outline.tags.clear();
@@ -713,8 +714,8 @@ OperationStatus load_glyph(const Font& font, const u32 glyph, const FontLimits& 
     return refuse_font(ErrorKind::invalid_argument, operation);
 }
 
-OperationStatus load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
-                         GlyphOutline& outline) noexcept {
+OperationStatus load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale,
+                                  const FontLimits& limits, GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_scaled_glyph");
     outline.points.clear();
     outline.tags.clear();

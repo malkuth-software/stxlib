@@ -199,7 +199,8 @@ void check_units(const std::vector<u16>& units) {
     char output[16];
     for (char& byte : output) byte = '#';
     const usize room = well_formed ? model.utf8.size() : 16;
-    const stxlib::OperationResult<stxlib::usize> written = stxlib::write_utf8_of_utf16(view, stxlib::MutableView<char>(output, room));
+    const stxlib::OperationResult<stxlib::usize> written =
+        stxlib::write_utf8_of_utf16(view, stxlib::MutableView<char>(output, room));
     CHECK(written.succeeded() == well_formed);
     if (well_formed) {
         CHECK(std::string(output, model.utf8.size()) == model.utf8);
@@ -340,7 +341,8 @@ void failures_unchanged() {
     CHECK(too_short.failed() && (*too_short.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(short_units[0] == 0x1234);
     u16 room[4] = {0, 0, 0, 0};
-    const stxlib::OperationResult<stxlib::usize> fits = stxlib::write_utf16("a\xf0\x9d\x84\x9e", stxlib::MutableView<u16>(room));
+    const stxlib::OperationResult<stxlib::usize> fits = stxlib::write_utf16("a\xf0\x9d\x84\x9e",
+                                                                            stxlib::MutableView<u16>(room));
     CHECK(fits.succeeded() && *fits.value() == 3 && room[0] == 0x61 && room[1] == 0xd834 && room[2] == 0xdd1e);
 
     stxlib::OperationResult<stxlib::Utf8String> made = stxlib::Utf8String::copy_of("kept");

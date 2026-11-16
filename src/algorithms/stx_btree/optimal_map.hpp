@@ -34,7 +34,7 @@
 //
 // STXlib adaptation (from stx_auxlib b6e330a, btree/include/stx_btree/
 // optimal_map.hpp; private to STXlib, namespace stxlib::stx_btree):
-// - build returns a OperationResult (invalid_argument for mismatched lengths, too
+// - build returns an OperationResult (invalid_argument for mismatched lengths, too
 //   many keys or unsorted keys, the tree construction's own failures, and
 //   out_of_memory when storage cannot be had) where stx_auxlib threw;
 // - build takes the keys and values as caller storage (MutableView) and

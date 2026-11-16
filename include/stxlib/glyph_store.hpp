@@ -83,7 +83,8 @@ public:
 
     // Makes the store ready for `font`, holding nothing yet. `limits` are
     // those every glyph is read under.
-    [[nodiscard]] OperationStatus open(const Font& font, const FontLimits& limits, const StoreLimits& store_limits = StoreLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Font& font, const FontLimits& limits,
+                                       const StoreLimits& store_limits = StoreLimits{}) noexcept;
 
     // Reads the glyphs of these characters into the kept part, in order,
     // for as long as there is room there; a character the font has no

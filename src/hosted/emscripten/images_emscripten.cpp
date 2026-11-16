@@ -45,8 +45,8 @@ OperationStatus find_symbol(const uptr handle, const char* const name, uptr& add
     return result;
 }
 
-OperationStatus describe(const uptr address, const MutableView<char> image_name_room, const MutableView<char> symbol_name_room,
-                AddressDescription& description) noexcept {
+OperationStatus describe(const uptr address, const MutableView<char> image_name_room,
+                         const MutableView<char> symbol_name_room, AddressDescription& description) noexcept {
     static_cast<void>(address);
     static_cast<void>(image_name_room);
     static_cast<void>(symbol_name_room);
@@ -56,7 +56,7 @@ OperationStatus describe(const uptr address, const MutableView<char> image_name_
 }
 
 OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
-                     const ImageRegionVisitor visitor, void* const context) noexcept {
+                              const ImageRegionVisitor visitor, void* const context) noexcept {
     static_cast<void>(query);
     static_cast<void>(containing);
     static_cast<void>(address);

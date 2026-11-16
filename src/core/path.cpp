@@ -150,11 +150,13 @@ OperationResult<Buffer<Element>> owned_copy(const Element* const elements, const
 OperationResult<Path> adopt(const Growable<char>& output, const Operation operation) noexcept {
     OperationResult<Buffer<char>> owned = owned_copy(output.data(), output.count());
     if (owned.failed()) return OperationResult<Path>::failure(exhausted(operation));
-    OperationResult<Path> result = OperationResult<Path>::success(Path::Access::adopt(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
+    OperationResult<Path> result = OperationResult<Path>::success(
+        Path::Access::adopt(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
-OperationResult<Path> finish(const Normalized outcome, const Growable<char>& output, const Operation operation) noexcept {
+OperationResult<Path> finish(const Normalized outcome, const Growable<char>& output,
+                             const Operation operation) noexcept {
     switch (outcome) {
     case Normalized::ok:
         break;
@@ -187,7 +189,8 @@ OperationResult<Path> parse_checked(const char* const bytes, const usize count, 
     if (count > maximum_path_bytes) return OperationResult<Path>::failure(refusal(PathFailure::too_long, operation));
     for (usize index = 0; index < count; ++index) {
         if (bytes[index] == '\0') return OperationResult<Path>::failure(refusal(PathFailure::embedded_nul, operation));
-        if (bytes[index] == '\\') return OperationResult<Path>::failure(refusal(PathFailure::reserved_character, operation));
+        if (bytes[index] == '\\') return OperationResult<Path>::failure(refusal(PathFailure::reserved_character,
+                                                                                operation));
     }
     if (encoding == Encoding::check_utf8) {
         const OperationResult<TextView> valid = validate_utf8(bytes, count);
@@ -267,7 +270,8 @@ OperationResult<Path> Path::from_posix_name(const char* const bytes, const usize
         return OperationResult<Path>::failure(refusal(PathFailure::too_long, "stxlib.path.parse"));
     }
     Growable<char> escaped;
-    if (!wtf8::escape_posix(bytes, count, escaped)) return OperationResult<Path>::failure(exhausted("stxlib.path.parse"));
+    if (!wtf8::escape_posix(bytes, count,
+                            escaped)) return OperationResult<Path>::failure(exhausted("stxlib.path.parse"));
     // escape_posix writes well-formed WTF-8 (its only surrogates are low
     // ones) with no '\' or ':' left unescaped.
     OperationResult<Path> result = parse_checked(escaped.data(), escaped.count(), Encoding::wtf8);
@@ -305,7 +309,8 @@ OperationResult<Path> Path::copy() const noexcept {
     if (text_.empty()) return OperationResult<Path>::success(Path());
     OperationResult<Buffer<char>> owned = owned_copy(text_.view().data(), text_.count());
     if (owned.failed()) return OperationResult<Path>::failure(exhausted("stxlib.path.copy"));
-    OperationResult<Path> result = OperationResult<Path>::success(Path(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
+    OperationResult<Path> result =
+        OperationResult<Path>::success(Path(static_cast<OperationResult<Buffer<char>>&&>(owned).take_value()));
     return result;
 }
 
@@ -323,7 +328,9 @@ OperationResult<Buffer<char>> Path::posix_name() const noexcept {
     if (converted == wtf8::Converted::not_representable) {
         return OperationResult<Buffer<char>>::failure(refusal(PathFailure::not_representable, operation));
     }
-    if (converted != wtf8::Converted::ok || !bytes.push('\0')) return OperationResult<Buffer<char>>::failure(exhausted(operation));
+    if (converted != wtf8::Converted::ok || !bytes.push('\0')) {
+        return OperationResult<Buffer<char>>::failure(exhausted(operation));
+    }
     OperationResult<Buffer<char>> owned = owned_copy(bytes.data(), bytes.count());
     if (owned.failed()) return OperationResult<Buffer<char>>::failure(exhausted(operation));
     return owned;

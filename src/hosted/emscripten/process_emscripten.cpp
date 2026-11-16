@@ -31,7 +31,8 @@ namespace stxlib::process_backend {
 OperationStatus arguments(const usize limit, Growable<char>& raw) noexcept {
     static_cast<void>(limit);
     raw.clear();
-    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.process.arguments", HostCode::none);
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.process.arguments",
+                                                        HostCode::none);
     return result;
 }
 
@@ -39,7 +40,8 @@ u64 process_id() noexcept { return 0; }
 
 OperationStatus is_main_thread(bool& initial) noexcept {
     initial = false;
-    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.threads.is_main_thread", HostCode::none);
+    const OperationStatus result = host_failure::failed(ErrorKind::unsupported, "stxlib.threads.is_main_thread",
+                                                        HostCode::none);
     return result;
 }
 

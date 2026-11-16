@@ -71,7 +71,8 @@ OperationResult<SurfacePresent> Surface::present(const SurfaceRect* const rects,
     return surface_backend::present(state_, rects, count);
 }
 
-OperationResult<usize> Surface::read_events(SurfaceEvent* const events, const usize capacity, const i64 wait_ms) noexcept {
+OperationResult<usize> Surface::read_events(SurfaceEvent* const events, const usize capacity,
+                                            const i64 wait_ms) noexcept {
     if (state_ == nullptr) {
         return OperationResult<usize>::failure(
             host_failure::record(ErrorKind::disposed, "stxlib.surface.read_events", HostCode::closed_handle));

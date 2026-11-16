@@ -234,7 +234,7 @@ template <typename T>
 // on a failure. Requirement (dot): left.count() == right.count().
 template <typename T>
 [[nodiscard]] OperationResult<T> pooled_reduce(AtomicPool& pool, const T* const left, const T* const right,
-                                      const usize count) noexcept {
+                                               const usize count) noexcept {
     if (pool.is_worker()) {
         const ErrorRecord refused = ErrorRecord::make(
             ErrorKind::invalid_argument, "stxlib.float_reduce.pooled",

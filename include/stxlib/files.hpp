@@ -2,7 +2,7 @@
 
 // Files and directories (Capability::files), named by stxlib::Path. Ported
 // from stx_auxlib's include/stx_auxlib/files.hpp and src/hosted/files.cpp at
-// b6e330a. Every operation returns a OperationStatus or OperationResult; none throws or
+// b6e330a. Every operation returns an OperationStatus or OperationResult; none throws or
 // aborts for a filesystem condition. Host errors map onto the same records
 // on every host.
 //
@@ -325,7 +325,7 @@ enum class CopyPermissions : u8 {
 };
 
 [[nodiscard]] OperationStatus copy_file(const Path& from, const Path& to, CopyMode mode,
-                               CopyPermissions permissions = CopyPermissions::ordinary) noexcept;
+                                        CopyPermissions permissions = CopyPermissions::ordinary) noexcept;
 
 namespace detail {
 

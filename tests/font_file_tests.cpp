@@ -787,7 +787,8 @@ void audit_contracts() {
     outline.contour_ends.clear();
     CHECK(outline.points.push_copy(glyphs::Point{.x = 100000, .y = -100000}).succeeded() &&
           outline.tags.push_copy(on).succeeded() && outline.contour_ends.push_copy(0U).succeeded());
-    stxlib::OperationStatus status = glyphs::scale_outline(outline, static_cast<i64>(1) << 32, static_cast<i64>(1) << 32);
+    stxlib::OperationStatus status = glyphs::scale_outline(outline, static_cast<i64>(1) << 32,
+                                                           static_cast<i64>(1) << 32);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument && outline.points[0].x == 100000);
     status = glyphs::scale_outline(outline, 0, 65536);
     CHECK(status.failed() && outline.points[0].x == 100000);

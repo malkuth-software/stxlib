@@ -167,8 +167,8 @@ struct ShapePlan final {
 
 // The plan for a font. `script` is an ISO 15924 tag or 0, `language` an
 // OpenType language system tag or 0. Fails only for want of memory.
-[[nodiscard]] OperationStatus compile_plan(const Font& font, ShapeDirection direction, u32 script, u32 language, View<PlanRequest> requests,
-                                  ShapePlan& plan) noexcept;
+[[nodiscard]] OperationStatus compile_plan(const Font& font, ShapeDirection direction, u32 script, u32 language,
+                                           View<PlanRequest> requests, ShapePlan& plan) noexcept;
 
 // A feature's mask and where its value goes in it (0 and 0 when the plan
 // has not the feature), and the mask of its value 1.

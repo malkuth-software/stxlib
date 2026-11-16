@@ -123,9 +123,11 @@ int callback_target_throw() {
 }
 
 int reporter() {
-    const stxlib::OperationStatus installed = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
+    const stxlib::OperationStatus installed = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker,
+                                                                                 nullptr});
     if (installed.failed()) return 2;
-    const stxlib::OperationStatus second = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker, nullptr});
+    const stxlib::OperationStatus second = stxlib::install_fail_fast_reporter(stxlib::FailFastReporter{report_marker,
+                                                                              nullptr});
     if (second.succeeded()) return 3;
     ThrowingCallback callback;
     stxlib::invoke_callback("stxlib.tests.callback", callback);
@@ -374,10 +376,12 @@ void contract_reporter(void*, const stxlib::ErrorRecord& record) noexcept {
     stxlib::ShadowFrameRecord frames[stxlib::shadow_frame_capacity]{};
     stxlib::uptr trace[stxlib::shadow_trace_capacity]{};
     const stxlib::OperationResult<stxlib::ShadowSummary> read = stxlib::read_shadow(
-        record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(frames), stxlib::MutableView<stxlib::uptr>(trace));
+        record.shadow(), stxlib::MutableView<stxlib::ShadowFrameRecord>(frames),
+        stxlib::MutableView<stxlib::uptr>(trace));
     char type[stxlib::exception_type_display_capacity];
     const stxlib::TextView shown_type = stxlib::exception_type_for_display(record, stxlib::MutableView<char>(type));
-    const stxlib::OperationStatus written = stxlib::write_console_line(stxlib::ConsoleStream::error, "reporter: console");
+    const stxlib::OperationStatus written = stxlib::write_console_line(stxlib::ConsoleStream::error,
+                                                                       "reporter: console");
     const stxlib::usize frame_count = read.succeeded() ? (*read.value()).frame_count : 0;
     std::fprintf(stderr, "reporter: classified %d, message %zu, frames %zu, kind %u, type %s, console %s\n",
                  sink_state.calls, sink_state.message_count, frame_count, frame_count > 0 ? frames[0].kind : 0U,

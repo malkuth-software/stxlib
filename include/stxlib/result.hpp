@@ -65,7 +65,8 @@ template <typename Value>
 class OperationResult final {
     // A result moves its value without a failure path (house style, section
     // 1: element relocation must not escape through another mechanism).
-    static_assert(__is_nothrow_constructible(Value, Value&&), "OperationResult's Value must be nothrow move constructible");
+    static_assert(__is_nothrow_constructible(Value, Value&&),
+                  "OperationResult's Value must be nothrow move constructible");
 
 public:
     [[nodiscard]] static OperationResult success(Value succeeded_value) noexcept {
@@ -125,7 +126,7 @@ public:
         return result;
     }
 
-    // The failure as a OperationStatus, or success. For an operation that passes a
+    // The failure as an OperationStatus, or success. For an operation that passes a
     // callee's failure on without its value.
     [[nodiscard]] OperationStatus status() const noexcept {
         if (outcome_ == Outcome::failure) return OperationStatus::failure(state_.record);
@@ -151,7 +152,8 @@ private:
 
     OperationResult(ValueTag tag, Value&& moved_value) noexcept
         : outcome_(Outcome::success), state_(tag, static_cast<Value&&>(moved_value)) {}
-    OperationResult(FailureTag tag, const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(tag, record) {}
+    OperationResult(FailureTag tag, const ErrorRecord& record) noexcept : outcome_(Outcome::failure), state_(tag,
+                                                                                                             record) {}
 
     Outcome outcome_;
     State state_;

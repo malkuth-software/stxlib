@@ -240,7 +240,9 @@ OperationResult<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept 
     // The threads' array must be representable: on wasm32 a u32 count times
     // sizeof(Thread) can pass usize_max, and the product would wrap to a
     // short block that the loop below overruns.
-    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) return OperationResult<AtomicPool>::failure(exhausted);
+    if (static_cast<usize>(thread_count) > usize_max / sizeof(Thread)) {
+        return OperationResult<AtomicPool>::failure(exhausted);
+    }
     void* const block = memory::allocate(sizeof(State), alignof(State));
     if (block == nullptr) return OperationResult<AtomicPool>::failure(exhausted);
     State* const state = ::new (block) State();
@@ -259,7 +261,8 @@ OperationResult<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept 
             destroy_state(state);
             return OperationResult<AtomicPool>::failure(failure);
         }
-        ::new (static_cast<void*>(pool.threads + index)) Thread(static_cast<OperationResult<Thread>&&>(started).take_value());
+        ::new (static_cast<void*>(pool.threads + index))
+            Thread(static_cast<OperationResult<Thread>&&>(started).take_value());
         pool.started = index + 1;
     }
     OperationResult<AtomicPool> result = OperationResult<AtomicPool>::success(AtomicPool(state));
@@ -346,7 +349,8 @@ OperationStatus AtomicPool::wait() noexcept {
     // nothing.
     const u64 caller = current_thread().value();
     const u64 owner = pool.batch_owner.load(std::memory_order_relaxed);
-    if (owner != 0 && owner != caller) return OperationStatus::failure(refusal(PoolFailure::not_batch_owner, operation));
+    if (owner != 0 && owner != caller) return OperationStatus::failure(refusal(PoolFailure::not_batch_owner,
+                                                                               operation));
     const bool owns_batch = owner == caller && pool.batch_open;
     {
         const detail::CancellationHold no_cancel;

@@ -364,7 +364,8 @@ void deep_and_wide_trees(const Scratch& scratch) {
     const OperationResult<stxlib::u64> wide = stxlib::remove_tree(under(scratch.root, "wide"));
     // 600 entries, 12 inner files, the top.
     CHECK(wide.succeeded() && *wide.value() == 613);
-    const OperationResult<stxlib::FileInformation> gone = stxlib::inspect(under(scratch.root, "wide"), stxlib::LinkMode::no_follow);
+    const OperationResult<stxlib::FileInformation> gone = stxlib::inspect(under(scratch.root, "wide"),
+                                                                          stxlib::LinkMode::no_follow);
     CHECK(kind_of(gone) == ErrorKind::not_found);
 }
 
@@ -396,7 +397,8 @@ void metadata_and_directories(const Scratch& scratch) {
     // Listing is sorted by Path text bytes, whatever order the host returns.
     const char* const names[] = {"zeta", "Alpha", "beta", "_under", "\xc3\xa9t\xc3\xa9"};
     for (const char* const name : names) {
-        const OperationStatus missing = stxlib::write_file(under(scratch.root, std::string("list/") + name), view_bytes(bytes_of(name)), Durability::none);
+        const OperationStatus missing = stxlib::write_file(under(scratch.root, std::string("list/") + name),
+                                                           view_bytes(bytes_of(name)), Durability::none);
         CHECK(kind_of(missing) == ErrorKind::not_found);
     }
     CHECK(stxlib::create_directory(under(scratch.root, "list")).succeeded());
@@ -493,7 +495,8 @@ void link_checks(const Scratch& scratch, const Path& target, const Path& link) {
     // remove_tree removes the link, not its target.
     const Path holder = under(scratch.root, "holder");
     CHECK(stxlib::create_directory(holder).succeeded());
-    const OperationStatus inner = stxlib::create_link(parse_or_empty("../target.txt"), under(scratch.root, "holder/to-target"));
+    const OperationStatus inner = stxlib::create_link(parse_or_empty("../target.txt"), under(scratch.root,
+                                                                                             "holder/to-target"));
     CHECK(inner.succeeded());
     const OperationResult<stxlib::u64> removed = stxlib::remove_tree(holder);
     CHECK(removed.succeeded() && *removed.value() == 2);
@@ -713,7 +716,7 @@ void odd_names(const Scratch& scratch) {
     const bool invalid_ok = host_create(directory, invalid_host);
 #endif
     const OperationStatus stxlib_write = stxlib::write_file(child_of(directory, posix_path(invalid_stxlib)),
-                                                   view_bytes(bytes_of("odd")), Durability::none);
+                                                            view_bytes(bytes_of("odd")), Durability::none);
     const bool stxlib_invalid_ok = stxlib_write.succeeded();
     // Where the host refuses non-UTF-8 names (APFS: EILSEQ) or would store
     // them under another name (Emscripten's JavaScript file system), STXlib

@@ -20,9 +20,9 @@ void close(detail::SurfaceState* state) noexcept;
 [[nodiscard]] SurfacePixels pixels(const detail::SurfaceState* state) noexcept;
 // Every rectangle already checked within the surface.
 [[nodiscard]] OperationResult<SurfacePresent> present(detail::SurfaceState* state, const SurfaceRect* rects,
-                                             usize count) noexcept;
+                                                      usize count) noexcept;
 // capacity is at least 1; wait_ms is -1 or at least 0.
 [[nodiscard]] OperationResult<usize> read_events(detail::SurfaceState* state, SurfaceEvent* events, usize capacity,
-                                        i64 wait_ms) noexcept;
+                                                 i64 wait_ms) noexcept;
 
 } // namespace stxlib::surface_backend

@@ -58,7 +58,8 @@ bool has_link_separator(const TextView text) noexcept {
 }
 
 OperationStatus refused(const Operation operation) noexcept {
-    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation, HostCode::invalid_value);
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation,
+                                                        HostCode::invalid_value);
     return result;
 }
 
@@ -123,7 +124,8 @@ OperationResult<Path> current_executable() noexcept {
                                                       : Path::parse_wtf8(text.data(), text.count());
     if (parsed.failed()) {
         if ((*parsed.error()).kind() == ErrorKind::out_of_memory) return parsed;
-        return OperationResult<Path>::failure(host_failure::record(ErrorKind::io_failure, operation, HostCode::invalid_name));
+        return OperationResult<Path>::failure(host_failure::record(ErrorKind::io_failure, operation,
+                                                                   HostCode::invalid_name));
     }
     return parsed;
 }

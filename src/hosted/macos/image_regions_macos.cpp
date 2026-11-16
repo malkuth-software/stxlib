@@ -55,7 +55,7 @@ bool visit_image(const mach_header_64* const header, const NameField& segment, c
 } // namespace
 
 OperationStatus visit_regions(const ImageRegionQuery& query, const bool containing, const uptr address,
-                     const ImageRegionVisitor visitor, void* const context) noexcept {
+                              const ImageRegionVisitor visitor, void* const context) noexcept {
     const NameField segment = field_of(query.mach_o_segment);
     const NameField section = field_of(query.mach_o_section);
     if (containing) {

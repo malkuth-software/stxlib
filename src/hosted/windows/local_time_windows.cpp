@@ -76,9 +76,9 @@ static_assert(sizeof(wchar_t) == 2, "ICU's UChar is a 16-bit unit");
 static_assert(sizeof(WindowsZoneToIana) == sizeof(FARPROC), "function pointers share one representation");
 
 OperationStatus last_error_failure(const ErrorKind kind) noexcept {
-    const OperationStatus result =
-        host_failure::failed(kind, operation, HostCode::none,
-                             ForeignCode::of(ForeignFamily::windows_last_error, static_cast<i64>(GetLastError())));
+    const OperationStatus result = host_failure::failed(kind, operation, HostCode::none,
+                                                        ForeignCode::of(ForeignFamily::windows_last_error,
+                                                                         static_cast<i64>(GetLastError())));
     return result;
 }
 

@@ -30,6 +30,6 @@ namespace stxlib::children_detail {
 // without a copy (`output` is empty afterwards), or limit_exceeded with
 // HostCode::too_long.
 [[nodiscard]] OperationResult<Buffer<Byte>> finish_output(Growable<Byte>& output, bool over_limit,
-                                                 Operation operation) noexcept;
+                                                          Operation operation) noexcept;
 
 } // namespace stxlib::children_detail

@@ -38,7 +38,8 @@ ForeignCode errno_code(const int error) noexcept {
 
 // Replaces `bytes` with the whole proc file, or fails once it passes
 // `limit` bytes.
-OperationStatus read_proc_file(const char* const name, const usize limit, Growable<char>& bytes, const Operation operation) noexcept {
+OperationStatus read_proc_file(const char* const name, const usize limit, Growable<char>& bytes,
+                               const Operation operation) noexcept {
     bytes.clear();
     int fd = ::open(name, O_RDONLY | O_CLOEXEC);
     while (fd < 0 && errno == EINTR) fd = ::open(name, O_RDONLY | O_CLOEXEC);

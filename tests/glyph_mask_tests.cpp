@@ -334,7 +334,8 @@ void shared_edges() {
     std::vector<u8> bytes(static_cast<usize>(bounds.width) * bounds.height, 0x5a);
     glyphs::Rasterizer rasterizer{};
     const stxlib::MutableView<u8> view(bytes.data(), bytes.size());
-    const stxlib::OperationStatus status = monochrome ? rasterizer.render_monochrome(outline_of(shape), glyphs::Point{}, bounds, limits, view)
+    const stxlib::OperationStatus status = monochrome ? rasterizer.render_monochrome(outline_of(shape), glyphs::Point{},
+                                                                                     bounds, limits, view)
                                              : rasterizer.render(outline_of(shape), glyphs::Point{}, bounds, limits, view);
     rendered = rendered && status.succeeded();
     return bytes;

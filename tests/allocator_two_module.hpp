@@ -34,7 +34,8 @@ STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::Path> library_pa
 // A thread started in the library that adds 1 to *counter and returns.
 STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::Thread> library_thread(stxlib::u32* counter) noexcept;
 // A pool created in the library.
-STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::AtomicPool> library_pool(stxlib::u32 thread_count) noexcept;
+STXLIB_ALLOCATOR_TWO_MODULE_API stxlib::OperationResult<stxlib::AtomicPool> library_pool(
+    stxlib::u32 thread_count) noexcept;
 // Destroys, in the library, a Path the program made.
 STXLIB_ALLOCATOR_TWO_MODULE_API void library_destroy_path(stxlib::OperationResult<stxlib::Path>&& path) noexcept;
 

@@ -100,8 +100,8 @@ struct Fitted final {
 
 // The measures of a style, taken from the font the first time a glyph of
 // the style is hinted. `found` is their place in `all`.
-[[nodiscard]] OperationStatus measures_of(const Font& font, const u32 style, const FontLimits& limits, HintScratch& scratch, Vector<StyleMetrics>& all,
-                                 usize& found) noexcept {
+[[nodiscard]] OperationStatus measures_of(const Font& font, const u32 style, const FontLimits& limits,
+                                          HintScratch& scratch, Vector<StyleMetrics>& all, usize& found) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     found = no_index;
     for (usize index = 0; index < all.count(); ++index) {
@@ -122,8 +122,9 @@ struct Fitted final {
 // A glyph the hinter's arithmetic is not made for (hinter.hpp), given
 // unhinted: scaled in 64 bits (the reader's bound on the result) and its
 // advance to a whole pixel.
-[[nodiscard]] OperationStatus unhinted(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 unscaled_advance,
-                              const i64 scale, GlyphOutline& outline, i32& advance) noexcept {
+[[nodiscard]] OperationStatus unhinted(const View<Point> glyph_points, const View<PointTag> glyph_tags,
+                                       const View<u32> contour_ends, const i32 unscaled_advance, const i64 scale,
+                                       GlyphOutline& outline, i32& advance) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     const usize point_count = glyph_points.count();
     if (glyph_tags.count() != point_count) return refuse_font(ErrorKind::invalid_argument, operation);
@@ -148,10 +149,11 @@ struct Fitted final {
 }
 
 // A glyph's outline in font units, hinted.
-[[nodiscard]] OperationStatus hint_loaded(const Font& font, const StyleMetrics& metrics, const u32 glyph_style, const u32 adjustment,
-                                 const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends,
-                                 const i32 unscaled_advance, const i64 size, const HintMode mode, detail::HintWork& work, GlyphOutline& outline,
-                                 i32& advance) noexcept {
+[[nodiscard]] OperationStatus hint_loaded(const Font& font, const StyleMetrics& metrics, const u32 glyph_style,
+                                          const u32 adjustment, const View<Point> glyph_points,
+                                          const View<PointTag> glyph_tags, const View<u32> contour_ends,
+                                          const i32 unscaled_advance, const i64 size, const HintMode mode,
+                                          detail::HintWork& work, GlyphOutline& outline, i32& advance) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     HintScratch& scratch = work.scratch;
     const u32 style = glyph_style & detail::style_mask;
@@ -159,7 +161,8 @@ struct Fitted final {
     // Not hinted where the hinter's 32-bit steps could leave 32 bits.
     const i64 full_scale = scale_of(font, size);
     if (full_scale > detail::hint_most_scale || !detail::within_hint_bounds(glyph_points, unscaled_advance)) {
-        const OperationStatus status = unhinted(glyph_points, glyph_tags, contour_ends, unscaled_advance, full_scale, outline, advance);
+        const OperationStatus status = unhinted(glyph_points, glyph_tags, contour_ends, unscaled_advance, full_scale,
+                                                outline, advance);
         if (status.failed()) {
             outline.points.clear();
             outline.tags.clear();
@@ -168,7 +171,8 @@ struct Fitted final {
         }
         return status;
     }
-    const OperationStatus filled = detail::fill_hint_outline(glyph_points, glyph_tags, contour_ends, units, unscaled_advance, scratch.outline);
+    const OperationStatus filled = detail::fill_hint_outline(glyph_points, glyph_tags, contour_ends, units,
+                                                             unscaled_advance, scratch.outline);
     if (filled.failed()) return filled;
     // The style's measures at this size and mode: those of the last glyph
     // if it was of the same style, size and mode.
@@ -255,8 +259,8 @@ OperationStatus Hinter::prepare(const Font& font) noexcept {
     return status;
 }
 
-OperationStatus Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, const HintMode mode, const FontLimits& limits,
-                          GlyphOutline& outline, i32& advance) noexcept {
+OperationStatus Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, const HintMode mode,
+                                   const FontLimits& limits, GlyphOutline& outline, i32& advance) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     advance = 0;
     outline.points.clear();
@@ -269,20 +273,23 @@ OperationStatus Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 
     detail::HintWork& work = *work_;
     const u32 glyph_style = styles_[glyph];
     usize found = no_index;
-    const OperationStatus measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_, found);
+    const OperationStatus measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_,
+                                                 found);
     if (measured.failed()) return measured;
     // The glyph is read from the font here, each time: a caller with many
     // glyphs to hint keeps them in a GlyphStore and calls hint_stored.
     GlyphOutline& loaded = work.scratch.glyph;
     const OperationStatus read = load_glyph(font, glyph, limits, loaded);
     if (read.failed()) return read;
-    const OperationStatus status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], loaded.points.view(), loaded.tags.view(),
-                                      loaded.contour_ends.view(), advance_of(font, glyph), size, mode, work, outline, advance);
+    const OperationStatus status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph],
+                                               loaded.points.view(), loaded.tags.view(), loaded.contour_ends.view(),
+                                               advance_of(font, glyph), size, mode, work, outline, advance);
     return status;
 }
 
-OperationStatus Hinter::hint_stored(const Font& font, const u32 glyph, const StoredGlyph& stored, const i64 size, const HintMode mode,
-                           const FontLimits& limits, GlyphOutline& outline, i32& advance) noexcept {
+OperationStatus Hinter::hint_stored(const Font& font, const u32 glyph, const StoredGlyph& stored, const i64 size,
+                                    const HintMode mode, const FontLimits& limits, GlyphOutline& outline,
+                                    i32& advance) noexcept {
     const Operation operation("stxlib.glyphs.hint_glyph");
     advance = 0;
     outline.points.clear();
@@ -295,10 +302,12 @@ OperationStatus Hinter::hint_stored(const Font& font, const u32 glyph, const Sto
     detail::HintWork& work = *work_;
     const u32 glyph_style = styles_[glyph];
     usize found = no_index;
-    const OperationStatus measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_, found);
+    const OperationStatus measured = measures_of(font, glyph_style & detail::style_mask, limits, work.scratch, metrics_,
+                                                 found);
     if (measured.failed()) return measured;
-    const OperationStatus status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], stored.points, stored.tags, stored.contour_ends,
-                                      stored.advance, size, mode, work, outline, advance);
+    const OperationStatus status = hint_loaded(font, metrics_[found], glyph_style, adjustments_[glyph], stored.points,
+                                               stored.tags, stored.contour_ends, stored.advance, size, mode, work,
+                                               outline, advance);
     STXLIB_GLYPHS_CHECK(status.failed() || (detail::outline_whole(outline) && outline.points.count() == stored.points.count()),
                         "Hinter::hint_stored: the outline is not whole");
     return status;

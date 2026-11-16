@@ -233,6 +233,6 @@ public:
 // is read once per block; once a stop is requested the parse ends with
 // interrupted. Requirement: `document` is not being read by another thread.
 [[nodiscard]] OperationStatus parse(View<char> source, const Options& options, const Limits& limits, Document& document,
-                           const StopSignal* stop) noexcept;
+                                    const StopSignal* stop) noexcept;
 
 } // namespace stxlib::markdown

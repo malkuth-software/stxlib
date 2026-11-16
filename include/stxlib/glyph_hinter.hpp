@@ -130,15 +130,16 @@ public:
     // This reads the glyph from the font each time it is called: it is for
     // a glyph now and then. Text is hinted from a GlyphStore, by
     // hint_stored.
-    [[nodiscard]] OperationStatus hint_glyph(const Font& font, u32 glyph, i64 size, HintMode mode, const FontLimits& limits, GlyphOutline& outline,
-                                    i32& advance) noexcept;
+    [[nodiscard]] OperationStatus hint_glyph(const Font& font, u32 glyph, i64 size, HintMode mode,
+                                             const FontLimits& limits, GlyphOutline& outline, i32& advance) noexcept;
 
     // The same for a glyph a GlyphStore holds (glyph_store.hpp): `stored`
     // is glyph `glyph` of `font` as the store gave it. Nothing of the
     // glyph is read from the font, and once the hinter has met the glyph's
     // style and `outline` has room, nothing is allocated.
-    [[nodiscard]] OperationStatus hint_stored(const Font& font, u32 glyph, const StoredGlyph& stored, i64 size, HintMode mode, const FontLimits& limits,
-                                     GlyphOutline& outline, i32& advance) noexcept;
+    [[nodiscard]] OperationStatus hint_stored(const Font& font, u32 glyph, const StoredGlyph& stored, i64 size,
+                                              HintMode mode, const FontLimits& limits, GlyphOutline& outline,
+                                              i32& advance) noexcept;
 
     // The bytes held, as allocated now: each glyph's style, the measures
     // of the styles met, and the working memory.

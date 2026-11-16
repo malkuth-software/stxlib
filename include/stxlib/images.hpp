@@ -76,7 +76,7 @@ struct AddressDescription final {
 // with HostCode::no_image when no loaded image holds the address;
 // unsupported where Capability::address_lookup is false.
 [[nodiscard]] OperationResult<AddressDescription> describe_address(uptr address, MutableView<char> image_name_room,
-                                                          MutableView<char> symbol_name_room) noexcept;
+                                                                   MutableView<char> symbol_name_room) noexcept;
 
 // ---- image regions --------------------------------------------------------
 
@@ -129,11 +129,11 @@ using ImageRegionVisitor = bool (*)(const ImageRegion& region, void* context) no
 // out_of_memory (the Windows module list); foreign_failure with the
 // host's code; unsupported where Capability::image_regions is false.
 [[nodiscard]] OperationStatus visit_image_regions(const ImageRegionQuery& query, ImageRegionVisitor visitor,
-                                         void* context) noexcept;
+                                                  void* context) noexcept;
 
 // As visit_image_regions, for the one image holding `address` only;
 // not_found with HostCode::no_image when none does.
 [[nodiscard]] OperationStatus visit_image_regions_containing(uptr address, const ImageRegionQuery& query,
-                                                    ImageRegionVisitor visitor, void* context) noexcept;
+                                                             ImageRegionVisitor visitor, void* context) noexcept;
 
 } // namespace stxlib

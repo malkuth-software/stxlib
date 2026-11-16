@@ -14,7 +14,7 @@
 // the test keeps its weights in std::vector (OwnedWeights) and passes views;
 // constructions, packings and builds must succeed (take, packed_of,
 // laid_of, take_map); each build moves from a fresh copy of the keys and
-// values (MutableView); find_many takes views; a refusal is a OperationResult with
+// values (MutableView); find_many takes views; a refusal is an OperationResult with
 // kind invalid_argument where stx_auxlib threw std::invalid_argument, and
 // the refused keys and values are checked to be untouched.
 
@@ -513,9 +513,11 @@ void check_rejections() {
 
     std::vector<std::uint64_t> keys{1, 3, 2};
     std::vector<std::uint64_t> values{1, 2, 3};
-    const stxlib::OperationResult<Map> unsorted = Map::build(stxlib::MutableView<std::uint64_t>(keys.data(), keys.size()),
-                                                    stxlib::MutableView<std::uint64_t>(values.data(), values.size()),
-                                                    weights.view(), OptimalMapPlan{});
+    const stxlib::OperationResult<Map> unsorted = Map::build(stxlib::MutableView<std::uint64_t>(keys.data(),
+                                                                                                keys.size()),
+                                                             stxlib::MutableView<std::uint64_t>(values.data(),
+                                                                                                  values.size()),
+                                                             weights.view(), OptimalMapPlan{});
     TestFailure::expect(refused(unsorted), "rejections", "unsorted keys accepted");
 
     std::vector<std::uint64_t> sorted{1, 2, 3};

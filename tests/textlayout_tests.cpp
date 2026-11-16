@@ -723,8 +723,10 @@ void check_paragraphs(const std::vector<u32>& input) {
         const usize offset = first_byte[point];
         const stxlib::OperationStatus a =
             layout::analyse_paragraph(view, offset, layout::BaseDirection::automatic_left_to_right, by_bytes);
-        const stxlib::OperationStatus b = layout::analyse_paragraph(stxlib::View<u32>(input.data(), input.size()), point,
-                                                           layout::BaseDirection::automatic_left_to_right, by_points);
+        const stxlib::OperationStatus b = layout::analyse_paragraph(stxlib::View<u32>(input.data(), input.size()),
+                                                                    point,
+                                                                    layout::BaseDirection::automatic_left_to_right,
+                                                                    by_points);
         if (a.failed() || b.failed() || by_bytes.offset() != offset || by_points.offset() != point ||
             by_points.length() == 0) {
             paragraph_failures = paragraph_failures + 1;
@@ -910,19 +912,21 @@ void arguments() {
     const stxlib::OperationStatus too_small =
         layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 3), text);
     CHECK(too_small.failed() && storage[0] == layout::LineBreak::inside_character);
-    const stxlib::OperationStatus exact = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4), text);
+    const stxlib::OperationStatus exact = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4),
+                                                                   text);
     CHECK(exact.succeeded());
     CHECK(storage[0] == layout::LineBreak::prohibited && storage[1] == layout::LineBreak::prohibited);
     CHECK(storage[2] == layout::LineBreak::allowed && storage[3] == layout::LineBreak::mandatory);
-    const stxlib::OperationStatus empty = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(), stxlib::TextView());
+    const stxlib::OperationStatus empty = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(),
+                                                                   stxlib::TextView());
     CHECK(empty.succeeded());
     const u32 values[3] = {'a', 0x0a, 'b'};
     const stxlib::OperationStatus points = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 3),
-                                                           stxlib::View<u32>(values, 3));
+                                                                    stxlib::View<u32>(values, 3));
     CHECK(points.succeeded() && storage[0] == layout::LineBreak::prohibited && storage[1] == layout::LineBreak::mandatory &&
           storage[2] == layout::LineBreak::mandatory);
     const stxlib::OperationStatus wrong = layout::find_line_breaks(stxlib::MutableView<layout::LineBreak>(storage, 4),
-                                                          stxlib::View<u32>(values, 3));
+                                                                   stxlib::View<u32>(values, 3));
     CHECK(wrong.failed());
     layout::Paragraph paragraph;
     CHECK(paragraph.breaks().count() == 0 && paragraph.script_runs().count() == 0);

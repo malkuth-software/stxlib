@@ -356,33 +356,45 @@ void refusals() {
     if (!opened.ready) return;
     glyphs::GlyphOutline outline{};
     i32 advance = 7;
-    const stxlib::OperationStatus beyond = opened.hinter.hint_glyph(opened.font, glyph_count, 1024, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus beyond = opened.hinter.hint_glyph(opened.font, glyph_count, 1024,
+                                                                    glyphs::HintMode::light, opened.limits, outline,
+                                                                    advance);
     CHECK(beyond.failed() && (*beyond.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK(advance == 0 && outline.points.empty());
-    const stxlib::OperationStatus nothing = opened.hinter.hint_glyph(opened.font, glyph_H, 0, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus nothing = opened.hinter.hint_glyph(opened.font, glyph_H, 0, glyphs::HintMode::light,
+                                                                     opened.limits, outline, advance);
     CHECK(nothing.failed() && (*nothing.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    const stxlib::OperationStatus negative = opened.hinter.hint_glyph(opened.font, glyph_H, -64, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus negative = opened.hinter.hint_glyph(opened.font, glyph_H, -64,
+                                                                      glyphs::HintMode::light, opened.limits, outline,
+                                                                      advance);
     CHECK(negative.failed() && (*negative.error()).kind() == stxlib::ErrorKind::invalid_argument);
-    const stxlib::OperationStatus huge = opened.hinter.hint_glyph(opened.font, glyph_H, (static_cast<i64>(1) << 24) + 1, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus huge = opened.hinter.hint_glyph(opened.font, glyph_H, (static_cast<i64>(1) << 24) + 1,
+                                                                  glyphs::HintMode::light, opened.limits, outline,
+                                                                  advance);
     CHECK(huge.failed() && (*huge.error()).kind() == stxlib::ErrorKind::invalid_argument);
     // A hinter that was not prepared, and one prepared for another font.
     glyphs::Hinter fresh{};
-    const stxlib::OperationStatus unprepared = fresh.hint_glyph(opened.font, glyph_H, 1024, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus unprepared = fresh.hint_glyph(opened.font, glyph_H, 1024, glyphs::HintMode::light,
+                                                                opened.limits, outline, advance);
     CHECK(unprepared.failed() && (*unprepared.error()).kind() == stxlib::ErrorKind::invalid_argument);
     glyphs::Font other = opened.font;
     other.glyph_count = glyph_count - 1;
-    const stxlib::OperationStatus another = opened.hinter.hint_glyph(other, glyph_H, 1024, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus another = opened.hinter.hint_glyph(other, glyph_H, 1024, glyphs::HintMode::light,
+                                                                     opened.limits, outline, advance);
     CHECK(another.failed() && (*another.error()).kind() == stxlib::ErrorKind::invalid_argument);
     // A limit: H has twelve points.
     glyphs::FontLimits few{};
     few.points = 11;
-    const stxlib::OperationStatus limited = opened.hinter.hint_glyph(opened.font, glyph_H, 1024, glyphs::HintMode::light, few, outline, advance);
+    const stxlib::OperationStatus limited = opened.hinter.hint_glyph(opened.font, glyph_H, 1024,
+                                                                     glyphs::HintMode::light, few, outline, advance);
     CHECK(limited.failed() && (*limited.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     few.points = 12;
     CHECK(opened.hinter.hint_glyph(opened.font, glyph_H, 1024, glyphs::HintMode::light, few, outline, advance).succeeded());
     // After release nothing is prepared.
     opened.hinter.release();
-    const stxlib::OperationStatus released = opened.hinter.hint_glyph(opened.font, glyph_H, 1024, glyphs::HintMode::light, opened.limits, outline, advance);
+    const stxlib::OperationStatus released = opened.hinter.hint_glyph(opened.font, glyph_H, 1024,
+                                                                      glyphs::HintMode::light, opened.limits, outline,
+                                                                      advance);
     CHECK(released.failed() && (*released.error()).kind() == stxlib::ErrorKind::invalid_argument);
 }
 
@@ -828,7 +840,8 @@ void stored() {
     // An outline larger than the hinter's limit is not taken from a store.
     CHECK(store.glyph(opened.font, glyph_H, glyph).succeeded());
     i32 advance = 0;
-    const stxlib::OperationStatus over = opened.hinter.hint_stored(opened.font, glyph_H, glyph, 1024, glyphs::HintMode::light, few, from_store, advance);
+    const stxlib::OperationStatus over = opened.hinter.hint_stored(opened.font, glyph_H, glyph, 1024,
+                                                                   glyphs::HintMode::light, few, from_store, advance);
     CHECK(over.failed() && (*over.error()).kind() == stxlib::ErrorKind::invalid_argument);
     // Released, it holds nothing.
     store.release();
@@ -933,7 +946,9 @@ void store_size() {
     if (pixels.empty()) return true;
     glyphs::Rasterizer rasterizer{};
     const stxlib::MutableView<u8> target(pixels.data(), pixels.size());
-    const stxlib::OperationStatus drawn = fit == glyphs::Fit::monochrome ? rasterizer.render_monochrome(cut, shift, bounds, limits, target)
+    const stxlib::OperationStatus drawn = fit == glyphs::Fit::monochrome ? rasterizer.render_monochrome(cut, shift,
+                                                                                                        bounds, limits,
+                                                                                                        target)
                                                                : rasterizer.render(cut, shift, bounds, limits, target);
     return drawn.succeeded();
 }
@@ -962,7 +977,8 @@ void face_basics() {
     CHECK((*face.typeface()).glyphs_read() == 0 && face.glyphs_fitted() == 0);
     const stxlib::OperationStatus beyond = face.fitted(glyph_count, 1024, glyphs::Fit::light, fitted);
     const stxlib::OperationStatus no_size = face.fitted(glyph_H, 0, glyphs::Fit::light, fitted);
-    const stxlib::OperationStatus huge = face.fitted(glyph_H, (static_cast<i64>(1) << 24) + 1, glyphs::Fit::light, fitted);
+    const stxlib::OperationStatus huge = face.fitted(glyph_H, (static_cast<i64>(1) << 24) + 1, glyphs::Fit::light,
+                                                     fitted);
     CHECK(beyond.failed() && no_size.failed() && huge.failed());
     CHECK((*face.typeface()).glyphs_read() == 0 && face.glyphs_fitted() == 0);
     // A fitted outline is the hinter's, cut into segments; its box is the
@@ -1965,7 +1981,8 @@ void shared_typeface() {
     // A face holds its typeface: the caller's own hold can go.
     glyphs::Face lasting{};
     {
-        stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> brief = glyphs::open_typeface(view_of(opened.bytes), 0);
+        stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> brief = glyphs::open_typeface(view_of(opened.bytes),
+                                                                                                0);
         CHECK(brief.succeeded() && lasting.open(*brief.value()).succeeded());
     }
     CHECK(lasting.fitted(glyph_p, 1024, glyphs::Fit::light, fitted).succeeded() && fitted.outline.points.count() > 0);
@@ -2086,7 +2103,8 @@ void font_numbers() {
                                                            {"hmtx", part_hmtx},
                                                            {"loca", part_loca},
                                                            {"maxp", maxp_table(3)}});
-        stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(composite_font), 0);
+        stxlib::OperationResult<stxlib::Shared<glyphs::Typeface>> made = glyphs::open_typeface(view_of(composite_font),
+                                                                                               0);
         CHECK(made.succeeded());
         if (made.succeeded()) {
             glyphs::Typeface& typeface = *(*made.value());
@@ -2308,7 +2326,8 @@ void audit_findings() {
     style.fit = glyphs::Fit::none;
     glyphs::Bounds bounds{};
     stxlib::Vector<u8> pixels{};
-    const stxlib::OperationStatus shifted = face.mask(glyph_H, style, glyphs::Point{.x = (1 << 30) + 1, .y = 0}, bounds, pixels);
+    const stxlib::OperationStatus shifted = face.mask(glyph_H, style, glyphs::Point{.x = (1 << 30) + 1, .y = 0}, bounds,
+                                                      pixels);
     CHECK(shifted.failed() && (*shifted.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK(face.mask(glyph_H, style, glyphs::Point{.x = 1 << 30, .y = -(1 << 30)}, bounds, pixels).succeeded());
 }

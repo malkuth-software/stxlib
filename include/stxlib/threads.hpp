@@ -293,7 +293,7 @@ public:
     // The thread's stack is `stack_bytes` rounded up to the host's page
     // size, with a guard page below it (D11).
     [[nodiscard]] static OperationResult<Thread> start(Entry entry, void* context,
-                                              usize stack_bytes = default_thread_stack_bytes) noexcept;
+                                                       usize stack_bytes = default_thread_stack_bytes) noexcept;
     Thread() noexcept = default;
     ~Thread();
     Thread(const Thread&) = delete;

@@ -159,8 +159,8 @@ public:
     [[nodiscard]] static OperationResult<Chain> create(WallTime now) noexcept;
     // A chain from a 32-byte secret seed and a public seed, for tests and
     // for callers with their own entropy. Failure: out_of_memory.
-    [[nodiscard]] static OperationResult<Chain> from_seeds(const hash::Digest& secret_seed, const hash::Digest& public_seed,
-                                                  WallTime now) noexcept;
+    [[nodiscard]] static OperationResult<Chain> from_seeds(const hash::Digest& secret_seed,
+                                                           const hash::Digest& public_seed, WallTime now) noexcept;
     // A chain continued from saved state. Failures: invalid_argument when
     // the state is inconsistent (a pending count above infos_per_epoch);
     // out_of_memory.

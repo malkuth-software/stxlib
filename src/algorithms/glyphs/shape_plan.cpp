@@ -457,8 +457,8 @@ usize bytes_of(const ShapePlan& plan) noexcept {
     return bytes;
 }
 
-OperationStatus compile_plan(const Font& font, const ShapeDirection direction, const u32 script, const u32 language, const View<PlanRequest> requests,
-                    ShapePlan& plan) noexcept {
+OperationStatus compile_plan(const Font& font, const ShapeDirection direction, const u32 script, const u32 language,
+                             const View<PlanRequest> requests, ShapePlan& plan) noexcept {
     const Operation operation("stxlib.glyphs.shape_plan");
     plan = ShapePlan{};
     plan.direction = direction;

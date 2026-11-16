@@ -98,7 +98,9 @@ void run_stxlib(const std::string& bytes) {
     text::Line line;
     usize offset = 0;
     while (offset < bytes.size()) {
-        const stxlib::OperationStatus a = text::analyse_paragraph(view, offset, text::BaseDirection::automatic_left_to_right, paragraph);
+        const stxlib::OperationStatus a = text::analyse_paragraph(view, offset,
+                                                                  text::BaseDirection::automatic_left_to_right,
+                                                                  paragraph);
         if (a.failed()) std::abort();
         const stxlib::OperationStatus b = text::analyse_line(paragraph, paragraph.offset(), paragraph.length(), line);
         if (b.failed()) std::abort();
@@ -577,8 +579,9 @@ void compare_scripts(const int count) {
         const u32 length = 1 + random.next(16);
         values.clear();
         for (u32 position = 0; position < length; ++position) values.push_back(pool[random.next(static_cast<u32>(pool.size()))]);
-        const stxlib::OperationStatus analysed = text::analyse_paragraph(stxlib::View<u32>(values.data(), values.size()), 0,
-                                                                text::BaseDirection::left_to_right, paragraph);
+        const stxlib::OperationStatus analysed = text::analyse_paragraph(stxlib::View<u32>(values.data(),
+                                                                                           values.size()), 0,
+                                                                         text::BaseDirection::left_to_right, paragraph);
         if (analysed.failed() || paragraph.length() != values.size()) std::abort();
         const stxlib::View<text::ScriptRun> runs = paragraph.script_runs();
         std::vector<SBUInt32> units(values.begin(), values.end());

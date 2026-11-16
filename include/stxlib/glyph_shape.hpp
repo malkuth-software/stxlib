@@ -152,7 +152,8 @@ public:
 
     // A shaper of the program's typeface: it holds the typeface for as
     // long as it is open.
-    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface, const ShaperLimits& limits = ShaperLimits{}) noexcept;
+    [[nodiscard]] OperationStatus open(const Shared<Typeface>& typeface,
+                                       const ShaperLimits& limits = ShaperLimits{}) noexcept;
 
     // The run's glyphs, in the order they are drawn from left to right.
     // Failures: invalid_argument for a shaper not opened, clusters that

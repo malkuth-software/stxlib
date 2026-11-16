@@ -344,8 +344,8 @@ enum class Loaded : u8 {
 
 } // namespace
 
-OperationStatus load_truetype_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale, const FontLimits& limits,
-                           GlyphOutline& outline) noexcept {
+OperationStatus load_truetype_glyph(const Font& font, const u32 glyph, const i64 x_scale, const i64 y_scale,
+                                    const FontLimits& limits, GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     // Scales are 16.16 and no greater than 16,384 pixels to the em of the
     // smallest em there is; 0 for both: font units.

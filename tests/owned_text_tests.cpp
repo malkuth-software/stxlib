@@ -289,7 +289,8 @@ void moves_and_wrappers() {
     const stxlib::Utf8String moved_short(static_cast<stxlib::Utf8String&&>(short_text));
     CHECK(moved_short.equals("short") && short_text.empty() && short_text.c_text()[0] == '\0');
 
-    stxlib::OperationResult<stxlib::Utf8String> long_made = stxlib::Utf8String::copy_of("a text longer than fifteen bytes");
+    stxlib::OperationResult<stxlib::Utf8String> long_made =
+        stxlib::Utf8String::copy_of("a text longer than fifteen bytes");
     CHECK(long_made.succeeded());
     stxlib::Utf8String long_text = static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(long_made).take_value();
     CHECK(long_text.capacity() > stxlib::Utf8String::inline_capacity);
@@ -331,7 +332,8 @@ void moves_and_wrappers() {
     // Owned text inside the owned vector: elements relocate by move.
     stxlib::Vector<stxlib::Utf8String> names;
     for (int index = 0; index < 20; ++index) {
-        stxlib::OperationResult<stxlib::Utf8String> name = stxlib::Utf8String::copy_of("a name long enough for a block");
+        stxlib::OperationResult<stxlib::Utf8String> name =
+            stxlib::Utf8String::copy_of("a name long enough for a block");
         CHECK(name.succeeded());
         CHECK(names.push(static_cast<stxlib::OperationResult<stxlib::Utf8String>&&>(name).take_value()).succeeded());
     }

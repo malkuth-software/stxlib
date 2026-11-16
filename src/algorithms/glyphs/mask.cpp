@@ -172,7 +172,8 @@ OperationStatus measure(const Outline& outline, const Point offset, const Limits
     const Operation operation("stxlib.glyphs.measure");
     bool too_many = false;
     if (!well_formed(outline, limits, too_many)) {
-        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
+        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument,
+                                               operation);
         return refused;
     }
     bounds = Bounds{};
@@ -220,11 +221,13 @@ struct Checked final {
     bool done{false};
 };
 
-[[nodiscard]] OperationStatus check(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
-                           const MutableView<u8> mask, const Operation operation, Checked& checked) noexcept {
+[[nodiscard]] OperationStatus check(const Outline& outline, const Point offset, const Bounds& bounds,
+                                    const Limits& limits, const MutableView<u8> mask, const Operation operation,
+                                    Checked& checked) noexcept {
     bool too_many = false;
     if (!well_formed(outline, limits, too_many)) {
-        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument, operation);
+        const OperationStatus refused = refuse(too_many ? ErrorKind::limit_exceeded : ErrorKind::invalid_argument,
+                                               operation);
         return refused;
     }
     if (bounds.width > limits.width || bounds.height > limits.height || bounds.width > most_mask_side || bounds.height > most_mask_side) {
@@ -295,8 +298,8 @@ void put_on_columns(void* const context, const Fixed begin, const Fixed end) noe
 
 } // namespace
 
-OperationStatus Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
-                          const MutableView<u8> mask) noexcept {
+OperationStatus Rasterizer::render(const Outline& outline, const Point offset, const Bounds& bounds,
+                                   const Limits& limits, const MutableView<u8> mask) noexcept {
     const Operation operation("stxlib.glyphs.render");
     Checked checked{};
     const OperationStatus status = check(outline, offset, bounds, limits, mask, operation, checked);
@@ -353,8 +356,8 @@ OperationStatus Rasterizer::render(const Outline& outline, const Point offset, c
     return OperationStatus::success();
 }
 
-OperationStatus Rasterizer::render_monochrome(const Outline& outline, const Point offset, const Bounds& bounds, const Limits& limits,
-                                     const MutableView<u8> mask) noexcept {
+OperationStatus Rasterizer::render_monochrome(const Outline& outline, const Point offset, const Bounds& bounds,
+                                              const Limits& limits, const MutableView<u8> mask) noexcept {
     const Operation operation("stxlib.glyphs.render_monochrome");
     Checked checked{};
     const OperationStatus status = check(outline, offset, bounds, limits, mask, operation, checked);

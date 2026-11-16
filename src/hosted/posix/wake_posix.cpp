@@ -70,13 +70,15 @@ int poll_milliseconds(const Duration remaining) noexcept {
 OperationResult<WakeChannel> WakeChannel::create() noexcept {
     const Operation operation = "stxlib.wake.create";
     if (!capability_supported(Capability::wake_channel)) {
-        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation, HostCode::none));
+        return OperationResult<WakeChannel>::failure(host_failure::record(ErrorKind::unsupported, operation,
+                                                                          HostCode::none));
     }
     int ends[2] = {-1, -1};
     if (!open_pipe(ends)) {
         const int error = errno;
         const ErrorKind kind = error == EMFILE || error == ENFILE ? ErrorKind::limit_exceeded : ErrorKind::foreign_failure;
-        return OperationResult<WakeChannel>::failure(host_failure::record(kind, operation, HostCode::none, errno_code(error)));
+        return OperationResult<WakeChannel>::failure(host_failure::record(kind, operation, HostCode::none,
+                                                                          errno_code(error)));
     }
     return OperationResult<WakeChannel>::success(WakeChannel(static_cast<i64>(ends[0]), static_cast<i64>(ends[1])));
 }
@@ -129,7 +131,8 @@ bool WakeChannel::drain() noexcept {
 OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Duration timeout) noexcept {
     const Operation operation = "stxlib.wake.wait";
     if (read_handle_ == closed) {
-        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation, HostCode::closed_handle));
+        return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::disposed, operation,
+                                                                       HostCode::closed_handle));
     }
     if (handles.count() > maximum_wake_wait_handles) {
         return OperationResult<WakeWait>::failure(
@@ -160,8 +163,9 @@ OperationResult<WakeWait> WakeChannel::wait(const View<i64> handles, const Durat
             if ((watched[0].revents & readable) != 0) return OperationResult<WakeWait>::success(WakeWait::woken());
             for (usize index = 0; index < handles.count(); ++index) {
                 if ((watched[index + 1].revents & POLLNVAL) != 0) {
-                    return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::foreign_failure, operation,
-                                                                          HostCode::none, errno_code(EBADF)));
+                    return OperationResult<WakeWait>::failure(host_failure::record(ErrorKind::foreign_failure,
+                                                                                   operation, HostCode::none,
+                                                                                   errno_code(EBADF)));
                 }
                 if ((watched[index + 1].revents & readable) != 0) {
                     // macOS's poll reports a descriptor listed twice in one

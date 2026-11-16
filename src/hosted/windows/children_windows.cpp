@@ -321,7 +321,8 @@ OperationResult<Child> Child::start(const ChildRequest& request) noexcept {
     if (found == Resolved::out_of_memory) return OperationResult<Child>::failure(exhausted);
     if (found == Resolved::host_error) return OperationResult<Child>::failure(last_error(operation));
     if (found == Resolved::refused) {
-        return OperationResult<Child>::failure(host_failure::record(ErrorKind::invalid_argument, operation, HostCode::invalid_value));
+        return OperationResult<Child>::failure(host_failure::record(ErrorKind::invalid_argument, operation,
+                                                                    HostCode::invalid_value));
     }
 
     SECURITY_ATTRIBUTES inheritable{};
@@ -336,7 +337,8 @@ OperationResult<Child> Child::start(const ChildRequest& request) noexcept {
     if (request.streams == ChildStreams::capture) {
         HANDLE reader = nullptr;
         HANDLE writer = nullptr;
-        if (!CreatePipe(&reader, &writer, &inheritable, 0)) return OperationResult<Child>::failure(last_error(operation));
+        if (!CreatePipe(&reader, &writer, &inheritable,
+                        0)) return OperationResult<Child>::failure(last_error(operation));
         output_reader.value = reader;
         output_writer.value = writer;
         (void)SetHandleInformation(reader, HANDLE_FLAG_INHERIT, 0);
@@ -471,7 +473,8 @@ OperationResult<ChildEnd> Child::wait(const Duration timeout) noexcept {
     }
     if (outcome != WAIT_OBJECT_0) return OperationResult<ChildEnd>::failure(last_error(operation));
     DWORD code = 0;
-    if (!GetExitCodeProcess(handle_of(process_), &code)) return OperationResult<ChildEnd>::failure(last_error(operation));
+    if (!GetExitCodeProcess(handle_of(process_),
+                            &code)) return OperationResult<ChildEnd>::failure(last_error(operation));
     phase_ = Phase::waited;
     return OperationResult<ChildEnd>::success(ChildEnd::exited(static_cast<u32>(code)));
 }
@@ -509,7 +512,8 @@ OperationResult<Buffer<Byte>> Child::read_output(const usize limit) noexcept {
     (void)CloseHandle(pipe);
     if (failed_error != 0) return OperationResult<Buffer<Byte>>::failure(record_of_error(failed_error, operation));
     if (exhausted) {
-        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation, HostCode::none));
+        return OperationResult<Buffer<Byte>>::failure(host_failure::record(ErrorKind::out_of_memory, operation,
+                                                                           HostCode::none));
     }
     OperationResult<Buffer<Byte>> result = children_detail::finish_output(output, over_limit, operation);
     return result;

@@ -62,7 +62,7 @@
 // Changes from stx_auxlib: a Path owns its text on STXlib's allocator; it
 // copies as an ordinary value (owner 2026-11-16: exhaustion during a copy
 // fails fast; copy() reports it); every other operation that allocates
-// returns a OperationResult, so exhaustion is out_of_memory, not an abort; join and
+// returns an OperationResult, so exhaustion is out_of_memory, not an abort; join and
 // parent bound only their result (stx_auxlib refused a join whose operands
 // together exceeded the bound, and parent returned the path unchanged when
 // "<path>/.." did); host names that are not valid Unicode are carried, not

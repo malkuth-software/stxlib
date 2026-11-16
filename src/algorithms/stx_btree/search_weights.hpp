@@ -22,9 +22,9 @@
 // - the weights are borrowed views (View), the caller's storage;
 // - a shape's children are STXlib storage (detail::Array) in place of
 //   std::vector;
-// - validation returns a OperationStatus (invalid_argument) where stx_auxlib threw
+// - validation returns an OperationStatus (invalid_argument) where stx_auxlib threw
 //   std::invalid_argument;
-// - the checks that need working storage return a OperationResult, out_of_memory
+// - the checks that need working storage return an OperationResult, out_of_memory
 //   when it cannot be had, and from_parents returns false then.
 // The rules themselves are stx_auxlib's.
 
@@ -121,7 +121,8 @@ public:
     // Whether `shape` is a binary search tree over keys 0..n-1: every key
     // reached exactly once from the root, and in-order 0..n-1.
     // out_of_memory when the walk's stack cannot be had.
-    [[nodiscard]] static OperationResult<bool> is_search_tree(const BinaryTreeShape& shape, std::size_t key_count) noexcept {
+    [[nodiscard]] static OperationResult<bool> is_search_tree(const BinaryTreeShape& shape,
+                                                              std::size_t key_count) noexcept {
         if (shape.left.size() != key_count || shape.right.size() != key_count) {
             return OperationResult<bool>::success(false);
         }
@@ -161,7 +162,8 @@ public:
     // The weighted comparison count of `shape` (see the head of this file).
     // The shape must satisfy is_search_tree. out_of_memory when the walk's
     // stack cannot be had.
-    [[nodiscard]] static OperationResult<ExactCost> cost(const BinaryTreeShape& shape, const SearchWeights& weights) noexcept {
+    [[nodiscard]] static OperationResult<ExactCost> cost(const BinaryTreeShape& shape,
+                                                         const SearchWeights& weights) noexcept {
         ExactCost total = 0;
         if (shape.root == no_key) {
             return OperationResult<ExactCost>::success(total); // the one gap hangs below no key

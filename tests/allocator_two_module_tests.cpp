@@ -53,7 +53,8 @@ void raw_blocks() {
 void owned_objects() {
     {
         // A Path made in the library, destroyed here.
-        const stxlib::OperationResult<stxlib::Path> path = stxlib_allocator_two_module::library_path("/tmp/two/modules");
+        const stxlib::OperationResult<stxlib::Path> path =
+            stxlib_allocator_two_module::library_path("/tmp/two/modules");
         CHECK(path.succeeded());
     }
     {

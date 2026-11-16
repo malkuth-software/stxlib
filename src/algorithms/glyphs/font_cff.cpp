@@ -974,7 +974,8 @@ OperationStatus open_cff(Font& font) noexcept {
     return OperationStatus::success();
 }
 
-OperationStatus load_cff_glyph(const Font& font, const u32 glyph, const FontLimits& limits, GlyphOutline& outline) noexcept {
+OperationStatus load_cff_glyph(const Font& font, const u32 glyph, const FontLimits& limits,
+                               GlyphOutline& outline) noexcept {
     const Operation operation("stxlib.glyphs.load_glyph");
     Index charstrings{};
     if (!index_of(font, font.charstrings, charstrings)) return refuse_font(ErrorKind::invalid_argument, operation);

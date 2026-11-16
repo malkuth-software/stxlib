@@ -242,8 +242,8 @@ bool same_as_model(const stxlib::Vector<Element>& vector, const std::vector<int>
 // Applies `operation` to the vector and, when it succeeds, to the model.
 // Returns the status (success for the operations that cannot fail).
 template <typename Element>
-stxlib::OperationStatus apply_vector(const VectorOperation& operation, stxlib::Vector<Element>& vector, std::vector<int>& model,
-                            const int fresh) {
+stxlib::OperationStatus apply_vector(const VectorOperation& operation, stxlib::Vector<Element>& vector,
+                                     std::vector<int>& model, const int fresh) {
     const usize first = operation.first;
     const usize second = operation.second;
     switch (operation.step) {
@@ -402,7 +402,8 @@ stxlib::OperationStatus apply_vector(const VectorOperation& operation, stxlib::V
 template <typename Element>
 void replay(const std::vector<VectorOperation>& path, stxlib::Vector<Element>& vector, std::vector<int>& model) {
     for (usize index = 0; index < path.size(); ++index) {
-        const stxlib::OperationStatus status = apply_vector<Element>(path[index], vector, model, static_cast<int>(100 + index));
+        const stxlib::OperationStatus status = apply_vector<Element>(path[index], vector, model,
+                                                                     static_cast<int>(100 + index));
         if (status.failed()) vector_tally.mismatches = vector_tally.mismatches + 1;
     }
 }
@@ -638,7 +639,8 @@ void unique_owners() {
     {
         stxlib::OperationResult<stxlib::Unique<Joined>> made = stxlib::Unique<Joined>::make(9);
         CHECK(made.succeeded());
-        stxlib::Unique<Joined> joined = static_cast<stxlib::OperationResult<stxlib::Unique<Joined>>&&>(made).take_value();
+        stxlib::Unique<Joined> joined =
+            static_cast<stxlib::OperationResult<stxlib::Unique<Joined>>&&>(made).take_value();
         CHECK(joined.present() && (*joined).tracked.value == 9);
         Joined* const address = joined.get();
         stxlib::Unique<Right> right(static_cast<stxlib::Unique<Joined>&&>(joined));
@@ -673,7 +675,8 @@ struct ListNode final {
 stxlib::Unique<ListNode> list_node(const int value) {
     stxlib::OperationResult<stxlib::Unique<ListNode>> made = stxlib::Unique<ListNode>::make(value);
     STXLIB_REQUIRE(made.succeeded(), "making a list node");
-    stxlib::Unique<ListNode> result = static_cast<stxlib::OperationResult<stxlib::Unique<ListNode>>&&>(made).take_value();
+    stxlib::Unique<ListNode> result =
+        static_cast<stxlib::OperationResult<stxlib::Unique<ListNode>>&&>(made).take_value();
     return result;
 }
 
@@ -977,7 +980,8 @@ struct SharedNode final {
 stxlib::Shared<SharedNode> shared_node(const int value) {
     stxlib::OperationResult<stxlib::Shared<SharedNode>> made = stxlib::Shared<SharedNode>::make(value);
     STXLIB_REQUIRE(made.succeeded(), "making a shared node");
-    stxlib::Shared<SharedNode> result = static_cast<stxlib::OperationResult<stxlib::Shared<SharedNode>>&&>(made).take_value();
+    stxlib::Shared<SharedNode> result =
+        static_cast<stxlib::OperationResult<stxlib::Shared<SharedNode>>&&>(made).take_value();
     return result;
 }
 
@@ -1171,7 +1175,8 @@ void shared_self_and_casts() {
     {
         stxlib::OperationResult<stxlib::Shared<SelfAware>> made = stxlib::Shared<SelfAware>::make(&owner_in_destructor);
         CHECK(made.succeeded());
-        const stxlib::Shared<SelfAware> first = static_cast<stxlib::OperationResult<stxlib::Shared<SelfAware>>&&>(made).take_value();
+        const stxlib::Shared<SelfAware> first =
+            static_cast<stxlib::OperationResult<stxlib::Shared<SelfAware>>&&>(made).take_value();
         const stxlib::Shared<SelfAware> again = (*first).shared_from_this();
         CHECK(again == first && first.owner_count() == 2);
         const stxlib::Weak<SelfAware> observer = (*first).weak_from_this();
@@ -1186,7 +1191,8 @@ void shared_self_and_casts() {
 
     stxlib::OperationResult<stxlib::Shared<Bird>> made_bird = stxlib::Shared<Bird>::make();
     CHECK(made_bird.succeeded());
-    const stxlib::Shared<Bird> bird = static_cast<stxlib::OperationResult<stxlib::Shared<Bird>>&&>(made_bird).take_value();
+    const stxlib::Shared<Bird> bird =
+        static_cast<stxlib::OperationResult<stxlib::Shared<Bird>>&&>(made_bird).take_value();
     const stxlib::Shared<Animal> animal(bird);
     CHECK(animal.owner_count() == 2 && (*animal).legs == 2);
     const stxlib::Shared<Bird> back = stxlib::dynamic_shared_cast<Bird>(animal);
@@ -1228,7 +1234,8 @@ void shared_threads() {
     {
         stxlib::OperationResult<stxlib::Shared<Counted>> made = stxlib::Shared<Counted>::make(&destructions);
         CHECK(made.succeeded());
-        stxlib::Shared<Counted> owner = static_cast<stxlib::OperationResult<stxlib::Shared<Counted>>&&>(made).take_value();
+        stxlib::Shared<Counted> owner =
+            static_cast<stxlib::OperationResult<stxlib::Shared<Counted>>&&>(made).take_value();
         const stxlib::Weak<Counted> observer(owner);
         std::vector<std::thread> threads;
         for (int index = 0; index < 4; ++index) {

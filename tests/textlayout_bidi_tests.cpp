@@ -609,7 +609,8 @@ void utf8_agrees(const int count, Random& random) {
         while (point < input.size()) {
             text::Paragraph by_point;
             text::Paragraph by_byte;
-            const stxlib::OperationStatus a = text::analyse_paragraph(View<u32>(input.data(), input.size()), point, direction, by_point);
+            const stxlib::OperationStatus a = text::analyse_paragraph(View<u32>(input.data(), input.size()), point,
+                                                                      direction, by_point);
             const stxlib::OperationStatus b = text::analyse_paragraph(view, byte_of[point], direction, by_byte);
             paragraphs = paragraphs + 1;
             bool same = a.succeeded() && b.succeeded() && by_point.base_level() == by_byte.base_level() &&
@@ -623,8 +624,10 @@ void utf8_agrees(const int count, Random& random) {
             if (same) {
                 text::Line line_point;
                 text::Line line_byte;
-                const stxlib::OperationStatus c = text::analyse_line(by_point, by_point.offset(), by_point.length(), line_point);
-                const stxlib::OperationStatus d = text::analyse_line(by_byte, by_byte.offset(), by_byte.length(), line_byte);
+                const stxlib::OperationStatus c = text::analyse_line(by_point, by_point.offset(), by_point.length(),
+                                                                     line_point);
+                const stxlib::OperationStatus d = text::analyse_line(by_byte, by_byte.offset(), by_byte.length(),
+                                                                     line_byte);
                 same = c.succeeded() && d.succeeded() && line_point.runs().count() == line_byte.runs().count();
                 for (usize r = 0; same && r < line_point.runs().count(); ++r) {
                     const text::BidiRun& p = line_point.runs()[r];

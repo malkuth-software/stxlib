@@ -58,7 +58,8 @@ OperationResult<ProcessArguments> from_nul_separated(Buffer<char> text) noexcept
     if (count != 0 && text[count - 1] != '\0') arguments = arguments + 1;
     OperationResult<Buffer<detail::ArgumentRecord>> made = Buffer<detail::ArgumentRecord>::allocate_zeroed(arguments);
     if (made.failed()) return OperationResult<ProcessArguments>::failure(*made.error());
-    Buffer<detail::ArgumentRecord> records = static_cast<OperationResult<Buffer<detail::ArgumentRecord>>&&>(made).take_value();
+    Buffer<detail::ArgumentRecord> records =
+        static_cast<OperationResult<Buffer<detail::ArgumentRecord>>&&>(made).take_value();
     usize start = 0;
     usize next = 0;
     for (usize index = 0; index <= count && next < arguments; ++index) {
@@ -88,9 +89,11 @@ OperationResult<ProcessArguments> from_command_line(const View<char> line) noexc
         command_line::split_windows_command_line(line, text.mutable_view(), starts.mutable_view());
     STXLIB_REQUIRE(written.text_bytes == needed.text_bytes && written.argument_count == needed.argument_count,
                    "split_windows_command_line: the two passes disagree");
-    OperationResult<Buffer<detail::ArgumentRecord>> made = Buffer<detail::ArgumentRecord>::allocate_zeroed(needed.argument_count);
+    OperationResult<Buffer<detail::ArgumentRecord>> made =
+        Buffer<detail::ArgumentRecord>::allocate_zeroed(needed.argument_count);
     if (made.failed()) return OperationResult<ProcessArguments>::failure(*made.error());
-    Buffer<detail::ArgumentRecord> records = static_cast<OperationResult<Buffer<detail::ArgumentRecord>>&&>(made).take_value();
+    Buffer<detail::ArgumentRecord> records =
+        static_cast<OperationResult<Buffer<detail::ArgumentRecord>>&&>(made).take_value();
     for (usize index = 0; index < needed.argument_count; ++index) {
         const usize start = starts[index];
         // Each argument is followed by its NUL, before the next one's start.

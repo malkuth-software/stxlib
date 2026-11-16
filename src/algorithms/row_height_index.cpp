@@ -189,7 +189,8 @@ OperationResult<bool> RowHeightIndex::set_height(const u64 row, const i64 height
     }
     if (index.set_height(row_index(row), units(height))) return OperationResult<bool>::success(true);
     if (index.out_of_memory()) {
-        return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.row_height_index.set_height"));
+        return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::out_of_memory,
+                                                                "stxlib.row_height_index.set_height"));
     }
     // Refused with the row and height valid: either the row already holds
     // this measured height, or the total would pass its limit.
@@ -197,7 +198,8 @@ OperationResult<bool> RowHeightIndex::set_height(const u64 row, const i64 height
     if (extent.state == stx_btree::RowState::measured && static_cast<i64>(extent.height.value) == height) {
         return OperationResult<bool>::success(false);
     }
-    return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.row_height_index.set_height"));
+    return OperationResult<bool>::failure(ErrorRecord::make(ErrorKind::limit_exceeded,
+                                                            "stxlib.row_height_index.set_height"));
 }
 
 OperationStatus RowHeightIndex::set_heights(const u64 row, const View<i64> heights) noexcept {

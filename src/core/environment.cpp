@@ -93,7 +93,8 @@ OperationResult<Utf8String> read_variable(const TextView name, const usize limit
         return OperationResult<Utf8String>::failure(invalid_name("stxlib.environment.read"));
     }
     Growable<char> host_name;
-    if (!terminated_copy(name, host_name)) return OperationResult<Utf8String>::failure(exhausted("stxlib.environment.read"));
+    if (!terminated_copy(name,
+                         host_name)) return OperationResult<Utf8String>::failure(exhausted("stxlib.environment.read"));
     const usize bounded = limit < maximum_environment_bytes ? limit : maximum_environment_bytes;
     Growable<char> raw;
     environment_backend::Report report{};

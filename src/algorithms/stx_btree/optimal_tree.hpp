@@ -116,7 +116,8 @@ inline constexpr std::size_t maximum_table_cells = static_cast<std::size_t>(1) <
 
 class OptimalTreeBuilder final {
 public:
-    [[nodiscard]] static OperationResult<SearchTree> build(const SearchWeights& weights, TreeConstruction construction) noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> build(const SearchWeights& weights,
+                                                           TreeConstruction construction) noexcept {
         switch (construction) {
         case TreeConstruction::knuth:
             return knuth(weights);
@@ -478,7 +479,7 @@ private:
 
     // The tree with these parents, and its cost.
     [[nodiscard]] static OperationResult<SearchTree> tree_from_parents(const detail::Array<KeyIndex>& parent,
-                                                              const SearchWeights& weights) noexcept {
+                                                                       const SearchWeights& weights) noexcept {
         SearchTree tree;
         if (!BinaryTreeRules::from_parents(parent, tree.shape)) {
             return exhausted();
@@ -660,8 +661,9 @@ private:
     // exact in integers, which is the leftmost optimal root, the one the
     // restricted search above settles on as well.
     template <typename Cost, typename Table>
-    [[nodiscard]] static OperationResult<SearchTree> recovered_tree(const SearchWeights& weights, const detail::Array<Cost>& prefix,
-                                                           const Table& table) noexcept {
+    [[nodiscard]] static OperationResult<SearchTree> recovered_tree(const SearchWeights& weights,
+                                                                    const detail::Array<Cost>& prefix,
+                                                                    const Table& table) noexcept {
         const std::size_t key_count = weights.keys.count();
         detail::Array<KeyIndex> parent;
         detail::Array<PendingInterval> pending;

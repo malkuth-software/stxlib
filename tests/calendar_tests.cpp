@@ -136,7 +136,8 @@ void instants() {
     for (int sample = 0; sample < 100000; ++sample) {
         state = next_state(state);
         const i64 nanoseconds = static_cast<i64>(state);
-        const stxlib::OperationResult<WallTime> back = stxlib::wall_from_civil(stxlib::civil_from_wall(at(nanoseconds)));
+        const stxlib::OperationResult<WallTime> back =
+            stxlib::wall_from_civil(stxlib::civil_from_wall(at(nanoseconds)));
         round_trips = round_trips && back.succeeded() && (*back.value()).unix_nanoseconds() == nanoseconds;
     }
     CHECK(round_trips);

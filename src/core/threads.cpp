@@ -359,7 +359,8 @@ OperationResult<Thread> Thread::start(const Entry entry, void* const context, co
         return OperationResult<Thread>::failure(exhausted);
     }
     void* const block = memory::allocate(sizeof(State), alignof(State));
-    if (block == nullptr) return OperationResult<Thread>::failure(ErrorRecord::make(ErrorKind::out_of_memory, operation));
+    if (block == nullptr) return OperationResult<Thread>::failure(ErrorRecord::make(ErrorKind::out_of_memory,
+                                                                                    operation));
     State* const created = ::new (block) State();
     (*created).entry = entry;
     (*created).context = context;
