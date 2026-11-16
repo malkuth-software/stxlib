@@ -648,8 +648,16 @@ before its commit (the seat's logs `sc1/dev/logs/tl-quick2-*` and
 - AddressSanitizer, UndefinedBehaviorSanitizer and Clang's integer group
   (`-fsanitize=address,undefined,integer -fno-sanitize-recover=all`),
   Debug: `stxlib_textlayout_tests` with a fuzz of 1,000,000 inputs passes
-  with no report. @@SANBIDI@@
+  with no report; `stxlib_textlayout_bidi_tests` passes its 50 checks
+  with no report (BidiTest 770,241 of 770,241, BidiCharacterTest 91,707 of
+  91,707, 33,541,180 comparisons with the reference, 0 differ), and the
+  surface check passes on the sanitized objects.
 - The oracle comparisons and the timing are in `docs/TEXTLAYOUT.md`.
+
+Open: the 5,264 texts where libunibreak and STXlib differ for an "other"
+cause (`docs/TEXTLAYOUT.md`) have not been examined one by one. LB12a at
+18.0.0 is inferred from LineBreakTest 18.0.0, not read in UAX #14 18.0.0
+(unconfirmed).
 
 Not proved: that the rule chain is UAX #14 beyond its conformance suite;
 that the bidi rules are UAX #9 beyond BidiTest, BidiCharacterTest and the

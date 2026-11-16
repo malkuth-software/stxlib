@@ -938,10 +938,16 @@ one record per code point and the tables of the rules.
   confirms the codes of the scripts that file names; the comparison with
   SheenBidi's tags (`tests/textlayout_bench.cpp`) covers the scripts both
   know.
+  Of the scripts with characters in `Scripts.txt`, 74 have codes that
+  `ScriptExtensions.txt` does not use; those SheenBidi does not know
+  (among them Jurc, Seal and the other scripts new since its data) are
+  confirmed by no file and rest on the author's reading of ISO 15924.
 The CTest check `stxlib_textlayout_tables` regenerates and compares.
 
 The text of UAX #14 for Unicode 18.0.0 was not downloaded. The rules were
 written from the published algorithm as the author knows it (revision 55,
 Unicode 17.0.0) and brought to 18.0.0 by `LineBreakTest.txt` of 18.0.0,
 which the chain passes case for case; `docs/TEXTLAYOUT.md` names the one
-rule this changed.
+rule this changed. That rule's 18.0.0 form (LB12a no longer excepting BA)
+is therefore inferred from the conformance file and unconfirmed against
+the text of UAX #14 18.0.0.
