@@ -209,6 +209,7 @@ void compute_blue_edges(HintAxis& axis, const HintScale& scale, const View<Unsca
     const usize blue_count = unscaled.count() < blues.count() ? unscaled.count() : blues.count();
     for (usize edge_index = 0; edge_index < axis.edges.count(); ++edge_index) {
         HintEdge& edge = axis.edges[edge_index];
+        if ((edge.flags & topo_no_blue) != 0) continue;
         bool found = false;
         bool neutral_found = false;
         ScaledWidth best{};

@@ -21,6 +21,9 @@
 //    between its neighbours.
 // 4. The points of the edges go where their edges went, and every other
 //    point is carried between the points that moved.
+// 5. An accent is kept clear of its letter: a contour that is the accent
+//    of the glyph's character and has come nearer than a pixel to the rest
+//    is moved a pixel away, and a tilde is kept tall enough to be a tilde.
 //
 // HintMode::light moves points along y only: the heights of a line of text
 // are made crisp and its widths are left as designed. HintMode::monochrome
@@ -31,15 +34,12 @@
 // host: the arithmetic is in integers.
 //
 // A conversion to house style of Skrifa 0.50.0's auto-hinter, which is
-// itself after FreeType's (PROVENANCE.md). On the fonts GUI.Forms bundles
-// it gives FreeType 2.14.2's auto-hinter's numbers but for two things that
-// FreeType has and this has not: accents are not moved away from their
-// letters (so an accented letter, or the dot of an i, can differ along y),
-// and in monochrome mode a serif edge is not checked to be a real serif (a
-// few glyphs a font differ along x).
+// itself after FreeType's, and for the accents (step 5) of FreeType
+// 2.14.2's own (PROVENANCE.md). It is held to FreeType 2.14.2's
+// auto-hinter on the fonts GUI.Forms bundles.
 //
 // Bounds. prepare is linear in the characters of the table of scripts
-// (about 115,000 look-ups in the character map). A style's measures are
+// (about 116,000 look-ups in the character map). A style's measures are
 // taken the first time a glyph of it is hinted: a few tens of glyphs
 // loaded. hint_glyph is linear in the glyph's points, times the number of
 // its edges where points are carried between edges. No recursion.
@@ -116,8 +116,10 @@ public:
     void release() noexcept;
 
 private:
-    // The style of each glyph, and the measures of the styles met so far.
+    // The style of each glyph, what is done for its accents, and the
+    // measures of the styles met so far.
     Vector<u16> styles_{};
+    Vector<u16> adjustments_{};
     Vector<StyleMetrics> metrics_{};
 };
 

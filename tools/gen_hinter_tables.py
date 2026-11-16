@@ -36,6 +36,10 @@ def main() -> int:
     scripts = []
 
     def put(string):
+        # Rust writes a character it would not show as \u{...}.
+        string = re.sub(r"\\u\{([0-9A-Fa-f]+)\}", lambda found: chr(int(found.group(1), 16)), string)
+        if "\\" in string:
+            raise SystemExit("gen_hinter_tables: an escape this does not read: %r" % string)
         first = len(characters)
         characters.extend(ord(c) for c in string)
         return first, len(string)

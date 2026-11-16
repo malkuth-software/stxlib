@@ -421,6 +421,7 @@ void compute_default_blues(const Font& font, const TableScript& script, const Fo
                           .descender = descender,
                           .zones = zones & (blue_top | blue_sub_top | blue_neutral)};
         if ((zones & blue_x_height) != 0) blue.zones = blue.zones | blue_adjustment;
+        blue.zones = blue.zones | blue_bottom_of(script.blue_first + blue_index);
         if (blues.push_copy(blue).failed()) no_memory = true;
         static_cast<void>(is_top);
     }

@@ -72,6 +72,9 @@ inline constexpr u32 mark_touched_y = 0x10;
 inline constexpr u32 mark_weak = 0x20;
 // The point is very near the next one.
 inline constexpr u32 mark_near = 0x40;
+// The point is left out when segments are found (a tilde that was made
+// taller, hinter_accents.cpp).
+inline constexpr u32 mark_ignore = 0x80;
 
 struct HintPoint final {
     PointTag tag{PointTag::on};
@@ -130,6 +133,8 @@ inline constexpr u32 topo_round = 1;
 inline constexpr u32 topo_serif = 2;
 inline constexpr u32 topo_done = 4;
 inline constexpr u32 topo_neutral = 8;
+// An edge that no blue zone may catch (an accent's, hinter_accents.cpp).
+inline constexpr u32 topo_no_blue = 16;
 
 inline constexpr u32 no_index = 0xFFFFFFFFU;
 inline constexpr i32 highest_score = 32000;
@@ -238,6 +243,9 @@ inline constexpr u32 blue_neutral = 1U << 3;
 inline constexpr u32 blue_adjustment = 1U << 4;
 inline constexpr u32 blue_x_height = 1U << 5;
 inline constexpr u32 blue_long = 1U << 6;
+// The bottom of capitals and of small letters (hinter_accents.cpp).
+inline constexpr u32 blue_capital_bottom = 1U << 7;
+inline constexpr u32 blue_small_bottom = 1U << 8;
 inline constexpr u32 blue_horizontal = 1U << 2;
 inline constexpr u32 blue_right = blue_top;
 
@@ -329,12 +337,62 @@ struct ScaledStyleMetrics final {
     ScaledAxisMetrics axes[2]{};
 };
 
+// The least and the greatest y of a contour's points (26.6); a contour of
+// one or two points has least_of_none and greatest_of_none.
+struct ContourReach final {
+    i64 least{0};
+    i64 greatest{0};
+};
+
 // What a hinter keeps to work in: storage reused from glyph to glyph.
 struct HintScratch final {
     GlyphOutline glyph{};
     HintOutline outline{};
     HintAxis axis{};
+    Vector<ContourReach> reaches{};
 };
+
+// ---- accents (hinter_accents.cpp) --------------------------------------------------------------
+
+// What is done for a glyph by the character it is the glyph of
+// (hinter_adjust.inc), as bits. "Up": the topmost contour is an accent and
+// is kept a pixel above the rest; "up, second": the contour under the
+// topmost one is, and both move; "down" likewise below. A tilde is made
+// tall enough to stay a tilde. "Off": edges well above (or below) the
+// letter are kept off the blue zones.
+inline constexpr u32 adjust_up = 0x01;
+inline constexpr u32 adjust_down = 0x02;
+inline constexpr u32 adjust_up_second = 0x04;
+inline constexpr u32 adjust_down_second = 0x08;
+inline constexpr u32 adjust_tilde_top = 0x10;
+inline constexpr u32 adjust_tilde_bottom = 0x20;
+inline constexpr u32 adjust_tilde_top_second = 0x40;
+inline constexpr u32 adjust_tilde_bottom_second = 0x80;
+inline constexpr u32 adjust_off_capital_top = 0x100;
+inline constexpr u32 adjust_off_capital_bottom = 0x200;
+inline constexpr u32 adjust_off_small_top = 0x400;
+inline constexpr u32 adjust_off_small_bottom = 0x800;
+inline constexpr u32 adjust_any_height = 0x1000;
+
+struct TableAdjust final {
+    u32 character{0};
+    u32 flags{0};
+};
+
+// What is done for each glyph of the font: the adjust_ bits.
+[[nodiscard]] Status compute_glyph_adjustments(const Font& font, Vector<u16>& adjustments) noexcept;
+// blue_capital_bottom, blue_small_bottom or neither, for a blue zone of
+// the table of scripts by its number there.
+[[nodiscard]] u32 blue_bottom_of(usize table_blue) noexcept;
+// Before the segments along y are found: a tilde is made tall enough and
+// put on the grid. False: out of memory.
+[[nodiscard]] bool stretch_tildes(HintOutline& outline, u32 adjustment, Vector<ContourReach>& reaches) noexcept;
+// After the edges along y are found: the edges of an accent are kept off
+// the blue zones. Gives the tallest an accent may be and still be moved.
+[[nodiscard]] i32 keep_accents_off_blues(HintAxis& axis, const HintScale& scale, View<ScaledBlue> blues, u32 adjustment) noexcept;
+// After the points have moved along y: an accent nearer than a pixel to
+// its letter is moved away. False: out of memory.
+[[nodiscard]] bool separate_accents(HintOutline& outline, u32 adjustment, i32 accent_height_limit, Vector<ContourReach>& reaches) noexcept;
 
 // The style of every glyph of the font, from its character map.
 [[nodiscard]] Status compute_glyph_styles(const Font& font, Vector<u16>& styles) noexcept;
@@ -354,7 +412,8 @@ void compute_blue_edges(HintAxis& axis, const HintScale& scale, View<UnscaledBlu
 // Every edge of the axis is given its position at the size: on a blue
 // zone, as a stem's side at a fitted width from its other side, or
 // between its neighbours.
-void hint_edges(HintAxis& axis, const ScaledAxisMetrics& metrics, bool cjk, const HintScale& scale, bool top_to_bottom) noexcept;
+void hint_edges(const HintOutline& outline, HintAxis& axis, const ScaledAxisMetrics& metrics, bool cjk, const HintScale& scale,
+                bool top_to_bottom) noexcept;
 
 // The outline's points go where the edges of the axis went: those of the
 // edges' segments, then those between edges, then the rest.

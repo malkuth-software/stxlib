@@ -76,7 +76,8 @@ void assign_positions(HintOutline& outline, const u32 dimension) noexcept {
         usize segment_index = 0;
         // A contour that begins inside a segment is begun where that
         // segment begins.
-        if (same_axis(points[point_index].out_direction, major) && same_axis(points[last_index].out_direction, major)) {
+        if ((points[point_index].marks & mark_ignore) == 0 && same_axis(points[point_index].out_direction, major) &&
+            same_axis(points[last_index].out_direction, major)) {
             last_index = point_index;
             const u32 length = contour.last - contour.first + 1;
             for (u32 turn = 0; turn < length; ++turn) {
@@ -110,11 +111,13 @@ void assign_positions(HintOutline& outline, const u32 dimension) noexcept {
                     reach.least_on_curve = lesser(reach.least_on_curve, point.v);
                     reach.greatest_on_curve = greater(reach.greatest_on_curve, point.v);
                 }
-                if (point.out_direction != segment_direction || point_index == last_index) {
+                const bool ignored = (point.marks & mark_ignore) != 0;
+                if (ignored || point.out_direction != segment_direction || point_index == last_index) {
                     // The segment ends here. If the one before it ended
                     // where this one began, the two are one stem's side
                     // with a bump in it, and are made one.
-                    if (previous_segment != no_index && axis.segments[segment_index].first != axis.segments[previous_segment].last) {
+                    if (previous_segment != no_index &&
+                        (ignored || axis.segments[segment_index].first != axis.segments[previous_segment].last)) {
                         previous_segment = no_index;
                     }
                     if (previous_segment != no_index) {
@@ -172,7 +175,7 @@ void assign_positions(HintOutline& outline, const u32 dimension) noexcept {
                 passed = true;
             }
             const HintPoint& point = points[point_index];
-            if (!on_edge && (same_axis(point.out_direction, major) || single)) {
+            if ((point.marks & mark_ignore) == 0 && !on_edge && (same_axis(point.out_direction, major) || single)) {
                 if (axis.segments.count() > 1000) {
                     axis.segments.clear();
                     return false;

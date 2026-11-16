@@ -1,7 +1,8 @@
 // stxlib::glyphs: the hinter (include/stxlib/glyph_hinter.hpp). After
 // Skrifa 0.50.0, outline/autohint/hint/mod.rs and instance.rs: a glyph's
 // outline measured, fitted and moved, one axis and then the other, and its
-// advance.
+// advance. The care for accents along y is after FreeType 2.14.2
+// (hinter_accents.cpp).
 
 #include "stxlib/glyph_hinter.hpp"
 
@@ -35,7 +36,7 @@ struct Fitted final {
 };
 
 [[nodiscard]] Fitted hint_outline(HintOutline& outline, const StyleMetrics& metrics, const HintScale& wanted, const u32 glyph_style,
-                                  HintScratch& scratch, ScaledStyleMetrics& scaled) noexcept {
+                                  const u32 adjustment, HintScratch& scratch, ScaledStyleMetrics& scaled) noexcept {
     Fitted fitted{};
     if (detail::scale_style_metrics(metrics, wanted, scaled).failed()) {
         fitted.no_memory = true;
@@ -62,12 +63,18 @@ struct Fitted final {
     for (u32 dimension = 0; dimension < 2; ++dimension) {
         if (dimension == axis_horizontal && (scale.flags & detail::scale_no_horizontal) != 0) continue;
         if (dimension == axis_vertical && (scale.flags & detail::scale_no_vertical) != 0) continue;
+        // Accents (hinter_accents.cpp) are seen to along y, for the scripts
+        // hinted the default way.
+        const bool accents = dimension == axis_vertical && !cjk && adjustment != 0;
+        if (accents && !detail::stretch_tildes(outline, adjustment, scratch.reaches)) fitted.no_memory = true;
         detail::reset_axis(axis, dimension, outline.winding);
         static_cast<void>(detail::compute_segments(outline, axis, fitted.no_memory));
         const Vector<i32>& widths = metrics.axes[dimension].widths;
         const i32 widest = widths.empty() ? 0 : widths[widths.count() - 1];
         detail::link_segments(outline, axis, scaled.axes[dimension].scale, cjk, widest);
         if (!detail::compute_edges(axis, scaled.axes[dimension], script.top_to_bottom, scale.y_scale, cjk)) fitted.no_memory = true;
+        i32 accent_height_limit = 0;
+        if (accents) accent_height_limit = detail::keep_accents_off_blues(axis, scale, scaled.axes[dimension].blues.view(), adjustment);
         if (dimension == axis_vertical) {
             // Marks (accents) are not caught by blue zones.
             if (cjk || (glyph_style & detail::style_non_base) == 0) {
@@ -76,10 +83,11 @@ struct Fitted final {
         } else {
             fitted.x_scale = scaled.axes[0].scale;
         }
-        detail::hint_edges(axis, scaled.axes[dimension], cjk, scale, script.top_to_bottom);
+        detail::hint_edges(outline, axis, scaled.axes[dimension], cjk, scale, script.top_to_bottom);
         detail::align_edge_points(outline, axis, cjk, scale);
         detail::align_strong_points(outline, axis);
         detail::align_weak_points(outline, dimension);
+        if (accents && !detail::separate_accents(outline, adjustment, accent_height_limit, scratch.reaches)) fitted.no_memory = true;
         if (dimension == axis_horizontal && axis.edges.count() > 1) {
             const detail::HintEdge& left = axis.edges[0];
             const detail::HintEdge& right = axis.edges[axis.edges.count() - 1];
@@ -97,8 +105,12 @@ struct Fitted final {
 
 Status Hinter::prepare(const Font& font) noexcept {
     metrics_.clear();
-    const Status status = detail::compute_glyph_styles(font, styles_);
-    if (status.failed()) styles_.clear();
+    Status status = detail::compute_glyph_styles(font, styles_);
+    if (status.succeeded()) status = detail::compute_glyph_adjustments(font, adjustments_);
+    if (status.failed()) {
+        styles_.clear();
+        adjustments_.clear();
+    }
     return status;
 }
 
@@ -109,7 +121,8 @@ Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, con
     outline.points.clear();
     outline.tags.clear();
     outline.contour_ends.clear();
-    if (glyph >= font.glyph_count || styles_.count() != font.glyph_count || size <= 0 || size > (static_cast<i64>(1) << 24)) {
+    if (glyph >= font.glyph_count || styles_.count() != font.glyph_count || adjustments_.count() != font.glyph_count || size <= 0 ||
+        size > (static_cast<i64>(1) << 24)) {
         return refuse_font(ErrorKind::invalid_argument, operation);
     }
     const u32 glyph_style = styles_[glyph];
@@ -140,7 +153,7 @@ Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, con
     const u32 group = detail::script_of_style(style).group;
     const HintScale scale = detail::make_scale(font, size, mode, group);
     ScaledStyleMetrics scaled{};
-    const Fitted fitted = hint_outline(scratch.outline, metrics, scale, glyph_style, scratch, scaled);
+    const Fitted fitted = hint_outline(scratch.outline, metrics, scale, glyph_style, adjustments_[glyph], scratch, scaled);
     if (fitted.no_memory) return refuse_font(ErrorKind::out_of_memory, operation);
     // The advance: the scaled advance to a whole pixel, and in monochrome
     // mode made to follow where the outermost edges went.
@@ -189,6 +202,7 @@ Status Hinter::hint_glyph(const Font& font, const u32 glyph, const i64 size, con
 
 void Hinter::release() noexcept {
     styles_.release();
+    adjustments_.release();
     metrics_.release();
 }
 

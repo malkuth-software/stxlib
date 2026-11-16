@@ -13,6 +13,10 @@ namespace {
     return result;
 }
 
+inline constexpr u32 measure_font_x = 0;
+inline constexpr u32 measure_font_y = 1;
+inline constexpr u32 measure_scaled_x = 2;
+
 // a * b / c, rounded to the nearest, halves away from zero.
 [[nodiscard]] i32 times_over(const i64 a, const i64 b, const i64 c) noexcept {
     const i64 a_size = a < 0 ? -a : a;
@@ -454,15 +458,66 @@ struct Bounds2 final {
     return result;
 }
 
-void align_remaining_edges(HintAxis& axis, const bool cjk, const bool top_to_bottom, const usize serif_count, const usize first_anchor) noexcept {
+// How far an edge reaches along itself: over the two ends of its first
+// and of its last segment.
+struct Span final {
+    i32 least{0};
+    i32 greatest{0};
+};
+
+[[nodiscard]] Span span_of(const HintAxis& axis, const HintPoint* const points, const usize edge_index, const u32 measure) noexcept {
+    const HintEdge& edge = axis.edges[edge_index];
+    const u32 ends[4] = {axis.segments[edge.first].first, axis.segments[edge.first].last, axis.segments[edge.last].first,
+                         axis.segments[edge.last].last};
+    Span span{};
+    for (usize index = 0; index < 4; ++index) {
+        const HintPoint& point = points[ends[index]];
+        const i32 value = measure == measure_font_x ? point.fx : (measure == measure_font_y ? point.fy : point.ox);
+        if (index == 0 || value < span.least) span.least = value;
+        if (index == 0 || value > span.greatest) span.greatest = value;
+    }
+    return span;
+}
+
+// Whether an edge taken for the serif of another is one: no edge between
+// the two reaches where they reach. The top of an accent just above its
+// letter is otherwise taken for a serif of the letter. After FreeType
+// 2.14.2, af_latin_hint_edges.
+[[nodiscard]] bool real_serif(const HintAxis& axis, const HintPoint* const points, const usize edge_index, const usize serif_index,
+                              const u32 measure) noexcept {
+    const bool edge_above = axis.edges[serif_index].original - axis.edges[edge_index].original < 0;
+    const usize upper = edge_above ? edge_index : serif_index;
+    const usize lower = edge_above ? serif_index : edge_index;
+    const Span upper_span = span_of(axis, points, upper, measure);
+    const Span lower_span = span_of(axis, points, lower, measure);
+    const i32 least = upper_span.least < lower_span.least ? upper_span.least : lower_span.least;
+    const i32 greatest = upper_span.greatest > lower_span.greatest ? upper_span.greatest : lower_span.greatest;
+    bool real = true;
+    for (usize between = lower + 1; between < upper; ++between) {
+        const Span span = span_of(axis, points, between, measure);
+        const bool short_of = span.least < least && span.greatest < least;
+        const bool beyond = span.least > greatest && span.greatest > greatest;
+        if (!short_of && !beyond) {
+            real = false;
+            break;
+        }
+    }
+    return real;
+}
+
+void align_remaining_edges(const HintOutline& outline, HintAxis& axis, const bool cjk, const bool top_to_bottom, const usize serif_count,
+                           const usize first_anchor, const u32 measure) noexcept {
     const usize count = axis.edges.count();
     usize anchor = first_anchor;
     if (!cjk) {
+        const HintPoint* const points = outline.points.view().data();
         for (usize index = 0; index < count; ++index) {
             HintEdge* const edges = axis.edges.mutable_view().data();
             const HintEdge edge = edges[index];
             if ((edge.flags & topo_done) != 0) continue;
             const i32 serif_distance = edge.serif != no_index ? size_of(edges[edge.serif].original - edge.original) : 1000;
+            // What is not a real serif is left where scaling put it.
+            if (serif_distance < 64 + 32 && !real_serif(axis, points, index, edge.serif, measure)) continue;
             if (serif_distance < 64 + 16) {
                 // A serif near its stem keeps its distance from it.
                 align_serif_edge(axis, edge.serif, index);
@@ -525,13 +580,27 @@ void align_remaining_edges(HintAxis& axis, const bool cjk, const bool top_to_bot
 
 } // namespace
 
-void hint_edges(HintAxis& axis, const ScaledAxisMetrics& metrics, const bool cjk, const HintScale& scale, const bool top_to_bottom) noexcept {
+void hint_edges(const HintOutline& outline, HintAxis& axis, const ScaledAxisMetrics& metrics, const bool cjk, const HintScale& scale,
+                const bool top_to_bottom) noexcept {
     const bool downward = axis.dimension == axis_vertical ? top_to_bottom : false;
+    // What "along the edge" is measured in when a serif is checked. As
+    // FreeType has it, which is the working number its points hold at that
+    // moment and not always the one meant: along x it is the points' x in
+    // font units (their y only when nothing is done along y); along y it
+    // is their x, scaled if the outline was fitted along x first.
+    u32 measure = measure_font_x;
+    if (axis.dimension == axis_horizontal) {
+        measure = (scale.flags & scale_no_vertical) != 0 ? measure_font_y : measure_font_x;
+    } else {
+        measure = (scale.flags & scale_no_horizontal) != 0 ? measure_font_x : measure_scaled_x;
+    }
     const usize blue_anchor = align_edges_to_blues(axis, metrics, cjk, scale);
     const Stems stems = align_stem_edges(axis, metrics, cjk, scale, downward, blue_anchor);
     const usize count = axis.edges.count();
     if (axis.dimension == axis_horizontal && (count == 6 || count == 12)) hint_lowercase_m(axis, cjk);
-    if (stems.serifs > 0 || stems.anchor == no_index) align_remaining_edges(axis, cjk, downward, stems.serifs, stems.anchor);
+    if (stems.serifs > 0 || stems.anchor == no_index) {
+        align_remaining_edges(outline, axis, cjk, downward, stems.serifs, stems.anchor, measure);
+    }
 }
 
 } // namespace stxlib::glyphs::detail

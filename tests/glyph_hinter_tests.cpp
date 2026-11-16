@@ -19,6 +19,11 @@
 //       wide and at whole pixels, both stems of a letter the same, the
 //       digits all one advance; and the size at which the face is very
 //       light, where a bar keeps its thickness;
+//   H8  accents: the dot of i, a bar over a capital and a dot under o are
+//       a pixel clear of the letter at every size; a tilde over n is too,
+//       or a quarter of a pixel nearer with its middle on the grid, and
+//       stays a pixel of wave deep; and at 8 pixels the tilde is where the
+//       rule puts it, by hand;
 //   H5  the same call twice gives the same outline; a hinter prepared
 //       again and one released and prepared give it too;
 //   H6  a font with none of the letters that blue zones are measured from
@@ -75,7 +80,10 @@ constexpr u32 glyph_m = 7;
 constexpr u32 glyph_n = 8;
 constexpr u32 glyph_o = 9;
 constexpr u32 glyph_p = 10;
-constexpr u32 glyph_count = 11;
+constexpr u32 glyph_A_acute = 11;
+constexpr u32 glyph_n_tilde = 12;
+constexpr u32 glyph_o_dot_below = 13;
+constexpr u32 glyph_count = 14;
 
 // A round ring: on the curve at the middle of each side, off it at each
 // corner; the outer contour clockwise and the inner one against it.
@@ -165,6 +173,52 @@ constexpr u32 glyph_count = 11;
     // p: o with its left stem carried below the baseline.
     glyph_bytes.push_back(simple_glyph({{{50, -200, true}, {50, 500, true}, {400, 500, true}, {400, 0, true}, {130, 0, true}, {130, -200, true}},
                                         {{130, 70, true}, {320, 70, true}, {320, 430, true}, {130, 430, true}}}));
+    // A capital with an accent over it: H's outline (it stands for the
+    // letter) and a bar 40 above it.
+    glyph_bytes.push_back(simple_glyph({{{50, 0, true},
+                                         {50, 700, true},
+                                         {130, 700, true},
+                                         {130, 390, true},
+                                         {370, 390, true},
+                                         {370, 700, true},
+                                         {450, 700, true},
+                                         {450, 0, true},
+                                         {370, 0, true},
+                                         {370, 320, true},
+                                         {130, 320, true},
+                                         {130, 0, true}},
+                                        {{200, 740, true}, {200, 800, true}, {300, 800, true}, {300, 740, true}}}));
+    // n with a tilde 60 above it: a band 100 high that rises, dips and
+    // rises, its turns round (a point on the curve level between two
+    // control points).
+    glyph_bytes.push_back(simple_glyph({{{50, 0, true},
+                                         {50, 500, true},
+                                         {400, 500, true},
+                                         {400, 0, true},
+                                         {320, 0, true},
+                                         {320, 430, true},
+                                         {130, 430, true},
+                                         {130, 0, true}},
+                                        {{100, 560, true},
+                                         {100, 600, true},
+                                         {140, 660, false},
+                                         {180, 660, true},
+                                         {220, 660, false},
+                                         {280, 610, false},
+                                         {320, 610, true},
+                                         {360, 610, false},
+                                         {400, 640, true},
+                                         {400, 600, true},
+                                         {360, 570, false},
+                                         {320, 570, true},
+                                         {280, 570, false},
+                                         {220, 620, false},
+                                         {180, 620, true},
+                                         {140, 620, false}}}));
+    // o with a dot 80 below it.
+    glyph_bytes.push_back(simple_glyph({{{50, 0, true}, {50, 500, true}, {400, 500, true}, {400, 0, true}},
+                                        {{130, 70, true}, {320, 70, true}, {320, 430, true}, {130, 430, true}},
+                                        {{185, -160, true}, {185, -80, true}, {265, -80, true}, {265, -160, true}}}));
     return glyph_bytes;
 }
 
@@ -184,15 +238,20 @@ constexpr u32 glyph_count = 11;
     return font;
 }
 
-// The font of the letters: 0 1 H O h i m n o p.
+// The font of the letters: 0 1 H O h i m n o p, and A with acute, n with
+// tilde and o with dot below (U+00C1, U+00F1, U+1ECD).
 [[nodiscard]] Bytes letter_font() {
     const std::vector<Metric> metrics = {{500, 0}, {500, 60}, {500, 210}, {500, 50}, {500, 50}, {450, 50},
-                                         {180, 50}, {720, 50}, {450, 50}, {450, 50}, {450, 50}};
+                                         {180, 50}, {720, 50}, {450, 50}, {450, 50}, {450, 50}, {500, 50},
+                                         {450, 50}, {450, 50}};
     const Bytes map = map_format_4({{'0', '1', static_cast<i32>(glyph_zero) - '0', {}},
                                     {'H', 'H', static_cast<i32>(glyph_H) - 'H', {}},
                                     {'O', 'O', static_cast<i32>(glyph_O) - 'O', {}},
                                     {'h', 'i', static_cast<i32>(glyph_h) - 'h', {}},
                                     {'m', 'p', static_cast<i32>(glyph_m) - 'm', {}},
+                                    {0xC1, 0xC1, static_cast<i32>(glyph_A_acute) - 0xC1, {}},
+                                    {0xF1, 0xF1, static_cast<i32>(glyph_n_tilde) - 0xF1, {}},
+                                    {0x1ECD, 0x1ECD, static_cast<i32>(glyph_o_dot_below) - 0x1ECD, {}},
                                     {0xFFFF, 0xFFFF, 1, {}}});
     const Bytes font = font_with(letters(), metrics, map);
     return font;
@@ -528,6 +587,95 @@ void monochrome_at_sizes() {
     }
 }
 
+// The least and the greatest hinted y of contour `contour`.
+struct Reach final {
+    i32 least{0};
+    i32 greatest{0};
+};
+
+[[nodiscard]] Reach reach_of(const glyphs::GlyphOutline& outline, const usize contour) {
+    const usize first = contour == 0 ? 0 : static_cast<usize>(outline.contour_ends[contour - 1]) + 1;
+    const usize last = outline.contour_ends[contour];
+    Reach reach{.least = outline.points[first].y, .greatest = outline.points[first].y};
+    for (usize index = first; index <= last; ++index) {
+        const i32 y = outline.points[index].y;
+        reach.least = y < reach.least ? y : reach.least;
+        reach.greatest = y > reach.greatest ? y : reach.greatest;
+    }
+    return reach;
+}
+
+void accents() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    CHECK(glyphs::glyph_of(opened.font, 0xC1) == glyph_A_acute && glyphs::glyph_of(opened.font, 0xF1) == glyph_n_tilde &&
+          glyphs::glyph_of(opened.font, 0x1ECD) == glyph_o_dot_below);
+    struct Accented final {
+        u32 glyph{0};
+        // The letter's contour and the accent's, and whether the accent
+        // is over the letter.
+        usize letter{0};
+        usize accent{0};
+        bool over{true};
+    };
+    const Accented accented[] = {
+        {glyph_i, 0, 1, true}, {glyph_A_acute, 0, 1, true}, {glyph_n_tilde, 0, 1, true}, {glyph_o_dot_below, 0, 2, false}};
+    const glyphs::HintMode modes[] = {glyphs::HintMode::light, glyphs::HintMode::monochrome};
+    for (const glyphs::HintMode mode : modes) {
+        for (const Accented& entry : accented) {
+            int clear = 0;
+            for (i64 pixels = 8; pixels <= 40; ++pixels) {
+                Hinted hinted{};
+                hint(opened, entry.glyph, pixels * 64, mode, hinted);
+                if (!hinted.done || hinted.outline.contour_ends.count() <= entry.accent) continue;
+                const Reach letter = reach_of(hinted.outline, entry.letter);
+                const Reach accent = reach_of(hinted.outline, entry.accent);
+                const i32 gap = entry.over ? accent.least - letter.greatest : letter.least - accent.greatest;
+                // A pixel clear; or, if the accent already ran into the
+                // letter by more than rounding, left as it was. A tilde
+                // may be a quarter of a pixel nearer: one under three
+                // pixels tall has its middle on the grid, and is not moved
+                // when the move would only take it off again.
+                const bool is_tilde = entry.glyph == glyph_n_tilde;
+                const bool good = gap >= (is_tilde ? 48 : 64) || gap < -2;
+                if (!good) std::fprintf(stderr, "  mode %d glyph %u at %lld pixels: gap %d\n", static_cast<int>(mode), entry.glyph, static_cast<long long>(pixels), gap);
+                CHECK(good);
+                if (gap >= 64) clear = clear + 1;
+                if (entry.glyph == glyph_n_tilde) {
+                    // The tilde's wave is a pixel deep at least.
+                    const bool deep = accent.greatest - accent.least >= 64;
+                    if (!deep) std::fprintf(stderr, "  mode %d: the tilde at %lld pixels is %d high\n", static_cast<int>(mode), static_cast<long long>(pixels), accent.greatest - accent.least);
+                    CHECK(deep);
+                }
+            }
+            std::printf("accents: mode %d glyph %u clear by a pixel at %d of 33 sizes\n", static_cast<int>(mode), entry.glyph, clear);
+            CHECK(entry.glyph == glyph_n_tilde ? clear >= 20 : clear == 33);
+        }
+    }
+    // The tilde at 8 pixels, by hand. The scale is 33554; n's top, 500, is
+    // 256, four pixels. The tilde's bottom, 560, is 287 and its top, 660,
+    // is 338: 51 high. Its inner turns are the top of its lower side, 620
+    // (317), 21 under its top, and the bottom of its upper side, 610
+    // (312), 25 over its bottom; the nearer, 21, and a pixel make 85, so
+    // the tilde is made 85 high from its bottom up: 287 to 372. It is put
+    // on the grid: its bottom to the nearest pixel, 256, and then, being
+    // under three pixels, down by half of what its height is over one
+    // pixel, 10: 246 to 331. That is 10 inside the letter, so it is moved
+    // up 74, to a pixel above the letter: 320 to 405.
+    Hinted tilde{};
+    hint(opened, glyph_n_tilde, 8 * 64, glyphs::HintMode::light, tilde);
+    if (tilde.done) {
+        const Reach letter = reach_of(tilde.outline, 0);
+        const Reach accent = reach_of(tilde.outline, 1);
+        if (letter.greatest != 256 || accent.least != 320 || accent.greatest != 405) {
+            std::fprintf(stderr, "  tilde at 8 pixels: letter to %d, tilde %d..%d\n", letter.greatest, accent.least, accent.greatest);
+        }
+        CHECK(letter.least == 0 && letter.greatest == 256);
+        CHECK(accent.least == 320 && accent.greatest == 405);
+    }
+}
+
 void repeated() {
     Opened opened{};
     open_letters(opened);
@@ -671,6 +819,7 @@ int main(const int argument_count, const char* const* const arguments) {
     light_by_hand();
     light_at_sizes();
     monochrome_at_sizes();
+    accents();
     repeated();
     without_blue_zones();
     robustness();

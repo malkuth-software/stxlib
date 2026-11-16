@@ -685,6 +685,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/glyphs/font_file.cpp
     src/algorithms/glyphs/font_truetype.cpp
     src/algorithms/glyphs/hinter.cpp
+    src/algorithms/glyphs/hinter_accents.cpp
     src/algorithms/glyphs/hinter_align.cpp
     src/algorithms/glyphs/hinter_edges.cpp
     src/algorithms/glyphs/hinter_fit.cpp
