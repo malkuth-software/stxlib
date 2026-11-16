@@ -214,6 +214,18 @@ struct TypefaceLimits final {
 };
 
 struct FaceLimits final {
+    // A mask's and a run's box. Nothing ties a glyph's extent to its em, so
+    // one glyph of a hostile font may fill these at an ordinary size (a font
+    // of 64 units to the em allows 512 ems a side). What one glyph can then
+    // cost a draw, at the defaults (16,384 by 16,384 pixels, most_mask_side):
+    // a mask of up to 2.7 x 10^8 bytes, drawn in bands (65 at the side's
+    // limit, 386 for a monochrome mask) with the outline flattened again for
+    // each, of the order of 10^8 to 10^9 operations; a run's own coverage is
+    // as large again. It is bounded by these limits and by nothing smaller.
+    // DrawStyle::windowed leaves out glyphs wholly outside the window but
+    // draws one that touches it whole. A caller drawing untrusted fonts that
+    // wants a smaller bound sets smaller limits here (for text, 2,048 a side
+    // holds any glyph of a few ems at the sizes text is read at).
     Limits mask{};
     // The storage for fitted outlines never exceeds this many bytes. An
     // outline takes 9 bytes a point of its segments and 96 for itself.
