@@ -132,6 +132,9 @@ struct Context final {
     Vector<BlockRecord> blocks{};
     Vector<Line> lines{};
     Vector<Container> containers{};
+    // The indexes of the open quotes among the containers, rising: a blank
+    // line finds the first quote it is not inside by one binary search.
+    Vector<u32> quotes{};
     // The leaf block being built: an index into blocks, or none.
     u32 current_block{none};
     // The length of the fence that opened the fenced code block being read.

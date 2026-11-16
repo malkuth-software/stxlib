@@ -100,6 +100,7 @@ struct Inline final {
 
 [[nodiscard]] bool add_mark(Context& ctx, const char ch, const u32 begin, const u32 end, const u8 flags) noexcept {
     const Mark mark{.begin = begin, .end = end, .previous = none, .next = none, .ch = ch, .flags = flags};
+    if (ctx.marks.count() >= ctx.limits.marks) return fail(ctx, ErrorKind::limit_exceeded);
     if (ctx.marks.push_copy(mark).failed()) return fail(ctx, ErrorKind::out_of_memory);
     return true;
 }
@@ -164,7 +165,7 @@ struct CodeSpan final {
         if (run > 0) {
             only_spaces = false;
             // Not this span's closer; perhaps a later one's.
-            if (run < code_span_longest && closer_begin > last_closers[run - 1]) last_closers[run - 1] = closer_begin;
+            if (run <= code_span_longest && closer_begin > last_closers[run - 1]) last_closers[run - 1] = closer_begin;
         }
         if (closer_end >= line_end) {
             index = index + 1;
