@@ -848,7 +848,8 @@ void vector_of_its_own_node() {
 
 static_assert(__is_nothrow_constructible(stxlib::Utf8String, const stxlib::Utf8String&), "Utf8String copies");
 static_assert(__is_nothrow_assignable(stxlib::Utf8String&, const stxlib::Utf8String&), "Utf8String copy-assigns");
-static_assert(stxlib::Optional<stxlib::Utf8String>::copyable, "Optional<Utf8String> copies (Optional's rule unchanged)");
+static_assert(__is_nothrow_assignable(stxlib::Optional<stxlib::Utf8String>&, const stxlib::Optional<stxlib::Utf8String>&),
+              "Optional<Utf8String> copy-assigns (Optional's rule unchanged)");
 static_assert(__is_nothrow_constructible(stxlib::Optional<stxlib::Utf8String>, const stxlib::Optional<stxlib::Utf8String>&),
               "Optional<Utf8String> copy-constructs");
 static_assert(__is_nothrow_constructible(stxlib::Vector<stxlib::Utf8String>, const stxlib::Vector<stxlib::Utf8String>&),
