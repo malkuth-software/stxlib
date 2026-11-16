@@ -362,11 +362,14 @@ bool next_stretch(const Font& font, const u32 from, MappedStretch& stretch) noex
             stretch.place = static_cast<u32>(low);
         }
     } else if (format == 6) {
+        // An empty table covers nothing.
         const u32 first = read_u16(map, 6);
         const u32 count = read_u16(map, 8);
         found = count != 0 && from < first + count;
-        stretch.first = first;
-        stretch.last = first + count - 1;
+        if (found) {
+            stretch.first = first;
+            stretch.last = first + count - 1;
+        }
     } else {
         // The first group that ends at or after `from`.
         usize low = 0;

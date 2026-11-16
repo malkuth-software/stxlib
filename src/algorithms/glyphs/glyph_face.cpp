@@ -3,6 +3,7 @@
 #include "stxlib/glyph_face.hpp"
 
 #include "algorithms/glyphs/font_reader.hpp"
+#include "core/checked.hpp"
 #include "stxlib/glyph_hinter.hpp"
 #include "stxlib/threads.hpp"
 
@@ -223,7 +224,9 @@ inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;
     return result;
 }
 
-[[nodiscard]] constexpr usize slot_of(const u32 glyph, const u32 size, const u32 fit, const usize slots) noexcept {
+// Where in a table of `slots` (a power of two) a glyph at a size and fit
+// begins to be looked for: a multiplicative hash, arithmetic modulo 2^64.
+[[nodiscard]] STXLIB_MODULAR constexpr usize slot_of(const u32 glyph, const u32 size, const u32 fit, const usize slots) noexcept {
     u64 hash = glyph;
     hash = (hash * 0x9E3779B97F4A7C15ULL) ^ size;
     hash = (hash * 0x9E3779B97F4A7C15ULL) ^ fit;
