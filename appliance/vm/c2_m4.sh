@@ -147,7 +147,10 @@ boot c2-boot1 --ssh-forward-port "$ssh_port" \
     --step 'expect:10:STXSUPERVISOR system armed slot=B' \
     --step 'expect:10:STXSUPERVISOR reboot requested=system-update' \
     --step 'exit:60' || { echo "c2_m4: boot 1 failed"; exit 1; }
-boot1_log=$(ls -d "$storage/appliance/logs/scenarios/$vm/"*-c2-boot1 | tail -1)/serial.lines
+# scenario.py writes its logs under the layout's root (vmlayout.py, the same
+# default as prepare_vm and guest_session), which need not be $storage.
+layout_root=$(python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import vmlayout; print(vmlayout.STORAGE_ROOT_DEFAULT)' "$PWD")
+boot1_log=$(ls -d "$layout_root/appliance/logs/scenarios/$vm/"*-c2-boot1 | tail -1)/serial.lines
 # The second target's start, read from the whole boot: two targets' output
 # reaches the console in either order, and the steps above are ordered.
 grep -q 'STXIDLE version=1 folder=/data/targets/idle' "$boot1_log" \
