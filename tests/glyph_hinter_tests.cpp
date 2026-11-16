@@ -85,6 +85,7 @@
 #include "stxlib/threads.hpp"
 
 #include "font_builder.hpp"
+#include "algorithms/glyphs/hinter.hpp"
 #include "algorithms/glyphs/turn_lattice.hpp"
 #include "test_support.hpp"
 
@@ -782,14 +783,20 @@ void stored() {
         CHECK(same);
     }
     CHECK(store.glyphs_read() == glyph_count);
-    // Read once: a font with no bytes behind it serves from here on, and
-    // nothing more is counted as read.
+    // Read once: asked again, each glyph is served from here, and nothing
+    // more is counted as read.
+    for (u32 index = 0; index < glyph_count; ++index) CHECK(store.glyph(opened.font, index, glyph).succeeded());
+    CHECK(store.glyphs_read() == glyph_count);
+    // The store knows its font by its bytes and tables, not by its count of
+    // glyphs (A-stxlib-glyphs-01-F10): the same numbers with other bytes
+    // behind them are another font, and refused.
     glyphs::Font hollow = opened.font;
     hollow.bytes = stxlib::View<u8>();
     hollow.glyf = glyphs::FontTable{};
     hollow.loca = glyphs::FontTable{};
     hollow.hmtx = glyphs::FontTable{};
-    for (u32 index = 0; index < glyph_count; ++index) CHECK(store.glyph(hollow, index, glyph).succeeded());
+    const stxlib::Status other = store.glyph(hollow, glyph_H, glyph);
+    CHECK(other.failed() && (*other.error()).kind() == stxlib::ErrorKind::invalid_argument);
     CHECK(store.glyphs_read() == glyph_count);
     // Hinted from the store, a glyph is the glyph hinted from the font.
     const glyphs::HintMode modes[] = {glyphs::HintMode::light, glyphs::HintMode::monochrome};
@@ -814,7 +821,7 @@ void stored() {
     glyphs::GlyphStore strict{};
     CHECK(strict.open(opened.font, few).succeeded());
     const stxlib::Status first = strict.glyph(opened.font, glyph_H, glyph);
-    const stxlib::Status second = strict.glyph(hollow, glyph_H, glyph);
+    const stxlib::Status second = strict.glyph(opened.font, glyph_H, glyph);
     CHECK(first.failed() && (*first.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(second.failed() && (*second.error()).kind() == stxlib::ErrorKind::limit_exceeded);
     CHECK(strict.glyphs_read() == 1 && glyph.points.empty());
@@ -911,7 +918,7 @@ void store_size() {
     if (fit == glyphs::Fit::none) {
         const i64 scale = glyphs::scale_of(opened.font, size);
         if (glyphs::load_glyph(opened.font, glyph, opened.limits, outline).failed()) return false;
-        glyphs::scale_outline(outline, scale, scale);
+        if (glyphs::scale_outline(outline, scale, scale).failed()) return false;
     } else {
         const glyphs::HintMode mode = fit == glyphs::Fit::monochrome ? glyphs::HintMode::monochrome : glyphs::HintMode::light;
         if (opened.hinter.hint_glyph(opened.font, glyph, size, mode, opened.limits, outline, advance).failed()) return false;
@@ -970,8 +977,8 @@ void face_basics() {
             bool had = true;
             if (fit == glyphs::Fit::none) {
                 const i64 scale = glyphs::scale_of(opened.font, size);
-                had = glyphs::load_glyph(opened.font, glyph, opened.limits, outline).succeeded();
-                glyphs::scale_outline(outline, scale, scale);
+                had = glyphs::load_glyph(opened.font, glyph, opened.limits, outline).succeeded() &&
+                      glyphs::scale_outline(outline, scale, scale).succeeded();
                 advance = times(glyphs::advance_of(opened.font, glyph), scale);
             } else {
                 const glyphs::HintMode mode = fit == glyphs::Fit::monochrome ? glyphs::HintMode::monochrome : glyphs::HintMode::light;
@@ -2098,8 +2105,8 @@ void font_numbers() {
                       glyphs::load_glyph(parts_font, 2, limits, whole).succeeded() &&
                       typeface.fit(2, size, glyphs::Fit::none, got, advance).succeeded() && typeface.ink_box(2, size, box).succeeded() &&
                       same_outline(expected, got) && expected.points.count() == 8;
+                all = all && glyphs::scale_outline(whole, scale, scale).succeeded();
                 if (!all) break;
-                glyphs::scale_outline(whole, scale, scale);
                 some_differ_from_whole = some_differ_from_whole || !same_outline(whole, expected);
                 i32 left = expected.points[0].x;
                 i32 right = left;
@@ -2255,6 +2262,57 @@ void robustness() {
 
 // With "--write-font <path>" the font of the letters is written out, to be
 // looked at with another program, and nothing is tested.
+// The audit of 2026-11-16: the hinter's bounds (A-stxlib-glyphs-03-F1, F2),
+// a typeface opened once (02-F11), a mask's shift (04-F4).
+void audit_findings() {
+    Opened opened{};
+    open_letters(opened);
+    if (!opened.ready) return;
+    glyphs::Typeface typeface{};
+    CHECK(typeface.open(view_of(opened.bytes), 0).succeeded());
+    const stxlib::Status twice = typeface.open(view_of(opened.bytes), 0);
+    CHECK(twice.failed() && (*twice.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    // Within the bounds up to hint_most_units, points and advance alike.
+    const i32 most = static_cast<i32>(glyphs::detail::hint_most_units);
+    const glyphs::Point near[2] = {{-most, most}, {0, 0}};
+    const glyphs::Point far[2] = {{0, 0}, {most + 1, 0}};
+    CHECK(glyphs::detail::within_hint_bounds(stxlib::View<glyphs::Point>(near), most));
+    CHECK(!glyphs::detail::within_hint_bounds(stxlib::View<glyphs::Point>(far), 0));
+    CHECK(!glyphs::detail::within_hint_bounds(stxlib::View<glyphs::Point>(near), most + 1));
+    CHECK(!glyphs::detail::within_hint_bounds(stxlib::View<glyphs::Point>(near), -most - 1));
+    // Above hint_most_scale (here 2^24 sixty-fourths at 1,000 units, a scale
+    // of about 2^30) a hinted fit is the outline unhinted, as Fit::none
+    // gives it, with its advance rounded to a whole pixel.
+    glyphs::Face face{};
+    CHECK(face.open(view_of(opened.bytes), 0).succeeded());
+    const i64 huge = static_cast<i64>(1) << 24;
+    CHECK(glyphs::scale_of(opened.font, huge) > glyphs::detail::hint_most_scale);
+    const glyphs::Fit hinted_fits[] = {glyphs::Fit::light, glyphs::Fit::monochrome};
+    for (const glyphs::Fit fit : hinted_fits) {
+        glyphs::FittedGlyph fitted{};
+        CHECK(face.fitted(glyph_H, huge, glyphs::Fit::none, fitted).succeeded());
+        const std::vector<glyphs::Point> plain(fitted.outline.points.data(), fitted.outline.points.data() + fitted.outline.points.count());
+        const i32 plain_advance = fitted.advance;
+        CHECK(face.fitted(glyph_H, huge, fit, fitted).succeeded());
+        bool same = !plain.empty() && fitted.outline.points.count() == plain.size();
+        for (usize index = 0; same && index < plain.size(); ++index) {
+            same = fitted.outline.points[index].x == plain[index].x && fitted.outline.points[index].y == plain[index].y;
+        }
+        CHECK(same);
+        const i32 off = fitted.advance - plain_advance;
+        CHECK(fitted.advance % 64 == 0 && off >= -32 && off <= 32);
+    }
+    // A shift farther than 2^30 sixty-fourths is refused.
+    glyphs::DrawStyle style{};
+    style.size = 16 * 64;
+    style.fit = glyphs::Fit::none;
+    glyphs::Bounds bounds{};
+    stxlib::Vector<u8> pixels{};
+    const stxlib::Status shifted = face.mask(glyph_H, style, glyphs::Point{.x = (1 << 30) + 1, .y = 0}, bounds, pixels);
+    CHECK(shifted.failed() && (*shifted.error()).kind() == stxlib::ErrorKind::invalid_argument);
+    CHECK(face.mask(glyph_H, style, glyphs::Point{.x = 1 << 30, .y = -(1 << 30)}, bounds, pixels).succeeded());
+}
+
 int main(const int argument_count, const char* const* const arguments) {
     if (argument_count == 3 && std::strcmp(arguments[1], "--write-font") == 0) {
         const Bytes font = letter_font();
@@ -2285,6 +2343,7 @@ int main(const int argument_count, const char* const* const arguments) {
     font_numbers();
     repeated();
     without_blue_zones();
+    audit_findings();
     robustness();
     // The checked program (CMakeLists.txt, stxlib_glyphs_checked) is this
     // test on glyph code that checks every structure whole at every exit.

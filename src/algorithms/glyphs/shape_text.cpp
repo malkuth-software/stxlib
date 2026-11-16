@@ -1131,7 +1131,7 @@ void shape_internal(Shaping& shaping) noexcept {
     if (plan.apply_kern) apply_old_kerning(*font.font, plan, buffer, font.scale);
     if (plan.zero_marks) zero_mark_widths(buffer, adjust_offsets);
     zero_width_default_ignorables(buffer);
-    finish_positions(buffer);
+    finish_positions(buffer, *shaping.work);
     if (plan.fallback_mark_positioning) position_marks(shaping, adjust_offsets);
     if (!is_forward(buffer.direction)) buffer.reverse();
 
@@ -1176,9 +1176,11 @@ i32 shape_advance(const ShapeFont& font, const u32 glyph) noexcept {
         units = read_u16(font.advances, index * 4);
     }
     if (font.advance_scale == 0) return static_cast<i32>(units);
-    // The advance in 16.16 pixels, rounded, and that to 26.6, rounded.
+    // The advance in 16.16 pixels, rounded, and that to 26.6, rounded; a
+    // 16-bit advance at a scale below 2^40 is inside 56 bits, and the
+    // result is saturated to 32.
     const i64 fine = (units * font.advance_scale + 32) / 64;
-    const i32 result = static_cast<i32>((fine + 512) >> 10);
+    const i32 result = saturate((fine + 512) >> 10);
     return result;
 }
 
@@ -1191,6 +1193,7 @@ bool shape_run(const ShapePlan& plan, const ShapeFont& font, ShapeBuffer& buffer
     shaping.target = buffer.direction;
     if (!prepare_work(work)) {
         buffer.successful = false;
+        buffer.memory_failed = true;
         return false;
     }
     buffer.enter();

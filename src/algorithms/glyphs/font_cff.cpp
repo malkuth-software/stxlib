@@ -11,9 +11,16 @@
 // program in the sense of TrueType's: there is no loop and no jump, a
 // subroutine is another list, called at most ten deep, and the whole glyph
 // has a budget of steps. The hint operators are counted (their count says
-// how long a mask is) and otherwise passed over. Not read: the arithmetic
-// and storage operators, and the accented-character form of endchar, which
-// the format has retired; a glyph that uses one is refused.
+// how long a mask is) and otherwise passed over. As read-fonts 0.47.0 and
+// FreeType read them: dotsection does nothing, a reserved operator clears
+// the operands, the arithmetic and storage operators (retired by the format
+// but still in fonts converted from Type 1) are run on the operands, and a
+// path operator takes the operands it has room for and drops spare ones at
+// the front (the curves) or the end. Not read: the accented-character form
+// (seac, and endchar with four operands), which needs the font's charset
+// and the standard encoding that this reader does not have; and `random`,
+// which read-fonts leaves out too (a reserved operator here). A glyph that
+// uses seac is refused.
 
 #include "algorithms/glyphs/font_reader.hpp"
 
@@ -221,13 +228,23 @@ struct Path final {
     return static_cast<i32>(result);
 }
 
+// A point and its tag, both or neither: after a failure nothing more is
+// put (the charstring stops at the next operator).
 void put_point(Path& path, const Point point, const PointTag tag) noexcept {
     GlyphOutline& outline = *path.outline;
+    if (path.no_memory || path.too_large) return;
     if (outline.points.count() >= (*path.limits).points) {
         path.too_large = true;
         return;
     }
-    if (outline.points.push_copy(point).failed() || outline.tags.push_copy(tag).failed()) path.no_memory = true;
+    if (outline.points.push_copy(point).failed()) {
+        path.no_memory = true;
+        return;
+    }
+    if (outline.tags.push_copy(tag).failed()) {
+        outline.points.truncate(outline.points.count() - 1);
+        path.no_memory = true;
+    }
 }
 
 void flush(Path& path, const bool closing) noexcept {
@@ -280,6 +297,7 @@ void path_close(Path& path) noexcept {
     flush(path, true);
     if (!path.open) return;
     path.open = false;
+    if (path.no_memory || path.too_large) return;
     GlyphOutline& outline = *path.outline;
     const usize count = outline.points.count();
     const usize contours = outline.contour_ends.count();
@@ -298,12 +316,23 @@ struct Call final {
     usize cursor{0};
 };
 
+// The transient array of the storage operators.
+inline constexpr usize storage_size = 32;
+// The current point is refused beyond this, 16.16 (2^24 font units, where
+// a coordinate is clamped): its sums then stay inside 64 bits whatever the
+// step budget.
+inline constexpr i64 farthest_current = static_cast<i64>(1) << 40;
+
 struct Machine final {
     Path path{};
     Index global{};
     Index local{};
+    // The operands, 16.16, each inside 32 bits; and whether each was given
+    // as a real number (an integer was given whole).
     i64 arguments[most_arguments]{};
+    bool real[most_arguments]{};
     usize count{0};
+    i64 storage[storage_size]{};
     // Where the path is, 16.16.
     i64 x{0};
     i64 y{0};
@@ -318,6 +347,214 @@ enum class Ran : u8 {
     invalid = 1,
     too_large = 2,
 };
+
+// A 16.16 number's 32 bits, as FreeType's arithmetic wraps them.
+[[nodiscard]] constexpr i64 wrapped(const i64 value) noexcept {
+    const i64 result = static_cast<i32>(static_cast<u32>(static_cast<u64>(value)));
+    return result;
+}
+
+[[nodiscard]] bool push_number(Machine& machine, const i64 value, const bool real) noexcept {
+    if (machine.count >= most_arguments) return false;
+    machine.arguments[machine.count] = value;
+    machine.real[machine.count] = real;
+    machine.count = machine.count + 1;
+    return true;
+}
+
+// The top operand, as 16.16; false when there is none.
+[[nodiscard]] bool pop_number(Machine& machine, i64& value) noexcept {
+    if (machine.count == 0) return false;
+    machine.count = machine.count - 1;
+    value = machine.arguments[machine.count];
+    return true;
+}
+
+// The top operand, which must have been given whole, as an integer.
+[[nodiscard]] bool pop_integer(Machine& machine, i64& value) noexcept {
+    if (machine.count == 0 || machine.real[machine.count - 1]) return false;
+    machine.count = machine.count - 1;
+    value = machine.arguments[machine.count] / 65536;
+    return true;
+}
+
+// 16.16 division as read-fonts' Fixed has it: rounded, the greatest
+// number for a divisor of 0.
+[[nodiscard]] i64 divide_numbers(const i64 a, const i64 b) noexcept {
+    const bool negative = (a < 0) != (b < 0);
+    const u64 a_size = static_cast<u64>(a < 0 ? -a : a);
+    const u64 b_size = static_cast<u64>(b < 0 ? -b : b);
+    const u32 quotient = b_size == 0 ? 0x7FFFFFFFU : static_cast<u32>(((a_size << 16) + (b_size >> 1)) / b_size);
+    const i64 result = negative ? wrapped(-static_cast<i64>(quotient)) : wrapped(quotient);
+    return result;
+}
+
+// 16.16 product, rounded, halves away from zero, cut to 32 bits.
+[[nodiscard]] i64 multiply_numbers(const i64 a, const i64 b) noexcept {
+    const i64 product = a * b;
+    const i64 result = wrapped((product + 0x8000 - (product < 0 ? 1 : 0)) >> 16);
+    return result;
+}
+
+// read-fonts' square root of a 16.16 number: 0 for one not above 0, else
+// by halving its value and the Babylonian rule to a fixed point (bounded
+// here, though it settles in a few dozen turns).
+[[nodiscard]] i64 square_root(const i64 value) noexcept {
+    if (value <= 0) return 0;
+    i64 root = value < 10 ? value : value >> 1;
+    for (usize turn = 0; turn < 64; ++turn) {
+        const i64 next = (root + divide_numbers(value, root) + 1) >> 1;
+        if (next == root) return next;
+        root = next;
+    }
+    return root;
+}
+
+// The arithmetic, storage and stack operators (12 x): none clears the
+// operands; each leaves its answer for the operator after it. False for
+// an operator not among them; `valid` false for one that cannot be run
+// (too few operands, an index given as a real number).
+[[nodiscard]] bool reckon(Machine& machine, const u32 operation, bool& valid) noexcept {
+    i64 a = 0;
+    i64 b = 0;
+    valid = true;
+    if (operation == 3 || operation == 4 || operation == 15) {
+        // and, or, eq: whole-number answers.
+        valid = pop_number(machine, b) && pop_number(machine, a);
+        bool answer = a == b;
+        if (operation == 3) answer = a != 0 && b != 0;
+        if (operation == 4) answer = a != 0 || b != 0;
+        valid = valid && push_number(machine, answer ? 65536 : 0, false);
+        return true;
+    }
+    if (operation == 5) {
+        // not
+        valid = pop_number(machine, a) && push_number(machine, a == 0 ? 65536 : 0, false);
+        return true;
+    }
+    if (operation == 9 || operation == 14) {
+        // abs, neg: the most negative number has no opposite and becomes
+        // the greatest.
+        valid = pop_number(machine, a);
+        i64 answer = operation == 9 ? (a < 0 ? -a : a) : -a;
+        if (a < -0x7FFFFFFFLL) answer = 0x7FFFFFFFLL;
+        valid = valid && push_number(machine, answer, true);
+        return true;
+    }
+    if (operation == 10 || operation == 11) {
+        // add, sub: wrapping, as FreeType's are.
+        valid = pop_number(machine, b) && pop_number(machine, a);
+        valid = valid && push_number(machine, wrapped(operation == 10 ? a + b : a - b), true);
+        return true;
+    }
+    if (operation == 12) {
+        valid = pop_number(machine, b) && pop_number(machine, a) && push_number(machine, divide_numbers(a, b), true);
+        return true;
+    }
+    if (operation == 24) {
+        valid = pop_number(machine, b) && pop_number(machine, a) && push_number(machine, multiply_numbers(a, b), true);
+        return true;
+    }
+    if (operation == 26) {
+        valid = pop_number(machine, a) && push_number(machine, square_root(a), true);
+        return true;
+    }
+    if (operation == 18) {
+        // drop
+        valid = pop_number(machine, a);
+        return true;
+    }
+    if (operation == 27) {
+        // dup
+        valid = machine.count > 0;
+        const bool real = valid && machine.real[machine.count - 1];
+        valid = valid && pop_number(machine, a) && push_number(machine, a, real) && push_number(machine, a, real);
+        return true;
+    }
+    if (operation == 28) {
+        // exch
+        valid = machine.count >= 2;
+        if (valid) {
+            const usize top = machine.count - 1;
+            const i64 held = machine.arguments[top];
+            const bool held_real = machine.real[top];
+            machine.arguments[top] = machine.arguments[top - 1];
+            machine.real[top] = machine.real[top - 1];
+            machine.arguments[top - 1] = held;
+            machine.real[top - 1] = held_real;
+        }
+        return true;
+    }
+    if (operation == 29) {
+        // index: a negative index names the top, one past the bottom the
+        // bottom; nothing is pushed on an empty stack.
+        valid = pop_integer(machine, a);
+        if (valid && machine.count > 0) {
+            const usize length = machine.count;
+            usize from_bottom = length - 1;
+            if (a >= 0 && static_cast<u64>(a) >= length) {
+                from_bottom = 0;
+            } else if (a > 0) {
+                from_bottom = length - 1 - static_cast<usize>(a);
+            }
+            valid = push_number(machine, machine.arguments[from_bottom], machine.real[from_bottom]);
+        }
+        return true;
+    }
+    if (operation == 30) {
+        // roll: the top `count` operands moved up by `shift`, round.
+        valid = pop_integer(machine, b) && pop_integer(machine, a);
+        if (!valid || a < 2) return true;
+        if (static_cast<u64>(a) > machine.count) {
+            valid = false;
+            return true;
+        }
+        const usize count = static_cast<usize>(a);
+        const usize offset = machine.count - count;
+        const i64 signed_count = a;
+        i64 shift = b < 0 ? -((-b) % signed_count) : b % signed_count;
+        if (shift < 0) shift = shift + signed_count;
+        // Turned by `shift`, by three reversals.
+        const usize turn = static_cast<usize>(shift);
+        const usize spans[3][2] = {{offset, offset + count - turn}, {offset + count - turn, offset + count}, {offset, offset + count}};
+        for (usize part = 0; part < 3 && turn != 0; ++part) {
+            usize low = spans[part][0];
+            usize high = spans[part][1];
+            while (high > low + 1) {
+                high = high - 1;
+                const i64 held = machine.arguments[low];
+                const bool held_real = machine.real[low];
+                machine.arguments[low] = machine.arguments[high];
+                machine.real[low] = machine.real[high];
+                machine.arguments[high] = held;
+                machine.real[high] = held_real;
+                low = low + 1;
+            }
+        }
+        return true;
+    }
+    if (operation == 20) {
+        // put: an index the array has not is dropped.
+        valid = pop_integer(machine, b) && pop_number(machine, a);
+        if (valid && b >= 0 && static_cast<u64>(b) < storage_size) machine.storage[b] = a;
+        return true;
+    }
+    if (operation == 21) {
+        // get: an index the array has not pushes nothing.
+        valid = pop_integer(machine, a);
+        if (valid && a >= 0 && static_cast<u64>(a) < storage_size) valid = push_number(machine, machine.storage[a], true);
+        return true;
+    }
+    if (operation == 22) {
+        // ifelse
+        i64 first_condition = 0;
+        i64 second_condition = 0;
+        valid = pop_number(machine, second_condition) && pop_number(machine, first_condition) && pop_number(machine, b) && pop_number(machine, a);
+        valid = valid && push_number(machine, first_condition <= second_condition ? a : b, true);
+        return true;
+    }
+    return false;
+}
 
 // Something is drawn: a path with no move before it begins at the origin.
 void begin_if_not(Machine& machine) noexcept {
@@ -358,24 +595,31 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
     return true;
 }
 
-// The path operators. Each takes all the arguments there are; a count that
-// does not fit the operator is refused.
+// Operand `index`, or 0 past the last (as read-fonts pads a pair).
+[[nodiscard]] i64 operand_or_zero(const Machine& machine, const usize index) noexcept {
+    const i64 result = index < machine.count ? machine.arguments[index] : 0;
+    return result;
+}
+
+// The path operators, as read-fonts reads them: each takes the operands
+// it has room for. Lines take pairs, a last odd one with 0; curves take
+// what makes whole curves and drop the rest (the vv, hh, vh and hv curves
+// drop two at the front when the count is two more than they take, as
+// FreeType does). A curve that would read past the operands is refused.
 [[nodiscard]] bool draw(Machine& machine, const u32 operation) noexcept {
     const i64* const a = machine.arguments;
     const usize n = machine.count;
     if (operation == 5) {
         // rlineto
-        if (n < 2 || n % 2 != 0) return false;
         for (usize i = 0; i < n; i = i + 2) {
             machine.x = machine.x + a[i];
-            machine.y = machine.y + a[i + 1];
+            machine.y = machine.y + operand_or_zero(machine, i + 1);
             line_to(machine);
         }
         return true;
     }
     if (operation == 6 || operation == 7) {
         // hlineto, vlineto: the two directions in turn.
-        if (n < 1) return false;
         bool across = operation == 6;
         for (usize i = 0; i < n; ++i) {
             if (across) {
@@ -388,62 +632,67 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
         }
         return true;
     }
-    if (operation == 8) {
-        // rrcurveto
-        if (n < 6 || n % 6 != 0) return false;
-        for (usize i = 0; i < n; i = i + 6) curve_by(machine, a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], a[i + 5]);
-        return true;
-    }
-    if (operation == 24) {
-        // rcurveline
-        if (n < 8 || (n - 2) % 6 != 0) return false;
-        for (usize i = 0; i + 2 < n; i = i + 6) curve_by(machine, a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], a[i + 5]);
-        machine.x = machine.x + a[n - 2];
-        machine.y = machine.y + a[n - 1];
-        line_to(machine);
+    if (operation == 8 || operation == 24) {
+        // rrcurveto, rcurveline
+        usize i = 0;
+        while (n - i >= 6) {
+            curve_by(machine, a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], a[i + 5]);
+            i = i + 6;
+        }
+        if (operation == 24) {
+            machine.x = machine.x + operand_or_zero(machine, i);
+            machine.y = machine.y + operand_or_zero(machine, i + 1);
+            line_to(machine);
+        }
         return true;
     }
     if (operation == 25) {
         // rlinecurve
-        if (n < 8 || (n - 6) % 2 != 0) return false;
-        for (usize i = 0; i + 6 < n; i = i + 2) {
+        usize i = 0;
+        while (n - i > 6) {
             machine.x = machine.x + a[i];
-            machine.y = machine.y + a[i + 1];
+            machine.y = machine.y + operand_or_zero(machine, i + 1);
             line_to(machine);
+            i = i + 2;
         }
-        curve_by(machine, a[n - 6], a[n - 5], a[n - 4], a[n - 3], a[n - 2], a[n - 1]);
+        while (n - i >= 6) {
+            curve_by(machine, a[i], a[i + 1], a[i + 2], a[i + 3], a[i + 4], a[i + 5]);
+            i = i + 6;
+        }
         return true;
     }
     if (operation == 26 || operation == 27) {
-        // vvcurveto, hhcurveto: an odd first argument steps the other way.
-        usize i = 0;
-        if (n % 2 != 0) {
-            if (operation == 26) {
-                machine.x = machine.x + a[0];
-            } else {
-                machine.y = machine.y + a[0];
+        // vvcurveto, hhcurveto: an odd first operand steps the other way.
+        const usize count = n & ~static_cast<usize>(2);
+        usize i = n - count;
+        while (i < count) {
+            if (((count - i) & 1) != 0) {
+                if (operation == 26) {
+                    machine.x = machine.x + a[i];
+                } else {
+                    machine.y = machine.y + a[i];
+                }
+                i = i + 1;
             }
-            i = 1;
-        }
-        if (n - i < 4 || (n - i) % 4 != 0) return false;
-        for (; i < n; i = i + 4) {
+            if (n - i < 4) return false;
             if (operation == 26) {
                 curve_by(machine, 0, a[i], a[i + 1], a[i + 2], 0, a[i + 3]);
             } else {
                 curve_by(machine, a[i], 0, a[i + 1], a[i + 2], a[i + 3], 0);
             }
+            i = i + 4;
         }
         return true;
     }
     if (operation == 30 || operation == 31) {
         // vhcurveto, hvcurveto: curves that begin along one axis and end
-        // along the other, in turn; a last odd argument finishes the last.
-        if (n < 4) return false;
+        // along the other, in turn; a fifth operand finishes the last.
+        const usize count = n & ~static_cast<usize>(2);
         bool across = operation == 31;
-        usize i = 0;
-        while (i < n) {
-            if (n - i < 4) return false;
-            const bool last = n - i == 5;
+        usize i = n - count;
+        while (i < count) {
+            const bool last = count - i == 5;
+            if (n - i < (last ? 5U : 4U)) return false;
             const i64 extra = last ? a[i + 4] : 0;
             if (across) {
                 curve_by(machine, a[i], 0, a[i + 1], a[i + 2], extra, a[i + 3]);
@@ -458,32 +707,33 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
     return false;
 }
 
-// The flex operators: two curves.
+// The flex operators: two curves, from the first operands (the flex depth
+// and any more are not read).
 [[nodiscard]] bool flex(Machine& machine, const u32 operation) noexcept {
     const i64* const a = machine.arguments;
     const usize n = machine.count;
     const i64 start_x = machine.x;
     const i64 start_y = machine.y;
     if (operation == 35) {
-        if (n != 13) return false;
+        if (n < 12) return false;
         curve_by(machine, a[0], a[1], a[2], a[3], a[4], a[5]);
         curve_by(machine, a[6], a[7], a[8], a[9], a[10], a[11]);
         return true;
     }
     if (operation == 34) {
-        if (n != 7) return false;
+        if (n < 7) return false;
         curve_by(machine, a[0], 0, a[1], a[2], a[3], 0);
         curve_by(machine, a[4], 0, a[5], -a[2], a[6], 0);
         return true;
     }
     if (operation == 36) {
-        if (n != 9) return false;
+        if (n < 9) return false;
         curve_by(machine, a[0], a[1], a[2], a[3], a[4], 0);
         curve_by(machine, a[5], 0, a[6], a[7], a[8], -(a[1] + a[3] + a[7]));
         return true;
     }
     if (operation == 37) {
-        if (n != 11) return false;
+        if (n < 11) return false;
         curve_by(machine, a[0], a[1], a[2], a[3], a[4], a[5]);
         // The last step is along whichever axis the flex has gone further.
         const i64 dx = a[0] + a[2] + a[4] + a[6] + a[8];
@@ -521,6 +771,7 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
         // Numbers.
         if (first == 28 || first >= 32) {
             i64 value = 0;
+            const bool real = first == 255;
             if (first == 28) {
                 if (!has(code, call.cursor, 2)) return Ran::invalid;
                 value = static_cast<i64>(read_i16(code, call.cursor)) * 65536;
@@ -541,9 +792,7 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
                 value = bits >= 0x80000000U ? static_cast<i64>(bits) - 0x100000000LL : static_cast<i64>(bits);
                 call.cursor = call.cursor + 4;
             }
-            if (machine.count >= most_arguments) return Ran::invalid;
-            machine.arguments[machine.count] = value;
-            machine.count = machine.count + 1;
+            if (!push_number(machine, value, real)) return Ran::invalid;
             continue;
         }
         const usize n = machine.count;
@@ -561,10 +810,10 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
             if (!has(code, call.cursor, bytes)) return Ran::invalid;
             call.cursor = call.cursor + bytes;
         } else if (first == 21 || first == 22 || first == 4) {
-            // rmoveto, hmoveto, vmoveto: the last arguments, a width before
-            // them or not.
+            // rmoveto, hmoveto, vmoveto: the last operands; what is under
+            // them (a width, or anything) is not read.
             const usize needed = first == 21 ? 2 : 1;
-            if (n < needed || n > needed + 1) return Ran::invalid;
+            if (n < needed) return Ran::invalid;
             if (first == 21) {
                 machine.x = machine.x + a[n - 2];
                 machine.y = machine.y + a[n - 1];
@@ -587,8 +836,8 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
         } else if (first == 11) {
             depth = depth - 1;
         } else if (first == 14) {
-            // endchar. With four arguments it once named two other glyphs
-            // to put together; that form is not read.
+            // endchar. With four operands it names two other glyphs to put
+            // together (seac): not read here.
             if (n >= 4) return Ran::invalid;
             if (machine.drawing) path_close(machine.path);
             machine.drawing = false;
@@ -597,8 +846,31 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
             if (!has(code, call.cursor, 1)) return Ran::invalid;
             const u32 second = read_u8(code, call.cursor);
             call.cursor = call.cursor + 1;
-            begin_if_not(machine);
-            if (!flex(machine, second)) return Ran::invalid;
+            bool valid = true;
+            if (second >= 34 && second <= 37) {
+                begin_if_not(machine);
+                if (!flex(machine, second)) return Ran::invalid;
+                machine.count = 0;
+            } else if (reckon(machine, second, valid)) {
+                if (!valid) return Ran::invalid;
+            } else if (second == 6) {
+                // seac: not read.
+                return Ran::invalid;
+            } else if (second == 0 || second == 7 || second == 17 || second == 33) {
+                // dotsection, and Type 1's sbw, pop and setcurrentpoint,
+                // which do nothing in a Type 2 charstring.
+            } else {
+                // Reserved, or Type 1's alone: the operands are cleared.
+                machine.count = 0;
+            }
+        } else if (first == 13) {
+            // Type 1's hsbw: nothing in a Type 2 charstring.
+        } else if (first == 15 || first == 16) {
+            // vsindex and blend: CFF2's, and a CFF font has no variation
+            // store for them (read-fonts refuses the glyph too).
+            return Ran::invalid;
+        } else if (first == 0 || first == 2 || first == 9 || first == 17) {
+            // Reserved: the operands are cleared.
             machine.count = 0;
         } else {
             begin_if_not(machine);
@@ -606,6 +878,10 @@ void curve_by(Machine& machine, const i64 dx1, const i64 dy1, const i64 dx2, con
             machine.count = 0;
         }
         if (machine.path.too_large) return Ran::too_large;
+        if (machine.path.no_memory) return Ran::done;
+        const bool near = machine.x >= -farthest_current && machine.x <= farthest_current && machine.y >= -farthest_current &&
+                          machine.y <= farthest_current;
+        if (!near) return Ran::invalid;
     }
     // A glyph that ends without endchar is closed all the same.
     if (machine.drawing) path_close(machine.path);

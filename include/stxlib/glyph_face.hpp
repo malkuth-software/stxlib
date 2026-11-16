@@ -159,7 +159,11 @@
 //
 // Threads. A Typeface: any threads at once (it locks; a Face goes to it
 // only for a glyph it has not fitted). A Face: one thread at a time. The
-// font's bytes are borrowed: they must outlive the Typeface. What a call
+// font's bytes are borrowed: they must outlive the Typeface and must not
+// change while it is open (a count read from them is read again where it
+// is used, so bytes that change under it, a file mapped for writing, can
+// take a read outside a table; a caller who cannot promise that opens a
+// copy). What a call
 // hands back as a view (FittedGlyph) is good until the next call on the
 // Face.
 //
@@ -391,6 +395,9 @@ public:
     // Opens face `face_index` of the font in `bytes` (0 for a font that is
     // not a collection). Nothing of its glyphs is read. To be done before
     // the typeface is shared: this one call is not for several threads.
+    // A typeface is opened once: open on one already open is refused
+    // (invalid_argument), since the faces and shapers that hold it hold
+    // its font.
     [[nodiscard]] Status open(View<u8> bytes, u32 face_index, const TypefaceLimits& limits = TypefaceLimits{}) noexcept;
 
     // The font opened (its numbers, and glyph_of, advance_of and
@@ -470,7 +477,8 @@ public:
     // measure gives them for the outline drawn (for a glyph turned by its
     // mask's surface, the pixels whose centres the turned mask reaches:
     // turn_lattice.hpp, rule 3), `pixels` bounds.width * bounds.height
-    // bytes, the top row first.
+    // bytes, the top row first. A shift farther than 2^30 either way is
+    // invalid_argument.
     [[nodiscard]] Status mask(u32 glyph, const DrawStyle& style, Point shift, Bounds& bounds, Vector<u8>& pixels) noexcept;
 
     // Where the run's ink can be, without drawing it.

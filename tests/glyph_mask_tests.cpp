@@ -897,6 +897,18 @@ void bounds_and_refusals() {
     CHECK(bounds.left == -1 && bounds.width == 5 && bounds.top == 0 && bounds.height == 2);
     const Shape nothing{};
     CHECK(glyphs::measure(outline_of(nothing), glyphs::Point{}, limits, bounds).succeeded() && bounds.width == 0 && bounds.height == 0);
+    // A04-F2: a side above most_mask_side is refused whatever the limits say.
+    Shape wide{};
+    add_polygon(wide, {{0, 0}, {16385 * 64, 0}, {16385 * 64, 64}});
+    glyphs::Limits raised{};
+    raised.width = static_cast<u32>(1) << 23;
+    raised.height = static_cast<u32>(1) << 23;
+    stxlib::Status side = glyphs::measure(outline_of(wide), glyphs::Point{}, raised, bounds);
+    CHECK(side.failed() && (*side.error()).kind() == stxlib::ErrorKind::limit_exceeded);
+    Shape widest{};
+    add_polygon(widest, {{0, 0}, {16384 * 64, 0}, {16384 * 64, 64}});
+    side = glyphs::measure(outline_of(widest), glyphs::Point{}, raised, bounds);
+    CHECK(side.succeeded() && bounds.width == glyphs::most_mask_side);
 
     glyphs::Rasterizer rasterizer{};
     std::vector<u8> bytes(64, 0);

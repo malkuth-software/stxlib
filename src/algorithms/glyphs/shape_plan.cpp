@@ -133,22 +133,102 @@ void choose_script(const LayoutTable& layout, const u32 tags[3], const usize tag
     chosen.system = language_system(layout, chosen.script, wanted);
 }
 
+// Items in order by `Before` (a functor: whether its first argument goes
+// before its second), in n log n steps whatever order they come in. For
+// items no two of which are equal by `Before`, so that the order is the
+// one order there is.
+template <typename Item, typename Before>
+void sift_down(Item* const items, const usize count, const usize start, const Before before) noexcept {
+    usize root = start;
+    bool going = true;
+    while (going) {
+        const usize left = root * 2 + 1;
+        if (left >= count) {
+            going = false;
+            continue;
+        }
+        usize larger = left;
+        if (left + 1 < count && before(items[left], items[left + 1])) larger = left + 1;
+        if (before(items[root], items[larger])) {
+            const Item held = items[root];
+            items[root] = items[larger];
+            items[larger] = held;
+            root = larger;
+        } else {
+            going = false;
+        }
+    }
+}
+
+template <typename Item, typename Before>
+void heap_sort(Item* const items, const usize count, const Before before) noexcept {
+    if (count < 2) return;
+    for (usize start = count / 2; start > 0; --start) sift_down(items, count, start - 1, before);
+    for (usize end = count - 1; end > 0; --end) {
+        const Item held = items[0];
+        items[0] = items[end];
+        items[end] = held;
+        sift_down(items, end, 0, before);
+    }
+}
+
+struct WantedBefore final {
+    [[nodiscard]] bool operator()(const Wanted& first, const Wanted& second) const noexcept {
+        const bool result = first.tag < second.tag || (first.tag == second.tag && first.sequence < second.sequence);
+        return result;
+    }
+};
+
+struct LookupBefore final {
+    [[nodiscard]] bool operator()(const PlanLookup& first, const PlanLookup& second) const noexcept {
+        const bool result = first.index < second.index;
+        return result;
+    }
+};
+
+// What making a plan may spend on one table, after harfrust's budget.rs:
+// visits to the table's records and bytes of the plan's own records, each
+// 256 times the table's size, no less than 4 MB and no more than 128 MB.
+// A lookup that would pass either is left out of the plan (it applies
+// nothing). harfrust keeps one budget for a font; here each plan has its
+// own, since a plan is made again when it has been given up.
+struct PlanBudget final {
+    usize work{0};
+    usize bytes{0};
+};
+
+[[nodiscard]] PlanBudget budget_for(const usize table_size) noexcept {
+    const usize least = static_cast<usize>(4) << 20;
+    const usize most = static_cast<usize>(128) << 20;
+    const usize scaled = table_size > most / 256 ? most : table_size * 256;
+    const usize allowance = scaled < least ? least : scaled;
+    const PlanBudget result{.work = allowance, .bytes = allowance};
+    return result;
+}
+
+// Takes `amount` from what is left, if it is there.
+[[nodiscard]] bool take(usize& left, const usize amount) noexcept {
+    if (amount > left) return false;
+    left = left - amount;
+    return true;
+}
+
+// Takes `count` records of `size` bytes and `visits` visits, if both are
+// there; else takes nothing.
+[[nodiscard]] bool take_records(PlanBudget& budget, const usize visits, const usize count, const usize size) noexcept {
+    if (count > budget.bytes / size || visits > budget.work) return false;
+    budget.work = budget.work - visits;
+    budget.bytes = budget.bytes - count * size;
+    return true;
+}
+
 // The features asked for, in order of tag, each tag once: a later asking
 // changes an earlier one.
 void merge_wanted(Vector<Wanted>& wanted) noexcept {
     const usize count = wanted.count();
     if (count == 0) return;
-    // In order of tag, and of asking for one tag (an insertion sort: there
-    // are a few dozen at most).
-    for (usize index = 1; index < count; ++index) {
-        const Wanted moving = wanted[index];
-        usize place = index;
-        while (place > 0 && (wanted[place - 1].tag > moving.tag || (wanted[place - 1].tag == moving.tag && wanted[place - 1].sequence > moving.sequence))) {
-            wanted[place] = wanted[place - 1];
-            place = place - 1;
-        }
-        wanted[place] = moving;
-    }
+    // In order of tag, and of asking for one tag: no two are equal by both.
+    heap_sort(wanted.mutable_view().data(), count, WantedBefore{});
     usize kept = 0;
     for (usize index = 1; index < count; ++index) {
         if (wanted[index].tag != wanted[kept].tag) {
@@ -260,6 +340,8 @@ struct Gathering final {
     Vector<u32> placed{};
     usize stage_start{0};
     bool memory{true};
+    // What the table's lookups may still spend.
+    PlanBudget* budget{nullptr};
 };
 
 void gather_feature(const LayoutTable& layout, Gathering& gathering, const u32 feature_index, const u32 mask, const bool auto_zwnj, const bool auto_zwj,
@@ -267,7 +349,11 @@ void gather_feature(const LayoutTable& layout, Gathering& gathering, const u32 f
     LayoutFeature feature{};
     if (!feature_at(layout, feature_index, feature)) return;
     Vector<PlanLookup>& lookups = *gathering.lookups;
+    PlanBudget& budget = *gathering.budget;
     for (u32 index = 0; index < feature.lookup_count; ++index) {
+        // A visit for each lookup the feature names; when they are spent,
+        // the feature's other lookups are left out.
+        if (!take(budget.work, 1)) return;
         const u32 number = feature_lookup(layout, feature, index);
         if (number >= gathering.placed.count()) continue;
         const u32 place = gathering.placed[number];
@@ -285,6 +371,7 @@ void gather_feature(const LayoutTable& layout, Gathering& gathering, const u32 f
         lookup.auto_zwnj = auto_zwnj;
         lookup.auto_zwj = auto_zwj;
         lookup.random = random;
+        if (!take(budget.bytes, sizeof(PlanLookup))) return;
         if (lookups.push_copy(lookup).failed()) {
             gathering.memory = false;
             return;
@@ -296,15 +383,8 @@ void gather_feature(const LayoutTable& layout, Gathering& gathering, const u32 f
 // A stage's lookups in the order of their numbers.
 void finish_stage(Gathering& gathering) noexcept {
     Vector<PlanLookup>& lookups = *gathering.lookups;
-    for (usize index = gathering.stage_start + 1; index < lookups.count(); ++index) {
-        const PlanLookup moving = lookups[index];
-        usize place = index;
-        while (place > gathering.stage_start && lookups[place - 1].index > moving.index) {
-            lookups[place] = lookups[place - 1];
-            place = place - 1;
-        }
-        lookups[place] = moving;
-    }
+    const usize count = lookups.count() - gathering.stage_start;
+    heap_sort(lookups.mutable_view().data() + gathering.stage_start, count, LookupBefore{});
     gathering.stage_start = lookups.count();
 }
 
@@ -539,8 +619,10 @@ Status compile_plan(const Font& font, const ShapeDirection direction, const u32 
     usize budget = plan_digest_budget;
     for (usize table = 0; table < 2; ++table) {
         const LayoutTable& layout = plan.tables[table];
+        PlanBudget table_budget = budget_for(layout.table.size);
         Gathering gathering{};
         gathering.lookups = &plan.lookups[table];
+        gathering.budget = &table_budget;
         if (gathering.placed.resize(lookup_count(layout)).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
         for (usize index = 0; index < gathering.placed.count(); ++index) gathering.placed[index] = 0;
         for (u32 stage = 0; stage < stage_count[table]; ++stage) {
@@ -566,6 +648,10 @@ Status compile_plan(const Font& font, const ShapeDirection direction, const u32 
             if (!lookup_at(layout, planned.index, lookup) || lookup.kind == 0) continue;
             planned.kind = lookup.kind;
             planned.props = props_of(lookup);
+            // The lookup and each of its subtables is a visit, and each
+            // subtable a record: a lookup the budget has not room for is
+            // left with none, and applies nothing.
+            if (!take_records(table_budget, static_cast<usize>(lookup.subtable_count) + 1, lookup.subtable_count, sizeof(PlanSubtable))) continue;
             bool kerning = table == 1 && lookup.kind == 2 && lookup.subtable_count != 0;
             for (u32 number = 0; number < lookup.subtable_count; ++number) {
                 usize place = 0;

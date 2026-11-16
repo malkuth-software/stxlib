@@ -160,6 +160,12 @@ struct ShapeBuffer final {
     u32 scratch{0};
     usize max_len{0x3FFFFFFF};
     i32 max_ops{0x1FFFFFFF};
+    // The most items a shaping may come to whatever its length (enter
+    // takes it as a bound on max_len); set by whoever keeps the buffer.
+    usize most_glyphs{0x3FFFFFFF};
+    // Not successful for want of memory (not for a limit): set with
+    // successful false, cleared by clear.
+    bool memory_failed{false};
 
     // Empties the buffer; how the text is treated stays. The arrays keep
     // their room (release gives it back).
@@ -267,8 +273,9 @@ struct ShapeBuffer final {
 
     // Room for `size` items, within the most length.
     [[nodiscard]] bool ensure(const usize size) noexcept {
-        // The most length holds whatever room the arrays have.
-        if (size > max_len) {
+        // The most length holds whatever room the arrays have; a buffer
+        // that has failed takes nothing more.
+        if (!successful || size > max_len) {
             successful = false;
             return false;
         }

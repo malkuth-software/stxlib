@@ -146,6 +146,16 @@ private:
     FontLimits limits_{};
     StoreLimits store_limits_{};
     usize read_{0};
+    // The font opened for, as told apart from another: its bytes, their
+    // length, and where its outlines and character map are (two faces of
+    // a collection share the bytes, not those).
+    const u8* font_bytes_{nullptr};
+    usize font_size_{0};
+    FontTable font_glyf_{};
+    FontTable font_charstrings_{};
+    FontTable font_map_{};
+
+    [[nodiscard]] bool opened_for(const Font& font) const noexcept;
 };
 
 } // namespace stxlib::glyphs

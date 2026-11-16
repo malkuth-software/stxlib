@@ -216,6 +216,7 @@ void ShapeBuffer::clear() noexcept {
     direction = ShapeDirection::unset;
     script = 0;
     successful = true;
+    memory_failed = false;
     have_output = false;
     have_positions = false;
     idx = 0;
@@ -249,7 +250,16 @@ bool ShapeBuffer::grow(const usize size) noexcept {
     if (wanted < size) wanted = size;
     if (wanted > max_len) wanted = max_len;
     if (info.resize(wanted).failed() || out.resize(wanted).failed() || pos.resize(wanted).failed()) {
+        // The three are put back to one length, the least of them (made
+        // smaller, an array does not fail), so that room for a size is the
+        // room of all three.
+        usize least = info.count() < out.count() ? info.count() : out.count();
+        if (pos.count() < least) least = pos.count();
+        static_cast<void>(info.resize(least));
+        static_cast<void>(out.resize(least));
+        static_cast<void>(pos.resize(least));
         successful = false;
+        memory_failed = true;
         return false;
     }
     return true;
@@ -594,6 +604,8 @@ void ShapeBuffer::enter() noexcept {
         const usize most = len * most_length_factor;
         max_len = most > most_length_least ? most : most_length_least;
     }
+    // And never more than the caller's most glyphs, nor less than the run.
+    if (max_len > most_glyphs) max_len = most_glyphs > len ? most_glyphs : len;
     if (len <= static_cast<usize>(0x7FFFFFFF / most_operations_factor)) {
         const i32 most = static_cast<i32>(len) * most_operations_factor;
         max_ops = most > most_operations_least ? most : most_operations_least;

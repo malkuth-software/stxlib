@@ -114,6 +114,15 @@ void fail(ShapeBuffer& buffer) noexcept { buffer.successful = false; }
     return index;
 }
 
+// The class definition whose offset is at `at` in the subtable at `place`;
+// a null offset stays 0, which class_of answers with class 0 for every glyph,
+// as the format, HarfBuzz and harfrust read it.
+[[nodiscard]] usize class_table(const Span& table, const usize place, const usize at) noexcept {
+    const usize offset = peek_u16(table, place + at);
+    const usize found = offset != 0 ? place + offset : 0;
+    return found;
+}
+
 [[nodiscard]] u32 classed(const Applying& applying, const usize class_definition, const u32 glyph) noexcept {
     Vector<MemoEntry>& memo = (*applying.work).memo;
     const u64 key = memo_key(memo_class, applying.substitution ? 0U : 1U, class_definition, glyph);
@@ -213,6 +222,9 @@ struct Skipper final {
     ShapeBuffer& buffer = *applying.buffer;
     const usize stop = skipper.length == 0 ? 0 : skipper.length - 1;
     while (skipper.index < stop) {
+        // Every item looked at is an operation, matched or passed over: a
+        // rule's long context costs what it walks.
+        if (!buffer.charge(1)) break;
         skipper.index = skipper.index + 1;
         Matched matched = Matched::no;
         if (skipper.index < buffer.info.count()) {
@@ -226,7 +238,6 @@ struct Skipper final {
             unsafe_to = skipper.index + 1;
             return false;
         }
-        static_cast<void>(buffer.charge(1));
     }
     unsafe_to = skipper.index + 1;
     return false;
@@ -236,6 +247,7 @@ struct Skipper final {
     ShapeBuffer& buffer = *applying.buffer;
     Vector<ShapeGlyph>& items = written(buffer);
     while (skipper.index > 0) {
+        if (!buffer.charge(1)) break;
         skipper.index = skipper.index - 1;
         Matched matched = Matched::no;
         if (skipper.index < items.count()) {
@@ -249,7 +261,6 @@ struct Skipper final {
             unsafe_from = skipper.index > 1 ? skipper.index - 1 : 0;
             return false;
         }
-        static_cast<void>(buffer.charge(1));
     }
     unsafe_from = 0;
     return false;
@@ -621,7 +632,9 @@ void ligate_input(Applying& applying, const usize count, const usize match_end, 
     bool applied = false;
     bool passed_over = false;
     bool tried = false;
-    for (usize number = 0; number < count && !applied; ++number) {
+    // Each ligature gone to is an operation: a set's ligatures may all be
+    // one ligature named over and over.
+    for (usize number = 0; number < count && !applied && buffer.charge(1); ++number) {
         const usize ligature_offset = read_u16(table, set + 2 + number * 2);
         if (ligature_offset == 0) continue;
         const usize ligature = set + ligature_offset;
@@ -787,13 +800,13 @@ struct Rule final {
     } else if (subtable.format == 2) {
         by = MatchBy::glyph_class;
         if (!chained) {
-            input_base = place + peek_u16(table, place + 4);
+            input_base = class_table(table, place, 4);
             set_count = peek_u16(table, place + 6);
             sets = place + 8;
         } else {
-            behind_base = place + peek_u16(table, place + 4);
-            input_base = place + peek_u16(table, place + 6);
-            ahead_base = place + peek_u16(table, place + 8);
+            behind_base = class_table(table, place, 4);
+            input_base = class_table(table, place, 6);
+            ahead_base = class_table(table, place, 8);
             set_count = peek_u16(table, place + 10);
             sets = place + 12;
         }
@@ -807,7 +820,9 @@ struct Rule final {
     const usize set = place + set_offset;
     const usize rule_count = read_u16(table, set);
     bool applied = false;
-    for (usize rule_number = 0; rule_number < rule_count && !applied && buffer.successful; ++rule_number) {
+    // Each rule gone to is an operation: a set's rules may all be one rule
+    // named over and over.
+    for (usize rule_number = 0; rule_number < rule_count && !applied && buffer.successful && buffer.charge(1); ++rule_number) {
         const usize rule_offset = peek_u16(table, set + 2 + rule_number * 2);
         if (rule_offset == 0) continue;
         const Rule rule = read_rule(table, set + rule_offset, chained);
@@ -933,8 +948,8 @@ inline constexpr u32 value_y_advance = 0x0008;
         }
     } else {
         // By the classes of the two glyphs.
-        const u32 class1 = classed(applying, subtable.place + peek_u16(table, subtable.place + 8), buffer.info[buffer.idx].glyph);
-        const u32 class2 = classed(applying, subtable.place + peek_u16(table, subtable.place + 10), second);
+        const u32 class1 = classed(applying, class_table(table, subtable.place, 8), buffer.info[buffer.idx].glyph);
+        const u32 class2 = classed(applying, class_table(table, subtable.place, 10), second);
         const u32 count1 = peek_u16(table, subtable.place + 12);
         const u32 count2 = peek_u16(table, subtable.place + 14);
         if (class1 < count1 && class2 < count2) {
@@ -981,11 +996,12 @@ struct Anchor final {
 
 // An attached glyph's offset across the line, with that of everything it
 // is cursively attached to.
-[[nodiscard]] i32 cross_offset(const ShapeBuffer& buffer, const usize start, const bool horizontal) noexcept {
+// Each link followed is an operation.
+[[nodiscard]] i32 cross_offset(ShapeBuffer& buffer, const usize start, const bool horizontal) noexcept {
     usize index = start;
     i64 offset = horizontal ? buffer.pos[index].y_offset : buffer.pos[index].x_offset;
     bool going = true;
-    for (usize step = 1; step < buffer.len && going; ++step) {
+    for (usize step = 1; step < buffer.len && going && buffer.charge(1); ++step) {
         const ShapePosition& position = buffer.pos[index];
         if ((position.attach_type & attached_cursively) == 0 || position.attach_chain == 0) {
             going = false;
@@ -1387,10 +1403,14 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
     ShapeBuffer& buffer = *applying.buffer;
     if (!has_current(buffer)) return false;
     const u32 glyph = buffer.info[buffer.idx].glyph;
+    // The subtables' digests are tested 64 to an operation; each subtable
+    // tried is one more.
+    if (!buffer.charge(1 + lookup.subtable_count / 64)) return false;
     bool applied = false;
     for (u32 number = 0; number < lookup.subtable_count && !applied; ++number) {
         const PlanSubtable& subtable = subtables[lookup.first_subtable + number];
         if (!digest_may_have(subtable.digest, glyph)) continue;
+        if (!buffer.charge(1)) return false;
         applied = apply_subtable(applying, lookup.kind, subtable, pending);
     }
     return applied;
@@ -1399,8 +1419,10 @@ void reverse_cursive_minor_offset(ShapeBuffer& buffer, const usize start, const 
 // A lookup named by a contextual one.
 [[nodiscard]] bool try_nested(Applying& applying, const LayoutLookup& lookup, Pending& pending) noexcept {
     const LayoutTable& layout = *applying.layout;
+    ShapeBuffer& buffer = *applying.buffer;
     bool applied = false;
-    for (u32 number = 0; number < lookup.subtable_count && !applied; ++number) {
+    // Every subtable is read from the font and tried: each an operation.
+    for (u32 number = 0; number < lookup.subtable_count && !applied && buffer.charge(1); ++number) {
         usize place = 0;
         if (!subtable_at(layout, lookup, number, place)) continue;
         PlanSubtable subtable{};
@@ -1576,6 +1598,8 @@ void after_nested(Applying& applying, ApplyFrame& frame) noexcept {
             asked = asked + 1;
             found = asked > most_asked || covered(applying, subtable.coverage, glyph) != not_covered;
         }
+        // The digests tested for the glyph, 64 to an operation.
+        if (!(*applying.buffer).charge(lookup.subtable_count / 64)) return false;
     }
     return found;
 }
@@ -1617,8 +1641,8 @@ void after_nested(Applying& applying, ApplyFrame& frame) noexcept {
                 }
             }
         } else {
-            const u32 class1 = classed(applying, subtable.place + peek_u16(table, subtable.place + 8), first);
-            const u32 class2 = classed(applying, subtable.place + peek_u16(table, subtable.place + 10), second);
+            const u32 class1 = classed(applying, class_table(table, subtable.place, 8), first);
+            const u32 class2 = classed(applying, class_table(table, subtable.place, 10), second);
             const u32 count1 = peek_u16(table, subtable.place + 12);
             const u32 count2 = peek_u16(table, subtable.place + 14);
             if (class1 < count1 && class2 < count2) {
@@ -1743,6 +1767,7 @@ void apply_table(const ShapePlan& plan, ShapeBuffer& buffer, ApplyWork& work, co
     if (plan.lookups[table].count() == 0 || buffer.len == 0) return;
     if (!prepare_work(work)) {
         buffer.successful = false;
+        buffer.memory_failed = true;
         return;
     }
     Applying applying{};
@@ -1820,9 +1845,25 @@ void start_positions(ShapeBuffer& buffer) noexcept {
     }
 }
 
-void finish_positions(ShapeBuffer& buffer) noexcept {
+void finish_positions(ShapeBuffer& buffer, ApplyWork& work) noexcept {
     if ((buffer.scratch & scratch_has_attachment) == 0 || buffer.len == 0) return;
     const usize length = buffer.len;
+    // The advances before each item, summed (no offset changes them here):
+    // the advances from one item to before another are a difference. An
+    // advance is 32 bits and the run below 2^31 items, so a sum is inside
+    // 63 bits.
+    Vector<i64>& totals = work.totals;
+    if (totals.resize((length + 1) * 2).failed()) {
+        buffer.successful = false;
+        buffer.memory_failed = true;
+        return;
+    }
+    totals[0] = 0;
+    totals[1] = 0;
+    for (usize index = 0; index < length; ++index) {
+        totals[(index + 1) * 2] = totals[index * 2] + buffer.pos[index].x_advance;
+        totals[(index + 1) * 2 + 1] = totals[index * 2 + 1] + buffer.pos[index].y_advance;
+    }
     const bool horizontal = buffer.direction == ShapeDirection::left_to_right || buffer.direction == ShapeDirection::right_to_left;
     const bool forward = buffer.direction == ShapeDirection::left_to_right || buffer.direction == ShapeDirection::top_to_bottom;
     // Each attached glyph, after whatever it is attached to: a chain is
@@ -1884,12 +1925,10 @@ void finish_positions(ShapeBuffer& buffer) noexcept {
                     to = forward ? parent : parent + 1;
                     sign = forward ? 1 : -1;
                 }
-                i64 x = 0;
-                i64 y = 0;
-                for (usize between = from; between < to && between < length; ++between) {
-                    x = x + buffer.pos[between].x_advance;
-                    y = y + buffer.pos[between].y_advance;
-                }
+                const usize end = to < length ? to : length;
+                const usize begin = from < end ? from : end;
+                const i64 x = totals[end * 2] - totals[begin * 2];
+                const i64 y = totals[end * 2 + 1] - totals[begin * 2 + 1];
                 position.x_offset = saturate(static_cast<i64>(position.x_offset) + sign * x);
                 position.y_offset = saturate(static_cast<i64>(position.y_offset) + sign * y);
             }
@@ -1932,6 +1971,8 @@ void apply_old_kerning(const Font& font, const ShapePlan& plan, ShapeBuffer& buf
         if ((coverage >> 8) != 0 || for_horizontal != horizontal || cross_stream || !has(table, subtable, 14)) continue;
         const usize pairs = read_u16(table, subtable + 6);
         if (!has(table, subtable + 14, pairs * 6)) continue;
+        // A subtable read is a walk of the run: its length in operations.
+        if (!buffer.charge(buffer.len)) return;
         if (backward) buffer.reverse();
         for (usize index = 0; index < buffer.len;) {
             if ((buffer.info[index].mask & plan.kern_mask) == 0) {

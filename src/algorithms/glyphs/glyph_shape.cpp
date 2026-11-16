@@ -18,6 +18,18 @@ struct KeptPlan final {
     usize last_used{0};
 };
 
+// A glyph's box remembered for a run: read once from the typeface, or
+// refused once.
+struct BoxEntry final {
+    u32 glyph{0};
+    bool used{false};
+    bool found{false};
+    GlyphBox box{};
+};
+inline constexpr usize box_memo_size = 64;
+// What reading a box from the typeface is charged to the run.
+inline constexpr usize box_charge = 64;
+
 struct ShaperState final {
     Shared<Typeface> typeface{};
     const Font* font{nullptr};
@@ -31,6 +43,8 @@ struct ShaperState final {
     // The size boxes are asked at, and what they are divided by.
     i64 box_size{0};
     i32 box_divisor{1};
+    // The boxes of this run (emptied as each run begins).
+    BoxEntry boxes[box_memo_size]{};
 };
 
 } // namespace detail
@@ -42,17 +56,43 @@ using detail::ShaperState;
 
 inline constexpr i64 largest_size = static_cast<i64>(1) << 24;
 
-// A glyph's box from the typeface, in the units of the shaping.
+// A glyph's box from the typeface, in the units of the shaping: once a run
+// for each glyph that the run's table of boxes holds, each reading charged
+// to the run's operations.
 [[nodiscard]] bool box_of(void* const context, const u32 glyph, detail::GlyphBox& box) noexcept {
     ShaperState& state = *static_cast<ShaperState*>(context);
+    // Fibonacci hashing: the top six bits of the low 32 of glyph x 2^32/phi,
+    // taken in 64 bits so that nothing wraps.
+    const u64 mixed = (static_cast<u64>(glyph) * 0x9E3779B1U) & 0xFFFFFFFFU;
+    detail::BoxEntry& entry = state.boxes[static_cast<usize>(mixed >> 26)];
+    if (entry.used && entry.glyph == glyph) {
+        box = entry.box;
+        return entry.found;
+    }
+    if (!state.buffer.charge(detail::box_charge)) return false;
     InkBox ink{};
-    if ((*state.typeface).ink_box(glyph, state.box_size, ink).failed()) return false;
-    const i32 divisor = state.box_divisor;
-    box.x_bearing = ink.left / divisor;
-    box.y_bearing = ink.top / divisor;
-    box.width = (ink.right - ink.left) / divisor;
-    box.height = (ink.bottom - ink.top) / divisor;
-    return true;
+    const bool found = (*state.typeface).ink_box(glyph, state.box_size, ink).succeeded();
+    detail::GlyphBox made{};
+    if (found) {
+        // Sides of 32 bits, a width or height of 33: taken in 64 and
+        // saturated.
+        const i64 divisor = state.box_divisor;
+        made.x_bearing = detail::saturate(static_cast<i64>(ink.left) / divisor);
+        made.y_bearing = detail::saturate(static_cast<i64>(ink.top) / divisor);
+        made.width = detail::saturate((static_cast<i64>(ink.right) - ink.left) / divisor);
+        made.height = detail::saturate((static_cast<i64>(ink.bottom) - ink.top) / divisor);
+    }
+    entry = detail::BoxEntry{.glyph = glyph, .used = true, .found = found, .box = made};
+    box = made;
+    return found;
+}
+
+// A run that made the buffer far larger than its text gives the room back,
+// so that what a shaper keeps between runs is of the order of its runs.
+void give_back(ShaperState& state, const usize characters) noexcept {
+    const usize room = state.buffer.info.count();
+    const usize most_kept = static_cast<usize>(1) << 16;
+    if (room > most_kept && room / 4 > characters) state.buffer.release();
 }
 
 [[nodiscard]] bool same_requests(const Vector<detail::PlanRequest>& first, const Vector<detail::PlanRequest>& second) noexcept {
@@ -143,7 +183,9 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
     if ((run.clusters.count() != 0 && run.clusters.count() != count) || run.size < 0 || run.size > largest_size) {
         return refuse_font(ErrorKind::invalid_argument, operation);
     }
-    if (count > state.limits.characters || count > 0x3FFFFFFFU) return refuse_font(ErrorKind::limit_exceeded, operation);
+    if (count > state.limits.characters || count > 0x3FFFFFFFU || run.features.count() > state.limits.features) {
+        return refuse_font(ErrorKind::limit_exceeded, operation);
+    }
     if (count == 0) {
         glyphs.clear();
         return Status::success();
@@ -176,10 +218,14 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
     // and comes back in 64ths of one.
     state.box_size = run.size > 0 ? run.size : static_cast<i64>((*state.font).units_per_em) * 64;
     state.box_divisor = run.size > 0 ? 1 : 64;
+    for (usize index = 0; index < detail::box_memo_size; ++index) state.boxes[index] = detail::BoxEntry{};
+    buffer.most_glyphs = state.limits.glyphs;
     const bool shaped = detail::shape_run(*plan, font, buffer, state.work);
     if (!shaped) {
+        const ErrorKind kind = buffer.memory_failed ? ErrorKind::out_of_memory : ErrorKind::limit_exceeded;
         buffer.reset();
-        return refuse_font(ErrorKind::limit_exceeded, operation);
+        give_back(state, count);
+        return refuse_font(kind, operation);
     }
     if (glyphs.resize(buffer.len).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
     for (usize index = 0; index < buffer.len; ++index) {
@@ -193,6 +239,7 @@ Status Shaper::shape_into(const TextRun& run, Vector<ShapedGlyph>& glyphs) noexc
                                     .y_offset = position.y_offset,
                                     .unsafe_to_break = (item.mask & detail::glyph_unsafe_to_break) != 0};
     }
+    give_back(state, count);
     return Status::success();
 }
 

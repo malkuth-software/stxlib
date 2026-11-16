@@ -17,7 +17,10 @@
 // face's ascender, descender and height by its rule (OS/2's typographic
 // values when the font says to use them, else hhea's, else OS/2's again),
 // the character map by its choice (a map of all of Unicode before one of
-// its first 65,536 characters, the later table entry before the earlier),
+// its first 65,536 characters, the later table entry before the earlier;
+// HarfBuzz's symbol and Mac Roman maps when there is no Unicode one), a
+// format 4 map out of order searched in order, an hmtx that runs past the
+// file kept to its end, a loca not well formed read as FreeType reads it,
 // and an outline's points, contours and curve tags as it has them for a
 // glyph loaded without scaling.
 //
@@ -51,8 +54,11 @@ struct FontLimits final {
     u32 contours{4096};
     u32 components{512};
     u32 component_depth{8};
-    // Operators and operands of one CFF glyph, subroutines counted.
-    u32 charstring_steps{1U << 20};
+    // Operators and operands of one CFF glyph, subroutines counted: far
+    // more than a glyph of a real font takes (a few thousand), and the
+    // most a hostile one can make each reading of a glyph cost (a store
+    // reads a glyph once, and remembers a refusal).
+    u32 charstring_steps{1U << 17};
 };
 
 // Where a table is in the font's bytes; length 0 when the font has none.
@@ -67,6 +73,13 @@ enum class OutlineKind : u8 {
     cff = 2,
 };
 
+// The kinds of character map: of Unicode characters; a symbol font's
+// (Windows, encoding 0: a character is asked for, and below 256 asked for
+// again at 0xF000 more); Mac Roman (asked for ASCII alone).
+inline constexpr u32 character_map_unicode = 0;
+inline constexpr u32 character_map_symbol = 1;
+inline constexpr u32 character_map_mac_roman = 2;
+
 // A font's own data, as open_font found it. It borrows `bytes`: they must
 // stay as they are while the Font is used. A Font is plain numbers: one
 // altered by hand reads no byte outside `bytes`, but may not find what it
@@ -78,9 +91,13 @@ struct Font final {
     FontTable loca{};
     FontTable glyf{};
     FontTable cff{};
-    // The chosen character map: its bytes, and its format.
+    // The chosen character map: its bytes, its format, its kind
+    // (character_map_unicode, _symbol or _mac_roman), and, for format 4,
+    // whether its segments are out of order (then searched in order).
     FontTable character_map{};
     u32 character_map_format{0};
+    u32 character_map_kind{0};
+    bool character_map_unsorted{false};
     OutlineKind outlines{OutlineKind::none};
     u32 glyph_count{0};
     u32 units_per_em{0};
@@ -155,8 +172,9 @@ struct MappedStretch final {
 };
 
 // The stretch that holds `from`, or the first one after it (then
-// stretch.first is past `from`); false when the map has none. One search
-// of the map. For going through what a font maps without asking for every
+// stretch.first is past `from`); false when the map has none, or is not of
+// Unicode characters. One search of the map (by halving: a format 4 map
+// out of order may have stretches passed over). For going through what a font maps without asking for every
 // character there is.
 [[nodiscard]] bool next_stretch(const Font& font, u32 from, MappedStretch& stretch) noexcept;
 
@@ -198,8 +216,11 @@ struct MappedStretch final {
 [[nodiscard]] i64 scale_of(const Font& font, i64 size) noexcept;
 
 // Every point times a 16.16 scale, rounded to the nearest unit, halves away
-// from zero: font units to 26.6 pixels.
-void scale_outline(GlyphOutline& outline, i64 x_scale, i64 y_scale) noexcept;
+// from zero: font units to 26.6 pixels. invalid_argument, the outline as it
+// was, for a scale not above 0 or above 2^32, or a point that would come
+// farther than 2^30 from the origin either way (the bound every outline the
+// reader gives keeps, in font units and scaled).
+[[nodiscard]] Status scale_outline(GlyphOutline& outline, i64 x_scale, i64 y_scale) noexcept;
 
 // The outline as segments, for measure and render (glyph_mask.hpp). Two
 // quadratic control points in a row have a point of the curve between

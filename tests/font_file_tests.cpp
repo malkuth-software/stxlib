@@ -346,7 +346,7 @@ void character_maps() {
     CHECK(walk_is_glyph_of(font));
     CHECK(glyphs::glyph_of(font, 'Q') == 6 && glyphs::glyph_of(font, 'R') == 0 && glyphs::glyph_of(font, 256 + 'Q') == 0);
     // No map it reads: every character is no glyph, and the font opens.
-    bytes = truetype_font(os2, hhea, cmap_table({{1, 0, map_format_0('A', 7)}}), false);
+    bytes = truetype_font(os2, hhea, cmap_table({{1, 1, map_format_0('A', 7)}, {3, 4, map_format_0('A', 7)}}), false);
     CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && glyphs::glyph_of(font, 'A') == 0);
     CHECK(walk_is_glyph_of(font));
 }
@@ -455,7 +455,7 @@ constexpr i32 hflex = 2034;
     // 9: a line that goes nowhere is left out; a move with nothing drawn
     // from it leaves nothing.
     list.push_back(charstring({3, 4, rmoveto, 0, 0, rlineto, 6, 0, rlineto, 0, 0, rlineto, 9, 9, rmoveto, endchar}));
-    // 10: an operator that is not one.
+    // 10: an operator that is not one, which clears the stack.
     list.push_back(charstring({0, 0, rmoveto, 1000, endchar}));
     // 11: a subroutine that is not there.
     list.push_back(charstring({0, 0, rmoveto, 5, callsubr, endchar}));
@@ -464,8 +464,7 @@ constexpr i32 hflex = 2034;
     return list;
 }
 
-[[nodiscard]] Bytes cff_table(const bool by_dictionary) {
-    const std::vector<Bytes> glyph_list = cff_glyphs();
+[[nodiscard]] Bytes cff_table(const bool by_dictionary, const std::vector<Bytes>& glyph_list) {
     const Bytes header = {1, 0, 4, 1};
     const Bytes names = index_of({Bytes{'T'}});
     const Bytes strings = index_of({});
@@ -551,21 +550,26 @@ constexpr i32 hflex = 2034;
     return table;
 }
 
-[[nodiscard]] Bytes cff_font(const bool by_dictionary) {
-    const usize glyph_count = cff_glyphs().size();
+[[nodiscard]] Bytes cff_font_of(const std::vector<Bytes>& glyph_list, const bool by_dictionary = false) {
+    const usize glyph_count = glyph_list.size();
     Bytes hmtx{};
     for (usize index = 0; index < glyph_count; ++index) {
         put16(hmtx, static_cast<i32>(400 + index));
         put16(hmtx, 0);
     }
     Bytes hhea = hhea_table(880, -120, 0, static_cast<u32>(glyph_count));
-    const Bytes font = font_of(0x4F54544FU, {{"CFF ", cff_table(by_dictionary)},
+    const Bytes font = font_of(0x4F54544FU, {{"CFF ", cff_table(by_dictionary, glyph_list)},
                                              {"OS/2", os2_table(3, 0, 700, -200, 90, 950, 250)},
                                              {"cmap", plain_cmap()},
                                              {"head", head_table(1000, false)},
                                              {"hhea", hhea},
                                              {"hmtx", hmtx},
                                              {"maxp", maxp_table(static_cast<u32>(glyph_count))}});
+    return font;
+}
+
+[[nodiscard]] Bytes cff_font(const bool by_dictionary) {
+    const Bytes font = cff_font_of(cff_glyphs(), by_dictionary);
     return font;
 }
 
@@ -600,7 +604,10 @@ void cff() {
         CHECK(outline_is(outline, {{1, -2, on}, {11, 8, on}}, {1}));
         CHECK(glyphs::load_glyph(font, 9, limits, outline).succeeded());
         CHECK(outline_is(outline, {{3, 4, on}, {9, 4, on}}, {1}));
-        for (u32 glyph = 10; glyph < 13; ++glyph) {
+        // An operator that is not one clears the stack (as read-fonts does):
+        // a move with nothing drawn from it leaves nothing.
+        CHECK(glyphs::load_glyph(font, 10, limits, outline).succeeded() && outline.points.empty());
+        for (u32 glyph = 11; glyph < 13; ++glyph) {
             const stxlib::Status status = glyphs::load_glyph(font, glyph, limits, outline);
             CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument);
         }
@@ -617,6 +624,243 @@ void cff() {
         CHECK(glyphs::load_scaled_glyph(font, 1, scale, scale, limits, outline).succeeded());
         CHECK(outline.points.count() == 4 && outline.points[2].x == times(110, scale) && outline.points[2].y == times(120, scale));
     }
+}
+
+// ---- the audit of 2026-11-16 (A-stxlib-glyphs-01): contracts ------------------------------
+
+// What every opened font promises of its character map, whatever its bytes:
+// glyph_of answers a glyph the font has, and a walk of the stretches ends,
+// with each stretch in order and each of its glyphs one the font has.
+[[nodiscard]] bool map_keeps_promises(const glyphs::Font& font) {
+    for (u32 character = 0; character < 0x400; ++character) {
+        if (glyphs::glyph_of(font, character) >= font.glyph_count && glyphs::glyph_of(font, character) != 0) return false;
+    }
+    const u32 far[] = {0xF041U, 0xFFFFU, 0x10000U, 0x1F600U, 0x10FFFFU, 0x110000U, 0xFFFFFFFFU};
+    for (const u32 character : far) {
+        if (glyphs::glyph_of(font, character) >= font.glyph_count && glyphs::glyph_of(font, character) != 0) return false;
+    }
+    u32 character = 0;
+    for (u32 step = 0; step < 70000; ++step) {
+        glyphs::MappedStretch stretch{};
+        if (!glyphs::next_stretch(font, character, stretch)) return true;
+        if (stretch.last < stretch.first || stretch.last < character) return false;
+        const u32 glyph = glyphs::glyph_in_stretch(font, stretch, stretch.last);
+        if (glyph != 0 && glyph >= font.glyph_count) return false;
+        if (stretch.last >= 0x10FFFF) return true;
+        character = stretch.last + 1;
+    }
+    // More stretches than a map of this size can hold: a walk that does not end.
+    return false;
+}
+
+// The bounded search over malformed character maps. For each of an empty
+// and a small map of formats 4, 6 and 12 (and an unsorted format 4), alone
+// in the cmap table: every prefix of the map (the map's own length field
+// left as it is), and every byte of the map set in turn to each of 0x00,
+// 0x01, 0x7F, 0x80, 0xFE and 0xFF. Each font either is refused or opens
+// and keeps map_keeps_promises. Returns the count of fonts tried.
+[[nodiscard]] usize malformed_maps(const Bytes& os2, const Bytes& hhea) {
+    std::vector<Bytes> maps{};
+    maps.push_back(map_format_4({}));
+    maps.push_back(map_format_4({{0xFFFF, 0xFFFF, 1, {}}}));
+    maps.push_back(map_format_4({{'A', 'C', 1 - 'A', {}}, {'x', 'y', 0, {5, 2}}, {0xFFFF, 0xFFFF, 1, {}}}));
+    maps.push_back(map_format_4({{'x', 'y', 0, {5, 2}}, {'A', 'C', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}}));
+    maps.push_back(map_format_6('a', {}));
+    maps.push_back(map_format_6('a', {2, 3, 7}));
+    maps.push_back(map_format_12({}));
+    maps.push_back(map_format_12({{'A', 'B', 3}, {0x1F600, 0x1F602, 5}}));
+    const u8 values[] = {0x00, 0x01, 0x7F, 0x80, 0xFE, 0xFF};
+    usize tried = 0;
+    bool kept = true;
+    for (const Bytes& map : maps) {
+        for (usize length = 0; length <= map.size() && kept; ++length) {
+            const Bytes cut(map.begin(), map.begin() + static_cast<std::ptrdiff_t>(length));
+            const Bytes bytes = truetype_font(os2, hhea, cmap_table({{3, 1, cut}}), false);
+            glyphs::Font font{};
+            if (glyphs::open_font(view_of(bytes), 0, font).succeeded()) kept = map_keeps_promises(font);
+            tried = tried + 1;
+        }
+        for (usize place = 0; place < map.size() && kept; ++place) {
+            for (const u8 value : values) {
+                Bytes changed = map;
+                changed[place] = value;
+                const Bytes bytes = truetype_font(os2, hhea, cmap_table({{3, 1, changed}, {3, 0, changed}}), false);
+                glyphs::Font font{};
+                if (glyphs::open_font(view_of(bytes), 0, font).succeeded()) kept = kept && map_keeps_promises(font);
+                tried = tried + 1;
+            }
+        }
+    }
+    CHECK(kept);
+    return tried;
+}
+
+void audit_contracts() {
+    const Bytes os2 = os2_table(3, 0, 700, -200, 90, 950, 250);
+    const Bytes hhea = hhea_table(800, -220, 50, 4);
+    glyphs::Font font{};
+    // 01-F4: format 4 segments out of order are read in order, as FreeType does.
+    Bytes bytes = truetype_font(os2, hhea, cmap_table({{3, 1, map_format_4({{'x', 'y', 0, {5, 2}}, {'A', 'C', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_format == 4 && font.character_map_unsorted);
+    CHECK(glyphs::glyph_of(font, 'A') == 1 && glyphs::glyph_of(font, 'C') == 3 && glyphs::glyph_of(font, 'x') == 5 &&
+          glyphs::glyph_of(font, 'y') == 2 && glyphs::glyph_of(font, 'D') == 0 && glyphs::glyph_of(font, 'w') == 0);
+    bytes = truetype_font(os2, hhea, cmap_table({{3, 1, map_format_4({{'A', 'C', 1 - 'A', {}}, {0xFFFF, 0xFFFF, 1, {}}})}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && !font.character_map_unsorted);
+    // Empty maps of each format: the font opens and no character has a glyph.
+    const Bytes empty_maps[] = {map_format_4({}), map_format_6('a', {}), map_format_12({})};
+    for (const Bytes& empty : empty_maps) {
+        bytes = truetype_font(os2, hhea, cmap_table({{3, 1, empty}}), false);
+        CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && glyphs::glyph_of(font, 'a') == 0 && walk_is_glyph_of(font));
+    }
+    // 01-F11: of two maps of one kind, the later record's, as FreeType takes.
+    bytes = truetype_font(os2, hhea, cmap_table({{3, 1, map_format_6('A', {2})}, {3, 1, map_format_6('A', {3})}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && glyphs::glyph_of(font, 'A') == 3);
+    // 01-F6: a symbol map, by the character and in the private area; Mac
+    // Roman's first 128 codes. Neither has stretches of Unicode.
+    bytes = truetype_font(os2, hhea, cmap_table({{3, 0, map_format_4({{0xF041, 0xF042, 1 - 0xF041, {}}, {0xFFFF, 0xFFFF, 1, {}}})}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_kind == glyphs::character_map_symbol);
+    CHECK(glyphs::glyph_of(font, 'A') == 1 && glyphs::glyph_of(font, 'B') == 2 && glyphs::glyph_of(font, 0xF041) == 1 &&
+          glyphs::glyph_of(font, 'C') == 0 && glyphs::glyph_of(font, 0x10041) == 0);
+    glyphs::MappedStretch stretch{};
+    CHECK(!glyphs::next_stretch(font, 0, stretch));
+    bytes = truetype_font(os2, hhea, cmap_table({{1, 0, map_format_0('A', 7)}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_kind == glyphs::character_map_mac_roman);
+    CHECK(glyphs::glyph_of(font, 'A') == 7 && glyphs::glyph_of(font, 'B') == 0 && glyphs::glyph_of(font, 0xC4) == 0);
+    // A Unicode map is taken before either.
+    bytes = truetype_font(os2, hhea, cmap_table({{1, 0, map_format_0('A', 7)}, {3, 0, map_format_6(0xF041, {6})}, {3, 1, map_format_6('A', {2})}}), false);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && font.character_map_kind == glyphs::character_map_unicode &&
+          glyphs::glyph_of(font, 'A') == 2);
+    const usize maps_tried = malformed_maps(os2, hhea);
+    std::printf("malformed character maps: %zu fonts\n", maps_tried);
+
+    // 01-F3: loca past glyf, as FreeType reads it. Glyph 1 ends past glyf
+    // and is not the last: empty. Glyph 2 ends before it begins (so at
+    // glyf's end) and begins past glyf: empty. Glyph 3, the last, ends past
+    // glyf and is cut there: the square.
+    const Bytes square = simple_glyph({{{0, 0, true}, {0, 101, true}, {101, 101, true}, {101, 0, true}}});
+    Bytes loca{};
+    const i32 half = static_cast<i32>(square.size() / 2);
+    for (const i32 entry : {0, 0, half + 50, 0, half + 500}) put16(loca, entry);
+    Bytes hmtx{};
+    for (i32 glyph = 0; glyph < 4; ++glyph) {
+        put16(hmtx, 500 + glyph);
+        put16(hmtx, 0);
+    }
+    bytes = font_of(0x00010000U, {{"OS/2", os2},
+                                  {"cmap", plain_cmap()},
+                                  {"glyf", square},
+                                  {"head", head_table(1000, false)},
+                                  {"hhea", hhea},
+                                  {"hmtx", hmtx},
+                                  {"loca", loca},
+                                  {"maxp", maxp_table(4)}});
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded());
+    const glyphs::FontLimits limits{};
+    glyphs::GlyphOutline outline{};
+    CHECK(glyphs::load_glyph(font, 1, limits, outline).succeeded() && outline.points.empty());
+    CHECK(glyphs::load_glyph(font, 2, limits, outline).succeeded() && outline.points.empty());
+    CHECK(glyphs::load_glyph(font, 3, limits, outline).succeeded() && outline.points.count() == 4);
+
+    // 01-F5: an hmtx that runs past the file's end is read to the end: the
+    // whole advances there are kept, and a glyph past them has the last.
+    std::vector<NamedTable> tables = {{"OS/2", os2},
+                                      {"cmap", plain_cmap()},
+                                      {"glyf", square},
+                                      {"head", head_table(1000, false)},
+                                      {"hhea", hhea},
+                                      {"loca", Bytes{0, 0, 0, 0, 0, 0, 0, 0, 0, static_cast<u8>(half)}},
+                                      {"maxp", maxp_table(4)},
+                                      {"hmtx", hmtx}};
+    bytes = font_of(0x00010000U, tables);
+    bytes.resize(bytes.size() - 2);
+    CHECK(glyphs::open_font(view_of(bytes), 0, font).succeeded() && glyphs::advance_of(font, 0) == 500 &&
+          glyphs::advance_of(font, 2) == 502 && glyphs::advance_of(font, 3) == 502 && font.advance_count == 3);
+
+    // 01-F1: a scaled outline beyond the coordinate bound is refused, not
+    // narrowed, and the outline is left as it was.
+    outline.points.clear();
+    outline.tags.clear();
+    outline.contour_ends.clear();
+    CHECK(outline.points.push_copy(glyphs::Point{.x = 100000, .y = -100000}).succeeded() &&
+          outline.tags.push_copy(on).succeeded() && outline.contour_ends.push_copy(0U).succeeded());
+    stxlib::Status status = glyphs::scale_outline(outline, static_cast<i64>(1) << 32, static_cast<i64>(1) << 32);
+    CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument && outline.points[0].x == 100000);
+    status = glyphs::scale_outline(outline, 0, 65536);
+    CHECK(status.failed() && outline.points[0].x == 100000);
+    status = glyphs::scale_outline(outline, 65536 * 2, 65536 * 3);
+    CHECK(status.succeeded() && outline.points[0].x == 200000 && outline.points[0].y == -300000);
+}
+
+// 01-F2: CFF operators FreeType and read-fonts draw. Each glyph is one
+// charstring in a font of its own; `points` the outline's points expected.
+[[nodiscard]] bool cff_draws(const Bytes& code, const std::vector<Expected>& points, const std::vector<u32>& ends) {
+    const Bytes font_bytes = cff_font_of({code});
+    glyphs::Font font{};
+    if (!glyphs::open_font(view_of(font_bytes), 0, font).succeeded()) return false;
+    glyphs::GlyphOutline outline{};
+    if (!glyphs::load_glyph(font, 0, glyphs::FontLimits{}, outline).succeeded()) return false;
+    const bool same = points.empty() ? outline.points.empty() : outline_is(outline, points, ends);
+    return same;
+}
+
+[[nodiscard]] bool cff_refuses(const Bytes& code) {
+    const Bytes font_bytes = cff_font_of({code});
+    glyphs::Font font{};
+    if (!glyphs::open_font(view_of(font_bytes), 0, font).succeeded()) return false;
+    glyphs::GlyphOutline outline{};
+    const stxlib::Status status = glyphs::load_glyph(font, 0, glyphs::FontLimits{}, outline);
+    const bool refused = status.failed() && (*status.error()).kind() == stxlib::ErrorKind::invalid_argument;
+    return refused;
+}
+
+void cff_operators() {
+    constexpr i32 dotsection = 2000;
+    constexpr i32 op_and = 2003;
+    constexpr i32 op_or = 2004;
+    constexpr i32 op_not = 2005;
+    constexpr i32 op_abs = 2009;
+    constexpr i32 op_add = 2010;
+    constexpr i32 op_sub = 2011;
+    constexpr i32 op_div = 2012;
+    constexpr i32 op_neg = 2014;
+    constexpr i32 op_eq = 2015;
+    constexpr i32 op_drop = 2018;
+    constexpr i32 op_put = 2020;
+    constexpr i32 op_get = 2021;
+    constexpr i32 op_ifelse = 2022;
+    constexpr i32 op_mul = 2024;
+    constexpr i32 op_sqrt = 2026;
+    constexpr i32 op_dup = 2027;
+    constexpr i32 op_exch = 2028;
+    constexpr i32 op_index = 2029;
+    constexpr i32 op_roll = 2030;
+    constexpr i32 seac_ = 2006;
+    const std::vector<Expected> line = {{0, 0, on}, {10, 20, on}};
+    // dotsection and the reserved operators do nothing.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, dotsection, 10, 20, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 1013, 10, 20, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 2007, 10, 20, rlineto, endchar}), line, {1}));
+    // An unknown operator clears the stack, as read-fonts does.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 5, 1000, 10, 20, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 5, 2040, 10, 20, rlineto, endchar}), line, {1}));
+    // Arithmetic: 4 + 6, 30 - 10; 7 * 3 - 1; 40 / 2; 400 sqrt; neg neg; abs.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 4, 6, op_add, 30, 10, op_sub, rlineto, endchar}), {{0, 0, on}, {10, 20, on}}, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 5, 2, op_mul, 3, 7, op_mul, op_sub, 40, 2, op_div, rlineto, endchar}),
+                    {{0, 0, on}, {-11, 20, on}}, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 100, op_sqrt, -20, op_abs, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, -10, op_neg, 20, op_neg, op_neg, rlineto, endchar}), line, {1}));
+    // Stack operators: dup, exch, drop, index, roll.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 10, op_dup, op_add, 10, op_exch, op_drop, 20, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 10, 20, 1, op_index, op_drop, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 20, 10, 2, 1, op_roll, rlineto, endchar}), line, {1}));
+    // Logic: and, or, not, eq; ifelse picks the first when the third is not above the fourth.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 1, 1, op_and, 10, op_mul, 0, 0, op_or, op_not, 20, op_mul, rlineto, endchar}), line, {1}));
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 3, 3, op_eq, 10, op_mul, 10, 30, 1, 2, op_ifelse, 2, op_mul, rlineto, endchar}), line, {1}));
+    // Storage: put, then get.
+    CHECK(cff_draws(charstring({0, 0, rmoveto, 20, 3, op_put, 10, 3, op_get, rlineto, endchar}), line, {1}));
+    // An endchar with four operands is the accented form, which is not read.
+    CHECK(cff_refuses(charstring({0, 0, 65, 66, endchar})));
+    CHECK(cff_refuses(charstring({0, 0, 0, 65, 66, seac_, endchar})));
 }
 
 void segments() {
@@ -910,6 +1154,8 @@ int main() {
     heights();
     character_maps();
     cff();
+    audit_contracts();
+    cff_operators();
     segments();
     refusals();
     robustness();

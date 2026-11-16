@@ -96,6 +96,12 @@ struct Span final {
     return result;
 }
 
+// No coordinate of an outline the reader gives is farther from the origin
+// than this, in font units or, scaled, in 1/64 of a pixel: the one bound
+// every outline leaves the reader with (load_glyph, load_scaled_glyph,
+// scale_outline). What uses outlines may rely on it.
+inline constexpr i64 farthest_point = static_cast<i64>(1) << 30;
+
 // a * b / 65536, rounded to the nearest, halves away from zero: a times a
 // 16.16 number.
 [[nodiscard]] constexpr i64 multiply_fixed(const i64 a, const i64 b) noexcept {

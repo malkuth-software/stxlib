@@ -119,6 +119,34 @@ struct Fitted final {
     return Status::success();
 }
 
+// A glyph the hinter's arithmetic is not made for (hinter.hpp), given
+// unhinted: scaled in 64 bits (the reader's bound on the result) and its
+// advance to a whole pixel.
+[[nodiscard]] Status unhinted(const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends, const i32 unscaled_advance,
+                              const i64 scale, GlyphOutline& outline, i32& advance) noexcept {
+    const Operation operation("stxlib.glyphs.hint_glyph");
+    const usize point_count = glyph_points.count();
+    if (glyph_tags.count() != point_count) return refuse_font(ErrorKind::invalid_argument, operation);
+    if (outline.points.resize(point_count).failed() || outline.tags.resize(point_count).failed()) {
+        return refuse_font(ErrorKind::out_of_memory, operation);
+    }
+    for (usize index = 0; index < point_count; ++index) {
+        outline.points[index] = glyph_points[index];
+        outline.tags[index] = glyph_tags[index];
+    }
+    for (usize index = 0; index < contour_ends.count(); ++index) {
+        if (outline.contour_ends.push_copy(contour_ends[index]).failed()) return refuse_font(ErrorKind::out_of_memory, operation);
+    }
+    const Status scaled = scale_outline(outline, scale, scale);
+    if (scaled.failed()) return scaled;
+    // A 32-bit advance at a scale of no more than 2^36 is inside 64 bits;
+    // held to 2^30 as a coordinate is, then to a whole pixel.
+    const i64 wide = detail::multiply_fixed(unscaled_advance, scale);
+    const i64 held = wide < -detail::farthest_point ? -detail::farthest_point : (wide > detail::farthest_point ? detail::farthest_point : wide);
+    advance = pixel_round(static_cast<i32>(held));
+    return Status::success();
+}
+
 // A glyph's outline in font units, hinted.
 [[nodiscard]] Status hint_loaded(const Font& font, const StyleMetrics& metrics, const u32 glyph_style, const u32 adjustment,
                                  const View<Point> glyph_points, const View<PointTag> glyph_tags, const View<u32> contour_ends,
@@ -128,6 +156,18 @@ struct Fitted final {
     HintScratch& scratch = work.scratch;
     const u32 style = glyph_style & detail::style_mask;
     const i32 units = static_cast<i32>(font.units_per_em);
+    // Not hinted where the hinter's 32-bit steps could leave 32 bits.
+    const i64 full_scale = scale_of(font, size);
+    if (full_scale > detail::hint_most_scale || !detail::within_hint_bounds(glyph_points, unscaled_advance)) {
+        const Status status = unhinted(glyph_points, glyph_tags, contour_ends, unscaled_advance, full_scale, outline, advance);
+        if (status.failed()) {
+            outline.points.clear();
+            outline.tags.clear();
+            outline.contour_ends.clear();
+            advance = 0;
+        }
+        return status;
+    }
     const Status filled = detail::fill_hint_outline(glyph_points, glyph_tags, contour_ends, units, unscaled_advance, scratch.outline);
     if (filled.failed()) return filled;
     // The style's measures at this size and mode: those of the last glyph

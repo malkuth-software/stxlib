@@ -63,8 +63,11 @@ struct Tables final {
 
 // The character maps this reads, and which is taken: a map of all of
 // Unicode before one of its first 65,536 characters, Windows' before
-// Unicode's of the same reach, the first of a kind in the table.
+// Unicode's of the same reach, the later of a kind in the table before the
+// earlier (as FreeType). With none of them, a symbol map (3, 0), and then
+// a Mac Roman one (1, 0) of format 0 or 6, as HarfBuzz falls back.
 inline constexpr u32 platform_unicode = 0;
+inline constexpr u32 platform_mac = 1;
 inline constexpr u32 platform_windows = 3;
 struct Preference final {
     u32 platform{0};
@@ -99,26 +102,48 @@ inline constexpr Preference preferences[] = {
     return false;
 }
 
-void choose_character_map(const Span& whole, const FontTable& table, Font& font) noexcept {
+// The last record of the platform and encoding whose map is readable (of
+// format 0 or 6 when `old_formats`), taken for the font; false if none is.
+[[nodiscard]] bool take_map(const Span& cmap, const FontTable& table, const Preference wanted, const bool old_formats, const u32 kind,
+                            Font& font) noexcept {
+    const usize records = read_u16(cmap, 2);
+    for (usize turn = records; turn > 0; --turn) {
+        const usize record = 4 + (turn - 1) * 8;
+        if (read_u16(cmap, record) != wanted.platform || read_u16(cmap, record + 2) != wanted.encoding) continue;
+        const usize offset = read_u32(cmap, record + 4);
+        if (!has(cmap, offset, 2)) continue;
+        const Span map = part(cmap, offset, cmap.size - offset);
+        const u32 format = read_u16(map, 0);
+        if (!map_readable(map, format) || (old_formats && format != 0 && format != 6)) continue;
+        font.character_map = FontTable{.offset = static_cast<u32>(table.offset + offset), .length = static_cast<u32>(map.size)};
+        font.character_map_format = format;
+        font.character_map_kind = kind;
+        return true;
+    }
+    return false;
+}
+
+// Whether a format 4 map's segments end in rising order (searched by
+// halving), or not (searched in order).
+[[nodiscard]] bool segments_rise(const Span& map) noexcept {
+    const usize segments = read_u16(map, 6) / 2;
+    bool rising = true;
+    for (usize index = 1; index < segments && rising; ++index) rising = read_u16(map, 14 + (index - 1) * 2) < read_u16(map, 14 + index * 2);
+    return rising;
+}
+
+void choose_character_map(const FontTable& table, Font& font) noexcept {
     const Span cmap = table_of(font, table);
     if (!has(cmap, 0, 4)) return;
     const usize records = read_u16(cmap, 2);
     if (!has(cmap, 4, records * 8)) return;
+    bool taken = false;
     for (const Preference& wanted : preferences) {
-        for (usize index = 0; index < records; ++index) {
-            const usize record = 4 + index * 8;
-            if (read_u16(cmap, record) != wanted.platform || read_u16(cmap, record + 2) != wanted.encoding) continue;
-            const usize offset = read_u32(cmap, record + 4);
-            if (!has(cmap, offset, 2)) continue;
-            const Span map = part(cmap, offset, cmap.size - offset);
-            const u32 format = read_u16(map, 0);
-            if (!map_readable(map, format)) continue;
-            font.character_map = FontTable{.offset = static_cast<u32>(table.offset + offset), .length = static_cast<u32>(map.size)};
-            font.character_map_format = format;
-            return;
-        }
+        if (!taken) taken = take_map(cmap, table, wanted, false, character_map_unicode, font);
     }
-    static_cast<void>(whole);
+    if (!taken) taken = take_map(cmap, table, Preference{.platform = platform_windows, .encoding = 0}, false, character_map_symbol, font);
+    if (!taken) taken = take_map(cmap, table, Preference{.platform = platform_mac, .encoding = 0}, true, character_map_mac_roman, font);
+    if (taken && font.character_map_format == 4) font.character_map_unsorted = !segments_rise(table_of(font, font.character_map));
 }
 
 // The list of variation sequences: the character map of platform 0,
@@ -166,6 +191,21 @@ void choose_variation_map(const FontTable& table, Font& font) noexcept {
     if (listed == 0) return 0;
     const u32 result = (listed + delta) & 0xFFFFU;
     return result;
+}
+
+// A map whose segments are not in order (FreeType reads one so): the
+// first segment, in the table's order, that holds the character.
+[[nodiscard]] u32 glyph_in_unsorted_segments(const Span& map, const u32 character) noexcept {
+    if (character > 0xFFFFU) return 0;
+    const usize segments = read_u16(map, 6) / 2;
+    const usize starts = 14 + segments * 2 + 2;
+    for (usize segment = 0; segment < segments; ++segment) {
+        if (read_u16(map, starts + segment * 2) <= character && character <= read_u16(map, 14 + segment * 2)) {
+            const u32 result = glyph_in_segment(map, segments, segment, character);
+            return result;
+        }
+    }
+    return 0;
 }
 
 [[nodiscard]] u32 glyph_in_segments(const Span& map, const u32 character) noexcept {
@@ -237,12 +277,19 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
         const usize record = start + 12 + index * 16;
         const u32 name = read_u32(whole, record);
         const FontTable table{.offset = read_u32(whole, record + 8), .length = read_u32(whole, record + 12)};
-        // A table whose range is not in the file is as if it were absent.
-        if (!has(whole, table.offset, table.length)) continue;
+        // A table whose range is not in the file is as if it were absent;
+        // but hmtx that begins in the file and runs past its end is kept
+        // to the end, as FreeType keeps it (advance_count takes no more
+        // advances than it then holds).
+        FontTable kept = table;
+        if (name == tag('h', 'm', 't', 'x') && table.offset <= whole.size && !has(whole, table.offset, table.length)) {
+            kept.length = static_cast<u32>(whole.size - table.offset);
+        }
+        if (!has(whole, kept.offset, kept.length)) continue;
         if (name == tag('h', 'e', 'a', 'd')) tables.head = table;
         if (name == tag('m', 'a', 'x', 'p')) tables.maxp = table;
         if (name == tag('h', 'h', 'e', 'a')) tables.hhea = table;
-        if (name == tag('h', 'm', 't', 'x')) tables.hmtx = table;
+        if (name == tag('h', 'm', 't', 'x')) tables.hmtx = kept;
         if (name == tag('O', 'S', '/', '2')) tables.os2 = table;
         if (name == tag('G', 'S', 'U', 'B')) tables.gsub = table;
         if (name == tag('G', 'P', 'O', 'S')) tables.gpos = table;
@@ -317,7 +364,7 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     const usize advances = read_u16(hhea, 34);
     font.hmtx = tables.hmtx;
     font.advance_count = static_cast<u32>(advances < hmtx.size / 4 ? advances : hmtx.size / 4);
-    choose_character_map(whole, tables.cmap, font);
+    choose_character_map(tables.cmap, font);
     choose_variation_map(tables.cmap, font);
     if (tables.glyf.length != 0 && tables.loca.length != 0) {
         font.outlines = OutlineKind::truetype;
@@ -335,21 +382,42 @@ Status open_font(const View<u8> bytes, const u32 face, Font& font) noexcept {
     return Status::success();
 }
 
+namespace {
+
+// The glyph a map gives a code, of whatever kind the map is.
+[[nodiscard]] u32 glyph_by_code(const Font& font, const Span& map, const u32 format, const u32 code) noexcept {
+    u32 glyph = 0;
+    if (format == 0) {
+        glyph = code < 256 ? detail::read_u8(map, 6 + code) : 0;
+    } else if (format == 4) {
+        glyph = font.character_map_unsorted ? glyph_in_unsorted_segments(map, code) : glyph_in_segments(map, code);
+    } else if (format == 6) {
+        const u32 first = read_u16(map, 6);
+        const u32 count = read_u16(map, 8);
+        glyph = code >= first && code - first < count ? read_u16(map, 10 + static_cast<usize>(code - first) * 2) : 0;
+    } else {
+        glyph = glyph_in_groups(map, code);
+    }
+    return glyph;
+}
+
+} // namespace
+
 u32 glyph_of(const Font& font, const u32 character) noexcept {
     const Span map = table_of(font, font.character_map);
     const u32 format = font.character_map_format;
     if (!map_readable(map, format)) return 0;
     u32 glyph = 0;
-    if (format == 0) {
-        glyph = character < 256 ? detail::read_u8(map, 6 + character) : 0;
-    } else if (format == 4) {
-        glyph = glyph_in_segments(map, character);
-    } else if (format == 6) {
-        const u32 first = read_u16(map, 6);
-        const u32 count = read_u16(map, 8);
-        glyph = character >= first && character - first < count ? read_u16(map, 10 + static_cast<usize>(character - first) * 2) : 0;
+    if (font.character_map_kind == character_map_symbol) {
+        // A symbol map's codes: the character, then, for the first 256,
+        // the character in the private area where symbol fonts put them.
+        glyph = glyph_by_code(font, map, format, character);
+        if (glyph == 0 && character < 0x100) glyph = glyph_by_code(font, map, format, 0xF000 + character);
+    } else if (font.character_map_kind == character_map_mac_roman) {
+        // Mac Roman's codes are ASCII's below 128; above, not read.
+        glyph = character < 0x80 ? glyph_by_code(font, map, format, character) : 0;
     } else {
-        glyph = glyph_in_groups(map, character);
+        glyph = glyph_by_code(font, map, format, character);
     }
     const u32 result = glyph < font.glyph_count ? glyph : 0;
     return result;
@@ -359,7 +427,9 @@ bool next_stretch(const Font& font, const u32 from, MappedStretch& stretch) noex
     const Span map = table_of(font, font.character_map);
     const u32 format = font.character_map_format;
     stretch = MappedStretch{};
-    if (!map_readable(map, format)) return false;
+    // Stretches are of Unicode characters: a symbol or Mac Roman map has
+    // none.
+    if (!map_readable(map, format) || font.character_map_kind != character_map_unicode) return false;
     bool found = false;
     if (format == 0) {
         found = from < 256;
@@ -427,7 +497,8 @@ bool next_stretch(const Font& font, const u32 from, MappedStretch& stretch) noex
 u32 glyph_in_stretch(const Font& font, const MappedStretch& stretch, const u32 character) noexcept {
     const Span map = table_of(font, font.character_map);
     const u32 format = font.character_map_format;
-    if (!map_readable(map, format) || character < stretch.first || character > stretch.last) return 0;
+    if (!map_readable(map, format) || font.character_map_kind != character_map_unicode) return 0;
+    if (character < stretch.first || character > stretch.last) return 0;
     u32 glyph = 0;
     if (format == 0) {
         glyph = character < 256 ? detail::read_u8(map, 6 + character) : 0;
@@ -616,8 +687,8 @@ Status load_scaled_glyph(const Font& font, const u32 glyph, const i64 x_scale, c
     if (font.outlines == OutlineKind::cff) {
         // A CFF glyph's points are whole font units before they are scaled.
         const Status status = detail::load_cff_glyph(font, glyph, limits, outline);
-        if (status.succeeded()) scale_outline(outline, x_scale, y_scale);
-        return status;
+        if (status.failed()) return status;
+        return scale_outline(outline, x_scale, y_scale);
     }
     return refuse_font(ErrorKind::invalid_argument, operation);
 }
@@ -629,13 +700,28 @@ i64 scale_of(const Font& font, const i64 size) noexcept {
     return result;
 }
 
-void scale_outline(GlyphOutline& outline, const i64 x_scale, const i64 y_scale) noexcept {
+Status scale_outline(GlyphOutline& outline, const i64 x_scale, const i64 y_scale) noexcept {
+    const Operation operation("stxlib.glyphs.scale_outline");
+    const i64 most_scale = static_cast<i64>(1) << 32;
+    if (x_scale <= 0 || y_scale <= 0 || x_scale > most_scale || y_scale > most_scale) {
+        return detail::refuse_font(ErrorKind::invalid_argument, operation);
+    }
+    // A 32-bit coordinate times a scale of no more than 2^32 is inside 64
+    // bits; each result is tested before any is written.
     const usize count = outline.points.count();
     Point* const points = outline.points.mutable_view().data();
+    bool near = true;
+    for (usize index = 0; index < count && near; ++index) {
+        const i64 x = detail::multiply_fixed(points[index].x, x_scale);
+        const i64 y = detail::multiply_fixed(points[index].y, y_scale);
+        near = x >= -detail::farthest_point && x <= detail::farthest_point && y >= -detail::farthest_point && y <= detail::farthest_point;
+    }
+    if (!near) return detail::refuse_font(ErrorKind::invalid_argument, operation);
     for (usize index = 0; index < count; ++index) {
         points[index].x = static_cast<i32>(detail::multiply_fixed(points[index].x, x_scale));
         points[index].y = static_cast<i32>(detail::multiply_fixed(points[index].y, y_scale));
     }
+    return Status::success();
 }
 
 namespace {
