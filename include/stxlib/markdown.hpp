@@ -80,10 +80,19 @@ struct Limits final {
     u32 containers{256};
     // Link reference definitions.
     u32 definitions{65536};
+    // Working storage. Block records (16 bytes each, a leaf or a container's
+    // opening or closing) and line records (12 bytes) of the whole source,
+    // and the inline marks (20 bytes) of one block: a run of '*' is a mark a
+    // byte and a '[' two. The defaults hold every one below about 64 MB.
+    u32 records{static_cast<u32>(1) << 22};
+    u32 lines{static_cast<u32>(1) << 22};
+    u32 marks{static_cast<u32>(1) << 21};
 };
 
-// Offsets are 32-bit; the two largest values are kept as "none".
-inline constexpr usize largest_source_bytes = static_cast<usize>(0xfffffffd);
+// Offsets, columns and mark numbers are 32-bit. A tab is up to four columns
+// and a '[' two marks, so a source below 2^30 bytes keeps every one of them
+// below 2^32, the two largest values (kept as "none") included.
+inline constexpr usize largest_source_bytes = static_cast<usize>(0x3fffffff);
 
 enum class EventKind : u8 {
     enter_block = 0,

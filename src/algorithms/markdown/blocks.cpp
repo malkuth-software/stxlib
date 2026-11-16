@@ -130,7 +130,7 @@ namespace {
         enter.begin = ctx.lines[record.first_line].begin;
         enter.end = ctx.lines[record.first_line + record.line_count - 1].end;
     } else {
-        // A rule made of a line the definitions above it left behind.
+        // Not made: every leaf keeps at least one line.
         enter.begin = record.first_line < ctx.lines.count() ? ctx.lines[record.first_line].begin : ctx.size;
         enter.end = enter.begin;
     }

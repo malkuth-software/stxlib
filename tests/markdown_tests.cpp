@@ -642,6 +642,22 @@ void limits_and_stopping() {
     one_definition.definitions = 1;
     status = markdown::parse(defined_view, options, one_definition, document, nullptr);
     CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && document.events.empty());
+    // Working storage: block records, line records and one block's marks.
+    markdown::Limits few_records{};
+    few_records.records = 3;
+    status = markdown::parse(view, options, few_records, document, nullptr);
+    CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && document.events.empty());
+    markdown::Limits few_lines{};
+    few_lines.lines = 2;
+    status = markdown::parse(view, options, few_lines, document, nullptr);
+    CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && document.events.empty());
+    markdown::Limits few_marks{};
+    few_marks.marks = 1;
+    status = markdown::parse(view, options, few_marks, document, nullptr);
+    CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::limit_exceeded && document.events.empty());
+    // The source's bound keeps a line of tabs' columns and a block's marks
+    // inside 32 bits.
+    CHECK(markdown::largest_source_bytes < (static_cast<usize>(1) << 30));
     stxlib::StopSignal stop{};
     stop.request();
     const markdown::Limits limits{};
@@ -682,6 +698,43 @@ void differences_from_md4c() {
     // it: one line ending, not two.
     CHECK(html_of("``\nfo\n``\no\n", false) == "<p><code>fo</code>\no</p>\n");
     CHECK(html_of("> ```\n```\n", false) == "<blockquote>\n<pre><code></code></pre>\n</blockquote>\n<pre><code></code></pre>\n");
+}
+
+// The findings of the audit of 2026-11-16 (A-stxlib-markdown-01).
+void audit_findings() {
+    const markdown::Options options{};
+    markdown::Document document{};
+    // F3: a rule left by the definitions above it keeps its own place.
+    const std::string ruled = "[foo]: /url\n---\n";
+    CHECK(read(ruled, options, document) && tape_well_formed(ruled, document));
+    usize rules = 0;
+    for (usize index = 0; index < document.events.count(); ++index) {
+        const markdown::Event event = document.events[index];
+        if (event.type != static_cast<u8>(markdown::BlockType::rule)) continue;
+        if (event.kind != markdown::EventKind::enter_block && event.kind != markdown::EventKind::leave_block) continue;
+        rules = rules + 1;
+        if (event.kind == markdown::EventKind::enter_block) CHECK(event.begin == 12 && event.end == 15);
+    }
+    CHECK(rules == 2);
+    CHECK(html_of(ruled + "after\n", false) == "<hr />\n<p>after</p>\n");
+    // F4: a span of 32 backticks after a search has reached the block's end.
+    const std::string longest(32, '`');
+    CHECK(html_of("` " + longest + "a" + longest + "\n", false) == "<p>` <code>a</code></p>\n");
+    // F1: blank lines inside many open lists cost one search each, and
+    // quotes among the lists still end where they did.
+    std::string nested{};
+    for (usize depth = 0; depth < 200; ++depth) nested += std::string(depth * 2, ' ') + "- a\n";
+    nested.append(100000, '\n');
+    CHECK(read(nested, options, document) && tape_well_formed(nested, document));
+    CHECK(html_of("- a\n  > b\n\n  c\n", false) == "<ul>\n<li>\n<p>a</p>\n<blockquote>\n<p>b</p>\n</blockquote>\n<p>c</p>\n</li>\n</ul>\n");
+    CHECK(html_of("> - a\n>\n>   b\n\nc\n", false) ==
+          "<blockquote>\n<ul>\n<li>\n<p>a</p>\n<p>b</p>\n</li>\n</ul>\n</blockquote>\n<p>c</p>\n");
+    // The stop signal is read while the lines are read too.
+    stxlib::StopSignal stop{};
+    stop.request();
+    const stxlib::View<char> view(nested.data(), nested.size());
+    const stxlib::Status status = markdown::parse(view, options, markdown::Limits{}, document, &stop);
+    CHECK(status.failed() && (*status.error()).kind() == stxlib::ErrorKind::interrupted && document.events.empty());
 }
 
 // Inputs built to make a careless reader slow or deep: each must read, and
@@ -730,6 +783,7 @@ int main(const int argument_count, const char* const* const arguments) {
     limits_and_stopping();
     differences_from_md4c();
     hostile_shapes();
+    audit_findings();
     if (std::strcmp(arguments[1], "-") == 0) {
         std::printf("specification: not run (no specification text was given)\n");
     } else {

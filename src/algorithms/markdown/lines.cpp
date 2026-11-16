@@ -178,6 +178,7 @@ struct LineAnalysis final {
 // ---- records -------------------------------------------------------------------------
 
 [[nodiscard]] bool push_record(Context& ctx, const BlockRecord& record) noexcept {
+    if (ctx.blocks.count() >= ctx.limits.records) return fail(ctx, ErrorKind::limit_exceeded);
     if (ctx.blocks.push_copy(record).failed()) return fail(ctx, ErrorKind::out_of_memory);
     return true;
 }
@@ -196,7 +197,28 @@ struct LineAnalysis final {
 [[nodiscard]] bool push_container(Context& ctx, const Container& container) noexcept {
     if (ctx.containers.count() >= ctx.limits.containers) return fail(ctx, ErrorKind::limit_exceeded);
     if (ctx.containers.push_copy(container).failed()) return fail(ctx, ErrorKind::out_of_memory);
+    if (container.ch == '>' && ctx.quotes.push_copy(static_cast<u32>(ctx.containers.count() - 1)).failed()) {
+        ctx.containers.remove_last();
+        return fail(ctx, ErrorKind::out_of_memory);
+    }
     return true;
+}
+
+// The first open quote at or after the container `from`, or the number of
+// open containers when there is none: one binary search over the quotes.
+[[nodiscard]] usize next_quote(const Context& ctx, const usize from) noexcept {
+    usize low = 0;
+    usize high = ctx.quotes.count();
+    while (low < high) {
+        const usize middle = low + (high - low) / 2;
+        if (ctx.quotes[middle] < from) {
+            low = middle + 1;
+        } else {
+            high = middle;
+        }
+    }
+    const usize found = low < ctx.quotes.count() ? ctx.quotes[low] : ctx.containers.count();
+    return found;
 }
 
 // Opens the last `children` containers: a list and its first item, or a quote.
@@ -230,6 +252,7 @@ struct LineAnalysis final {
             if (!push_container_record(ctx, list, RecordKind::close, ch, 0)) return false;
         }
         ctx.containers.remove_last();
+        if (ch == '>') ctx.quotes.remove_last();
     }
     return true;
 }
@@ -260,6 +283,7 @@ struct LineAnalysis final {
 [[nodiscard]] bool add_line(Context& ctx, const LineAnalysis& line) noexcept {
     STXLIB_REQUIRE(ctx.current_block != none, "markdown: no block is open");
     const Line record{.begin = line.begin, .end = line.end, .indent = line.indent};
+    if (ctx.lines.count() >= ctx.limits.lines) return fail(ctx, ErrorKind::limit_exceeded);
     if (ctx.lines.push_copy(record).failed()) return fail(ctx, ErrorKind::out_of_memory);
     BlockRecord& block = ctx.blocks[ctx.current_block];
     block.line_count = block.line_count + 1;
@@ -292,6 +316,8 @@ struct LineAnalysis final {
             taken = taken + 1;
         }
     }
+    // The rule keeps its own line, as a rule read as one does.
+    const Line rule_line = inject_rule ? ctx.lines[block.first_line + taken - 1] : Line{};
     if (taken == line_count) {
         // Nothing is left: undo the block.
         ctx.lines.truncate(block.first_line);
@@ -302,20 +328,19 @@ struct LineAnalysis final {
         block.line_count = line_count - taken;
     }
     if (inject_rule) {
-        const BlockRecord rule{.type = BlockType::rule,
-                               .kind = RecordKind::leaf,
-                               .flags = 0,
-                               .data = 0,
-                               .first_line = static_cast<u32>(ctx.lines.count()),
-                               .line_count = 0,
-                               .number = 0};
+        BlockRecord rule{
+            .type = BlockType::rule, .kind = RecordKind::leaf, .flags = 0, .data = 0, .first_line = 0, .line_count = 1, .number = 0};
         if (ctx.current_block == none) {
+            // The line was the last of the table and was taken off with the block.
+            rule.first_line = static_cast<u32>(ctx.lines.count());
+            if (ctx.lines.push_copy(rule_line).failed()) return fail(ctx, ErrorKind::out_of_memory);
             if (!push_record(ctx, rule)) return false;
         } else {
-            // The rule goes before what is left of the paragraph.
+            // The rule goes before what is left of the paragraph; its line
+            // is still in the table, just before what is left.
             const BlockRecord rest = ctx.blocks[ctx.current_block];
+            rule.first_line = rest.first_line - 1;
             ctx.blocks[ctx.current_block] = rule;
-            ctx.blocks[ctx.current_block].first_line = rest.first_line;
             ctx.current_block = static_cast<u32>(ctx.blocks.count());
             if (!push_record(ctx, rest)) return false;
         }
@@ -397,7 +422,7 @@ struct LineAnalysis final {
     }
     // A blank line needs no indentation to stay inside a list.
     if (at_line_end(ctx, offset)) {
-        while (parents < ctx.containers.count() && ctx.containers[parents].ch != '>') parents = parents + 1;
+        parents = next_quote(ctx, parents);
     }
 
     for (;;) {
@@ -678,7 +703,14 @@ bool read_lines(Context& ctx) noexcept {
     LineAnalysis pivot{};
     LineAnalysis line{};
     u32 offset = 0;
+    u32 counted = 0;
     while (offset < ctx.size) {
+        // The stop signal is read every 256 lines: a line costs at most a
+        // step for each of its bytes and each open container.
+        counted = counted + 1;
+        if ((counted & 255U) == 0 && ctx.stop != nullptr && (*ctx.stop).requested()) {
+            return fail(ctx, ErrorKind::interrupted);
+        }
         u32 next = offset;
         if (!analyze_line(ctx, offset, next, pivot, line)) return false;
         if (!process_line(ctx, pivot, line)) return false;
