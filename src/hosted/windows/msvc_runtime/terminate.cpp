@@ -20,7 +20,7 @@
 namespace stxlib::msvc_runtime {
 
 void terminate_now() noexcept {
-    const early_exit::NoExit terminate_marker{"std::terminate ends the process; a handler that returns is followed by abort"};
+    [[maybe_unused]] const early_exit::NoExit terminate_marker{"std::terminate ends the process; a handler that returns is followed by abort"};
     ::terminate();
 }
 
@@ -53,7 +53,7 @@ int _purecall() {
     stxlib::msvc_runtime::terminate_now();
 }
 
-void(__cdecl* set_unexpected(void(__cdecl* const handler)()))() {
+void(__cdecl* set_unexpected(void(__cdecl* const handler)()) noexcept)() {
     using stxlib::msvc_runtime::UnexpectedHandler;
     const UnexpectedHandler previous = stxlib::msvc_runtime::unexpected_handler.exchange(handler, std::memory_order_acq_rel);
     return previous;
@@ -65,11 +65,11 @@ void(__cdecl* _get_unexpected())() {
     return current;
 }
 
-[[noreturn]] void unexpected() {
+void unexpected() {  // declared noreturn by eh.h
     using stxlib::msvc_runtime::UnexpectedHandler;
     const UnexpectedHandler current = stxlib::msvc_runtime::unexpected_handler.load(std::memory_order_acquire);
     if (current != nullptr) {
-        const stxlib::early_exit::Whole handler_marker{"the runtime holds no state across the handler"};
+        [[maybe_unused]] const stxlib::early_exit::Whole handler_marker{"the runtime holds no state across the handler"};
         current();
     }
     stxlib::msvc_runtime::terminate_now();

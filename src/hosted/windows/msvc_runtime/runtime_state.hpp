@@ -104,7 +104,7 @@ void stxlib_msvc_call_guarded(const void* target, void* first, void* second, voi
 // Calls the catch funclet with RDX = the parent's establisher frame,
 // keeping `record` at [frame + 32] and the cookie at [frame + 40] under the
 // catch guard; returns the continuation address the funclet returns.
-void* stxlib_msvc_call_catch(const void* funclet, uptr parent_establisher, stxlib::msvc_runtime::CatchRecord* record);
+void* stxlib_msvc_call_catch(const void* funclet, stxlib::uptr parent_establisher, stxlib::msvc_runtime::CatchRecord* record);
 
 EXCEPTION_DISPOSITION stxlib_msvc_terminate_guard(EXCEPTION_RECORD* record, void* establisher_frame, CONTEXT* context,
                                                   void* dispatcher_context);

@@ -7,8 +7,10 @@
 # A standalone project, configured once per side with the GUI.Forms
 # x86_64-pc-windows-msvc toolchain file (clang 22 and lld-link, never the
 # MSVC compiler):
-#   -DSTXLIB_MSVC_RUNTIME_SIDE=oracle  -DGUI_FORMS_LIBCXX_PREFIX=<libc++, vcruntime ABI>
-#   -DSTXLIB_MSVC_RUNTIME_SIDE=ours    -DGUI_FORMS_LIBCXX_PREFIX=<libc++, LIBCXX_NO_VCRUNTIME>
+#   oracle: -DSTXLIB_MSVC_RUNTIME_SIDE=oracle -DGUI_FORMS_LIBCXX_PREFIX=<libc++, vcruntime ABI>
+#   ours:   -DSTXLIB_MSVC_RUNTIME_SIDE=ours -DGUI_FORMS_MSVC_RUNTIME=OWN
+#           -DGUI_FORMS_OWN_RUNTIME_SOURCE=<STXlib with crt/ and api/ headers>
+#           -DGUI_FORMS_LIBCXX_PREFIX=<libc++ built against them, _LIBCPP_NO_VCRUNTIME>
 # The oracle side links what the toolchain links by default (Microsoft's
 # startup objects, vcruntime140.dll, msvcp140.dll for exception_ptr). The
 # ours side drops every Microsoft C++ runtime library and links each case
@@ -73,21 +75,51 @@ if(NOT STXLIB_MSVC_RUNTIME_SIDE STREQUAL "ours")
 endif()
 
 # --- STXlib's runtime -----------------------------------------------------------
-# The runtime's own target file, shared with the root build's
-# STXLIB_MSVC_RUNTIME option. It sets stxlib_msvc_no_microsoft_runtime.
-add_subdirectory("${runtime_dir}" runtime)
-set(no_microsoft_runtime ${stxlib_msvc_no_microsoft_runtime})
+# Configured with the toolchain's own-runtime mode (GUI_FORMS_MSVC_RUNTIME=OWN,
+# cmake/llvm22-windows-msvc-own.cmake) in its bootstrap form, with no
+# GUI_FORMS_OWN_RUNTIME_PREFIX: it gives -nostdinc and STXlib's C library and
+# Windows API include folders, libc++'s headers, and a link that names no
+# library. This project then names every library itself: the startup shim,
+# the runtime, libc++, and import libraries made from STXlib's export lists.
+if(NOT GUI_FORMS_OWN_RUNTIME_SOURCE OR NOT GUI_FORMS_LIBCXX_PREFIX)
+    message(FATAL_ERROR "the ours side needs the toolchain's own-runtime mode: GUI_FORMS_MSVC_RUNTIME=OWN, "
+                        "GUI_FORMS_OWN_RUNTIME_SOURCE and GUI_FORMS_LIBCXX_PREFIX")
+endif()
 
-add_library(stxlib_msvc_test_entry OBJECT "${suite_dir}/support/test_entry.c")
+# Import libraries from the export lists (llvm-dlltool, as the integrator's
+# assembly project makes them).
+get_filename_component(suite_llvm_bin "${CMAKE_CXX_COMPILER}" DIRECTORY)
+find_program(suite_dlltool NAMES llvm-dlltool HINTS "${suite_llvm_bin}" NO_DEFAULT_PATH REQUIRED)
+set(suite_import_defs
+    "${GUI_FORMS_OWN_RUNTIME_SOURCE}/src/hosted/windows/crt/ucrtbase.def"
+    "${GUI_FORMS_OWN_RUNTIME_SOURCE}/src/hosted/windows/api/lib/kernel32.def")
+set(suite_import_libraries "")
+foreach(suite_def IN LISTS suite_import_defs)
+    get_filename_component(suite_def_name "${suite_def}" NAME_WE)
+    set(suite_import_library "${CMAKE_BINARY_DIR}/lib/${suite_def_name}.lib")
+    add_custom_command(OUTPUT "${suite_import_library}"
+        COMMAND "${suite_dlltool}" -m i386:x86-64 -d "${suite_def}" -l "${suite_import_library}"
+        DEPENDS "${suite_def}" VERBATIM)
+    list(APPEND suite_import_libraries "${suite_import_library}")
+endforeach()
+add_custom_target(suite_import_libraries DEPENDS ${suite_import_libraries})
+file(GLOB suite_libcxx_archives LIST_DIRECTORIES false "${GUI_FORMS_LIBCXX_PREFIX}/lib/*.lib")
+
+# The startup shim first: the runtime's shared form links it.
+set(STXLIB_MSVC_STARTUP_TESTS OFF CACHE BOOL "The startup probes are not part of this suite" FORCE)
+add_subdirectory("${suite_dir}/../../src/hosted/windows_msvc_startup" startup)
+add_subdirectory("${runtime_dir}" runtime)
+
+set(suite_system_libraries ${suite_libcxx_archives} ${suite_import_libraries})
+add_dependencies(stxlib_msvc_runtime suite_import_libraries)
+target_link_libraries(stxlib_msvc_runtime PRIVATE ${suite_system_libraries})
 
 function(add_ours_case target source runtime)
-    add_executable(${target} "${source}"
-        $<TARGET_OBJECTS:stxlib_msvc_test_entry>
-        $<TARGET_OBJECTS:stxlib_msvc_image>)
+    add_executable(${target} "${source}")
+    add_dependencies(${target} suite_import_libraries)
     target_compile_options(${target} PRIVATE ${case_options})
-    target_link_libraries(${target} PRIVATE ${runtime} stxlib_msvc_runtime_module -lucrt)
-    target_link_options(${target} PRIVATE ${no_microsoft_runtime}
-        "LINKER:/ENTRY:mainCRTStartup" "LINKER:/SUBSYSTEM:CONSOLE")
+    target_link_libraries(${target} PRIVATE stx_msvc_startup ${runtime} stxlib_msvc_runtime_module ${suite_system_libraries})
+    target_link_options(${target} PRIVATE "LINKER:/ENTRY:mainCRTStartup" "LINKER:/SUBSYSTEM:CONSOLE")
 endfunction()
 
 foreach(case_name IN LISTS conformance_cases)
@@ -96,15 +128,12 @@ foreach(case_name IN LISTS conformance_cases)
 endforeach()
 
 # cross_dll needs the shared runtime: one in-flight count and one set of
-# active catches for both images.
-add_library(cross_dll_library SHARED
-    "${suite_dir}/cases/cross_dll_library.cpp"
-    "${runtime_dir}/dll_entry.cpp"
-    $<TARGET_OBJECTS:stxlib_msvc_image>)
-target_include_directories(cross_dll_library PRIVATE "${stxlib_include}")
+# active catches for both images. The DLL's entry is the startup's.
+add_library(cross_dll_library SHARED "${suite_dir}/cases/cross_dll_library.cpp")
+add_dependencies(cross_dll_library suite_import_libraries)
 target_compile_options(cross_dll_library PRIVATE ${case_options})
-target_compile_definitions(cross_dll_library PRIVATE STXLIB_MSVC_DLL_ENTRY=stxlib_msvc_test_dll_entry)
-target_link_libraries(cross_dll_library PRIVATE stxlib_msvc_runtime stxlib_msvc_runtime_module -lucrt)
-target_link_options(cross_dll_library PRIVATE ${no_microsoft_runtime} "LINKER:/ENTRY:stxlib_msvc_test_dll_entry")
+target_link_libraries(cross_dll_library PRIVATE stx_msvc_startup stxlib_msvc_runtime stxlib_msvc_runtime_module
+    ${suite_system_libraries})
+target_link_options(cross_dll_library PRIVATE "LINKER:/ENTRY:_DllMainCRTStartup")
 add_ours_case(case_cross_dll_shared "${suite_dir}/cases/cross_dll.cpp" stxlib_msvc_runtime)
 target_link_libraries(case_cross_dll_shared PRIVATE cross_dll_library)

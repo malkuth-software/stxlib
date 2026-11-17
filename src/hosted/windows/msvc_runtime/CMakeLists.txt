@@ -8,15 +8,18 @@
 #   stxlib_msvc_runtime         the shared form, stxlib_msvc_runtime.dll
 #   stxlib_msvc_runtime_module  per image, whichever form it uses: memcpy and
 #                               the string group, operator new and delete,
-#                               __chkstk, thread-safe statics
-#   stxlib_msvc_image           per image linked without Microsoft's startup
-#                               objects: the TLS directory and _fltused
+#                               the type_info vtable
 #
-# The per-image pieces overlap the startup shim's (src/hosted/
-# windows_msvc_startup: new_delete.cpp, chkstk.cpp, thread_safe_statics.cpp,
-# tls.cpp, entry_dll.cpp). An image links one set or the other, never both;
-# which set the default keeps is decided when the two are proven together
-# on Windows (README.md, "Before it can be the default").
+# The startup shim (src/hosted/windows_msvc_startup, target
+# stx_msvc_startup) owns everything else an image needs: the entry points,
+# __chkstk, _fltused, thread-safe statics, TLS and the exit tables (the
+# per-symbol owners, projects queue claude__windows-msvc-target.md). The
+# shared runtime links it for its DLL entry; the shared form is defined only when that
+# target exists when this directory is added.
+#
+# Headers: the sources include only STXlib's own C library and Windows API
+# headers and libc++ (system_interim.h); the toolchain gives -nostdinc and
+# those include folders.
 
 if(NOT WIN32 OR MINGW OR NOT CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
     message(FATAL_ERROR "the MSVC runtime is built for x86_64-pc-windows-msvc with clang only")
@@ -24,20 +27,6 @@ endif()
 
 set(stxlib_msvc_runtime_dir "${CMAKE_CURRENT_SOURCE_DIR}")
 get_filename_component(stxlib_msvc_runtime_include "${CMAKE_CURRENT_SOURCE_DIR}/../../../../include" ABSOLUTE)
-
-# Every Microsoft C++ runtime library is dropped (the startup objects'
-# msvcrt.lib and libcmt.lib, vcruntime and the STL's runtime); the UCRT
-# DLL's import library stays, the one system C library. Read by the images
-# that link this runtime.
-set(stxlib_msvc_no_microsoft_runtime_local
-    "LINKER:/NODEFAULTLIB:msvcrt.lib"
-    "LINKER:/NODEFAULTLIB:libcmt.lib"
-    "LINKER:/NODEFAULTLIB:vcruntime.lib"
-    "LINKER:/NODEFAULTLIB:libvcruntime.lib"
-    "LINKER:/NODEFAULTLIB:msvcprt.lib"
-    "LINKER:/NODEFAULTLIB:libcpmt.lib"
-    "LINKER:/NODEFAULTLIB:libucrt.lib")
-set(stxlib_msvc_no_microsoft_runtime ${stxlib_msvc_no_microsoft_runtime_local} PARENT_SCOPE)
 
 # The runtime proper, kept free of exceptions and RTTI.
 add_library(stxlib_msvc_runtime_core OBJECT
@@ -67,8 +56,6 @@ add_library(stxlib_msvc_runtime_static STATIC
 add_library(stxlib_msvc_runtime_module STATIC
     "${stxlib_msvc_runtime_dir}/module_static.cpp"
     "${stxlib_msvc_runtime_dir}/strings.cpp"
-    "${stxlib_msvc_runtime_dir}/chkstk_x64.S"
-    "${stxlib_msvc_runtime_dir}/thread_statics.cpp"
     "${stxlib_msvc_runtime_dir}/new_delete.cpp")
 target_include_directories(stxlib_msvc_runtime_module PRIVATE "${stxlib_msvc_runtime_include}")
 # Source properties are scoped to this directory, where the targets that
@@ -76,15 +63,16 @@ target_include_directories(stxlib_msvc_runtime_module PRIVATE "${stxlib_msvc_run
 set_source_files_properties("${stxlib_msvc_runtime_dir}/strings.cpp" PROPERTIES COMPILE_OPTIONS "-ffreestanding;-fno-builtin")
 set_source_files_properties("${stxlib_msvc_runtime_dir}/new_delete.cpp" PROPERTIES COMPILE_OPTIONS "-fexceptions;-fcxx-exceptions")
 
-add_library(stxlib_msvc_image OBJECT "${stxlib_msvc_runtime_dir}/image_support.c")
-
+# The shared form takes its entry point, _DllMainCRTStartup, and its exit
+# table from the startup; the runtime itself needs no initialisation
+# (runtime_state.cpp: constant initialisation, TLS slots on first use).
+if(TARGET stx_msvc_startup)
 add_library(stxlib_msvc_runtime SHARED
     $<TARGET_OBJECTS:stxlib_msvc_runtime_core>
     $<TARGET_OBJECTS:stxlib_msvc_runtime_hooks>
-    $<TARGET_OBJECTS:stxlib_msvc_image>
-    "${stxlib_msvc_runtime_dir}/dll_entry.cpp"
     "${stxlib_msvc_runtime_dir}/stxlib_msvc_runtime.def")
-target_include_directories(stxlib_msvc_runtime PRIVATE "${stxlib_msvc_runtime_include}")
-target_link_libraries(stxlib_msvc_runtime PRIVATE stxlib_msvc_runtime_module -lucrt)
-target_link_options(stxlib_msvc_runtime PRIVATE ${stxlib_msvc_no_microsoft_runtime_local}
-    "LINKER:/ENTRY:stxlib_msvc_runtime_entry")
+target_link_libraries(stxlib_msvc_runtime PRIVATE stx_msvc_startup stxlib_msvc_runtime_module)
+target_link_options(stxlib_msvc_runtime PRIVATE "LINKER:/ENTRY:_DllMainCRTStartup")
+else()
+    message(STATUS "MSVC runtime: no stx_msvc_startup target yet, so no shared form (add the startup first)")
+endif()

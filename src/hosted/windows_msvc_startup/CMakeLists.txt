@@ -31,9 +31,11 @@ get_filename_component(STXLIB_SOURCE_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../.."
 # The shim is itself startup code: no exceptions or RTTI, no stack
 # protector (it sets the cookie the protector checks), and Control Flow
 # Guard metadata for its address-taken functions (the TLS callbacks the
-# loader calls), so that a /guard:cf image accepts them.
+# loader calls), so that a /guard:cf image accepts them. -Werror covers the
+# code only: the own-runtime toolchain passes -nostdinc++ beside -nostdinc,
+# which the driver reports as unused, so driver-argument warnings stay off.
 set(stx_msvc_startup_options -fno-exceptions -fno-rtti -fno-stack-protector "SHELL:-Xclang -cfguard"
-    -Wall -Wextra -Werror)
+    -Wall -Wextra -Werror -Wno-unused-command-line-argument)
 
 add_library(stx_msvc_startup STATIC
     sections.cpp
@@ -58,14 +60,22 @@ set(stx_msvc_startup_runtime_definitions _DLL _MT)
 set_target_properties(stx_msvc_startup PROPERTIES MSVC_RUNTIME_LIBRARY "")
 target_compile_definitions(stx_msvc_startup PRIVATE ${stx_msvc_startup_runtime_definitions})
 
-add_library(stx_msvc_startup_vcruntime_mode STATIC new_delete.cpp type_info_destructor.cpp)
-target_compile_options(stx_msvc_startup_vcruntime_mode PRIVATE -fno-stack-protector "SHELL:-Xclang -cfguard"
-    -Wall -Wextra -Werror)
-set_target_properties(stx_msvc_startup_vcruntime_mode PROPERTIES MSVC_RUNTIME_LIBRARY "")
-target_compile_definitions(stx_msvc_startup_vcruntime_mode PRIVATE ${stx_msvc_startup_runtime_definitions})
+# A libc++ built with _LIBCPP_NO_VCRUNTIME (the own-runtime mode,
+# GUI_FORMS_MSVC_RUNTIME=OWN) defines std::type_info itself, and STXlib's C++
+# runtime supplies operator new and delete, so this library exists only for
+# a libc++ built in vcruntime mode.
+set(stx_msvc_startup_installed stx_msvc_startup)
+if(NOT GUI_FORMS_MSVC_RUNTIME STREQUAL "OWN")
+    add_library(stx_msvc_startup_vcruntime_mode STATIC new_delete.cpp type_info_destructor.cpp)
+    target_compile_options(stx_msvc_startup_vcruntime_mode PRIVATE -fno-stack-protector "SHELL:-Xclang -cfguard"
+        -Wall -Wextra -Werror)
+    set_target_properties(stx_msvc_startup_vcruntime_mode PROPERTIES MSVC_RUNTIME_LIBRARY "")
+    target_compile_definitions(stx_msvc_startup_vcruntime_mode PRIVATE ${stx_msvc_startup_runtime_definitions})
+    list(APPEND stx_msvc_startup_installed stx_msvc_startup_vcruntime_mode)
+endif()
 
 include(GNUInstallDirs)
-install(TARGETS stx_msvc_startup stx_msvc_startup_vcruntime_mode ARCHIVE DESTINATION lib)
+install(TARGETS ${stx_msvc_startup_installed} ARCHIVE DESTINATION lib)
 
 option(STXLIB_MSVC_STARTUP_TESTS "Build and register the startup shim's probes" ON)
 if(STXLIB_MSVC_STARTUP_TESTS)

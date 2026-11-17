@@ -54,9 +54,15 @@ Read 2026-11-16:
 
 ## system_interim.h and the no-MinGW port (2026-11-17)
 
-`system_interim.h` declares the Win32 and UCRT names both this runtime and
-the startup shim use, so they build with `-nostdinc` against STXlib's own
-headers only. Every declaration was written from Microsoft Learn, read
+`system_interim.h` is the one include both this runtime and the startup
+shim use for the C library and the Windows API, so they build with
+`-nostdinc` against STXlib's own headers only. Its first form (commit
+03ce670) declared every Win32 and UCRT name itself; it now includes
+STXlib's C library headers (`src/hosted/windows/crt/include`: corecrt_startup.h,
+stdlib.h, malloc.h, process.h, eh.h) and Windows API headers
+(`src/hosted/windows/api/include`: windows.h), and declares only the three
+names those lack (WinMain, wWinMain, `__fastfail`). Every declaration this
+port wrote, in either form, was written from Microsoft Learn, read
 2026-11-17; no SDK, UCRT, vcruntime, Wine, ReactOS or mingw-w64 header was
 opened:
 

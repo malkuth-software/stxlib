@@ -31,7 +31,7 @@ void raise_handled(const HandledException& exception) noexcept {
         parameters[index] = exception.parameters[index];
     }
     const DWORD flags = is_cxx_exception(exception) ? EXCEPTION_NONCONTINUABLE : exception.flags;
-    const early_exit::Whole raise_marker{"raising is this routine's purpose: no lock is held and the uncaught "
+    [[maybe_unused]] const early_exit::Whole raise_marker{"raising is this routine's purpose: no lock is held and the uncaught "
                                          "count was already raised by the caller"};
     RaiseException(exception.code, flags, exception.parameter_count, parameters);
     // A continuable structured exception rethrown under -EHa and resumed by

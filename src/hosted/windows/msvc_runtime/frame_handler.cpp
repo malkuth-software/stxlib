@@ -232,7 +232,7 @@ void unwind_frame(const FrameTables& tables, const Frame& frame, const i32 from,
             // Cleanup funclets take the parent's establisher frame in RDX
             // (X86FrameLowering.cpp, emitPrologue: "Find the funclet
             // establisher parameter").
-            const early_exit::Whole cleanup_marker{"the frame's slot already names the next state; an exception "
+            [[maybe_unused]] const early_exit::Whole cleanup_marker{"the frame's slot already names the next state; an exception "
                                                    "leaving the cleanup terminates in the guard"};
             stxlib_msvc_call_guarded(action, nullptr, reinterpret_cast<void*>(frame.parent_establisher), nullptr);
         }
@@ -349,7 +349,7 @@ void copy_class(const CatchableType& type, const uptr image_base, void* const de
     // A class with virtual bases takes the Microsoft ABI's "most derived"
     // flag after the source.
     void* const most_derived = (type.properties & catchable_has_virtual_bases) != 0 ? reinterpret_cast<void*>(1) : nullptr;
-    const early_exit::Whole copy_marker{"no runtime state is half-updated during the copy; a copy that throws "
+    [[maybe_unused]] const early_exit::Whole copy_marker{"no runtime state is half-updated during the copy; a copy that throws "
                                         "terminates in the guard"};
     stxlib_msvc_call_guarded(constructor, destination, source, most_derived);
 }
@@ -411,7 +411,7 @@ void* run_catch(EXCEPTION_RECORD* const record) noexcept {
     set_innermost_catch(&active);
     const Byte* const funclet = resolve(context.tables.image_base, (*context.handler).handler);
     if (funclet == nullptr) fail_fast();
-    const early_exit::Whole catch_marker{"the record is linked and the frame's slot names the catch state; an exception "
+    [[maybe_unused]] const early_exit::Whole catch_marker{"the record is linked and the frame's slot names the catch state; an exception "
                                          "leaving the catch is ended by the catch guard"};
     void* const continuation = stxlib_msvc_call_catch(funclet, context.parent_establisher, &active);
     set_innermost_catch(active.outer);
@@ -449,7 +449,7 @@ void* run_catch(EXCEPTION_RECORD* const record) noexcept {
     // The target IP is the PC the search found in the catching frame: an
     // address inside that function's body, so the frames above it unwind
     // normally while the catch runs; the callback's result replaces it.
-    const early_exit::Whole unwind_marker{"the catch context is complete before the unwind and lives in this frame, "
+    [[maybe_unused]] const early_exit::Whole unwind_marker{"the catch context is complete before the unwind and lives in this frame, "
                                           "which stays intact until the callback returns"};
     RtlUnwindEx(reinterpret_cast<void*>(frame.establisher), reinterpret_cast<void*>(dispatcher.ControlPc), &unwind_record, nullptr,
                 &unwind_context, dispatcher.HistoryTable);
@@ -457,7 +457,7 @@ void* run_catch(EXCEPTION_RECORD* const record) noexcept {
 }
 
 bool is_our_unwind(const EXCEPTION_RECORD& record) noexcept {
-    if (record.ExceptionCode != STATUS_UNWIND_CONSOLIDATE) return false;
+    if (record.ExceptionCode != static_cast<DWORD>(STATUS_UNWIND_CONSOLIDATE)) return false;
     if (record.NumberParameters < consolidate_parameter_count) return false;
     if (record.ExceptionInformation[consolidate_cookie] != static_cast<ULONG_PTR>(catch_context_cookie)) return false;
     const bool result = record.ExceptionInformation[consolidate_callback] == reinterpret_cast<ULONG_PTR>(&run_catch);
@@ -515,7 +515,7 @@ void destroy_exception_object(const HandledException& exception) noexcept {
     if (info == nullptr) return;
     const Byte* const destructor = resolve(exception_image_base(exception), (*info).cleanup);
     if (destructor == nullptr) return;
-    const early_exit::Whole destroy_marker{"the object's last handler has ended; a destructor that throws terminates "
+    [[maybe_unused]] const early_exit::Whole destroy_marker{"the object's last handler has ended; a destructor that throws terminates "
                                            "in the guard"};
     stxlib_msvc_call_guarded(destructor, exception_object(exception), nullptr, nullptr);
 }
