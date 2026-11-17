@@ -10,7 +10,34 @@
 // the Itanium ABI; it is demangled by the reader, never here, since
 // __cxa_demangle allocates.
 
+//
+// The MSVC target (x86_64-pc-windows-msvc) has the Microsoft C++ ABI's
+// exception runtime (vcruntime), which has neither function. Its current
+// exception's type sits in the thrown object's throw information, the
+// runtime's own record, which the stage that replaces vcruntime reads (the
+// MSVC EH runtime study, MSVC_ABI_EH_RUNTIME_STUDY.md); until then both
+// functions answer as host.hpp allows when the runtime cannot say.
+
 #include "hosted/host.hpp"
+
+#if defined(_MSC_VER)
+
+namespace stxlib::host {
+
+#if !defined(STXLIB_NO_EXCEPTION_RECORDER)
+const char* current_exception_type_name() noexcept { return nullptr; }
+#endif
+
+usize demangle_type_name(const char* const mangled, char* const output, const usize capacity) noexcept {
+    static_cast<void>(mangled);
+    static_cast<void>(output);
+    static_cast<void>(capacity);
+    return 0;
+}
+
+} // namespace stxlib::host
+
+#else
 
 #include <cxxabi.h>
 #include <cstdlib>
@@ -51,3 +78,5 @@ usize demangle_type_name(const char* const mangled, char* const output, const us
 }
 
 } // namespace stxlib::host
+
+#endif
