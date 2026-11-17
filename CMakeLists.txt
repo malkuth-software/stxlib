@@ -1713,6 +1713,9 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_std_rules
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_std_rules.py
                     --profile stxlib --root ${CMAKE_CURRENT_SOURCE_DIR}
+                    # The Windows C library headers declare the functions the
+                    # rules forbid using; declaring them is their purpose.
+                    --exclude src/hosted/windows/crt/*
                     ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
         add_test(NAME stxlib_case_folding_table
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/gen_case_folding.py --check
