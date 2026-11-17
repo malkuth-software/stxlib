@@ -30,7 +30,7 @@
  * 3. POSIX names (fileno, fdopen): inline forms over the exported _fileno and
  *    _fdopen.
  *
- * Streams are opaque: FILE is an incomplete type; only FILE* crosses.
+ * Streams are opaque: no member of FILE is used; only FILE* crosses.
  */
 #ifndef STXLIB_CRT_STDIO_H
 #define STXLIB_CRT_STDIO_H
@@ -39,7 +39,9 @@
 
 _STXLIB_CRT_BEGIN
 
-typedef struct stxlib_ucrt_file FILE;
+/* The tag is FILE, as in STXlib's Windows API headers (stxwin_types.h),
+ * which may complete it with a placeholder member; nothing here reads it. */
+typedef struct FILE FILE;
 /* A file position: 8 bytes (probe: fgetpos writes 8 bytes, the offset). */
 typedef long long fpos_t;
 

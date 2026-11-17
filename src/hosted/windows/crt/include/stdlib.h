@@ -10,6 +10,9 @@
 #define STXLIB_CRT_STDLIB_H
 
 #include "stxlib_crt_common.h"
+/* errno: Learn ("errno, _doserrno, _sys_errlist, and _sys_nerr") names
+ * stdlib.h as well as errno.h; libc++'s support.cpp relies on that. */
+#include "errno.h"
 
 _STXLIB_CRT_BEGIN
 
@@ -125,6 +128,15 @@ _STXLIB_UCRT long __cdecl wcstol(const wchar_t* text, wchar_t** end, int base);
 _STXLIB_UCRT long long __cdecl wcstoll(const wchar_t* text, wchar_t** end, int base);
 _STXLIB_UCRT unsigned long __cdecl wcstoul(const wchar_t* text, wchar_t** end, int base);
 _STXLIB_UCRT unsigned long long __cdecl wcstoull(const wchar_t* text, wchar_t** end, int base);
+
+/* The deprecated message table (Learn, "errno, _doserrno, _sys_errlist,
+ * and _sys_nerr"). ucrtbase.dll exports them as functions returning their
+ * addresses (probe: *__sys_nerr() is 43 and __sys_errlist()[2] equals
+ * strerror(2)). libc++ reads _sys_nerr. */
+_STXLIB_UCRT int* __cdecl __sys_nerr(void);
+_STXLIB_UCRT char** __cdecl __sys_errlist(void);
+#define _sys_nerr (*__sys_nerr())
+#define _sys_errlist (__sys_errlist())
 
 _STXLIB_CRT_END
 

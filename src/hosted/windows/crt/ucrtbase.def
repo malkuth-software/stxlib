@@ -21,6 +21,8 @@ EXPORTS
     __stdio_common_vsscanf
     __stdio_common_vswprintf
     __stdio_common_vswscanf
+    __sys_errlist
+    __sys_nerr
     _abs64
     _access
     _aligned_free

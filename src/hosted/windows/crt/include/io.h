@@ -13,6 +13,8 @@
 #define STXLIB_CRT_IO_H
 
 #include "stxlib_crt_common.h"
+/* off_t, the offset type libc++'s filesystem expects beside io.h. */
+#include "sys/types.h"
 
 _STXLIB_CRT_BEGIN
 

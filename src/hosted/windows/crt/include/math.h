@@ -16,7 +16,8 @@
  * exceptions (probe: log(-1) set EDOM and FE_INVALID).
  *
  * This file's declarations are generated from the export snapshot by
- * tools/windows_libcxx/gen_math_header.py; edit the generator, not the list.
+ * tools/windows_libcxx/gen_math_header.py (the block between BEGIN GENERATED
+ * and END GENERATED); edit the generator, not the block.
  */
 #ifndef STXLIB_CRT_MATH_H
 #define STXLIB_CRT_MATH_H
@@ -105,6 +106,7 @@ _STXLIB_CRT_END
 
 _STXLIB_CRT_BEGIN
 
+/* BEGIN GENERATED */
 _STXLIB_UCRT double __cdecl acos(double x);
 _STXLIB_UCRT double __cdecl asin(double x);
 _STXLIB_UCRT double __cdecl atan(double x);
@@ -463,6 +465,7 @@ _STXLIB_CRT_INLINE long double __cdecl fmal(long double x, long double y, long d
     const long double result = (long double)fma((double)x, (double)y, (double)z);
     return result;
 }
+/* END GENERATED */
 
 _STXLIB_CRT_END
 

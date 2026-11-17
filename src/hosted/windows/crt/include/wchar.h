@@ -161,6 +161,26 @@ _STXLIB_CRT_INLINE int __cdecl vswprintf(wchar_t* buffer, size_t count, const wc
     if (result < 0) return -1;
     return result;
 }
+/* Microsoft's _snwprintf and _vsnwprintf (Learn, "_snprintf, _snprintf_l,
+ * _snwprintf, _snwprintf_l"): a result of exactly count characters is
+ * written without a terminator and returns count; a longer one returns -1.
+ * That is option bit 0 (probe: "%d" of 1234 into 4 returned 4 and left the
+ * fifth element alone, 12345 returned -1, 123 returned 3 terminated).
+ * libc++'s to_wstring uses _snwprintf. */
+_STXLIB_CRT_INLINE int __cdecl _vsnwprintf(wchar_t* buffer, size_t count, const wchar_t* format,
+                                           __builtin_va_list arguments) {
+    const int result = __stdio_common_vswprintf(_CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION, buffer,
+                                                count, format, (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl _snwprintf(wchar_t* buffer, size_t count, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vsnwprintf(buffer, count, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
 _STXLIB_CRT_INLINE int __cdecl swprintf(wchar_t* buffer, size_t count, const wchar_t* format, ...) {
     __builtin_va_list arguments;
     __builtin_va_start(arguments, format);
