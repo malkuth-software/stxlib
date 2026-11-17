@@ -17,9 +17,7 @@
  * null-terminated array, empty here. lld-link points the image's TLS data
  * directory at the symbol _tls_used. */
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "system_interim.h"
 
 unsigned long _tls_index = 0;
 
@@ -35,7 +33,7 @@ __attribute__((section(".rdata$T"), used)) const IMAGE_TLS_DIRECTORY64 _tls_used
     (ULONGLONG)&_tls_index,
     (ULONGLONG)(&stxlib_msvc_tls_callbacks_first + 1),
     0,
-    {0},
+    0,
 };
 
 /* _fltused: clang references it from objects that use floating point on

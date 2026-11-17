@@ -39,12 +39,8 @@
 
 #include "hosted/windows_msvc_startup/startup.hpp"
 
-#include <process.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 extern "C" {
 

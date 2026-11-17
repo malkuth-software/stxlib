@@ -50,7 +50,8 @@ set(conformance_cases
     unhandled
     standard_exceptions
     objects
-    states)
+    states
+    structured_and_jump)
 
 set(case_options -fexceptions -fcxx-exceptions -frtti -Wno-unused-variable -Wno-unreachable-code)
 

@@ -32,9 +32,6 @@
 #include <limits.h>
 #include <stdlib.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 namespace {
 
 constexpr int guard_uninitialized = 0;

@@ -8,6 +8,10 @@ LIBRARY stxlib_msvc_runtime
 EXPORTS
     _CxxThrowException
     __CxxFrameHandler3
+    __C_specific_handler
+    _setjmp
+    _setjmpex
+    longjmp
     __uncaught_exceptions
     __RTtypeid
     __RTDynamicCast

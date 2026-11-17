@@ -42,7 +42,7 @@ void* bad_alloc_object(const ThrowInfo** const info) noexcept {
         bad_alloc_state.store(2, std::memory_order_release);
     }
     while (bad_alloc_state.load(std::memory_order_acquire) != 2) {
-        YieldProcessor();
+        __builtin_ia32_pause();
     }
     std::bad_alloc* const object = std::launder(reinterpret_cast<std::bad_alloc*>(bad_alloc_storage));
     // clang's builtin for the ThrowInfo of an expression's type, as libc++'s

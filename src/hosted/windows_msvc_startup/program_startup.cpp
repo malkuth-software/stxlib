@@ -17,11 +17,7 @@
 
 #include "hosted/windows_msvc_startup/program_startup.hpp"
 
-#include <eh.h>
 #include <stdlib.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
 
 // The load configuration directory (load_config.cpp) is found by the
 // linker only by name; every image with an entry point here keeps it.

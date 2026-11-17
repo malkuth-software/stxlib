@@ -16,6 +16,8 @@
 // nothrow forms catch std::bad_alloc from a new-handler, as the standard
 // requires them to report it as a null result.
 
+#include "system_interim.h"
+
 #include <new>
 #include <stddef.h>
 #include <stdlib.h>

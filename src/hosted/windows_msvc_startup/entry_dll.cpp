@@ -21,9 +21,6 @@
 
 #include "hosted/windows_msvc_startup/startup.hpp"
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 #pragma comment(linker, "/INCLUDE:_load_config_used")
 #pragma comment(linker, "/alternatename:DllMain=stx_msvc_startup_default_dll_main")
 

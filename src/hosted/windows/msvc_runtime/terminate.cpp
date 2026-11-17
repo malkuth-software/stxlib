@@ -17,12 +17,6 @@
 
 #include <atomic>
 
-extern "C" {
-// UCRT (corecrt_terminate.h), declared here so this file includes no
-// Microsoft runtime header beyond windows.h.
-[[noreturn]] void __cdecl terminate();
-}
-
 namespace stxlib::msvc_runtime {
 
 void terminate_now() noexcept {
@@ -33,7 +27,7 @@ void terminate_now() noexcept {
 // FAST_FAIL_FATAL_APP_EXIT (winnt.h): the process ends at once, no handler
 // or filter runs, and Windows Error Reporting records the code.
 void fail_fast() noexcept {
-    __fastfail(7);
+    __fastfail(FAST_FAIL_FATAL_APP_EXIT);
 }
 
 namespace {

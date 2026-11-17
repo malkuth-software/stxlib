@@ -47,7 +47,10 @@ add_library(stxlib_msvc_runtime_core OBJECT
     "${stxlib_msvc_runtime_dir}/terminate.cpp"
     "${stxlib_msvc_runtime_dir}/rtti.cpp"
     "${stxlib_msvc_runtime_dir}/exception_ptr.cpp"
-    "${stxlib_msvc_runtime_dir}/thunks_x64.S")
+    "${stxlib_msvc_runtime_dir}/structured_handler.cpp"
+    "${stxlib_msvc_runtime_dir}/jump.cpp"
+    "${stxlib_msvc_runtime_dir}/thunks_x64.S"
+    "${stxlib_msvc_runtime_dir}/setjmp_x64.S")
 target_include_directories(stxlib_msvc_runtime_core PRIVATE "${stxlib_msvc_runtime_include}")
 target_compile_options(stxlib_msvc_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 

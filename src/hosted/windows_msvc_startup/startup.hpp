@@ -35,7 +35,7 @@
 #error "the MSVC-target startup shim is built for x86_64-pc-windows-msvc only"
 #endif
 
-#include <corecrt_startup.h>
+#include "hosted/windows/msvc_runtime/system_interim.h"
 
 namespace stxlib::msvc_startup {
 
