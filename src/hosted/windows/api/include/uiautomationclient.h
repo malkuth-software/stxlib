@@ -5,6 +5,8 @@
 #define STXWIN_UIAUTOMATIONCLIENT_H
 
 #include "stxwin_supplement.h"
+#include "windows.h"
+#include "ole2.h"
 
 #define UIA_AccessKeyPropertyId 30007
 #define UIA_AutomationFocusChangedEventId 20005
@@ -112,7 +114,11 @@
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomation = {0xff48dba4, 0x60ef, 0x4201, {0xaa, 0x87, 0x54, 0x10, 0x3e, 0xef, 0x59, 0x4e}};
+#else
 STXWIN_EXTERN_C const CLSID CLSID_CUIAutomation;
+#endif
 
 #endif /* RC_INVOKED */
 

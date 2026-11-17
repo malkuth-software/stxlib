@@ -152,7 +152,11 @@
     "VER_MINORVERSION",
     "VER_SERVICEPACKMAJOR",
     "VER_GREATER_EQUAL",
-    "DWORDLONG"
+    "DWORDLONG",
+    "AreFileApisANSI",
+    "CP_ACP",
+    "CP_OEMCP",
+    "WINAPI_PARTITION_DESKTOP"
   ],
   "supplement_names": [
     "WINAPI",
@@ -161,9 +165,11 @@
     "CONDITION_VARIABLE_INIT",
     "EXCEPTION_EXECUTE_HANDLER",
     "EXCEPTION_CONTINUE_SEARCH",
-    "EXCEPTION_CONTINUE_EXECUTION"
+    "EXCEPTION_CONTINUE_EXECUTION",
+    "WINAPI_FAMILY_PARTITION"
   ],
   "excluded_tokens": [
+    "TaskDialog",
     "size_t",
     "ptrdiff_t",
     "va_list",
@@ -172,7 +178,9 @@
     "WAVE_FORMAT_PCM",
     "SEEK_CUR",
     "SEEK_END",
-    "SEEK_SET"
+    "SEEK_SET",
+    "FILE",
+    "time_t"
   ],
   "excluded_stems_comment": "Metadata files whose names the sources match only by accident: the C library's (stdint, intsafe limits), GDI+ C++ types named like ours (Point, Rect), and miniaudio backends compiled out by MA_ENABLE_ONLY_SPECIFIC_BACKENDS (dsound, mmeapi, ksmedia, winsock2; audioclient and mmdeviceapi sit under #if 0). The GPU headers (d3d11, dxgi, dcomp) are linked only by build-notes, which is not scanned.",
   "excluded_stems": [
@@ -188,8 +196,11 @@
     "d3d11",
     "dxgi",
     "dcomp",
-    "coremessaging"
+    "coremessaging",
+    "corecrt",
+    "corecrt_wstdio",
+    "sal"
   ],
   "excluded_tokens_comment": "C library names the metadata also carries (crt stream owns them), and macros miniaudio defines itself.",
-  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses."
+  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses. Then the names libc++'s build needed (queue/claude__windows-own-crt.md, api_gaps.h)."
 }

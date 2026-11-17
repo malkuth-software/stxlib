@@ -21,6 +21,7 @@ EXPORTS
     GetDeviceCaps
     GetFontData
     GetMapMode
+    GetObjectA
     GetObjectType
     GetObjectW
     GetPixel

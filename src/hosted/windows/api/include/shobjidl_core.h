@@ -5,16 +5,38 @@
 #define STXWIN_SHOBJIDL_CORE_H
 
 #include "stxwin_supplement.h"
+#include "windows.h"
+#include "ole2.h"
 
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IFileOpenDialog = {0xd57c7288, 0xd4ad, 0x4768, {0xbe, 0x02, 0x9d, 0x96, 0x95, 0x32, 0xd9, 0x60}};
+#else
 STXWIN_EXTERN_C const IID IID_IFileOpenDialog;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IFileSaveDialog = {0x84bccd23, 0x5fde, 0x4cdb, {0xae, 0xa4, 0xaf, 0x64, 0xb8, 0x3d, 0x78, 0xab}};
+#else
 STXWIN_EXTERN_C const IID IID_IFileSaveDialog;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IShellItem = {0x43826d1e, 0xe718, 0x42ee, {0xbc, 0x55, 0xa1, 0xe2, 0x61, 0xc3, 0x7b, 0xfe}};
+#else
 STXWIN_EXTERN_C const IID IID_IShellItem;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileOpenDialog = {0xdc1c5a9c, 0xe88a, 0x4dde, {0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7}};
+#else
 STXWIN_EXTERN_C const CLSID CLSID_FileOpenDialog;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileSaveDialog = {0xc0b4e2f3, 0xba21, 0x4773, {0x8d, 0xba, 0x33, 0x5e, 0xc9, 0x46, 0xeb, 0x8b}};
+#else
 STXWIN_EXTERN_C const CLSID CLSID_FileSaveDialog;
+#endif
 
 #ifdef __cplusplus
 extern "C" {

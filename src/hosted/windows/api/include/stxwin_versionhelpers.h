@@ -9,6 +9,8 @@
 
 #include "winbase.h"
 #include "winnt.h"
+/* The metadata files VerSetConditionMask under shared.h (the SDK: winnt.h). */
+#include "shared.h"
 
 #ifndef RC_INVOKED
 

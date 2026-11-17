@@ -71,13 +71,22 @@ NATIVE_TYPEDEF_DEPENDENCIES = {
     'BSTR': ['OLECHAR'], 'PCHAR': ['CHAR'], 'PWCHAR': ['WCHAR'], 'PDWORD': ['DWORD'],
     'LPDWORD': ['DWORD'], 'PULONG': ['ULONG'], 'PLONG': ['LONG'], 'LPLONG': ['LONG'],
 }
+# C library names the metadata also declares. The crt stream owns them: they
+# are spelled by name, never defined here, and the types header includes the
+# C header (clang's resource header or the crt's) that defines them.
+CRT_OWNED = {
+    'va_list': 'stdarg.h', 'size_t': 'stddef.h', 'ptrdiff_t': 'stddef.h', 'intptr_t': 'stdint.h',
+    'uintptr_t': 'stdint.h', 'int8_t': 'stdint.h', 'int16_t': 'stdint.h', 'int32_t': 'stdint.h',
+    'int64_t': 'stdint.h', 'uint8_t': 'stdint.h', 'uint16_t': 'stdint.h', 'uint32_t': 'stdint.h',
+    'uint64_t': 'stdint.h', 'time_t': 'time.h', 'FILE': 'stdio.h', 'wint_t': 'wchar.h', 'errno_t': 'errno.h',
+}
 # Always emitted: the spelling rules below use them.
 BASE_TYPES = ['WCHAR', 'CHAR', 'LPWSTR', 'LPSTR', 'GUID', 'IID', 'CLSID', 'LONG_PTR', 'HRESULT', 'ULONG',
               'IUnknown', 'PROPERTYKEY', 'WORD', 'BYTE', 'DWORD', 'LONG', 'DWORD_PTR', 'ULONG_PTR', 'COLORREF',
               'WPARAM', 'LPARAM', 'LRESULT', 'HANDLE']
 # Hand-written headers a generated one includes after the types (stxwin_*.h).
 HAND_TAILS = {'versionhelpers': 'stxwin_versionhelpers.h'}
-HAND_WRITTEN = ['stxwin_supplement.h', 'stxwin_versionhelpers.h']
+HAND_WRITTEN = ['stxwin_supplement.h', 'stxwin_versionhelpers.h', 'initguid.h']
 
 CXX_KEYWORDS = {
     'alignas', 'alignof', 'and', 'asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const',
@@ -89,6 +98,15 @@ CXX_KEYWORDS = {
     'void', 'volatile', 'while', 'xor', 'char8_t', 'char16_t', 'char32_t', 'concept', 'requires',
     'interface',
 }
+
+# The metadata writes IDL `long` and `int` alike as i32. COM interfaces come
+# from MIDL headers, whose IDL uses `long` (Learn's method syntax, e.g.
+# IAccessible::get_accChildCount(long *pcountChildren)), except the UI
+# Automation IDL, which uses `int` (e.g. ITextRangeProvider::Move(TextUnit
+# unit, int count, int *pRetVal)). Method signatures matter to C++ overriding
+# and pointer conversion, so i32 in an interface method is spelled `long`
+# unless the interface comes from one of these files.
+INT_IDL_STEMS = {'uiautomationcore', 'uiautomationclient', 'uiautomationcoreapi'}
 
 # Umbrella headers: what an SDK-named header that has no metadata file of
 # its own (or that pulls in others) includes. From Microsoft Learn's
@@ -109,6 +127,12 @@ WINDOWS_H_NOT_LEAN = ['shellapi', 'commdlg', 'ole2', 'objbase', 'combaseapi', 'o
                       'objidlbase', 'unknwnbase', 'wtypes', 'wtypesbase', 'oleidl', 'propidlbase',
                       'wincrypt', 'mmsystem', 'mmsyscom', 'timeapi', 'rpc', 'rpcdce', 'dde', 'ddeml', 'dlgs',
                       'cderr', 'winspool', 'winscard', 'winefs', 'nb30', 'winperf', 'lzexpand']
+# Record tags that differ from the metadata name: clang's __uuidof yields
+# `const _GUID` (Learn: __uuidof operator; GUID structure "typedef struct _GUID").
+TAG_NAMES = {'GUID': '_GUID'}
+# COM base headers: they hold interfaces but do not include ole2.h.
+COM_BASE_STEMS = {'unknwnbase', 'objidlbase', 'objidl', 'wtypes', 'wtypesbase', 'oaidl', 'oleidl', 'ocidl',
+                  'propidlbase', 'combaseapi', 'objbase', 'ole2', 'oleauto'}
 UMBRELLA_MEMBERS = {
     'uiautomation': ['uiautomationcore', 'uiautomationclient', 'uiautomationcoreapi'],
     'objbase': ['combaseapi', 'objidl', 'objidlbase', 'unknwnbase', 'wtypes', 'wtypesbase', 'propidlbase'],
@@ -209,6 +233,7 @@ class Model:
         self.winrt: dict[str, str] = {}
         self.gaps: list[str] = []
         self.methods: set[str] = set()
+        self.crt_headers: set[str] = set()
 
     def is_interface(self, name: str) -> bool:
         declaration = self.declarations.get(name)
@@ -323,6 +348,9 @@ class Model:
             current = pending.pop()
             if current in self.used:
                 continue
+            if current in CRT_OWNED:
+                self.crt_headers.add(CRT_OWNED[current])
+                continue
             declaration = self.declarations.get(current)
             if declaration is None:
                 self.gaps.append(f'type {current}: referenced but not in the metadata')
@@ -339,12 +367,17 @@ class Speller:
 
     def __init__(self, model: Model) -> None:
         self.model = model
+        # Set while spelling a COM method of a MIDL header whose IDL says
+        # `long` (see INT_IDL_STEMS).
+        self.long_i32 = False
 
     def base_name(self, type_ref: rdl.TypeRef) -> tuple[str, bool]:
         """(spelling, is_interface) of a named type."""
         if type_ref.namespace:
             path = type_ref.namespace.replace('super::', 'ABI::Windows::')
             return (path + type_ref.name, True)
+        if type_ref.name == 'i32' and self.long_i32:
+            return ('long', False)
         if type_ref.name in PRIMITIVES:
             return (PRIMITIVES[type_ref.name], False)
         if type_ref.name == 'String':
@@ -575,8 +608,25 @@ class Emitter:
         prefix = f'__declspec(align({alignment.arguments[0]})) ' if alignment is not None else ''
         if pack:
             lines.append(f'#pragma pack(push, {pack})')
-        lines.append(f'{record.kind} {prefix}{record.name} {{')
-        lines.extend(self.record_lines(record, '    ', pack))
+        tag = TAG_NAMES.get(record.name, record.name)
+        base = based_field(record)
+        if base is None:
+            lines.append(f'{record.kind} {prefix}{tag} {{')
+            lines.extend(self.record_lines(record, '    ', pack))
+        else:
+            if record.nested:
+                raise GenerationError(f'{record.name}: #[base] with nested records is not supported')
+            # #[base] (MONITORINFOEXW): C++ derives, so the base's members
+            # are the record's own; C holds the base as its first member.
+            # The x64 layout is the same either way.
+            base_type = self.speller.spell(base.field_type, '')
+            lines.append('#ifdef __cplusplus')
+            lines.append(f'{record.kind} {prefix}{tag} : {base_type} {{')
+            lines.append('#else')
+            lines.append(f'{record.kind} {prefix}{tag} {{')
+            lines.append(f'    {self.speller.spell(base.field_type, safe_name(base.name))};')
+            lines.append('#endif')
+            lines.extend(self.record_lines(record, '    ', pack)[1:])
         lines.append('};')
         if pack:
             lines.append('#pragma pack(pop)')
@@ -647,6 +697,7 @@ class Emitter:
             base = f' : public {base_name}'
         lines = [f'struct {uuid}__declspec(novtable) {declaration.name}{base} {{']
         seen: set[str] = set()
+        self.speller.long_i32 = declaration.source not in INT_IDL_STEMS
         for method in declaration.methods:
             if rdl.find_attribute(method.attributes, 'override_slot') is not None:
                 continue
@@ -657,6 +708,7 @@ class Emitter:
             parameters = self.speller.parameters(method.params, True, self.macro_names)
             result = 'void' if method.result is None else self.speller.spell(method.result, '')
             lines.append(f'    virtual {result} __stdcall {method.name}({parameters}) = 0;')
+        self.speller.long_i32 = False
         lines.append('};')
         return lines
 
@@ -664,6 +716,15 @@ class Emitter:
         lines = header_preamble('stxwin_types.h', 'Every Windows API type our sources use, in dependency order.')
         lines.append('#ifndef RC_INVOKED')
         lines.append('')
+        for header in sorted(self.model.crt_headers):
+            lines.append(f'#include <{header}>')
+        if self.model.crt_headers:
+            lines.append('')
+        early = self.early_neutral_lines()
+        if early:
+            lines.append('/* Neutral aliases that are also member names: before any record. */')
+            lines.extend(early)
+            lines.append('')
         lines.append('#ifdef __cplusplus')
         # Bitwise operators for a flags enum (Learn: DEFINE_ENUM_FLAG_OPERATORS).
         lines.append('#define STXWIN_ENUM_BINARY(E, op, assign) \\')
@@ -692,7 +753,7 @@ class Emitter:
         for name in sorted(self.model.used):
             declaration = self.model.declarations.get(name)
             if declaration is not None and declaration.kind in ('struct', 'union'):
-                lines.append(f'typedef {declaration.kind} {name} {name};')
+                lines.append(f'typedef {declaration.kind} {TAG_NAMES.get(name, name)} {name};')
             elif declaration is not None and declaration.kind == 'interface':
                 lines.append(f'typedef struct {name} {name};')
         lines.append('')
@@ -824,6 +885,26 @@ class Emitter:
                 grouped.setdefault(target.source, [])
         return grouped
 
+    def is_early_neutral(self, name: str) -> bool:
+        """A neutral function alias that is also a COM method or record field
+        name (DeleteFile, FindText, GetObject) is defined in stxwin_types.h
+        before any record, so the member is renamed with every use of it and
+        the alias works for the function too; other aliases stay with their
+        functions."""
+        if name not in self.model.methods and name not in self.field_names:
+            return False
+        wide = self.model.declarations.get(name + 'W')
+        return wide is not None and wide.kind == 'function'
+
+    def early_neutral_lines(self) -> list[str]:
+        lines: list[str] = []
+        for name in sorted(self.model.neutral):
+            if not self.is_early_neutral(name):
+                continue
+            ansi = name + 'A' if name + 'A' in self.model.declarations else name
+            lines.extend(['#ifdef UNICODE', f'#define {name} {name}W', '#else', f'#define {name} {ansi}', '#endif'])
+        return lines
+
     def stem_header(self, stem: str, declarations: list[rdl.Decl], members: list[str]) -> str:
         lines = header_preamble(f'{stem}.h', f'What our sources use of the SDK header {stem}.h.')
         lines.append('#include "stxwin_supplement.h"')
@@ -853,8 +934,7 @@ class Emitter:
             wide = self.model.declarations.get(name + 'W')
             if wide is None or wide.source != stem:
                 continue
-            if name in self.model.methods or name in self.field_names:
-                self.model.gaps.append(f'{name}: neutral alias not emitted (also a COM method or record field name)')
+            if self.is_early_neutral(name):
                 continue
             ansi = name + 'A' if name + 'A' in self.model.declarations else name
             if self.model.declarations[ansi].kind == 'type' or wide.kind in ('struct', 'union', 'type', 'callback'):
@@ -868,18 +948,13 @@ class Emitter:
             lines.append(f'#include "{HAND_TAILS[stem]}"')
         lines.append('')
         externs: list[str] = []
-        for declaration in declarations:
-            if declaration.kind == 'const' and self.constant_value(declaration) is None:
-                if declaration.name in self.model.neutral:
-                    continue
-                spelled = self.speller.spell(declaration.value_type, declaration.name)
-                externs.append(f'STXWIN_EXTERN_C const {spelled};')
-        for name in sorted(self.model.iids):
-            if self.model.declarations[name].source == stem:
-                externs.append(f'STXWIN_EXTERN_C const IID IID_{name};')
-        for name in sorted(self.model.clsids):
-            if self.model.declarations[name].source == stem:
-                externs.append(f'STXWIN_EXTERN_C const CLSID CLSID_{name};')
+        for guid_stem, declaration_text, initializer in self.guid_definitions():
+            if guid_stem != stem:
+                continue
+            # Defined here only after initguid.h (Learn: DEFINE_GUID); otherwise uuid.lib holds it.
+            externs.extend(['#ifdef INITGUID',
+                            f'STXWIN_GUID_DEFINITION {selectany(declaration_text)} = {initializer};',
+                            '#else', f'STXWIN_EXTERN_C {declaration_text};', '#endif'])
         lines.extend(externs)
         functions: list[str] = []
         for declaration in declarations:
@@ -924,13 +999,20 @@ class Emitter:
                  ' * The GUIDs our sources use: interface IIDs, class CLSIDs and other GUID constants.',
                  ' * Built into uuid.lib by the own-runtime assembly project. */',
                  '#include "stxwin_types.h"', '#include "stxwin_supplement.h"', '']
-        definitions: list[tuple[str, str]] = []
+        for _, declaration_text, initializer in self.guid_definitions():
+            lines.append(f'STXWIN_GUID_DEFINITION {selectany(declaration_text)} = {initializer};')
+        return '\n'.join(lines) + '\n'
+
+    def guid_definitions(self) -> list[tuple[str, str, str]]:
+        """(stem, declaration, initializer) of every used GUID-shaped constant."""
+        definitions: list[tuple[str, str, str]] = []
         for name in sorted(self.model.iids):
-            guid = self.model.declarations[name].attribute('guid')
-            definitions.append((f'const IID IID_{name}', guid_initializer(guid.arguments[0])))
+            declaration = self.model.declarations[name]
+            guid = declaration.attribute('guid')
+            definitions.append((declaration.source, f'const IID IID_{name}', guid_initializer(guid.arguments[0])))
         for name in sorted(self.model.clsids):
             declaration = self.model.declarations[name]
-            definitions.append((f'const CLSID CLSID_{name}', guid_initializer(declaration.value)))
+            definitions.append((declaration.source, f'const CLSID CLSID_{name}', guid_initializer(declaration.value)))
         for name in sorted(self.model.used):
             declaration = self.model.declarations.get(name)
             if declaration is None or declaration.kind != 'const' or name in self.model.neutral:
@@ -939,14 +1021,12 @@ class Emitter:
             if value_type.kind != 'named' or value_type.name not in ('GUID', 'PROPERTYKEY', 'DEVPROPKEY'):
                 continue
             if value_type.name == 'GUID':
-                definitions.append((f'const GUID {name}', guid_initializer(declaration.value)))
+                definitions.append((declaration.source, f'const GUID {name}', guid_initializer(declaration.value)))
             else:
                 guid = declaration.attribute('guid')
-                definitions.append((f'const {value_type.name} {name}',
-                                    f'{{{guid_initializer(guid.arguments[0])}, {int(declaration.value, 0)}}}'))
-        for declaration_text, initializer in definitions:
-            lines.append(f'STXWIN_EXTERN_C {declaration_text} = {initializer};')
-        return '\n'.join(lines) + '\n'
+                initializer = f'{{{guid_initializer(guid.arguments[0])}, {int(declaration.value, 0)}}}'
+                definitions.append((declaration.source, f'const {value_type.name} {name}', initializer))
+        return definitions
 
     def export_lists(self) -> dict[str, str]:
         grouped: dict[str, list[str]] = {}
@@ -990,6 +1070,10 @@ class Emitter:
             record_layout = self.layout.record(declaration)
             lines.append(f'static_assert(sizeof({name}) == {record_layout.size}, "{name} size");')
             lines.append(f'static_assert(alignof({name}) == {record_layout.alignment}, "{name} alignment");')
+            if based_field(declaration) is not None:
+                # A derived C++ record is not standard-layout: offsetof is
+                # not admitted, so only its size and alignment are checked.
+                continue
             for member, offset in record_layout.offsets:
                 lines.append(f'static_assert(STXWIN_OFFSET({name}, {member}) == {offset}, "{name}.{member}");')
         return '\n'.join(lines) + '\n'
@@ -1007,6 +1091,33 @@ DEF_FILE_NAMES = {
 REQUIRED_LIBRARIES = ['advapi32.dll', 'bcrypt.dll', 'dwmapi.dll', 'gdi32.dll', 'kernel32.dll', 'ole32.dll',
                       'oleacc.dll', 'oleaut32.dll', 'shell32.dll', 'uiautomationcore.dll', 'user32.dll',
                       'uxtheme.dll', 'api-ms-win-core-realtime-l1-1-1.dll']
+
+
+def based_field(record: rdl.Decl) -> rdl.Field | None:
+    """The record's #[base] field; the metadata puts it first."""
+    for index, field in enumerate(record.fields):
+        if rdl.find_attribute(field.attributes, 'base') is not None:
+            if index != 0:
+                raise GenerationError(f'{record.name}.{field.name}: #[base] is not the first field')
+            return field
+    return None
+
+
+def selectany(declaration_text: str) -> str:
+    """'const IID IID_X' -> 'const IID __declspec(selectany) IID_X'."""
+    head, name = declaration_text.rsplit(' ', 1)
+    return f'{head} __declspec(selectany) {name}'
+
+
+def members_of(name: str, stems: dict[str, list[rdl.Decl]], com_stems: set[str]) -> list[str]:
+    """The headers an emitted header includes after the supplement."""
+    members: list[str] = []
+    for member in UMBRELLA_MEMBERS.get(name, []):
+        if member in stems or member in UMBRELLA_MEMBERS:
+            members.append(member)
+    if name in com_stems and name not in COM_BASE_STEMS:
+        members.extend(['windows', 'ole2'])
+    return members
 
 
 def guard_name(file_name: str) -> str:
@@ -1062,6 +1173,14 @@ def generate(root: pathlib.Path) -> dict[str, str]:
     base = 'src/hosted/windows/api/'
     outputs[base + 'include/stxwin_types.h'] = emitter.types_header()
 
+    # COM interface headers are MIDL output, which brings in windows.h and the
+    # COM base (Learn: CoTaskMemFree, "combaseapi.h (include Objbase.h)";
+    # IUnknown, "unknwn.h"); the base headers themselves take nothing more.
+    com_stems: set[str] = set()
+    for declaration in model.declarations.values():
+        if declaration.kind == 'interface':
+            com_stems.add(declaration.source)
+
     # Which stems each included name reaches; the rest go into windows.h.
     reachable: set[str] = set()
     pending = list(includes) + list(WINDOWS_H_MEMBERS) + list(WINDOWS_H_NOT_LEAN)
@@ -1071,6 +1190,8 @@ def generate(root: pathlib.Path) -> dict[str, str]:
             continue
         reachable.add(current)
         pending.extend(UMBRELLA_MEMBERS.get(current, []))
+        if current in com_stems and current not in COM_BASE_STEMS:
+            pending.append('ole2')
     fallback: list[str] = []
     for stem in sorted(stems):
         if stem not in reachable:
@@ -1078,25 +1199,17 @@ def generate(root: pathlib.Path) -> dict[str, str]:
             model.gaps.append(f'{stem}.h: used but not reachable from an included header; added to windows.h')
 
     written: set[str] = set()
-    names = set(stems) | set(includes) | {'windows'}
-    for name in sorted(names):
-        if name == 'windows':
+    queue = sorted(set(stems) | set(includes))
+    while queue:
+        name = queue.pop(0)
+        if name == 'windows' or name in written:
             continue
-        members: list[str] = []
-        for member in UMBRELLA_MEMBERS.get(name, []):
-            if member in stems or member in UMBRELLA_MEMBERS:
-                members.append(member)
-                names_needed = member
-                if names_needed not in names:
-                    names.add(names_needed)
-        declarations = stems.get(name, [])
-        outputs[base + f'include/{name}.h'] = emitter.stem_header(name, declarations, members)
+        members = members_of(name, stems, com_stems)
+        outputs[base + f'include/{name}.h'] = emitter.stem_header(name, stems.get(name, []), members)
         written.add(name)
-    # Member headers named by umbrellas but not yet written (empty stems).
-    pending_members = sorted(names - written - {'windows'})
-    for name in pending_members:
-        outputs[base + f'include/{name}.h'] = emitter.stem_header(name, stems.get(name, []), [])
-        written.add(name)
+        for member in members:
+            if member not in written and member != 'windows':
+                queue.append(member)
     windows_members: list[str] = []
     for stem in WINDOWS_H_MEMBERS:
         if stem in written:

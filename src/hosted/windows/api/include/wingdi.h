@@ -60,6 +60,7 @@ __declspec(dllimport) int __stdcall GetDIBits(HDC hdc, HBITMAP hbm, UINT start, 
 __declspec(dllimport) int __stdcall GetDeviceCaps(HDC hdc, int index);
 __declspec(dllimport) DWORD __stdcall GetFontData(HDC hdc, DWORD dwTable, DWORD dwOffset, PVOID pvBuffer, DWORD cjBuffer);
 __declspec(dllimport) int __stdcall GetMapMode(HDC hdc);
+__declspec(dllimport) int __stdcall GetObjectA(HANDLE h, int c, LPVOID pv);
 __declspec(dllimport) DWORD __stdcall GetObjectType(HGDIOBJ h);
 __declspec(dllimport) int __stdcall GetObjectW(HANDLE h, int c, LPVOID pv);
 __declspec(dllimport) COLORREF __stdcall GetPixel(HDC hdc, int x, int y);

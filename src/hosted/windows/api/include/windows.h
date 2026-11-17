@@ -47,7 +47,6 @@
 #include "avrt.h"
 #include "basetsd.h"
 #include "coml2api.h"
-#include "commctrl.h"
 #include "mmreg.h"
 #include "ntstatus.h"
 #ifndef WIN32_LEAN_AND_MEAN

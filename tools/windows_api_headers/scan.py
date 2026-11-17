@@ -25,6 +25,7 @@ The output is deterministic: sorted, no timestamps.
 import argparse
 import json
 import pathlib
+import posixpath
 import re
 import subprocess
 import sys
@@ -121,6 +122,52 @@ def directory_files(directory: str, roots: list[str], exclusions: list[str]) -> 
     return files
 
 
+ANY_INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([A-Za-z0-9_./-]+)[>"]', re.MULTILINE)
+
+
+def facing_files(files: dict[str, str], header_names: set[str]) -> set[str]:
+    """Windows-facing files: by path, by a Windows header include, or by
+    including (directly or through other first-party files) a facing file.
+    An include names a file of the same source when the file's path ends
+    with it."""
+    by_basename: dict[str, list[str]] = {}
+    for path in files:
+        by_basename.setdefault(path.rsplit('/', 1)[-1], []).append(path)
+    facing: set[str] = set()
+    targets: dict[str, list[str]] = {}
+    for path in sorted(files):
+        text = files[path]
+        resolved: list[str] = []
+        direct = windows_facing_path(path)
+        for match in ANY_INCLUDE.finditer(text):
+            name = match.group(1)
+            stem = name[:-2].lower() if name.endswith('.h') else ''
+            if stem in header_names:
+                direct = True
+                continue
+            # A relative include ("../src/x.hpp") names the file next to the
+            # includer; any other names a file whose path ends with it.
+            relative = posixpath.normpath(posixpath.join(posixpath.dirname(path), name))
+            for candidate in by_basename.get(name.rsplit('/', 1)[-1], []):
+                if candidate == name or candidate == relative or candidate.endswith('/' + name):
+                    resolved.append(candidate)
+        targets[path] = resolved
+        if direct:
+            facing.add(path)
+    changed = True
+    while changed:
+        changed = False
+        for path in sorted(files):
+            if path in facing:
+                continue
+            for target in targets[path]:
+                if target in facing:
+                    facing.add(path)
+                    changed = True
+                    break
+    return facing
+
+
 class Index:
     """Metadata names for one architecture."""
 
@@ -208,18 +255,14 @@ def main() -> int:
             files = git_files(source['path'], source['revision'], source['roots'], source['exclude'])
         else:
             files = directory_files(source['path'], source['roots'], source['exclude'])
-        for path in sorted(files):
+        facing = facing_files(files, header_names)
+        for path in sorted(facing):
             text = files[path]
-            included: list[str] = []
+            facing_count += 1
             for match in INCLUDE.finditer(text):
                 name = match.group(1).lower()
                 if name in header_names:
-                    included.append(name)
-            if not included and not windows_facing_path(path):
-                continue
-            facing_count += 1
-            for name in included:
-                includes[name] = includes.get(name, 0) + 1
+                    includes[name] = includes.get(name, 0) + 1
             for token in set(IDENTIFIER.findall(strip_comments_and_strings(text))):
                 if token not in excluded_tokens:
                     resolve_token(token, index, roots, excluded_stems)

@@ -8,6 +8,8 @@
 #include "shlobj_core.h"
 #include "shobjidl.h"
 #include "knownfolders.h"
+#include "windows.h"
+#include "ole2.h"
 
 
 #ifndef RC_INVOKED

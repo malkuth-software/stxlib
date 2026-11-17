@@ -24,6 +24,7 @@ __declspec(dllimport) void __stdcall AcquireSRWLockExclusive(PSRWLOCK SRWLock);
 __declspec(dllimport) BOOL __stdcall CancelWaitableTimer(HANDLE hTimer);
 __declspec(dllimport) HANDLE __stdcall CreateEventA(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, LPCSTR lpName);
 __declspec(dllimport) HANDLE __stdcall CreateEventW(LPSECURITY_ATTRIBUTES lpEventAttributes, BOOL bManualReset, BOOL bInitialState, LPCWSTR lpName);
+__declspec(dllimport) HANDLE __stdcall CreateMutexW(LPSECURITY_ATTRIBUTES lpMutexAttributes, BOOL bInitialOwner, LPCWSTR lpName);
 __declspec(dllimport) HANDLE __stdcall CreateSemaphoreW(LPSECURITY_ATTRIBUTES lpSemaphoreAttributes, LONG lInitialCount, LONG lMaximumCount, LPCWSTR lpName);
 __declspec(dllimport) HANDLE __stdcall CreateWaitableTimerExW(LPSECURITY_ATTRIBUTES lpTimerAttributes, LPCWSTR lpTimerName, DWORD dwFlags, DWORD dwDesiredAccess);
 __declspec(dllimport) void __stdcall DeleteCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
@@ -34,6 +35,7 @@ __declspec(dllimport) void __stdcall InitializeCriticalSection(LPCRITICAL_SECTIO
 __declspec(dllimport) void __stdcall InitializeSRWLock(PSRWLOCK SRWLock);
 __declspec(dllimport) void __stdcall LeaveCriticalSection(LPCRITICAL_SECTION lpCriticalSection);
 __declspec(dllimport) HANDLE __stdcall OpenEventW(DWORD dwDesiredAccess, BOOL bInheritHandle, LPCWSTR lpName);
+__declspec(dllimport) BOOL __stdcall ReleaseMutex(HANDLE hMutex);
 __declspec(dllimport) void __stdcall ReleaseSRWLockExclusive(PSRWLOCK SRWLock);
 __declspec(dllimport) BOOL __stdcall ReleaseSemaphore(HANDLE hSemaphore, LONG lReleaseCount, LPLONG lpPreviousCount);
 __declspec(dllimport) BOOL __stdcall ResetEvent(HANDLE hEvent);

@@ -6,6 +6,8 @@
 
 #include "stxwin_supplement.h"
 #include "ole2.h"
+#include "windows.h"
+#include "ole2.h"
 
 #define NAVDIR_FIRSTCHILD 7
 #define NAVDIR_LASTCHILD 8
@@ -58,7 +60,11 @@
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IAccessible = {0x618736e0, 0x3c3d, 0x11cf, {0x81, 0x0c, 0x00, 0xaa, 0x00, 0x38, 0x9b, 0x71}};
+#else
 STXWIN_EXTERN_C const IID IID_IAccessible;
+#endif
 
 #ifdef __cplusplus
 extern "C" {

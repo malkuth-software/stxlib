@@ -6,6 +6,26 @@
 
 #ifndef RC_INVOKED
 
+#include <stdarg.h>
+#include <stdint.h>
+
+/* Neutral aliases that are also member names: before any record. */
+#ifdef UNICODE
+#define DeleteFile DeleteFileW
+#else
+#define DeleteFile DeleteFileA
+#endif
+#ifdef UNICODE
+#define FindText FindTextW
+#else
+#define FindText FindTextA
+#endif
+#ifdef UNICODE
+#define GetObject GetObjectW
+#else
+#define GetObject GetObjectA
+#endif
+
 #ifdef __cplusplus
 #define STXWIN_ENUM_BINARY(E, op, assign) \
     inline constexpr E operator op(E a, E b) { return E(((unsigned long long)a) op ((unsigned long long)b)); } \
@@ -74,6 +94,7 @@ typedef struct DIBSECTION DIBSECTION;
 typedef struct DISPATCHER_CONTEXT DISPATCHER_CONTEXT;
 typedef struct DISPPARAMS DISPPARAMS;
 typedef struct DPI_AWARENESS_CONTEXT__ DPI_AWARENESS_CONTEXT__;
+typedef struct DROPFILES DROPFILES;
 typedef struct DWM_BLURBEHIND DWM_BLURBEHIND;
 typedef struct DWM_TIMING_INFO DWM_TIMING_INFO;
 typedef struct DYNAMIC_TIME_ZONE_INFORMATION DYNAMIC_TIME_ZONE_INFORMATION;
@@ -81,7 +102,6 @@ typedef struct ELEMDESC ELEMDESC;
 typedef struct EXCEPINFO EXCEPINFO;
 typedef struct EXCEPTION_POINTERS EXCEPTION_POINTERS;
 typedef struct EXCEPTION_RECORD EXCEPTION_RECORD;
-typedef struct FILE FILE;
 typedef struct FILETIME FILETIME;
 typedef struct FILE_ATTRIBUTE_TAG_INFO FILE_ATTRIBUTE_TAG_INFO;
 typedef struct FILE_BASIC_INFO FILE_BASIC_INFO;
@@ -94,8 +114,9 @@ typedef struct FILE_STANDARD_INFO FILE_STANDARD_INFO;
 typedef struct FINDREPLACEA FINDREPLACEA;
 typedef struct FINDREPLACEW FINDREPLACEW;
 typedef struct FUNCDESC FUNCDESC;
-typedef struct GUID GUID;
+typedef struct _GUID GUID;
 typedef struct GUITHREADINFO GUITHREADINFO;
+typedef struct HARDWAREINPUT HARDWAREINPUT;
 typedef struct HBITMAP__ HBITMAP__;
 typedef struct HBRUSH__ HBRUSH__;
 typedef struct HDC__ HDC__;
@@ -139,6 +160,7 @@ typedef struct IMAGE_LOAD_CONFIG_DIRECTORY64 IMAGE_LOAD_CONFIG_DIRECTORY64;
 typedef struct IMAGE_TLS_DIRECTORY64 IMAGE_TLS_DIRECTORY64;
 typedef struct IModalWindow IModalWindow;
 typedef struct IMoniker IMoniker;
+typedef struct INPUT INPUT;
 typedef struct IO_COUNTERS IO_COUNTERS;
 typedef struct IPersist IPersist;
 typedef struct IPersistStream IPersistStream;
@@ -195,6 +217,7 @@ typedef struct IUnknown IUnknown;
 typedef struct IValueProvider IValueProvider;
 typedef struct JOBOBJECT_BASIC_LIMIT_INFORMATION JOBOBJECT_BASIC_LIMIT_INFORMATION;
 typedef struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION JOBOBJECT_EXTENDED_LIMIT_INFORMATION;
+typedef struct KEYBDINPUT KEYBDINPUT;
 typedef struct KNONVOLATILE_CONTEXT_POINTERS KNONVOLATILE_CONTEXT_POINTERS;
 typedef union LARGE_INTEGER LARGE_INTEGER;
 typedef struct LIST_ENTRY LIST_ENTRY;
@@ -204,7 +227,9 @@ typedef struct MINMAXINFO MINMAXINFO;
 typedef struct MODULEINFO MODULEINFO;
 typedef struct MONITORINFO MONITORINFO;
 typedef struct MONITORINFOEXW MONITORINFOEXW;
+typedef struct MOUSEINPUT MOUSEINPUT;
 typedef struct MSG MSG;
+typedef struct Matrix Matrix;
 typedef struct NOTIFYICONDATAW NOTIFYICONDATAW;
 typedef struct OVERLAPPED OVERLAPPED;
 typedef struct PAINTSTRUCT PAINTSTRUCT;
@@ -251,6 +276,7 @@ typedef struct VERSIONEDSTREAM VERSIONEDSTREAM;
 typedef struct WIN32_FIND_DATAW WIN32_FIND_DATAW;
 typedef struct WINDOWPLACEMENT WINDOWPLACEMENT;
 typedef struct WNDCLASSEXW WNDCLASSEXW;
+typedef struct WNDCLASSW WNDCLASSW;
 typedef struct XSAVE_FORMAT XSAVE_FORMAT;
 typedef struct _ACTIVATION_CONTEXT _ACTIVATION_CONTEXT;
 typedef struct _IMAGE_RUNTIME_FUNCTION_ENTRY _IMAGE_RUNTIME_FUNCTION_ENTRY;
@@ -1073,6 +1099,12 @@ union CY {
     LONGLONG int64;
 };
 
+/* gdiplusenums.h */
+typedef enum CompositingMode {
+    CompositingModeSourceOver = 0,
+    CompositingModeSourceCopy = 1,
+} CompositingMode;
+
 /* wtypes.h */
 struct DECIMAL {
     USHORT wReserved;
@@ -1226,6 +1258,16 @@ typedef DPI_AWARENESS_CONTEXT__ *DPI_AWARENESS_CONTEXT;
 struct DPI_AWARENESS_CONTEXT__ {
     int unused;
 };
+
+/* shlobj_core.h */
+#pragma pack(push, 1)
+struct DROPFILES {
+    DWORD pFiles;
+    POINT pt;
+    BOOL fNC;
+    BOOL fWide;
+};
+#pragma pack(pop)
 
 /* dwmapi.h */
 typedef enum DWMWINDOWATTRIBUTE {
@@ -1391,6 +1433,16 @@ struct DYNAMIC_TIME_ZONE_INFORMATION {
     BOOLEAN DynamicDaylightTimeDisabled;
 };
 
+/* gdiplusenums.h */
+typedef enum DashStyle {
+    DashStyleSolid = 0,
+    DashStyleDash = 1,
+    DashStyleDot = 2,
+    DashStyleDashDot = 3,
+    DashStyleDashDotDot = 4,
+    DashStyleCustom = 5,
+} DashStyle;
+
 /* oaidl.h */
 #pragma pack(push, 8)
 struct IDLDESC {
@@ -1494,13 +1546,6 @@ typedef enum FDE_SHAREVIOLATION_RESPONSE {
     FDESVR_ACCEPT = 1,
     FDESVR_REFUSE = 2,
 } FDE_SHAREVIOLATION_RESPONSE;
-
-/* corecrt_wstdio.h */
-#pragma pack(push, 8)
-struct FILE {
-    void *_Placeholder;
-};
-#pragma pack(pop)
 
 /* shobjidl_core.h */
 typedef unsigned int FILEOPENDIALOGOPTIONS;
@@ -1698,6 +1743,12 @@ struct FUNCDESC {
 };
 #pragma pack(pop)
 
+/* gdiplusenums.h */
+typedef enum FillMode {
+    FillModeAlternate = 0,
+    FillModeWinding = 1,
+} FillMode;
+
 /* propsys.h */
 typedef enum GETPROPERTYSTOREFLAGS {
     GPS_DEFAULT = 0,
@@ -1719,7 +1770,7 @@ typedef enum GETPROPERTYSTOREFLAGS {
 STXWIN_ENUM_FLAG_OPERATORS(GETPROPERTYSTOREFLAGS)
 
 /* guiddef.h */
-struct GUID {
+struct _GUID {
     unsigned int Data1;
     unsigned short Data2;
     unsigned short Data3;
@@ -1737,6 +1788,16 @@ struct GUITHREADINFO {
     HWND hwndMoveSize;
     HWND hwndCaret;
     RECT rcCaret;
+};
+
+/* gdiplusenums.h */
+typedef unsigned int GraphicsState;
+
+/* winuser.h */
+struct HARDWAREINPUT {
+    DWORD uMsg;
+    WORD wParamL;
+    WORD wParamH;
 };
 
 /* windef.h */
@@ -2077,6 +2138,35 @@ struct IMAGE_TLS_DIRECTORY64 {
 /* synchapi.h */
 typedef RTL_RUN_ONCE INIT_ONCE;
 
+/* winuser.h */
+struct KEYBDINPUT {
+    WORD wVk;
+    WORD wScan;
+    DWORD dwFlags;
+    DWORD time;
+    ULONG_PTR dwExtraInfo;
+};
+
+/* winuser.h */
+struct MOUSEINPUT {
+    LONG dx;
+    LONG dy;
+    DWORD mouseData;
+    DWORD dwFlags;
+    DWORD time;
+    ULONG_PTR dwExtraInfo;
+};
+
+/* winuser.h */
+struct INPUT {
+    DWORD type;
+    union {
+        MOUSEINPUT mi;
+        KEYBDINPUT ki;
+        HARDWAREINPUT hi;
+    };
+};
+
 /* shared.h */
 typedef int INT;
 
@@ -2089,6 +2179,19 @@ struct IO_COUNTERS {
     ULONGLONG WriteTransferCount;
     ULONGLONG OtherTransferCount;
 };
+
+/* gdiplusenums.h */
+typedef enum InterpolationMode {
+    InterpolationModeInvalid = -1,
+    InterpolationModeDefault = 0,
+    InterpolationModeLowQuality = 1,
+    InterpolationModeHighQuality = 2,
+    InterpolationModeBilinear = 3,
+    InterpolationModeBicubic = 4,
+    InterpolationModeNearestNeighbor = 5,
+    InterpolationModeHighQualityBilinear = 6,
+    InterpolationModeHighQualityBicubic = 7,
+} InterpolationMode;
 
 /* winnt.h */
 typedef enum JOBOBJECTINFOCLASS {
@@ -2318,6 +2421,9 @@ typedef FINDREPLACEW *LPFINDREPLACEW;
 /* minwindef.h */
 typedef void **LPHANDLE;
 
+/* winuser.h */
+typedef INPUT *LPINPUT;
+
 /* minwindef.h */
 typedef LONG *LPLONG;
 
@@ -2402,6 +2508,29 @@ typedef WIN32_FIND_DATAW *LPWIN32_FIND_DATAW;
 /* winreg.h */
 typedef int LSTATUS;
 
+/* gdiplusenums.h */
+typedef enum LineCap {
+    LineCapFlat = 0,
+    LineCapSquare = 1,
+    LineCapRound = 2,
+    LineCapTriangle = 3,
+    LineCapNoAnchor = 16,
+    LineCapSquareAnchor = 17,
+    LineCapRoundAnchor = 18,
+    LineCapDiamondAnchor = 19,
+    LineCapArrowAnchor = 20,
+    LineCapCustom = 255,
+    LineCapAnchorMask = 240,
+} LineCap;
+
+/* gdiplusenums.h */
+typedef enum LineJoin {
+    LineJoinMiter = 0,
+    LineJoinBevel = 1,
+    LineJoinRound = 2,
+    LineJoinMiterClipped = 3,
+} LineJoin;
+
 /* uiautomationcore.h */
 typedef enum LiveSetting {
     Off = 0,
@@ -2445,8 +2574,12 @@ struct MONITORINFO {
 };
 
 /* winuser.h */
+#ifdef __cplusplus
+struct MONITORINFOEXW : MONITORINFO {
+#else
 struct MONITORINFOEXW {
     MONITORINFO base;
+#endif
     WCHAR szDevice[32];
 };
 
@@ -2467,6 +2600,9 @@ struct MSG {
     DWORD time;
     POINT pt;
 };
+
+/* gdiplusmatrix.h */
+/* Matrix is opaque: declared, never defined. */
 
 /* shellapi.h */
 struct NOTIFYICONDATAW {
@@ -3021,6 +3157,35 @@ struct SYSTEM_INFO {
     WORD wProcessorRevision;
 };
 
+/* gdiplusenums.h */
+typedef enum SmoothingMode {
+    SmoothingModeInvalid = -1,
+    SmoothingModeDefault = 0,
+    SmoothingModeHighSpeed = 1,
+    SmoothingModeHighQuality = 2,
+    SmoothingModeNone = 3,
+    SmoothingModeAntiAlias = 4,
+    SmoothingModeAntiAlias8x4 = 4,
+    SmoothingModeAntiAlias8x8 = 5,
+} SmoothingMode;
+
+/* gdiplusenums.h */
+typedef enum StringAlignment {
+    StringAlignmentNear = 0,
+    StringAlignmentCenter = 1,
+    StringAlignmentFar = 2,
+} StringAlignment;
+
+/* gdiplusenums.h */
+typedef enum StringTrimming {
+    StringTrimmingNone = 0,
+    StringTrimmingCharacter = 1,
+    StringTrimmingWord = 2,
+    StringTrimmingEllipsisCharacter = 3,
+    StringTrimmingEllipsisWord = 4,
+    StringTrimmingEllipsisPath = 5,
+} StringTrimming;
+
 /* uiautomationcore.h */
 typedef enum StructureChangeType {
     StructureChangeType_ChildAdded = 0,
@@ -3037,9 +3202,6 @@ typedef enum SupportedTextSelection {
     SupportedTextSelection_Single = 1,
     SupportedTextSelection_Multiple = 2,
 } SupportedTextSelection;
-
-/* commctrl.h */
-typedef int TASKDIALOG_COMMON_BUTTON_FLAGS;
 
 /* uiautomationcore.h */
 typedef int TEXTATTRIBUTEID;
@@ -3546,7 +3708,30 @@ struct WNDCLASSEXW {
 };
 
 /* winuser.h */
+struct WNDCLASSW {
+    UINT style;
+    WNDPROC lpfnWndProc;
+    int cbClsExtra;
+    int cbWndExtra;
+    HINSTANCE hInstance;
+    HICON hIcon;
+    HCURSOR hCursor;
+    HBRUSH hbrBackground;
+    LPCWSTR lpszMenuName;
+    LPCWSTR lpszClassName;
+};
+
+/* winuser.h */
 typedef BOOL (__stdcall *WNDENUMPROC)(HWND param0, LPARAM param1);
+
+/* gdiplusenums.h */
+typedef enum WrapMode {
+    WrapModeTile = 0,
+    WrapModeTileFlipX = 1,
+    WrapModeTileFlipY = 2,
+    WrapModeTileFlipXY = 3,
+    WrapModeClamp = 4,
+} WrapMode;
 
 /* winnt.h */
 /* _ACTIVATION_CONTEXT is opaque: declared, never defined. */
@@ -3639,9 +3824,6 @@ typedef unsigned char boolean;
 /* rpcndr.h */
 typedef unsigned char byte;
 
-/* stdint.h */
-typedef int int32_t;
-
 /* propidlbase.h */
 #pragma pack(push, 8)
 struct tagPROPVARIANT {
@@ -3732,12 +3914,6 @@ struct tagPROPVARIANT {
 };
 #pragma pack(pop)
 
-/* corecrt.h */
-typedef long long time_t;
-
-/* shared.h */
-typedef CHAR *va_list;
-
 #ifdef __cplusplus
 
 /* unknwnbase.h */
@@ -3758,7 +3934,7 @@ struct __declspec(uuid("00020400-0000-0000-c000-000000000046")) __declspec(novta
 /* oleacc.h */
 struct __declspec(uuid("618736e0-3c3d-11cf-810c-00aa00389b71")) __declspec(novtable) IAccessible : public IDispatch {
     virtual HRESULT __stdcall get_accParent(IDispatch **ppdispParent) = 0;
-    virtual HRESULT __stdcall get_accChildCount(int *pcountChildren) = 0;
+    virtual HRESULT __stdcall get_accChildCount(long *pcountChildren) = 0;
     virtual HRESULT __stdcall get_accChild(VARIANT varChild, IDispatch **ppdispChild) = 0;
     virtual HRESULT __stdcall get_accName(VARIANT varChild, BSTR *pszName) = 0;
     virtual HRESULT __stdcall get_accValue(VARIANT varChild, BSTR *pszValue) = 0;
@@ -3766,15 +3942,15 @@ struct __declspec(uuid("618736e0-3c3d-11cf-810c-00aa00389b71")) __declspec(novta
     virtual HRESULT __stdcall get_accRole(VARIANT varChild, VARIANT *pvarRole) = 0;
     virtual HRESULT __stdcall get_accState(VARIANT varChild, VARIANT *pvarState) = 0;
     virtual HRESULT __stdcall get_accHelp(VARIANT varChild, BSTR *pszHelp) = 0;
-    virtual HRESULT __stdcall get_accHelpTopic(BSTR *pszHelpFile, VARIANT varChild, int *pidTopic) = 0;
+    virtual HRESULT __stdcall get_accHelpTopic(BSTR *pszHelpFile, VARIANT varChild, long *pidTopic) = 0;
     virtual HRESULT __stdcall get_accKeyboardShortcut(VARIANT varChild, BSTR *pszKeyboardShortcut) = 0;
     virtual HRESULT __stdcall get_accFocus(VARIANT *pvarChild) = 0;
     virtual HRESULT __stdcall get_accSelection(VARIANT *pvarChildren) = 0;
     virtual HRESULT __stdcall get_accDefaultAction(VARIANT varChild, BSTR *pszDefaultAction) = 0;
-    virtual HRESULT __stdcall accSelect(int flagsSelect, VARIANT varChild) = 0;
-    virtual HRESULT __stdcall accLocation(int *pxLeft, int *pyTop, int *pcxWidth, int *pcyHeight, VARIANT varChild) = 0;
-    virtual HRESULT __stdcall accNavigate(int navDir, VARIANT varStart, VARIANT *pvarEndUpAt) = 0;
-    virtual HRESULT __stdcall accHitTest(int xLeft, int yTop, VARIANT *pvarChild) = 0;
+    virtual HRESULT __stdcall accSelect(long flagsSelect, VARIANT varChild) = 0;
+    virtual HRESULT __stdcall accLocation(long *pxLeft, long *pyTop, long *pcxWidth, long *pcyHeight, VARIANT varChild) = 0;
+    virtual HRESULT __stdcall accNavigate(long navDir, VARIANT varStart, VARIANT *pvarEndUpAt) = 0;
+    virtual HRESULT __stdcall accHitTest(long xLeft, long yTop, VARIANT *pvarChild) = 0;
     virtual HRESULT __stdcall accDoDefaultAction(VARIANT varChild) = 0;
     virtual HRESULT __stdcall put_accName(VARIANT varChild, BSTR szName) = 0;
     virtual HRESULT __stdcall put_accValue(VARIANT varChild, BSTR szValue) = 0;
@@ -4080,7 +4256,7 @@ struct __declspec(uuid("43826d1e-e718-42ee-bc55-a1e261c37bfe")) __declspec(novta
     virtual HRESULT __stdcall GetParent(IShellItem **ppsi) = 0;
     virtual HRESULT __stdcall GetDisplayName(SIGDN sigdnName, LPWSTR *ppszName) = 0;
     virtual HRESULT __stdcall GetAttributes(SFGAOF sfgaoMask, SFGAOF *psfgaoAttribs) = 0;
-    virtual HRESULT __stdcall Compare(IShellItem *psi, SICHINTF hint, int *piOrder) = 0;
+    virtual HRESULT __stdcall Compare(IShellItem *psi, SICHINTF hint, long *piOrder) = 0;
 };
 
 /* shobjidl_core.h */

@@ -3,6 +3,7 @@
 LIBRARY kernel32.dll
 EXPORTS
     AcquireSRWLockExclusive
+    AreFileApisANSI
     AssignProcessToJobObject
     CancelIoEx
     CancelWaitableTimer
@@ -18,6 +19,7 @@ EXPORTS
     CreateFileW
     CreateHardLinkW
     CreateJobObjectW
+    CreateMutexW
     CreateNamedPipeW
     CreatePipe
     CreateProcessW
@@ -119,6 +121,7 @@ EXPORTS
     RaiseException
     ReadConsoleW
     ReadFile
+    ReleaseMutex
     ReleaseSRWLockExclusive
     ReleaseSemaphore
     RemoveDirectoryW

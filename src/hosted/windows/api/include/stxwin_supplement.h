@@ -23,6 +23,23 @@
 #ifndef EXTERN_C
 #define EXTERN_C STXWIN_EXTERN_C
 #endif
+/* A GUID definition: C linkage in C++, where a const object would otherwise
+ * have internal linkage; plain in C, where extern with an initializer warns. */
+#ifdef __cplusplus
+#define STXWIN_GUID_DEFINITION extern "C"
+#else
+#define STXWIN_GUID_DEFINITION
+#endif
+
+/* DEFINE_GUID (Learn: DEFINE_GUID macro): declares a GUID, or defines it
+ * (selectany) after initguid.h. */
+#define STXWIN_DEFINE_GUID_DECLARATION(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8)     STXWIN_EXTERN_C const GUID name
+#define STXWIN_DEFINE_GUID_DEFINITION(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8)     STXWIN_GUID_DEFINITION const GUID __declspec(selectany) name = {l, w1, w2, {b1, b2, b3, b4, b5, b6, b7, b8}}
+#ifdef INITGUID
+#define DEFINE_GUID STXWIN_DEFINE_GUID_DEFINITION
+#else
+#define DEFINE_GUID STXWIN_DEFINE_GUID_DECLARATION
+#endif
 
 /* Calling conventions (Learn: "Windows Data Types", "Argument Passing and
  * Naming Conventions"). On x64 every one is the single x64 convention; the
@@ -47,6 +64,12 @@
 #define DECLSPEC_NOVTABLE __declspec(novtable)
 #define DECLSPEC_UUID(x) __declspec(uuid(x))
 #define DECLSPEC_SELECTANY __declspec(selectany)
+
+/* API partitions (Learn: "API partitions", winapifamily.h): a desktop
+ * program sees every partition, so the test is the partition mask itself.
+ * Usable in #if. */
+#define WINAPI_FAMILY_PARTITION(partitions) (partitions)
+#define WINAPI_FAMILY_ONE_PARTITION(family, partition) ((family) == (partition))
 
 /* HRESULT tests and construction (Learn: "Using Macros for Error Handling",
  * SUCCEEDED, FAILED, HRESULT_FROM_WIN32, MAKE_HRESULT). */

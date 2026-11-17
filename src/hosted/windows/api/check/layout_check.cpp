@@ -8,7 +8,6 @@
 #include "bcrypt.h"
 #include "combaseapi.h"
 #include "coml2api.h"
-#include "commctrl.h"
 #include "commdlg.h"
 #include "consoleapi.h"
 #include "consoleapi2.h"
@@ -497,6 +496,12 @@ static_assert(STXWIN_OFFSET(DISPPARAMS, cNamedArgs) == 20, "DISPPARAMS.cNamedArg
 static_assert(sizeof(DPI_AWARENESS_CONTEXT__) == 4, "DPI_AWARENESS_CONTEXT__ size");
 static_assert(alignof(DPI_AWARENESS_CONTEXT__) == 4, "DPI_AWARENESS_CONTEXT__ alignment");
 static_assert(STXWIN_OFFSET(DPI_AWARENESS_CONTEXT__, unused) == 0, "DPI_AWARENESS_CONTEXT__.unused");
+static_assert(sizeof(DROPFILES) == 20, "DROPFILES size");
+static_assert(alignof(DROPFILES) == 1, "DROPFILES alignment");
+static_assert(STXWIN_OFFSET(DROPFILES, pFiles) == 0, "DROPFILES.pFiles");
+static_assert(STXWIN_OFFSET(DROPFILES, pt) == 4, "DROPFILES.pt");
+static_assert(STXWIN_OFFSET(DROPFILES, fNC) == 12, "DROPFILES.fNC");
+static_assert(STXWIN_OFFSET(DROPFILES, fWide) == 16, "DROPFILES.fWide");
 static_assert(sizeof(DWM_BLURBEHIND) == 20, "DWM_BLURBEHIND size");
 static_assert(alignof(DWM_BLURBEHIND) == 1, "DWM_BLURBEHIND alignment");
 static_assert(STXWIN_OFFSET(DWM_BLURBEHIND, dwFlags) == 0, "DWM_BLURBEHIND.dwFlags");
@@ -584,9 +589,6 @@ static_assert(STXWIN_OFFSET(EXCEPTION_RECORD, ExceptionRecord) == 8, "EXCEPTION_
 static_assert(STXWIN_OFFSET(EXCEPTION_RECORD, ExceptionAddress) == 16, "EXCEPTION_RECORD.ExceptionAddress");
 static_assert(STXWIN_OFFSET(EXCEPTION_RECORD, NumberParameters) == 24, "EXCEPTION_RECORD.NumberParameters");
 static_assert(STXWIN_OFFSET(EXCEPTION_RECORD, ExceptionInformation) == 32, "EXCEPTION_RECORD.ExceptionInformation");
-static_assert(sizeof(FILE) == 8, "FILE size");
-static_assert(alignof(FILE) == 8, "FILE alignment");
-static_assert(STXWIN_OFFSET(FILE, _Placeholder) == 0, "FILE._Placeholder");
 static_assert(sizeof(FILETIME) == 8, "FILETIME size");
 static_assert(alignof(FILETIME) == 4, "FILETIME alignment");
 static_assert(STXWIN_OFFSET(FILETIME, dwLowDateTime) == 0, "FILETIME.dwLowDateTime");
@@ -693,6 +695,11 @@ static_assert(STXWIN_OFFSET(GUITHREADINFO, hwndMenuOwner) == 32, "GUITHREADINFO.
 static_assert(STXWIN_OFFSET(GUITHREADINFO, hwndMoveSize) == 40, "GUITHREADINFO.hwndMoveSize");
 static_assert(STXWIN_OFFSET(GUITHREADINFO, hwndCaret) == 48, "GUITHREADINFO.hwndCaret");
 static_assert(STXWIN_OFFSET(GUITHREADINFO, rcCaret) == 56, "GUITHREADINFO.rcCaret");
+static_assert(sizeof(HARDWAREINPUT) == 8, "HARDWAREINPUT size");
+static_assert(alignof(HARDWAREINPUT) == 4, "HARDWAREINPUT alignment");
+static_assert(STXWIN_OFFSET(HARDWAREINPUT, uMsg) == 0, "HARDWAREINPUT.uMsg");
+static_assert(STXWIN_OFFSET(HARDWAREINPUT, wParamL) == 4, "HARDWAREINPUT.wParamL");
+static_assert(STXWIN_OFFSET(HARDWAREINPUT, wParamH) == 6, "HARDWAREINPUT.wParamH");
 static_assert(sizeof(HBITMAP__) == 4, "HBITMAP__ size");
 static_assert(alignof(HBITMAP__) == 4, "HBITMAP__ alignment");
 static_assert(STXWIN_OFFSET(HBITMAP__, unused) == 0, "HBITMAP__.unused");
@@ -847,6 +854,12 @@ static_assert(STXWIN_OFFSET(IMAGE_TLS_DIRECTORY64, AddressOfIndex) == 16, "IMAGE
 static_assert(STXWIN_OFFSET(IMAGE_TLS_DIRECTORY64, AddressOfCallBacks) == 24, "IMAGE_TLS_DIRECTORY64.AddressOfCallBacks");
 static_assert(STXWIN_OFFSET(IMAGE_TLS_DIRECTORY64, SizeOfZeroFill) == 32, "IMAGE_TLS_DIRECTORY64.SizeOfZeroFill");
 static_assert(STXWIN_OFFSET(IMAGE_TLS_DIRECTORY64, Characteristics) == 36, "IMAGE_TLS_DIRECTORY64.Characteristics");
+static_assert(sizeof(INPUT) == 40, "INPUT size");
+static_assert(alignof(INPUT) == 8, "INPUT alignment");
+static_assert(STXWIN_OFFSET(INPUT, type) == 0, "INPUT.type");
+static_assert(STXWIN_OFFSET(INPUT, mi) == 8, "INPUT.mi");
+static_assert(STXWIN_OFFSET(INPUT, ki) == 8, "INPUT.ki");
+static_assert(STXWIN_OFFSET(INPUT, hi) == 8, "INPUT.hi");
 static_assert(sizeof(IO_COUNTERS) == 48, "IO_COUNTERS size");
 static_assert(alignof(IO_COUNTERS) == 8, "IO_COUNTERS alignment");
 static_assert(STXWIN_OFFSET(IO_COUNTERS, ReadOperationCount) == 0, "IO_COUNTERS.ReadOperationCount");
@@ -874,6 +887,13 @@ static_assert(STXWIN_OFFSET(JOBOBJECT_EXTENDED_LIMIT_INFORMATION, ProcessMemoryL
 static_assert(STXWIN_OFFSET(JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobMemoryLimit) == 120, "JOBOBJECT_EXTENDED_LIMIT_INFORMATION.JobMemoryLimit");
 static_assert(STXWIN_OFFSET(JOBOBJECT_EXTENDED_LIMIT_INFORMATION, PeakProcessMemoryUsed) == 128, "JOBOBJECT_EXTENDED_LIMIT_INFORMATION.PeakProcessMemoryUsed");
 static_assert(STXWIN_OFFSET(JOBOBJECT_EXTENDED_LIMIT_INFORMATION, PeakJobMemoryUsed) == 136, "JOBOBJECT_EXTENDED_LIMIT_INFORMATION.PeakJobMemoryUsed");
+static_assert(sizeof(KEYBDINPUT) == 24, "KEYBDINPUT size");
+static_assert(alignof(KEYBDINPUT) == 8, "KEYBDINPUT alignment");
+static_assert(STXWIN_OFFSET(KEYBDINPUT, wVk) == 0, "KEYBDINPUT.wVk");
+static_assert(STXWIN_OFFSET(KEYBDINPUT, wScan) == 2, "KEYBDINPUT.wScan");
+static_assert(STXWIN_OFFSET(KEYBDINPUT, dwFlags) == 4, "KEYBDINPUT.dwFlags");
+static_assert(STXWIN_OFFSET(KEYBDINPUT, time) == 8, "KEYBDINPUT.time");
+static_assert(STXWIN_OFFSET(KEYBDINPUT, dwExtraInfo) == 16, "KEYBDINPUT.dwExtraInfo");
 static_assert(sizeof(KNONVOLATILE_CONTEXT_POINTERS) == 256, "KNONVOLATILE_CONTEXT_POINTERS size");
 static_assert(alignof(KNONVOLATILE_CONTEXT_POINTERS) == 8, "KNONVOLATILE_CONTEXT_POINTERS alignment");
 static_assert(STXWIN_OFFSET(KNONVOLATILE_CONTEXT_POINTERS, FloatingContext) == 0, "KNONVOLATILE_CONTEXT_POINTERS.FloatingContext");
@@ -950,8 +970,14 @@ static_assert(STXWIN_OFFSET(MONITORINFO, rcWork) == 20, "MONITORINFO.rcWork");
 static_assert(STXWIN_OFFSET(MONITORINFO, dwFlags) == 36, "MONITORINFO.dwFlags");
 static_assert(sizeof(MONITORINFOEXW) == 104, "MONITORINFOEXW size");
 static_assert(alignof(MONITORINFOEXW) == 4, "MONITORINFOEXW alignment");
-static_assert(STXWIN_OFFSET(MONITORINFOEXW, base) == 0, "MONITORINFOEXW.base");
-static_assert(STXWIN_OFFSET(MONITORINFOEXW, szDevice) == 40, "MONITORINFOEXW.szDevice");
+static_assert(sizeof(MOUSEINPUT) == 32, "MOUSEINPUT size");
+static_assert(alignof(MOUSEINPUT) == 8, "MOUSEINPUT alignment");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, dx) == 0, "MOUSEINPUT.dx");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, dy) == 4, "MOUSEINPUT.dy");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, mouseData) == 8, "MOUSEINPUT.mouseData");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, dwFlags) == 12, "MOUSEINPUT.dwFlags");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, time) == 16, "MOUSEINPUT.time");
+static_assert(STXWIN_OFFSET(MOUSEINPUT, dwExtraInfo) == 24, "MOUSEINPUT.dwExtraInfo");
 static_assert(sizeof(MSG) == 48, "MSG size");
 static_assert(alignof(MSG) == 8, "MSG alignment");
 static_assert(STXWIN_OFFSET(MSG, hwnd) == 0, "MSG.hwnd");
@@ -1319,6 +1345,18 @@ static_assert(STXWIN_OFFSET(WNDCLASSEXW, hbrBackground) == 48, "WNDCLASSEXW.hbrB
 static_assert(STXWIN_OFFSET(WNDCLASSEXW, lpszMenuName) == 56, "WNDCLASSEXW.lpszMenuName");
 static_assert(STXWIN_OFFSET(WNDCLASSEXW, lpszClassName) == 64, "WNDCLASSEXW.lpszClassName");
 static_assert(STXWIN_OFFSET(WNDCLASSEXW, hIconSm) == 72, "WNDCLASSEXW.hIconSm");
+static_assert(sizeof(WNDCLASSW) == 72, "WNDCLASSW size");
+static_assert(alignof(WNDCLASSW) == 8, "WNDCLASSW alignment");
+static_assert(STXWIN_OFFSET(WNDCLASSW, style) == 0, "WNDCLASSW.style");
+static_assert(STXWIN_OFFSET(WNDCLASSW, lpfnWndProc) == 8, "WNDCLASSW.lpfnWndProc");
+static_assert(STXWIN_OFFSET(WNDCLASSW, cbClsExtra) == 16, "WNDCLASSW.cbClsExtra");
+static_assert(STXWIN_OFFSET(WNDCLASSW, cbWndExtra) == 20, "WNDCLASSW.cbWndExtra");
+static_assert(STXWIN_OFFSET(WNDCLASSW, hInstance) == 24, "WNDCLASSW.hInstance");
+static_assert(STXWIN_OFFSET(WNDCLASSW, hIcon) == 32, "WNDCLASSW.hIcon");
+static_assert(STXWIN_OFFSET(WNDCLASSW, hCursor) == 40, "WNDCLASSW.hCursor");
+static_assert(STXWIN_OFFSET(WNDCLASSW, hbrBackground) == 48, "WNDCLASSW.hbrBackground");
+static_assert(STXWIN_OFFSET(WNDCLASSW, lpszMenuName) == 56, "WNDCLASSW.lpszMenuName");
+static_assert(STXWIN_OFFSET(WNDCLASSW, lpszClassName) == 64, "WNDCLASSW.lpszClassName");
 static_assert(sizeof(XSAVE_FORMAT) == 512, "XSAVE_FORMAT size");
 static_assert(alignof(XSAVE_FORMAT) == 16, "XSAVE_FORMAT alignment");
 static_assert(STXWIN_OFFSET(XSAVE_FORMAT, ControlWord) == 0, "XSAVE_FORMAT.ControlWord");

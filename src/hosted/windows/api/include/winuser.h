@@ -28,6 +28,7 @@
 #define GA_ROOT 2
 #define GCLP_HCURSOR (-12)
 #define GR_GDIOBJECTS 0
+#define GR_USEROBJECTS 1
 #define GWLP_HWNDPARENT (-8)
 #define GWLP_USERDATA (-21)
 #define GWL_EXSTYLE (-20)
@@ -44,10 +45,13 @@
 #define HTBOTTOMRIGHT 17
 #define HTCAPTION 2
 #define HTCLIENT 1
+#define HTCLOSE 20
 #define HTGROWBOX 4
 #define HTLEFT 10
+#define HTMINBUTTON 8
 #define HTNOWHERE 0
 #define HTRIGHT 11
+#define HTSYSMENU 3
 #define HTTOP 12
 #define HTTOPLEFT 13
 #define HTTOPRIGHT 14
@@ -130,6 +134,8 @@
 #define IDYES 6
 #define IMAGE_CURSOR 2
 #define IMAGE_ICON 1
+#define INPUT_KEYBOARD 1
+#define KEYEVENTF_KEYUP 2
 #define LR_DEFAULTSIZE 64
 #define LR_SHARED 32768
 #define LWA_ALPHA 2
@@ -208,6 +214,7 @@
 #define STATE_SYSTEM_SELECTABLE 2097152
 #define STATE_SYSTEM_SELECTED 2
 #define STATE_SYSTEM_UNAVAILABLE 1
+#define STM_GETICON 369
 #define STM_SETICON 368
 #define SWP_FRAMECHANGED 32
 #define SWP_NOACTIVATE 16
@@ -235,6 +242,7 @@
 #define UOI_NAME 2
 #define VK_ADD 107
 #define VK_APPS 93
+#define VK_ATTN 246
 #define VK_BACK 8
 #define VK_CAPITAL 20
 #define VK_CONTROL 17
@@ -329,6 +337,7 @@
 #define WM_IME_ENDCOMPOSITION 270
 #define WM_IME_SETCONTEXT 641
 #define WM_IME_STARTCOMPOSITION 269
+#define WM_INPUT 255
 #define WM_KEYDOWN 256
 #define WM_KEYFIRST 256
 #define WM_KEYLAST 265
@@ -389,6 +398,7 @@
 #define WS_POPUP 0x80000000
 #define WS_SYSMENU 524288
 #define WS_THICKFRAME 262144
+#define WS_VISIBLE 268435456
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
@@ -456,6 +466,7 @@ __declspec(dllimport) SHORT __stdcall GetKeyState(int nVirtKey);
 __declspec(dllimport) BOOL __stdcall GetLayeredWindowAttributes(HWND hwnd, COLORREF *pcrKey, BYTE *pbAlpha, DWORD *pdwFlags);
 __declspec(dllimport) BOOL __stdcall GetMonitorInfoW(HMONITOR hMonitor, LPMONITORINFO lpmi);
 __declspec(dllimport) HWND __stdcall GetParent(HWND hWnd);
+__declspec(dllimport) DWORD __stdcall GetQueueStatus(UINT flags);
 __declspec(dllimport) DWORD __stdcall GetSysColor(int nIndex);
 __declspec(dllimport) int __stdcall GetSystemMetrics(int nIndex);
 __declspec(dllimport) HDESK __stdcall GetThreadDesktop(DWORD dwThreadId);
@@ -493,7 +504,9 @@ __declspec(dllimport) HDESK __stdcall OpenInputDesktop(DWORD dwFlags, BOOL fInhe
 __declspec(dllimport) BOOL __stdcall PeekMessageW(LPMSG lpMsg, HWND hWnd, UINT wMsgFilterMin, UINT wMsgFilterMax, UINT wRemoveMsg);
 __declspec(dllimport) BOOL __stdcall PostMessageW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 __declspec(dllimport) void __stdcall PostQuitMessage(int nExitCode);
+__declspec(dllimport) BOOL __stdcall PostThreadMessageW(DWORD idThread, UINT Msg, WPARAM wParam, LPARAM lParam);
 __declspec(dllimport) ATOM __stdcall RegisterClassExW(const WNDCLASSEXW *param0);
+__declspec(dllimport) ATOM __stdcall RegisterClassW(const WNDCLASSW *lpWndClass);
 __declspec(dllimport) UINT __stdcall RegisterClipboardFormatW(LPCWSTR lpszFormat);
 __declspec(dllimport) UINT __stdcall RegisterWindowMessageW(LPCWSTR lpString);
 __declspec(dllimport) BOOL __stdcall ReleaseCapture(void);
@@ -501,6 +514,7 @@ __declspec(dllimport) int __stdcall ReleaseDC(HWND hWnd, HDC hDC);
 __declspec(dllimport) BOOL __stdcall ScreenToClient(HWND hWnd, LPPOINT lpPoint);
 __declspec(dllimport) BOOL __stdcall ScrollDC(HDC hDC, int dx, int dy, const RECT *lprcScroll, const RECT *lprcClip, HRGN hrgnUpdate, LPRECT lprcUpdate);
 __declspec(dllimport) int __stdcall ScrollWindowEx(HWND hWnd, int dx, int dy, const RECT *prcScroll, const RECT *prcClip, HRGN hrgnUpdate, LPRECT prcUpdate, UINT flags);
+__declspec(dllimport) UINT __stdcall SendInput(UINT cInputs, LPINPUT pInputs, int cbSize);
 __declspec(dllimport) LRESULT __stdcall SendMessageTimeoutW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam, UINT fuFlags, UINT uTimeout, PDWORD_PTR lpdwResult);
 __declspec(dllimport) LRESULT __stdcall SendMessageW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);
 __declspec(dllimport) HWND __stdcall SetActiveWindow(HWND hWnd);

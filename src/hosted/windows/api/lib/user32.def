@@ -61,6 +61,7 @@ EXPORTS
     GetLayeredWindowAttributes
     GetMonitorInfoW
     GetParent
+    GetQueueStatus
     GetSysColor
     GetSystemMetrics
     GetThreadDesktop
@@ -98,7 +99,9 @@ EXPORTS
     PeekMessageW
     PostMessageW
     PostQuitMessage
+    PostThreadMessageW
     RegisterClassExW
+    RegisterClassW
     RegisterClipboardFormatW
     RegisterWindowMessageW
     ReleaseCapture
@@ -106,6 +109,7 @@ EXPORTS
     ScreenToClient
     ScrollDC
     ScrollWindowEx
+    SendInput
     SendMessageTimeoutW
     SendMessageW
     SetActiveWindow

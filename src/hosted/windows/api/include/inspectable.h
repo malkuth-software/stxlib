@@ -6,6 +6,8 @@
 
 #include "stxwin_supplement.h"
 #include "unknwnbase.h"
+#include "windows.h"
+#include "ole2.h"
 
 
 #ifndef RC_INVOKED

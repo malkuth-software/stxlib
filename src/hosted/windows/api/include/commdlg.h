@@ -5,6 +5,8 @@
 #define STXWIN_COMMDLG_H
 
 #include "stxwin_supplement.h"
+#include "windows.h"
+#include "ole2.h"
 
 #define CC_ANYCOLOR 256
 #define CC_FULLOPEN 2

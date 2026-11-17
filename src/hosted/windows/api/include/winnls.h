@@ -6,6 +6,8 @@
 
 #include "stxwin_supplement.h"
 
+#define CP_ACP 0
+#define CP_OEMCP 1
 #define CP_UTF8 65001
 #define CSTR_EQUAL 2
 #define CSTR_LESS_THAN 1

@@ -22,3 +22,7 @@ VC, mingw-w64, Wine or ReactOS header. Metadata: windows-rs at the pin in
 | ZeroMemory, CopyMemory, MoveMemory, FillMemory, SecureZeroMemory | stxwin_supplement.h | the macro and function pages (winbase.h, wdm.h) |
 | REFIID, REFCLSID, REFGUID, IsEqualGUID, IsEqualIID, IID_PPV_ARGS | stxwin_supplement.h | REFIID in Windows Data Types; IsEqualGUID; IID_PPV_ARGS macro |
 | IsWindowsVersionOrGreater, IsWindows7/8/8Point1/10OrGreater | stxwin_versionhelpers.h | Version Helper functions; Verifying the System Version |
+| WINAPI_FAMILY_PARTITION | stxwin_supplement.h | Programming with API partitions (WINAPI_FAMILY_PARTITION evaluates a partition's 0/1 value); our spelling `(partitions)` is unconfirmed beyond that page |
+| DEFINE_GUID, INITGUID, initguid.h | stxwin_supplement.h, initguid.h | DEFINE_GUID macro (guiddef.h): declares the GUID, defines it where initguid.h is included first |
+| `int` in UI Automation methods | generate.py (`INT_IDL_STEMS`) | the IRawElementProviderSimple, ITextRangeProvider and IUIAutomation* method pages (`int` parameters) against IAccessible's (`long`) |
+| MONITORINFOEXW derives from MONITORINFO in C++ | generate.py (`based_field`) | MONITORINFOEXW structure (the `cbSize` member is MONITORINFO's); metadata `#[base]` |

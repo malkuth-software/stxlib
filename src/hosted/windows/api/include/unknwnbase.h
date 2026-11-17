@@ -10,7 +10,11 @@
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IUnknown = {0x00000000, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
+#else
 STXWIN_EXTERN_C const IID IID_IUnknown;
+#endif
 
 #endif /* RC_INVOKED */
 
