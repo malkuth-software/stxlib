@@ -1,0 +1,8 @@
+{
+  "repository": "https://github.com/microsoft/windows-rs",
+  "commit": "d9b5a0692301c66509eb830e41cf38c997373f8d",
+  "metadata_tree": "eccf781af24e1b98c0c227f9866f93e36cdb479b",
+  "licence": "MIT OR Apache-2.0",
+  "local_checkout": "D:/malkuth/windows_rs_metadata",
+  "arch": "X64"
+}
