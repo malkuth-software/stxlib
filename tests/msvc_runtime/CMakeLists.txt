@@ -72,62 +72,10 @@ if(NOT STXLIB_MSVC_RUNTIME_SIDE STREQUAL "ours")
 endif()
 
 # --- STXlib's runtime -----------------------------------------------------------
-# Every Microsoft C++ runtime library is dropped (the startup objects'
-# msvcrt.lib and libcmt.lib, vcruntime and the STL's runtime); the UCRT
-# DLL's import library stays, the one system C library.
-set(no_microsoft_runtime
-    "LINKER:/NODEFAULTLIB:msvcrt.lib"
-    "LINKER:/NODEFAULTLIB:libcmt.lib"
-    "LINKER:/NODEFAULTLIB:vcruntime.lib"
-    "LINKER:/NODEFAULTLIB:libvcruntime.lib"
-    "LINKER:/NODEFAULTLIB:msvcprt.lib"
-    "LINKER:/NODEFAULTLIB:libcpmt.lib"
-    "LINKER:/NODEFAULTLIB:libucrt.lib")
-
-# The runtime proper, kept free of exceptions and RTTI.
-add_library(stxlib_msvc_runtime_core OBJECT
-    "${runtime_dir}/runtime_state.cpp"
-    "${runtime_dir}/throw.cpp"
-    "${runtime_dir}/frame_handler.cpp"
-    "${runtime_dir}/terminate.cpp"
-    "${runtime_dir}/rtti.cpp"
-    "${runtime_dir}/exception_ptr.cpp"
-    "${runtime_dir}/thunks_x64.S")
-target_include_directories(stxlib_msvc_runtime_core PRIVATE "${stxlib_include}")
-target_compile_options(stxlib_msvc_runtime_core PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-
-# The hooks that construct and throw libc++'s std::bad_alloc, bad_cast and
-# bad_typeid.
-add_library(stxlib_msvc_runtime_hooks OBJECT "${runtime_dir}/cxx_hooks.cpp")
-target_include_directories(stxlib_msvc_runtime_hooks PRIVATE "${stxlib_include}")
-target_compile_options(stxlib_msvc_runtime_hooks PRIVATE -fexceptions -fcxx-exceptions)
-
-add_library(stxlib_msvc_runtime_static STATIC
-    $<TARGET_OBJECTS:stxlib_msvc_runtime_core>
-    $<TARGET_OBJECTS:stxlib_msvc_runtime_hooks>)
-
-# Per module, whichever runtime form an image uses.
-add_library(stxlib_msvc_runtime_module STATIC
-    "${runtime_dir}/module_static.cpp"
-    "${runtime_dir}/strings.cpp"
-    "${runtime_dir}/chkstk_x64.S"
-    "${runtime_dir}/thread_statics.cpp"
-    "${runtime_dir}/new_delete.cpp")
-target_include_directories(stxlib_msvc_runtime_module PRIVATE "${stxlib_include}")
-set_source_files_properties("${runtime_dir}/strings.cpp" PROPERTIES COMPILE_OPTIONS "-ffreestanding;-fno-builtin")
-set_source_files_properties("${runtime_dir}/new_delete.cpp" PROPERTIES COMPILE_OPTIONS "-fexceptions;-fcxx-exceptions")
-
-add_library(stxlib_msvc_image OBJECT "${runtime_dir}/image_support.c")
-
-add_library(stxlib_msvc_runtime SHARED
-    $<TARGET_OBJECTS:stxlib_msvc_runtime_core>
-    $<TARGET_OBJECTS:stxlib_msvc_runtime_hooks>
-    $<TARGET_OBJECTS:stxlib_msvc_image>
-    "${runtime_dir}/dll_entry.cpp"
-    "${runtime_dir}/stxlib_msvc_runtime.def")
-target_include_directories(stxlib_msvc_runtime PRIVATE "${stxlib_include}")
-target_link_libraries(stxlib_msvc_runtime PRIVATE stxlib_msvc_runtime_module -lucrt)
-target_link_options(stxlib_msvc_runtime PRIVATE ${no_microsoft_runtime} "LINKER:/ENTRY:stxlib_msvc_runtime_entry")
+# The runtime's own target file, shared with the root build's
+# STXLIB_MSVC_RUNTIME option. It sets stxlib_msvc_no_microsoft_runtime.
+add_subdirectory("${runtime_dir}" runtime)
+set(no_microsoft_runtime ${stxlib_msvc_no_microsoft_runtime})
 
 add_library(stxlib_msvc_test_entry OBJECT "${suite_dir}/support/test_entry.c")
 

@@ -1936,3 +1936,31 @@ install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/algorithms/markdown/NOTICE
         DESTINATION ${stxlib_licence_directory} RENAME markdown-NOTICE)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/third_party/whatwg-entities/LICENSE
         DESTINATION ${stxlib_licence_directory} RENAME whatwg-entities-LICENSE)
+
+# ---- the MSVC target's own startup and C++ runtime (opt-in) -------------------
+# x86_64-pc-windows-msvc, compiled by the pinned clang: the startup shim
+# (src/hosted/windows_msvc_startup, in place of Microsoft's vcstartup
+# objects) and the C++ runtime (src/hosted/windows/msvc_runtime, in place of
+# vcruntime). Owner, 2026-11-16 (projects desks/coordinator/
+# DECISIONS_2026-11-16.md, "Windows surfaces study and the MSVC runtime").
+# OFF by default, and refused on every other target, so nothing changes for
+# MinGW or any other host until both are proven on Windows: the startup
+# probes and the 17-case conformance suite against vcruntime
+# (tools/msvc_runtime/run_conformance.py). Each part is still buildable as
+# its own project, as its README says.
+option(STXLIB_MSVC_RUNTIME "Build STXlib's startup shim and C++ runtime for x86_64-pc-windows-msvc (unproven)" OFF)
+if(STXLIB_MSVC_RUNTIME)
+    if(NOT WIN32 OR MINGW OR NOT CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        message(FATAL_ERROR "STXLIB_MSVC_RUNTIME is for x86_64-pc-windows-msvc with clang only")
+    endif()
+    # The runtime's thunks and __chkstk are assembly (thunks_x64.S,
+    # chkstk_x64.S); a language is enabled in the highest directory that
+    # uses it, as the conformance suite does in its project().
+    set(CMAKE_ASM_COMPILER_TARGET "x86_64-pc-windows-msvc")
+    enable_language(ASM)
+    # The startup shim's probes follow STXlib's own tests switch.
+    set(STXLIB_MSVC_STARTUP_TESTS ${STXLIB_TESTS})
+    add_subdirectory(src/hosted/windows_msvc_startup)
+    add_subdirectory(src/hosted/windows/msvc_runtime)
+    message(STATUS "STXlib MSVC startup shim and C++ runtime: ON (unproven)")
+endif()

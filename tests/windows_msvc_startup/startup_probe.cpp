@@ -70,7 +70,7 @@ struct Counted {
 thread_local Counted counted;
 
 DWORD WINAPI use_thread_local(LPVOID parameter) {
-    (void)parameter;
+    static_cast<void>(parameter);
     const int value = counted.value;
     return static_cast<DWORD>(value);
 }
@@ -93,7 +93,7 @@ int read_slow_static() {
 }
 
 DWORD WINAPI use_slow_static(LPVOID parameter) {
-    (void)parameter;
+    static_cast<void>(parameter);
     const int value = read_slow_static();
     return static_cast<DWORD>(value);
 }

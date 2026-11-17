@@ -8,8 +8,8 @@
 #include <windows.h>
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE previous, LPSTR command_line, int show_command) {
-    (void)previous;
-    (void)show_command;
+    static_cast<void>(previous);
+    static_cast<void>(show_command);
     const int length = static_cast<int>(std::strlen(command_line));
     int base_matches = 0;
     if (instance == GetModuleHandleW(nullptr)) {

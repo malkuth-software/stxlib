@@ -91,13 +91,13 @@ void* operator new[](size_t size) {
 }
 
 void* operator new(size_t size, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     void* const block = allocate_or_null(size);
     return block;
 }
 
 void* operator new[](size_t size, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     void* const block = allocate_or_null(size);
     return block;
 }
@@ -113,13 +113,13 @@ void* operator new[](size_t size, std::align_val_t alignment) {
 }
 
 void* operator new(size_t size, std::align_val_t alignment, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     void* const block = allocate_aligned_or_null(size, alignment);
     return block;
 }
 
 void* operator new[](size_t size, std::align_val_t alignment, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     void* const block = allocate_aligned_or_null(size, alignment);
     return block;
 }
@@ -133,55 +133,55 @@ void operator delete[](void* block) noexcept {
 }
 
 void operator delete(void* block, size_t size) noexcept {
-    (void)size;
+    static_cast<void>(size);
     free(block);
 }
 
 void operator delete[](void* block, size_t size) noexcept {
-    (void)size;
+    static_cast<void>(size);
     free(block);
 }
 
 void operator delete(void* block, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     free(block);
 }
 
 void operator delete[](void* block, const std::nothrow_t& tag) noexcept {
-    (void)tag;
+    static_cast<void>(tag);
     free(block);
 }
 
 void operator delete(void* block, std::align_val_t alignment) noexcept {
-    (void)alignment;
+    static_cast<void>(alignment);
     _aligned_free(block);
 }
 
 void operator delete[](void* block, std::align_val_t alignment) noexcept {
-    (void)alignment;
+    static_cast<void>(alignment);
     _aligned_free(block);
 }
 
 void operator delete(void* block, size_t size, std::align_val_t alignment) noexcept {
-    (void)size;
-    (void)alignment;
+    static_cast<void>(size);
+    static_cast<void>(alignment);
     _aligned_free(block);
 }
 
 void operator delete[](void* block, size_t size, std::align_val_t alignment) noexcept {
-    (void)size;
-    (void)alignment;
+    static_cast<void>(size);
+    static_cast<void>(alignment);
     _aligned_free(block);
 }
 
 void operator delete(void* block, std::align_val_t alignment, const std::nothrow_t& tag) noexcept {
-    (void)alignment;
-    (void)tag;
+    static_cast<void>(alignment);
+    static_cast<void>(tag);
     _aligned_free(block);
 }
 
 void operator delete[](void* block, std::align_val_t alignment, const std::nothrow_t& tag) noexcept {
-    (void)alignment;
-    (void)tag;
+    static_cast<void>(alignment);
+    static_cast<void>(tag);
     _aligned_free(block);
 }

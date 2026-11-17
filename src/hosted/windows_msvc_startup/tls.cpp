@@ -121,9 +121,9 @@ void run_thread_local_initializers() noexcept {
 }
 
 void NTAPI program_thread_local_exit(void* module, unsigned long reason, void* reserved) {
-    (void)module;
-    (void)reason;
-    (void)reserved;
+    static_cast<void>(module);
+    static_cast<void>(reason);
+    static_cast<void>(reserved);
     run_thread_local_destructors();
 }
 
@@ -162,16 +162,16 @@ void register_program_thread_local_exit() noexcept {
 extern "C" {
 
 void NTAPI __dyn_tls_init(PVOID module, DWORD reason, PVOID reserved) {
-    (void)module;
-    (void)reserved;
+    static_cast<void>(module);
+    static_cast<void>(reserved);
     if (reason == DLL_THREAD_ATTACH) {
         stxlib::msvc_startup::initialize_thread_locals();
     }
 }
 
 void NTAPI stx_msvc_startup_tls_detach(PVOID module, DWORD reason, PVOID reserved) {
-    (void)module;
-    (void)reserved;
+    static_cast<void>(module);
+    static_cast<void>(reserved);
     if (reason == DLL_THREAD_DETACH) {
         stxlib::msvc_startup::run_thread_local_destructors();
     }

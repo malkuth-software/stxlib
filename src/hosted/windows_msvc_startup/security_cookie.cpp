@@ -59,7 +59,7 @@ __attribute__((no_stack_protector)) void __cdecl __security_init_cookie(void) {
         return;
     }
     LARGE_INTEGER counter{};
-    (void)QueryPerformanceCounter(&counter);
+    static_cast<void>(QueryPerformanceCounter(&counter));
     FILETIME system_time{};
     GetSystemTimePreciseAsFileTime(&system_time);
     const uint64_t time_value = (static_cast<uint64_t>(system_time.dwHighDateTime) << 32) | system_time.dwLowDateTime;
@@ -80,7 +80,7 @@ __attribute__((no_stack_protector)) void __cdecl __security_init_cookie(void) {
 }
 
 __attribute__((noreturn, no_stack_protector)) void __cdecl __report_gsfailure(uintptr_t cookie) {
-    (void)cookie;
+    static_cast<void>(cookie);
     __fastfail(FAST_FAIL_STACK_COOKIE_CHECK_FAILURE);
 }
 

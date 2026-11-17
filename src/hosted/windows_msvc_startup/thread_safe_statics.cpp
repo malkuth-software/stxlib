@@ -70,7 +70,7 @@ void __cdecl _Init_thread_header(int* const guard) noexcept {
             break;
         }
         if (*guard == guard_in_progress) {
-            (void)SleepConditionVariableSRW(&guard_completed, &guard_lock, INFINITE, 0);
+            static_cast<void>(SleepConditionVariableSRW(&guard_completed, &guard_lock, INFINITE, 0));
             continue;
         }
         _Init_thread_epoch = global_epoch;

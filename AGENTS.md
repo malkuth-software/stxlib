@@ -72,6 +72,15 @@ library's whole purpose:
   supervisor and its test bed. It never replaces the host's runtime in a hosted process: no
   global `operator new`, `malloc` or symbol interposition is imposed on
   foreign code.
+- The MSVC target's startup shim and C++ runtime (`src/hosted/windows_msvc_startup/`,
+  `src/hosted/windows/msvc_runtime/`; owner, 2026-11-16, projects
+  `desks/coordinator/DECISIONS_2026-11-16.md`) replace Microsoft's vcstartup
+  and vcruntime in images we link, behind `STXLIB_MSVC_RUNTIME` (OFF by
+  default). They are not the appliance runtime above: each image owns its
+  copy, and a DLL anyone else builds keeps its own runtime. The runtime's
+  per-thread records (`runtime_state.cpp`) are the C++ ABI's, not
+  `stxlib_state`'s, and its files that construct and throw the C++ library's
+  types are the only STXlib code that throws.
 - Third-party code is pinned and hashed in `PROVENANCE.md`, updated only by
   replacing it with another pinned, hashed release, never edited in place.
   Every download is the owner's approval first: file, source and size.

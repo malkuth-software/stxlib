@@ -39,7 +39,7 @@ bool initialize_module_exit_tables() noexcept {
 }
 
 void run_module_exit_table() noexcept {
-    (void)_execute_onexit_table(&module_exit_table);
+    static_cast<void>(_execute_onexit_table(&module_exit_table));
 }
 
 }  // namespace stxlib::msvc_startup

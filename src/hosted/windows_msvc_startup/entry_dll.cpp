@@ -30,9 +30,9 @@
 extern "C" BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved);
 
 extern "C" BOOL WINAPI stx_msvc_startup_default_dll_main(HINSTANCE instance, DWORD reason, LPVOID reserved) {
-    (void)instance;
-    (void)reason;
-    (void)reserved;
+    static_cast<void>(instance);
+    static_cast<void>(reason);
+    static_cast<void>(reserved);
     return TRUE;
 }
 

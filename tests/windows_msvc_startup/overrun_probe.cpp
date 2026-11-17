@@ -11,7 +11,7 @@ __attribute__((noinline)) void overrun(const char* const text, const unsigned lo
     char buffer[8];
     std::memcpy(buffer, text, count);
     volatile char sink = buffer[0];
-    (void)sink;
+    static_cast<void>(sink);
 }
 
 }  // namespace

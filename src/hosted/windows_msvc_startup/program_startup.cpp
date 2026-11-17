@@ -48,7 +48,7 @@ LONG WINAPI filter_unhandled_exception(EXCEPTION_POINTERS* const pointers) {
 }  // namespace
 
 void install_unhandled_exception_filter() noexcept {
-    (void)SetUnhandledExceptionFilter(&filter_unhandled_exception);
+    static_cast<void>(SetUnhandledExceptionFilter(&filter_unhandled_exception));
 }
 
 void start_program(const ArgumentForm form, const _crt_app_type application_type) noexcept {
