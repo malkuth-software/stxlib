@@ -1,0 +1,30 @@
+; The shared runtime's exports (stxlib_msvc_runtime.dll): what clang-compiled
+; code and libc++ (_LIBCPP_NO_VCRUNTIME) import on x86_64-pc-windows-msvc.
+; The __ExceptionPtr* functions have C++ linkage and are listed by their
+; decorated names. memcpy and the string group, the type_info vtable,
+; operator new and delete, __chkstk and the thread-safe static functions are
+; linked into each module from the static companion library instead.
+LIBRARY stxlib_msvc_runtime
+EXPORTS
+    _CxxThrowException
+    __CxxFrameHandler3
+    __uncaught_exceptions
+    __RTtypeid
+    __RTDynamicCast
+    __RTCastToVoid
+    __std_terminate
+    _purecall
+    set_unexpected
+    _get_unexpected
+    unexpected
+    ?__ExceptionPtrCreate@@YAXPEAX@Z
+    ?__ExceptionPtrDestroy@@YAXPEAX@Z
+    ?__ExceptionPtrCopy@@YAXPEAXPEBX@Z
+    ?__ExceptionPtrAssign@@YAXPEAXPEBX@Z
+    ?__ExceptionPtrCompare@@YA_NPEBX0@Z
+    ?__ExceptionPtrToBool@@YA_NPEBX@Z
+    ?__ExceptionPtrSwap@@YAXPEAX0@Z
+    ?__ExceptionPtrCurrentException@@YAXPEAX@Z
+    ?__ExceptionPtrRethrow@@YAXPEBX@Z
+    ?__ExceptionPtrCopyException@@YAXPEAXPEBX1@Z
+    stxlib_msvc_unhandled_exception_filter
