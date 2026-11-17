@@ -1,0 +1,3 @@
+# Generated and generator files keep LF on every checkout: generate.py --check
+# compares bytes.
+* text eol=lf
