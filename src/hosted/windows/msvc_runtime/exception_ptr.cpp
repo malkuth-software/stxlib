@@ -150,16 +150,18 @@ const Pointer& as_pointer(const void* const storage) noexcept {
 // C++ linkage, global namespace: libc++ declares them so on this ABI
 // (src/support/runtime/exception_pointer_msvc.ipp, _LIBCPP_CRT_FUNC), and
 // imports them by their decorated names, ?__ExceptionPtrCreate@@YAXPEAX@Z
-// and the rest (llvm-nm over libc++.lib, 2026-11-16).
+// and the rest (llvm-nm over libc++.lib, 2026-11-16). The parameters carry
+// no top-level const: the Microsoft decoration encodes it (Q for "* const"
+// against P), so a const parameter here names a different symbol.
 
-void __cdecl __ExceptionPtrCreate(void* const storage) {
+void __cdecl __ExceptionPtrCreate(void* storage) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     pointer.block = nullptr;
     pointer.unused = nullptr;
 }
 
-void __cdecl __ExceptionPtrDestroy(void* const storage) {
+void __cdecl __ExceptionPtrDestroy(void* storage) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     ExceptionBlock* const block = pointer.block;
@@ -167,7 +169,7 @@ void __cdecl __ExceptionPtrDestroy(void* const storage) {
     release_block(block);
 }
 
-void __cdecl __ExceptionPtrCopy(void* const storage, const void* const other) {
+void __cdecl __ExceptionPtrCopy(void* storage, const void* other) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     ExceptionBlock* const block = as_pointer(other).block;
@@ -176,7 +178,7 @@ void __cdecl __ExceptionPtrCopy(void* const storage, const void* const other) {
     pointer.unused = nullptr;
 }
 
-void __cdecl __ExceptionPtrAssign(void* const storage, const void* const other) {
+void __cdecl __ExceptionPtrAssign(void* storage, const void* other) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     ExceptionBlock* const incoming = as_pointer(other).block;
@@ -186,19 +188,19 @@ void __cdecl __ExceptionPtrAssign(void* const storage, const void* const other) 
     release_block(outgoing);
 }
 
-bool __cdecl __ExceptionPtrCompare(const void* const left, const void* const right) {
+bool __cdecl __ExceptionPtrCompare(const void* left, const void* right) {
     using namespace stxlib::msvc_runtime;
     const bool result = as_pointer(left).block == as_pointer(right).block;
     return result;
 }
 
-bool __cdecl __ExceptionPtrToBool(const void* const storage) {
+bool __cdecl __ExceptionPtrToBool(const void* storage) {
     using namespace stxlib::msvc_runtime;
     const bool result = as_pointer(storage).block != nullptr;
     return result;
 }
 
-void __cdecl __ExceptionPtrSwap(void* const left, void* const right) {
+void __cdecl __ExceptionPtrSwap(void* left, void* right) {
     using namespace stxlib::msvc_runtime;
     Pointer& a = as_pointer(left);
     Pointer& b = as_pointer(right);
@@ -207,7 +209,7 @@ void __cdecl __ExceptionPtrSwap(void* const left, void* const right) {
     b.block = held;
 }
 
-void __cdecl __ExceptionPtrCurrentException(void* const storage) {
+void __cdecl __ExceptionPtrCurrentException(void* storage) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     pointer.block = nullptr;
@@ -230,7 +232,7 @@ void __cdecl __ExceptionPtrCurrentException(void* const storage) {
     pointer.block = capture_cxx(exception_object(exception), *info, exception_image_base(exception));
 }
 
-void __cdecl __ExceptionPtrCopyException(void* const storage, const void* const object, const void* const throw_info) {
+void __cdecl __ExceptionPtrCopyException(void* storage, const void* object, const void* throw_info) {
     using namespace stxlib::msvc_runtime;
     Pointer& pointer = as_pointer(storage);
     ExceptionBlock* const outgoing = pointer.block;
@@ -244,7 +246,7 @@ void __cdecl __ExceptionPtrCopyException(void* const storage, const void* const 
     pointer.block = capture_cxx(const_cast<void*>(object), info, reinterpret_cast<stxlib::uptr>(image_base));
 }
 
-[[noreturn]] void __cdecl __ExceptionPtrRethrow(const void* const storage) {
+[[noreturn]] void __cdecl __ExceptionPtrRethrow(const void* storage) {
     using namespace stxlib::msvc_runtime;
     const ExceptionBlock* const block = as_pointer(storage).block;
     // rethrow_exception of a null exception_ptr is undefined ([propagation]p10).

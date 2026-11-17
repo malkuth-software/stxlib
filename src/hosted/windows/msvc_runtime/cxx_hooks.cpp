@@ -12,6 +12,7 @@
 #include "runtime_state.hpp"
 
 #include <atomic>
+#include <exception>
 #include <new>
 #include <typeinfo>
 
