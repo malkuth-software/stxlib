@@ -24,8 +24,7 @@
 #                                       (src/hosted/windows/msvc_runtime):
 #                                       throw, the frame handler, RTTI,
 #                                       exception_ptr, terminate;
-#   stxlib_msvc_runtime_per_image.lib   the runtime's per-image pieces the
-#                                       startup objects do not supply: the
+#   stxlib_msvc_runtime_module.lib      the runtime's per-image pieces: the
 #                                       string group, operator new and delete,
 #                                       type_info's vtable;
 #   stxlib_windows_builtins.lib         compiler builtins the build needs
@@ -40,12 +39,12 @@
 #                                       DLL on its LIBRARY line; <name> is the
 #                                       name targets link (kernel32, mincore).
 #
-# The per-image set (README.md of msvc_runtime, "Before it can be the
-# default", item 3): the startup objects keep __chkstk, the thread-safe
-# statics, the TLS directory and the DLL entry; the runtime keeps the string
-# group, operator new and delete and the type_info vtable. Neither part's
-# other copy is built here, so no image can hold both. Microsoft's libraries
-# are never named, and the consumer links with /NODEFAULTLIB.
+# The per-symbol owners (projects queue claude__windows-msvc-target.md): the
+# startup objects own the entry points, __chkstk, _fltused, the thread-safe
+# statics, the TLS directory and the exit tables; the runtime owns EH, RTTI,
+# exception_ptr, terminate, the string group, operator new and delete and
+# the type_info vtable. Microsoft's libraries are never named, and the
+# consumer links with /NODEFAULTLIB.
 
 cmake_minimum_required(VERSION 3.25)
 project(stxlib_windows_own_runtime LANGUAGES C CXX ASM)
@@ -77,28 +76,16 @@ if(NOT EXISTS "${stxlib_crt_def}")
 endif()
 
 # ---- the startup objects and the C++ runtime -------------------------------------
-# Both directories are added without their own targets in "all": the startup
-# project's vcruntime-mode archive (new_delete.cpp, type_info_destructor.cpp)
-# is for a libc++ built on vcruntime and does not compile against this one,
-# and the runtime's shared form and per-module archive carry the per-image
-# copies this set leaves to the startup objects. Only the archives named
-# below are built, as dependencies of stxlib_windows_own_runtime.
+# Both directories are added without their own targets in "all" (the
+# runtime's shared form and the startup's probes are not wanted here); only
+# the archives named below are built, as dependencies of
+# stxlib_windows_own_runtime. The startup comes first, so that the runtime
+# directory sees its target.
 set(STXLIB_MSVC_STARTUP_TESTS OFF CACHE BOOL "The startup shim's probes link Microsoft's runtime; off here" FORCE)
 add_subdirectory("${stxlib_root}/src/hosted/windows_msvc_startup" startup EXCLUDE_FROM_ALL)
 add_subdirectory("${stxlib_msvc_runtime_dir}" msvc_runtime EXCLUDE_FROM_ALL)
 
-# The runtime's per-image pieces this set keeps (see above). Source
-# properties are scoped to the directory that defines the target, so the
-# runtime directory's are repeated here.
-add_library(stxlib_msvc_runtime_per_image STATIC
-    "${stxlib_msvc_runtime_dir}/strings.cpp"
-    "${stxlib_msvc_runtime_dir}/new_delete.cpp"
-    "${stxlib_msvc_runtime_dir}/module_static.cpp")
-target_include_directories(stxlib_msvc_runtime_per_image PRIVATE "${stxlib_root}/include")
-set_source_files_properties("${stxlib_msvc_runtime_dir}/strings.cpp" PROPERTIES COMPILE_OPTIONS "-ffreestanding;-fno-builtin")
-set_source_files_properties("${stxlib_msvc_runtime_dir}/new_delete.cpp" PROPERTIES COMPILE_OPTIONS "-fexceptions;-fcxx-exceptions")
-
-set(stxlib_own_runtime_archives stx_msvc_startup stxlib_msvc_runtime_static stxlib_msvc_runtime_per_image)
+set(stxlib_own_runtime_archives stx_msvc_startup stxlib_msvc_runtime_static stxlib_msvc_runtime_module)
 
 # ---- compiler builtins -------------------------------------------------------------
 file(GLOB stxlib_builtins_sources LIST_DIRECTORIES false
