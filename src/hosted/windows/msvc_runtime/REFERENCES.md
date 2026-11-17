@@ -52,6 +52,67 @@ Read 2026-11-16:
 - _aligned_malloc, _aligned_free: <https://learn.microsoft.com/cpp/c-runtime-library/reference/aligned-malloc>
 - PE format (TLS section, TLS callbacks, TLS directory): <https://learn.microsoft.com/windows/win32/debug/pe-format>
 
+## system_interim.h and the no-MinGW port (2026-11-17)
+
+`system_interim.h` declares the Win32 and UCRT names both this runtime and
+the startup shim use, so they build with `-nostdinc` against STXlib's own
+headers only. Every declaration was written from Microsoft Learn, read
+2026-11-17; no SDK, UCRT, vcruntime, Wine, ReactOS or mingw-w64 header was
+opened:
+
+- Windows Data Types: <https://learn.microsoft.com/windows/win32/winprog/windows-data-types>
+- EXCEPTION_RECORD, EXCEPTION_POINTERS, CONTEXT (x64):
+  <https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-exception_record>,
+  <https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-exception_pointers>,
+  <https://learn.microsoft.com/windows/win32/api/winnt/ns-winnt-context>
+- x64 exception handling (RUNTIME_FUNCTION, DISPATCHER_CONTEXT, the
+  language handler and its flags):
+  <https://learn.microsoft.com/cpp/build/exception-handling-x64>
+- NTSTATUS values (STATUS_LONGJUMP, STATUS_UNWIND_CONSOLIDATE):
+  <https://learn.microsoft.com/openspecs/windows_protocols/ms-erref/596a1078-e883-4972-9bbc-49e60bebca55>
+- RaiseException, SetUnhandledExceptionFilter, RtlUnwindEx,
+  RtlPcToFileHeader, RtlLookupFunctionEntry, RtlVirtualUnwind,
+  RtlCaptureContext, RtlRestoreContext (their Learn reference pages under
+  `windows/win32/api/errhandlingapi/` and `windows/win32/api/winnt/`)
+- TlsAlloc, TlsFree, TlsGetValue, TlsSetValue; GetProcessHeap, HeapAlloc,
+  HeapFree; AcquireSRWLockExclusive, ReleaseSRWLockExclusive,
+  SleepConditionVariableSRW, WakeAllConditionVariable;
+  QueryPerformanceCounter, LARGE_INTEGER; GetSystemTimePreciseAsFileTime,
+  FILETIME; GetCurrentProcessId, GetCurrentThreadId; STARTUPINFOW,
+  GetStartupInfoW; WinMain; DllMain (their Learn reference pages)
+- __fastfail: <https://learn.microsoft.com/cpp/intrinsics/fastfail>
+- PE format (TLS directory, load configuration layout):
+  <https://learn.microsoft.com/windows/win32/debug/pe-format>
+- The UCRT's startup functions (_initterm, the onexit table, _crt_atexit,
+  _set_app_type, _configure_*argv, _initialize_*_environment,
+  _get_initial_*_environment, __p___argc and the rest), _aligned_malloc,
+  _aligned_free, _callnewh, _exit, terminate: their pages under
+  <https://learn.microsoft.com/cpp/c-runtime-library/>, including
+  "Internal CRT globals and functions"
+- longjmp (unwinding semantics): <https://learn.microsoft.com/cpp/c-runtime-library/reference/longjmp>
+- try-except and try-finally statements:
+  <https://learn.microsoft.com/cpp/cpp/try-except-statement>,
+  <https://learn.microsoft.com/cpp/cpp/try-finally-statement>
+
+LLVM 22.1.8, read 2026-11-17: `clang/lib/CodeGen/CGBuiltin.cpp`
+(EmitMSVCRTSetJmp: `_setjmp(buffer, frameaddress)` on x86-64),
+`clang/lib/CodeGen/CGException.cpp` (the `__C_specific_handler`
+personality), `llvm/lib/CodeGen/AsmPrinter/WinException.cpp`
+(emitCSpecificHandlerTable, emitSEHActionsForRange: the scope table),
+`clang/lib/Headers/intrin.h` (how clang declares `__fastfail` and
+`_setjmp`).
+
+Binary observation, 2026-11-17: `llvm-readobj --coff-exports` names of
+vcruntime140.dll, ucrtbase.dll, kernel32.dll and ntdll.dll, to see which
+of `__C_specific_handler`, `_setjmp`, `longjmp` and the Rtl unwind
+functions each exports (the Rtl functions are kernel32 exports;
+`_setjmp` is exported by none of the C runtime DLLs).
+
+General knowledge, marked in the sources and confirmed by tests: the
+numeric values of the unwind flags, `_crt_app_type` and `_crt_argv_mode`,
+the `FAST_FAIL_*` codes; STATUS_LONGJUMP's restore from the jump buffer
+(jump.cpp) and the buffer layout it implies.
+
 ## Windows SDK public headers (10.0.28000)
 
 Read 2026-11-16 for declarations only: `winnt.h` (EXCEPTION_RECORD,

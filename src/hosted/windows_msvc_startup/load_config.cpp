@@ -27,26 +27,15 @@
 // loader expects to patch (unconfirmed against a Microsoft page; checked
 // on the built probe with llvm-readobj --coff-load-config).
 //
-// The layout follows winnt.h up to GuardEHContinuationCount (280 bytes);
-// Size says how much the loader may read, and the later fields (XFG, cast
-// guard, memcpy guard, UMA) are absent. The offsets are checked against
-// winnt.h below.
+// The layout follows Learn "PE Format", "Load Configuration Layout (Image
+// Only)", up to GuardEHContinuationCount (280 bytes); Size says how much
+// the loader may read, and the later fields (XFG, cast guard, memcpy guard,
+// UMA) are absent. The offsets in the comments are that table's; the
+// shim builds against no SDK header (system_interim.h), so they are not
+// checked against winnt.h at compile time, and llvm-readobj
+// --coff-load-config on a built image checks them.
 
 #include "hosted/windows_msvc_startup/startup.hpp"
-
-#include <stddef.h>
-
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, SecurityCookie) == 88, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardCFCheckFunctionPointer) == 112, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardFlags) == 144, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardAddressTakenIatEntryTable) == 160, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardLongJumpTargetTable) == 176, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, DynamicValueRelocTable) == 192, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardEHContinuationTable) == 264, "load configuration layout");
-static_assert(offsetof(IMAGE_LOAD_CONFIG_DIRECTORY64, GuardEHContinuationCount) == 272, "load configuration layout");
 
 __asm__(
     // The stubs the guard pointers hold until the loader replaces them.

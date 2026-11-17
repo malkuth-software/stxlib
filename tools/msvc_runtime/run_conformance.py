@@ -40,6 +40,7 @@ CASES = [
     "standard_exceptions",
     "objects",
     "states",
+    "structured_and_jump",
 ]
 
 # Cases built only against the shared runtime on the ours side.

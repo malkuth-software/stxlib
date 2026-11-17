@@ -11,9 +11,6 @@
 
 #include <stdlib.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 extern "C" __attribute__((no_stack_protector)) int WinMainCRTStartup(void) {

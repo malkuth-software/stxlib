@@ -19,7 +19,9 @@ x64 only. What it supplies:
 | `__std_terminate`, `_purecall`, `set_unexpected`, `_get_unexpected`, `unexpected`, the unhandled-exception filter | `terminate.cpp` |
 | Throwing std::bad_alloc, bad_cast, bad_typeid | `cxx_hooks.cpp` |
 | Per module: memcpy and the vcruntime string group, operator new and delete, `__chkstk`, thread-safe statics | `strings.cpp`, `new_delete.cpp`, `chkstk_x64.S`, `thread_statics.cpp` |
+| `__C_specific_handler` (`__try`/`__except`/`__finally`), `_setjmp`, `_setjmpex`, `longjmp` (unwinding) | `structured_handler.cpp`, `setjmp_x64.S`, `jump.cpp` |
 | Per image without Microsoft's startup objects: TLS directory, `_fltused`; the DLL entry and atexit | `image_support.c`, `dll_entry.cpp` |
+| The Win32 and UCRT declarations both this runtime and the startup shim use, so both build with `-nostdinc` (interim until STXlib's Windows API headers land) | `system_interim.h` |
 
 Two forms, as vcruntime has: static (every file above linked into the
 image) and shared (`stxlib_msvc_runtime.dll`, exports in

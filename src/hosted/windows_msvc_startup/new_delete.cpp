@@ -21,7 +21,8 @@
 // std::bad_alloc is operator new's contract. The exception runtime that
 // carries the throw is vcruntime's in Stage 1.
 
-#include <malloc.h>
+#include "hosted/windows/msvc_runtime/system_interim.h"
+
 #include <new>
 #include <stdlib.h>
 

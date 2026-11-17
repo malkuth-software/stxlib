@@ -30,9 +30,6 @@
 
 #include <stdint.h>
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-
 namespace {
 
 constexpr uint64_t default_security_cookie = 0x00002B992DDFA232ULL;
