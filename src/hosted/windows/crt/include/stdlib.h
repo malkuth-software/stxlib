@@ -112,6 +112,14 @@ _STXLIB_UCRT div_t __cdecl div(int numerator, int denominator);
 _STXLIB_UCRT ldiv_t __cdecl ldiv(long numerator, long denominator);
 _STXLIB_UCRT lldiv_t __cdecl lldiv(long long numerator, long long denominator);
 
+/* Byte order reversal (Microsoft Learn, "_byteswap_uint64, _byteswap_ulong,
+ * _byteswap_ushort"). Clang treats these as builtins once declared, so they
+ * carry no import and generate a bswap instruction; stx's skia uses
+ * _byteswap_ulong. */
+unsigned short __cdecl _byteswap_ushort(unsigned short value);
+unsigned long __cdecl _byteswap_ulong(unsigned long value);
+unsigned long long __cdecl _byteswap_uint64(unsigned long long value);
+
 /* Multibyte and wide characters (C17 7.22.7, 7.22.8). */
 _STXLIB_UCRT int __cdecl mblen(const char* text, size_t count);
 _STXLIB_UCRT int __cdecl mbtowc(wchar_t* wide, const char* text, size_t count);
