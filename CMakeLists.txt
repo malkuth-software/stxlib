@@ -1713,6 +1713,10 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_std_rules_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # Its whole-text reading against the line-by-line reading it replaced.
+        add_test(NAME stxlib_std_rules_reading
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_std_rules_reading_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
         # The glyph surface check's own tests (no nm).
         add_test(NAME stxlib_glyphs_surface_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_glyphs_surface_tests.py
