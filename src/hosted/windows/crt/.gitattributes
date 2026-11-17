@@ -1,0 +1,3 @@
+# check_crt_headers.py compares ucrtbase.def byte for byte: LF on every
+# checkout, as the headers.
+* text eol=lf
