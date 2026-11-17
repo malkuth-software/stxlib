@@ -84,6 +84,10 @@
 
 #include <atomic>
 
+// The accessors' linkage. STXLIB_STATE_BUILDING is defined only while the
+// shared stxlib_state is compiled (CMakeLists.txt): a static archive's
+// objects carry no dllexport, so the module that links it exports none of
+// these names on Windows.
 #if defined(_WIN32)
 #if defined(STXLIB_STATE_BUILDING)
 #define STXLIB_STATE_API __declspec(dllexport)

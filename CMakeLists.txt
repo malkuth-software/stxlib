@@ -330,8 +330,13 @@ target_include_directories(stxlib_state
 target_compile_features(stxlib_state PUBLIC cxx_std_20)
 # STXLIB_SHADOW as the boundary has it: the thread state's layout depends on
 # the build type (state.hpp, layout 9), and the layout key refuses a mix.
+# STXLIB_STATE_BUILDING (state.hpp's dllexport on Windows) only for the
+# shared library: a static archive is private to the one module that links
+# it, and an export directive in its objects would export the accessors
+# from that module whatever its .def lists (stxlib_state_static_no_exports
+# below checks the objects).
 target_compile_definitions(stxlib_state PRIVATE
-    STXLIB_STATE_BUILDING
+    $<$<BOOL:${STXLIB_STATE_SHARED}>:STXLIB_STATE_BUILDING>
     $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>
     $<$<BOOL:${stxlib_tags_on}>:STXLIB_ALLOCATION_TAGS>)
 target_compile_options(stxlib_state PRIVATE ${stxlib_warnings} -fno-exceptions)
@@ -1678,6 +1683,14 @@ if(STXLIB_TESTS)
     add_library(stxlib_exception_probe OBJECT tests/exception_probe.cpp)
     target_compile_options(stxlib_exception_probe PRIVATE -fexceptions)
 
+    # The positive control of stxlib_state_static_no_exports (below): one
+    # object with a dllexport on purpose, which must carry an export
+    # directive. Windows only; linked into nothing.
+    if(WIN32 AND NOT STXLIB_STATE_SHARED)
+        add_library(stxlib_export_probe OBJECT tests/export_probe.cpp)
+        target_compile_options(stxlib_export_probe PRIVATE ${stxlib_test_warnings})
+    endif()
+
     # Proof harness: the platform layer's pure cores (A1 platform-rest):
     # Windows command-line splitting and quoting, the stack line's bounds and
     # the PE reader on damaged headers, exhaustive over the domains
@@ -1777,6 +1790,19 @@ if(STXLIB_TESTS)
                         ${stxlib_exception_allowed} ${stxlib_exception_free_objects})
         else()
             message(STATUS "STXlib: stxlib_no_exception_symbols not registered (it needs nm and a Ninja or Makefile generator)")
+        endif()
+        # The export directive check's own tests (objects built in memory, every host).
+        add_test(NAME stxlib_export_directives_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_no_export_directives_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # A static stxlib_state exports nothing from the module that links it
+        # (Windows: no export directive in its objects' .drectve sections).
+        # The probe must carry one, so the scan cannot pass by not seeing them.
+        if(WIN32 AND NOT STXLIB_STATE_SHARED AND CMAKE_GENERATOR MATCHES "Ninja|Makefiles")
+            add_test(NAME stxlib_state_static_no_exports
+                COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_no_export_directives.py
+                        --probe ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_export_probe.dir
+                        --objects ${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/stxlib_state.dir)
         endif()
     endif()
 endif()
