@@ -158,3 +158,16 @@ Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.
 - No compiler runs on the Mac laptop (Neo). Builds go to the M4 through
   `~/Developer/stxlib_workers/bin/m4sb`.
 - Preserve negative results. Report exact commands and environments.
+
+From the authoritative local working tree, the M4 release and test commands
+for the math kernels follow.
+
+```sh
+~/.local/bin/m4build -- env PATH=/opt/homebrew/bin:/usr/bin:/bin cmake -S . -B build/rel -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++
+~/.local/bin/m4build -- /opt/homebrew/bin/cmake --build build/rel -j8
+~/.local/bin/m4build -- /opt/homebrew/bin/ctest --test-dir build/rel -j6 --output-on-failure
+```
+
+For the integer and sanitizer run, configure a separate `build/checked`
+directory with `-DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTXLIB_INTEGER_CHECKS=ON
+-DCMAKE_CXX_FLAGS=-fsanitize=address,undefined`.

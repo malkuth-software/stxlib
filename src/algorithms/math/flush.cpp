@@ -20,6 +20,11 @@
 #undef STXLIB_MATH_DECLARE_VARIANT
 
 #include "core/subnormal.hpp"
+#include "sincos_table256.hpp"
+#include "atan_table128.hpp"
+
+#include <cmath>
+#include <limits>
 
 namespace stxlib::math {
 
@@ -49,6 +54,99 @@ void sincos(const double x, double& s, double& c) noexcept {
     unflushed::sincos(flush(x), kernel_s, kernel_c);
     s = flush(kernel_s);
     c = flush(kernel_c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    // With a normal input, the smallest nonzero result is either pi times
+    // a normal input or comes from a nonzero lattice residual >= 2^-61.
+    unflushed::sincospi(flush(x), s, c);
+}
+
+double sinpi(const double x) noexcept {
+    return unflushed::sinpi(flush(x));
+}
+
+double cospi(const double x) noexcept {
+    return unflushed::cospi(flush(x));
+}
+
+double sincpi(const double x) noexcept {
+    return flush(unflushed::sincpi(flush(x)));
+}
+
+double sinc(const double x) noexcept {
+    return sincpi(x);
+}
+
+double sinc_radians(const double x) noexcept {
+    return flush(unflushed::sinc_radians(flush(x)));
+}
+
+double cosm1(const double x) noexcept {
+    return flush(unflushed::cosm1(flush(x)));
+}
+
+double cosm1pi(const double x) noexcept {
+    return flush(unflushed::cosm1pi(flush(x)));
+}
+
+void sincospi(const float x, float& s, float& c) noexcept {
+    if (!std::isfinite(x)) {
+        const float refused = std::isnan(x) ? x + x : std::numeric_limits<float>::quiet_NaN();
+        s = refused;
+        c = refused;
+        return;
+    }
+    const double magnitude = std::fabs(static_cast<double>(flush(x)));
+    if (magnitude >= 0x1p24) {
+        s = std::copysign(0.0f, x);
+        c = 1.0f;
+        return;
+    }
+    const double q = std::nearbyint(magnitude * 128.0);
+    const auto index = static_cast<unsigned>(q) & 255u;
+    const auto& entry = detail::sincos_table_256[index];
+    const double r = (magnitude - q * 0x1p-7) * detail::atan_pi_hi;
+    const double square = r * r;
+    const double sine_r = r + (r * square) * (-1.0 / 6.0 + square / 120.0);
+    const double loss = square * (-0.5 + square * (1.0 / 24.0 - square / 720.0));
+    const float sine = static_cast<float>(entry.s + (entry.c * sine_r + entry.s * loss));
+    s = std::signbit(x) ? -sine : sine;
+    c = static_cast<float>(entry.c + (entry.c * loss - entry.s * sine_r));
+}
+
+float sinpi(const float x) noexcept {
+    float sine = 0.0;
+    float cosine = 0.0;
+    sincospi(x, sine, cosine);
+    return sine;
+}
+
+float cospi(const float x) noexcept {
+    float sine = 0.0;
+    float cosine = 0.0;
+    sincospi(x, sine, cosine);
+    return cosine;
+}
+
+float sincpi(const float x) noexcept {
+    return flush(static_cast<float>(unflushed::sincpi(flush(x))));
+}
+
+float sinc(const float x) noexcept {
+    return sincpi(x);
+}
+
+float sinc_radians(const float x) noexcept {
+    return flush(static_cast<float>(unflushed::sinc_radians(flush(x))));
+}
+
+float cosm1(const float x) noexcept {
+    return flush(static_cast<float>(unflushed::cosm1(flush(x))));
+}
+
+float cosm1pi(const float x) noexcept {
+    return flush(static_cast<float>(unflushed::cosm1pi(flush(x))));
 }
 
 // sin and cos as single functions (roadmap R1): fronts over sincos above,

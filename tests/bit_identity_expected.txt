@@ -89,3 +89,20 @@ text.shortest.float 043054c59134d18b 10280
 text.parse fb86e64d45cadf4c 40000
 random.xoshiro256pp 61cd097e9c93871e 140000
 random.chacha12 af7573f443c5df7a 60000
+
+math.sinpi.double edd5ffa26e6152d8 5144
+math.cospi.double 74bcd299d6479953 5144
+math.sinc.double 1e2f3b2ddd5daba3 5144
+math.sincpi.double 1e2f3b2ddd5daba3 5144
+math.sinc_radians.double 5ba3ef58b4e65898 5144
+math.cosm1.double c0fb11851f71acbb 5144
+math.cosm1pi.double 0b50fdb3498d5d83 5144
+math.gaussian_interval.double 3f8ae658468765fe 5720
+math.sinpi.float 1a8fc7e3929c429b 5140
+math.cospi.float db1bb794aad77ddb 5140
+math.sinc.float 96cee1157b76ef6e 5140
+math.sincpi.float 96cee1157b76ef6e 5140
+math.sinc_radians.float 076678811d86a87b 5140
+math.cosm1.float c30cb58e4e2fd21b 5140
+math.cosm1pi.float b408e913203784b9 5140
+math.gaussian_interval.float 59c4dc9e93014393 5540

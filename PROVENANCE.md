@@ -1064,3 +1064,15 @@ metadata itself is not vendored: the generator reads a local checkout named
 in `tools/windows_api_headers/PIN.json`, and `generate.py --check` proves the
 committed output is the generator's at that pin. Attribution:
 `src/hosted/windows/api/NOTICE`.
+
+## Half-turn trigonometry and Gaussian interval mass
+
+STXlib owns the half-turn reduction, split-slope rotation, sinc quotients,
+half-angle cosine losses and Gaussian interval implementation. The half-turn
+anchors come from the existing certified sine/cosine table. The Gaussian
+table generator integrates the normal density using Python decimal
+arithmetic and the repository's rational bounds for pi. The two generators
+live in `tools/math/gen_pi_slopes.py` and `tools/math/gen_gaussian_table.py`.
+The regression fixtures were rounded from MPFR 4.2.2. MPFR is used only for
+the independent check. New identity hashes cover both precisions of the
+scalar functions on the M4 native and forced-Dekker builds.

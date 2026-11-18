@@ -82,6 +82,40 @@ void sincos(double x, double& s, double& c) noexcept;
 [[nodiscard]] double sin(double x) noexcept;
 [[nodiscard]] double cos(double x) noexcept;
 
+// sin(pi*x) and cos(pi*x) in half-turns. Every finite input is supported.
+// Integer sine zeros have x's sign. At half-integers cosine is +0.
+// Infinite and NaN arguments give NaN. The project's subnormal rule applies.
+void sincospi(double x, double& s, double& c) noexcept;
+void sincospi(float x, float& s, float& c) noexcept;
+[[nodiscard]] double sinpi(double x) noexcept;
+[[nodiscard]] float sinpi(float x) noexcept;
+[[nodiscard]] double cospi(double x) noexcept;
+[[nodiscard]] float cospi(float x) noexcept;
+// Normalized sinc, sin(pi*x)/(pi*x), even with sincpi(0)=1. Nonzero
+// integers and both infinities give +0. NaN propagates.
+[[nodiscard]] double sincpi(double x) noexcept;
+[[nodiscard]] float sincpi(float x) noexcept;
+// The normalized spelling used in signal processing, identical to sincpi.
+[[nodiscard]] double sinc(double x) noexcept;
+[[nodiscard]] float sinc(float x) noexcept;
+// Unnormalized sin(x)/x in radians, 1 at zero. Same finite angle limit as sin.
+[[nodiscard]] double sinc_radians(double x) noexcept;
+[[nodiscard]] float sinc_radians(float x) noexcept;
+// cos(x)-1 with cancellation-safe reduction, for |x| <= 2^32 radians.
+// Larger magnitudes and nonfinite inputs give NaN. At zero returns -0.
+[[nodiscard]] double cosm1(double x) noexcept;
+[[nodiscard]] float cosm1(float x) noexcept;
+// cos(pi*x)-1 for all finite half-turn arguments. At even integers returns
+// -0, at odd integers -2. Nonfinite arguments give NaN.
+[[nodiscard]] double cosm1pi(double x) noexcept;
+[[nodiscard]] float cosm1pi(float x) noexcept;
+
+// Probability that a standard normal lies between a and b. Equal endpoints
+// give +0, reversed endpoints or NaN give NaN, infinities denote unbounded
+// endpoints. The subnormal rule applies. Accuracy and timing in proofs/REPORT.md.
+[[nodiscard]] double gaussian_interval(double a, double b) noexcept;
+[[nodiscard]] float gaussian_interval(float a, float b) noexcept;
+
 // e^x for a float, correctly rounded for every float (exhaustively checked,
 // 4,278,190,080 finite floats), overflow to infinity included; a correctly
 // rounded result below 2^-126 (x below about -87.336) returns +0, and a

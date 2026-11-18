@@ -646,6 +646,7 @@ set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/hyperbolic.cpp
     src/algorithms/math/hypot.cpp
     src/algorithms/math/log.cpp
+    src/algorithms/math/pi_trig.cpp
     src/algorithms/math/pow.cpp
     src/algorithms/math/region.cpp
     src/algorithms/math/sincos.cpp
@@ -673,7 +674,8 @@ set(STXLIB_MATH_SOURCES
     ${STXLIB_MATH_KERNEL_SOURCES}
     src/algorithms/math/constants.cpp
     src/algorithms/math/dispatch.cpp
-    src/algorithms/math/flush.cpp)
+    src/algorithms/math/flush.cpp
+    src/algorithms/math/gaussian.cpp)
 # x86-64 builds carry two kernel variants, v128 (SSE2) and avx2_fma, and
 # call the one the process's SIMD level selects (include/stxlib/simd.hpp).
 # Every other build has one native variant.

@@ -53,6 +53,13 @@ namespace {
 struct Kernels final {
     void (*sincos_f)(float, float&, float&) noexcept = nullptr;
     void (*sincos_d)(double, double&, double&) noexcept = nullptr;
+    void (*sincospi_d)(double, double&, double&) noexcept = nullptr;
+    double (*sinpi_d)(double) noexcept = nullptr;
+    double (*cospi_d)(double) noexcept = nullptr;
+    double (*sincpi_d)(double) noexcept = nullptr;
+    double (*sinc_radians_d)(double) noexcept = nullptr;
+    double (*cosm1_d)(double) noexcept = nullptr;
+    double (*cosm1pi_d)(double) noexcept = nullptr;
     float (*exp_f)(float) noexcept = nullptr;
     double (*exp_d)(double) noexcept = nullptr;
     double (*log_d)(double) noexcept = nullptr;
@@ -100,6 +107,13 @@ struct Kernels final {
 constexpr Kernels v128_kernels = {
     v128::sincos,
     v128::sincos,
+    v128::sincospi,
+    v128::sinpi,
+    v128::cospi,
+    v128::sincpi,
+    v128::sinc_radians,
+    v128::cosm1,
+    v128::cosm1pi,
     v128::exp,
     v128::exp,
     v128::log,
@@ -147,6 +161,13 @@ constexpr Kernels v128_kernels = {
 constexpr Kernels avx2_fma_kernels = {
     avx2_fma::sincos,
     avx2_fma::sincos,
+    avx2_fma::sincospi,
+    avx2_fma::sinpi,
+    avx2_fma::cospi,
+    avx2_fma::sincpi,
+    avx2_fma::sinc_radians,
+    avx2_fma::cosm1,
+    avx2_fma::cosm1pi,
     avx2_fma::exp,
     avx2_fma::exp,
     avx2_fma::log,
@@ -207,6 +228,34 @@ void resolve_sincos_f(const float angle, float& s, float& c) noexcept {
 
 void resolve_sincos_d(const double x, double& s, double& c) noexcept {
     (*(*resolve()).sincos_d)(x, s, c);
+}
+
+void resolve_sincospi_d(const double x, double& s, double& c) noexcept {
+    (*(*resolve()).sincospi_d)(x, s, c);
+}
+
+double resolve_sinpi_d(const double x) noexcept {
+    return (*(*resolve()).sinpi_d)(x);
+}
+
+double resolve_cospi_d(const double x) noexcept {
+    return (*(*resolve()).cospi_d)(x);
+}
+
+double resolve_sincpi_d(const double x) noexcept {
+    return (*(*resolve()).sincpi_d)(x);
+}
+
+double resolve_sinc_radians_d(const double x) noexcept {
+    return (*(*resolve()).sinc_radians_d)(x);
+}
+
+double resolve_cosm1_d(const double x) noexcept {
+    return (*(*resolve()).cosm1_d)(x);
+}
+
+double resolve_cosm1pi_d(const double x) noexcept {
+    return (*(*resolve()).cosm1pi_d)(x);
 }
 
 float resolve_exp_f(const float x) noexcept {
@@ -422,6 +471,13 @@ float resolve_log1p_f(const float x) noexcept {
 constexpr Kernels resolving_kernels = {
     resolve_sincos_f,
     resolve_sincos_d,
+    resolve_sincospi_d,
+    resolve_sinpi_d,
+    resolve_cospi_d,
+    resolve_sincpi_d,
+    resolve_sinc_radians_d,
+    resolve_cosm1_d,
+    resolve_cosm1pi_d,
     resolve_exp_f,
     resolve_exp_d,
     resolve_log_d,
@@ -484,6 +540,34 @@ void sincos(const float angle, float& s, float& c) noexcept {
 
 void sincos(const double x, double& s, double& c) noexcept {
     (*(*active.load(std::memory_order_relaxed)).sincos_d)(x, s, c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    (*(*active.load(std::memory_order_relaxed)).sincospi_d)(x, s, c);
+}
+
+double sinpi(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).sinpi_d)(x);
+}
+
+double cospi(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).cospi_d)(x);
+}
+
+double sincpi(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).sincpi_d)(x);
+}
+
+double sinc_radians(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).sinc_radians_d)(x);
+}
+
+double cosm1(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).cosm1_d)(x);
+}
+
+double cosm1pi(const double x) noexcept {
+    return (*(*active.load(std::memory_order_relaxed)).cosm1pi_d)(x);
 }
 
 float exp(const float x) noexcept {
@@ -716,6 +800,34 @@ void sincos(const float angle, float& s, float& c) noexcept {
 
 void sincos(const double x, double& s, double& c) noexcept {
     native::sincos(x, s, c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    native::sincospi(x, s, c);
+}
+
+double sinpi(const double x) noexcept {
+    return native::sinpi(x);
+}
+
+double cospi(const double x) noexcept {
+    return native::cospi(x);
+}
+
+double sincpi(const double x) noexcept {
+    return native::sincpi(x);
+}
+
+double sinc_radians(const double x) noexcept {
+    return native::sinc_radians(x);
+}
+
+double cosm1(const double x) noexcept {
+    return native::cosm1(x);
+}
+
+double cosm1pi(const double x) noexcept {
+    return native::cosm1pi(x);
 }
 
 float exp(const float x) noexcept {

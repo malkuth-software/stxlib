@@ -767,3 +767,58 @@ Still not copyable:
 | fail fast on exhaustion in a copy | the process ends with the out_of_memory record | not tested: the copy constructor has no refusal hook, and arming the vocabulary refusals would end the test program; argued from `take_or_fail_fast`, which is already tested by the death tests | `include/stxlib/fail_fast.hpp` |
 
 Nothing on this branch has been compiled or run yet (no compiler on Neo).
+
+## Half-turn trigonometry, cosine loss and Gaussian interval mass
+
+**Proved under binary64, round to nearest, ties to even.** For a nonnegative
+normal phase below 2^53, multiplication by 128 is exact and fits the
+unsigned index type. Subtracting the nearest multiple of 1/128 is exact by
+Sterbenz's lemma when that multiple is nonzero. At the zero anchor the
+subtraction is the identity. The residual lies in [-1/256,1/256]. At and
+above 2^53 every binary64 input is an even integer. For the signed fast
+path, adding 1.5·2^52 to 128 times the phase rounds to the same integer
+on the unit lattice. The low eight bits give its residue modulo 256.
+
+`python3 tools/math/pi_trig_certificate.py` checks all 256 pairs of
+linear heads with exact rational arithmetic. Both the product and its
+addition to the anchor are exactly representable. It also bounds the
+exact-coefficient sine and cosine Taylor remainders by 2^-74 and 2^-83
+respectively. The all-input rounding errors of the complete kernels and
+the normalized quotients and squared half-angles are open.
+
+**Sampled.** On the arm64 M4 at 256-bit MPFR precision, 172,288 binary64
+inputs and 152,197 binary32 inputs covered binades, lattice centres,
+midpoints, adjacent values and random phases. Maximum observed binary64
+errors in ULP were 0.500020 (sinpi), 0.500113 (cospi), 0.500295 (sincpi),
+0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992 (sinc_radians), rounded
+up. The binary32 observations were below 0.5 ULP. The public subnormal
+rule was applied before comparing. The reference fixtures and API edge
+conditions run in both math completion targets.
+
+**Gaussian interval.** The erfc survival difference is the reference.
+The 1/32 grid stores a degree-seven Taylor polynomial for each survival
+value. For widths below a grid step, factoring the polynomial difference
+retains the interval width. Same-side tails from eight sigma use degree
+15. With exact coefficients, the degree-seven truncation at displacement
+t is bounded by (48/pi)|t|^8/8!, since the Fourier integral for the normal
+density bounds the eighth derivative of its CDF by 48/pi. This absolute
+bound does not include coefficient or operation rounding. There is no
+global floating-point accuracy certificate for the Gaussian kernel.
+
+The two Gaussian tables occupy 143,488 bytes. M4 public-call medians on
+synthetic shadow scanlines, transitions and narrow intervals were 3.38,
+3.57 and 4.90 ns. The GUI.Forms clipped-CDF difference took 2.07, 3.33
+and 3.49 ns respectively. The maximum absolute differences from 192-bit
+MPFR in these three workloads were 1.12e-16, 1.12e-16 and 5.64e-18.
+Same-tail calculations retain mass past the renderer's clip. Their cost
+is similar to an erfc/density implementation on this host. Measurements
+are kernel timings with warm tables, separate from whole-renderer costs.
+
+
+A separate 320-bit MPFR sweep tested 51,072 positive pairs in each
+precision, plus their reflections, including adjacent floats, cell
+midpoints and widths immediately around 1/32. Within those samples the
+largest binary64 relative error was 1.17e-9 just below the eight-sigma
+switch. The absolute maximum was 3.21e-16. Binary32 maxima were 5.90e-8
+relative and 7.45e-9 absolute. Both precisions agreed with the reference
+on positivity and subnormal flushing throughout the sweep.

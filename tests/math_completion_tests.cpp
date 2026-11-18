@@ -631,6 +631,88 @@ double bench() {
     return worst;
 }
 
+// Fixtures rounded with MPFR 4.2.2 at 256 bits. Losses use the half-angle
+// identity in the oracle too, avoiding a subtraction at working precision.
+void pi_trig_and_interval() {
+    namespace m = stxlib::math;
+    struct TrigCase final {
+        double x, sine, cosine, sinc, pi_loss, radian_loss, radian_sinc;
+    };
+    constexpr TrigCase cases[] = {
+    {0x1.3fce88ac7919cp-1022, 0x1.f659ef13b0045p-1021, 0x1p+0, 0x1p+0, -0x0p+0, -0x0p+0, 0x1p+0},
+    {0x1p-511, 0x1.921fb54442d18p-510, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-1020, -0x0p+0, 0x1p+0},
+    {0x1p-36, 0x1.921fb54442d18p-35, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-70, -0x1p-73, 0x1p+0},
+    {0x1.fffffffffffffp-9, 0x1.921d1fcdec784p-7, 0x1.fff62169b92dbp-1, 0x1.fffcb5ccd351fp-1, -0x1.3bd2c8da4951p-14, -0x1.ffffd55556c15p-18, 0x1.ffffaaaaaeeefp-1},
+    {0x1.a8p-2, 0x1.ed740e7684963p-1, 0x1.111d262b1f677p-2, 0x1.7b576ab7a364dp-1, -0x1.77716cea704c4p-1, -0x1.5a230f1cf30fcp-4, 0x1.f17ea4721d5dp-1},
+    {0x1.fffffffffffffp-1, 0x1.921fb54442d18p-52, -0x1p+0, 0x1p-53, -0x1p+1, -0x1.d6bafe095f2e7p-2, 0x1.aed548f090ceep-1},
+    {0x1.0000000000001p+0, -0x1.921fb54442d18p-51, -0x1p+0, -0x1.ffffffffffffep-53, -0x1p+1, -0x1.d6bafe095f2ecp-2, 0x1.aed548f090cedp-1},
+    {0x1.921fb54442d18p+2, 0x1.8dbfb48815e49p-1, 0x1.4265a4a213109p-1, 0x1.42672fc9aa464p-5, -0x1.7b34b6bbd9deep-2, -0x1.377ce858a5d48p-105, -0x1.678afae35cdd1p-55},
+    {0x1.864p+18, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.6ab2a5e19722p-2, -0x1.006f87fc84d5bp-19},
+    {0x1.fffffffffffp+31, -0x1.921fb49ee4ea6p-12, 0x1.fffffd8858675p-1, -0x1.ffffff2d72ddp-46, -0x1.3bd3cc5af3e1dp-24, -0x1.e30eb761a9edcp+0, -0x1.d8f6a0ed038dbp-34},
+    {0x1p+32, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.e30b055806644p+0, -0x1.d9130288cfb14p-34},
+    {0x1.fffffffffffffp+43, -0x1.921f0fe670071p-8, 0x1.fffd8858e8a92p-1, -0x1.ffff2d72e6e74p-54, -0x1.3bd38bab6d94cp-16, -0x1.418596f856448p-4, 0x1.8db0e7d572806p-46},
+    {0x1.0000000000001p+49, 0x1.87de2a6aea963p-2, 0x1.d906bcf328d46p-1, 0x1.f2f10e3ce6d4p-53, -0x1.37ca1866b95cfp-4, -0x1.2b67bb57f1105p-4, 0x1.804ee2423f73p-51},
+    };
+    for (const TrigCase& row : cases) {
+        double sine = 0.0;
+        double cosine = 0.0;
+        m::sincospi(row.x, sine, cosine);
+        require(same_bits(sine, row.sine) && same_bits(cosine, row.cosine), "half-turn reference pair");
+        require(same_bits(sine, m::sinpi(row.x)) && same_bits(cosine, m::cospi(row.x)), "half-turn fronts");
+        require(same_bits(m::sincpi(row.x), row.sinc) && same_bits(m::sinc(row.x), row.sinc), "normalized sinc");
+        require(same_bits(m::cosm1pi(row.x), row.pi_loss), "half-turn cosine loss");
+        if (row.x <= 0x1p32) {
+            require(same_bits(m::cosm1(row.x), row.radian_loss), "radian cosine loss");
+            require(same_bits(m::sinc_radians(row.x), row.radian_sinc), "radian sinc");
+        } else {
+            require(std::isnan(m::cosm1(row.x)) && std::isnan(m::sinc_radians(row.x)), "radian range");
+        }
+    }
+    constexpr double inf = std::numeric_limits<double>::infinity();
+    constexpr double nan = std::numeric_limits<double>::quiet_NaN();
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    require(same_bits(m::sinpi(-tiny), -0.0) && same_bits(m::sinpi(-3.0), -0.0), "signed sine zero");
+    require(same_bits(m::cospi(-1.5), 0.0) && m::sinpi(-1.5) == 1.0, "half-integer signs");
+    require(m::cospi(0x1.fffffffffffffp52) == -1.0 && m::cospi(0x1p53) == 1.0, "integer parity");
+    require(m::sinc(-0.0) == 1.0 && m::sinc_radians(-0.0) == 1.0, "sinc at zero");
+    require(same_bits(m::sincpi(-inf), 0.0) && std::isnan(m::sincpi(nan)), "sinc limits");
+    require(std::isnan(m::sinpi(inf)) && std::isnan(m::cospi(nan)) && std::isnan(m::cosm1pi(inf)),
+            "nonfinite phase");
+    require(same_bits(m::cosm1(-0.0), -0.0) && same_bits(m::cosm1pi(2.0), -0.0), "cosine loss zeros");
+    require(same_bits(m::sinpi(-0.0f), -0.0f) && same_bits(m::cospi(0.5f), 0.0f), "float phase zeros");
+    require(m::cospi(0x1.fffffep23f) == -1.0f && m::cospi(0x1p24f) == 1.0f, "float phase parity");
+    require(m::sincpi(0.5f) == 0x1.45f306p-1f && m::sinc_radians(0.0f) == 1.0f, "float sinc");
+    require(m::cosm1pi(0x1p-36f) == -0x1.3bd3ccp-70f && m::cosm1(0x1p-36f) == -0x1p-73f, "float losses");
+
+    struct IntervalCase final { double a, b, mass; };
+    constexpr IntervalCase intervals[] = {
+    {-0x1p+0, 0x1p+0, 0x1.5d897a241a6fap-1},
+    {0x0p+0, 0x1p-1, 0x1.881d788cab1dbp-3},
+    {-0x1.47ae147ae147bp-7, 0x1.47ae147ae147bp-7, 0x1.05724ae747707p-7},
+    {0x1p+0, 0x1.0000000000001p+0, 0x1.ef8e58e331736p-55},
+    {0x1.ff5c28f5c28f6p+2, 0x1.0051eb851eb85p+3, 0x1.d27aac518e18dp-54},
+    {0x1.2p+3, 0x1.200002p+3, 0x1.2f67709289c7dp-80},
+    {0x1.4p+3, 0x1.41p+3, 0x1.3f83267c30124p-79},
+    {0x1.9p+4, 0x1.900068db8bac7p+4, 0x1.74df3514ef7afp-466},
+    {0x1.28p+5, 0x1.2800008p+5, 0x1.1bf216090440dp-1009},
+    {0x1.2cp+5, 0x1.2c3d70a3d70a4p+5, 0x1.660d550ea7893p-1022},
+    {0x1.3p+5, 0x1.4p+5, 0x0p+0},
+    {0x0p+0, inf, 0x1p-1},
+    };
+    for (const IntervalCase& row : intervals) {
+        const double mass = m::gaussian_interval(row.a, row.b);
+        require(std::fabs(mass - row.mass) <= 2e-12 * row.mass, "normal interval reference");
+        const double reflected = m::gaussian_interval(-row.b, -row.a);
+        require(std::fabs(reflected - row.mass) <= 2e-12 * row.mass, "normal interval reflection");
+    }
+    require(m::gaussian_interval(-inf, inf) == 1.0 && same_bits(m::gaussian_interval(inf, inf), 0.0),
+            "unbounded normal interval");
+    require(std::isnan(m::gaussian_interval(1.0, 0.0)) && std::isnan(m::gaussian_interval(nan, 0.0)),
+            "invalid normal interval");
+    require(same_bits(m::gaussian_interval(-tiny, tiny), 0.0), "subnormal normal interval");
+    require(m::gaussian_interval(9.0f, 9.0f + 0x1p-20f) == 0x1.2f677p-80f, "float narrow tail");
+}
+
 } // namespace
 
 int main(const int argument_count, char** const arguments) {
@@ -642,6 +724,7 @@ int main(const int argument_count, char** const arguments) {
     }
     try {
         special_values();
+        pi_trig_and_interval();
         fronts(exhaustive ? 10000000 : 100000);
         exp2_double_accuracy(exhaustive ? 20000000 : 100000);
         expm1_double_accuracy(exhaustive ? 20000000 : 100000);

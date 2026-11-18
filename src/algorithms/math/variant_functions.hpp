@@ -14,6 +14,13 @@ namespace stxlib::math::STXLIB_MATH_VARIANT {
 
 void sincos(float angle, float& s, float& c) noexcept;
 void sincos(double x, double& s, double& c) noexcept;
+void sincospi(double x, double& s, double& c) noexcept;
+double sinpi(double x) noexcept;
+double cospi(double x) noexcept;
+double sincpi(double x) noexcept;
+double sinc_radians(double x) noexcept;
+double cosm1(double x) noexcept;
+double cosm1pi(double x) noexcept;
 float exp(float x) noexcept;
 double exp(double x) noexcept;
 double log(double x) noexcept;

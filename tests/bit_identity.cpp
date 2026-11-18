@@ -269,6 +269,13 @@ void math_items() {
     const std::vector<float> floats = float_inputs(0x666c6f61);
 
     const UnaryDouble unary_doubles[] = {
+        {"math.sinpi.double", static_cast<DoubleFunction>(&math::sinpi)},
+        {"math.cospi.double", static_cast<DoubleFunction>(&math::cospi)},
+        {"math.sinc.double", static_cast<DoubleFunction>(&math::sinc)},
+        {"math.sincpi.double", static_cast<DoubleFunction>(&math::sincpi)},
+        {"math.sinc_radians.double", static_cast<DoubleFunction>(&math::sinc_radians)},
+        {"math.cosm1.double", static_cast<DoubleFunction>(&math::cosm1)},
+        {"math.cosm1pi.double", static_cast<DoubleFunction>(&math::cosm1pi)},
         {"math.exp.double", static_cast<DoubleFunction>(&math::exp)},
         {"math.log.double", static_cast<DoubleFunction>(&math::log)},
         {"math.log2.double", static_cast<DoubleFunction>(&math::log2)},
@@ -309,6 +316,7 @@ void math_items() {
     const BinaryDouble binary_doubles[] = {
         {STXLIB_POW_DOUBLE_ITEM, static_cast<DoublePair>(&math::pow)},
         {"math.hypot.double", static_cast<DoublePair>(&math::hypot)},
+        {"math.gaussian_interval.double", static_cast<DoublePair>(&math::gaussian_interval)},
         {"math.atan2.double", static_cast<DoublePair>(&math::atan2)},
     };
     for (const BinaryDouble& entry : binary_doubles) {
@@ -324,6 +332,13 @@ void math_items() {
     }
 
     const UnaryFloat unary_floats[] = {
+        {"math.sinpi.float", static_cast<FloatFunction>(&math::sinpi)},
+        {"math.cospi.float", static_cast<FloatFunction>(&math::cospi)},
+        {"math.sinc.float", static_cast<FloatFunction>(&math::sinc)},
+        {"math.sincpi.float", static_cast<FloatFunction>(&math::sincpi)},
+        {"math.sinc_radians.float", static_cast<FloatFunction>(&math::sinc_radians)},
+        {"math.cosm1.float", static_cast<FloatFunction>(&math::cosm1)},
+        {"math.cosm1pi.float", static_cast<FloatFunction>(&math::cosm1pi)},
         {"math.exp.float", static_cast<FloatFunction>(&math::exp)},
         {"math.log.float" STXLIB_LOG_FLOAT_PATH, static_cast<FloatFunction>(&math::log)},
         {"math.log2.float" STXLIB_LOG_FLOAT_PATH, static_cast<FloatFunction>(&math::log2)},
@@ -364,6 +379,7 @@ void math_items() {
     const BinaryFloat binary_floats[] = {
         {STXLIB_POW_FLOAT_ITEM, static_cast<FloatPair>(&math::pow)},
         {STXLIB_HYPOT_FLOAT_ITEM, static_cast<FloatPair>(&math::hypot)},
+        {"math.gaussian_interval.float", static_cast<FloatPair>(&math::gaussian_interval)},
         {"math.atan2.float", static_cast<FloatPair>(&math::atan2)},
     };
     for (const BinaryFloat& entry : binary_floats) {
