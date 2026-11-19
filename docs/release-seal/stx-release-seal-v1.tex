@@ -1,0 +1,214 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+\usepackage[hmargin=.69in,vmargin=.59in,columnsep=.27in]{geometry}
+\usepackage{amsmath,amssymb,amsthm,booktabs,microtype,hyperref,enumitem}
+\hypersetup{hidelinks,pdftitle={STX Release Seal v1: Circular CMS Endorsement with Ratcheted LMS Signing}}
+\setlength{\emergencystretch}{1.4em}
+\setlist{nosep,leftmargin=*}
+\newtheorem{thm}{Theorem}
+\newcommand{\cat}{\mathbin\Vert}
+\newcommand{\bx}{\mathbin\oplus}
+\newcommand{\Z}{\mathbf{0}}
+\newcommand{\be}{\operatorname{BE}}
+\raggedbottom
+\title{\vspace{-1.8em}\bfseries STX Release Seal v1\\[2pt]\large Circular CMS Endorsement with Ratcheted LMS Signing}
+\author{\normalsize Malkuth Software \qquad Implementation specification and research whitepaper}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+A release signer endorses the 64-byte address of a file containing its own CMS signature, certificate chain and address. The LMS profile uses the candidate one-time public key recovered by ordinary LMS verification to close this circle in one payload pass. Every collision between physical envelopes yields a collision in SHA3-512 or SHA-256. A second profile uses Ed25519. A one-way signing state and a precomputed public Merkle tree permit a fixed LMS verification root and erasure of spent signing keys. We give a crash model, a conditional reduction for past-leaf forgery, a byte specification and independently verified CMS fixtures. A transport envelope carries a complete signed header and trailer around arbitrary bytes. A sidecar gives the same two-sided construction over an installed executable while preserving its native representation. These properties concern artifact integrity and publisher authorization; a verifier obtains publisher trust and current release policy independently.
+\end{abstract}
+
+\section{Object, authority and carriers}
+The publisher signs the literal 64 octets $t$. The file hash $H$ processes the entire sealed object $F$, including the signature that endorses $t$, and gives $H(F)=t$. A recipient verifies CMS, validates a path to an authorized X.509 trust anchor and checks the complete file address. A front signature permits checking the endorsement of an address before receiving the file. Authenticating all payload bytes requires reaching the declared end. The address is specific to the whole packaging, including the certificate selection, header mode, and native signatures.
+
+\paragraph{Two carriers.}
+An envelope is a new distribution format. Its payload $P$ is a byte-exact existing file, including any Authenticode certificate table or Apple code signature. A sidecar is the split representation of an envelope, with the markers and signatures in a companion file and $P$ in its original location. Scripts read those inputs together in the prescribed order. In the envelope mode the STX file is a container; the original executable is obtained by verified extraction. In sidecar mode the OS launches the native file directly and STX-aware scripts enforce the STX policy. In either mode native trust and STX trust are separately evaluated. A bare executable whose sidecar is required and absent fails STX policy.
+
+A portable insertion of a prefix and suffix into an arbitrary \emph{directly loadable} pre-signed executable cannot be specified. For example, prepending the STX header at offset zero displaces the required PE or thin Mach-O magic. Offsets, sealed pages, and permitted code-signature layouts depend on the image format. Authenticode has specified exclusions and may enforce certificate padding; Apple signs Mach-O slices and seals bundle resources~\cite{pe,apple}. No v1 writer modifies a PE certificate table, Mach-O signature region or signed bundle to store an STX record. The sidecar lives outside the signed bundle. Sign, timestamp, notarize, staple and otherwise finalize native artifacts first. Choose the completed distributable (e.g., DMG, installer, or archive preserving permissions, symlinks, resource forks and auxiliary streams) as $P$ when these properties matter. Re-signing or re-stapling creates a new STX object. For native acceptance invoke the platform verifier on the \emph{same} verified file or immutable staged copy; apply its platform trust policy separately. A process able to skip the STX scripts can skip their policy.
+
+\section{Octet protocol}
+All quoted literals are unpadded ASCII without a terminator. Integers $u_j$ are unsigned big-endian in $j/8$ bytes. Concatenation has no implicit separators. The 16-byte descriptor is
+\[
+ D=u_8(1)\cat u_8(s)\cat u_8(m)\cat u_8(f)\cat u_{64}(n)\cat u_{32}(b).
+\]
+Suites $s=1,2$ select Ed25519 or LMS. Mode $m=0,1$ selects envelope or sidecar. Front flag $f=0,1$ selects absence or presence of the full front record. Let $P$ have exactly $n$ bytes and $M$ be the $b$ bytes of DER CMS. Let
+\begin{align*}
+ B &= \texttt{STXHEAD1}\cat D\cat M\cat t
+           && (f=1),\\
+ E &= M\cat\texttt{STXTAIL1}\cat D\cat t,\\
+ F &= B\cat P\cat E .
+\end{align*}
+For $f=0$, $B$ is empty. For this version require $|F|\le 2^{64}-1$. The 88-byte fixed tail gives $D,t$ and the exact position of $M$. Parse from EOF, require $1\le b\le 2^{24}$, validate lengths with checked arithmetic, and require $|F|=n+(1+f)(88+b)$. Never scan for a marker inside $P$. A present $B$ must match its prescribed bytes, including $M$ and $t$. There are no padding, trailing or alignment octets. A sidecar on disk is $B\cat E$, has exactly $(1+f)(88+b)$ bytes, and is normally named by appending \texttt{.stxsig} to the native file name; an API may pass both handles explicitly. Reconstruct the logical physical byte string $F$ for checking; enforce the expected carrier mode. The hash returned by this operation addresses the pair. A same-name replacement is detected by the bytes checked. A mismatched split fails verification, even when its components might individually be valid files.
+
+\paragraph{CMS encoding.}
+Use DER ContentInfo of type signedData, SignedData version 1, a singleton digestAlgorithms SET, encapsulated content type id-data with eContent absent, certificates present, crls absent, and a singleton signerInfos SET. The detached content is the raw $t$. SignerInfo is version 1 with issuerAndSerialNumber, a digest algorithm matching the singleton SET, a signature algorithm, and a primitive signature OCTET STRING. Both signedAttrs and unsignedAttrs are absent. This selects the direct-content signing provisions of CMS, RFC 8419 and RFC 9708. With signed attributes the primitive signs their encoded SET, a different message~\cite{cms,edcms,lmscms}. DER SET ordering, primitive lengths and shortest encodings are mandatory. Reject unrecognized fields, duplicate certs, non-X.509 CertificateChoices, zero or more than eight certificates, and more than 32 constructed levels. Count depth with ContentInfo at one. Match exactly one end certificate by the DER bytes of its issuer Name and its serial integer. Re-encoding or sorting untrusted input to repair it is prohibited. Materialize at most the bounded metadata; stream $P$ from handles.
+
+For Ed use id-Ed25519 (1.3.101.112) for public key and signature and id-sha512 for digestAlgorithm. For LMS use id-alg-hss-lms-hashsig (1.2.840.113549.1.9.16.3.17) and id-sha256. All profile AlgorithmIdentifiers have absent parameters. The digest OIDs here are CMS fields; the primitive message in both suites is $t$. The raw public key occupies a zero-unused-bits subjectPublicKey BIT STRING. For HSS this is the RFC 8554 key directly, without an embedded ASN.1 OCTET STRING. The signature in CMS is the raw HSS signature in its OCTET STRING. Certificate or CRL signatureValue carries the raw signature in its BIT STRING~\cite{lmsx,edx}. X.509 issuer algorithms are selected by the chain policy; the test end certificates are issued by their respective suite.
+
+\paragraph{Trust predicate.}
+Require a valid RFC 5280 path to an independently provisioned release anchor, leaf BasicConstraints CA false (or absent), explicit digitalSignature key usage and id-kp-codeSigning EKU. Check issuer CA constraints, keyCertSign, path length, EKU restrictions where present, algorithm policy, name constraints, critical extensions, validity and revocation at the policy's evaluation time~\cite{pki}. Accept only one leaf and its used intermediate certificates in $M$, omitting the root. Configure an authorized publisher, product and release channel against an approved key or certified identity. Never accept a new root from the release. Bind target platform, version or rollback floor through signed payload metadata or an externally authenticated release manifest referencing $t$. Enforce monotonic release policy in the installer; LMS leaf order alone cannot implement it across roots. Report unknown or stale revocation status separately and reject it for strict release installation. Offline sites can provision signed, freshness-bounded revocation snapshots. Historical validation requires independently trusted time evidence, for example an external timestamp on $t$, and archived validation data. Local signer time or an optional precedence record cannot establish a trusted past date.
+
+A post-quantum policy requires an independently pinned LMS key/anchor or a quantum-resistant certification path with its release-policy, revocation and time authorities protected appropriately. A classical intermediate that can replace the LMS leaf remains an authorization dependency. Use distinct keys for package signing, certification, revocation, and test data. This profile supports one signer per CMS. An external policy requiring independent endorsements must require all designated endorsements; an untrusted suite byte cannot downgrade that policy.
+
+\section{Computing the circular address}
+Split semantic trust from structural parsing. Raw hashing tests the wire and CMS grammar, canonical encodings, suite key/signature shape, and unique issuer/serial selection. Path trust, time, signer authorization and revocation are evaluated separately so that $H$ is stable. For raw syntax, parse certificates as DER X.509 structures; other than locating the selected public key and matching identifiers, certificate signatures, usage, critical extensions and unused chain members are trust-layer matters. The eight-certificate limit and duplicate rejection apply at parse time.
+
+\paragraph{LMS.}
+Fix HSS $L=1$, LMS\_SHA256\_M32\_H10 (6) and LMOTS\_SHA256\_N32\_W4 (3). Require the exact 60-byte public key $u_{32}(1)\cat u_{32}(6)\cat u_{32}(3)\cat I\cat T_1$, where $I$ is 16 bytes and $T_1$ is 32. The signature consists of
+\[
+ 0_{32}\cat q_{32}\cat 3_{32}\cat C\cat Y\cat 6_{32}\cat A_q .
+\]
+Numerals with subscripts here denote $u_{32}$ and its width. Require $0\le q<1024$, $|C|=32$, $Y$ the concatenation of 67 chain words of 32 bytes, and $A_q$ ten public 32-byte siblings in RFC order. Its total length is 2,512 bytes. Apply RFC 8554 Algorithms 4b and 6a (the latter's root reconstruction) with message $t$, checking types, orientation and exact input consumption~\cite{lms}. Write $K'$ for the 32-byte LM-OTS candidate public-key hash and $T'$ for the candidate LMS root. Set
+\[
+ J=K', \qquad v=T'\bx T_1 .
+\]
+Construct $M_0$ by replacing only $Y$ with 2,144 zero octets in the selected SignerInfo signature. Preserve all surrounding DER, $q,C$, siblings, type words and every certificate. A generic signer that chooses $q$ and $C$ only after it receives the message needs a two-phase provider interface for sealing. An ordinary HSS public verifier accepts the resulting signature on $t$.
+
+\paragraph{Ed25519.}
+Require $A$ and $R$ to be canonical nonidentity prime-subgroup Edwards points; the signature is $R\cat s$ with little-endian canonical scalar $0\le s<\ell$. With generator $B_0$ set $c=\mathrm{LEint}(\mathrm{SHA512}(R\cat A\cat t))\bmod\ell$. For point encodings in these equations,
+\[
+ J=0^{32},\qquad
+ v=\mathrm{enc}([s]B_0-[c]A)\bx R .
+\]
+$M_0$ preserves $R$ and zeros only the 32 bytes of $s$. A signer samples a fresh uniform nonzero secret nonce $r$, sets $R=[r]B_0$ before deriving $t$, and returns $s=r+cx\bmod\ell$ for secret scalar $x$~\cite{ed,previous}. This nonce workflow needs a suitable signer; its output is pure Ed25519-verifiable. Never reuse $r$ across challenges. Ed25519 provides a classical compatibility profile.
+
+\paragraph{Whole-file hash.}
+Zero superscripts elsewhere count bytes. Let $S=\mathrm{SHA3\text{-}512}$, $O=0^{96}$, and let a valid input have prefix label
+\[
+ W=\texttt{STXSEAL1}\cat\mathtt{00}\cat D\cat P\cat M_0\cat J .
+\]
+Put $L(z,y)=S(W\cat z\cat y)$, $a=L(O,O)$, and
+\[
+ z=\be_{64}((t-a)\bmod 2^{512})\cat v .
+\]
+Trailers and hash outputs are interpreted as unsigned big-endian integers when used arithmetically. Let $b_0=L(z,O)$ and $b_1=L(z,z)$. Return $b_0$ if it differs from $t$; otherwise return $b_1$ if it differs from $t$; otherwise return
+\[
+ \be_{64}((t+\mu(z))\bmod 2^{512}),
+\]
+where $\mu(z)$ is the bitwise OR of the big-endian integer values of the first 64 and last 32 bytes of $z$. Thus $\mu(z)=0$ iff $z=O$. The $M_0$ projection is complemented by signature reconstruction: all physical signature words participate. The front copy is bound through mandatory equality.
+
+Define $H$ also on strings failing structural checks. For $|F|\ge64$, split $F=X\cat t$, set $W=\texttt{STXSEAL1}\cat\mathtt{01}\cat X$, $z=t\cat\mathtt{01}\cat0^{31}$ and use the two probes and correction above. For shorter $F$ return $S(\texttt{STXSEAL1}\cat\mathtt{02}\cat F\cat O\cat O)$. An implementation that only authenticates may reject malformed inputs immediately. A raw hash implementation must produce these specified values.
+
+\paragraph{Sealing.}
+Fix $D$, certificates and metadata before signing. Build a CMS template of the final DER length. In LMS, the provider selects a leaf and a fresh uniform $C$ from its cryptographic random generator, and supplies its precomputed $K_q$ and public path. In Ed it supplies $R$. The signer and verifier therefore agree on $W$ for an authentic object. Evaluate $a$ and sign the 64 raw bytes $t=a$. Insert the returned signature at the template location, write the complete record(s), and self-verify before publication. RFC 8554 verifies because completing each signed chain from its message-dependent position reaches its provisioned endpoint. Ed verifies by $[s]B_0-[c]A=R$. No search occurs. A single data pass requires $n$ known up front. Stage an unknown-length input to count it; a front mirror additionally requires a seekable output, a spool, or a detached sidecar. Direct verification of $t=a$ and $v=0$ implements the same predicate as comparing $H(F)$ to $t$. A general pipe with only a trailing descriptor can spool the payload for exact framing; a seekable verifier reads the footer first and hashes $P$ once.
+
+\begin{thm}[Fixed point and physical binding]
+For well-formed $F$, $H(F)=t$ iff $t=a$ and the embedded signature verifies on $t$ under the selected public key. A malformed input of trailer length or longer cannot be a fixed point. Any collision between distinct physical strings produces, deterministically, a collision in SHA3-512 or, for the LMS suite, SHA-256.
+\end{thm}
+\begin{proof}
+The unequal branches cannot equal $t$. The last branch equals $t$ iff $z=O$. This is exactly $t=a,v=0$; then both probes equal $a$. Malformed $z$ is nonzero. In Ed, $v=0$ is the prime-subgroup verification equation; in LMS, $v=0$ is the RFC root comparison.
+
+If a collision uses the last branch at nonzero $z$, its two distinct SHA3 labels both gave $t$. Otherwise each output equals SHA3 on a selected label (use the zero probe for a zero correction). Different labels give the required collision. For identical labels the role octet fixes the branch. A short or malformed label determines all bytes. In the valid role $D$ fixes all field widths; $W,z$ determine $P,M_0,J,v,a,t$ and any front copy. Different suites or carrier modes cannot share this label. In Ed the fixed $(R,A,t)$ and equality of $v$ imply equal $s$ by the prime order. In LMS the fixed $I,q,C,t$ give identical message digits. If two distinct $Y$ give the same $K'$, the endpoint lists either differ, yielding a SHA-256 collision in the LM-OTS public-key hash, or coincide. In the latter case follow a differing chain word to its first equal successor. Distinct inputs to the same indexed step give equal SHA-256 outputs. This also covers key holders choosing malicious packages. Extraction needs only both evaluation traces.
+\end{proof}
+Consequently the LMS all-file collision reduction inherits the weaker constituent bound. A 64-byte trailer does not raise a SHA-256 collision assumption to a 256-bit classical collision guarantee. No ideal cipher is used.
+
+\section{Ratcheted projection of LMS private keys}
+At enrollment, inside the module sample independent secret $S_0\in\{0,1\}^{256}$ and fresh public 16-byte $I$. For $j=0,\ldots,1023$, define fixed domains $d_1=\texttt{STX-RATCHET-1}$ and $d_2=\texttt{STX-LMOTS-1}$ and compute
+\begin{align*}
+ S_{j+1}\cat L_j
+    &=\mathrm{HMAC\text{-}SHA512}_{S_j}(d_1\cat I\cat u_{32}(j)),\\
+ x_{j,i}&=\mathrm{HMAC\text{-}SHA256}_{L_j}
+        (d_2\cat I\cat u_{32}(j)\cat u_{16}(i)).
+\end{align*}
+$S_{j+1}$ and $L_j$ are the first and last 32 bytes respectively; $0\le i<67$. Apply ordinary SHA-256 LM-OTS chains, with the RFC index prefixes, to the $x_{j,i}$. Derive public $K_j$ by Algorithm 1 and the complete tree by the recurrence in RFC 8554 \S5.3. A disposable traversal of $S_0$ inside the module yields all leaves. Retain a protected initial $S_0$ only until the live signer starts; destroy the traversal, all leaf masters, temporary starts and any enrollment copies before enabling signing. Do not archive a master capable of rederiving $S_0$. Bind $(I,T_1,\text{types})$ to a certificate only after checking the complete tree. Test separate trees and credentials must never be enrolled as production keys.
+
+Persist the public node array $T[1..2047]$ in RFC numbering and $K[0..1023]$ outside the confidential boundary. A path for $j$ starts at $k=1024+j$, takes sibling $T[k\mathbin{\mathrm{xor}}1]$ and replaces $k$ by $\lfloor k/2\rfloor$, ten times. Validate $K_j$ and the path against the protected root before use. At use the enclave can recompute $K_j$ from its derived starts and compare to the cache; verify the emitted signature internally before return. Tampering with this cache may cause signing failure and a lost leaf. It cannot authorize a different root. The 65,504 bytes of nodes and 32,768 bytes of public $K_j$ total 98,272 bytes. Enrollment costs $1024\cdot67\cdot15=1,029,120$ indexed chain hashes, plus derivation, leaf and tree hashing. Per signature the signing and verification chain steps sum to 1,005; a separate module-side check or reconstruction costs additional work. The depth-10, four-bit profile uses 256-bit SHA-256 words. Generic classical birthday search on SHA-256 has scale $2^{128}$; in an ideal quantum query model collision and preimage searches have different exponents. The reduction does not convert either query count into an end-to-end forgery estimate. A full tree supports 1,024 attempted rounds including burns. Plan renewal well before exhaustion. Publish a new certified key with a fresh $I,S_0$; earlier signatures remain verifiable against the old public root. There is no unlimited renewal under one finite single-tree LMS key.
+
+RFC 8554 \S4.2 explicitly permits pseudorandom generation of one-time private elements. The ratchet changes private generation only. The transmitted signature, the Merkle root and public verification follow RFC 8554, RFC 9708 and RFC 9802. NIST SP 800-208 \S6.1 specifically requires the Appendix A method with \emph{one} SEED per LMS instance; \S8 adds hardware, entropy and export requirements~\cite{nist}. This ratcheted signer is consequently a distinct private-key profile and makes no SP 800-208 conformance claim. Validation of a signature using standard wire types cannot establish which private-key lifecycle produced it.
+
+\section{Emissive signing and recovery}
+The confidential boundary is a programmable isolated signing module with protected, linearizable, rollback-resistant durable replacement, exclusive key ownership, a cryptographic random generator, volatile nonexportable session handles, and effective erasure. Ordinary encrypted host files and overlapping lease timers do not supply these properties. The gateway must attest or otherwise provision the required provider and enforce release authorization. Apple's public Secure Enclave API exposes specified key operations~\cite{enclave}; an API for running this LMS transition and atomically replacing its state has not been established there. An Apple-protected key that unwraps a seed into host RAM has a different threat model. A provider lacking the required capabilities returns \textsf{unsupported} for protected LMS.
+
+\paragraph{State transaction.}
+Maintain one authoritative record per $I$: $(I,T_1,j,S_j,\mathrm{active})$, or an exhausted tombstone. The parent framework holds public tree data and an opaque provider reference. Its append-only journal may hold an authenticated public receipt with key identity, request identifier, result and optional address. A resynchronization returns the current public provider status. A receipt restores neither a consumed channel nor signing authority. If a backend uses sealed external state, stale ciphertexts must be useless even after later state compromise: single-use wrapping keys must be destroyed and obsolete versions rejected by nonrollbackable hardware. Plain backups of the old seed, VM snapshots, forked signer processes, retained wrapping keys and cloned devices violate the model. A standard authenticated encrypted channel may protect transport. Confidentiality or an AEAD tag on a replayable state blob cannot establish freshness.
+
+\begin{enumerate}
+\item \textbf{Admit.} Authorize the release request, publisher, target identity and content commitment in the trusted signing workflow. Serialize reservations for this key. Check remaining capacity and public path; reject exhaustion or inconsistent state. Bind the request to the exact approved bytes and metadata. If an external builder streams $P$, an approval can pin an independent SHA3-512 digest of $P$ and the canonical metadata; the trusted gateway checks these while computing the anchor.
+\item \textbf{Consume.} Derive $(S_{j+1},L_j)$ into protected volatile memory. Atomically replace the old durable record with $(j+1,S_{j+1})$, or the exhausted tombstone after leaf 1023, and make the old secret unrecoverable. Complete this barrier \emph{before computing any signature with $L_j$}. On an ambiguous commit destroy volatile capability and query the trusted durable authority. Withhold signature output until a definite consume has occurred. A committed leaf with lost volatile material is burned.
+\item \textbf{Prepare and emit.} Create a one-shot protected handle for this committed reservation, draw fresh $C$ and fix the template, path and $K_j$. Bind the handle to this request and authorized template; reject concurrent finish, different metadata, or a second challenge. Recompute or validate the address inside the trusted boundary using the agreed release inputs. Sign exactly once with the transient starts. Erase $L_j$, starts, transient earlier seeds and handle on finish, cancel, reset, timeout or error. Serialize finish versus cancellation. Fault-check the completed bytes against $T_1$ and $t$; only then release the public signature. A post-consume failure consumes the slot.
+\item \textbf{Publish.} Verify CMS, trust and $H(F)$ against the staged output. Publish through atomic installation appropriate to the carrier. Return public receipt and final bytes. A retry may replay an already stored identical public result. If that result is lost, reserve a fresh leaf for any new signing attempt. For a split pair, stage content by immutable address and commit the reference after verifying both files. Never launch through a fresh lookup of an attacker-replaceable path after verification.
+\end{enumerate}
+
+\begin{thm}[Single use and persistence]
+With the stated transaction, erasure and single-owner semantics, at most one signature computation occurs at any index of a given tree. At every persistent state reachable after that computation, the secret enabling that epoch is absent, subject to computational irrecoverability of erased ancestors.
+\end{thm}
+\begin{proof}
+Induct on successful durable replacements. Only the exclusive transition from $j$ to $j+1$ can create a handle for $j$. A failed uncommitted transition cannot emit; a committed transition cannot recur after reboot or failover. The handle is linear, volatile and consumable at most once. The only durable live seed after that transition is its successor or a later successor. A crash before the barrier emits nothing; after it, a crash can destroy the only live handle or public output, but cannot authorize a second one. Induction also covers interleaved requests at different indices. This proof assumes durability and erasure supplied by the provider, not a claim about ordinary filesystem writes.
+\end{proof}
+
+\paragraph{Visibility and precedence.}
+RFC LMS discloses $q$ and the authentication path in every signature. Observers comparing the same tree can infer relative leaf order and gaps. There is no per-signature public precedence-chain entry, no exposure of $L_j$, and no reliable public distinction between a burn, a privately issued signature and a lost response. If hiding $q$ is a requirement, this wire profile cannot meet it. The existing STX precedence chain can independently record batches of already public release addresses under a \emph{different} key. Such audit ordering is optional. It neither assigns LMS leaves nor proves elapsed time. Publication of signing receipts or an ordering witness is an explicit policy choice.
+
+\section{Security after state exposure}
+Forward protection here means that disclosure of the current signing state does not give the ability to sign at a spent index. It does give the holder the ability to compute future keys in this deterministic ratchet. A forged release at a future index may carry a misleading application date. Independent time evidence, revocation and version policy address that separate problem. LM-OTS intentionally reveals a chain word for each digit, sometimes the chain start itself when the digit is zero. The erased objects are the epoch seed and full one-time signing capability. Secrecy of every historical chain word would contradict the wire algorithm.
+
+\paragraph{Assumptions and game.}
+Fix a single enrolled honest LMS key, $N=1024$, and a compromise cut $e\le N$. The attacker sees the public tree, chooses release payloads, obtains authorized seals at monotonically consumed leaves and then learns $S_e$ (empty on exhaustion) and future signing material. Its goal is a new accepted file at $q<e$ under the same pinned key. Public paths, CMS metadata, issued signatures and burns may all be disclosed. Define $\epsilon_3,\epsilon_2$ as concrete collision advantages for SHA3-512 and SHA-256 at reduction resources. Let $\delta_1$ bound distinguishing a random-key HMAC-SHA512 expansion from two independent uniform 32-byte strings; let $\delta_2$ bound the HMAC-SHA256 PRF on the 67 distinct leaf domains. Assume a secure module random generator and correct authorization. Condition throughout on the intended authenticated public key. Certificate substitution outside this game additionally requires a failure of the PKI/pinning policy.
+
+Define $\pi$ as the maximum single indexed-chain predecessor advantage over the profile indices and steps. For an independently uniform start, the challenger gives the adversary $I,j,i,k$ and $X[k]$, $1\le k\le15$, on that indexed chain. The goal is any $u$ with $\mathrm{SHA256}(I\cat u_{32}(j)\cat u_{16}(i)\cat u_8(k-1)\cat u)=X[k]$. $I$ has its enrollment distribution; $j,i,k$ are public. This is one-wayness on the distribution of genuine iterated chain words. It is stronger and more specific than invoking collision resistance alone. Costs include honest tree construction and the adversary's full view. Security against quantum computation requires the corresponding quantum computational assumptions; secret interfaces, public release outputs and compromise events in this game are classical.
+
+\begin{thm}[Past-leaf forgery]
+For a fixed exposure cut, a conservative bound on new accepted past-leaf files is
+\[
+ e(\delta_1+\delta_2)+\epsilon_3+
+ O(1)\epsilon_2+N\cdot67\cdot15\,\pi .
+\]
+The SHA-256 collision events can be combined into a single finder at the cost of recording the genuine and forged traces. For an adaptively chosen cut one may guess it, losing a further factor at most $N+1$. The inequalities are reductions to primitive games; they assign no numerical quantum security level to concrete SHA-256.
+\end{thm}
+\begin{proof}
+Replace expansions at the first $e$ indices successively by independent successor and leaf seeds. Given the challenge pair, the simulator computes the entire future tree and exposed state from its successor. Earlier seeds already replaced are independent; their public transcripts can be simulated. Replace each leaf's keyed starts by 67 independent words. The hybrid differences sum to at most $e(\delta_1+\delta_2)$. This also explains backward protection of leaf masters: even an exposed successor gives no generator advantage beyond the hybrid bounds. The signing transcripts in the independent-start game reveal the prescribed chain words; the next argument bounds their reuse for a different endorsement.
+
+If the output trailer equals one previously issued for a distinct file, the physical-binding theorem extracts a collision. Otherwise consider its past leaf $q$. Compare its candidate $K'$ and sibling computations with the authentic tree at $q$. Different leaf data or siblings that reach the same root give a SHA-256 collision at a first equal node with unequal inputs (including the leaf hash). Equal $K'$ from different endpoint lists gives a collision in the LM-OTS public-key hash.
+
+For an issued leaf, compare the authentic and forged message digests $\mathrm{SHA256}(I\cat u_{32}(q)\cat\mathtt{8181}\cat C\cat t)$. Equal digests on different input give a primitive collision. Different digests have different base-16 digit vectors. If no data digit decreases, at least one increases, so the checksum $\sum(15-d_i)$ strictly decreases. Its fixed-width encoding with the RFC shift then has at least one decreasing checksum digit. Thus some chain has a forged position $b$ strictly below its previously disclosed position $k$. For a burned or unissued leaf define the reference cut on every chain to be 15 (the public endpoint). Some forged position is below 15: all data digits 15 imply a zero checksum.
+
+Guess $(q,i,k)$ with probability at least $1/(N\cdot67\cdot15)$. Embed the supplied target word at position $k$, compute the public endpoint forward, and generate the rest of the tree independently. In simulating an authorized use of this leaf, the anchor, $C$, digits and path are available before any chain words are needed. If the requested digit on this chain is below $k$, abort; on the correct guess it equals $k$ or the leaf was never used. No signing oracle with an adversarially preselected randomizer is assumed. From the forged word at $b<k$ iterate to position $k$. If it equals the target, the preceding word solves the predecessor game. If it differs, the paths with equal endpoints merge, yielding an explicit hash collision. The public root and output checks handle inconsistent paths. These simulations are straight-line and do not program or rewind a hash oracle. For the collision bound, a separate simulator with all genuine starts can extract any first merge even where a guessed predecessor simulation aborts. This proves the stated bound.
+\end{proof}
+
+The theorem applies also before compromise by taking a suitable cut after the targeted indices or simulating the unused suffix. For recovery of an entire historical key sufficient to sign again, test it by signing a new message at that leaf; acceptance would imply an ordinary past-leaf signature forgery by the same chain argument. The public mathematical guarantees depend on erasure and the absence of retained ancestors at enrollment. No finite experiment establishes a concrete hardness lower bound. LMS uses hash chains and Merkle authentication, avoiding the discrete-log problem exposed to Shor's algorithm in Ed25519. Quantum search changes generic preimage costs, and collision search is a different problem. Multi-target costs and query models also matter. Results on standard LMS in the quantum random-oracle model provide context~\cite{eaton}; this is a distinct composition with an explicit reduction. For Ed, fixed-point and physical binding are as above; origin uses the chosen-nonce Schnorr analysis in the companion paper~\cite{previous}. Ed carries no past-leaf or post-quantum claim.
+
+\section{Library handoff and release evidence}
+At the reviewed STXlib revision \texttt{b78906e} the auxiliary port already exists~\cite{stx,aux}. \texttt{stxlib::precedence} uses domain-separated BLAKE2s, WOTS+ with 67 chains, blocks of 256 epochs, and up to 16 record digests per epoch. Its copyable \texttt{ChainState} contains a live seed; \texttt{save}/\texttt{restore} intentionally permit restoration of caller-held snapshots. These are distinct keys, tree encoding and lifecycle from the LMS release profile. Preserve its current reference vectors and interface. A shared implementation may reuse buffer ownership, error handling, secure erasure and host capability discovery. Never grant the release signer a host-callable seed snapshot or deterministic production seed-import interface.
+
+\texttt{stxlib::fill\_entropy} and \texttt{random::entropy\_seed} are already ported and fail closed. Use the cryptographic host service for host-side request randomness and the module's own entropy source for $S_0,I,C$ and signing nonces. A deterministic numeric seed, repeatable simulation stream, timing jitter or procedural noise alone is unsuitable. The current public hash interface exposes BLAKE2s. Supply separately tested SHA-256, SHA-512, SHA3-512 and HMAC as specified; leave the precedence byte format intact. Standard encryption may protect transport or backend storage according to the provider's threat model. The verification protocol needs no decryption and no shared verification secret.
+
+\paragraph{Proposed facilities.}
+Expose streaming envelope and sidecar readers, a raw physical hash operation, CMS verification on a detached address, policy-based full verification, and a carrier writer. Keep the native OS verifier a separate capability. The protected signer exposes \emph{enroll}, \emph{query public state}, \emph{consume-and-prepare}, \emph{finish once}, and \emph{cancel-and-burn}. Public preparation returns $I,q,C,K_q$, siblings, suite, request binding and a one-shot opaque capability; no secret bytes leave the module. Use opaque, authenticated, single-consumer references bound to the device generation; reject expired and cross-device handles. At finish require either the authorized immutable input stream or an explicitly trusted gateway's authenticated commitment to the complete template and address. Only the provider or explicitly trusted gateway may decide what the signer has authorized. Enforce short leases on volatile handles without permitting a timed-out index to be recycled. The host appends the returned public receipt; it may record $t$ into a separate precedence chain after publication. An entropy or counter failure yields a distinct fail-closed status. Expose at least \emph{malformed}, \emph{unsupported}, \emph{signature invalid}, \emph{address mismatch}, \emph{untrusted/unauthorized}, \emph{revocation unknown}, \emph{exhausted}, \emph{burned}, \emph{outcome unknown} and \emph{I/O failure}. Preserve the library's owned types and status records; keep OS calls behind hosted interfaces. No secret enters logging, allocator dumps, paging, crash reports or application callbacks under the protected profile.
+
+\paragraph{Release operations.}
+Production keys have a documented operator quorum or equivalent separation of release approval and signing custody. Independently provision trust roots, native signing policy, channel floors and the emergency revocation path. Use separate keys/roots for independent concurrent signers or disaster-recovery devices. A failed unit can be replaced under a new certified root; the only acceptable same-root failover implements the same linearizable, nonclonable consume primitive. Monitor remaining leaves, burned requests, issuer capacity and anchor expiration. Rehearse revocation while the signer is offline. These are testable controls for high-assurance release operations. They make no claim of equivalence to a military communications system.
+
+\paragraph{Interoperability.}
+The companion JSON gives full hex for $P,D,M,Q,t$, leaf and root certificates, the SHA-256 of the physical object, an anchor-input digest, and negative cases. Reconstruct $B,P,E$ from the wire grammar. The payload in each vector is \texttt{616263}. At the published test time OpenJDK 27 independently verified the detached CMS content, the raw signature, and each PKIX path with its explicitly supplied test root. PKIX revocation was disabled for these offline fixtures. The LMS root also signed its own certificate and the separate LMS release certificate with distinct leaves. OpenSSL independently verified the Ed CMS signature. A separate wire calculation reconstructed the LMS candidate key and trailer and checked a changed chain word in both mirrored signatures. The JSON also gives the initial public fixture seed, two successive ratchet states and selected chain starts. For one platform check, both architectures of the 84,032-byte native macOS \texttt{/usr/bin/true} passed \texttt{codesign --verify --strict --all-architectures} before wrapping and after byte-identical extraction from a mirrored Ed envelope. This checks native integrity on one fixture. Windows trust policy, Gatekeeper and notarization acceptance require their own tests.
+\begin{center}\small
+\setlength{\tabcolsep}{3pt}\begin{tabular}{@{}lrrl@{}}
+\toprule
+Fixture & CMS & Object & First 8 bytes (hex)\\
+\midrule
+Ed split & 547 & 638 & \texttt{a5da926f5b9efd3c}\\
+LMS front & 5,513 & 11,205 & \texttt{5185b3d79f72c708}\\
+\bottomrule
+\end{tabular}
+\end{center}
+\paragraph{Acceptance tests for implementers.}
+Reproduce both full addresses, detached signatures, certificate path decisions and changed-file hashes. Exercise both front flags and modes for both suites, empty payload, partial reads, endian/length boundaries, truncation and appended bytes. Reject reordered DER SETs, trailing objects, duplicate SID matches, signed attributes, unexpected hash parameters, bad chain/path types, noncanonical Ed fields, changed header only, broken HSS siblings, wrong leaf index, and replay of an old release below the policy floor. Test untrusted roots, a classical intermediary under PQ-only policy, expiration, revoked leaf, stale revocation data and detached-signature substitution. Inject power loss on each side of every commit and result publication; race concurrent finish and restore; inspect process dumps and storage snapshots; prove or independently qualify backend antirollback and erasure. Verify supported signed PE images with Windows trust policy, and signed/notarized thin, universal and bundled macOS deliverables under Apple policy before and after byte-exact round trip. Change native signature bytes and confirm STX rejects substitution. The public vectors establish cryptographic wire compatibility. Hardware endurance, fleet recovery, target-OS admission and power-cut behavior require implementation and qualification.
+\begin{thebibliography}{15}\small
+\bibitem{cms} R. Housley, \href{https://www.rfc-editor.org/rfc/rfc5652}{RFC 5652, Cryptographic Message Syntax}, 2009.
+\bibitem{lms} D. McGrew, M. Curcio and S. Fluhrer, \href{https://www.rfc-editor.org/rfc/rfc8554}{RFC 8554, Leighton--Micali Hash-Based Signatures}, 2019.
+\bibitem{lmscms} R. Housley, \href{https://www.rfc-editor.org/rfc/rfc9708}{RFC 9708, HSS/LMS in CMS}, 2025. Obsoletes RFC 8708.
+\bibitem{lmsx} M. Van Geest et al., \href{https://www.rfc-editor.org/rfc/rfc9802}{RFC 9802, HSS and XMSS in X.509}, 2025.
+\bibitem{ed} S. Josefsson and I. Liusvaara, \href{https://www.rfc-editor.org/rfc/rfc8032}{RFC 8032, Edwards-Curve Digital Signature Algorithm}, 2017.
+\bibitem{edcms} R. Housley, \href{https://www.rfc-editor.org/rfc/rfc8419}{RFC 8419, EdDSA in CMS}, 2018.
+\bibitem{edx} S. Josefsson and J. Schaad, \href{https://www.rfc-editor.org/rfc/rfc8410}{RFC 8410, Ed25519 and related algorithms in X.509}, 2018.
+\bibitem{pki} D. Cooper et al., \href{https://www.rfc-editor.org/rfc/rfc5280}{RFC 5280, Internet X.509 PKI Certificate and CRL Profile}, 2008.
+\bibitem{nist} NIST, \href{https://doi.org/10.6028/NIST.SP.800-208}{SP 800-208, Recommendation for Stateful Hash-Based Signature Schemes}, 2020.
+\bibitem{eaton} E. Eaton, \href{https://eprint.iacr.org/2017/607}{Leighton-Micali Hash-Based Signatures in the Quantum Random-Oracle Model}, SAC 2017.
+\bibitem{pe} Microsoft, \href{https://learn.microsoft.com/en-us/windows/win32/debug/pe-format}{PE Format} and \href{https://learn.microsoft.com/en-us/windows/win32/secbp/understanding-pe-signatures}{Understanding Executable File Signing}.
+\bibitem{apple} Apple, \href{https://developer.apple.com/library/archive/technotes/tn2206/}{TN2206, macOS Code Signing In Depth}, and \href{https://developer.apple.com/documentation/technotes/tn3126-inside-code-signing-hashes}{TN3126, Inside Code Signing: Hashes}.
+\bibitem{enclave} Apple, \href{https://developer.apple.com/documentation/security/protecting-keys-with-the-secure-enclave}{Protecting Keys with the Secure Enclave}.
+\bibitem{previous} Malkuth Software, \href{https://github.com/malkuth-software/papers/blob/main/circular-file-endorsement.pdf}{Circular Endorsement of Self-Hashing Files}, companion research note.
+\bibitem{stx} Malkuth Software, \href{https://github.com/malkuth-software/stxlib/tree/b78906e7f1fb23cfa21713a6c46d22af1e4e81e9/include/stxlib}{STXlib headers, revision b78906e}.
+\bibitem{aux} Malkuth Software, \href{https://github.com/malkuth-software/stx_auxlib/tree/b6e330a73771253c87bf7afbe436476dbfc55cd2/include/stx_auxlib}{STX auxiliary library, revision b6e330a}.
+\end{thebibliography}
+\end{document}

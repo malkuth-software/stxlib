@@ -33,6 +33,10 @@ Planned layout:
 | `tests/` | conformance, equivalence and death tests |
 | `tools/` | repository checks (`check_public_headers.py`; `check_std_rules.py`, the governance check over STXlib's sources, which consumers can run over theirs: `python3 -I tools/check_std_rules.py --list-rules`) |
 
+## Release signing specification
+
+The STX Release Seal v1 specification defines a CMS and X.509 file format, circular Ed25519 and ratcheted LMS signing, and protected-provider requirements. The fixtures cover both suites. [Whitepaper](docs/release-seal/stx-release-seal-v1.pdf) · [TeX source](docs/release-seal/stx-release-seal-v1.tex) · [Interoperability vectors](docs/release-seal/stx-release-seal-v1-vectors.json)
+
 ## Platform layer
 
 stx_auxlib's hosted services, ported module by module from stx_auxlib
