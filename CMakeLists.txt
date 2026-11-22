@@ -772,6 +772,11 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
+    src/algorithms/syntax/css.cpp
+    src/algorithms/syntax/document.cpp
+    src/algorithms/syntax/engine.cpp
+    src/algorithms/syntax/languages.cpp
+    src/algorithms/syntax/markup.cpp
     src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)
@@ -1063,7 +1068,7 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_surface_tests COMMAND stxlib_surface_tests)
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd)
+    foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd syntax)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
         # core/checked.hpp (the modular marker) for the tests' own generators.
@@ -1096,6 +1101,11 @@ if(STXLIB_TESTS)
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_outline_atomics.py
                     --nm ${CMAKE_NM} ${stxlib_outline_atomics_binaries})
     endif()
+    # stxlib::syntax's hand tool: a source file as highlighted HTML, and the
+    # engine's speed (tests/syntax_show.cpp). Not a ctest.
+    add_executable(stxlib_syntax_show tests/syntax_show.cpp)
+    target_link_libraries(stxlib_syntax_show PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_syntax_show PRIVATE ${stxlib_test_warnings})
     # stxlib::glyphs: the coverage mask against exact areas (tests/
     # glyph_mask_tests.cpp).
     add_executable(stxlib_glyph_mask_tests tests/glyph_mask_tests.cpp)
