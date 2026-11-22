@@ -12,6 +12,7 @@
 
 #include "stxlib/syntax.hpp"
 
+#include "core/checked.hpp"
 #include "test_support.hpp"
 
 #include <cstdio>
@@ -428,7 +429,7 @@ void small_buffers_agree() {
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
-    u32 next() {
+    STXLIB_MODULAR u32 next() {
         state = state * 6364136223846793005ull + 1442695040888963407ull;
         return static_cast<u32>(state >> 33);
     }

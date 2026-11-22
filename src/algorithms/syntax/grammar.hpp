@@ -8,6 +8,7 @@
 //     constant evaluation), each with its token kind and what it asks of the next word;
 //   - comment forms, string forms and the naming conventions the engine applies.
 
+#include "core/checked.hpp"
 #include "stxlib/syntax.hpp"
 #include "stxlib/text_view.hpp"
 #include "stxlib/types.hpp"
@@ -45,7 +46,8 @@ struct WordSlot final {
 };
 
 inline constexpr u32 word_hash_seed = 2166136261u;
-[[nodiscard]] constexpr u32 word_hash_step(const u32 hash, const u8 byte) noexcept { return (hash ^ byte) * 16777619u; }
+// FNV-1a, modulo 2^32.
+[[nodiscard]] STXLIB_MODULAR constexpr u32 word_hash_step(const u32 hash, const u8 byte) noexcept { return (hash ^ byte) * 16777619u; }
 
 // Not constexpr on purpose: reaching it during constant evaluation is the compile error for
 // a table more than half full or a word over 255 bytes.

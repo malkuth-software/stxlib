@@ -47,7 +47,7 @@ constexpr u8 expect_include = 3;
 // themselves at seven bits each when there are at most seven (exact), otherwise 51 bits of
 // their FNV-1a hash. Two delimiters over seven bytes with the same length and hash would be
 // taken for each other; nothing else depends on the hash.
-[[nodiscard]] u64 delimiter_payload(const char* const bytes, const usize length) noexcept {
+[[nodiscard]] STXLIB_MODULAR u64 delimiter_payload(const char* const bytes, const usize length) noexcept {
     u64 payload = static_cast<u64>(length);
     if (length <= 7) {
         for (usize k = 0; k < length; ++k) payload = payload | (static_cast<u64>(static_cast<u8>(bytes[k]) & 0x7fu) << (5 + 7 * k));
