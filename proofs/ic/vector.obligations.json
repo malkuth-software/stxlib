@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "component": "stxlib::Vector",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/vector.ic.toml",
+    "sha256": "b0cf3214dcfba981348e9c87fe231ec500daa123be7a44994fb96dde23b0df8f"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.vector.element.requires.element_index",
+      "kind": "entry-check",
+      "statement": "operator[] runs only when index < count; otherwise requirement (\"Vector: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_element_index, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.first_element.requires.first_element",
+      "kind": "entry-check",
+      "statement": "first_element runs only when count != 0; otherwise requirement (\"Vector::first_element: the vector is empty\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_first_element, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.last_element.requires.last_element",
+      "kind": "entry-check",
+      "statement": "last_element runs only when count != 0; otherwise requirement (\"Vector::last_element: the vector is empty\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_last_element, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.insert.requires.insert_index",
+      "kind": "entry-check",
+      "statement": "insert runs only when index <= count; otherwise requirement (\"Vector::insert: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_insert_index, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.erase.requires.erase_index",
+      "kind": "entry-check",
+      "statement": "erase runs only when index < count; otherwise requirement (\"Vector::erase: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_index, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.erase_range.requires.erase_range",
+      "kind": "entry-check",
+      "statement": "erase_range runs only when first <= count and length <= count - first; otherwise requirement (\"Vector::erase_range: range out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_range, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.take_last.requires.take_last",
+      "kind": "entry-check",
+      "statement": "take_last runs only when count != 0; otherwise requirement (\"Vector::take_last: the vector is empty\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_take_last, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.remove_last.requires.remove_last",
+      "kind": "entry-check",
+      "statement": "remove_last runs only when count != 0; otherwise requirement (\"Vector::remove_last: the vector is empty\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_remove_last, called in include/stxlib/vector.hpp"
+    },
+    {
+      "id": "stxlib.vector.truncate.requires.truncate",
+      "kind": "entry-check",
+      "statement": "truncate runs only when smaller <= count; otherwise requirement (\"Vector::truncate: count out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_truncate, called in include/stxlib/vector.hpp"
+    }
+  ]
+}

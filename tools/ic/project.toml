@@ -1,0 +1,13 @@
+# STXlib's IC project file (template_harness docs/ic_declarations.md): where
+# the behavioural constraint declarations are and where their outputs go.
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#   python3 -B tools/ic_declarations.py check --config tools/ic/project.toml
+# The ctest stxlib_ic_declarations runs the check.
+
+schema = 1
+declarations = ["include/stxlib/*.ic.toml", "src/state/stx_minmallocpp/*.ic.toml"]
+manifest_column = "tools/ic/members_constraints.json"
+blocks = "tests/ic/blocks"
+obligations = "proofs/ic"
+generator = "tools/ic_declarations.py"
+column_limit = 120

@@ -1,0 +1,724 @@
+{
+  "schema": 1,
+  "component": "stxlib::Vector",
+  "declaration": "include/stxlib/vector.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.vector.with_capacity",
+      "mode": "legal",
+      "call": "with_capacity",
+      "kind": "static",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "room",
+          "type": "usize",
+          "bounded_by": []
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "room elements' bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Vector",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.vector.copy_of",
+      "mode": "legal",
+      "call": "copy_of",
+      "kind": "static",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the elements' bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Vector",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.vector.copy",
+      "mode": "legal",
+      "call": "copy",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Vector",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.vector.view",
+      "mode": "legal",
+      "call": "view",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a call that may reallocate or end an element",
+          "a move from the vector",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.vector.mutable_view",
+      "mode": "legal",
+      "call": "mutable_view",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a call that may reallocate or end an element",
+          "a move from the vector",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.vector.element",
+      "mode": "legal",
+      "call": "operator[]",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a call that may reallocate or end the element"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.vector.element.misuse.element_index",
+      "mode": "misuse",
+      "call": "operator[]",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.first_element",
+      "mode": "legal",
+      "call": "first_element",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [
+        "count != 0"
+      ],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a call that may reallocate or end the element"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.vector.first_element.misuse.first_element",
+      "mode": "misuse",
+      "call": "first_element",
+      "violates": "count != 0",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::first_element: the vector is empty"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.last_element",
+      "mode": "legal",
+      "call": "last_element",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [
+        "count != 0"
+      ],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a call that may reallocate or end the element"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.vector.last_element.misuse.last_element",
+      "mode": "misuse",
+      "call": "last_element",
+      "violates": "count != 0",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::last_element: the vector is empty"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.reserve",
+      "mode": "legal",
+      "call": "reserve",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "wanted",
+          "type": "usize",
+          "bounded_by": []
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "wanted elements' bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.push",
+      "mode": "legal",
+      "call": "push",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the grown capacity is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses; element is not moved from",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.push_copy",
+      "mode": "legal",
+      "call": "push_copy",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the grown capacity is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.emplace",
+      "mode": "legal",
+      "call": "emplace",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the grown capacity is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses; nothing is constructed",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.insert",
+      "mode": "legal",
+      "call": "insert",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index <= count"
+          ]
+        }
+      ],
+      "requires": [
+        "index <= count"
+      ],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the grown capacity is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses; element is not moved from",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.insert.misuse.insert_index",
+      "mode": "misuse",
+      "call": "insert",
+      "violates": "index <= count",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::insert: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.append_copies",
+      "mode": "legal",
+      "call": "append_copies",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "the grown capacity is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.resize",
+      "mode": "legal",
+      "call": "resize",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "wanted",
+          "type": "usize",
+          "bounded_by": []
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "wanted elements' bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.erase",
+      "mode": "legal",
+      "call": "erase",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.erase.misuse.erase_index",
+      "mode": "misuse",
+      "call": "erase",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::erase: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.erase_range",
+      "mode": "legal",
+      "call": "erase_range",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "first",
+          "type": "usize",
+          "bounded_by": [
+            "first <= count and length <= count - first"
+          ]
+        },
+        {
+          "name": "length",
+          "type": "usize",
+          "bounded_by": [
+            "first <= count and length <= count - first"
+          ]
+        }
+      ],
+      "requires": [
+        "first <= count and length <= count - first"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.erase_range.misuse.erase_range",
+      "mode": "misuse",
+      "call": "erase_range",
+      "violates": "first <= count and length <= count - first",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::erase_range: range out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.take_last",
+      "mode": "legal",
+      "call": "take_last",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [
+        "count != 0"
+      ],
+      "fails": [],
+      "returns": {
+        "type": "Element",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.vector.take_last.misuse.take_last",
+      "mode": "misuse",
+      "call": "take_last",
+      "violates": "count != 0",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::take_last: the vector is empty"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.remove_last",
+      "mode": "legal",
+      "call": "remove_last",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [
+        "count != 0"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.remove_last.misuse.remove_last",
+      "mode": "misuse",
+      "call": "remove_last",
+      "violates": "count != 0",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::remove_last: the vector is empty"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.truncate",
+      "mode": "legal",
+      "call": "truncate",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        },
+        {
+          "name": "smaller",
+          "type": "usize",
+          "bounded_by": [
+            "smaller <= count"
+          ]
+        }
+      ],
+      "requires": [
+        "smaller <= count"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.truncate.misuse.truncate",
+      "mode": "misuse",
+      "call": "truncate",
+      "violates": "smaller <= count",
+      "expect": {
+        "kind": "requirement",
+        "message": "Vector::truncate: count out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.vector.clear",
+      "mode": "legal",
+      "call": "clear",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.vector.release",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Vector"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

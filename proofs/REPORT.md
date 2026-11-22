@@ -802,3 +802,13 @@ Nothing on this branch has been compiled or run yet (no compiler on Neo).
 | `src/algorithms/fft/` against BFFT | agreement within twice the accuracy bound, every mode and precision to 2^16 | tested when `STXLIB_BFFT_ORACLE_DIR` names a BFFT checkout (not yet run) | `tests/fft_bfft_oracle_tests.cpp` |
 
 Built and run at checkpoint 2026-11-22-stx2 (macOS arm64, Linux glibc aarch64, Windows x86-64 cross); the "not yet run" notes above predate it.
+
+## Behavioural constraint declarations, IC phase 1 (branch `claude/ic1`; the IC study, owner 2026-11-22)
+
+The allocator (`src/state/stx_minmallocpp/allocator.ic.toml`, `include/stxlib/memory.ic.toml`), the containers (`vector`, `buffer`, `frozen_map`, `frozen_text_map`) and the files (`files.ic.toml`) declare their constraints once, beside their headers; `tools/ic_declarations.py` (template_harness's, kept identical) generates the headers' `// ic:` lines, the entry checks, `tools/ic/members_constraints.json`, `tests/ic/blocks/` and `proofs/ic/`. Nothing here is a proof: the obligations in `proofs/ic/` are all `open`.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `tools/ic_declarations.py` with `tools/ic/project.toml` | every generated output equals what the declarations generate; every generated predicate is called in the source the declaration names | checked mechanically by the tool (not yet run in CTest); a statement about texts, not about behaviour | `stxlib_ic_declarations` (the tool's `check`) |
+| the declared requirements (Vector, Buffer, FrozenMap, FrozenTextMap) | each refuses through the predicate generated from its clause, with the message spelled once | tested by reading the sources (not yet run) | `tests/check_ic_declarations_tests.py` (`stxlib_ic_declarations_tool`) |
+| `src/core/files.cpp`, `src/state/allocator.cpp`, `src/state/stx_minmallocpp/allocator.cpp` (the clauses' refusals) | the positioned-offset and set_size limits, the host backend's alignment refusal and stx_minmallocpp's argument refusal are the generated predicates; each predicate is the old condition rewritten (2^63 - 1 for `i64_max`; `x != 0 && (x & (x - 1)) == 0` for `std::has_single_bit` and `power_of_two`) | argued from the code, not machine-checked; covered by the existing tests of those refusals (`files_tests`, `stx_minmallocpp_direct_tests`, `memory_tests`), not yet run on this branch | the declarations and `proofs/ic/*.obligations.json` |

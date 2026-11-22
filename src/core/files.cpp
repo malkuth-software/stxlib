@@ -8,6 +8,7 @@
 #include "stxlib/files.hpp"
 #include "stxlib/text.hpp"
 
+#include "core/files_ic_checks.hpp"
 #include "core/growable.hpp"
 #include "core/host_failure.hpp"
 #include "core/wtf8.hpp"
@@ -369,8 +370,6 @@ OperationStatus File::close() noexcept {
 
 namespace {
 
-constexpr u64 largest_offset = static_cast<u64>(i64_max);
-
 OperationStatus refused_state(const Operation operation) noexcept {
     const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation,
                                                         HostCode::invalid_state);
@@ -382,8 +381,9 @@ OperationStatus refused_state(const Operation operation) noexcept {
 OperationResult<usize> File::read_at(const u64 offset, const MutableView<Byte> output) noexcept {
     const Operation operation = "stxlib.files.read_at";
     if (!is_open()) return OperationResult<usize>::failure(bad_handle_record(operation));
-    if (offset > largest_offset) return OperationResult<usize>::failure(record_of_status(FileStatus::too_large,
-                                                                                         operation));
+    if (!detail::ic::files::admits_read_at_offset(offset)) {
+        return OperationResult<usize>::failure(record_of_status(FileStatus::too_large, operation));
+    }
     usize transferred = 0;
     const Outcome outcome = file_backend::read_at(handle_, offset, output.data(), output.count(), transferred);
     if (!outcome.ok()) return OperationResult<usize>::failure(record_of(outcome, operation));
@@ -394,7 +394,7 @@ OperationStatus File::write_all_at(const u64 offset, const View<Byte> input) noe
     const Operation operation = "stxlib.files.write_at";
     if (!is_open()) return bad_handle(operation);
     if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
-    if (offset > largest_offset || input.count() > largest_offset - offset) {
+    if (!detail::ic::files::admits_write_at_extent(offset, input.count())) {
         return failed(file_backend::failure(FileStatus::too_large), operation);
     }
     usize written = 0;
@@ -430,7 +430,7 @@ OperationStatus File::set_size(const u64 bytes) noexcept {
     const Operation operation = "stxlib.files.set_size";
     if (!is_open()) return bad_handle(operation);
     if (mode_ == FileMode::read || mode_ == FileMode::append) return refused_state(operation);
-    if (bytes > largest_offset) return failed(file_backend::failure(FileStatus::too_large), operation);
+    if (!detail::ic::files::admits_set_size_bytes(bytes)) return failed(file_backend::failure(FileStatus::too_large), operation);
     const OperationStatus result = status_of(file_backend::set_size(handle_, bytes), operation);
     return result;
 }

@@ -1,0 +1,185 @@
+{
+  "schema": 1,
+  "component": "stxlib::Buffer",
+  "declaration": "include/stxlib/buffer.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.buffer.allocate_zeroed",
+      "mode": "legal",
+      "call": "allocate_zeroed",
+      "kind": "static",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "count",
+          "type": "usize",
+          "bounded_by": []
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "count elements' bytes are not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Buffer",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.buffer.copy",
+      "mode": "legal",
+      "call": "copy",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Buffer"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Buffer",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.buffer.view",
+      "mode": "legal",
+      "call": "view",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Buffer"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "release",
+          "a move from the buffer",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.buffer.mutable_view",
+      "mode": "legal",
+      "call": "mutable_view",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Buffer"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "release",
+          "a move from the buffer",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.buffer.element",
+      "mode": "legal",
+      "call": "operator[]",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Buffer"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "release",
+          "a move from the buffer",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.buffer.element.misuse.element_index",
+      "mode": "misuse",
+      "call": "operator[]",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "Buffer: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.buffer.release",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Buffer"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

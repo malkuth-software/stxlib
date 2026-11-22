@@ -1,0 +1,74 @@
+# Behavioural constraints of stxlib::FrozenMap (frozen_map.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project file
+# is tools/ic/project.toml). FrozenTextMap, in the same header, has its own
+# (frozen_text_map.ic.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+
+schema = 1
+component = "FrozenMap"
+namespace = "stxlib"
+header = "include/stxlib/frozen_map.hpp"
+anchor = "class FrozenMap final {"
+keys = { manifest = "stxlib::FrozenMap" }
+# A built map is immutable: any number of threads may read it at once.
+thread = "any"
+
+[terms]
+count = "usize"
+
+[checks]
+path = "src/algorithms/frozen_map_ic_checks.hpp"
+namespace = "stxlib::detail::ic::frozen_map"
+includes = ["stxlib/types.hpp"]
+used_in = ["src/algorithms/frozen_map.cpp"]
+
+[[call]]
+name = "build"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<FrozenMap> build(View<u64> keys, View<u64> values) noexcept;"]
+fails = [
+  { failure = "invalid_argument", when = "keys not strictly ascending (detail: the first key out of order), or lengths that differ" },
+  { failure = "limit_exceeded", when = "more than key_limit keys" },
+  { failure = "out_of_memory", when = "storage cannot be had" },
+]
+returns = { type = "FrozenMap", owns = "caller" }
+
+[[call]]
+name = "build_weighted"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<FrozenMap> build_weighted(View<u64> keys, View<u64> values,"]
+fails = [
+  { failure = "invalid_argument", when = "keys not strictly ascending, lengths that differ, or weights the construction refuses" },
+  { failure = "limit_exceeded", when = "more than key_limit keys" },
+  { failure = "out_of_memory", when = "storage cannot be had" },
+]
+returns = { type = "FrozenMap", owns = "caller" }
+
+[[call]]
+name = "find"
+declarations = ["[[nodiscard]] const u64* find(u64 key) const& noexcept;"]
+returns = { borrows = "self", until = ["a move from the map", "its destruction"] }
+
+[[call]]
+name = "contains"
+declarations = ["[[nodiscard]] bool contains(u64 key) const noexcept;"]
+
+[[call]]
+name = "lower_bound"
+declarations = ["[[nodiscard]] usize lower_bound(u64 key) const noexcept;"]
+
+[[call]]
+name = "key_at"
+declarations = ["[[nodiscard]] u64 key_at(usize index) const noexcept;"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "FrozenMap::key_at: index out of range", check = "key_index" },
+]
+
+[[call]]
+name = "value_at"
+declarations = ["[[nodiscard]] u64 value_at(usize index) const noexcept;"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "FrozenMap::value_at: index out of range", check = "value_index" },
+]

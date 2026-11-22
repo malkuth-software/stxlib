@@ -1,0 +1,40 @@
+{
+  "schema": 1,
+  "component": "stxlib::memory",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/memory.ic.toml",
+    "sha256": "44614e99b6724f56aa48fa1942fc03316347052bed9bdc8529bff9d462a5fc93"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.memory.allocate.requires.allocate",
+      "kind": "entry-check",
+      "statement": "allocate runs only when power_of_two(alignment); otherwise returns null, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::memory::admits_allocate, called in src/state/allocator.cpp"
+    },
+    {
+      "id": "stxlib.memory.allocate.refusal.allocate",
+      "kind": "refusal-leaves",
+      "statement": "Unless power_of_two(alignment), allocate changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.memory.identity",
+      "kind": "identity",
+      "statement": "A stale identity (block address: the start of a block from allocate, not yet released) is refused: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

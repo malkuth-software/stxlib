@@ -1,0 +1,65 @@
+{
+  "schema": 1,
+  "component": "stxlib::stx_minmallocpp",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "src/state/stx_minmallocpp/allocator.ic.toml",
+    "sha256": "342104ced65332a437718666fe72951392e4cbefbb686c7e8efacf119266565f"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.stx_minmallocpp.allocate.requires.allocate",
+      "kind": "entry-check",
+      "statement": "allocate runs only when power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request; otherwise returns null, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::stx_minmallocpp::ic::admits_allocate, called in src/state/stx_minmallocpp/allocator.cpp"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.allocate.refusal.allocate",
+      "kind": "refusal-leaves",
+      "statement": "Unless power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request, allocate changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.identity",
+      "kind": "identity",
+      "statement": "A stale identity (block address: the start of a live block) is refused: returns Release::refused, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_protocol",
+      "kind": "stated",
+      "statement": "For any number of threads, pages and blocks and any interleaving, the page protocol never reaches an integrity stop, never refuses a held block's release, and keeps its invariant.",
+      "level": "none",
+      "tool": null,
+      "premises": [
+        "the C++ memory model's coherence",
+        "each segment between step marks atomic",
+        "sequentially consistent operations linearizable",
+        "the queue and abandoned-list contracts"
+      ],
+      "status": "open",
+      "method": "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.refusal_reads_nothing",
+      "kind": "stated",
+      "statement": "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "method": ""
+    }
+  ]
+}

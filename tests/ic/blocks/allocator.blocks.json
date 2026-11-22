@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "component": "stxlib::stx_minmallocpp",
+  "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.stx_minmallocpp.allocate",
+      "mode": "legal",
+      "call": "allocate",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "size",
+          "type": "usize",
+          "bounded_by": [
+            "power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request"
+          ]
+        },
+        {
+          "name": "alignment",
+          "type": "usize",
+          "bounded_by": [
+            "power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request"
+          ]
+        }
+      ],
+      "requires": [
+        "power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request"
+      ],
+      "fails": [
+        {
+          "failure": "exhausted",
+          "when": "the host refuses address space or memory, or a fixed table is full: a null result, nothing else changes",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "void*",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.stx_minmallocpp.allocate.misuse.allocate",
+      "mode": "misuse",
+      "call": "allocate",
+      "violates": "power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request",
+      "expect": {
+        "kind": "null"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.stx_minmallocpp.release",
+      "mode": "legal",
+      "call": "release",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.stx_minmallocpp.trim",
+      "mode": "legal",
+      "call": "trim",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.stx_minmallocpp.end_thread",
+      "mode": "legal",
+      "call": "end_thread",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}
