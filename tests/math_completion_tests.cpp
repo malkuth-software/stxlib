@@ -666,6 +666,14 @@ void half_turn_special_values() {
     std::printf("half-turn: special values, reductions and float functions hold\n");
 }
 
+// A reference row's value: a differing one is printed and counted.
+void check_reference(int& differing, const char* const name, const double x, const double result, const double expected) {
+    if (!same_bits(result, expected)) {
+        differing += 1;
+        std::fprintf(stderr, "%s(%a): result %a, reference %a\n", name, x, result, expected);
+    }
+}
+
 // Correctly rounded values from the study (MPFR 4.2.2 at 256 bits,
 // 2026-11-18; the losses through the half-angle identity in the reference
 // too). Every row is expected exactly. Each lies far from a rounding
@@ -708,23 +716,17 @@ void half_turn_reference_values() {
     // Every differing value is printed before the first failure, so one run
     // lists them all.
     int differing = 0;
-    const auto check = [&differing](const char* const name, const double x, const double result, const double expected) {
-        if (!same_bits(result, expected)) {
-            differing += 1;
-            std::fprintf(stderr, "%s(%a): result %a, reference %a\n", name, x, result, expected);
-        }
-    };
     for (const Row& row : rows) {
         double sine = 0.0;
         double cosine = 0.0;
         m::sincospi(row.x, sine, cosine);
-        check("sincospi (sine)", row.x, sine, flushed(row.sine));
-        check("sincospi (cosine)", row.x, cosine, row.cosine);
-        check("sincpi", row.x, m::sincpi(row.x), row.sinc);
-        check("cosm1pi", row.x, m::cosm1pi(row.x), flushed(row.pi_loss));
+        check_reference(differing, "sincospi (sine)", row.x, sine, flushed(row.sine));
+        check_reference(differing, "sincospi (cosine)", row.x, cosine, row.cosine);
+        check_reference(differing, "sincpi", row.x, m::sincpi(row.x), row.sinc);
+        check_reference(differing, "cosm1pi", row.x, m::cosm1pi(row.x), flushed(row.pi_loss));
         if (row.x <= 0x1p32) {
-            check("cosm1", row.x, m::cosm1(row.x), flushed(row.radian_loss));
-            check("sinc_radians", row.x, m::sinc_radians(row.x), row.radian_sinc);
+            check_reference(differing, "cosm1", row.x, m::cosm1(row.x), flushed(row.radian_loss));
+            check_reference(differing, "sinc_radians", row.x, m::sinc_radians(row.x), row.radian_sinc);
         } else {
             require(std::isnan(m::cosm1(row.x)) && std::isnan(m::sinc_radians(row.x)), "cosm1, sinc_radians: the angle limit");
         }
