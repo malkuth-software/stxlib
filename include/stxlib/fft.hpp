@@ -39,7 +39,9 @@
 // no contraction; every SIMD tier (stxlib/simd.hpp) computes the scalar
 // tier's value for every output (a zero's sign may differ). Accuracy is
 // measured by tests/fft_tests.cpp against a long-double DFT and stated in
-// proofs/REPORT.md. Subnormal results are returned as zero of their sign.
+// proofs/REPORT.md. Subnormals (A1 rule 4): a subnormal input is read as
+// zero of its sign (the caller's input is not changed), and a subnormal
+// result is returned as zero of its sign.
 //
 // A plan is not thread-safe: rfft and irfft use its workspace, so one plan
 // serves one thread at a time. Plans of the same size are independent.

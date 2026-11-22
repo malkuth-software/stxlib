@@ -146,6 +146,10 @@ struct PlanState final {
     DifTables dif{};
     BodftTables bodft{};
     DipTables dip{};
+    // size + 2 reals of the plan's precision (one of the blocks below): the
+    // flushed copy of a transform's input when that input holds a subnormal
+    // (rfft reads size reals, irfft bins complex values, at most size + 2).
+    void* staging{nullptr};
     // Every block allocated for this plan (memory::allocate), released by
     // destroy_plan_state; unused entries are null.
     void* blocks[plan_block_capacity]{};

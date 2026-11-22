@@ -431,6 +431,11 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     if (mode == Mode::plain) built = build_dif(plan, n, precision);
     if (mode == Mode::shifted) built = build_bodft(plan, n, precision);
     if (mode == Mode::dip) built = build_dip(plan, n);
+    if (built) {
+        const usize element = precision == Precision::float32 ? sizeof(float) : sizeof(double);
+        plan.staging = take_block(plan, size + 2, element);
+        built = plan.staging != nullptr;
+    }
     if (!built) {
         destroy_state(state);
         failure = exhausted();
@@ -532,6 +537,71 @@ void flush_outputs(Complex32* const values, const usize count) noexcept {
     }
 }
 
+// STXlib's subnormal rule on a transform's arguments: a subnormal input is
+// read as zero of its sign. The input itself when it holds no subnormal (no
+// copy), else the plan's staging block holding the flushed copy; the kernels
+// then read the staging block, never the caller's memory. Bit-for-bit the
+// same as flushing every input value, since the rest pass unchanged.
+[[nodiscard]] bool subnormal(const double value) noexcept {
+    return value != 0.0 && stxlib::detail::flush_subnormal(value) == 0.0;
+}
+
+[[nodiscard]] bool subnormal(const float value) noexcept {
+    return value != 0.0F && stxlib::detail::flush_subnormal(value) == 0.0F;
+}
+
+template <typename Real>
+[[nodiscard]] const Real* flushed_reals(const PlanState& plan, const Real* const values, const usize count) noexcept {
+    bool found = false;
+    for (usize index = 0; index < count && !found; ++index) found = subnormal(values[index]);
+    if (!found) return values;
+    Real* const staging = static_cast<Real*>(plan.staging);
+    for (usize index = 0; index < count; ++index) staging[index] = stxlib::detail::flush_subnormal(values[index]);
+    return staging;
+}
+
+[[nodiscard]] const double* flushed_inputs(const PlanState& plan, const double* const values,
+                                           const usize count) noexcept {
+    return flushed_reals(plan, values, count);
+}
+
+[[nodiscard]] const float* flushed_inputs(const PlanState& plan, const float* const values,
+                                          const usize count) noexcept {
+    return flushed_reals(plan, values, count);
+}
+
+// A complex input is flushed part by part.
+template <typename Complex>
+[[nodiscard]] const Complex* flushed_complex(const PlanState& plan, const Complex* const values,
+                                             const usize count) noexcept {
+    bool found = false;
+    for (usize index = 0; index < count && !found; ++index) {
+        const Complex& value = values[index];
+        found = subnormal(value.re) || subnormal(value.im);
+    }
+    if (!found) return values;
+    Complex* const staging = static_cast<Complex*>(plan.staging);
+    for (usize index = 0; index < count; ++index) {
+        const Complex& value = values[index];
+        Complex& copy = staging[index];
+        copy.re = stxlib::detail::flush_subnormal(value.re);
+        copy.im = stxlib::detail::flush_subnormal(value.im);
+    }
+    return staging;
+}
+
+[[nodiscard]] const Complex64* flushed_inputs(const PlanState& plan, const Complex64* const values,
+                                              const usize count) noexcept {
+    static_assert(sizeof(Complex64) == 2 * sizeof(double) && alignof(Complex64) <= block_alignment);
+    return flushed_complex(plan, values, count);
+}
+
+[[nodiscard]] const Complex32* flushed_inputs(const PlanState& plan, const Complex32* const values,
+                                              const usize count) noexcept {
+    static_assert(sizeof(Complex32) == 2 * sizeof(float) && alignof(Complex32) <= block_alignment);
+    return flushed_complex(plan, values, count);
+}
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -609,9 +679,10 @@ OperationStatus Plan64::rfft(const View<double> input, const MutableView<Complex
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    if (plan.mode == Mode::plain) kernels.dif_forward64(plan.dif, input.data(), output.data());
-    if (plan.mode == Mode::shifted) kernels.bodft_forward64(plan.bodft, input.data(), output.data());
-    if (plan.mode == Mode::dip) kernels.dip_forward64(plan.dip, input.data(), output.data());
+    const double* const source = detail::flushed_inputs(plan, input.data(), input.count());
+    if (plan.mode == Mode::plain) kernels.dif_forward64(plan.dif, source, output.data());
+    if (plan.mode == Mode::shifted) kernels.bodft_forward64(plan.bodft, source, output.data());
+    if (plan.mode == Mode::dip) kernels.dip_forward64(plan.dip, source, output.data());
     detail::flush_outputs(output.data(), output.count());
     return OperationStatus::success();
 }
@@ -622,9 +693,10 @@ OperationStatus Plan64::irfft(const View<Complex64> input, const MutableView<dou
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    if (plan.mode == Mode::plain) kernels.dif_inverse64(plan.dif, input.data(), output.data());
-    if (plan.mode == Mode::shifted) kernels.bodft_inverse64(plan.bodft, input.data(), output.data());
-    if (plan.mode == Mode::dip) kernels.dip_inverse64(plan.dip, input.data(), output.data());
+    const Complex64* const source = detail::flushed_inputs(plan, input.data(), input.count());
+    if (plan.mode == Mode::plain) kernels.dif_inverse64(plan.dif, source, output.data());
+    if (plan.mode == Mode::shifted) kernels.bodft_inverse64(plan.bodft, source, output.data());
+    if (plan.mode == Mode::dip) kernels.dip_inverse64(plan.dip, source, output.data());
     detail::flush_outputs(output.data(), output.count());
     return OperationStatus::success();
 }
@@ -668,8 +740,9 @@ OperationStatus Plan32::rfft(const View<float> input, const MutableView<Complex3
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    if (plan.mode == Mode::plain) kernels.dif_forward32(plan.dif, input.data(), output.data());
-    if (plan.mode == Mode::shifted) kernels.bodft_forward32(plan.bodft, input.data(), output.data());
+    const float* const source = detail::flushed_inputs(plan, input.data(), input.count());
+    if (plan.mode == Mode::plain) kernels.dif_forward32(plan.dif, source, output.data());
+    if (plan.mode == Mode::shifted) kernels.bodft_forward32(plan.bodft, source, output.data());
     detail::flush_outputs(output.data(), output.count());
     return OperationStatus::success();
 }
@@ -680,8 +753,9 @@ OperationStatus Plan32::irfft(const View<Complex32> input, const MutableView<flo
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    if (plan.mode == Mode::plain) kernels.dif_inverse32(plan.dif, input.data(), output.data());
-    if (plan.mode == Mode::shifted) kernels.bodft_inverse32(plan.bodft, input.data(), output.data());
+    const Complex32* const source = detail::flushed_inputs(plan, input.data(), input.count());
+    if (plan.mode == Mode::plain) kernels.dif_inverse32(plan.dif, source, output.data());
+    if (plan.mode == Mode::shifted) kernels.bodft_inverse32(plan.bodft, source, output.data());
     detail::flush_outputs(output.data(), output.count());
     return OperationStatus::success();
 }

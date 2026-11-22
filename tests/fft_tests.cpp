@@ -19,7 +19,9 @@
 //   F7  plain and dip agree on large sizes (the same bins by two kernels);
 //   F8  refusals: sizes, the dip mode in float32, counts, overlap, the
 //       empty and moved-from plan; nothing is written on a refusal;
-//   F9  the subnormal rule: a subnormal result is zero of its sign.
+//   F9  the subnormal rule: a subnormal input is read as zero of its sign
+//       (the same values as the input with zeros there, and the caller's
+//       input untouched), and a subnormal result is zero of its sign.
 //
 // The reference (house style section 8, A1: test references may take
 // freedoms) sums in double-double (two-sum and two-product through the
@@ -611,27 +613,150 @@ void refusals() {
 // F9: the subnormal rule.
 // ---------------------------------------------------------------------------
 
-void subnormal_results() {
-    // An impulse of the smallest normal times 2^-4 is subnormal; every bin
-    // of its transform would be that subnormal and comes back as a zero.
-    const double tiny = DBL_MIN / 16.0;
+// Whether every bin is zero (either sign).
+[[nodiscard]] bool all_zero(const std::vector<Complex64>& spectrum) noexcept {
+    bool zeros = true;
+    for (const Complex64 bin : spectrum) zeros = zeros && bin.re == 0.0 && bin.im == 0.0;
+    return zeros;
+}
+
+[[nodiscard]] bool all_zero(const std::vector<Complex32>& spectrum) noexcept {
+    bool zeros = true;
+    for (const Complex32 bin : spectrum) zeros = zeros && bin.re == 0.0F && bin.im == 0.0F;
+    return zeros;
+}
+
+// Whether two transforms' values are equal (==, so a zero's sign may differ).
+[[nodiscard]] bool same(const std::vector<Complex64>& a, const std::vector<Complex64>& b) noexcept {
+    bool equal = a.size() == b.size();
+    for (usize index = 0; equal && index < a.size(); ++index) {
+        equal = a[index].re == b[index].re && a[index].im == b[index].im;
+    }
+    return equal;
+}
+
+[[nodiscard]] bool same(const std::vector<Complex32>& a, const std::vector<Complex32>& b) noexcept {
+    bool equal = a.size() == b.size();
+    for (usize index = 0; equal && index < a.size(); ++index) {
+        equal = a[index].re == b[index].re && a[index].im == b[index].im;
+    }
+    return equal;
+}
+
+template <typename Real>
+[[nodiscard]] bool same(const std::vector<Real>& a, const std::vector<Real>& b) noexcept {
+    bool equal = a.size() == b.size();
+    for (usize index = 0; equal && index < a.size(); ++index) equal = a[index] == b[index];
+    return equal;
+}
+
+void subnormal_inputs64(const Mode mode) {
+    const usize n = 64;
+    const double tiny = DBL_MIN / 16.0; // 2^-1026, subnormal
+    Plan64 plan = plan64(n, mode);
+
+    // Every sample tiny: bin 0 would be 64 * 2^-1026 = 2^-1020, normal, if
+    // the inputs were read as they are. Read as zeros, every bin is zero.
+    const std::vector<double> constant(n, tiny);
+    CHECK(all_zero(forward64(plan, constant)));
+
+    // A normal signal with subnormals of both signs at some samples gives
+    // the values of the same signal with zeros there; the caller's input is
+    // not changed.
+    std::vector<double> mixed = random_signal(n, 91);
+    std::vector<double> zeroed = mixed;
+    for (usize index = 0; index < n; index += 5) {
+        mixed[index] = (index % 2 == 0) ? tiny : -tiny * 3.0;
+        zeroed[index] = 0.0;
+    }
+    const std::vector<double> kept = mixed;
+    const std::vector<Complex64> spectrum = forward64(plan, mixed);
+    CHECK(same(spectrum, forward64(plan, zeroed)));
+    CHECK(mixed[0] == tiny && mixed[5] == -tiny * 3.0 && same(mixed, kept));
+
+    // The inverse: a spectrum with subnormal parts gives the samples of the
+    // spectrum with zeros there, and an all-subnormal spectrum gives zeros.
+    std::vector<Complex64> bins = forward64(plan, random_signal(n, 92));
+    std::vector<Complex64> bins_zeroed = bins;
+    for (usize index = 1; index < bins.size(); index += 3) {
+        bins[index].re = tiny;
+        bins[index].im = -tiny;
+        bins_zeroed[index].re = 0.0;
+        bins_zeroed[index].im = 0.0;
+    }
+    const std::vector<Complex64> bins_kept = bins;
+    CHECK(same(inverse64(plan, bins), inverse64(plan, bins_zeroed)));
+    CHECK(same(bins, bins_kept));
+    const std::vector<Complex64> faint(plan.bins(), Complex64{.re = tiny, .im = tiny});
+    const std::vector<double> samples = inverse64(plan, faint);
+    bool zeros = true;
+    for (const double sample : samples) zeros = zeros && sample == 0.0;
+    CHECK(zeros);
+}
+
+void subnormal_inputs32(const Mode mode) {
+    const usize n = 64;
+    const float tiny = FLT_MIN / 16.0F; // 2^-130, subnormal
+    Plan32 plan = plan32(n, mode);
+
+    const std::vector<float> constant(n, tiny);
+    CHECK(all_zero(forward32(plan, constant)));
+
+    std::vector<float> mixed = rounded_signal(random_signal(n, 93));
+    std::vector<float> zeroed = mixed;
+    for (usize index = 0; index < n; index += 5) {
+        mixed[index] = (index % 2 == 0) ? tiny : -tiny * 3.0F;
+        zeroed[index] = 0.0F;
+    }
+    const std::vector<float> kept = mixed;
+    CHECK(same(forward32(plan, mixed), forward32(plan, zeroed)));
+    CHECK(same(mixed, kept));
+
+    std::vector<Complex32> bins = forward32(plan, rounded_signal(random_signal(n, 94)));
+    std::vector<Complex32> bins_zeroed = bins;
+    for (usize index = 1; index < bins.size(); index += 3) {
+        bins[index].re = -tiny;
+        bins[index].im = tiny;
+        bins_zeroed[index].re = 0.0F;
+        bins_zeroed[index].im = 0.0F;
+    }
+    const std::vector<Complex32> bins_kept = bins;
+    CHECK(same(inverse32(plan, bins), inverse32(plan, bins_zeroed)));
+    CHECK(same(bins, bins_kept));
+    const std::vector<Complex32> faint(plan.bins(), Complex32{.re = tiny, .im = tiny});
+    const std::vector<float> samples = inverse32(plan, faint);
+    bool zeros = true;
+    for (const float sample : samples) zeros = zeros && sample == 0.0F;
+    CHECK(zeros);
+}
+
+void subnormal_rule() {
+    // An impulse of 2^-1022 * 2^-4 is read as zero, so every bin is zero.
+    // A subnormal result from normal inputs: x[0] = 2^-1022 (1 + 2^-52),
+    // x[1] = -2^-1022 makes bin 0 (plain, dip) the exact sum 2^-1074,
+    // which comes back as zero; bin 1 stays normal.
     const Mode modes[3] = {Mode::plain, Mode::shifted, Mode::dip};
     for (const Mode mode : modes) {
         std::vector<double> x(64, 0.0);
-        x[0] = tiny;
+        x[0] = DBL_MIN / 16.0;
         Plan64 plan = plan64(64, mode);
-        const std::vector<Complex64> spectrum = forward64(plan, x);
-        bool zeros = true;
-        for (const Complex64 bin : spectrum) zeros = zeros && bin.re == 0.0 && bin.im == 0.0;
-        CHECK(zeros);
+        CHECK(all_zero(forward64(plan, x)));
+        if (mode != Mode::shifted) {
+            std::vector<double> pair(64, 0.0);
+            pair[0] = DBL_MIN + DBL_MIN * DBL_EPSILON;
+            pair[1] = -DBL_MIN;
+            const std::vector<Complex64> spectrum = forward64(plan, pair);
+            CHECK(spectrum[0].re == 0.0 && spectrum[0].im == 0.0);
+            CHECK(std::fabs(spectrum[1].re) >= DBL_MIN || std::fabs(spectrum[1].im) >= DBL_MIN);
+        }
+        subnormal_inputs64(mode);
     }
     std::vector<float> xf(64, 0.0F);
     xf[0] = FLT_MIN / 16.0F;
     Plan32 narrow = plan32(64, Mode::plain);
-    const std::vector<Complex32> spectrum32 = forward32(narrow, xf);
-    bool zeros = true;
-    for (const Complex32 bin : spectrum32) zeros = zeros && bin.re == 0.0F && bin.im == 0.0F;
-    CHECK(zeros);
+    CHECK(all_zero(forward32(narrow, xf)));
+    subnormal_inputs32(Mode::plain);
+    subnormal_inputs32(Mode::shifted);
 }
 
 } // namespace
@@ -642,7 +767,7 @@ int main() {
                 static_cast<int>(level.count()), level.data(), LDBL_MANT_DIG);
     refusals();
     exact_cases();
-    subnormal_results();
+    subnormal_rule();
     make_runs_the_selected_level();
     against_direct_sum(Mode::plain, 4);
     against_direct_sum(Mode::shifted, 2);
