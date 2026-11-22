@@ -104,4 +104,9 @@ double vertical_value(const FieldState& field, usize j, const double* w, const d
 // The field at (u, v), all channels (Field::evaluate's arithmetic).
 void field_value(const FieldState& field, double u, double v, double* out) noexcept;
 
+// The fused axis canon (experiment, transfer.cpp): horizontal integration first, then one
+// vertical contest per destination column. Tests and measurements only.
+OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
+                                 Workspace& workspace) noexcept;
+
 } // namespace stxlib::conv::detail

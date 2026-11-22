@@ -15,6 +15,7 @@
 #include "stxlib/conv.hpp"
 #include "stxlib/simd.hpp"
 
+#include "algorithms/conv/field_state.hpp"
 #include "algorithms/conv/kernels.hpp"
 #include "algorithms/conv/line.hpp"
 
@@ -889,6 +890,106 @@ void timing() {
     }
 }
 
+// ---------------------------------------------------------------- fused axis canon (experiment)
+
+Image transposed(const Image& image) {
+    Image out;
+    out.width = image.height;
+    out.height = image.width;
+    out.rgba.resize(image.rgba.size());
+    for (usize y = 0; y < image.height; ++y) {
+        for (usize x = 0; x < image.width; ++x) std::memcpy(out.rgba.data() + (x * out.width + y) * 4, image.rgba.data() + (y * image.width + x) * 4, 4);
+    }
+    return out;
+}
+
+struct Difference final {
+    double differing_percent = 0.0;
+    int worst = 0;
+    double mean = 0.0;
+};
+
+// Premultiplied-code difference of two RGBA8 buffers of one size.
+Difference compare_images(const std::vector<u8>& a, const std::vector<u8>& b) {
+    Difference d;
+    usize differing = 0;
+    double sum = 0.0;
+    const usize pixels = a.size() / 4;
+    for (usize k = 0; k < pixels; ++k) {
+        const u8* const p = a.data() + 4 * k;
+        const u8* const q = b.data() + 4 * k;
+        int pixel_worst = 0;
+        for (usize c = 0; c < 4; ++c) {
+            const double g = c == 3 ? p[3] : static_cast<double>(p[c]) * p[3] / 255.0;
+            const double w = c == 3 ? q[3] : static_cast<double>(q[c]) * q[3] / 255.0;
+            const int diff = static_cast<int>(std::lround(g)) - static_cast<int>(std::lround(w));
+            const int magnitude = diff < 0 ? -diff : diff;
+            pixel_worst = magnitude > pixel_worst ? magnitude : pixel_worst;
+            sum = sum + (magnitude > 0 ? magnitude : 0);
+        }
+        differing = differing + (std::memcmp(p, q, 4) == 0 ? 0 : 1);
+        d.worst = pixel_worst > d.worst ? pixel_worst : d.worst;
+    }
+    d.differing_percent = 100.0 * static_cast<double>(differing) / static_cast<double>(pixels);
+    d.mean = sum / static_cast<double>(pixels * 4);
+    return d;
+}
+
+double milliseconds_since(const std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+void fused_experiment() {
+    conv::Workspace workspace = workspace_made();
+    const Kind kinds[2] = {Kind::noise, Kind::icon};
+    const char* const kind_names[2] = {"noise", "icon"};
+    const usize shapes[2][2] = {{1024, 768}, {768, 1024}};
+    for (usize kk = 0; kk < 2; ++kk) {
+        for (usize sh = 0; sh < 2; ++sh) {
+            const Image image = fixture(kinds[kk], shapes[sh][0], shapes[sh][1], 41);
+            const Image flipped = transposed(image);
+            const conv::Field field = compiled(image);
+            const conv::Field field_t = compiled(flipped);
+            const usize w = image.width;
+            const usize h = image.height;
+            const usize targets[3][2] = {{w / 2, h / 2}, {w * 3 / 2, h / 2}, {w / 3, h * 2 / 3}};
+            for (const usize(&target)[2] : targets) {
+                conv::AxisMap map;
+                map.target_width = target[0];
+                map.target_height = target[1];
+                const conv::Region all{0, 0, target[0], target[1]};
+                Destination exact(target[0], target[1]);
+                std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+                CHECK(conv::transfer(field, map, conv::Mode::canon, exact.view(), all, workspace).succeeded());
+                const double exact_ms = milliseconds_since(start);
+                Destination fused(target[0], target[1]);
+                start = std::chrono::steady_clock::now();
+                CHECK(line::axis_canon_fused(field, map, fused.view(), all, workspace).succeeded());
+                const double fused_ms = milliseconds_since(start);
+                // Longer axis first: transpose, resize with the transposed map, transpose back.
+                conv::AxisMap map_t;
+                map_t.target_width = target[1];
+                map_t.target_height = target[0];
+                Destination out_t(target[1], target[0]);
+                start = std::chrono::steady_clock::now();
+                CHECK(line::axis_canon_fused(field_t, map_t, out_t.view(), conv::Region{0, 0, target[1], target[0]}, workspace).succeeded());
+                const double transposed_ms = milliseconds_since(start);
+                Image back_in;
+                back_in.width = target[1];
+                back_in.height = target[0];
+                back_in.rgba = out_t.rgba;
+                const Image back = transposed(back_in);
+                const Difference fd = compare_images(fused.rgba, exact.rgba);
+                const Difference td = compare_images(back.rgba, exact.rgba);
+                std::printf("fused %s %zux%zu -> %zux%zu | exact canon %.1f ms | rows-first fused %.1f ms: %.2f%% px differ, max %d, mean %.4f codes"
+                            " | transposed fused %.1f ms: %.2f%% px differ, max %d, mean %.4f codes\n",
+                            kind_names[kk], w, h, target[0], target[1], exact_ms, fused_ms, fd.differing_percent, fd.worst, fd.mean, transposed_ms,
+                            td.differing_percent, td.worst, td.mean);
+            }
+        }
+    }
+}
+
 // ---------------------------------------------------------------- lines
 
 void line_field() {
@@ -1099,5 +1200,6 @@ int main() {
     refusals();
     digest_outputs();
     timing();
+    fused_experiment();
     return stxlib_tests::finish("stxlib conv");
 }

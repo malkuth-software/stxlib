@@ -210,7 +210,7 @@ void settle_range(const FieldState& field, const usize jlo, const usize jhi, con
 }
 
 OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
-                           WorkspaceState& workspace) noexcept {
+                           WorkspaceState& workspace, const bool fused) noexcept {
     const usize rows = field.height;
     const usize region_rows = region.y1 - region.y0;
     if (region_rows == 0 || region.x0 == region.x1) return OperationStatus::success();
@@ -253,6 +253,13 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         for (usize k = 0; k < region_rows * channel_count; ++k) accumulator[k] = 0.0;
         FootprintNode* const nodes = u_nodes.mutable_view().data();
         const usize node_count = footprint(x, field.width, map.target_width, nodes);
+        // Fused (experiment, owner 2026-11-23): the column of row values integrated across the
+        // footprint first (exact: the rows are quintic per cell, their 2D corrections stored),
+        // then one vertical contest per destination column on those averages, as the 1D method
+        // orders it; exact canon contests at every u node instead.
+        if (fused) {
+            for (usize k = 0; k < lanes; ++k) column[k] = 0.0;
+        }
         for (usize a = 0; a < node_count; ++a) {
             const usize i = nodes[a].cell;
             if (i != cached) {
@@ -269,9 +276,15 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
                     value = value + cell[3 * channel_count + c] * tauu[2];
                     value = value + cell[4 * channel_count + c] * tauu[3];
                     value = value + cell[5 * channel_count + c] * tauu[4];
-                    column[r * channel_count + c] = value;
+                    if (fused) {
+                        column[r * channel_count + c] = column[r * channel_count + c] + nodes[a].weight * value;
+                    } else {
+                        column[r * channel_count + c] = value;
+                    }
                 }
             }
+            if (fused && a + 1 < node_count) continue;
+            const double node_weight = fused ? 1.0 : nodes[a].weight;
             settle_range(field, jlo, jhi, column, simple, cells, workspace);
             for (usize y = 0; y < region_rows; ++y) {
                 double sum[channel_count]{0.0, 0.0, 0.0, 0.0};
@@ -291,7 +304,7 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
                     }
                 }
                 for (usize c = 0; c < channel_count; ++c) {
-                    accumulator[y * channel_count + c] = accumulator[y * channel_count + c] + nodes[a].weight * sum[c];
+                    accumulator[y * channel_count + c] = accumulator[y * channel_count + c] + node_weight * sum[c];
                 }
             }
         }
@@ -630,7 +643,7 @@ OperationStatus transfer(const Field& field, const AxisMap& map, const Mode mode
         return detail::refused("stxlib.conv.transfer.axis", "the destination must have the map's target size");
     }
     const FieldState& state = *FieldAccess::state(field);
-    if (mode == Mode::canon) return detail::axis_canon(state, map, destination, region, *FieldAccess::state(workspace));
+    if (mode == Mode::canon) return detail::axis_canon(state, map, destination, region, *FieldAccess::state(workspace), false);
     detail::AnyMap any;
     any.kind = detail::MapKind::axis;
     any.axis = &map;
@@ -797,5 +810,19 @@ Region affected_region(const NodeBox& box, const AffineMap& map, const usize sou
     }
     return region;
 }
+
+
+namespace detail {
+// The fused axis canon (experiment): tests and measurements only, not part of the API yet.
+OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
+                                 Workspace& workspace) noexcept {
+    const OperationStatus common = check_common("stxlib.conv.transfer.axis", field, destination, region, workspace);
+    if (common.failed()) return common;
+    if (map.target_width != destination.width || map.target_height != destination.height) {
+        return refused("stxlib.conv.transfer.axis", "the destination must have the map's target size");
+    }
+    return axis_canon(*FieldAccess::state(field), map, destination, region, *FieldAccess::state(workspace), true);
+}
+} // namespace detail
 
 } // namespace stxlib::conv
