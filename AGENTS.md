@@ -156,5 +156,5 @@ Owner decisions of 2026-11-15, notes `decisions/2026-11-15-early-exit-integrity.
 - Workers commit on local branches and never push. The integrator builds;
   coders do not (projects `briefs/STXLIB_BRIEF.md`).
 - No compiler runs on the Mac laptop (Neo). Builds go to the M4 through
-  `~/Developer/stxlib_workers/bin/m4sb`.
+  `~/Developer/work/bin/m4sb`.
 - Preserve negative results. Report exact commands and environments.

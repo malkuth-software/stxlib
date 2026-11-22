@@ -875,15 +875,15 @@ sequential).
 ```sh
 # 1. Sync the research worktree.
 /usr/bin/rsync -rl --checksum --no-times --delete --omit-dir-times --exclude='/build*/' \
-  ~/Developer/gui_forms_workers/research/stx_auxlib/ \
-  m4mini:Developer/Projects/gui_forms_workers/research/stx_auxlib/
+  ~/Developer/work/research/stx_auxlib/ \
+  m4mini:Developer/work/research/stx_auxlib/
 
 # 2. Sanitizer build: exhaustive (small scope) and every variant/workload, checked, at 10^5 rows.
 ssh m4mini 'set -e; export PATH=/opt/homebrew/opt/llvm@22/bin:/opt/homebrew/bin:/usr/bin:/bin; \
-  cd ~/Developer/Projects/gui_forms_workers/research/stx_auxlib; \
+  cd ~/Developer/work/research/stx_auxlib; \
   cmake -S btree/research/order_statistic -B build/os-sanitize -DCMAKE_BUILD_TYPE=Debug \
     -DCMAKE_CXX_COMPILER=clang++ -DORDER_STATISTIC_SANITIZE=ON \
-    -DGUI_FORMS_ROOT=$HOME/Developer/Projects/gui_forms_workers/integration/gui_forms; \
+    -DGUI_FORMS_ROOT=$HOME/Developer/work/integration/gui_forms; \
   cmake --build build/os-sanitize -j 8; \
   export ASAN_OPTIONS=detect_leaks=1:halt_on_error=1 UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1; \
   build/os-sanitize/order_statistic_exhaustive --scope small; \
@@ -893,16 +893,16 @@ ssh m4mini 'set -e; export PATH=/opt/homebrew/opt/llvm@22/bin:/opt/homebrew/bin:
 
 # 3. Release build and the full-scope exhaustive check.
 ssh m4mini 'set -e; export PATH=/opt/homebrew/opt/llvm@22/bin:/opt/homebrew/bin:/usr/bin:/bin; \
-  cd ~/Developer/Projects/gui_forms_workers/research/stx_auxlib; \
+  cd ~/Developer/work/research/stx_auxlib; \
   cmake -S btree/research/order_statistic -B build/os-release -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CXX_COMPILER=clang++ \
-    -DGUI_FORMS_ROOT=$HOME/Developer/Projects/gui_forms_workers/integration/gui_forms; \
+    -DGUI_FORMS_ROOT=$HOME/Developer/work/integration/gui_forms; \
   cmake --build build/os-release -j 8; \
   build/os-release/order_statistic_exhaustive --scope full'
 
 # 4. Timed runs: 7 fresh processes per variant and workload at 10^7 rows (plus
 #    checked and counting passes), then the budget sweep that picks R's default.
-ssh m4mini 'set -e; cd ~/Developer/Projects/gui_forms_workers/research/stx_auxlib; \
+ssh m4mini 'set -e; cd ~/Developer/work/research/stx_auxlib; \
   sh btree/research/order_statistic/run_bench.sh build/os-release build/os-results-1e7.csv 10000000 7; \
   sh btree/research/order_statistic/run_bench.sh build/os-release build/os-results-1e6.csv 1000000 7; \
   for r in 10000 100000 1000000; do for run in 1 2 3 4 5 6 7; do for w in W4 W5; do \
