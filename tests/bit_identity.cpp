@@ -292,7 +292,6 @@ void math_items() {
         {"math.sinpi.double", static_cast<DoubleFunction>(&math::sinpi)},
         {"math.cospi.double", static_cast<DoubleFunction>(&math::cospi)},
         {"math.sincpi.double", static_cast<DoubleFunction>(&math::sincpi)},
-        {"math.sinc_radians.double", static_cast<DoubleFunction>(&math::sinc_radians)},
         {"math.cosm1.double", static_cast<DoubleFunction>(&math::cosm1)},
         {"math.cosm1pi.double", static_cast<DoubleFunction>(&math::cosm1pi)},
     };
@@ -364,7 +363,6 @@ void math_items() {
         {"math.sinpi.float", static_cast<FloatFunction>(&math::sinpi)},
         {"math.cospi.float", static_cast<FloatFunction>(&math::cospi)},
         {"math.sincpi.float", static_cast<FloatFunction>(&math::sincpi)},
-        {"math.sinc_radians.float", static_cast<FloatFunction>(&math::sinc_radians)},
         {"math.cosm1.float", static_cast<FloatFunction>(&math::cosm1)},
         {"math.cosm1pi.float", static_cast<FloatFunction>(&math::cosm1pi)},
     };

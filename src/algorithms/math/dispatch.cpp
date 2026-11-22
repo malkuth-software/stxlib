@@ -103,8 +103,6 @@ struct Kernels final {
     float (*cospi_f)(float) noexcept = nullptr;
     double (*sincpi_d)(double) noexcept = nullptr;
     float (*sincpi_f)(float) noexcept = nullptr;
-    double (*sinc_radians_d)(double) noexcept = nullptr;
-    float (*sinc_radians_f)(float) noexcept = nullptr;
     double (*cosm1_d)(double) noexcept = nullptr;
     float (*cosm1_f)(float) noexcept = nullptr;
     double (*cosm1pi_d)(double) noexcept = nullptr;
@@ -164,8 +162,6 @@ constexpr Kernels v128_kernels = {
     v128::cospi,
     v128::sincpi,
     v128::sincpi,
-    v128::sinc_radians,
-    v128::sinc_radians,
     v128::cosm1,
     v128::cosm1,
     v128::cosm1pi,
@@ -225,8 +221,6 @@ constexpr Kernels avx2_fma_kernels = {
     avx2_fma::cospi,
     avx2_fma::sincpi,
     avx2_fma::sincpi,
-    avx2_fma::sinc_radians,
-    avx2_fma::sinc_radians,
     avx2_fma::cosm1,
     avx2_fma::cosm1,
     avx2_fma::cosm1pi,
@@ -499,16 +493,6 @@ float resolve_sincpi_f(const float x) noexcept {
     return result;
 }
 
-double resolve_sinc_radians_d(const double x) noexcept {
-    const double result = (*(*resolve()).sinc_radians_d)(x);
-    return result;
-}
-
-float resolve_sinc_radians_f(const float x) noexcept {
-    const float result = (*(*resolve()).sinc_radians_f)(x);
-    return result;
-}
-
 double resolve_cosm1_d(const double x) noexcept {
     const double result = (*(*resolve()).cosm1_d)(x);
     return result;
@@ -582,8 +566,6 @@ constexpr Kernels resolving_kernels = {
     resolve_cospi_f,
     resolve_sincpi_d,
     resolve_sincpi_f,
-    resolve_sinc_radians_d,
-    resolve_sinc_radians_f,
     resolve_cosm1_d,
     resolve_cosm1_f,
     resolve_cosm1pi_d,
@@ -855,16 +837,6 @@ double sincpi(const double x) noexcept {
 
 float sincpi(const float x) noexcept {
     const float result = (*(*active.load(std::memory_order_relaxed)).sincpi_f)(x);
-    return result;
-}
-
-double sinc_radians(const double x) noexcept {
-    const double result = (*(*active.load(std::memory_order_relaxed)).sinc_radians_d)(x);
-    return result;
-}
-
-float sinc_radians(const float x) noexcept {
-    const float result = (*(*active.load(std::memory_order_relaxed)).sinc_radians_f)(x);
     return result;
 }
 
@@ -1155,16 +1127,6 @@ double sincpi(const double x) noexcept {
 
 float sincpi(const float x) noexcept {
     const float result = native::sincpi(x);
-    return result;
-}
-
-double sinc_radians(const double x) noexcept {
-    const double result = native::sinc_radians(x);
-    return result;
-}
-
-float sinc_radians(const float x) noexcept {
-    const float result = native::sinc_radians(x);
     return result;
 }
 

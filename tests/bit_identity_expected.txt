@@ -37,7 +37,6 @@ math.cos.double 4cd44efbfcb57b03 5144
 math.sinpi.double edd5ffa26e6152d8 5144
 math.cospi.double 74bcd299d6479953 5144
 math.sincpi.double 1e2f3b2ddd5daba3 5144
-math.sinc_radians.double 5ba3ef58b4e65898 5144
 math.cosm1.double c0fb11851f71acbb 5144
 math.cosm1pi.double 0b50fdb3498d5d83 5144
 math.sincos.double@region 58f8c080766956e2 10288
@@ -73,7 +72,6 @@ math.cos.float 61c5f83e9319e1ee 5140
 math.sinpi.float 1a8fc7e3929c429b 5140
 math.cospi.float db1bb794aad77ddb 5140
 math.sincpi.float 96cee1157b76ef6e 5140
-math.sinc_radians.float 076678811d86a87b 5140
 math.cosm1.float c30cb58e4e2fd21b 5140
 math.cosm1pi.float b408e913203784b9 5140
 math.sincos.float e0fca2706500ac67 10280

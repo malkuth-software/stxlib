@@ -64,8 +64,6 @@ double cospi(double x) noexcept;
 float cospi(float x) noexcept;
 double sincpi(double x) noexcept;
 float sincpi(float x) noexcept;
-double sinc_radians(double x) noexcept;
-float sinc_radians(float x) noexcept;
 double cosm1(double x) noexcept;
 float cosm1(float x) noexcept;
 double cosm1pi(double x) noexcept;
