@@ -1,0 +1,344 @@
+{
+  "schema": 1,
+  "component": "stxlib::fft::Plan64",
+  "declaration": "include/stxlib/fft_plan64.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "empty",
+    "ready"
+  ],
+  "initial": "empty",
+  "state_query": "empty",
+  "blocks": [
+    {
+      "name": "stxlib.fft.plan64.make",
+      "mode": "legal",
+      "call": "make",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "size",
+          "type": "usize",
+          "bounded_by": [
+            "size <= max_size",
+            "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+          ]
+        },
+        {
+          "name": "mode",
+          "type": "u8",
+          "bounded_by": [
+            "mode <= 2",
+            "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+          ]
+        }
+      ],
+      "requires": [
+        "mode <= 2",
+        "size <= max_size",
+        "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+      ],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the plan's state or tables",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Plan64",
+        "state": "ready",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.fft.plan64.make.misuse.make_mode",
+      "mode": "misuse",
+      "call": "make",
+      "violates": "mode <= 2",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.make.misuse.make_size_limit",
+      "mode": "misuse",
+      "call": "make",
+      "violates": "size <= max_size",
+      "expect": {
+        "kind": "failure",
+        "failure": "limit_exceeded"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.make.misuse.make_size_shape",
+      "mode": "misuse",
+      "call": "make",
+      "violates": "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.empty.empty",
+      "mode": "legal",
+      "call": "empty",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.empty.ready",
+      "mode": "legal",
+      "call": "empty",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.size.empty",
+      "mode": "legal",
+      "call": "size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.size.ready",
+      "mode": "legal",
+      "call": "size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.bins.empty",
+      "mode": "legal",
+      "call": "bins",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.bins.ready",
+      "mode": "legal",
+      "call": "bins",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft.ready",
+      "mode": "legal",
+      "call": "rfft",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == size"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == bins"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == size",
+        "output_count == bins"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft.misuse.rfft_input",
+      "mode": "misuse",
+      "call": "rfft",
+      "violates": "input_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft.misuse.rfft_output",
+      "mode": "misuse",
+      "call": "rfft",
+      "violates": "output_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft.outside.empty",
+      "mode": "misuse",
+      "call": "rfft",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft.ready",
+      "mode": "legal",
+      "call": "irfft",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == bins"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == size"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == bins",
+        "output_count == size"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft.misuse.irfft_input",
+      "mode": "misuse",
+      "call": "irfft",
+      "violates": "input_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft.misuse.irfft_output",
+      "mode": "misuse",
+      "call": "irfft",
+      "violates": "output_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft.outside.empty",
+      "mode": "misuse",
+      "call": "irfft",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    }
+  ]
+}

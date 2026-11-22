@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/memory.ic.toml",
-    "sha256": "44614e99b6724f56aa48fa1942fc03316347052bed9bdc8529bff9d462a5fc93"
+    "sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,20 +12,34 @@
       "id": "stxlib.memory.allocate.requires.allocate",
       "kind": "entry-check",
       "statement": "allocate runs only when power_of_two(alignment); otherwise returns null, unchanged.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::memory::admits_allocate, called in src/state/allocator.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::memory::admits_allocate, called in src/state/allocator.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+      }
     },
     {
       "id": "stxlib.memory.allocate.refusal.allocate",
       "kind": "refusal-leaves",
       "statement": "Unless power_of_two(alignment), allocate changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+      }
     },
     {
       "id": "stxlib.memory.identity",

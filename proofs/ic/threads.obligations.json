@@ -1,0 +1,114 @@
+{
+  "schema": 1,
+  "component": "stxlib::Thread",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/threads.ic.toml",
+    "sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.thread.start.requires.start_entry",
+      "kind": "entry-check",
+      "statement": "start runs only when not_null(entry); otherwise failure invalid_argument (no_entry), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::threads::admits_start_entry, called in src/core/threads.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_entry",
+      "kind": "refusal-leaves",
+      "statement": "Unless not_null(entry), start changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.requires.start_stack",
+      "kind": "entry-check",
+      "statement": "start runs only when stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]; otherwise failure invalid_argument (stack_size_out_of_range), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::threads::admits_start_stack, called in src/core/threads.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_stack",
+      "kind": "refusal-leaves",
+      "statement": "Unless stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes], start changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.thread.join.moves",
+      "kind": "transition",
+      "statement": "join succeeding in started leaves the object in empty.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.thread.join.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "join in empty: returns JoinResult::not_joinable, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.thread.abandon.moves",
+      "kind": "transition",
+      "statement": "abandon succeeding in started leaves the object in empty.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.thread.abandon.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "abandon in empty: returns AbandonResult::not_joinable, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

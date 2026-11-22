@@ -1,0 +1,66 @@
+{
+  "schema": 1,
+  "component": "stxlib::Mutex",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/mutex.ic.toml",
+    "sha256": "6f7d9cc53f05ef028405d0359e67333a13708a580361c557603a19827839cafc"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.mutex.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in free leaves the object in held.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.mutex.lock.outside.held",
+      "kind": "typestate-refusal",
+      "statement": "lock in held: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.mutex.try_lock.moves",
+      "kind": "transition",
+      "statement": "try_lock succeeding in free leaves the object in held.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.mutex.try_lock.outside.held",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in held: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.mutex.unlock.moves",
+      "kind": "transition",
+      "statement": "unlock succeeding in held leaves the object in free.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.mutex.unlock.outside.free",
+      "kind": "typestate-refusal",
+      "statement": "unlock in free: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

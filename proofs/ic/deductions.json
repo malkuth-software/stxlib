@@ -1,0 +1,927 @@
+{
+  "schema": 1,
+  "generated_by": "tools/ic_deduce.py",
+  "record": "each deduction holds while its declaration and sources hash as recorded; tools/ic_declarations.py merges it into the obligation then, and only then",
+  "credit": "the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6)",
+  "deductions": [
+    {
+      "id": "stxlib.buffer.element.requires.element_index",
+      "declaration": "include/stxlib/buffer.ic.toml",
+      "declaration_sha256": "2ddc1e94d3d402f325c1ad3483b05e4c454b44c9728a27f97095f0e8d9e3a638",
+      "sources": {
+        "include/stxlib/buffer.hpp": "0a8078794a1085eb06875865fd78a07ac10376ef43eac386daca8d7710fcc688"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/buffer.hpp:152",
+        "guard at include/stxlib/buffer.hpp:156"
+      ]
+    },
+    {
+      "id": "stxlib.file.write_all_at.exact.write_at_extent",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "sources": {},
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "interval and linear arithmetic over the clause in C++'s order of evaluation (Fourier-Motzkin elimination)",
+      "premises": [
+        "each name lies within its declared type (usize at 32 bits)",
+        "the generated predicate evaluates the conjuncts in the clause's order (tools/ic_declarations.py writes && in order)"
+      ],
+      "steps": [
+        "every subtraction shown at least zero and every sum within its type under the conjuncts before it"
+      ]
+    },
+    {
+      "id": "stxlib.frozenmap.key_at.requires.key_index",
+      "declaration": "include/stxlib/frozen_map.ic.toml",
+      "declaration_sha256": "da95115591e8e29c0cfc47ade74c463bdf75f3fe0868910cd6948d003531beea",
+      "sources": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at src/algorithms/frozen_map.cpp:377",
+        "guard at src/algorithms/frozen_map.cpp:534"
+      ]
+    },
+    {
+      "id": "stxlib.frozenmap.value_at.requires.value_index",
+      "declaration": "include/stxlib/frozen_map.ic.toml",
+      "declaration_sha256": "da95115591e8e29c0cfc47ade74c463bdf75f3fe0868910cd6948d003531beea",
+      "sources": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at src/algorithms/frozen_map.cpp:383",
+        "guard at src/algorithms/frozen_map.cpp:542"
+      ]
+    },
+    {
+      "id": "stxlib.frozentextmap.key_at.requires.key_index",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml",
+      "declaration_sha256": "508b5d20ada3566f3cb9aafbeb558bcefc791a885feef02eb00aa7e35ccba496",
+      "sources": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at src/algorithms/frozen_map.cpp:377",
+        "guard at src/algorithms/frozen_map.cpp:534"
+      ]
+    },
+    {
+      "id": "stxlib.frozentextmap.value_at.requires.value_index",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml",
+      "declaration_sha256": "508b5d20ada3566f3cb9aafbeb558bcefc791a885feef02eb00aa7e35ccba496",
+      "sources": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at src/algorithms/frozen_map.cpp:383",
+        "guard at src/algorithms/frozen_map.cpp:542"
+      ]
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.requires.glyph_index",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "declaration_sha256": "8a38fd6ea37ebefef957757c15f283276c23b56aa89ea4646fdfd9e497c38019",
+      "sources": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/algorithms/glyphs/glyph_store.cpp:107"
+      ]
+    },
+    {
+      "id": "stxlib.memory.allocate.requires.allocate",
+      "declaration": "include/stxlib/memory.ic.toml",
+      "declaration_sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4",
+      "sources": {
+        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/state/allocator.cpp:282",
+        "guard at src/state/allocator.cpp:332"
+      ]
+    },
+    {
+      "id": "stxlib.memory.allocate.refusal.allocate",
+      "declaration": "include/stxlib/memory.ic.toml",
+      "declaration_sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4",
+      "sources": {
+        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/state/allocator.cpp:282",
+        "guard at src/state/allocator.cpp:332"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.create.requires.create_some_threads",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:237"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.create.refusal.create_some_threads",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:237"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.create.requires.create_thread_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:240"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.create.refusal.create_thread_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:240"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.run.requires.batch_task_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:185"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.run.refusal.batch_task_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:185"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.requires.begin_some_tasks",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:325"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.requires.batch_task_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:185"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.refusal.batch_task_limit",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/thread_pool.cpp:185"
+      ]
+    },
+    {
+      "id": "stxlib.thread.start.requires.start_entry",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/threads.cpp:370"
+      ]
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_entry",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/threads.cpp:370"
+      ]
+    },
+    {
+      "id": "stxlib.thread.start.requires.start_stack",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/core/threads.cpp:376"
+      ]
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_stack",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/core/threads.cpp:376"
+      ]
+    },
+    {
+      "id": "stxlib.vector.element.requires.element_index",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:255",
+        "guard at include/stxlib/vector.hpp:259"
+      ]
+    },
+    {
+      "id": "stxlib.vector.first_element.requires.first_element",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:268",
+        "guard at include/stxlib/vector.hpp:272"
+      ]
+    },
+    {
+      "id": "stxlib.vector.last_element.requires.last_element",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:278",
+        "guard at include/stxlib/vector.hpp:282"
+      ]
+    },
+    {
+      "id": "stxlib.vector.insert.requires.insert_index",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:377"
+      ]
+    },
+    {
+      "id": "stxlib.vector.erase.requires.erase_index",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:442"
+      ]
+    },
+    {
+      "id": "stxlib.vector.erase_range.exact.erase_range",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {},
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "interval and linear arithmetic over the clause in C++'s order of evaluation (Fourier-Motzkin elimination)",
+      "premises": [
+        "each name lies within its declared type (usize at 32 bits)",
+        "the generated predicate evaluates the conjuncts in the clause's order (tools/ic_declarations.py writes && in order)"
+      ],
+      "steps": [
+        "every subtraction shown at least zero and every sum within its type under the conjuncts before it"
+      ]
+    },
+    {
+      "id": "stxlib.vector.erase_range.requires.erase_range",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:451"
+      ]
+    },
+    {
+      "id": "stxlib.vector.take_last.requires.take_last",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:477"
+      ]
+    },
+    {
+      "id": "stxlib.vector.remove_last.requires.remove_last",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:487"
+      ]
+    },
+    {
+      "id": "stxlib.vector.truncate.requires.truncate",
+      "declaration": "include/stxlib/vector.ic.toml",
+      "declaration_sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9",
+      "sources": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at include/stxlib/vector.hpp:496"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.allocate.requires.allocate",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "steps": [
+        "guard at src/state/stx_minmallocpp/allocator.cpp:41"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.allocate.refusal.allocate",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "steps": [
+        "guard at src/state/stx_minmallocpp/allocator.cpp:41"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_take",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "sxv's: the sum updated at one word; pop(x & (x - 1)) = pop(x) - 1 for x != 0 (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "premises": [
+        "take_from runs on a non-zero word (its caller loaded it and found it non-zero)",
+        "the step is atomic (between step marks)"
+      ],
+      "steps": [
+        "from sum + live == capacity; word != 0; sum_after == sum - pop(word) + pop(word & (word - 1)); live_after == live + 1",
+        "shown sum_after + live_after == capacity",
+        "laws: pop(x & (x - 1)) = pop(x) - 1 for x != 0",
+        "read in src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);, src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_release",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b; pop of one bit is 1 (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "premises": [
+        "the block is live (its bit is clear in the word, checked by the integrity stop before the store)",
+        "a live block counts in live, so live >= 1",
+        "the step is atomic (between step marks)"
+      ],
+      "steps": [
+        "from sum + live == capacity; known & bit == 0; single_bit(bit); live >= 1; sum_after == sum - pop(known) + pop(known | bit); live_after == live - 1",
+        "shown sum_after + live_after == capacity and live_after >= 0",
+        "laws: pop(a | b) = pop(a) + pop(b) for disjoint a, b, pop of one bit is 1",
+        "read in src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {, src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);, src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_collect",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "premises": [
+        "the integrity stops before the store end the process when the words overlap or the count exceeds live",
+        "the step is atomic (between step marks)"
+      ],
+      "steps": [
+        "from sum + live == capacity; known & released == 0; pop(released) <= live; sum_after == sum - pop(known) + pop(known | released); live_after == live - pop(released)",
+        "shown sum_after + live_after == capacity and live_after >= 0",
+        "laws: pop(a | b) = pop(a) + pop(b) for disjoint a, b",
+        "read in src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);, src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);, src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);, src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"
+      ]
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_made",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "declaration_sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0",
+      "sources": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "sxv's: a finite sum split at its last term; pop of all 64 bits is 64; pop(2^r - 1) = r (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "premises": [
+        "the plan's words are the capacity in 64-bit words, rounded up, so every word but the last is full (remaining >= 64) and the last holds 1 to 64 blocks",
+        "a word with remaining >= 64 is u64_max, the last 2^remaining - 1 (or u64_max when remaining is 64)"
+      ],
+      "steps": [
+        "from words >= 1; remaining == capacity - 64 * (words - 1); remaining >= 1; remaining <= 64; sum == 64 * (words - 1) + pop(2^remaining - 1); live == 0",
+        "shown sum + live == capacity",
+        "laws: pop(2^r - 1) = r for 0 <= r <= 64",
+        "read in src/state/stx_minmallocpp/heap.cpp: const usize remaining = plan.capacity - word * word_bits;, src/state/stx_minmallocpp/heap.cpp: free_bits = remaining >= word_bits ? u64_max : (static_cast<u64>(1) << remaining) - 1;, src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"
+      ]
+    }
+  ],
+  "open": [
+    {
+      "id": "stxlib.fft.plan32.make.requires.make_mode",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:392: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:393: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.refusal.make_mode",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.requires.make_size_limit",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:398: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:399: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.refusal.make_size_limit",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.requires.make_size_shape",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:404: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:405: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.refusal.make_size_shape",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.requires.make_float32_mode",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:430: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.make.refusal.make_float32_mode",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft.requires.rfft_input",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:521: not a guard; src/algorithms/fft/plan.cpp:522: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft.refusal.rfft_input",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft.requires.rfft_output",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:525: not a guard; src/algorithms/fft/plan.cpp:526: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft.refusal.rfft_output",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft.requires.irfft_input",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:529: not a guard; src/algorithms/fft/plan.cpp:530: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft.refusal.irfft_input",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft.requires.irfft_output",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:532: not a guard; src/algorithms/fft/plan.cpp:533: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft.refusal.irfft_output",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_mode",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:392: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:393: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_mode",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_size_limit",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:398: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:399: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_size_limit",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_size_shape",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:404: the predicate is combined with others, read by hand; src/algorithms/fft/plan.cpp:405: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_size_shape",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.requires.rfft_input",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:521: not a guard; src/algorithms/fft/plan.cpp:522: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.refusal.rfft_input",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.requires.rfft_output",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:525: not a guard; src/algorithms/fft/plan.cpp:526: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.refusal.rfft_output",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.requires.irfft_input",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:529: not a guard; src/algorithms/fft/plan.cpp:530: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.refusal.irfft_input",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.requires.irfft_output",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "src/algorithms/fft/plan.cpp:532: not a guard; src/algorithms/fft/plan.cpp:533: not a guard"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.refusal.irfft_output",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.file.read_at.requires.read_at_offset",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "src/core/files.cpp:384: the refusal does not name failure limit_exceeded (too_long)"
+    },
+    {
+      "id": "stxlib.file.read_at.refusal.read_at_offset",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.file.write_all_at.requires.write_at_extent",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "src/core/files.cpp:397: the refusal does not name failure limit_exceeded (too_long)"
+    },
+    {
+      "id": "stxlib.file.write_all_at.refusal.write_at_extent",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.file.set_size.requires.set_size_bytes",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "src/core/files.cpp:433: the refusal does not name failure limit_exceeded (too_long)"
+    },
+    {
+      "id": "stxlib.file.set_size.refusal.set_size_bytes",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "its entry check is not discharged"
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.refusal.glyph_index",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "why": "src/algorithms/glyphs/glyph_store.cpp:107 follows 'stored = StoredGlyph()'"
+    },
+    {
+      "id": "stxlib.atomicpool.begin.refusal.begin_some_tasks",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "why": "src/core/thread_pool.cpp:325 follows 'check_not_batch_owner(*state_, operation)'"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_protocol",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "why": "stated in words only (no given and shows)"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.refusal_reads_nothing",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "why": "stated in words only (no given and shows)"
+    }
+  ]
+}

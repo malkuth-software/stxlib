@@ -22,6 +22,26 @@ identity = { kind = "block address: the start of a live block", stale = "value:R
 alignment_limit = { cpp = "alignment_limit", type = "usize" }
 largest_request = { cpp = "largest_request", type = "usize" }
 
+# The block engine's view of the allocator (IC2): as stxlib::memory's, over
+# stx_minmallocpp's own calls; the stale identity (an address inside a
+# block) is a compound misuse. Built where the allocator's symbols link
+# (not in a shared stxlib_state).
+[engine]
+object = "::stxlib_ic::inputs::AllocatorBlocks"
+includes = ["ic/engine/ic_allocator_inputs.hpp"]
+make = "default"
+invariants = ["object.intact()"]
+condition = "defined(STXLIB_IC_ALLOCATOR)"
+
+[[engine.compound]]
+name = "release_interior"
+mode = "misuse"
+needs = "live"
+invoke = "::stxlib_ic::inputs::interior_refused(object, which)"
+draws = { which = "u32" }
+result_type = "bool"
+expect = ["result"]
+
 [checks]
 path = "src/state/stx_minmallocpp/allocator_ic_checks.hpp"
 namespace = "stxlib::stx_minmallocpp::ic"
@@ -38,22 +58,26 @@ requires = [
 ]
 fails = [{ failure = "exhausted", when = "the host refuses address space or memory, or a fixed table is full: a null result, nothing else changes" }]
 returns = { type = "void*", owns = "caller" }
+engine = { invoke = "object.keep(::stxlib::stx_minmallocpp::allocate(size, alignment), size)", needs = "live", ranges = { size = "[0, 65536]", alignment = "[1, 4096]" }, result_type = "void*", failed_when = "result == nullptr", expect = ["(reinterpret_cast<stxlib::uptr>(result) & (alignment - 1)) == 0"] }
 
 [[call]]
 name = "release"
 kind = "free"
 declarations = ["[[nodiscard]] Release release(void* address) noexcept;"]
 transfers = [{ what = "the block", from = "caller", to = "allocator" }]
+engine = { invoke = "object.release_at(which)", needs = "live", draws = { which = "u32" }, result_type = "bool", expect = ["result"] }
 
 [[call]]
 name = "trim"
 kind = "free"
 declarations = ["void trim() noexcept;"]
+engine = { needs = "none" }
 
 [[call]]
 name = "end_thread"
 kind = "free"
 declarations = ["void end_thread() noexcept;"]
+engine = { skip = "ends the calling thread's allocator state, which the engine's own thread still uses" }
 
 [[obligation]]
 id = "page_protocol"
@@ -70,3 +94,49 @@ premises = [
 id = "refusal_reads_nothing"
 statement = "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it."
 premises = []
+
+# The page counter's invariant, step by step (IC4): for every page, the free
+# bits of its words and its live count together are its capacity,
+#   sum + live == capacity, where sum is the sum over its words of pop(free[w]).
+# Each lemma is one step that changes them, read from the source it names;
+# the deducer proves it from its givens with sxv's algebra (finite sums
+# updated at one word, popcount laws). Together with the page's making they
+# give the invariant for every page_whole check (page.hpp), relative to the
+# premises: one thread at a time in each step (each segment between step
+# marks atomic, as page_protocol assumes), and the words updated being the
+# page's own.
+[[obligation]]
+id = "page_count_take"
+statement = "take_from keeps a page's count: the lowest free bit leaves the word and live grows by one."
+method = "sxv's: the sum updated at one word; pop(x & (x - 1)) = pop(x) - 1 for x != 0"
+premises = ["take_from runs on a non-zero word (its caller loaded it and found it non-zero)", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "word != 0", "sum_after == sum - pop(word) + pop(word & (word - 1))", "live_after == live + 1"]
+shows = "sum_after + live_after == capacity"
+sources = ["src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);", "src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"]
+
+[[obligation]]
+id = "page_count_release"
+statement = "The owner's release keeps a page's count and never takes live below zero: the block's bit joins its word and live falls by one."
+method = "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b; pop of one bit is 1"
+premises = ["the block is live (its bit is clear in the word, checked by the integrity stop before the store)", "a live block counts in live, so live >= 1", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "known & bit == 0", "single_bit(bit)", "live >= 1", "sum_after == sum - pop(known) + pop(known | bit)", "live_after == live - 1"]
+shows = "sum_after + live_after == capacity and live_after >= 0"
+sources = ["src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {", "src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);", "src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"]
+
+[[obligation]]
+id = "page_count_collect"
+statement = "Collecting the remotely released blocks of a word keeps a page's count and never takes live below zero."
+method = "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b"
+premises = ["the integrity stops before the store end the process when the words overlap or the count exceeds live", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "known & released == 0", "pop(released) <= live", "sum_after == sum - pop(known) + pop(known | released)", "live_after == live - pop(released)"]
+shows = "sum_after + live_after == capacity and live_after >= 0"
+sources = ["src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);", "src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);", "src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);", "src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"]
+
+[[obligation]]
+id = "page_count_made"
+statement = "A page made with its blocks free starts with its count: its full words and its last word's low bits are its capacity, and live is zero."
+method = "sxv's: a finite sum split at its last term; pop of all 64 bits is 64; pop(2^r - 1) = r"
+premises = ["the plan's words are the capacity in 64-bit words, rounded up, so every word but the last is full (remaining >= 64) and the last holds 1 to 64 blocks", "a word with remaining >= 64 is u64_max, the last 2^remaining - 1 (or u64_max when remaining is 64)"]
+given = ["words >= 1", "remaining == capacity - 64 * (words - 1)", "remaining >= 1", "remaining <= 64", "sum == 64 * (words - 1) + pop(2^remaining - 1)", "live == 0"]
+shows = "sum + live == capacity"
+sources = ["src/state/stx_minmallocpp/heap.cpp: const usize remaining = plan.capacity - word * word_bits;", "src/state/stx_minmallocpp/heap.cpp: free_bits = remaining >= word_bits ? u64_max : (static_cast<u64>(1) << remaining) - 1;", "src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"]

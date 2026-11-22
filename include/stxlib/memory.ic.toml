@@ -16,6 +16,15 @@ keys = { manifest = "stxlib::memory" }
 thread = "any"
 identity = { kind = "block address: the start of a block from allocate, not yet released", stale = "requirement" }
 
+# The block engine's view of stxlib::memory (IC2): each slot keeps the
+# blocks allocate hands out, each filled with its own byte, so a block that
+# overlaps another or is written by the allocator breaks the pattern.
+[engine]
+object = "::stxlib_ic::inputs::MemoryBlocks"
+includes = ["stxlib/memory.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+invariants = ["object.intact()"]
+
 [checks]
 path = "src/state/memory_ic_checks.hpp"
 namespace = "stxlib::detail::ic::memory"
@@ -26,11 +35,13 @@ used_in = ["src/state/allocator.cpp"]
 name = "backend"
 kind = "free"
 declarations = ["[[nodiscard]] Backend backend() noexcept;"]
+engine = { needs = "none", result_type = "stxlib::memory::Backend" }
 
 [[call]]
 name = "tags_checked"
 kind = "free"
 declarations = ["[[nodiscard]] bool tags_checked() noexcept;"]
+engine = { needs = "none" }
 
 [[call]]
 name = "allocate"
@@ -42,9 +53,11 @@ requires = [
 ]
 fails = [{ failure = "exhausted", when = "memory is exhausted, or the size is not representable with the alignment's bookkeeping: a null result" }]
 returns = { type = "void*", owns = "caller" }
+engine = { invoke = "object.keep(::stxlib::memory::allocate(size, alignment), size)", needs = "live", draws = { size = "u32" }, ranges = { size = "[0, 65536]", alignment = "[1, 4096]" }, result_type = "void*", failed_when = "result == nullptr", expect = ["(reinterpret_cast<stxlib::uptr>(result) & (alignment - 1)) == 0"] }
 
 [[call]]
 name = "release"
 kind = "free"
 declarations = ["STXLIB_NO_UNWIND void release(void* address) noexcept;"]
 transfers = [{ what = "the block", from = "caller", to = "the allocator" }]
+engine = { invoke = "object.release_at(which)", needs = "live", draws = { which = "u32" }, result_type = "bool", expect = ["result"] }

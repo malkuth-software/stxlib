@@ -131,7 +131,7 @@ using detail::TurnLattice;
 using detail::refuse_font;
 
 inline constexpr usize not_found = ~static_cast<usize>(0);
-inline constexpr i64 largest_size = static_cast<i64>(1) << 24;
+inline constexpr i64 largest_size = detail::largest_glyph_size;
 inline constexpr i32 largest_thickening = 1024;
 // Coordinates beyond this (26.6) are not thickened: no mask is that large.
 inline constexpr i64 thickening_reach = static_cast<i64>(1) << 22;

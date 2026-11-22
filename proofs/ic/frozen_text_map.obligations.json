@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/frozen_text_map.ic.toml",
-    "sha256": "e077a52d1a5c47906afa794237ff09cc05030bfa481727134b7d3d00f009c8a8"
+    "sha256": "508b5d20ada3566f3cb9aafbeb558bcefc791a885feef02eb00aa7e35ccba496"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,21 +12,37 @@
       "id": "stxlib.frozentextmap.key_at.requires.key_index",
       "kind": "entry-check",
       "statement": "key_at runs only when index < count; otherwise requirement (\"FrozenTextMap::key_at: index out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::frozen_text_map::admits_key_index, called in src/algorithms/frozen_map.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::frozen_text_map::admits_key_index, called in src/algorithms/frozen_map.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      }
     },
     {
       "id": "stxlib.frozentextmap.value_at.requires.value_index",
       "kind": "entry-check",
       "statement": "value_at runs only when index < count; otherwise requirement (\"FrozenTextMap::value_at: index out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::frozen_text_map::admits_value_index, called in src/algorithms/frozen_map.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::frozen_text_map::admits_value_index, called in src/algorithms/frozen_map.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/algorithms/frozen_map.cpp": "a1b976602bedbcc198275cf0e459c079f425acc088b0040728df4c6b035ec8cc"
+      }
     }
   ]
 }

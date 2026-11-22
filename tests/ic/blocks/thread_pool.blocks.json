@@ -1,0 +1,394 @@
+{
+  "schema": 1,
+  "component": "stxlib::AtomicPool",
+  "declaration": "include/stxlib/thread_pool.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "empty",
+    "idle",
+    "open"
+  ],
+  "initial": "empty",
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.atomicpool.create",
+      "mode": "legal",
+      "call": "create",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "thread_count",
+          "type": "u32",
+          "bounded_by": [
+            "thread_count != 0",
+            "thread_count <= maximum_pool_threads"
+          ]
+        }
+      ],
+      "requires": [
+        "thread_count != 0",
+        "thread_count <= maximum_pool_threads"
+      ],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the pool's state or its thread table",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "the host refuses a worker thread",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "AtomicPool",
+        "state": "idle",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.atomicpool.create.misuse.create_some_threads",
+      "mode": "misuse",
+      "call": "create",
+      "violates": "thread_count != 0",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "zero_threads"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.create.misuse.create_thread_limit",
+      "mode": "misuse",
+      "call": "create",
+      "violates": "thread_count <= maximum_pool_threads",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "too_many_threads"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.thread_count.empty",
+      "mode": "legal",
+      "call": "thread_count",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.thread_count.idle",
+      "mode": "legal",
+      "call": "thread_count",
+      "kind": "member",
+      "thread": "owner",
+      "state": "idle",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "idle"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.thread_count.open",
+      "mode": "legal",
+      "call": "thread_count",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.run.idle",
+      "mode": "legal",
+      "call": "run",
+      "kind": "member",
+      "thread": "owner",
+      "state": "idle",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "idle"
+        },
+        {
+          "name": "task_count",
+          "type": "usize",
+          "bounded_by": [
+            "task_count <= task_limit"
+          ]
+        }
+      ],
+      "requires": [
+        "task_count <= task_limit"
+      ],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "task_without_function: a task whose function is null; no task runs",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.run.misuse.batch_task_limit",
+      "mode": "misuse",
+      "call": "run",
+      "violates": "task_count <= task_limit",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "too_many_tasks"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.run.outside.empty",
+      "mode": "misuse",
+      "call": "run",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "empty_pool"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.run.outside.open",
+      "mode": "misuse",
+      "call": "run",
+      "state": "open",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.begin.idle",
+      "mode": "legal",
+      "call": "begin",
+      "kind": "member",
+      "thread": "owner",
+      "state": "idle",
+      "moves": "open",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "idle"
+        },
+        {
+          "name": "task_count",
+          "type": "usize",
+          "bounded_by": [
+            "task_count != 0",
+            "task_count <= task_limit"
+          ]
+        }
+      ],
+      "requires": [
+        "task_count != 0",
+        "task_count <= task_limit"
+      ],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "task_without_function: a task whose function is null; no task runs",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.begin.misuse.begin_some_tasks",
+      "mode": "misuse",
+      "call": "begin",
+      "violates": "task_count != 0",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "empty_batch"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.begin.misuse.batch_task_limit",
+      "mode": "misuse",
+      "call": "begin",
+      "violates": "task_count <= task_limit",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "too_many_tasks"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.begin.outside.empty",
+      "mode": "misuse",
+      "call": "begin",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "empty_pool"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.begin.outside.open",
+      "mode": "misuse",
+      "call": "begin",
+      "state": "open",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.wait.idle",
+      "mode": "legal",
+      "call": "wait",
+      "kind": "member",
+      "thread": "owner",
+      "state": "idle",
+      "moves": "idle",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "idle"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.wait.open",
+      "mode": "legal",
+      "call": "wait",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": "idle",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.wait.outside.empty",
+      "mode": "misuse",
+      "call": "wait",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "empty_pool"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.atomicpool.is_worker.empty",
+      "mode": "legal",
+      "call": "is_worker",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.is_worker.idle",
+      "mode": "legal",
+      "call": "is_worker",
+      "kind": "member",
+      "thread": "owner",
+      "state": "idle",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "idle"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicpool.is_worker.open",
+      "mode": "legal",
+      "call": "is_worker",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicPool",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

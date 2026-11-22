@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/vector.ic.toml",
-    "sha256": "b0cf3214dcfba981348e9c87fe231ec500daa123be7a44994fb96dde23b0df8f"
+    "sha256": "57eeefe81ae686c4f040e31293d20ebef5a7d4039fc1c5f64b409f09c12ab7e9"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,91 +12,177 @@
       "id": "stxlib.vector.element.requires.element_index",
       "kind": "entry-check",
       "statement": "operator[] runs only when index < count; otherwise requirement (\"Vector: index out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_element_index, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_element_index, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.first_element.requires.first_element",
       "kind": "entry-check",
       "statement": "first_element runs only when count != 0; otherwise requirement (\"Vector::first_element: the vector is empty\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_first_element, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_first_element, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.last_element.requires.last_element",
       "kind": "entry-check",
       "statement": "last_element runs only when count != 0; otherwise requirement (\"Vector::last_element: the vector is empty\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_last_element, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_last_element, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.insert.requires.insert_index",
       "kind": "entry-check",
       "statement": "insert runs only when index <= count; otherwise requirement (\"Vector::insert: index out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_insert_index, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_insert_index, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.erase.requires.erase_index",
       "kind": "entry-check",
       "statement": "erase runs only when index < count; otherwise requirement (\"Vector::erase: index out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_index, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_index, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.erase_range.requires.erase_range",
       "kind": "entry-check",
       "statement": "erase_range runs only when first <= count and length <= count - first; otherwise requirement (\"Vector::erase_range: range out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_range, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_erase_range, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
+    },
+    {
+      "id": "stxlib.vector.erase_range.exact.erase_range",
+      "kind": "predicate-exact",
+      "statement": "admits_erase_range computes first <= count and length <= count - first exactly: no subtraction below zero, no sum or product past its type, in C++'s order of evaluation.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "each name lies within its declared type (usize at 32 bits)",
+        "the generated predicate evaluates the conjuncts in the clause's order (tools/ic_declarations.py writes && in order)"
+      ],
+      "status": "discharged",
+      "method": "interval and linear arithmetic over the clause in C++'s order of evaluation (Fourier-Motzkin elimination)",
+      "proved_against": {}
     },
     {
       "id": "stxlib.vector.take_last.requires.take_last",
       "kind": "entry-check",
       "statement": "take_last runs only when count != 0; otherwise requirement (\"Vector::take_last: the vector is empty\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_take_last, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_take_last, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.remove_last.requires.remove_last",
       "kind": "entry-check",
       "statement": "remove_last runs only when count != 0; otherwise requirement (\"Vector::remove_last: the vector is empty\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_remove_last, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_remove_last, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     },
     {
       "id": "stxlib.vector.truncate.requires.truncate",
       "kind": "entry-check",
       "statement": "truncate runs only when smaller <= count; otherwise requirement (\"Vector::truncate: count out of range\").",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::vector::admits_truncate, called in include/stxlib/vector.hpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::vector::admits_truncate, called in include/stxlib/vector.hpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "include/stxlib/vector.hpp": "422258bf5c192ba932ee6aa68b6a1d2b0495d006a7d835a567cfc609ac904a8b"
+      }
     }
   ]
 }

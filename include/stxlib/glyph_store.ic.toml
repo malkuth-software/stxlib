@@ -1,0 +1,90 @@
+# Behavioural constraints of stxlib::glyphs::GlyphStore (glyph_store.hpp),
+# the IC declaration (template_harness docs/ic_declarations.md; STXlib's
+# project file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# glyph_count is the font's (Font::glyph_count): the store serves glyphs
+# below it. The store has no state query; the engine checks whole() after
+# every block instead.
+
+schema = 1
+component = "GlyphStore"
+namespace = "stxlib::glyphs"
+header = "include/stxlib/glyph_store.hpp"
+anchor = "class GlyphStore final {"
+keys = { manifest = "stxlib::glyphs::GlyphStore" }
+thread = "owner"
+states = ["closed", "open"]
+initial = "closed"
+
+[terms]
+read = "usize"
+
+[checks]
+path = "src/algorithms/glyphs/glyph_store_ic_checks.hpp"
+namespace = "stxlib::detail::ic::glyph_store"
+includes = ["stxlib/types.hpp"]
+used_in = ["src/algorithms/glyphs/glyph_store.cpp"]
+
+# The block engine's view of a store (IC2): a closed store per slot, opened
+# on a four-glyph font built by tests/font_builder.hpp.
+[engine]
+object = "stxlib::glyphs::GlyphStore"
+includes = ["stxlib/glyph_store.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { read = "object.glyphs_read()" }
+invariants = ["object.whole()"]
+
+[[call]]
+name = "open"
+declarations = ["[[nodiscard]] OperationStatus open(const Font& font, const FontLimits& limits,"]
+moves = "open"
+fails = [
+  { failure = "out_of_memory", when = "the glyph index", leaves = "partial" },
+  { failure = "invalid_argument", when = "a font the store cannot serve", leaves = "partial" },
+]
+engine = { invoke = "object.open(::stxlib_ic::inputs::font(), ::stxlib_ic::inputs::font_limits())", ensures = ["read = observed"] }
+
+[[call]]
+name = "keep"
+declarations = ["[[nodiscard]] OperationStatus keep(const Font& font, View<u32> characters, usize& kept) noexcept;"]
+in = ["open"]
+outside = { closed = "failure:invalid_argument" }
+fails = [{ failure = "out_of_memory", when = "storage for a kept glyph", leaves = "partial" }]
+engine = { invoke = "object.keep(::stxlib_ic::inputs::font(), ::stxlib_ic::inputs::characters(length), ::stxlib_ic::inputs::kept_count())", draws = { length = "u8" }, ranges = { length = "[0, 16]" }, ensures = ["read = observed"] }
+
+[[call]]
+name = "glyph"
+declarations = ["[[nodiscard]] OperationStatus glyph(const Font& font, u32 glyph, StoredGlyph& stored) noexcept;"]
+in = ["open"]
+outside = { closed = "failure:invalid_argument" }
+parameters = { glyph = "u32", glyph_count = "u32" }
+requires = [
+  { holds = "glyph < glyph_count", refuses = "failure:invalid_argument", check = "glyph_index" },
+]
+fails = [
+  { failure = "out_of_memory", when = "storage for the glyph", leaves = "partial" },
+  { failure = "invalid_argument", when = "the font refuses the glyph's outline", leaves = "partial" },
+  { failure = "limit_exceeded", when = "the outline is beyond the store's limits", leaves = "partial" },
+]
+engine = { invoke = "object.glyph(::stxlib_ic::inputs::font(), glyph, ::stxlib_ic::inputs::stored_glyph())", values = { glyph_count = "::stxlib_ic::inputs::font().glyph_count" }, ranges = { glyph = "[0, 64]" }, ensures = ["read = observed"] }
+
+[[call]]
+name = "glyphs_read"
+declarations = ["[[nodiscard]] usize glyphs_read() const noexcept"]
+engine = { result_type = "stxlib::usize", expect = ["result == read"] }
+
+[[call]]
+name = "bytes_held"
+declarations = ["[[nodiscard]] usize bytes_held() const noexcept;"]
+
+[[call]]
+name = "whole"
+declarations = ["[[nodiscard]] bool whole() const noexcept;"]
+engine = { result_type = "bool", expect = ["result"] }
+
+[[call]]
+name = "release"
+declarations = ["void release() noexcept;"]
+moves = "closed"
+engine = { ensures = ["read = observed"] }

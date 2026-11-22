@@ -1,0 +1,48 @@
+# Behavioural constraints of stxlib::Mutex (threads.hpp), the IC declaration
+# (template_harness docs/ic_declarations.md; STXlib's project file is
+# tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# Locking a held mutex on its holder's thread, and unlocking a free one, are
+# defects that check builds (STXLIB_LOCK_CHECKS) trap; other builds do not
+# check them, so the engine's misuse blocks run only where
+# lock_checks_enabled() says the build traps.
+
+schema = 1
+component = "Mutex"
+namespace = "stxlib"
+header = "include/stxlib/threads.hpp"
+anchor = "class Mutex final {"
+keys = { manifest = "stxlib::Mutex" }
+thread = "any"
+states = ["free", "held"]
+initial = "free"
+
+[engine]
+object = "stxlib::Mutex"
+includes = ["stxlib/threads.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+requirement_guard = "::stxlib::lock_checks_enabled()"
+teardown = { held = "object.unlock();" }
+
+[[call]]
+name = "lock"
+declarations = ["void lock() noexcept;"]
+in = ["free"]
+outside = { held = "requirement" }
+moves = "held"
+
+[[call]]
+name = "try_lock"
+declarations = ["[[nodiscard]] bool try_lock() noexcept;"]
+in = ["free"]
+outside = { held = "requirement" }
+moves = "held"
+engine = { result_type = "bool", expect = ["result"] }
+
+[[call]]
+name = "unlock"
+declarations = ["void unlock() noexcept;"]
+in = ["held"]
+outside = { free = "requirement" }
+moves = "free"

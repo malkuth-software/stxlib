@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "component": "stxlib::glyphs::GlyphStore",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/glyph_store.ic.toml",
+    "sha256": "8a38fd6ea37ebefef957757c15f283276c23b56aa89ea4646fdfd9e497c38019"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.glyphs.glyphstore.open.moves",
+      "kind": "transition",
+      "statement": "open succeeding in any state leaves the object in open.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.keep.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "keep in closed: failure invalid_argument, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.requires.glyph_index",
+      "kind": "entry-check",
+      "statement": "glyph runs only when glyph < glyph_count; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::glyph_store::admits_glyph_index, called in src/algorithms/glyphs/glyph_store.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+      }
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.refusal.glyph_index",
+      "kind": "refusal-leaves",
+      "statement": "Unless glyph < glyph_count, glyph changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "glyph in closed: failure invalid_argument, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.release.moves",
+      "kind": "transition",
+      "statement": "release succeeding in any state leaves the object in closed.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

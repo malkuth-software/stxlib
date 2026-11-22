@@ -11,3 +11,14 @@ blocks = "tests/ic/blocks"
 obligations = "proofs/ic"
 generator = "tools/ic_declarations.py"
 column_limit = 120
+# The block engine's generated blocks (IC2; docs/ic_declarations.md in
+# template_harness, section 8): one file per declaration with an [engine]
+# table and the registry, compiled into tests/ic/ic_run.cpp and
+# fuzz/ic_fuzz.cpp.
+engine = { path = "tests/ic/generated", namespace = "stxlib_ic::generated", include = "ic/engine/ic_engine.hpp", codes = "stxlib::HostCode", include_roots = ["include", "src", "tests"] }
+# The gate's results (IC study, section 8), from the declarations, the
+# blocks, the obligations and the stated run the runner writes.
+gate = "proofs/ic/GATE.md"
+gate_run = "tests/ic/results/gate_run.json"
+# The deducer's results (IC4, tools/ic_deduce.py), merged into the obligations.
+deductions = "proofs/ic/deductions.json"

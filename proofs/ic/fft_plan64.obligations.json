@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "component": "stxlib::fft::Plan64",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/fft_plan64.ic.toml",
+    "sha256": "74610cac59410bfa2be64264ed60bc49d9479c446460d4432d4075c4d9bbe726"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_mode",
+      "kind": "entry-check",
+      "statement": "make runs only when mode <= 2; otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_make_mode, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_mode",
+      "kind": "refusal-leaves",
+      "statement": "Unless mode <= 2, make changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_size_limit",
+      "kind": "entry-check",
+      "statement": "make runs only when size <= max_size; otherwise failure limit_exceeded, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_make_size_limit, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_size_limit",
+      "kind": "refusal-leaves",
+      "statement": "Unless size <= max_size, make changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.requires.make_size_shape",
+      "kind": "entry-check",
+      "statement": "make runs only when power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)); otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_make_size_shape, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.make.refusal.make_size_shape",
+      "kind": "refusal-leaves",
+      "statement": "Unless power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)), make changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.requires.rfft_input",
+      "kind": "entry-check",
+      "statement": "rfft runs only when input_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_rfft_input, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.refusal.rfft_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == size, rfft changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.requires.rfft_output",
+      "kind": "entry-check",
+      "statement": "rfft runs only when output_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_rfft_output, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.refusal.rfft_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == bins, rfft changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.rfft.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "rfft in empty: failure invalid_argument, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.requires.irfft_input",
+      "kind": "entry-check",
+      "statement": "irfft runs only when input_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_irfft_input, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.refusal.irfft_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == bins, irfft changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.requires.irfft_output",
+      "kind": "entry-check",
+      "statement": "irfft runs only when output_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::fft_plan64::admits_irfft_output, called in src/algorithms/fft/plan.cpp"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.refusal.irfft_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == size, irfft changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "irfft in empty: failure invalid_argument, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

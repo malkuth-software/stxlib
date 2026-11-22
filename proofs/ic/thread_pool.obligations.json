@@ -1,0 +1,233 @@
+{
+  "schema": 1,
+  "component": "stxlib::AtomicPool",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/thread_pool.ic.toml",
+    "sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.atomicpool.create.requires.create_some_threads",
+      "kind": "entry-check",
+      "statement": "create runs only when thread_count != 0; otherwise failure invalid_argument (zero_threads), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::thread_pool::admits_create_some_threads, called in src/core/thread_pool.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.create.refusal.create_some_threads",
+      "kind": "refusal-leaves",
+      "statement": "Unless thread_count != 0, create changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.create.requires.create_thread_limit",
+      "kind": "entry-check",
+      "statement": "create runs only when thread_count <= maximum_pool_threads; otherwise failure invalid_argument (too_many_threads), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::thread_pool::admits_create_thread_limit, called in src/core/thread_pool.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.create.refusal.create_thread_limit",
+      "kind": "refusal-leaves",
+      "statement": "Unless thread_count <= maximum_pool_threads, create changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.run.requires.batch_task_limit",
+      "kind": "entry-check",
+      "statement": "run runs only when task_count <= task_limit; otherwise failure invalid_argument (too_many_tasks), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::thread_pool::admits_batch_task_limit, called in src/core/thread_pool.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.run.refusal.batch_task_limit",
+      "kind": "refusal-leaves",
+      "statement": "Unless task_count <= task_limit, run changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.run.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "run in empty: failure invalid_argument (empty_pool), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.run.outside.open",
+      "kind": "typestate-refusal",
+      "statement": "run in open: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.begin.requires.begin_some_tasks",
+      "kind": "entry-check",
+      "statement": "begin runs only when task_count != 0; otherwise failure invalid_argument (empty_batch), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::thread_pool::admits_begin_some_tasks, called in src/core/thread_pool.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.begin.refusal.begin_some_tasks",
+      "kind": "refusal-leaves",
+      "statement": "Unless task_count != 0, begin changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.begin.requires.batch_task_limit",
+      "kind": "entry-check",
+      "statement": "begin runs only when task_count <= task_limit; otherwise failure invalid_argument (too_many_tasks), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::thread_pool::admits_batch_task_limit, called in src/core/thread_pool.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.begin.refusal.batch_task_limit",
+      "kind": "refusal-leaves",
+      "statement": "Unless task_count <= task_limit, begin changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
+    },
+    {
+      "id": "stxlib.atomicpool.begin.moves",
+      "kind": "transition",
+      "statement": "begin succeeding in idle leaves the object in open.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.begin.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "begin in empty: failure invalid_argument (empty_pool), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.begin.outside.open",
+      "kind": "typestate-refusal",
+      "statement": "begin in open: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.wait.moves",
+      "kind": "transition",
+      "statement": "wait succeeding in idle, open leaves the object in idle.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.atomicpool.wait.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "wait in empty: failure invalid_argument (empty_pool), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

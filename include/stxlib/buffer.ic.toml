@@ -14,6 +14,13 @@ thread = "owner"
 [terms]
 count = "usize"
 
+# The block engine's view of a Buffer (IC2): a Buffer of u64 per slot.
+[engine]
+object = "stxlib::Buffer<stxlib::u64>"
+includes = ["stxlib/buffer.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { count = "object.count()" }
+
 [checks]
 path = "include/stxlib/detail/ic/buffer_checks.hpp"
 namespace = "stxlib::detail::ic::buffer"
@@ -29,22 +36,26 @@ fails = [
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
 returns = { type = "Buffer", owns = "caller" }
+engine = { ranges = { count = "[0, 4096]" }, ensures = ["count = count"], expect = ["::stxlib_ic::inputs::all_zero(object.view())"] }
 
 [[call]]
 name = "copy"
 declarations = ["[[nodiscard]] OperationResult<Buffer> copy() const noexcept"]
 fails = [{ failure = "out_of_memory", when = "the allocator refuses" }]
 returns = { type = "Buffer", owns = "caller" }
+engine = { expect = ["(*made.value()).count() == object.count()"] }
 
 [[call]]
 name = "view"
 declarations = ["[[nodiscard]] View<Element> view() const& noexcept"]
 returns = { borrows = "self", until = ["release", "a move from the buffer", "its destruction"] }
+engine = { result_type = "stxlib::View<stxlib::u64>", expect = ["result.count() == count"] }
 
 [[call]]
 name = "mutable_view"
 declarations = ["[[nodiscard]] MutableView<Element> mutable_view() & noexcept"]
 returns = { borrows = "self", until = ["release", "a move from the buffer", "its destruction"] }
+engine = { result_type = "stxlib::MutableView<stxlib::u64>", expect = ["result.count() == count"] }
 
 [[call]]
 name = "operator[]"
@@ -62,3 +73,4 @@ returns = { borrows = "self", until = ["release", "a move from the buffer", "its
 [[call]]
 name = "release"
 declarations = ["void release() noexcept"]
+engine = { ensures = ["count = 0"] }

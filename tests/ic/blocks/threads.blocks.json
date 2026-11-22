@@ -1,0 +1,221 @@
+{
+  "schema": 1,
+  "component": "stxlib::Thread",
+  "declaration": "include/stxlib/threads.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "empty",
+    "started"
+  ],
+  "initial": "empty",
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.thread.start",
+      "mode": "legal",
+      "call": "start",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "entry",
+          "type": "::stxlib::Thread::Entry",
+          "bounded_by": [
+            "not_null(entry)"
+          ]
+        },
+        {
+          "name": "stack_bytes",
+          "type": "usize",
+          "bounded_by": [
+            "stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]"
+          ]
+        }
+      ],
+      "requires": [
+        "not_null(entry)",
+        "stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]"
+      ],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the shared state",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "the host refuses another thread or its stack, or thread identities are exhausted",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Thread",
+        "state": "started",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.thread.start.misuse.start_entry",
+      "mode": "misuse",
+      "call": "start",
+      "violates": "not_null(entry)",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "no_entry"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.thread.start.misuse.start_stack",
+      "mode": "misuse",
+      "call": "start",
+      "violates": "stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "stack_size_out_of_range"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.thread.identity.empty",
+      "mode": "legal",
+      "call": "identity",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.identity.started",
+      "mode": "legal",
+      "call": "identity",
+      "kind": "member",
+      "thread": "owner",
+      "state": "started",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "started"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.request_stop.empty",
+      "mode": "legal",
+      "call": "request_stop",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.request_stop.started",
+      "mode": "legal",
+      "call": "request_stop",
+      "kind": "member",
+      "thread": "owner",
+      "state": "started",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "started"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.join.started",
+      "mode": "legal",
+      "call": "join",
+      "kind": "member",
+      "thread": "owner",
+      "state": "started",
+      "moves": "empty",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "started"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.join.outside.empty",
+      "mode": "misuse",
+      "call": "join",
+      "state": "empty",
+      "expect": {
+        "kind": "value",
+        "value": "JoinResult::not_joinable"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.thread.abandon.started",
+      "mode": "legal",
+      "call": "abandon",
+      "kind": "member",
+      "thread": "owner",
+      "state": "started",
+      "moves": "empty",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Thread",
+          "state": "started"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.thread.abandon.outside.empty",
+      "mode": "misuse",
+      "call": "abandon",
+      "state": "empty",
+      "expect": {
+        "kind": "value",
+        "value": "AbandonResult::not_joinable"
+      },
+      "leaves": "unchanged"
+    }
+  ]
+}

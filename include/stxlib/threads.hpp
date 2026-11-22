@@ -133,6 +133,8 @@ class ConditionVariable;
 // A non-recursive mutual-exclusion lock. Locking it twice on one thread, or
 // unlocking it from a thread that does not hold it, is a defect (D11,
 // above), trapped in check builds. Prefer ScopedLock.
+// ic: stxlib::Mutex: generated from include/stxlib/mutex.ic.toml by tools/ic_declarations.py; edit the declaration, not
+// ic: these lines. States: free (initial), held. Thread: any, unless a call says otherwise.
 class Mutex final {
 public:
     Mutex() noexcept;
@@ -142,8 +144,11 @@ public:
     Mutex(Mutex&&) = delete;
     Mutex& operator=(Mutex&&) = delete;
 
+    // ic: Admitted in free; then held. In held: requirement, unchanged.
     void lock() noexcept;
+    // ic: Admitted in free; then held. In held: requirement, unchanged.
     [[nodiscard]] bool try_lock() noexcept;
+    // ic: Admitted in held; then free. In free: requirement, unchanged.
     void unlock() noexcept;
 
 private:
@@ -305,6 +310,8 @@ enum class ThreadFailure : u32 {
     stack_size_out_of_range = 2,
 };
 
+// ic: stxlib::Thread: generated from include/stxlib/threads.ic.toml by tools/ic_declarations.py; edit the declaration,
+// ic: not these lines. States: empty (initial), started. Thread: owner, unless a call says otherwise.
 class Thread final {
 public:
     // The thread's body. No longjmp out of it (AGENTS.md, early exits); a
@@ -313,6 +320,11 @@ public:
 
     // The thread's stack is `stack_bytes` rounded up to the host's page
     // size, with a guard page below it (D11).
+    // ic: Requires not_null(entry), else failure invalid_argument (no_entry), unchanged. Requires stack_bytes in
+    // ic: [minimum_thread_stack_bytes, maximum_thread_stack_bytes], else failure invalid_argument
+    // ic: (stack_size_out_of_range), unchanged. Fails out_of_memory (the shared state), unchanged; limit_exceeded (the
+    // ic: host refuses another thread or its stack, or thread identities are exhausted), unchanged. Thread: any.
+    // ic: Returns Thread in started, owned by the caller.
     [[nodiscard]] static OperationResult<Thread> start(Entry entry, void* context,
                                                        usize stack_bytes = default_thread_stack_bytes) noexcept;
     Thread() noexcept = default;
@@ -327,6 +339,7 @@ public:
     // Safe from any thread while the owner keeps the Thread alive.
     void request_stop() noexcept;
     // Blocks until the thread's entry returns. Only the owner calls it.
+    // ic: Admitted in started; then empty. In empty: returns JoinResult::not_joinable, unchanged.
     [[nodiscard]] JoinResult join() noexcept;
     // Gives the thread up instead of joining it: the host thread is
     // detached and runs on until its entry returns, and the process's exit
@@ -338,6 +351,7 @@ public:
     // it; a thread may abandon its own Thread. The shared state's ownership
     // passes by one atomic exchange with the thread's end, so exactly one of
     // the two releases it.
+    // ic: Admitted in started; then empty. In empty: returns AbandonResult::not_joinable, unchanged.
     [[nodiscard]] AbandonResult abandon() noexcept;
 
     // The started thread's shared state, defined in src/core/threads.cpp.

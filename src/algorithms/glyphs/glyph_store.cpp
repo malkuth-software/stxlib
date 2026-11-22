@@ -4,6 +4,7 @@
 
 #include "algorithms/glyphs/font_reader.hpp"
 #include "algorithms/glyphs/glyph_checks.hpp"
+#include "algorithms/glyphs/glyph_store_ic_checks.hpp"
 
 namespace stxlib::glyphs {
 
@@ -103,7 +104,9 @@ OperationStatus GlyphStore::open(const Font& font, const FontLimits& limits, con
 OperationStatus GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, StoredGlyph& stored) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     stored = StoredGlyph{};
-    if (!opened_for(font) || glyph >= font.glyph_count) return detail::refuse_font(ErrorKind::invalid_argument, operation);
+    if (!opened_for(font) || !detail::ic::glyph_store::admits_glyph_index(glyph, font.glyph_count)) {
+        return detail::refuse_font(ErrorKind::invalid_argument, operation);
+    }
     const u32 code = index_[glyph];
     const u32 held_in = code & 3U;
     if (code != nowhere && held_in == part_refused) return detail::refuse_font(static_cast<ErrorKind>(code >> 2), operation);

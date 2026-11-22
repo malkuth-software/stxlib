@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/files.ic.toml",
-    "sha256": "a610cf0bf7e4bb52dc1610476102a898c53c2c44e60cf2bc430ba720c66a55d2"
+    "sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -162,6 +162,20 @@
       "premises": [],
       "status": "open",
       "evidence": "generated check stxlib::detail::ic::files::admits_write_at_extent, called in src/core/files.cpp"
+    },
+    {
+      "id": "stxlib.file.write_all_at.exact.write_at_extent",
+      "kind": "predicate-exact",
+      "statement": "admits_write_at_extent computes offset <= largest_offset and length <= largest_offset - offset exactly: no subtraction below zero, no sum or product past its type, in C++'s order of evaluation.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "each name lies within its declared type (usize at 32 bits)",
+        "the generated predicate evaluates the conjuncts in the clause's order (tools/ic_declarations.py writes && in order)"
+      ],
+      "status": "discharged",
+      "method": "interval and linear arithmetic over the clause in C++'s order of evaluation (Fourier-Motzkin elimination)",
+      "proved_against": {}
     },
     {
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
