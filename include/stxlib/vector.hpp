@@ -84,6 +84,7 @@
 
 #include "stxlib/detail/construct.hpp"
 #include "stxlib/detail/growth.hpp"
+#include "stxlib/detail/ic/vector_checks.hpp"
 #include "stxlib/detail/vocabulary_allocation.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"
@@ -94,6 +95,8 @@
 
 namespace stxlib {
 
+// ic: stxlib::Vector: generated from include/stxlib/vector.ic.toml by tools/ic_declarations.py; edit the declaration,
+// ic: not these lines. Thread: owner, unless a call says otherwise.
 template <typename Element>
 class Vector final {
     // Element may be incomplete where Vector<Element> is named (a tree node
@@ -125,6 +128,8 @@ public:
     // An empty vector with room for `room` elements. Fails with
     // limit_exceeded when the byte size is not representable, out_of_memory
     // when the allocator refuses. Zero yields the empty vector.
+    // ic: Fails limit_exceeded (room elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged. Returns Vector, owned by the caller.
     [[nodiscard]] static OperationResult<Vector> with_capacity(const usize room) noexcept {
         Vector result;
         const OperationStatus reserved = result.reserve(room);
@@ -138,6 +143,8 @@ public:
     // storage, another vector included. Fails with limit_exceeded when the
     // byte size is not representable, out_of_memory when the allocator
     // refuses.
+    // ic: Fails limit_exceeded (the elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged. Returns Vector, owned by the caller.
     [[nodiscard]] static OperationResult<Vector> copy_of(const View<Element> elements) noexcept {
         const usize count = elements.count();
         Vector result;
@@ -155,6 +162,8 @@ public:
     }
 
     // A named copy of this vector (capacity exactly its count).
+    // ic: Fails limit_exceeded (the bytes are not representable), unchanged; out_of_memory (the allocator refuses),
+    // ic: unchanged. Returns Vector, owned by the caller.
     [[nodiscard]] OperationResult<Vector> copy() const noexcept {
         OperationResult<Vector> result = copy_of(view());
         return result;
@@ -224,11 +233,15 @@ public:
     [[nodiscard]] usize capacity() const noexcept { return capacity_; }
 
     // The live elements, borrowed (see "Borrows" above).
+    // ic: Returns a borrow of the object, valid until a call that may reallocate or end an element, a move from the
+    // ic: vector or its destruction.
     [[nodiscard]] View<Element> view() const& noexcept {
         const View<Element> result(elements_, count_);
         return result;
     }
     View<Element> view() const&& = delete;
+    // ic: Returns a borrow of the object, valid until a call that may reallocate or end an element, a move from the
+    // ic: vector or its destruction.
     [[nodiscard]] MutableView<Element> mutable_view() & noexcept {
         const MutableView<Element> result(elements_, count_);
         return result;
@@ -236,31 +249,37 @@ public:
     MutableView<Element> mutable_view() && = delete;
 
     // Requirement: index < count().
+    // ic: Requires index < count, else requirement ("Vector: index out of range"). Returns a borrow of the object,
+    // ic: valid until a call that may reallocate or end the element.
     [[nodiscard]] Element& operator[](const usize index) & noexcept {
-        STXLIB_REQUIRE(index < count_, "Vector: index out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_element_index(index, count_), detail::ic::vector::element_index_message);
         return elements_[index];
     }
     [[nodiscard]] const Element& operator[](const usize index) const& noexcept {
-        STXLIB_REQUIRE(index < count_, "Vector: index out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_element_index(index, count_), detail::ic::vector::element_index_message);
         return elements_[index];
     }
     Element& operator[](usize index) && = delete;
 
     // Requirement: not empty().
+    // ic: Requires count != 0, else requirement ("Vector::first_element: the vector is empty"). Returns a borrow of the
+    // ic: object, valid until a call that may reallocate or end the element.
     [[nodiscard]] Element& first_element() & noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::first_element: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_first_element(count_), detail::ic::vector::first_element_message);
         return elements_[0];
     }
     [[nodiscard]] const Element& first_element() const& noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::first_element: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_first_element(count_), detail::ic::vector::first_element_message);
         return elements_[0];
     }
+    // ic: Requires count != 0, else requirement ("Vector::last_element: the vector is empty"). Returns a borrow of the
+    // ic: object, valid until a call that may reallocate or end the element.
     [[nodiscard]] Element& last_element() & noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::last_element: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_last_element(count_), detail::ic::vector::last_element_message);
         return elements_[count_ - 1];
     }
     [[nodiscard]] const Element& last_element() const& noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::last_element: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_last_element(count_), detail::ic::vector::last_element_message);
         return elements_[count_ - 1];
     }
 
@@ -274,6 +293,8 @@ public:
 
     // Room for at least `wanted` elements; the elements keep their values and
     // order. Failure (limit_exceeded, out_of_memory) changes nothing.
+    // ic: Fails limit_exceeded (wanted elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged.
     [[nodiscard]] OperationStatus reserve(const usize wanted) noexcept {
         if (wanted <= capacity_) return OperationStatus::success();
         const usize next = detail::grown_capacity<usize>(capacity_, wanted, sizeof(Element));
@@ -287,6 +308,8 @@ public:
 
     // Appends `element`, moving from it. Failure changes nothing and leaves
     // `element` not moved from. `element` may be an element of this vector.
+    // ic: Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses; element is not moved from), unchanged.
     [[nodiscard]] OperationStatus push(Element&& element) noexcept {
         const OperationStatus result = insert_moved(count_, element, "stxlib.vector.push");
         return result;
@@ -294,6 +317,8 @@ public:
 
     // Appends a copy of `element`, which may be an element of this vector.
     // Failure changes nothing.
+    // ic: Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged.
     [[nodiscard]] OperationStatus push_copy(const Element& element) noexcept {
         static_assert(__is_nothrow_constructible(Element, const Element&),
                       "Vector::push_copy needs a nothrow copy constructor");
@@ -320,6 +345,8 @@ public:
     // element is built in the new block while the old storage is still
     // live, as push_copy does (security audit 2026-11-15,
     // A-stxlib-include-01-F3).
+    // ic: Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses; nothing is constructed), unchanged.
     template <typename... Arguments>
     [[nodiscard]] OperationStatus emplace(Arguments&&... arguments) noexcept {
         static_assert(__is_nothrow_constructible(Element, Arguments&&...),
@@ -343,14 +370,19 @@ public:
     // from it; later elements move up one place. Failure changes nothing
     // and leaves `element` not moved from. `element` may be an element of
     // this vector. Requirement: index <= count().
+    // ic: Requires index <= count, else requirement ("Vector::insert: index out of range"). Fails limit_exceeded (the
+    // ic: grown capacity is not representable), unchanged; out_of_memory (the allocator refuses; element is not moved
+    // ic: from), unchanged.
     [[nodiscard]] OperationStatus insert(const usize index, Element&& element) noexcept {
-        STXLIB_REQUIRE(index <= count_, "Vector::insert: index out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_insert_index(index, count_), detail::ic::vector::insert_index_message);
         const OperationStatus result = insert_moved(index, element, "stxlib.vector.insert");
         return result;
     }
 
     // Appends copies of `elements`, which may borrow from this vector.
     // Failure changes nothing.
+    // ic: Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged.
     [[nodiscard]] OperationStatus append_copies(const View<Element> elements) noexcept {
         static_assert(__is_nothrow_constructible(Element, const Element&),
                       "Vector::append_copies needs a nothrow copy constructor");
@@ -384,6 +416,8 @@ public:
     // Exactly `wanted` elements: extra ones are destroyed from the end; new
     // ones are value-initialised (Element(), zero for arithmetic types).
     // Failure changes nothing.
+    // ic: Fails limit_exceeded (wanted elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged.
     [[nodiscard]] OperationStatus resize(const usize wanted) noexcept {
         static_assert(__is_nothrow_constructible(Element), "Vector::resize needs a nothrow default constructor");
         if (wanted <= count_) {
@@ -403,15 +437,18 @@ public:
 
     // Destroys the element at `index`; later elements move down one place.
     // Requirement: index < count().
+    // ic: Requires index < count, else requirement ("Vector::erase: index out of range").
     void erase(const usize index) noexcept {
-        STXLIB_REQUIRE(index < count_, "Vector::erase: index out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_erase_index(index, count_), detail::ic::vector::erase_index_message);
         erase_range(index, 1);
     }
 
     // Destroys elements [first, first + length); later elements move down.
     // Requirement: first <= count() and length <= count() - first.
+    // ic: Requires first <= count and length <= count - first, else requirement ("Vector::erase_range: range out of
+    // ic: range").
     void erase_range(const usize first, const usize length) noexcept {
-        STXLIB_REQUIRE(first <= count_ && length <= count_ - first, "Vector::erase_range: range out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_erase_range(first, length, count_), detail::ic::vector::erase_range_message);
         if (length == 0) return;
         if constexpr (assignable()) {
             // Form 1: every counted slot stays live while the tail moves
@@ -434,8 +471,10 @@ public:
     }
 
     // Moves the last element out and ends its place. Requirement: not empty().
+    // ic: Requires count != 0, else requirement ("Vector::take_last: the vector is empty"). Returns Element, owned by
+    // ic: the caller.
     [[nodiscard]] Element take_last() noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::take_last: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_take_last(count_), detail::ic::vector::take_last_message);
         Element result(static_cast<Element&&>(elements_[count_ - 1]));
         count_ = count_ - 1;
         detail::destroy(elements_ + count_);
@@ -443,16 +482,18 @@ public:
     }
 
     // Destroys the last element. Requirement: not empty().
+    // ic: Requires count != 0, else requirement ("Vector::remove_last: the vector is empty").
     void remove_last() noexcept {
-        STXLIB_REQUIRE(count_ != 0, "Vector::remove_last: the vector is empty");
+        STXLIB_REQUIRE(detail::ic::vector::admits_remove_last(count_), detail::ic::vector::remove_last_message);
         count_ = count_ - 1;
         detail::destroy(elements_ + count_);
     }
 
     // Destroys the elements from `smaller` on, last first. Requirement:
     // smaller <= count().
+    // ic: Requires smaller <= count, else requirement ("Vector::truncate: count out of range").
     void truncate(const usize smaller) noexcept {
-        STXLIB_REQUIRE(smaller <= count_, "Vector::truncate: count out of range");
+        STXLIB_REQUIRE(detail::ic::vector::admits_truncate(smaller, count_), detail::ic::vector::truncate_message);
         while (count_ > smaller) {
             count_ = count_ - 1;
             detail::destroy(elements_ + count_);

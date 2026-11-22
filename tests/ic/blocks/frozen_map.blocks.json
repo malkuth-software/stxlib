@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "component": "stxlib::FrozenMap",
+  "declaration": "include/stxlib/frozen_map.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.frozenmap.build",
+      "mode": "legal",
+      "call": "build",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "keys not strictly ascending (detail: the first key out of order), or lengths that differ",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "more than key_limit keys",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "storage cannot be had",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "FrozenMap",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.frozenmap.build_weighted",
+      "mode": "legal",
+      "call": "build_weighted",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "keys not strictly ascending, lengths that differ, or weights the construction refuses",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "more than key_limit keys",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "storage cannot be had",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "FrozenMap",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.frozenmap.find",
+      "mode": "legal",
+      "call": "find",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a move from the map",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.frozenmap.contains",
+      "mode": "legal",
+      "call": "contains",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozenmap.lower_bound",
+      "mode": "legal",
+      "call": "lower_bound",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozenmap.key_at",
+      "mode": "legal",
+      "call": "key_at",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenMap"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozenmap.key_at.misuse.key_index",
+      "mode": "misuse",
+      "call": "key_at",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "FrozenMap::key_at: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.frozenmap.value_at",
+      "mode": "legal",
+      "call": "value_at",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenMap"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozenmap.value_at.misuse.value_index",
+      "mode": "misuse",
+      "call": "value_at",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "FrozenMap::value_at: index out of range"
+      },
+      "leaves": "process stops"
+    }
+  ]
+}

@@ -69,6 +69,9 @@
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/types.hpp"
 
+// ic: stxlib::memory: generated from include/stxlib/memory.ic.toml by tools/ic_declarations.py; edit the declaration,
+// ic: not these lines. Thread: any, unless a call says otherwise. Identity: block address: the start of a block from
+// ic: allocate, not yet released; a stale one: requirement, unchanged.
 namespace stxlib::memory {
 
 enum class Backend : u8 {
@@ -91,12 +94,16 @@ enum class Backend : u8 {
 // power of two, when the size cannot be represented with the alignment's
 // bookkeeping, or when memory is exhausted. Never throws and never calls the
 // new-handler.
+// ic: Requires power_of_two(alignment), else returns null, unchanged. Fails exhausted (memory is exhausted, or the size
+// ic: is not representable with the alignment's bookkeeping: a null result), unchanged. Returns void*, owned by the
+// ic: caller.
 [[nodiscard]] STXLIB_NO_UNWIND void* allocate(usize size, usize alignment) noexcept;
 
 // Releases a block from allocate; null is a no-op. A block from anywhere
 // else, or released twice, ends the process with stx_minmallocpp and in the
 // tag-checking mode, which is every default build; it is undefined
 // behaviour only in a host-backend build whose tags were turned OFF.
+// ic: Transfers the block from caller to the allocator.
 STXLIB_NO_UNWIND void release(void* address) noexcept;
 
 } // namespace stxlib::memory

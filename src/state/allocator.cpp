@@ -76,6 +76,7 @@
 #include "state/state.hpp"
 
 #include "core/checked.hpp"
+#include "state/memory_ic_checks.hpp"
 #include "hosted/thread_exit_backend.hpp"
 
 #include <atomic>
@@ -278,7 +279,7 @@ bool forget_block(const unsigned char* const address) noexcept {
 }
 
 STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) noexcept {
-    if (!power_of_two(alignment)) return nullptr;
+    if (!::stxlib::detail::ic::memory::admits_allocate(alignment)) return nullptr;
     // track_block takes the registry's lock (see "Process end" above).
     if (thread_exit_backend::process_ending()) return nullptr;
     const usize offset = alignment < header_bytes ? header_bytes : alignment;
@@ -328,7 +329,7 @@ constexpr bool tags_value = true;
 #else
 
 STXLIB_NO_UNWIND void* allocate_block(const usize size, const usize alignment) noexcept {
-    if (!power_of_two(alignment)) return nullptr;
+    if (!::stxlib::detail::ic::memory::admits_allocate(alignment)) return nullptr;
     void* const result = backend_allocate(size, alignment);
     return result;
 }

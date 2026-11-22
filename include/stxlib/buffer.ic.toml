@@ -1,0 +1,64 @@
+# Behavioural constraints of stxlib::Buffer (buffer.hpp), the IC declaration
+# (template_harness docs/ic_declarations.md; STXlib's project file is
+# tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+
+schema = 1
+component = "Buffer"
+namespace = "stxlib"
+header = "include/stxlib/buffer.hpp"
+anchor = "class Buffer final {"
+keys = { manifest = "stxlib::Buffer" }
+thread = "owner"
+
+[terms]
+count = "usize"
+
+[checks]
+path = "include/stxlib/detail/ic/buffer_checks.hpp"
+namespace = "stxlib::detail::ic::buffer"
+includes = ["stxlib/types.hpp"]
+
+[[call]]
+name = "allocate_zeroed"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<Buffer> allocate_zeroed(const usize count) noexcept"]
+parameters = { count = "usize" }
+fails = [
+  { failure = "limit_exceeded", when = "count elements' bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+returns = { type = "Buffer", owns = "caller" }
+
+[[call]]
+name = "copy"
+declarations = ["[[nodiscard]] OperationResult<Buffer> copy() const noexcept"]
+fails = [{ failure = "out_of_memory", when = "the allocator refuses" }]
+returns = { type = "Buffer", owns = "caller" }
+
+[[call]]
+name = "view"
+declarations = ["[[nodiscard]] View<Element> view() const& noexcept"]
+returns = { borrows = "self", until = ["release", "a move from the buffer", "its destruction"] }
+
+[[call]]
+name = "mutable_view"
+declarations = ["[[nodiscard]] MutableView<Element> mutable_view() & noexcept"]
+returns = { borrows = "self", until = ["release", "a move from the buffer", "its destruction"] }
+
+[[call]]
+name = "operator[]"
+id = "element"
+declarations = [
+  "[[nodiscard]] Element& operator[](const usize index) noexcept",
+  "[[nodiscard]] const Element& operator[](const usize index) const noexcept",
+]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "Buffer: index out of range", check = "element_index" },
+]
+returns = { borrows = "self", until = ["release", "a move from the buffer", "its destruction"] }
+
+[[call]]
+name = "release"
+declarations = ["void release() noexcept"]

@@ -1,0 +1,72 @@
+# Behavioural constraints of stx_minmallocpp, STXlib's own allocator
+# (allocator.hpp), the IC declaration (template_harness docs/ic_declarations.md;
+# STXlib's project file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# The allocator has no object to hold a state: its calls are free functions,
+# and what they act on is a block, named by its address. A block is live from
+# the allocate that returns it to the release that ends it; the identity
+# clause says what a release of anything else does.
+
+schema = 1
+component = "stx_minmallocpp"
+namespace = "stxlib::stx_minmallocpp"
+header = "src/state/stx_minmallocpp/allocator.hpp"
+anchor = "namespace stxlib::stx_minmallocpp {"
+keys = { manifest = "stxlib::stx_minmallocpp", surface = "stx_minmallocpp" }
+# Any thread may call anything here at any time, during its own exit too.
+thread = "any"
+identity = { kind = "block address: the start of a live block", stale = "value:Release::refused" }
+
+[constants]
+alignment_limit = { cpp = "alignment_limit", type = "usize" }
+largest_request = { cpp = "largest_request", type = "usize" }
+
+[checks]
+path = "src/state/stx_minmallocpp/allocator_ic_checks.hpp"
+namespace = "stxlib::stx_minmallocpp::ic"
+includes = ["state/stx_minmallocpp/layout.hpp", "stxlib/types.hpp"]
+used_in = ["src/state/stx_minmallocpp/allocator.cpp"]
+
+[[call]]
+name = "allocate"
+kind = "free"
+declarations = ["[[nodiscard]] void* allocate(usize size, usize alignment) noexcept;"]
+parameters = { size = "usize", alignment = "usize" }
+requires = [
+  { holds = "power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request", refuses = "null" },
+]
+fails = [{ failure = "exhausted", when = "the host refuses address space or memory, or a fixed table is full: a null result, nothing else changes" }]
+returns = { type = "void*", owns = "caller" }
+
+[[call]]
+name = "release"
+kind = "free"
+declarations = ["[[nodiscard]] Release release(void* address) noexcept;"]
+transfers = [{ what = "the block", from = "caller", to = "allocator" }]
+
+[[call]]
+name = "trim"
+kind = "free"
+declarations = ["void trim() noexcept;"]
+
+[[call]]
+name = "end_thread"
+kind = "free"
+declarations = ["void end_thread() noexcept;"]
+
+[[obligation]]
+id = "page_protocol"
+statement = "For any number of threads, pages and blocks and any interleaving, the page protocol never reaches an integrity stop, never refuses a held block's release, and keeps its invariant."
+method = "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
+premises = [
+  "the C++ memory model's coherence",
+  "each segment between step marks atomic",
+  "sequentially consistent operations linearizable",
+  "the queue and abandoned-list contracts",
+]
+
+[[obligation]]
+id = "refusal_reads_nothing"
+statement = "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it."
+premises = []

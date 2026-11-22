@@ -62,6 +62,8 @@
 
 namespace stxlib {
 
+// ic: stxlib::FrozenMap: generated from include/stxlib/frozen_map.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. Thread: any, unless a call says otherwise.
 class FrozenMap final {
 public:
     // KeyIndex in the template is a signed 32-bit position.
@@ -76,7 +78,13 @@ public:
     FrozenMap& operator=(const FrozenMap&) = delete;
     ~FrozenMap();
 
+    // ic: Fails invalid_argument (keys not strictly ascending (detail: the first key out of order), or lengths that
+    // ic: differ), unchanged; limit_exceeded (more than key_limit keys), unchanged; out_of_memory (storage cannot be
+    // ic: had), unchanged. Returns FrozenMap, owned by the caller.
     [[nodiscard]] static OperationResult<FrozenMap> build(View<u64> keys, View<u64> values) noexcept;
+    // ic: Fails invalid_argument (keys not strictly ascending, lengths that differ, or weights the construction
+    // ic: refuses), unchanged; limit_exceeded (more than key_limit keys), unchanged; out_of_memory (storage cannot be
+    // ic: had), unchanged. Returns FrozenMap, owned by the caller.
     [[nodiscard]] static OperationResult<FrozenMap> build_weighted(View<u64> keys, View<u64> values,
                                                                    View<u64> key_weights,
                                                                    View<u64> gap_weights) noexcept;
@@ -85,6 +93,7 @@ public:
     [[nodiscard]] bool empty() const noexcept { return keys_.empty(); }
 
     // The value of `key`, or null. Borrowed from the map.
+    // ic: Returns a borrow of the object, valid until a move from the map or its destruction.
     [[nodiscard]] const u64* find(u64 key) const& noexcept;
     const u64* find(u64 key) const&& = delete;
     [[nodiscard]] bool contains(u64 key) const noexcept;
@@ -94,7 +103,9 @@ public:
 
     // The keys and values in ascending key order. Requirement for the
     // positional forms: index < count().
+    // ic: Requires index < count, else requirement ("FrozenMap::key_at: index out of range").
     [[nodiscard]] u64 key_at(usize index) const noexcept;
+    // ic: Requires index < count, else requirement ("FrozenMap::value_at: index out of range").
     [[nodiscard]] u64 value_at(usize index) const noexcept;
     [[nodiscard]] View<u64> keys() const& noexcept { return keys_.view(); }
     View<u64> keys() const&& = delete;
@@ -111,6 +122,8 @@ private:
     Vector<u64> values_;
 };
 
+// ic: stxlib::FrozenTextMap: generated from include/stxlib/frozen_text_map.ic.toml by tools/ic_declarations.py; edit
+// ic: the declaration, not these lines. Thread: any, unless a call says otherwise.
 class FrozenTextMap final {
 public:
     static constexpr usize key_limit = FrozenMap::key_limit;
@@ -124,7 +137,14 @@ public:
     ~FrozenTextMap();
 
     // The keys are copied; the views need only last for the call.
+    // ic: Fails invalid_argument (keys not strictly ascending in byte order, or lengths that differ), unchanged;
+    // ic: limit_exceeded (more than key_limit keys, or text whose total length is not representable), unchanged;
+    // ic: out_of_memory (storage cannot be had), unchanged. Returns FrozenTextMap, owned by the caller.
     [[nodiscard]] static OperationResult<FrozenTextMap> build(View<TextView> keys, View<u64> values) noexcept;
+    // ic: Fails invalid_argument (keys not strictly ascending, lengths that differ, or weights the construction
+    // ic: refuses), unchanged; limit_exceeded (more than key_limit keys, or text whose total length is not
+    // ic: representable), unchanged; out_of_memory (storage cannot be had), unchanged. Returns FrozenTextMap, owned by
+    // ic: the caller.
     [[nodiscard]] static OperationResult<FrozenTextMap> build_weighted(View<TextView> keys, View<u64> values,
                                                                        View<u64> key_weights,
                                                                        View<u64> gap_weights) noexcept;
@@ -132,14 +152,18 @@ public:
     [[nodiscard]] usize count() const noexcept { return values_.count(); }
     [[nodiscard]] bool empty() const noexcept { return values_.empty(); }
 
+    // ic: Returns a borrow of the object, valid until a move from the map or its destruction.
     [[nodiscard]] const u64* find(TextView key) const& noexcept;
     const u64* find(TextView key) const&& = delete;
     [[nodiscard]] bool contains(TextView key) const noexcept;
     [[nodiscard]] usize lower_bound(TextView key) const noexcept;
 
     // Borrowed from the map. Requirement: index < count().
+    // ic: Requires index < count, else requirement ("FrozenTextMap::key_at: index out of range"). Returns a borrow of
+    // ic: the object, valid until a move from the map or its destruction.
     [[nodiscard]] TextView key_at(usize index) const& noexcept;
     TextView key_at(usize index) const&& = delete;
+    // ic: Requires index < count, else requirement ("FrozenTextMap::value_at: index out of range").
     [[nodiscard]] u64 value_at(usize index) const noexcept;
     [[nodiscard]] View<u64> values() const& noexcept { return values_.view(); }
     View<u64> values() const&& = delete;

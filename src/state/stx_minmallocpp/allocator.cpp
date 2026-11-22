@@ -26,6 +26,7 @@
 
 #include "state/stx_minmallocpp/allocator.hpp"
 
+#include "state/stx_minmallocpp/allocator_ic_checks.hpp"
 #include "state/stx_minmallocpp/heap.hpp"
 
 #include <bit>
@@ -37,7 +38,7 @@ namespace {
 // Every allocate the common path does not take: a bad argument, a size of
 // zero, an alignment above a block's own, a size above the classes.
 [[gnu::noinline]] void* allocate_general(Heap& heap, const usize size, const usize alignment) noexcept {
-    if (!std::has_single_bit(alignment) || alignment > alignment_limit || size > largest_request) return nullptr;
+    if (!ic::admits_allocate(size, alignment)) return nullptr;
     const usize request = size == 0 ? 1 : size;
     if (alignment <= class_alignment_limit) {
         // The class of the size rounded up to the alignment has a block

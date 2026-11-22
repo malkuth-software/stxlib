@@ -5,6 +5,8 @@
 
 #include "stxlib/frozen_map.hpp"
 
+#include "algorithms/frozen_map_ic_checks.hpp"
+#include "algorithms/frozen_text_map_ic_checks.hpp"
 #include "algorithms/stx_btree/optimal_map.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/memory.hpp"
@@ -372,13 +374,13 @@ usize FrozenMap::lower_bound(const u64 key) const noexcept {
 }
 
 u64 FrozenMap::key_at(const usize index) const noexcept {
-    STXLIB_REQUIRE(index < keys_.count(), "FrozenMap::key_at: index out of range");
+    STXLIB_REQUIRE(detail::ic::frozen_map::admits_key_index(index, keys_.count()), detail::ic::frozen_map::key_index_message);
     const u64 result = keys_[index];
     return result;
 }
 
 u64 FrozenMap::value_at(const usize index) const noexcept {
-    STXLIB_REQUIRE(index < values_.count(), "FrozenMap::value_at: index out of range");
+    STXLIB_REQUIRE(detail::ic::frozen_map::admits_value_index(index, values_.count()), detail::ic::frozen_map::value_index_message);
     const u64 result = values_[index];
     return result;
 }
@@ -529,7 +531,7 @@ usize FrozenTextMap::lower_bound(const TextView key) const noexcept {
 }
 
 TextView FrozenTextMap::key_at(const usize index) const& noexcept {
-    STXLIB_REQUIRE(index < values_.count(), "FrozenTextMap::key_at: index out of range");
+    STXLIB_REQUIRE(detail::ic::frozen_text_map::admits_key_index(index, values_.count()), detail::ic::frozen_text_map::key_index_message);
     const usize start = starts_[index];
     const TextView result =
         detail::TextViewAccess::adopt_validated(bytes_.view().data() + start, starts_[index + 1] - start);
@@ -537,7 +539,7 @@ TextView FrozenTextMap::key_at(const usize index) const& noexcept {
 }
 
 u64 FrozenTextMap::value_at(const usize index) const noexcept {
-    STXLIB_REQUIRE(index < values_.count(), "FrozenTextMap::value_at: index out of range");
+    STXLIB_REQUIRE(detail::ic::frozen_text_map::admits_value_index(index, values_.count()), detail::ic::frozen_text_map::value_index_message);
     const u64 result = values_[index];
     return result;
 }

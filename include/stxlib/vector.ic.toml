@@ -1,0 +1,207 @@
+# Behavioural constraints of stxlib::Vector (vector.hpp), the IC declaration
+# (template_harness docs/ic_declarations.md; STXlib's project file is
+# tools/ic/project.toml). Generated from it: the `// ic:` lines in
+# vector.hpp, detail/ic/vector_checks.hpp, Vector's rows of
+# tools/ic/members_constraints.json, tests/ic/blocks/vector.blocks.json and
+# proofs/ic/vector.obligations.json. Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+
+schema = 1
+component = "Vector"
+namespace = "stxlib"
+header = "include/stxlib/vector.hpp"
+anchor = "class Vector final {"
+keys = { manifest = "stxlib::Vector" }
+thread = "owner"
+
+[terms]
+count = "usize"
+
+[checks]
+path = "include/stxlib/detail/ic/vector_checks.hpp"
+namespace = "stxlib::detail::ic::vector"
+includes = ["stxlib/types.hpp"]
+
+[[call]]
+name = "with_capacity"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<Vector> with_capacity(const usize room) noexcept"]
+parameters = { room = "usize" }
+fails = [
+  { failure = "limit_exceeded", when = "room elements' bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+returns = { type = "Vector", owns = "caller" }
+
+[[call]]
+name = "copy_of"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<Vector> copy_of(const View<Element> elements) noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the elements' bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+returns = { type = "Vector", owns = "caller" }
+
+[[call]]
+name = "copy"
+declarations = ["[[nodiscard]] OperationResult<Vector> copy() const noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+returns = { type = "Vector", owns = "caller" }
+
+[[call]]
+name = "view"
+declarations = ["[[nodiscard]] View<Element> view() const& noexcept"]
+returns = { borrows = "self", until = ["a call that may reallocate or end an element", "a move from the vector", "its destruction"] }
+
+[[call]]
+name = "mutable_view"
+declarations = ["[[nodiscard]] MutableView<Element> mutable_view() & noexcept"]
+returns = { borrows = "self", until = ["a call that may reallocate or end an element", "a move from the vector", "its destruction"] }
+
+[[call]]
+name = "operator[]"
+id = "element"
+declarations = [
+  "[[nodiscard]] Element& operator[](const usize index) & noexcept",
+  "[[nodiscard]] const Element& operator[](const usize index) const& noexcept",
+]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "Vector: index out of range", check = "element_index" },
+]
+returns = { borrows = "self", until = ["a call that may reallocate or end the element"] }
+
+[[call]]
+name = "first_element"
+declarations = [
+  "[[nodiscard]] Element& first_element() & noexcept",
+  "[[nodiscard]] const Element& first_element() const& noexcept",
+]
+requires = [
+  { holds = "count != 0", refuses = "requirement", message = "Vector::first_element: the vector is empty" },
+]
+returns = { borrows = "self", until = ["a call that may reallocate or end the element"] }
+
+[[call]]
+name = "last_element"
+declarations = [
+  "[[nodiscard]] Element& last_element() & noexcept",
+  "[[nodiscard]] const Element& last_element() const& noexcept",
+]
+requires = [
+  { holds = "count != 0", refuses = "requirement", message = "Vector::last_element: the vector is empty" },
+]
+returns = { borrows = "self", until = ["a call that may reallocate or end the element"] }
+
+[[call]]
+name = "reserve"
+declarations = ["[[nodiscard]] OperationStatus reserve(const usize wanted) noexcept"]
+parameters = { wanted = "usize" }
+fails = [
+  { failure = "limit_exceeded", when = "wanted elements' bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+
+[[call]]
+name = "push"
+declarations = ["[[nodiscard]] OperationStatus push(Element&& element) noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the grown capacity is not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses; element is not moved from" },
+]
+
+[[call]]
+name = "push_copy"
+declarations = ["[[nodiscard]] OperationStatus push_copy(const Element& element) noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the grown capacity is not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+
+[[call]]
+name = "emplace"
+declarations = ["[[nodiscard]] OperationStatus emplace(Arguments&&... arguments) noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the grown capacity is not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses; nothing is constructed" },
+]
+
+[[call]]
+name = "insert"
+declarations = ["[[nodiscard]] OperationStatus insert(const usize index, Element&& element) noexcept"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index <= count", refuses = "requirement", message = "Vector::insert: index out of range", check = "insert_index" },
+]
+fails = [
+  { failure = "limit_exceeded", when = "the grown capacity is not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses; element is not moved from" },
+]
+
+[[call]]
+name = "append_copies"
+declarations = ["[[nodiscard]] OperationStatus append_copies(const View<Element> elements) noexcept"]
+fails = [
+  { failure = "limit_exceeded", when = "the grown capacity is not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+
+[[call]]
+name = "resize"
+declarations = ["[[nodiscard]] OperationStatus resize(const usize wanted) noexcept"]
+parameters = { wanted = "usize" }
+fails = [
+  { failure = "limit_exceeded", when = "wanted elements' bytes are not representable" },
+  { failure = "out_of_memory", when = "the allocator refuses" },
+]
+
+[[call]]
+name = "erase"
+declarations = ["void erase(const usize index) noexcept"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "Vector::erase: index out of range", check = "erase_index" },
+]
+
+[[call]]
+name = "erase_range"
+declarations = ["void erase_range(const usize first, const usize length) noexcept"]
+parameters = { first = "usize", length = "usize" }
+requires = [
+  { holds = "first <= count and length <= count - first", refuses = "requirement", message = "Vector::erase_range: range out of range" },
+]
+
+[[call]]
+name = "take_last"
+declarations = ["[[nodiscard]] Element take_last() noexcept"]
+requires = [
+  { holds = "count != 0", refuses = "requirement", message = "Vector::take_last: the vector is empty" },
+]
+returns = { type = "Element", owns = "caller" }
+
+[[call]]
+name = "remove_last"
+declarations = ["void remove_last() noexcept"]
+requires = [
+  { holds = "count != 0", refuses = "requirement", message = "Vector::remove_last: the vector is empty" },
+]
+
+[[call]]
+name = "truncate"
+declarations = ["void truncate(const usize smaller) noexcept"]
+parameters = { smaller = "usize" }
+requires = [
+  { holds = "smaller <= count", refuses = "requirement", message = "Vector::truncate: count out of range" },
+]
+
+[[call]]
+name = "clear"
+declarations = ["void clear() noexcept"]
+
+[[call]]
+name = "release"
+declarations = ["void release() noexcept"]

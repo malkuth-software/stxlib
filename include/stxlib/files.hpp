@@ -151,9 +151,17 @@ class FileAccess;
 // An open file. Move-only; the destructor closes it and discards any close
 // failure, so call close() where that failure matters. A moved-from or
 // closed File fails with disposed, HostCode::closed_handle.
+// ic: stxlib::File: generated from include/stxlib/files.ic.toml by tools/ic_declarations.py; edit the declaration, not
+// ic: these lines. States: closed (initial), reading, writing, appending. Observed by is_open(): closed false, reading
+// ic: true, writing true, appending true. Thread: owner, unless a call says otherwise. Identity: host handle, -1 once
+// ic: closed or moved from; a stale one: failure disposed (closed_handle), unchanged.
 class File final {
 public:
     // Opening a directory for reading fails with is_a_directory.
+    // ic: Fails not_found (a missing name opened for reading), unchanged; already_exists (create_new and the name is
+    // ic: taken), unchanged; invalid_argument (is_a_directory for a directory opened for reading; invalid_name for a
+    // ic: name the host cannot spell), unchanged; permission_denied, unchanged; out_of_memory (the host name cannot be
+    // ic: built), unchanged. Thread: any. Returns File in reading, writing or appending, owned by the caller.
     [[nodiscard]] static OperationResult<File> open(const Path& path, FileMode mode) noexcept;
 
     File() noexcept = default;
@@ -168,15 +176,27 @@ public:
 
     // Reads up to output.count() bytes at the current position. Zero bytes
     // means the end of the file.
+    // ic: Admitted in reading. In closed: failure disposed (closed_handle), unchanged. In writing, appending: failure
+    // ic: any, unchanged. Fails io_failure (the host refuses the read), unchanged.
     [[nodiscard]] OperationResult<usize> read(MutableView<Byte> output) noexcept;
     // Writes every byte or fails; on failure an unknown prefix may have been
     // written.
+    // ic: Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure
+    // ic: any, unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been
+    // ic: written), partly changed.
     [[nodiscard]] OperationStatus write_all(View<Byte> input) noexcept;
+    // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.
     [[nodiscard]] OperationResult<u64> size() noexcept;
+    // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.
     [[nodiscard]] OperationResult<u64> position() noexcept;
+    // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.
     [[nodiscard]] OperationStatus seek(u64 offset) noexcept;
     // Flushes written content as `level` says (Durability, above).
+    // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails
+    // ic: io_failure (the host cannot flush as level says), unchanged.
     [[nodiscard]] OperationStatus sync(Durability level) noexcept;
+    // ic: Admitted in reading, writing, appending; then closed. In closed: failure disposed (closed_handle), unchanged.
+    // ic: Fails io_failure (the host reports a close failure; the File is closed even then), partly changed.
     [[nodiscard]] OperationStatus close() noexcept;
 
     // ---- positioned I/O and the open file's metadata (M2 C2) ----
@@ -188,6 +208,9 @@ public:
     // Reads up to output.count() bytes at `offset`; zero bytes means the
     // offset is at or past the end. Offsets above 2^63 - 1 fail with
     // limit_exceeded, HostCode::too_long.
+    // ic: Admitted in reading. In closed: failure disposed (closed_handle), unchanged. In writing, appending: failure
+    // ic: any, unchanged. Requires offset <= largest_offset, else failure limit_exceeded (too_long), unchanged. Fails
+    // ic: io_failure (the host refuses the read), unchanged.
     [[nodiscard]] OperationResult<usize> read_at(u64 offset, MutableView<Byte> output) noexcept;
     // Writes every byte at `offset`, extending the file as needed; on
     // failure an unknown prefix may have been written. A file opened with
@@ -195,10 +218,15 @@ public:
     // and Linux's pwrite ignores the offset under O_APPEND), so it is
     // refused with invalid_argument, HostCode::invalid_state, as is a file
     // opened for reading.
+    // ic: Admitted in writing. In closed: failure disposed (closed_handle), unchanged. In reading, appending: failure
+    // ic: invalid_argument (invalid_state), unchanged. Requires offset <= largest_offset and length <= largest_offset -
+    // ic: offset, else failure limit_exceeded (too_long), unchanged. Fails limit_exceeded (no_space), partly changed;
+    // ic: io_failure (an unknown prefix may have been written), partly changed.
     [[nodiscard]] OperationStatus write_all_at(u64 offset, View<Byte> input) noexcept;
     // The open file's kind, size and last-write time (fstat;
     // GetFileInformationByHandle): the file this File holds, even if its
     // name has since been renamed or replaced.
+    // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.
     [[nodiscard]] OperationResult<FileInformation> information() noexcept;
     // Sets the last-write time (futimens with the access time left as it
     // is; SetFileTime; on WasmFS, utimensat with an empty name). The host
@@ -206,12 +234,17 @@ public:
     // on NTFS, 1 ms on both Emscripten file systems (WallTime is cut,
     // toward the past, to the host's tick). A file opened for reading is refused
     // with invalid_argument, HostCode::invalid_state.
+    // ic: Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure
+    // ic: invalid_argument (invalid_state), unchanged.
     [[nodiscard]] OperationStatus set_modified(WallTime modified) noexcept;
     // Cuts or extends the file to `bytes` (ftruncate; SetFileInformationByHandle
     // with FileEndOfFileInfo); extended bytes read as zero. The position is
     // unchanged. Refused, invalid_argument with HostCode::invalid_state, for
     // a file opened for reading or with FileMode::append (Windows' append
     // access cannot set the end).
+    // ic: Admitted in writing. In closed: failure disposed (closed_handle), unchanged. In reading, appending: failure
+    // ic: invalid_argument (invalid_state), unchanged. Requires bytes <= largest_offset, else failure limit_exceeded
+    // ic: (too_long), unchanged.
     [[nodiscard]] OperationStatus set_size(u64 bytes) noexcept;
 
 private:
@@ -230,6 +263,9 @@ private:
 // The whole file. Refuses (limit_exceeded, HostCode::too_long) a file of
 // more than `limit` bytes before allocating for it, and a file that grows
 // past `limit` while it is read.
+// ic: Fails limit_exceeded (too_long: more than limit bytes, checked before allocating, or grown past limit while
+// ic: read), unchanged; not_found, unchanged; out_of_memory, unchanged. Thread: any. Returns Buffer<Byte>, owned by the
+// ic: caller.
 [[nodiscard]] OperationResult<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;
 
 // Replaces or creates the file with `content` through a temporary file and a
@@ -244,6 +280,9 @@ private:
 // link at the name are not kept (a link is replaced by the file). On
 // Windows it takes the directory's inherited ACL, not the replaced file's
 // own.
+// ic: Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old
+// ic: file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the
+// ic: temporary file removed), unchanged. Thread: any.
 [[nodiscard]] OperationStatus write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class LinkMode : u8 {
@@ -252,15 +291,20 @@ enum class LinkMode : u8 {
 };
 
 // not_found when nothing has that name.
+// ic: Fails not_found (nothing has that name), unchanged. Thread: any.
 [[nodiscard]] OperationResult<FileInformation> inspect(const Path& path, LinkMode links) noexcept;
 // Creates one directory; already_exists if anything has that name.
+// ic: Fails already_exists (anything has that name), unchanged. Thread: any.
 [[nodiscard]] OperationStatus create_directory(const Path& path) noexcept;
 // Creates a directory and its missing parents; succeeds if it already
 // exists as a directory, and fails with not_a_directory if it exists as
 // something else.
+// ic: Fails invalid_argument (not_a_directory: the name exists as something else), partly changed. Thread: any.
 [[nodiscard]] OperationStatus create_directories(const Path& path) noexcept;
 // Removes a file, a symbolic link or an empty directory; not_found when
 // nothing has that name.
+// ic: Fails not_found (nothing has that name), unchanged; invalid_argument (directory_not_empty), unchanged. Thread:
+// ic: any.
 [[nodiscard]] OperationStatus remove(const Path& path) noexcept;
 // The deepest directory remove_tree descends by default (levels below the
 // top).
@@ -308,8 +352,11 @@ struct RemoveTreeLimits final {
 // HostCode::too_long (what was removed before stays removed). Terminates
 // absent concurrent writers: each pass over a directory removes an entry or
 // finds it empty.
+// ic: Fails limit_exceeded (too_long: deeper than limits.depth or more than limits.entries_per_directory in one
+// ic: directory; busy: a parent changed), partly changed. Thread: any.
 [[nodiscard]] OperationResult<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;
 // Renames, replacing an existing file at `to`.
+// ic: Fails unsupported (cross_device), unchanged. Thread: any.
 [[nodiscard]] OperationStatus rename(const Path& from, const Path& to) noexcept;
 
 enum class CopyMode : u8 {
@@ -324,6 +371,7 @@ enum class CopyPermissions : u8 {
     with_special_bits = 1, // st_mode & 07777: setuid, setgid and sticky too
 };
 
+// ic: Fails already_exists (fail_if_exists and to exists, or from and to are one file), unchanged. Thread: any.
 [[nodiscard]] OperationStatus copy_file(const Path& from, const Path& to, CopyMode mode,
                                         CopyPermissions permissions = CopyPermissions::ordinary) noexcept;
 
@@ -377,6 +425,8 @@ private:
 
 // The directory's entries. Refuses (limit_exceeded, HostCode::too_long) a
 // directory of more than `limit` entries, unnamed ones included.
+// ic: Fails limit_exceeded (too_long: more than limit entries, unnamed ones included), unchanged; out_of_memory,
+// ic: unchanged. Thread: any. Returns DirectoryListing, owned by the caller.
 [[nodiscard]] OperationResult<DirectoryListing> list_directory(const Path& path, usize limit) noexcept;
 
 // The host's directory for temporary files.
