@@ -144,6 +144,13 @@ struct Wide final {
     return result;
 }
 
+// a * a exactly, as a double-double.
+[[nodiscard]] Wide square(const double a) noexcept {
+    const double p = a * a;
+    const Wide result{.hi = p, .lo = std::fma(a, a, -p)};
+    return result;
+}
+
 [[nodiscard]] long double wide_value(const Wide w) noexcept {
     return static_cast<long double>(w.hi) + static_cast<long double>(w.lo);
 }
@@ -383,23 +390,49 @@ void large_bins(const Mode mode) {
 // F3, F4: round trip and Parseval.
 // ---------------------------------------------------------------------------
 
-[[nodiscard]] long double spectrum_energy(const Mode mode, const std::vector<ReferenceBin>& spectrum, const usize n) {
-    long double energy = 0.0L;
+// The energies are summed in double-double, not long double: on Apple arm64
+// long double is double, and a plain sum of 2^20 squares there drifts by
+// far more than the bound being checked. Every bin and sample is a double
+// (or a float), so each square is exact as a double-double.
+[[nodiscard]] Wide signal_energy_of(const std::vector<double>& x) noexcept {
+    Wide energy{};
+    for (const double sample : x) energy = add(energy, square(sample));
+    return energy;
+}
+
+[[nodiscard]] Wide signal_energy_of(const std::vector<float>& x) noexcept {
+    Wide energy{};
+    for (const float sample : x) energy = add(energy, square(static_cast<double>(sample)));
+    return energy;
+}
+
+[[nodiscard]] Wide spectrum_energy(const Mode mode, const std::vector<ReferenceBin>& spectrum, const usize n) {
+    Wide energy{};
     for (usize k = 0; k < spectrum.size(); ++k) {
-        const long double magnitude = spectrum[k].re * spectrum[k].re + spectrum[k].im * spectrum[k].im;
+        const Wide magnitude =
+            add(square(static_cast<double>(spectrum[k].re)), square(static_cast<double>(spectrum[k].im)));
         // plain and dip: X[0] and X[N/2] once, the interior twice (the
         // other half is their conjugates); shifted: every bin twice.
         const bool once = mode != Mode::shifted && (k == 0 || k == n / 2);
-        energy = energy + (once ? magnitude : 2.0L * magnitude);
+        energy = add(energy, once ? magnitude : add(magnitude, magnitude));
     }
-    return energy / static_cast<long double>(n);
+    // n is a power of two: the division is exact.
+    const double scale_down = 1.0 / static_cast<double>(n);
+    const Wide result{.hi = energy.hi * scale_down, .lo = energy.lo * scale_down};
+    return result;
+}
+
+// |got - want| / want, the difference taken in double-double.
+[[nodiscard]] double energy_defect(const Wide got, const Wide want) noexcept {
+    const Wide negated{.hi = -want.hi, .lo = -want.lo};
+    const Wide difference = add(got, negated);
+    return std::fabs(static_cast<double>(wide_value(difference))) / static_cast<double>(wide_value(want));
 }
 
 void round_trip_and_parseval(const Mode mode, const usize smallest) {
     for (usize n = smallest; n <= (usize{1} << 20); n <<= 1) {
         const std::vector<double> x = random_signal(n, 3 * n + 1);
-        long double signal_energy = 0.0L;
-        for (const double sample : x) signal_energy = signal_energy + static_cast<long double>(sample) * sample;
+        const Wide signal_energy = signal_energy_of(x);
         const double bound = log2_of(n) + 2.0;
 
         Plan64 wide = plan64(n, mode);
@@ -411,13 +444,12 @@ void round_trip_and_parseval(const Mode mode, const usize smallest) {
             if (error > worst_sample) worst_sample = error;
         }
         CHECK(worst_sample / epsilon64 <= bound);
-        const long double defect = std::fabs(spectrum_energy(mode, widened(spectrum), n) - signal_energy) / signal_energy;
-        CHECK(static_cast<double>(defect) / epsilon64 <= 4.0 * bound);
+        const double defect = energy_defect(spectrum_energy(mode, widened(spectrum), n), signal_energy);
+        CHECK(defect / epsilon64 <= 4.0 * bound);
 
         if (mode == Mode::dip) continue;
         const std::vector<float> xf = rounded_signal(x);
-        long double signal_energy32 = 0.0L;
-        for (const float sample : xf) signal_energy32 = signal_energy32 + static_cast<long double>(sample) * sample;
+        const Wide signal_energy32 = signal_energy_of(xf);
         Plan32 narrow = plan32(n, mode);
         const std::vector<Complex32> spectrum32 = forward32(narrow, xf);
         const std::vector<float> back32 = inverse32(narrow, spectrum32);
@@ -427,9 +459,8 @@ void round_trip_and_parseval(const Mode mode, const usize smallest) {
             if (error > worst32) worst32 = error;
         }
         CHECK(worst32 / epsilon32 <= bound);
-        const long double defect32 =
-            std::fabs(spectrum_energy(mode, widened(spectrum32), n) - signal_energy32) / signal_energy32;
-        CHECK(static_cast<double>(defect32) / epsilon32 <= 4.0 * bound);
+        const double defect32 = energy_defect(spectrum_energy(mode, widened(spectrum32), n), signal_energy32);
+        CHECK(defect32 / epsilon32 <= 4.0 * bound);
     }
 }
 
@@ -734,7 +765,8 @@ void subnormal_rule() {
     // An impulse of 2^-1022 * 2^-4 is read as zero, so every bin is zero.
     // A subnormal result from normal inputs: x[0] = 2^-1022 (1 + 2^-52),
     // x[1] = -2^-1022 makes bin 0 (plain, dip) the exact sum 2^-1074,
-    // which comes back as zero; bin 1 stays normal.
+    // which comes back as zero; bin N/2, x[0] - x[1], stays normal. (Bin 1
+    // is subnormal too: x[0] - x[1] cos(pi/32) and x[1] sin(pi/32).)
     const Mode modes[3] = {Mode::plain, Mode::shifted, Mode::dip};
     for (const Mode mode : modes) {
         std::vector<double> x(64, 0.0);
@@ -747,7 +779,7 @@ void subnormal_rule() {
             pair[1] = -DBL_MIN;
             const std::vector<Complex64> spectrum = forward64(plan, pair);
             CHECK(spectrum[0].re == 0.0 && spectrum[0].im == 0.0);
-            CHECK(std::fabs(spectrum[1].re) >= DBL_MIN || std::fabs(spectrum[1].im) >= DBL_MIN);
+            CHECK(spectrum[32].re >= DBL_MIN);
         }
         subnormal_inputs64(mode);
     }
