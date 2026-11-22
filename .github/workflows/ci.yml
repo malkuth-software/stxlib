@@ -209,13 +209,16 @@ jobs:
           key: ccache-v1-linux-musl-${{ github.sha }}
           restore-keys: ccache-v1-linux-musl-
       - name: Plain
+        id: plain
+        if: ${{ !cancelled() }}
         run: |
           cmake -S . -B build-plain -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS=-stdlib=libc++ "-DCMAKE_EXE_LINKER_FLAGS=$LINK" "-DCMAKE_SHARED_LINKER_FLAGS=$LINK"
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
       - name: Bit identity (this host's lines)
-        if: always()
+        # Needs build-plain; when Plain did not run, this step has nothing to read.
+        if: ${{ !cancelled() && steps.plain.outcome != 'skipped' }}
         run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Debug
         run: |
@@ -233,7 +236,8 @@ jobs:
     # over an executable throw) runs here for the first time: its output says
     # which kind Windows reports.
     runs-on: windows-2025
-    timeout-minutes: 50
+    # The Debug tests alone took 22 minutes on a slow runner (run 45008874456).
+    timeout-minutes: 80
     defaults:
       run:
         shell: msys2 {0}
@@ -273,13 +277,16 @@ jobs:
         if: always()
         run: ctest --test-dir build-debug -R '^stxlib_two_module_tests$' -V | grep -i -E 'case 2|kind|invalid_argument|foreign_exception' | head -20 || true
       - name: Plain
+        id: plain
+        if: ${{ !cancelled() }}
         run: |
           cmake -S . -B build-plain -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_EXE_LINKER_FLAGS=-static -DCMAKE_SHARED_LINKER_FLAGS=-static
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
       - name: Bit identity (this host's lines)
-        if: always()
+        # Needs build-plain; when Plain did not run, this step has nothing to read.
+        if: ${{ !cancelled() && steps.plain.outcome != 'skipped' }}
         run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Compiler cache statistics
         if: always()
