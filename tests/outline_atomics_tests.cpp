@@ -9,7 +9,7 @@
 //   other bits above them (the helpers must read only the low bytes);
 // - the register contract on every one of those calls: only x0 (x0 and x1
 //   for cas16), x15, x16, x17 and the flags may change, so detection, which
-//   makes system calls inside the first call, is held to it too;
+//   runs inside the first call, is held to it too;
 // - detection agrees with simd::detected_features().lse and leaves the memo
 //   at 1 or 3;
 // - a concurrent stress run (4 threads, 20,000 rounds each) of

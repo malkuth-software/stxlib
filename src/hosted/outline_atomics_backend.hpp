@@ -27,12 +27,11 @@
 // Detection reads the CPU's ID register ID_AA64ISAR0_EL1 (Atomic, bits
 // 23:20, 2 or more for LSE) with mrs. User space cannot read it directly;
 // the kernel traps the read and returns its sanitised system-wide value.
-// - Linux has done so since 4.11 and says so with HWCAP_CPUID (bit 11 of
-//   AT_HWCAP; Documentation/arch/arm64/cpu-feature-registers.rst). On an
-//   older kernel the read is an undefined instruction, so the helper first
-//   reads AT_HWCAP from /proc/self/auxv with its own system calls (openat,
-//   read, close: no C library, no getauxval) and assumes no LSE when the
-//   file cannot be read or the bit is clear.
+// - Linux has done so since 4.11 (Documentation/arch/arm64/
+//   cpu-feature-registers.rst, HWCAP_CPUID), and 4.11 is STXlib's floor
+//   for Linux (owner, 2026-11-22: "we do not support older linux"), so the
+//   helper reads it directly; on an older kernel the read would be an
+//   undefined instruction.
 // - FreeBSD has emulated the read since 12.0 (sys/arm64/arm64/identcpu.c,
 //   user_mrs_handler); STXlib's FreeBSD is 15.2, so the helper reads it
 //   directly.
@@ -60,8 +59,7 @@ extern "C" __attribute__((visibility("hidden"))) u8 stxlib_outline_atomics_memo;
 
 // Whether the CPU has LSE, detecting first if this module has not yet
 // (the same detection and memo as the helpers). An ordinary AAPCS64
-// function defined in assembly; no early exit (it calls nothing but the
-// kernel, and only on Linux).
+// function defined in assembly; no early exit (it calls nothing).
 extern "C" __attribute__((visibility("hidden"))) bool stxlib_outline_atomics_lse() noexcept;
 
 #endif

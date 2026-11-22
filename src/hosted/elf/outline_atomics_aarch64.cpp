@@ -179,69 +179,9 @@ __asm__(".pushsection .text.stxlib_outline_atomics,\"ax\",%progbits\n"
 // Detection: stores the module's memo, 1 (no LSE) or 3 (LSE). Called with
 // bl from a helper's first call or from stxlib_outline_atomics_lse; changes
 // only x16 and the flags (x17 holds the helper's return address).
-#if defined(__linux__)
-// Linux: HWCAP_CPUID first (outline_atomics_backend.hpp). /proc/self/auxv
-// is the process's auxiliary vector as 16-byte (type, value) pairs ending
-// at AT_NULL (0); AT_HWCAP is 16. The system calls are the kernel's
-// generic table for arm64 (include/uapi/asm-generic/unistd.h: openat 56,
-// close 57, read 63); AT_FDCWD is -100, O_CLOEXEC 0x80000 (asm-generic
-// fcntl.h), and a call returns -errno in x0 and changes no other register.
-// A read interrupted by a signal (-EINTR, -4) is repeated; any other
-// failure or short read ends the search with what was found. These are
-// raw system calls, not the C library's wrappers, so no cancellation point
-// and no foreign code is reached (AGENTS.md, early exits): a helper may run
-// under any lock.
-__asm__(".p2align 4\n"
-        ".type stxlib_outline_atomics_detect, %function\n"
-        "stxlib_outline_atomics_detect:\n" STXLIB_OUTLINE_ATOMICS_LANDING
-        "    sub sp, sp, #64\n"
-        "    stp x0, x1, [sp]\n"
-        "    stp x2, x3, [sp, #16]\n"
-        "    stp x8, x15, [sp, #32]\n"
-        "    mov x15, xzr\n"                // AT_HWCAP's value, 0 until found
-        "    mov x0, #-100\n"               // AT_FDCWD
-        "    adrp x1, stxlib_outline_atomics_auxv\n"
-        "    add x1, x1, :lo12:stxlib_outline_atomics_auxv\n"
-        "    mov x2, #0x80000\n"            // O_RDONLY | O_CLOEXEC
-        "    mov x3, xzr\n"
-        "    mov x8, #56\n"                 // openat
-        "    svc #0\n"
-        "    tbnz x0, #63, 3f\n"            // -errno: no vector, so no HWCAP_CPUID
-        "    mov x3, x0\n"                  // the descriptor
-        "1:  mov x0, x3\n"
-        "    add x1, sp, #48\n"             // one (type, value) pair
-        "    mov x2, #16\n"
-        "    mov x8, #63\n"                 // read
-        "    svc #0\n"
-        "    cmn x0, #4\n"                  // -EINTR
-        "    b.eq 1b\n"
-        "    cmp x0, #16\n"
-        "    b.ne 2f\n"
-        "    ldr x16, [sp, #48]\n"          // the type
-        "    cbz x16, 2f\n"                 // AT_NULL
-        "    cmp x16, #16\n"                // AT_HWCAP
-        "    b.ne 1b\n"
-        "    ldr x15, [sp, #56]\n"          // its value
-        "2:  mov x0, x3\n"
-        "    mov x8, #57\n"                 // close
-        "    svc #0\n"
-        "3:  mov w16, #1\n"
-        "    tbz x15, #11, 4f\n"            // HWCAP_CPUID clear: the read below would trap
-        "    mrs x0, ID_AA64ISAR0_EL1\n"
-        "    ubfx x0, x0, #20, #4\n"        // Atomic
-        "    cmp x0, #2\n"
-        "    b.lo 4f\n"
-        "    mov w16, #3\n"
-        "4:  adrp x0, stxlib_outline_atomics_memo\n"
-        "    strb w16, [x0, :lo12:stxlib_outline_atomics_memo]\n"
-        "    ldp x8, x15, [sp, #32]\n"
-        "    ldp x2, x3, [sp, #16]\n"
-        "    ldp x0, x1, [sp]\n"
-        "    add sp, sp, #64\n"
-        "    ret\n"
-        ".size stxlib_outline_atomics_detect, . - stxlib_outline_atomics_detect\n");
-#else
-// FreeBSD: the kernel always emulates the read (outline_atomics_backend.hpp).
+// Both hosts emulate the read for user space (outline_atomics_backend.hpp):
+// Linux from 4.11, STXlib's floor (owner, 2026-11-22: "we do not support
+// older linux"), FreeBSD from 12.0. No system call, no file.
 __asm__(".p2align 4\n"
         ".type stxlib_outline_atomics_detect, %function\n"
         "stxlib_outline_atomics_detect:\n" STXLIB_OUTLINE_ATOMICS_LANDING
@@ -257,7 +197,6 @@ __asm__(".p2align 4\n"
         "    ldr x0, [sp], #16\n"
         "    ret\n"
         ".size stxlib_outline_atomics_detect, . - stxlib_outline_atomics_detect\n");
-#endif
 
 // stxlib_outline_atomics_lse (outline_atomics_backend.hpp): an ordinary
 // function, so it may change x16, x17 and x30's copy freely.
@@ -391,12 +330,6 @@ __asm__("stxlib_cas __aarch64_cas1_relax, w, uxtb, casb, ldxrb, stxrb\n"
         ".size stxlib_outline_atomics_memo, 1\n"
         "stxlib_outline_atomics_memo:\n"
         "    .zero 1\n"
-        ".popsection\n"
-
-        // Linux's detection opens this file.
-        ".pushsection .rodata.stxlib_outline_atomics_auxv,\"a\",%progbits\n"
-        "stxlib_outline_atomics_auxv:\n"
-        "    .asciz \"/proc/self/auxv\"\n"
         ".popsection\n");
 
 #endif

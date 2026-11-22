@@ -60,9 +60,9 @@ struct Features final {
     // have" question. How it is known differs by host:
     // - Linux and FreeBSD: read from the CPU's ID register ID_AA64ISAR0_EL1
     //   (Atomic, bits 23:20) by the same detection STXlib's own
-    //   outline-atomics helpers use, which also choose by it. On a Linux
-    //   kernel that does not expose the ID registers to user space (before
-    //   4.11, HWCAP_CPUID clear) it is false.
+    //   outline-atomics helpers use, which also choose by it. The kernel
+    //   emulates that read for user space: Linux from 4.11, STXlib's floor
+    //   for Linux, and FreeBSD from 12.0.
     // - Apple: true; every Apple arm64 CPU has LSE.
     // - Windows: true when the build targets Armv8.1 or later (the compiler
     //   defines __ARM_FEATURE_ATOMICS); otherwise false, which there means
