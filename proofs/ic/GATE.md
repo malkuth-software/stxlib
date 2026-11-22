@@ -24,7 +24,7 @@ Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_
 | stxlib::AtomicPool | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 10 / 17 |
 | stxlib::Thread | 4 | 5 of 5 | 6 + 4 | not run | not run | not run | not run | 4 / 8 |
 | stxlib::Vector | 9 | 22 of 22 | 23 + 10 | not run | not run | not run | not run | 10 / 10 |
-| stxlib::stx_minmallocpp | 1 | 3 of 4 | 4 + 3 | not run | not run | not run | not run | 7 / 9 |
+| stxlib::stx_minmallocpp | 1 | 3 of 4 | 4 + 3 | not run | not run | not run | not run | 27 / 28 |
 
 ## Calls the engine does not drive
 

@@ -27,6 +27,13 @@ sources they name, and discharges what deduction can:
   object: only const locals, other guards and their refusals, a reset of an
   output parameter and a void check that only reads, returns or ends the
   process precede it in its function (and the call that relays its status).
+- an invariant (`given`, `from`, `covers`, `shows`): made by the base steps
+  and kept by every other, each step a list of lemmas; a step that changes a
+  clause's words or counters (`X_after`) must show the clause after it, and
+  every write the `covers` patterns find must be cited by a step whose
+  lemmas say how it changes the words the pattern names. Word identities in
+  a lemma are decided bit by bit (&, |, ^ and ~ act on each bit alone; x &
+  (x - 1) clears low(x), the lowest set bit, which lies within x).
 - structural (`untouched`, `paths`, `metadata`): on every path to a refusal
   of the named functions no pointer is formed from the untouched names or a
   value computed from them, nor dereferenced; each call they reach is read
@@ -224,13 +231,38 @@ class Laws:
         self.disjoint: set[frozenset[str]] = set()
         self.nonzero: set[str] = set()
         self.single: set[str] = set()
+        self.subset: set[tuple[str, str]] = set()   # (b, x): b's bits are x's
+        self.aliases: dict[str, str] = {}           # a word named equal to an expression
         self.used: list[str] = []
+        self.depth: int = 0
 
     def pop(self, inner: str) -> Linear:
         """pop(inner) as a linear form, by the laws; an atom when none applies."""
-        text: str = word_text(inner)
+        text: str = strip_parentheses(word_text(inner))
         if text == '0':
             return constant(0)
+        if text in self.aliases and self.depth < 16:
+            self.note('a word equal to an expression has that expression\'s popcount')
+            self.depth = self.depth + 1
+            aliased: Linear = self.pop(self.aliases[text])
+            self.depth = self.depth - 1
+            return aliased
+        low: re.Match[str] | None = re.fullmatch(r'low\((.+)\)', text)
+        if low and low.group(1) in self.nonzero:
+            self.note('pop of the lowest set bit of a non-zero word is 1')
+            return constant(1)
+        every: list[str] = split_all(text, '|')
+        if len(every) > 2 and all(frozenset((every[i], every[j])) in self.disjoint
+                                  for i in range(len(every)) for j in range(i + 1, len(every))):
+            self.note('pop(a | b | ...) is the sum for pairwise disjoint words')
+            total: Linear = {}
+            for part in every:
+                total = linear_add(total, self.pop(part))
+            return total
+        both: list[str] = split_all(text, '&')
+        if len(both) == 2 and both[1].startswith('~') and (strip_parentheses(both[1][1:]), both[0]) in self.subset:
+            self.note('pop(x & ~b) = pop(x) - pop(b) for b within x')
+            return linear_add(self.pop(both[0]), self.pop(both[1][1:]), Fraction(-1))
         if text == '18446744073709551615':
             self.note('pop of all 64 bits is 64')
             return constant(WORD_BITS)
@@ -268,6 +300,24 @@ def top_split(text: str, operator: str) -> list[str]:
         elif character == operator and depth == 0:
             return [strip_parentheses(text[:index]), strip_parentheses(text[index + 1:])]
     return [text]
+
+
+def split_all(text: str, operator: str) -> list[str]:
+    """`text` split at every `operator` outside parentheses."""
+    parts: list[str] = []
+    depth: int = 0
+    start: int = 0
+    index: int
+    for index, character in enumerate(text):
+        if character == '(':
+            depth = depth + 1
+        elif character == ')':
+            depth = depth - 1
+        elif character == operator and depth == 0:
+            parts.append(strip_parentheses(text[start:index]))
+            start = index + 1
+    parts.append(strip_parentheses(text[start:]))
+    return parts
 
 
 def strip_parentheses(text: str) -> str:
@@ -409,19 +459,159 @@ def facts_of(text: str, laws: Laws, values: dict[str, int]) -> list[Fact]:
 def register_law(text: str, laws: Laws) -> bool:
     """A given that feeds a popcount law rather than the arithmetic; True when it was one."""
     compact: str = word_text(text)
-    match: re.Match[str] | None = re.fullmatch(r'\(?(.+?)&(.+?)\)?==0', compact)
-    if match and '(' not in match.group(1) and '(' not in match.group(2):
-        laws.disjoint.add(frozenset((match.group(1), match.group(2))))
+    match: re.Match[str] | None = re.fullmatch(r'single_bit\((.+)\)', compact)
+    if match:
+        laws.single.add(match.group(1))
         return True
+    if '==' in compact and compact.count('==') == 1 and 'pop(' not in compact:
+        left: str
+        right: str
+        left, right = (strip_parentheses(part) for part in compact.split('=='))
+        parts: list[str] = split_all(left, '&')
+        if right == '0' and len(parts) == 2:
+            laws.disjoint.add(frozenset(parts))
+            return True
+        if len(parts) == 2 and right in parts:
+            other: str = parts[1] if parts[0] == right else parts[0]
+            laws.subset.add((right, other))
+            return True
+        if re.fullmatch(r'[A-Za-z_]\w*', left) and re.search(r'[&|~^]', right):
+            laws.aliases[left] = right
+            return True
+        if re.fullmatch(r'[A-Za-z_]\w*', left) and right == '0':
+            laws.aliases[left] = right
+            return False  # also a fact of the arithmetic (a counter at zero)
+        if re.fullmatch(r'[A-Za-z_]\w*', left) and re.fullmatch(r'[A-Za-z_]\w*', right):
+            laws.aliases[left] = right
+            return False  # a renaming: also a fact of the arithmetic
     match = re.fullmatch(r'(.+)!=0', compact)
     if match:
         laws.nonzero.add(match.group(1))
         return True
-    match = re.fullmatch(r'single_bit\((.+)\)', compact)
-    if match:
-        laws.single.add(match.group(1))
-        return True
     return False
+
+
+# ---- bitwise identities, bit by bit ------------------------------------------------------------
+
+BIT_ATOM: str = r'low\([A-Za-z_]\w*\)|[A-Za-z_]\w*'
+
+
+def low_rewritten(text: str) -> str:
+    """`x & (x - 1)` as `(x & ~low(x))`: clearing the lowest set bit (low(0) is 0)."""
+    return re.sub(r'\b([A-Za-z_]\w*)&\(\1-1\)', r'(\1&~low(\1))', text)
+
+
+def bitwise_relation(text: str) -> bool:
+    """Whether `text` is an equation of words under &, |, ^ and ~ only (decided bit by bit)."""
+    compact: str = low_rewritten(word_text(text))
+    if compact.count('==') != 1 or 'pop(' in compact or '!=' in compact:
+        return False
+    rest: str = re.sub(BIT_ATOM, 'a', compact.replace('==', '='))
+    return bool(re.fullmatch(r'[a0&|^~()=]+', rest))
+
+
+def bit_operators(text: str) -> bool:
+    """Whether `text` uses a bit operator outside pop(...)."""
+    outside: str = text
+    while 'pop(' in outside:
+        start: int = outside.index('pop(')
+        inner: str | None = inside_parentheses(outside, start + 3)
+        if inner is None:
+            break
+        outside = outside[:start] + 'P' + outside[start + 3 + len(inner) + 2:]
+    return bool(re.search(r'[&|^~]', outside))
+
+
+class BitReader:
+    """A word expression evaluated at one bit: atoms are the bit's values."""
+
+    def __init__(self, text: str) -> None:
+        self.items: list[str] = re.findall(BIT_ATOM + r'|0|[&|^~()]', text)
+        if ''.join(self.items) != text:
+            raise DeductionError('cannot read the word expression ' + repr(text))
+        self.position: int = 0
+
+    def atoms(self) -> list[str]:
+        return [item for item in self.items if re.fullmatch(BIT_ATOM, item)]
+
+    def value(self, bits: dict[str, bool]) -> bool:
+        self.position = 0
+        result: bool = self.disjunction(bits)
+        if self.position != len(self.items):
+            raise DeductionError('cannot read ' + repr(''.join(self.items)))
+        return result
+
+    def peek(self) -> str:
+        return self.items[self.position] if self.position < len(self.items) else ''
+
+    def disjunction(self, bits: dict[str, bool]) -> bool:
+        result: bool = self.exclusive(bits)
+        while self.peek() == '|':
+            self.position = self.position + 1
+            result = self.exclusive(bits) or result
+        return result
+
+    def exclusive(self, bits: dict[str, bool]) -> bool:
+        result: bool = self.conjunction(bits)
+        while self.peek() == '^':
+            self.position = self.position + 1
+            result = result != self.conjunction(bits)
+        return result
+
+    def conjunction(self, bits: dict[str, bool]) -> bool:
+        result: bool = self.unary(bits)
+        while self.peek() == '&':
+            self.position = self.position + 1
+            result = self.unary(bits) and result
+        return result
+
+    def unary(self, bits: dict[str, bool]) -> bool:
+        item: str = self.peek()
+        self.position = self.position + 1
+        if item == '~':
+            return not self.unary(bits)
+        if item == '(':
+            inner: bool = self.disjunction(bits)
+            if self.peek() != ')':
+                raise DeductionError('unbalanced parentheses')
+            self.position = self.position + 1
+            return inner
+        if item == '0':
+            return False
+        if re.fullmatch(BIT_ATOM, item):
+            return bits[item]
+        raise DeductionError('unexpected ' + repr(item))
+
+
+def bit_proves(givens: list[str], goal: str) -> bool:
+    """Whether the word equations `givens` imply `goal` at every bit (each bit is independent under &, |, ^, ~;
+    the lowest set bit of x is within x)."""
+    def sides(text: str) -> tuple[BitReader, BitReader]:
+        compact: str = low_rewritten(word_text(text))
+        left, right = compact.split('==')
+        return BitReader(left), BitReader(right)
+    equations: list[tuple[BitReader, BitReader]] = [sides(text) for text in givens]
+    target: tuple[BitReader, BitReader] = sides(goal)
+    atoms: list[str] = []
+    for left, right in equations + [target]:
+        for atom in left.atoms() + right.atoms():
+            if atom not in atoms:
+                atoms.append(atom)
+    lows: list[tuple[str, str]] = [(atom, atom[4:-1]) for atom in atoms if atom.startswith('low(')]
+    for _, inner in lows:
+        if inner not in atoms:
+            atoms.append(inner)
+    if len(atoms) > 16:
+        raise DeductionError('a bitwise lemma over more than 16 words')
+    values: tuple[bool, ...]
+    for values in itertools.product((False, True), repeat=len(atoms)):
+        bits: dict[str, bool] = dict(zip(atoms, values))
+        if any(bits[low] and not bits[inner] for low, inner in lows):
+            continue  # low(x) is a bit of x
+        if all(left.value(bits) == right.value(bits) for left, right in equations):
+            if target[0].value(bits) != target[1].value(bits):
+                return False
+    return True
 
 
 def bounds_of_pops(facts: list[Fact]) -> list[Fact]:
@@ -439,16 +629,28 @@ def lemma(given: tuple[str, ...], shows: str) -> tuple[bool, list[str]]:
     """Whether `shows` (one or more relations joined by ' and ') follows from `given`; the laws it used."""
     laws: Laws = Laws()
     arithmetic: list[str] = []
+    words: list[str] = [text for text in given if bitwise_relation(text)]
     text: str
     for text in given:
-        if not register_law(text, laws):
+        if not register_law(text, laws) and not bit_operators(text) and not text.startswith('single_bit('):
             arithmetic.append(text)
     facts: list[Fact] = []
     for text in arithmetic:
         facts.extend(facts_of(text, laws, {}))
+    within: str
+    whole: str
+    for within, whole in sorted(laws.subset):
+        # The bits of a word within another: pop(within) <= pop(whole).
+        facts.append(fact(linear_add(laws.pop(whole), laws.pop(within), Fraction(-1))))
+        laws.note('pop(b) <= pop(x) for b within x')
     goals: list[str] = [part.strip() for part in shows.split(' and ')]
     goal_text: str
     for goal_text in goals:
+        if bitwise_relation(goal_text) and bit_operators(goal_text):
+            if not bit_proves(words, goal_text):
+                return False, laws.used
+            laws.note('bitwise identities decided bit by bit (with low(x) within x)')
+            continue
         left: str
         relation: str
         right: str
@@ -1665,7 +1867,11 @@ def deduce_declaration(root: Path, declaration: ic.Declaration) -> tuple[list[Re
                                           ['guard at ' + seen_path + ':' + str(seen_index + 1) for seen_path,
                                            seen_index in sorted(seen)] + allowed_notes))
     obligation: ic.Obligation
+    composites: list[ic.Obligation] = []
     for obligation in declaration.obligations:
+        if obligation.composes:
+            composites.append(obligation)
+            continue
         identifier = prefix + '.' + obligation.identifier
         lacking: str = ' (missing: ' + obligation.missing + ')' if obligation.missing else ''
         if obligation.untouched:
@@ -1724,7 +1930,140 @@ def deduce_declaration(root: Path, declaration: ic.Declaration) -> tuple[list[Re
                               ['from ' + '; '.join(obligation.given), 'shown ' + obligation.shows,
                                'laws: ' + (', '.join(laws) if laws else 'linear arithmetic only'),
                                'read in ' + ', '.join(obligation.sources)]))
+    discharged: dict[str, Record] = {record.identifier: record for record in records}
+    stated: dict[str, ic.Obligation] = {prefix + '.' + item.identifier: item for item in declaration.obligations}
+    for obligation in composites:
+        identifier = prefix + '.' + obligation.identifier
+        held, steps, read, trouble = invariant_kept(root, prefix, obligation, discharged, stated)
+        if not held:
+            lacking = ' (missing: ' + obligation.missing + ')' if obligation.missing else ''
+            open_items.append((identifier, '; '.join(trouble) + lacking))
+            continue
+        records.append(Record(identifier, declaration, read, (obligation.method or 'an invariant kept by every '
+                              'step') + ' (' + CREDIT + ')', list(obligation.premises) + [
+                                  'the steps listed are every change of the invariant\'s words and counters (each '
+                                  'write the covers patterns find is cited by a step\'s lemma)',
+                                  'each segment between step marks is atomic (the step model)'], steps))
     return records, open_items
+
+
+def normal(text: str) -> str:
+    return re.sub(r'\s+', '', text)
+
+
+def renamed_after(clause: str, atoms: set[str]) -> str:
+    """The clause with each of `atoms` as its value after the step (`X_after`)."""
+    return re.sub(r'\b(' + '|'.join(sorted(atoms, key=len, reverse=True)) + r')\b(?!_after)',
+                  lambda match: match.group(1) + '_after', clause) if atoms else clause
+
+
+def clause_atoms(clause: str) -> set[str]:
+    return {name for name in re.findall(r'\b[A-Za-z_]\w*\b', clause) if name not in ('pop', 'low', 'single_bit')}
+
+
+def invariant_kept(root: Path, prefix: str, obligation: ic.Obligation, discharged: dict[str, Record],
+                   stated: dict[str, ic.Obligation]) -> tuple[bool, list[str], list[str], list[str]]:
+    """An invariant (`given`) made by the base step and kept by every other: each step's steps_of are discharged and
+    show every clause whose words or counters the step changes, after it; every write the `covers` patterns find
+    is cited by a step lemma's sources; and the invariant gives `shows`."""
+    problems: list[str] = []
+    steps: list[str] = []
+    read: list[str] = []
+    invariant: list[str] = list(obligation.given)
+    atoms: set[str] = set()
+    for clause in invariant:
+        atoms |= clause_atoms(clause)
+    cited: list[tuple[str, str]] = []
+    citing: list[tuple[str, set[str], list[tuple[str, str]]]] = []   # step, what it changes, what it cites
+    based: bool = False
+    entry: str
+    for entry in obligation.composes:
+        if ':' not in entry:
+            problems.append(repr(entry) + ' is not `step: lemma, lemma`')
+            continue
+        step, names = (part.strip() for part in entry.split(':', 1))
+        steps_of: list[ic.Obligation] = []
+        name: str
+        for name in [part.strip() for part in names.split(',') if part.strip()]:
+            full: str = prefix + '.' + name
+            if full not in stated:
+                problems.append(step + ': no obligation ' + name)
+                continue
+            if full not in discharged:
+                problems.append(step + ': ' + name + ' is not discharged')
+                continue
+            steps_of.append(stated[full])
+        shown: set[str] = {normal(part) for part in steps_of for part in part.shows.split(' and ')}
+        mentioned: str = ' '.join(' '.join(part.given) + ' ' + part.shows for part in steps_of)
+        changed: set[str] = {atom for atom in atoms if re.search(r'\b' + atom + r'_after\b', mentioned)}
+        if step.startswith('base'):
+            based = True
+            required: list[str] = invariant
+        else:
+            required = [renamed_after(clause, changed) for clause in invariant if clause_atoms(clause) & changed]
+        lacking: list[str] = [clause for clause in required if normal(clause) not in shown]
+        if lacking:
+            problems.append(step + ' does not show ' + '; '.join(lacking))
+        own: list[tuple[str, str]] = []
+        for part in steps_of:
+            for source in part.sources:
+                if ': ' in source:
+                    path, text = source.split(': ', 1)
+                    cited.append((path, text.strip()))
+                    own.append((path, text.strip()))
+        if not step.startswith('base'):
+            citing.append((step, changed, own))
+        steps.append(step + ': ' + ', '.join(part.identifier for part in steps_of) + (' keep ' + ', '.join(
+            sorted(changed)) if not step.startswith('base') else ' make the invariant'))
+    if not based:
+        problems.append('no base step makes the invariant')
+    for entry in obligation.covers:
+        if ': ' not in entry:
+            problems.append(repr(entry) + ' is not `path: pattern`')
+            continue
+        place, pattern = entry.split(': ', 1)
+        written: set[str] = set()
+        if ' => ' in pattern:
+            pattern, names_text = pattern.rsplit(' => ', 1)
+            written = {name.strip() for name in names_text.split(',') if name.strip()}
+        target: Path = root / place
+        files: list[Path] = sorted(item for item in target.iterdir() if item.suffix in ('.hpp', '.cpp')) \
+            if target.is_dir() else [target]
+        if not files or not all(item.is_file() for item in files):
+            problems.append(place + ' is missing')
+            continue
+        found: int = 0
+        file: Path
+        for file in files:
+            relative: str = file.relative_to(root).as_posix()
+            number: int
+            for number, line in enumerate(file.read_text(encoding='utf-8').split('\n')):
+                if not re.search(pattern, line) or line.strip().startswith('//'):
+                    continue
+                found = found + 1
+                if relative not in read:
+                    read.append(relative)
+                if not any(path == relative and text and text in line for path, text in cited):
+                    problems.append(relative + ':' + str(number + 1) + ' writes ' + repr(line.strip()[:70]) +
+                                    ', which no step cites')
+                for step, changed, own in citing:
+                    if any(path == relative and text and text in line for path, text in own) and \
+                            not written <= changed:
+                        problems.append(step + ' cites ' + relative + ':' + str(number + 1) + ', which changes ' +
+                                        ', '.join(sorted(written - changed)) + ', but its lemmas do not say how')
+        steps.append('covers ' + place + ' ' + repr(pattern) + ': ' + str(found) + ' write(s), each cited')
+    for path, _ in cited:
+        if path not in read and (root / path).is_file():
+            read.append(path)
+    try:
+        proved, laws = lemma(tuple(invariant), obligation.shows)
+    except DeductionError as error:
+        problems.append(str(error))
+        proved, laws = False, []
+    if not proved:
+        problems.append('the invariant does not yield ' + obligation.shows)
+    steps.append('the invariant gives ' + obligation.shows + ' (' + (', '.join(laws) or 'linear arithmetic') + ')')
+    return not problems, steps, read, problems
 
 
 def deductions_text(project: ic.Project, declarations: list[ic.Declaration]) -> str:

@@ -42,8 +42,11 @@ Properties:
       only when its body just picks predicates, a switch is fixed only by a
       literal, an output reset and a read-only check may precede a guard
       but a write may not, a unary star on an untouched value is a
-      dereference and a product is not; every obligation but page_protocol
-      is discharged, and page_protocol states its missing premise.
+      dereference and a product is not; every obligation is discharged;
+  I13 page_protocol is an invariant kept by every step: word identities are
+      decided bit by bit (a partition the owner's release breaks without the
+      block being held is not proved), and dropping a step, or a step's
+      lemma for a word a cited write changes, leaves it open.
 """
 
 import importlib.util
@@ -241,9 +244,7 @@ def source_following(root: pathlib.Path) -> None:
     import json
     document = json.loads((root / 'proofs' / 'ic' / 'deductions.json').read_text(encoding='utf-8'))
     still_open = [item['id'] for item in document['open']]
-    check(still_open == ['stxlib.stx_minmallocpp.page_protocol'], 'I12 only page_protocol is open: ' +
-          ', '.join(still_open))
-    check(all('missing:' in item['why'] for item in document['open']), 'I12 an open obligation says what it lacks')
+    check(not still_open, 'I12 every obligation is discharged: ' + ', '.join(still_open) + ' open')
     lines = ['[[nodiscard]] bool pick(const u8 mode, const bool wide) noexcept {',
              '    const bool result = wide ? ::n::w::admits_a(mode)',
              '                             : ::n::s::admits_a(mode);',
@@ -272,6 +273,34 @@ def source_following(root: pathlib.Path) -> None:
     check(not deducer.unary_star('const u64 x = a * value;', 'value'), 'I12 a product is not a dereference')
 
 
+def page_invariant(tool, root: pathlib.Path, declarations: list) -> None:
+    import dataclasses
+    deducer = load_deducer(root)
+    partition = ('H & F == 0', 'H & R == 0', 'F & R == 0', '(H | F | R) == M')
+    proved, _ = deducer.lemma(partition + ('b & H == b', 'F_after == F | b', 'H_after == H & ~b', 'R_after == R'),
+                              '(H_after | F_after | R_after) == M')
+    check(proved, 'I13 the owner\'s release of a held block keeps the partition')
+    proved, _ = deducer.lemma(partition + ('F_after == F | b', 'H_after == H & ~b', 'R_after == R'),
+                              '(H_after | F_after | R_after) == M')
+    check(not proved, 'I13 without the block held the partition is not proved')
+    allocator = [item for item in declarations if item.path.endswith('allocator.ic.toml')][0]
+    records, _ = deducer.deduce_declaration(root, allocator)
+    discharged = {record.identifier: record for record in records}
+    prefix = allocator.manifest_key().replace('::', '.').lower()
+    stated = {prefix + '.' + item.identifier: item for item in allocator.obligations}
+    protocol = [item for item in allocator.obligations if item.identifier == 'page_protocol'][0]
+    held, _, _, _ = deducer.invariant_kept(root, prefix, protocol, discharged, stated)
+    check(held, 'I13 page_protocol is kept by its steps')
+    without_scan = dataclasses.replace(protocol, composes=tuple(entry for entry in protocol.composes
+                                                                if not entry.startswith('scan')))
+    held, _, _, _ = deducer.invariant_kept(root, prefix, without_scan, discharged, stated)
+    check(not held, 'I13 a write no step cites leaves the invariant open')
+    without_summary = dataclasses.replace(protocol, composes=tuple(entry.replace(', summary_take', '')
+                                                                   for entry in protocol.composes))
+    held, _, _, _ = deducer.invariant_kept(root, prefix, without_summary, discharged, stated)
+    check(not held, 'I13 a step that changes a word its lemmas do not describe leaves the invariant open')
+
+
 def gate_file(root: pathlib.Path, declarations: list) -> None:
     text = (root / 'proofs' / 'ic' / 'GATE.md').read_text(encoding='utf-8')
     for declaration in declarations:
@@ -295,6 +324,7 @@ def main() -> int:
     engine_tables(tool, root, declarations)
     deductions(tool, root)
     source_following(root)
+    page_invariant(tool, root, declarations)
     gate_file(root, declarations)
     for label in failures:
         print('FAILED: ' + label)
