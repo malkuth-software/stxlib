@@ -25,8 +25,8 @@ Properties:
       offsets, set_size) is the generated predicate, and the old
       hand-written limit is gone from files.cpp;
   I6  the contract lines in the headers are the generator's: each declared
-      call's first declaration line has `// ic:` lines directly above it
-      (or above its template line).
+      call with something to declare has `// ic:` lines directly above its
+      first declaration line (or above its template line).
 """
 
 import importlib.util
@@ -132,6 +132,10 @@ def contract_lines(tool, root: pathlib.Path, declarations: list) -> None:
             above = index - 1
             if above >= 0 and tool.TEMPLATE_LINE.match(lines[above]):
                 above = above - 1
+            # A call with nothing to declare gets no lines (the generator
+            # writes none when call_sentences is empty).
+            if not tool.call_sentences(declaration, call):
+                continue
             check(above >= 0 and lines[above].lstrip().startswith(tool.COMMENT_PREFIX),
                   'I6 ' + declaration.manifest_key() + '::' + call.name + ' has its contract lines')
 
