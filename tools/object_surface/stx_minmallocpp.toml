@@ -21,6 +21,20 @@ allowed = [
   { symbol = "pthread_setspecific", reason = "arms the thread-exit hook (os.hpp)" },
   { symbol = "pthread_getspecific", reason = "reads the thread-exit hook (os.hpp)" },
   { symbol = "abort", reason = "the one exit on a broken invariant (os.hpp)" },
+  # Linux and FreeBSD aarch64: the compilers call an outline-atomics helper for
+  # each atomic read-modify-write. STXlib defines all of them in its own
+  # stxlib_outline_atomics (src/hosted/elf/outline_atomics_aarch64.cpp), which
+  # stxlib_state and the allocator's test programs link; they are STXlib's
+  # leaves, not the toolchain's. The patterns admit any ordering suffix;
+  # tools/check_outline_atomics.py (ctest stxlib_outline_atomics_link) checks
+  # on the linked binaries that every helper resolves to STXlib's.
+  { pattern = "aarch64_cas[1248]_*", reason = "STXlib's outline-atomics compare-and-swap (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_cas16_*", reason = "STXlib's outline-atomics 16-byte compare-and-swap (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_swp[1248]_*", reason = "STXlib's outline-atomics swap (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_ldadd[1248]_*", reason = "STXlib's outline-atomics fetch-add (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_ldclr[1248]_*", reason = "STXlib's outline-atomics fetch-and-not (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_ldeor[1248]_*", reason = "STXlib's outline-atomics fetch-xor (outline_atomics_aarch64.cpp)" },
+  { pattern = "aarch64_ldset[1248]_*", reason = "STXlib's outline-atomics fetch-or (outline_atomics_aarch64.cpp)" },
 ]
 
 [families.windows]

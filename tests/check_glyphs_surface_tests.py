@@ -7,7 +7,8 @@ The tool is loaded as a module and its symbol reader is replaced by a table,
 so the cases run on every host without an nm. Properties:
   G1  STXlib's own leaves pass in the Itanium spelling (with and without the
       leading underscore a host adds) and in the Microsoft one; other names
-      of STXlib's do not;
+      of STXlib's do not; STXlib's outline-atomics helpers pass in every
+      operation, size and ordering, and nothing near them does;
   G2  the toolchain helpers pass; the C library, the C++ runtime and the
       exception runtime do not; sanitizer entries pass only with --sanitized;
       the wasm globals only with --web;
@@ -59,6 +60,16 @@ def own_leaves(tool) -> None:
     for name in ('_ZN6stxlib5files9read_fileENS_8TextViewE', '_ZN6stxlib6detail15allocate_tracedEm', '_ZN6stxlib5Mutex8try_lockEv',
                  '_ZN6stxlib7console5writeENS_8TextViewE'):
         check(not tool.allowed(name, False, False), 'G1 refused ' + name)
+    for operation in ('cas', 'swp', 'ldadd', 'ldclr', 'ldeor', 'ldset'):
+        for size in ('1', '2', '4', '8'):
+            for order in ('relax', 'acq', 'rel', 'acq_rel'):
+                name = '__aarch64_' + operation + size + '_' + order
+                check(tool.allowed(name, False, False), 'G1 ' + name)
+    for order in ('relax', 'acq', 'rel', 'acq_rel'):
+        check(tool.allowed('__aarch64_cas16_' + order, False, False), 'G1 __aarch64_cas16_' + order)
+    for name in ('__aarch64_cas4_sync', '__aarch64_swp16_acq', '__aarch64_ldadd16_relax', '__aarch64_cas3_acq',
+                 '__aarch64_have_lse_atomics', 'init_have_lse_atomics', '__aarch64_ldmax4_acq', '__aarch64_cas4_acq_rel_x'):
+        check(not tool.allowed(name, False, False), 'G1 refused ' + name)
 
 
 def helpers(tool) -> None:
@@ -97,7 +108,7 @@ def run_main(tool, table: dict[str, tuple[set[str], set[str]]], extra: list[str]
 
 def whole_runs(tool) -> None:
     good = {
-        'a.o': ({'_first'}, {ALLOCATE, RELEASE, '_memcpy', '_second'}),
+        'a.o': ({'_first'}, {ALLOCATE, RELEASE, '_memcpy', '_second', '__aarch64_cas8_acq_rel', '__aarch64_ldadd4_acq_rel'}),
         'b.o': ({'_second'}, {RECORD, LOCK, UNLOCK, '___stack_chk_fail', '_first'}),
     }
     check(run_main(tool, good, []) == 0, 'G3 the listed leaves pass')

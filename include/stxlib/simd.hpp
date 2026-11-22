@@ -54,11 +54,29 @@ struct Features final {
     // SIMD instructions, and an engine without them refuses to compile the
     // whole module, so a module that runs at all has them.
     bool simd128{false};
+    // arm64's Large System Extensions (Armv8.1 atomics: CAS, SWP, LDADD and
+    // the other single-instruction read-modify-writes). Not a SIMD tier;
+    // kept here so that one detection answers every "what does this CPU
+    // have" question. How it is known differs by host:
+    // - Linux and FreeBSD: read from the CPU's ID register ID_AA64ISAR0_EL1
+    //   (Atomic, bits 23:20) by the same detection STXlib's own
+    //   outline-atomics helpers use, which also choose by it. On a Linux
+    //   kernel that does not expose the ID registers to user space (before
+    //   4.11, HWCAP_CPUID clear) it is false.
+    // - Apple: true; every Apple arm64 CPU has LSE.
+    // - Windows: true when the build targets Armv8.1 or later (the compiler
+    //   defines __ARM_FEATURE_ATOMICS); otherwise false, which there means
+    //   "not detected", not "absent". Windows' toolchains inline atomics for
+    //   the build's target, so nothing in STXlib chooses by it.
+    // False on every other architecture.
+    bool lse{false};
 };
 
 // What this CPU and operating system support (CPUID and XGETBV on x86-64;
-// NEON as arm64's baseline; SIMD128 as the wasm build was compiled). Computed on each call; a pure function of the
-// machine.
+// NEON as arm64's baseline and LSE as Features::lse says; SIMD128 as the
+// wasm build was compiled). Computed on each call, except LSE on Linux and
+// FreeBSD, which is read once per module and remembered (the helpers'
+// memo); a pure function of the machine.
 [[nodiscard]] Features detected_features() noexcept;
 
 // The highest level this machine can run and this build can execute.
