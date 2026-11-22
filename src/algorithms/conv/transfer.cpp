@@ -12,6 +12,7 @@
 
 #include "canon.hpp"
 #include "field_state.hpp"
+#include "footprint.hpp"
 
 #include "stxlib/memory.hpp"
 
@@ -88,50 +89,6 @@ void mesh_at(const MeshMap& mesh, const double x, const double y, double& u, dou
 }
 
 // ---------------------------------------------------------------- axis canon
-
-// Gauss-Legendre, three points on [-1, 1].
-constexpr double gauss_x[3]{-0.7745966692414834, 0.0, 0.7745966692414834};
-constexpr double gauss_w[3]{5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
-
-// A quadrature node of a footprint: its source cell, phase and weight.
-struct FootprintNode final {
-    usize cell{0};
-    double t{0.0};
-    double weight{0.0};
-};
-
-// Writes the nodes of target pixel `index`'s footprint [index s - 1/2, (index + 1) s - 1/2]
-// (s = source / target), cut at source cells, into nodes (footprint_room); returns their count.
-usize footprint(const usize index, const usize source, const usize target, FootprintNode* nodes) noexcept {
-    const double scale = static_cast<double>(source) / static_cast<double>(target);
-    const double left = static_cast<double>(index) * scale - 0.5;
-    const double right = static_cast<double>(index + 1) * scale - 0.5;
-    const double length = right - left;
-    usize count = 0;
-    double a = left;
-    while (a < right) {
-        // floor(a): a >= -1/2, so -1 below zero and truncation above.
-        const double whole = a < 0.0 ? -1.0 : static_cast<double>(static_cast<u64>(a));
-        double b = whole + 1.0;
-        if (b > right) b = right;
-        const double half = 0.5 * (b - a);
-        const double mid = 0.5 * (a + b);
-        for (usize k = 0; k < 3; ++k) {
-            FootprintNode node;
-            locate(mid + half * gauss_x[k], source - 1, node.cell, node.t);
-            node.weight = gauss_w[k] * half / length;
-            nodes[count] = node;
-            count = count + 1;
-        }
-        a = b;
-    }
-    return count;
-}
-
-usize footprint_room(const usize source, const usize target) noexcept {
-    const usize pieces = source / target + 3;
-    return 3 * pieces;
-}
 
 // Per destination row: the v-cells its nodes fall in, with combined weights.
 struct RowCellWeights final {
@@ -322,25 +279,228 @@ void pull_back(const AnyMap& map, const FieldState& field, const usize x, const 
     v = fy;
 }
 
-OperationStatus preview(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const Region& region) noexcept {
-    for (usize y = region.y0; y < region.y1; ++y) {
-        for (usize x = region.x0; x < region.x1; ++x) {
-            double u = 0.0;
-            double v = 0.0;
-            pull_back(map, field, x, y, u, v);
+// ---------------------------------------------------------------- tiled preview (K2)
+//
+// work/conv SIMD_DESIGN.md Stage 2. Per 32 x 32 tile: the pulled-back points; the tile's
+// local row cells (anchor plus currents, 24 doubles: channel innermost) for the source rows
+// and cells its points reach, built once by K2 row_cells plus the rows' run lists; every
+// query's eight row values by K2 tile_windows; K1 pass A over all vertical windows, the linear
+// value everywhere, pass B on the listed windows only and the admitted value where admission
+// acts; end vertical cells compiled whole. Every step has Field::evaluate's operation order,
+// so the bytes are encode(evaluate(pull_back(x, y))). A tile whose points reach more than
+// limit_cells cells or limit_rows rows is evaluated point by point (the same bits).
+
+constexpr usize tile = 32;
+constexpr usize limit_cells = 96;
+constexpr usize limit_rows = 104;
+constexpr usize tile_queries = tile * tile;
+constexpr usize tile_lanes = tile_queries * channel_count;
+constexpr double zero_cell[24]{};
+
+OperationStatus prepare_tiled(WorkspaceState& w) noexcept {
+    OperationStatus status = w.us.resize(tile_queries);
+    if (status.succeeded()) status = w.vs.resize(tile_queries);
+    if (status.succeeded()) status = w.local.resize(limit_rows * limit_cells * 24);
+    if (status.succeeded()) status = w.decoded.resize((limit_cells + 8) * channel_count);
+    if (status.succeeded()) status = w.planes.resize((8 + 5 + 1) * tile_lanes);
+    if (status.succeeded()) status = w.sv.resize(6 * tile_queries);
+    if (status.succeeded()) status = w.tau_u.resize(5 * tile_queries);
+    if (status.succeeded()) status = w.tau_v.resize(5 * tile_queries);
+    if (status.succeeded()) status = w.row_pointers.resize(8 * tile_queries);
+    if (status.succeeded()) status = w.list.resize(tile_lanes);
+    if (status.succeeded()) status = w.compact.resize((8 + 5 + 5 + 1 + 5) * (tile_lanes + 1));
+    if (status.succeeded()) status = w.idle.resize(tile_lanes);
+    if (status.succeeded()) status = w.end_queries.resize(tile_queries);
+    if (status.succeeded()) status = w.query_cell_v.resize(tile_queries);
+    return status;
+}
+
+// Builds the local cells of rows r0..r1, cells imin..imax.
+void build_local(const FieldState& field, const usize r0, const usize r1, const usize imin, const usize imax, WorkspaceState& w) noexcept {
+    const usize width = field.width;
+    const usize ncells = imax - imin + 1;
+    double* const local = w.local.mutable_view().data();
+    double* const decoded = w.decoded.mutable_view().data();
+    const usize inner_first = imin > 2 ? imin : 2;
+    const usize inner_last = width >= 4 ? (imax < width - 4 ? imax : width - 4) : 0;
+    const Correction* const corrections = field.corrections.view().data();
+    const usize* const row_start = field.row_start.view().data();
+    for (usize r = r0; r <= r1; ++r) {
+        double* const row_local = local + (r - r0) * ncells * 24;
+        const u8* const row = field.source.view().data() + r * width * 4;
+        if (width >= 6 && inner_first <= inner_last) {
+            for (usize x = inner_first - 2; x <= inner_last + 3; ++x) decode(row + x * 4, decoded + (x - (inner_first - 2)) * channel_count);
+            (*field.kernels).row_cells(decoded, inner_last - inner_first + 1, row_local + (inner_first - imin) * 24);
+        }
+        // End cells: anchor, then their stored currents from the run list below.
+        for (usize i = imin; i <= imax; ++i) {
+            if (interior_cell(i, width)) continue;
+            double* const cell = row_local + (i - imin) * 24;
+            double anchor[channel_count];
+            decode(row + i * 4, anchor);
+            for (usize c = 0; c < channel_count; ++c) cell[c] = anchor[c];
+        }
+        for (usize k = row_start[r]; k < row_start[r + 1]; ++k) {
+            const Correction& entry = corrections[k];
+            if (entry.cell < imin || entry.cell > imax) continue;
+            double* const cell = row_local + (entry.cell - imin) * 24;
+            const usize c = entry.channel;
+            if (interior_cell(entry.cell, width)) {
+                for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = cell[(m + 1) * channel_count + c] + entry.e[m];
+            } else {
+                for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = entry.e[m];
+            }
+        }
+    }
+}
+
+void preview_tile(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const usize tx0, const usize ty0,
+                  const usize tx1, const usize ty1, WorkspaceState& w) noexcept {
+    const usize width = field.width;
+    const usize height = field.height;
+    const usize cells = width - 1;
+    const usize tw = tx1 - tx0;
+    const usize count = (ty1 - ty0) * tw;
+    double* const us = w.us.mutable_view().data();
+    double* const vs = w.vs.mutable_view().data();
+    usize imin = cells;
+    usize imax = 0;
+    usize jmin = height;
+    usize jmax = 0;
+    for (usize y = ty0; y < ty1; ++y) {
+        for (usize x = tx0; x < tx1; ++x) {
+            const usize q = (y - ty0) * tw + (x - tx0);
+            pull_back(map, field, x, y, us[q], vs[q]);
+            usize i = 0;
+            usize j = 0;
+            double t = 0.0;
+            locate(us[q], cells, i, t);
+            locate(vs[q], height - 1, j, t);
+            imin = i < imin ? i : imin;
+            imax = i > imax ? i : imax;
+            jmin = j < jmin ? j : jmin;
+            jmax = j > jmax ? j : jmax;
+        }
+    }
+    const usize r0 = jmin >= 3 ? jmin - 3 : 0;
+    const usize r1 = jmax + 4 < height ? jmax + 4 : height - 1;
+    const usize ncells = imax - imin + 1;
+    if (ncells > limit_cells || r1 - r0 + 1 > limit_rows) {
+        for (usize q = 0; q < count; ++q) {
             double value[channel_count];
-            field_value(field, u, v, value);
-            encode(value, pixel_at(destination, x, y));
+            field_value(field, us[q], vs[q], value);
+            encode(value, pixel_at(destination, tx0 + q % tw, ty0 + q / tw));
+        }
+        return;
+    }
+    build_local(field, r0, r1, imin, imax, w);
+    const Kernels& kernels = *field.kernels;
+    const double* const local = w.local.view().data();
+    double* const sv = w.sv.mutable_view().data();
+    double* const tau_u = w.tau_u.mutable_view().data();
+    double* const tau_v = w.tau_v.mutable_view().data();
+    const double** const rows = w.row_pointers.mutable_view().data();
+    usize* const end_queries = w.end_queries.mutable_view().data();
+    usize* const query_cell_v = w.query_cell_v.mutable_view().data();
+    usize ends = 0;
+    for (usize q = 0; q < count; ++q) {
+        usize i = 0;
+        usize j = 0;
+        double tu = 0.0;
+        double tv = 0.0;
+        locate(us[q], cells, i, tu);
+        locate(vs[q], height - 1, j, tv);
+        tail_weights(tu, tau_u + 5 * q);
+        kernel_weights(tv, sv + 6 * q);
+        tail_weights(tv, tau_v + 5 * q);
+        const bool interior = interior_cell(j, height);
+        for (usize k = 0; k < 8; ++k) {
+            const i64 row = static_cast<i64>(j) - 3 + static_cast<i64>(k);
+            const bool skipped = (interior && (k == 0 || k == 7)) || row < 0 || static_cast<usize>(row) >= height;
+            rows[8 * q + k] = skipped ? zero_cell : local + ((static_cast<usize>(row) - r0) * ncells + (i - imin)) * 24;
+        }
+        query_cell_v[q] = j;
+        if (!interior) {
+            end_queries[ends] = q;
+            ends = ends + 1;
+        }
+    }
+    double* const planes = w.planes.mutable_view().data();
+    double* window[8];
+    double* raw[5];
+    for (usize k = 0; k < 8; ++k) window[k] = planes + k * tile_lanes;
+    for (usize k = 0; k < 5; ++k) raw[k] = planes + (8 + k) * tile_lanes;
+    double* const value = planes + 13 * tile_lanes;
+    kernels.tile_windows(count, rows, tau_u, window);
+    const usize n = count * channel_count;
+    const double* const wc[8]{window[0], window[1], window[2], window[3], window[4], window[5], window[6], window[7]};
+    u32* const list = w.list.mutable_view().data();
+    const usize m = kernels.pass_a(wc, raw, list, n);
+    kernels.vertical_linear(count, wc, sv, value);
+    // Pass B on the listed windows: gather samples 2..5, the raw currents and the tails.
+    double* const compact = w.compact.mutable_view().data();
+    const usize stride = m + 1;
+    double* cw[8];
+    double* cr[5];
+    double* ca[5];
+    for (usize k = 0; k < 8; ++k) cw[k] = compact + k * stride;
+    for (usize k = 0; k < 5; ++k) {
+        cr[k] = compact + (8 + k) * stride;
+        ca[k] = compact + (13 + k) * stride;
+    }
+    double* const cv = compact + 18 * stride;
+    double* const ct = compact + 19 * stride;
+    for (usize g = 0; g < m; ++g) {
+        const usize lane = list[g];
+        for (usize k = 2; k <= 5; ++k) cw[k][g] = window[k][lane];
+        for (usize k = 0; k < 5; ++k) {
+            cr[k][g] = raw[k][lane];
+            ct[5 * g + k] = tau_v[5 * (lane / channel_count) + k];
+        }
+    }
+    const double* const cwc[8]{cw[2], cw[2], cw[2], cw[3], cw[4], cw[5], cw[5], cw[5]};
+    const double* const crc[5]{cr[0], cr[1], cr[2], cr[3], cr[4]};
+    u8* const idle = w.idle.mutable_view().data();
+    kernels.pass_b(cwc, crc, ca, idle, m);
+    const double* const cac[5]{ca[0], ca[1], ca[2], ca[3], ca[4]};
+    kernels.vertical_admitted(cw[3], ct, cac, cv, m);
+    // Where the box holds the raw currents the value stays the linear one (Field::evaluate).
+    for (usize g = 0; g < m; ++g) {
+        if (idle[g] == 0) value[list[g]] = cv[g];
+    }
+    // End vertical cells (whole windows, end interior lanes overwritten): compiled whole.
+    for (usize e = 0; e < ends; ++e) {
+        const usize q = end_queries[e];
+        const usize j = query_cell_v[q];
+        const CellShape shape = cell_shape(j, height);
+        for (usize c = 0; c < channel_count; ++c) {
+            const usize lane = q * channel_count + c;
+            double win[8];
+            for (usize k = 0; k < 8; ++k) win[k] = window[k][lane];
+            double r[5];
+            double admitted[5];
+            raw_for_shape(win, shape, r);
+            (void)admit_cell(win, shape, r, admitted, false);
+            value[lane] = evaluate_cell(win[3], admitted, tau_v + 5 * q);
+        }
+    }
+    for (usize q = 0; q < count; ++q) encode(value + q * channel_count, pixel_at(destination, tx0 + q % tw, ty0 + q / tw));
+}
+
+OperationStatus preview(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const Region& region,
+                        WorkspaceState& workspace) noexcept {
+    if (region.x0 == region.x1 || region.y0 == region.y1) return OperationStatus::success();
+    if (prepare_tiled(workspace).failed()) return exhausted("stxlib.conv.transfer");
+    for (usize ty0 = region.y0; ty0 < region.y1; ty0 += tile) {
+        const usize ty1 = ty0 + tile < region.y1 ? ty0 + tile : region.y1;
+        for (usize tx0 = region.x0; tx0 < region.x1; tx0 += tile) {
+            const usize tx1 = tx0 + tile < region.x1 ? tx0 + tile : region.x1;
+            preview_tile(field, map, destination, tx0, ty0, tx1, ty1, workspace);
         }
     }
     return OperationStatus::success();
 }
 
-OperationStatus canon_not_yet(const Operation operation) noexcept {
-    return OperationStatus::failure(ErrorRecord::make(
-        ErrorKind::unsupported, operation,
-        ErrorDetail{.message = "projective canon is held: option (b) measured wrong near the horizon (work/conv PERSPECTIVE_OPTIONS.md)"}));
-}
 
 } // namespace
 
@@ -402,7 +562,7 @@ OperationStatus transfer(const Field& field, const AxisMap& map, const Mode mode
     detail::AnyMap any;
     any.kind = detail::MapKind::axis;
     any.axis = &map;
-    return detail::preview(state, any, destination, region);
+    return detail::preview(state, any, destination, region, *FieldAccess::state(workspace));
 }
 
 OperationStatus transfer(const Field& field, const AffineMap& map, const Mode mode, const MutableRgba8Image& destination,
@@ -418,7 +578,7 @@ OperationStatus transfer(const Field& field, const AffineMap& map, const Mode mo
     detail::AnyMap any;
     any.kind = detail::MapKind::affine;
     any.affine = &map;
-    return detail::preview(*FieldAccess::state(field), any, destination, region);
+    return detail::preview(*FieldAccess::state(field), any, destination, region, *FieldAccess::state(workspace));
 }
 
 OperationStatus transfer(const Field& field, const MeshMap& map, const Mode mode, const MutableRgba8Image& destination, const Region& region,
@@ -439,7 +599,7 @@ OperationStatus transfer(const Field& field, const MeshMap& map, const Mode mode
     detail::AnyMap any;
     any.kind = detail::MapKind::mesh;
     any.mesh = &map;
-    return detail::preview(*FieldAccess::state(field), any, destination, region);
+    return detail::preview(*FieldAccess::state(field), any, destination, region, *FieldAccess::state(workspace));
 }
 
 OperationStatus transfer(const Field& field, const ProjectiveMap& map, const Mode mode, const MutableRgba8Image& destination,
@@ -460,11 +620,13 @@ OperationStatus transfer(const Field& field, const ProjectiveMap& map, const Mod
             }
         }
     }
-    if (mode == Mode::canon) return detail::canon_not_yet("stxlib.conv.transfer.projective");
+    if (mode == Mode::canon) {
+        return detail::projective_canon(*FieldAccess::state(field), map, destination, region, *FieldAccess::state(workspace));
+    }
     detail::AnyMap any;
     any.kind = detail::MapKind::projective;
     any.projective = &map;
-    return detail::preview(*FieldAccess::state(field), any, destination, region);
+    return detail::preview(*FieldAccess::state(field), any, destination, region, *FieldAccess::state(workspace));
 }
 
 } // namespace stxlib::conv

@@ -36,7 +36,7 @@ using stxlib::u64;
 using stxlib::usize;
 
 // The digest of digest_outputs() on the fixtures below; 0 prints it without checking.
-constexpr u64 expected_digest = 0xcf8544c12ec0b512ull;
+constexpr u64 expected_digest = 0x273d96e8953415eeull;
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
@@ -708,6 +708,165 @@ void affine_and_mesh_canon() {
     CHECK(differing == 0);
 }
 
+
+struct ProjectivePullBack final : PullBack {
+    double h[9]{};
+    void at(const double x, const double y, double& u, double& v) const override {
+        const double w = h[6] * x + h[7] * y + h[8];
+        u = (h[0] * x + h[1] * y + h[2]) / w;
+        v = (h[3] * x + h[4] * y + h[5]) / w;
+    }
+};
+
+void projective_canon() {
+    const Image image = fixture(Kind::icon, 60, 50, 13);
+    const conv::Field field = compiled(image);
+    conv::Workspace workspace = workspace_made();
+    // Horizon strength k over a 40 x 40 destination (as the bench's perspective_of): mild, and
+    // strong (w from 1.75 to 0.25, the lower rows reaching far outside the source).
+    const double strengths[2] = {0.2, 1.5};
+    for (usize s = 0; s < 2; ++s) {
+        const double k = strengths[s];
+        const double n = 40.0;
+        const double c = 0.5 * (n - 1.0);
+        const double a = -k / (n - 1.0);
+        const double b = 1.0 + 0.5 * k;
+        ProjectivePullBack pull;
+        const double h[9] = {1.0, c * a, c * b - c, 0.0, 1.0 + c * a, c * b - c, 0.0, a, b};
+        for (usize m = 0; m < 9; ++m) pull.h[m] = h[m];
+        conv::ProjectiveMap map;
+        for (usize m = 0; m < 9; ++m) map.h[m] = h[m];
+        Destination out(40, 40);
+        CHECK(conv::transfer(field, map, conv::Mode::canon, out.view(), conv::Region{0, 0, 40, 40}, workspace).succeeded());
+        Agreement agreement;
+        for (usize y = 0; y < 40; ++y) {
+            for (usize x = 0; x < 40; ++x) compare_pixel(field, pull, out.rgba.data() + (y * 40 + x) * 4, x, y, 12, agreement);
+        }
+        std::printf("projective canon k %.1f against destination quadrature: %zu of %zu bytes-exact, largest %d premultiplied codes\n", k,
+                    agreement.exact, agreement.total, agreement.worst);
+        CHECK(agreement.worst <= 2);
+        CHECK(agreement.exact * 100 >= agreement.total * 90);
+    }
+}
+
+// ---------------------------------------------------------------- lines
+
+void line_field() {
+    // A line made of one decoded image row equals the 2D field on that row, bit for bit.
+    const Image image = fixture(Kind::noise, 37, 9, 21);
+    const conv::Field field = compiled(image);
+    const usize row = 4;
+    std::vector<double> samples(37 * 4);
+    for (usize x = 0; x < 37; ++x) line::decode(image.rgba.data() + (row * 37 + x) * 4, samples.data() + x * 4);
+    stxlib::OperationResult<conv::LineField> made = conv::LineField::make(37, 4, conv::FieldOptions{});
+    CHECK(made.succeeded());
+    conv::LineField whole_line = static_cast<stxlib::OperationResult<conv::LineField>&&>(made).take_value();
+    conv::LineSamples input;
+    input.values = stxlib::View<double>(samples.data(), samples.size());
+    input.nodes = 37;
+    input.lanes = 4;
+    input.node_stride = 4;
+    CHECK(whole_line.compile(input).succeeded());
+    usize differing = 0;
+    for (usize q = 0; q <= 720; ++q) {
+        const double u = static_cast<double>(q) * 0.05 - 0.5;
+        double a[4];
+        double b[4];
+        CHECK(whole_line.evaluate(u, stxlib::MutableView<double>(a, 4)).succeeded());
+        CHECK(field.evaluate(u, static_cast<double>(row), stxlib::MutableView<double>(b, 4)).succeeded());
+        differing = differing + (std::memcmp(a, b, sizeof(a)) == 0 ? 0 : 1);
+    }
+    std::printf("line field against the 2D field's row: %zu of 721 points differ\n", differing);
+    CHECK(differing == 0);
+    // Canon against a dense quadrature through evaluate (ten Gauss pieces per footprint cell
+    // piece); preview and points against evaluate; one lane, strided target.
+    const usize targets[3] = {101, 13, 37};
+    double worst = 0.0;
+    for (const usize n : targets) {
+        std::vector<double> out(n * 6, -7.0);
+        conv::MutableLineSamples target;
+        target.values = stxlib::MutableView<double>(out.data(), out.size());
+        target.nodes = n;
+        target.lanes = 4;
+        target.node_stride = 6;
+        CHECK(conv::transfer(whole_line, conv::Mode::canon, target).succeeded());
+        const double scale = 37.0 / static_cast<double>(n);
+        for (usize k = 0; k < n; ++k) {
+            const double left = static_cast<double>(k) * scale - 0.5;
+            const double right = static_cast<double>(k + 1) * scale - 0.5;
+            double sum[4] = {0.0, 0.0, 0.0, 0.0};
+            const double gx[3] = {-0.7745966692414834, 0.0, 0.7745966692414834};
+            const double gw[3] = {5.0 / 9.0, 8.0 / 9.0, 5.0 / 9.0};
+            for (double a = left; a < right;) {
+                double b = std::floor(a) + 1.0;
+                b = b > right ? right : b;
+                for (usize p = 0; p < 10; ++p) {
+                    const double a0 = a + (b - a) * static_cast<double>(p) / 10.0;
+                    const double a1 = a + (b - a) * static_cast<double>(p + 1) / 10.0;
+                    for (usize g = 0; g < 3; ++g) {
+                        double value[4];
+                        CHECK(whole_line.evaluate(0.5 * (a0 + a1) + 0.5 * (a1 - a0) * gx[g], stxlib::MutableView<double>(value, 4)).succeeded());
+                        for (usize c = 0; c < 4; ++c) sum[c] = sum[c] + gw[g] * 0.5 * (a1 - a0) / (right - left) * value[c];
+                    }
+                }
+                a = b;
+            }
+            for (usize c = 0; c < 4; ++c) {
+                const double d = std::fabs(out[k * 6 + c] - sum[c]);
+                worst = d > worst ? d : worst;
+            }
+            CHECK(out[k * 6 + 4] == -7.0 && out[k * 6 + 5] == -7.0);
+        }
+        CHECK(conv::transfer(whole_line, conv::Mode::preview, target).succeeded());
+        for (usize k = 0; k < n; ++k) {
+            double value[4];
+            CHECK(whole_line.evaluate(static_cast<double>(k) * 36.0 / static_cast<double>(n - 1), stxlib::MutableView<double>(value, 4)).succeeded());
+            CHECK(std::memcmp(value, out.data() + k * 6, sizeof(value)) == 0);
+        }
+    }
+    std::printf("line canon against dense quadrature: largest difference %.3g\n", worst);
+    CHECK(worst <= 1e-12);
+    std::vector<double> positions = {-3.0, 0.0, 0.25, 17.5, 35.999, 36.0, 99.0};
+    std::vector<double> out(positions.size() * 4);
+    conv::MutableLineSamples target;
+    target.values = stxlib::MutableView<double>(out.data(), out.size());
+    target.nodes = positions.size();
+    target.lanes = 4;
+    target.node_stride = 4;
+    CHECK(conv::transfer_points(whole_line, stxlib::View<double>(positions.data(), positions.size()), target).succeeded());
+    for (usize k = 0; k < positions.size(); ++k) {
+        double value[4];
+        CHECK(whole_line.evaluate(positions[k], stxlib::MutableView<double>(value, 4)).succeeded());
+        CHECK(std::memcmp(value, out.data() + k * 4, sizeof(value)) == 0);
+    }
+    // Short lines (2 to 5 nodes, the short-line jets) against the unseparated restatement.
+    for (usize n = 2; n <= 7; ++n) {
+        const Image tiny = fixture(Kind::noise, n, 2, static_cast<u32>(n));
+        const Reference reference(tiny);
+        std::vector<double> row0(n * 4);
+        for (usize x = 0; x < n; ++x) line::decode(tiny.rgba.data() + x * 4, row0.data() + x * 4);
+        stxlib::OperationResult<conv::LineField> small = conv::LineField::make(n, 4, conv::FieldOptions{});
+        CHECK(small.succeeded());
+        conv::LineField short_line = static_cast<stxlib::OperationResult<conv::LineField>&&>(small).take_value();
+        conv::LineSamples in;
+        in.values = stxlib::View<double>(row0.data(), row0.size());
+        in.nodes = n;
+        in.lanes = 4;
+        in.node_stride = 4;
+        CHECK(short_line.compile(in).succeeded());
+        for (usize q = 0; q <= 40; ++q) {
+            const double u = static_cast<double>(q) * static_cast<double>(n - 1) / 40.0;
+            double a[4];
+            double b[4];
+            CHECK(short_line.evaluate(u, stxlib::MutableView<double>(a, 4)).succeeded());
+            reference.value(u, 0.0, b);
+            for (usize c = 0; c < 4; ++c) CHECK(std::fabs(a[c] - b[c]) <= 1e-12);
+        }
+    }
+    CHECK(conv::LineField::make(1, 4, conv::FieldOptions{}).failed());
+    CHECK(conv::LineField::make(8, conv::max_line_lanes + 1, conv::FieldOptions{}).failed());
+}
+
 void refusals() {
     CHECK(conv::Field::make(1, 5, conv::FieldOptions{}).failed());
     CHECK(conv::Field::make(5, conv::max_side + 1, conv::FieldOptions{}).failed());
@@ -794,6 +953,8 @@ int main() {
     previews_match_field();
     axis_canon();
     affine_and_mesh_canon();
+    projective_canon();
+    line_field();
     refusals();
     digest_outputs();
     return stxlib_tests::finish("stxlib conv");

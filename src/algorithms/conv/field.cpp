@@ -214,31 +214,40 @@ const Correction* find(const FieldState& field, const usize y, const usize i, co
 } // namespace
 
 void row_value(const FieldState& field, const usize y, const usize i, const double* s, const double* tau, double* out) noexcept {
+    (void)s;
     const usize width = field.width;
     const bool end = !interior_cell(i, width);
-    double base[channel_count]{0.0, 0.0, 0.0, 0.0};
     const u8* const row = field.source.view().data() + y * width * 4;
-    if (end) {
-        decode(row + i * 4, base);
-    } else {
-        const u8* const pixel = row + (i - 2) * 4;
-        for (usize r = 0; r < 6; ++r) {
-            double p[channel_count];
-            decode(pixel + r * 4, p);
-            for (usize c = 0; c < channel_count; ++c) base[c] = base[c] + s[r] * p[c];
-        }
+    // Interior cells: anchor plus (raw + e) . tau, raw in K2 row_cells' operation order, so the
+    // tiled preview (transfer.cpp) and this point evaluation give the same bits. In exact
+    // arithmetic the uncorrected form equals the linear kernel s_t over y[i-2 .. i+3].
+    double window[6][channel_count];
+    if (!end) {
+        for (usize r = 0; r < 6; ++r) decode(row + (i - 2 + r) * 4, window[r]);
     }
+    double anchor[channel_count];
+    decode(row + i * 4, anchor);
+    const CellShape interior_shape{};
     for (usize c = 0; c < channel_count; ++c) {
         const Correction* const k = find(field, y, i, c);
-        if (k == nullptr) {
-            out[c] = base[c];
-            continue;
+        double currents[5]{0.0, 0.0, 0.0, 0.0, 0.0};
+        if (end) {
+            for (usize m = 0; m < 5; ++m) currents[m] = k == nullptr ? 0.0 : (*k).e[m];
+        } else {
+            double w[8];
+            w[0] = window[0][c];
+            for (usize r = 0; r < 6; ++r) w[r + 1] = window[r][c];
+            w[7] = window[5][c];
+            raw_for_shape(w, interior_shape, currents);
+            if (k != nullptr) {
+                for (usize m = 0; m < 5; ++m) currents[m] = currents[m] + (*k).e[m];
+            }
         }
-        double value = base[c] + (*k).e[0] * tau[0];
-        value = value + (*k).e[1] * tau[1];
-        value = value + (*k).e[2] * tau[2];
-        value = value + (*k).e[3] * tau[3];
-        value = value + (*k).e[4] * tau[4];
+        double value = anchor[c] + currents[0] * tau[0];
+        value = value + currents[1] * tau[1];
+        value = value + currents[2] * tau[2];
+        value = value + currents[3] * tau[3];
+        value = value + currents[4] * tau[4];
         out[c] = value;
     }
 }

@@ -1596,11 +1596,16 @@ void perspective_triangle(Sink& sink, const Homography& H, const P2 d0, const P2
     for (i64 iu = iu0; iu <= iu1; ++iu) {
         const Poly column = clip_region(src, true, iu, sink.cells_u);
         if (column.n < 3) continue;
-        const double ou = region_origin(iu, sink.cells_u);
+        // Outside the source along an axis F does not depend on that coordinate, so the local
+        // origin there is the triangle's own midpoint: the boundary can be thousands of cells
+        // away, and r0 + ru u + rv v and the degree-7 moments would cancel catastrophically.
+        const bool outer_u = iu < 0 || iu >= static_cast<i64>(sink.cells_u);
+        const double ou = outer_u ? 0.5 * (umin + umax) : region_origin(iu, sink.cells_u);
         for (i64 jv = jv0; jv <= jv1; ++jv) {
             Poly piece = clip_region(column, false, jv, sink.cells_v);
             if (piece.n < 3) continue;
-            const double ov = region_origin(jv, sink.cells_v);
+            const bool outer_v = jv < 0 || jv >= static_cast<i64>(sink.cells_v);
+            const double ov = outer_v ? 0.5 * (vmin + vmax) : region_origin(jv, sink.cells_v);
             for (usize k = 0; k < piece.n; ++k) {
                 piece.p[k].x = piece.p[k].x - ou;
                 piece.p[k].y = piece.p[k].y - ov;

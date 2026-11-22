@@ -166,6 +166,70 @@ private:
     friend struct detail::FieldAccess;
 };
 
+// ---------------------------------------------------------------- lines (1D)
+//
+// A line field: `nodes` samples of `lanes` doubles each (node k, lane l at
+// values[k node_stride + l]), compiled with the same arithmetic as a 2D field's rows (paper
+// closure, no bubble). The owner, 2026-11-23: one API for 1D and 2D, the line as its own field.
+
+inline constexpr usize max_line_lanes = 64;
+// The largest line a field takes.
+inline constexpr usize max_line_nodes = usize{1} << 28;
+
+struct LineSamples final {
+    View<double> values;
+    usize nodes{0};
+    usize lanes{0};
+    usize node_stride{0};
+};
+struct MutableLineSamples final {
+    MutableView<double> values;
+    usize nodes{0};
+    usize lanes{0};
+    usize node_stride{0};
+};
+
+namespace detail {
+struct LineFieldState;
+} // namespace detail
+
+class LineField final {
+public:
+    LineField() noexcept = default;
+    ~LineField();
+    LineField(const LineField&) = delete;
+    LineField& operator=(const LineField&) = delete;
+    LineField(LineField&& other) noexcept;
+    LineField& operator=(LineField&& other) noexcept;
+
+    // A field for 2 <= nodes <= max_line_nodes samples of 1 <= lanes <= max_line_lanes.
+    [[nodiscard]] static OperationResult<LineField> make(usize nodes, usize lanes, const FieldOptions& options) noexcept;
+    // Settles every cell. Samples must be finite and have the field's nodes and lanes. On
+    // failure the field is not ready and keeps its storage.
+    [[nodiscard]] OperationStatus compile(const LineSamples& samples) noexcept;
+    [[nodiscard]] bool ready() const noexcept;
+    [[nodiscard]] usize nodes() const noexcept;
+    [[nodiscard]] usize lanes() const noexcept;
+    [[nodiscard]] usize storage_bytes() const noexcept;
+    // The field at node coordinate x (clamped to [0, nodes - 1]), every lane.
+    [[nodiscard]] OperationStatus evaluate(double x, MutableView<double> values) const noexcept;
+
+private:
+    explicit LineField(detail::LineFieldState* state) noexcept : state_(state) {}
+    void release() noexcept;
+    detail::LineFieldState* state_{nullptr};
+    friend struct detail::FieldAccess;
+};
+
+// Resamples to target.nodes samples. Preview: nodes aligned at both ends (target k reads x =
+// k (n - 1) / (N - 1)). Canon: the field's average over each target sample's footprint
+// (k + [0, 1)) n / N - 1/2, exact for the quintic cells. Lanes must match. On failure nothing
+// has been written.
+[[nodiscard]] OperationStatus transfer(const LineField& field, Mode mode, const MutableLineSamples& target) noexcept;
+// target sample k = the field at positions[k] (finite; clamped). On failure nothing has been
+// written.
+[[nodiscard]] OperationStatus transfer_points(const LineField& field, View<double> positions, const MutableLineSamples& target) noexcept;
+
 // Transfers. The destination region must lie inside the destination image; the destination
 // must not overlap the field's storage. Output is straight-alpha RGBA8 (premultiplied value
 // clamped to [0, alpha], alpha to [0, 1], then divided). On failure no pixel of the region has

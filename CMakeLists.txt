@@ -700,6 +700,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/conv/kernels_avx2_fma.cpp
     src/algorithms/conv/kernels_scalar.cpp
     src/algorithms/conv/kernels_v128.cpp
+    src/algorithms/conv/line_field.cpp
     src/algorithms/conv/transfer.cpp
     src/algorithms/case_folding.cpp
     src/algorithms/textlayout/analysis.cpp

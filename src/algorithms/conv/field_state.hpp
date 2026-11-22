@@ -45,15 +45,45 @@ struct WorkspaceState final {
     Vector<u8> simple;
     Vector<double> cells;
     Vector<double> accumulator;
+    // Tiled preview (transfer.cpp): per tile the pulled-back points, the local row cells, the
+    // vertical windows (structure of arrays), per-query weights and row pointers, and K1's
+    // list, compact batch and idle bytes.
+    Vector<double> us;
+    Vector<double> vs;
+    Vector<double> local;
+    Vector<double> decoded;
+    Vector<double> planes;
+    Vector<double> sv;
+    Vector<double> tau_u;
+    Vector<double> tau_v;
+    Vector<const double*> row_pointers;
+    Vector<u32> list;
+    Vector<double> compact;
+    Vector<u8> idle;
+    Vector<usize> end_queries;
+    Vector<usize> query_cell_v;
+};
+
+// A line field: the samples (node-major, lanes innermost, packed) and per cell and lane its
+// five currents, formed as a 2D field's rows form them (raw, raw + e, or the end cell's
+// admitted currents); a value is the anchor plus currents . tau.
+struct LineFieldState final {
+    usize nodes{0};
+    usize lanes{0};
+    bool ready{false};
+    Vector<double> samples;
+    Vector<double> values;
 };
 
 struct FieldAccess final {
     static const FieldState* state(const Field& field) noexcept { return field.state_; }
+    static const LineFieldState* state(const LineField& field) noexcept { return field.state_; }
     static WorkspaceState* state(Workspace& workspace) noexcept { return workspace.state_; }
 };
 
-// Row y's value at column cell i (weights s for the phase, tails tau), all channels: the
-// linear kernel plus tau . e on listed channels (end cells: anchor plus tau . c).
+// Row y's value at column cell i (tails tau; s is unused), all channels: anchor plus
+// (raw + e) . tau for interior cells (e on listed channels only), anchor plus c . tau for end
+// cells.
 void row_value(const FieldState& field, usize y, usize i, const double* s, const double* tau, double* out) noexcept;
 
 // The vertical cell j's value in channel c from the window w[0..7] (rows j-3 .. j+4).
