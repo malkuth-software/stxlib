@@ -56,5 +56,19 @@ double expm1(double x) noexcept;
 float expm1(float x) noexcept;
 double log1p(double x) noexcept;
 float log1p(float x) noexcept;
+void sincospi(float x, float& s, float& c) noexcept;
+void sincospi(double x, double& s, double& c) noexcept;
+double sinpi(double x) noexcept;
+float sinpi(float x) noexcept;
+double cospi(double x) noexcept;
+float cospi(float x) noexcept;
+double sincpi(double x) noexcept;
+float sincpi(float x) noexcept;
+double sinc_radians(double x) noexcept;
+float sinc_radians(float x) noexcept;
+double cosm1(double x) noexcept;
+float cosm1(float x) noexcept;
+double cosm1pi(double x) noexcept;
+float cosm1pi(float x) noexcept;
 
 } // namespace stxlib::math::<variant>

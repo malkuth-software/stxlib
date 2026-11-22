@@ -36,7 +36,14 @@ math.cos.double 4cd44efbfcb57b03 5144
 math.cos.double@region 4cd44efbfcb57b03 5144
 math.sincos.double 58f8c080766956e2 10288
 math.sincos.double@region 58f8c080766956e2 10288
-math.pow.double 6accc259646c4e79 5720
+math.sinpi.double unfrozen
+math.cospi.double unfrozen
+math.sincpi.double unfrozen
+math.sinc_radians.double unfrozen
+math.cosm1.double unfrozen
+math.cosm1pi.double unfrozen
+math.sincospi.double unfrozen
+math.pow.double unfrozen
 math.pow.double@region 6accc259646c4e79 5720
 math.hypot.double f6c72677348cef19 5720
 math.atan2.double 8e900d18dd5e9038 5720
@@ -64,7 +71,14 @@ math.log1p.float 24d4d872b531d5a5 5140
 math.sin.float 6afa71aa2c2b148c 5140
 math.cos.float 61c5f83e9319e1ee 5140
 math.sincos.float e0fca2706500ac67 10280
-math.pow.float 87882ea18b450c4f 5540
+math.sinpi.float unfrozen
+math.cospi.float unfrozen
+math.sincpi.float unfrozen
+math.sinc_radians.float unfrozen
+math.cosm1.float unfrozen
+math.cosm1pi.float unfrozen
+math.sincospi.float unfrozen
+math.pow.float unfrozen
 math.pow.float@region 87882ea18b450c4f 5540
 math.hypot.float f830f5eb42b177ce 5540
 math.hypot.float@region f830f5eb42b177ce 5540

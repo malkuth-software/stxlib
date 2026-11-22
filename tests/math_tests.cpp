@@ -128,9 +128,12 @@ constexpr double double_ulp_limit = sincos_worst_cases::stated_bound_ulps;
 constexpr double exp_ulp_limit = 0.5005;
 // log, log2, log10: measured 0.500000 ulp over 24 million inputs.
 constexpr double log_ulp_limit = 0.5005;
-// pow: the analytic bound, 0.5 + 0.076 ulp (src/algorithms/math/pow.cpp); measured
-// 0.5027 ulp at worst over 2 million inputs against MPFR (2026-11-02).
-constexpr double pow_ulp_limit = 0.576;
+// pow: the reciprocal grid's budget, 0.509424 ulp
+// (tools/math/pow_grid_certificate.py; src/algorithms/math/pow.cpp), within
+// the stated 0.51; the study measured 0.501712 ulp at worst over 2.45
+// million pairs against MPFR (2026-11-18). The log2-table kernel before it
+// (until 2026-11-22) was held to 0.576.
+constexpr double pow_ulp_limit = 0.51;
 // hypot: measured 0.500000 ulp over 10 million inputs (none misrounded).
 constexpr double hypot_ulp_limit = 0.5005;
 // atan, atan2, asin, acos: measured 0.500000 ulp over 4 million inputs each.
@@ -1392,7 +1395,12 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
 // (owner's experiment, adopted 2026-11-02); 6/400k near-overflow inputs
 // differ, both within bound. Same value at the scalar, vector128 and
 // avx2_fma levels and in the Dekker build (x86-64 MinGW).
-constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
+// Unfrozen on 2026-11-22 (was 0x3a845b9bad3d2534): today's pow(double) is
+// the reciprocal-grid kernel (pow.cpp; PROVENANCE.md), and pow(float)'s
+// accurate fallback rounds today's double result, so both may move. The
+// integrator's freezing run (STXLIB_FREEZE_HASHES=1) sets the value, which
+// must then be the same at every SIMD level and in the Dekker build.
+constexpr std::uint64_t today_pow_output_hash = 0;
 // The hash mixes pow(double) and pow(float) outputs, and each has its own
 // switch, so each of the four switch settings has its own value (R3: one
 // region constant had served all three region settings). Frozen: both on the
@@ -1400,8 +1408,13 @@ constexpr std::uint64_t today_pow_output_hash = 0x3a845b9bad3d2534ULL;
 // from today's: region pow(double) is 0.500097 ulp against 0.576). Not
 // frozen yet (0, printed by check_frozen): only one of the two on the region
 // path; the R3 run list builds each to freeze it.
+// 2026-11-22: the float-only value was today's double kernel's and is
+// unfrozen with it. The two region-double values stand; they too pass
+// through today's double kernel, for results the region kernel flushes
+// (paths.hpp) and in pow(float)'s accurate fallback, so a freezing run that
+// moves them is expected, not a defect.
 constexpr std::uint64_t region_pow_double_only_output_hash = 0x9bc52c7be16de26fULL;
-constexpr std::uint64_t region_pow_float_only_output_hash = 0x3a845b9bad3d2534ULL;
+constexpr std::uint64_t region_pow_float_only_output_hash = 0;
 constexpr std::uint64_t region_pow_output_hash = 0x9bc52c7be16de26fULL;
 
 constexpr std::uint64_t pow_expected_hash(const bool double_on_region, const bool float_on_region) {
