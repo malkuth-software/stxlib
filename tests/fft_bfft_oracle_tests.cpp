@@ -23,6 +23,7 @@
 #include "stxlib/types.hpp"
 #include "stxlib/view.hpp"
 
+#include "core/checked.hpp"
 #include "test_support.hpp"
 
 #include "detail/bodft_kernel.hpp"
@@ -51,7 +52,7 @@ using stxlib::fft::Plan64;
 struct Stream final {
     u64 state{0x243F6A8885A308D3ULL};
 
-    [[nodiscard]] double next() noexcept {
+    [[nodiscard]] STXLIB_MODULAR double next() noexcept {
         state ^= state >> 12;
         state ^= state << 25;
         state ^= state >> 27;

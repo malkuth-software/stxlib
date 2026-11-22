@@ -1570,7 +1570,7 @@ if(STXLIB_TESTS)
     if(STXLIB_BFFT_ORACLE_DIR)
         add_executable(stxlib_fft_bfft_oracle_tests tests/fft_bfft_oracle_tests.cpp)
         target_link_libraries(stxlib_fft_bfft_oracle_tests PRIVATE stxlib::algorithms)
-        target_include_directories(stxlib_fft_bfft_oracle_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+        target_include_directories(stxlib_fft_bfft_oracle_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_include_directories(stxlib_fft_bfft_oracle_tests SYSTEM PRIVATE
             ${STXLIB_BFFT_ORACLE_DIR}/src ${STXLIB_BFFT_ORACLE_DIR}/include)
         target_compile_options(stxlib_fft_bfft_oracle_tests PRIVATE ${stxlib_test_warnings})
