@@ -25,7 +25,7 @@ Planned layout:
 | `include/stxlib/` | owned vocabulary types, error records, capability declarations; no `std::` or platform type |
 | `src/core/` | the foreign-interface discipline: exception shadowing, call gates, callback trampolines, ownership tags, validation |
 | `src/state/` | `stxlib_state`, the one module that owns STXlib's per-thread and per-process state; every module's copy of STXlib reaches it through exported accessors |
-| `src/hosted/<family>/` | interface modules, one per host family STXlib sideloads alongside: POSIX (macOS, Linux with glibc or musl, FreeBSD), Windows (UCRT) and Emscripten (browsers and Node, over the POSIX modules that hold there); `c_library/` and `cxx_runtime/` hold the calls every family shares |
+| `src/hosted/<family>/` | interface modules, one per host family STXlib sideloads alongside: POSIX (macOS, Linux 4.11 or later with glibc or musl, FreeBSD), Windows (UCRT) and Emscripten (browsers and Node, over the POSIX modules that hold there); `c_library/` and `cxx_runtime/` hold the calls every family shares |
 | `runtime/` | the own runtime over FreeBSD's system calls, for the appliance supervisor |
 | `appliance/` | the FreeBSD appliance: loader changes, kernel configuration, the kernel shim, the supervisor, image tooling |
 | `proofs/` | proof harnesses and the proof report |
@@ -108,5 +108,6 @@ vocabulary and services and make no host call of their own.
 | math (sincos, tan, inverse trigonometric, exp, logarithms, pow, hypot, cbrt, hyperbolic, half-turn sine and cosine, sinc, cosine losses; the same bits on every target; no subnormals in or out) | `math.hpp` | batch 3c5; subnormal rule batch 3c8; half-turn functions and the reciprocal-grid pow 2026-11-22 |
 | row height index (stx_btree's sequence tree behind a compiled facade: offsets, rows at offsets, cursors) | `row_height_index.hpp` | batch 3c6 |
 | ordered map (stx_btree's unsync map and pooled pages; private, no interface yet) | none (`src/algorithms/stx_btree/unsync_map.hpp`) | batch 3c7 |
+| stx_fft (real FFTs of power-of-two size from BFFT: plain DIF, half-bin-shifted BODFT, DIP; float64 and float32; every SIMD tier gives the scalar values) | `fft.hpp` | 2026-11-22 |
 
 Licence: MIT (see `LICENSE`). STXlib's own allocator, stx_minmallocpp, is a conversion of mimalloc's design and carries mimalloc's MIT notice (`src/state/stx_minmallocpp/NOTICE`). stxlib::markdown is a conversion of MD4C's design and carries MD4C's MIT notice (`src/algorithms/markdown/NOTICE`); its table of named character references comes from the HTML Standard (`third_party/whatwg-entities/LICENSE`). The CommonMark specification's text under `third_party/commonmark-0.31.2` is test data, CC-BY-SA 4.0, by John MacFarlane (`LICENSE` beside it). Third-party code keeps its own licence: stx_btree, a C++ form of bbtree, is MIT with its own notice (`src/algorithms/stx_btree/LICENSE`, `NOTICE`); FreeBSD components keep their BSD licences.

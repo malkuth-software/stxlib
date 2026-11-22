@@ -8,13 +8,19 @@
 // detection is not cached (it is a pure function of the machine, run once
 // per selection and on each detected_features call). CPUID and XGETBV are
 // instructions, not host interfaces, so they stay here (<cpuid.h> is the
-// compiler's header).
+// compiler's header). arm64's LSE flag (simd.hpp, Features::lse) comes, on
+// Linux and FreeBSD, from the detection of STXlib's outline-atomics helpers
+// (hosted/outline_atomics_backend.hpp): an mrs of ID_AA64ISAR0_EL1, which
+// the kernel emulates, so it too is an instruction; the helpers keep the
+// result, so it is read once per module rather than on each call.
 
 #include "stxlib/simd.hpp"
 
 #include "state/state.hpp"
 #include "stxlib/environment.hpp"
 #include "stxlib/text.hpp"
+
+#include "hosted/outline_atomics_backend.hpp"
 
 #include <atomic>
 
@@ -69,11 +75,26 @@ Features detect() noexcept {
     return features;
 }
 #else
+#if defined(__aarch64__) || defined(_M_ARM64)
+// Features::lse, host by host as simd.hpp states it.
+bool arm64_lse() noexcept {
+#if defined(STXLIB_OUTLINE_ATOMICS)
+    const bool result = stxlib_outline_atomics_lse();
+#elif defined(__APPLE__) || defined(__ARM_FEATURE_ATOMICS)
+    const bool result = true;
+#else
+    const bool result = false;
+#endif
+    return result;
+}
+#endif
+
 Features detect() noexcept {
     Features features{};
 #if defined(__aarch64__) || defined(_M_ARM64)
     // Advanced SIMD is part of the AArch64 baseline.
     features.neon = true;
+    features.lse = arm64_lse();
 #endif
 #if defined(__wasm_simd128__)
     // Clang defines __wasm_simd128__ under -msimd128

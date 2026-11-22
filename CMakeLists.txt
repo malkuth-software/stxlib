@@ -214,6 +214,31 @@ if(NOT STXLIB_EXCEPTIONS)
 endif()
 message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 
+# ---- outline-atomics helpers --------------------------------------------------
+# Linux and FreeBSD aarch64 only: the compilers turn every atomic
+# read-modify-write into a call to an __aarch64_* helper, which STXlib
+# defines itself (src/hosted/elf/outline_atomics_aarch64.cpp,
+# src/hosted/outline_atomics_backend.hpp; owner, 2026-11-22) instead of
+# taking the toolchain runtime's, which asks the C library's getauxval.
+# The helpers are hidden, like the toolchain's, so each module needs its own
+# copy: stxlib_state links this archive PUBLIC, which puts one copy in a
+# shared stxlib_state and one in every module that links STXlib, ahead of
+# the runtime library the compiler driver appends. All helpers are one
+# object, so the first reference takes them all. The condition matches the
+# source's STXLIB_OUTLINE_ATOMICS.
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$" AND STXLIB_HOST_FAMILY MATCHES "^(glibc|musl|freebsd)$")
+    set(stxlib_outline_atomics ON)
+    add_library(stxlib_outline_atomics STATIC src/hosted/elf/outline_atomics_aarch64.cpp)
+    target_include_directories(stxlib_outline_atomics PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_features(stxlib_outline_atomics PRIVATE cxx_std_20)
+    target_compile_options(stxlib_outline_atomics PRIVATE ${stxlib_warnings} -fno-exceptions)
+    set_target_properties(stxlib_outline_atomics PROPERTIES POSITION_INDEPENDENT_CODE ON)
+else()
+    set(stxlib_outline_atomics OFF)
+endif()
+message(STATUS "STXlib outline-atomics helpers: ${stxlib_outline_atomics}")
+
 # ---- stxlib_state -----------------------------------------------------------
 # The one owner of STXlib's per-thread and per-process state
 # (src/state/state.hpp): the shadow stack, the pending capture, the shadow
@@ -321,6 +346,9 @@ else()
     add_library(stxlib_state STATIC ${STXLIB_STATE_SOURCES})
 endif()
 add_library(stxlib::state ALIAS stxlib_state)
+if(stxlib_outline_atomics)
+    target_link_libraries(stxlib_state PUBLIC stxlib_outline_atomics)
+endif()
 target_include_directories(stxlib_state
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -708,6 +736,15 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
+    # stx_fft (include/stxlib/fft.hpp): the plans, and BFFT's three kernels
+    # compiled once per SIMD tier (src/algorithms/fft/variant.inc; the
+    # vector128 and avx2_fma files are empty where the tier does not exist,
+    # and avx2_fma's code is compiled for that target by an attribute, never
+    # by a command-line -mavx2).
+    src/algorithms/fft/plan.cpp
+    src/algorithms/fft/kernels_scalar.cpp
+    src/algorithms/fft/kernels_v128.cpp
+    src/algorithms/fft/kernels_avx2_fma.cpp
     src/algorithms/glyphs/font_cff.cpp
     src/algorithms/glyphs/font_file.cpp
     src/algorithms/glyphs/font_names.cpp
@@ -935,7 +972,7 @@ if(STXLIB_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_features(stxlib_stx_minmallocpp_floor_bench PRIVATE cxx_std_20)
     target_compile_options(stxlib_stx_minmallocpp_floor_bench PRIVATE ${stxlib_test_warnings})
-    target_link_libraries(stxlib_stx_minmallocpp_floor_bench PRIVATE Threads::Threads)
+    target_link_libraries(stxlib_stx_minmallocpp_floor_bench PRIVATE Threads::Threads $<$<BOOL:${stxlib_outline_atomics}>:stxlib_outline_atomics>)
 
     # The interleaving checker (tests/stx_minmallocpp_interleave.cpp): the
     # same sources with the marks before each shared-memory step turned into
@@ -957,7 +994,7 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_stx_minmallocpp_interleave PRIVATE ${stxlib_test_warnings})
         target_compile_definitions(stxlib_stx_minmallocpp_interleave PRIVATE
             STXLIB_STX_MINMALLOCPP_CHECKS STXLIB_STX_MINMALLOCPP_INTERLEAVE)
-        target_link_libraries(stxlib_stx_minmallocpp_interleave PRIVATE Threads::Threads)
+        target_link_libraries(stxlib_stx_minmallocpp_interleave PRIVATE Threads::Threads $<$<BOOL:${stxlib_outline_atomics}>:stxlib_outline_atomics>)
         add_test(NAME stxlib_stx_minmallocpp_interleave COMMAND stxlib_stx_minmallocpp_interleave 2)
     endif()
 
@@ -967,9 +1004,13 @@ if(STXLIB_TESTS)
         ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_features(stxlib_stx_minmallocpp_direct_tests PRIVATE cxx_std_20)
     target_compile_options(stxlib_stx_minmallocpp_direct_tests PRIVATE ${stxlib_test_warnings})
-    target_link_libraries(stxlib_stx_minmallocpp_direct_tests PRIVATE Threads::Threads)
+    target_link_libraries(stxlib_stx_minmallocpp_direct_tests PRIVATE Threads::Threads $<$<BOOL:${stxlib_outline_atomics}>:stxlib_outline_atomics>)
     add_test(NAME stxlib_stx_minmallocpp_direct_tests COMMAND stxlib_stx_minmallocpp_direct_tests)
-    # These programs link no STXlib target, so on Emscripten they take the
+    # On Linux and FreeBSD aarch64 these programs link STXlib's
+    # outline-atomics helpers (stxlib_outline_atomics, above), so the
+    # allocator under test runs the helpers it runs in stxlib_state, not the
+    # toolchain's.
+    # These programs link no other STXlib target, so on Emscripten they take the
     # memory and thread settings stxlib_boundary gives every program: memory
     # that grows, malloc (and so the allocator's reservations) null rather
     # than an abort when it cannot, and the fixed pool of workers.
@@ -1030,6 +1071,31 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # STXlib's outline-atomics helpers (tests/outline_atomics_tests.cpp):
+    # every helper against a plain reference on the loop and, where the CPU
+    # has LSE, on the LSE path, the register contract, detection, and a
+    # concurrent stress run. Elsewhere it checks Features::lse and passes.
+    add_executable(stxlib_outline_atomics_tests tests/outline_atomics_tests.cpp)
+    target_link_libraries(stxlib_outline_atomics_tests PRIVATE stxlib::algorithms Threads::Threads)
+    target_include_directories(stxlib_outline_atomics_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_outline_atomics_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_outline_atomics_tests COMMAND stxlib_outline_atomics_tests)
+    # The linked binaries take the helpers from STXlib, not from libgcc or
+    # compiler-rt (tools/check_outline_atomics.py): a test program linked
+    # through the STXlib targets, one linked from the allocator's objects,
+    # a glyph test, and a shared stxlib_state.
+    if(stxlib_outline_atomics AND Python3_Interpreter_FOUND AND CMAKE_NM)
+        set(stxlib_outline_atomics_binaries
+            $<TARGET_FILE:stxlib_outline_atomics_tests>
+            $<TARGET_FILE:stxlib_stx_minmallocpp_direct_tests>
+            $<TARGET_FILE:stxlib_glyph_shape_tests>)
+        if(STXLIB_STATE_SHARED)
+            list(APPEND stxlib_outline_atomics_binaries $<TARGET_FILE:stxlib_state>)
+        endif()
+        add_test(NAME stxlib_outline_atomics_link
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_outline_atomics.py
+                    --nm ${CMAKE_NM} ${stxlib_outline_atomics_binaries})
+    endif()
     # stxlib::glyphs: the coverage mask against exact areas (tests/
     # glyph_mask_tests.cpp).
     add_executable(stxlib_glyph_mask_tests tests/glyph_mask_tests.cpp)
@@ -1477,6 +1543,43 @@ if(STXLIB_TESTS)
     endif()
     add_test(NAME stxlib_voting_tests COMMAND stxlib_voting_tests ${stxlib_voting_argument})
 
+    # stx_fft (include/stxlib/fft.hpp): the three kernels against a direct
+    # DFT and the direct half-bin sum, round trip, Parseval, every tier
+    # against the scalar tier in one process, refusals and the subnormal
+    # rule (tests/fft_tests.cpp); once at the machine's level and once per
+    # forced level, as the math tests are.
+    add_executable(stxlib_fft_tests tests/fft_tests.cpp)
+    target_link_libraries(stxlib_fft_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_fft_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_fft_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_fft_tests COMMAND stxlib_fft_tests)
+    foreach(level IN ITEMS scalar vector128 avx2_fma)
+        add_test(NAME stxlib_fft_tests_${level} COMMAND stxlib_fft_tests)
+        set_tests_properties(stxlib_fft_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+    endforeach()
+    # The benchmark beside BFFT's (tests/fft_bench.cpp), for the integrator
+    # to run by hand; not a ctest.
+    add_executable(stxlib_fft_bench tests/fft_bench.cpp)
+    target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})
+    # BFFT itself as the oracle (tests/fft_bfft_oracle_tests.cpp) and in the
+    # benchmark's table, when a BFFT checkout is named. Its kernel headers
+    # are compiled from there unchanged, as system headers.
+    set(STXLIB_BFFT_ORACLE_DIR "" CACHE PATH "BFFT checkout (src/detail/) for stxlib_fft_bfft_oracle_tests and stxlib_fft_bench")
+    if(STXLIB_BFFT_ORACLE_DIR)
+        add_executable(stxlib_fft_bfft_oracle_tests tests/fft_bfft_oracle_tests.cpp)
+        target_link_libraries(stxlib_fft_bfft_oracle_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_fft_bfft_oracle_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        target_include_directories(stxlib_fft_bfft_oracle_tests SYSTEM PRIVATE
+            ${STXLIB_BFFT_ORACLE_DIR}/src ${STXLIB_BFFT_ORACLE_DIR}/include)
+        target_compile_options(stxlib_fft_bfft_oracle_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_fft_bfft_oracle_tests COMMAND stxlib_fft_bfft_oracle_tests)
+        target_compile_definitions(stxlib_fft_bench PRIVATE STXLIB_FFT_BENCH_BFFT=1)
+        target_include_directories(stxlib_fft_bench SYSTEM PRIVATE
+            ${STXLIB_BFFT_ORACLE_DIR}/src ${STXLIB_BFFT_ORACLE_DIR}/include)
+    endif()
+
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the
     # reference's C interface, checks STXlib's AtomicPool (through
@@ -1741,6 +1844,10 @@ if(STXLIB_TESTS)
         # The glyph surface check's own tests (no nm).
         add_test(NAME stxlib_glyphs_surface_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_glyphs_surface_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
+        # The outline-atomics link check's own tests (no nm).
+        add_test(NAME stxlib_outline_atomics_link_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_outline_atomics_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
         # The object surface check on the allocator's component file (every
         # family, no nm).

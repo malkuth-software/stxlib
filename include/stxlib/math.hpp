@@ -274,16 +274,14 @@ void sincospi(double x, double& s, double& c) noexcept;
 // Normalized sinc, sin(pi x) / (pi x): even, 1 at zero (and below 2^-28 in
 // magnitude), +0 at every nonzero whole number and at both infinities; NaN
 // gives NaN. Double: measured within 0.5003 ulp (as sinpi). A subnormal x
-// gives 1. Float: the double result rounded once.
+// gives 1. Float: the double result rounded once. There is no radian sinc
+// (owner, 2026-11-22): sin(x) / x is sincpi(x / pi). The quotient rounds
+// twice (pi to double, then the division), a relative error up to about
+// 2^-52 in the argument, so the phase error grows with |x| and the result
+// loses accuracy near the zeros and at large |x|; sincpi itself is exact
+// in the half-turn argument it is given.
 [[nodiscard]] double sincpi(double x) noexcept;
 [[nodiscard]] float sincpi(float x) noexcept;
-
-// Unnormalized sinc in radians, sin(x) / x: even, 1 at zero. The angle limit
-// is sin's: |x| above 2^32, infinities and NaN give NaN. Double: measured
-// within 0.49999 ulp (as sinpi). A subnormal x gives 1. Float: the double
-// result rounded once.
-[[nodiscard]] double sinc_radians(double x) noexcept;
-[[nodiscard]] float sinc_radians(float x) noexcept;
 
 // cos(x) - 1 in radians without cancellation, as -2 sin^2(x/2), for
 // |x| <= 2^32 (sin's limit); larger |x|, infinities and NaN give NaN.

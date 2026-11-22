@@ -64,6 +64,13 @@ def families(tool, component) -> None:
     check(not allowed('emscripten_builtin_malloc', 'web', False), 'S1 malloc refused on web')
     for name in ('sched_yield', 'sysconf', 'pthread_key_create', 'pthread_setspecific', 'pthread_getspecific', 'abort'):
         check(allowed(name, 'web', False), 'S1 ' + name + ' on web')
+    for name in ('__aarch64_cas4_acq_rel', '__aarch64_cas16_relax', '__aarch64_swp1_acq', '__aarch64_ldadd8_rel',
+                 '__aarch64_ldclr2_acq_rel', '__aarch64_ldeor4_relax', '__aarch64_ldset8_acq_rel'):
+        check(allowed(name, 'posix', False), 'S1 ' + name + ' on posix')
+        check(not allowed(name, 'windows', False), 'S1 ' + name + ' refused on windows')
+        check(not allowed(name, 'web', False), 'S1 ' + name + ' refused on web')
+    for name in ('__aarch64_have_lse_atomics', '__aarch64_swp16_acq', '__aarch64_cas3_acq', 'getauxval'):
+        check(not allowed(name, 'posix', False), 'S1 ' + name + ' refused on posix')
     check(allowed('VirtualAlloc', 'windows', False), 'S1 VirtualAlloc on windows')
     check(allowed('__imp_VirtualAlloc', 'windows', False), 'S1 imported VirtualAlloc on windows')
     check(allowed('_tls_used', 'windows', False), 'S1 _tls_used on windows')

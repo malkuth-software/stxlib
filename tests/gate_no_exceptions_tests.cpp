@@ -8,6 +8,7 @@
 
 #include "stxlib/boundary.hpp"
 #include "stxlib/calendar.hpp"
+#include "stxlib/fft.hpp"
 #include "stxlib/hash.hpp"
 #include "stxlib/math.hpp"
 #include "stxlib/numeric_text.hpp"
