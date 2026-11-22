@@ -89,11 +89,21 @@ premises = [
   "sequentially consistent operations linearizable",
   "the queue and abandoned-list contracts",
 ]
+missing = "a per-bit ownership invariant the counter lemmas do not state: for every block, exactly one of (held by a caller; its bit set in its page's free word; its bit set in its page's remote word), with the summary bit set for every non-zero free word. With it, page_count_take/release/collect/made give sum + live == capacity, so page_whole and the live_count stop hold; released_twice and released_into_freed_page need the invariant itself, and every interleaving needs a model of the step marks (each segment atomic) that the deducer does not have."
 
 [[obligation]]
 id = "refusal_reads_nothing"
 statement = "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it."
-premises = []
+premises = ["the region's metadata (slice heads, page records, free and remote words: the slices below first_data_slice) and the directory are not the block or its neighbours (layout.hpp, page.hpp)"]
+untouched = ["address", "value"]
+paths = [
+  "src/state/stx_minmallocpp/allocator.cpp: release: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_with: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_common: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_general: Release::refused",
+  "src/state/stx_minmallocpp/region.cpp: release_huge: return false",
+]
+metadata = ["slice_heads", "page_metas", "free_words", "remote_words", "directory"]
 
 # The page counter's invariant, step by step (IC4): for every page, the free
 # bits of its words and its live count together are its capacity,

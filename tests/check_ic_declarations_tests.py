@@ -37,7 +37,13 @@ Properties:
       recorded as such in its obligations file;
   I10 the deducer refutes what does not follow: a page-count lemma with a
       wrong conclusion, a subtraction no conjunct guards;
-  I11 the gate file lists every declared component.
+  I11 the gate file lists every declared component;
+  I12 the deducer follows the sources soundly: a selector helper is read
+      only when its body just picks predicates, a switch is fixed only by a
+      literal, an output reset and a read-only check may precede a guard
+      but a write may not, a unary star on an untouched value is a
+      dereference and a product is not; every obligation but page_protocol
+      is discharged, and page_protocol states its missing premise.
 """
 
 import importlib.util
@@ -230,6 +236,42 @@ def deductions(tool, root: pathlib.Path) -> None:
     check(not failures, 'I10 a subtraction its conjunct guards is exact')
 
 
+def source_following(root: pathlib.Path) -> None:
+    deducer = load_deducer(root)
+    import json
+    document = json.loads((root / 'proofs' / 'ic' / 'deductions.json').read_text(encoding='utf-8'))
+    still_open = [item['id'] for item in document['open']]
+    check(still_open == ['stxlib.stx_minmallocpp.page_protocol'], 'I12 only page_protocol is open: ' +
+          ', '.join(still_open))
+    check(all('missing:' in item['why'] for item in document['open']), 'I12 an open obligation says what it lacks')
+    lines = ['[[nodiscard]] bool pick(const u8 mode, const bool wide) noexcept {',
+             '    const bool result = wide ? ::n::w::admits_a(mode)',
+             '                             : ::n::s::admits_a(mode);',
+             '    return result;',
+             '}',
+             '[[nodiscard]] bool bad(const u8 mode, const bool wide) noexcept {',
+             '    counter = counter + 1;',
+             '    return wide ? ::n::w::admits_a(mode) : ::n::s::admits_a(mode);',
+             '}']
+    selector = deducer.selector_of(lines, 0)
+    check(selector is not None and selector.picks == {(False,): 'n::s::admits_a', (True,): 'n::w::admits_a'},
+          'I12 a selector helper picks its predicates by its switch')
+    check(deducer.selector_of(lines, 5) is None, 'I12 a helper that writes is not a selector')
+    check(deducer.selector_value('precision == Precision::float64', [('Precision', 'precision')],
+                                 ['Precision::float32']) is False, 'I12 a switch compared with an enum literal')
+    check(deducer.selector_value('wide', [('bool', 'wide')], ['flag']) is None,
+          'I12 a switch that is not a literal is not fixed')
+    body = ['void check(const State& s) noexcept {', '    if (s.a != 0) return;', '    fail_fast(record);', '}',
+            'void touch(State& s) noexcept {', '    s.a = 1;', '}',
+            'OperationStatus Thing::go(const u32 x, Out& out) noexcept {', '    out = Out{};', '    check(state);',
+            '    touch(state);', '    if (!admits_x(x)) return no;', '}']
+    clean, offending, notes = deducer.precedes_cleanly(body, 11)
+    check(not clean and offending == 'touch(state)', 'I12 a call that writes may not precede a guard')
+    check(len(notes) == 2, 'I12 an output reset and a read-only check may precede a guard')
+    check(deducer.unary_star('const u64 x = *value;', 'value'), 'I12 a unary star dereferences')
+    check(not deducer.unary_star('const u64 x = a * value;', 'value'), 'I12 a product is not a dereference')
+
+
 def gate_file(root: pathlib.Path, declarations: list) -> None:
     text = (root / 'proofs' / 'ic' / 'GATE.md').read_text(encoding='utf-8')
     for declaration in declarations:
@@ -252,6 +294,7 @@ def main() -> int:
     full_components(declarations, root)
     engine_tables(tool, root, declarations)
     deductions(tool, root)
+    source_following(root)
     gate_file(root, declarations)
     for label in failures:
         print('FAILED: ' + label)

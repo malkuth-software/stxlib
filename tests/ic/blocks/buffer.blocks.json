@@ -18,7 +18,7 @@
       "moves": null,
       "inputs": [
         {
-          "name": "count",
+          "name": "elements",
           "type": "usize",
           "bounded_by": []
         }
@@ -27,7 +27,7 @@
       "fails": [
         {
           "failure": "limit_exceeded",
-          "when": "count elements' bytes are not representable",
+          "when": "the elements' bytes are not representable",
           "leaves": "unchanged"
         },
         {

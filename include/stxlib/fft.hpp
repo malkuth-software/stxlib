@@ -90,10 +90,10 @@ public:
     // is not a power of two or is below the mode's minimum (4 for plain and
     // dip, 2 for shifted), limit_exceeded above max_size, out_of_memory when
     // the allocator refuses. The plan's SIMD tier is simd::selected_level().
-    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires size <= max_size, else failure
-    // ic: limit_exceeded, unchanged. Requires power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)), else
-    // ic: failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread:
-    // ic: any. Returns Plan64 in ready, owned by the caller.
+    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure
+    // ic: limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested
+    // ic: >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables),
+    // ic: unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.
     [[nodiscard]] static OperationResult<Plan64> make(usize size, Mode mode) noexcept;
 
     Plan64(Plan64&& other) noexcept;
@@ -139,11 +139,11 @@ class Plan32 final {
 public:
     constexpr Plan32() noexcept = default;
 
-    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires size <= max_size, else failure
-    // ic: limit_exceeded, unchanged. Requires power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)), else
-    // ic: failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged. Fails
-    // ic: out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by the
-    // ic: caller.
+    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure
+    // ic: limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested
+    // ic: >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged.
+    // ic: Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by
+    // ic: the caller.
     [[nodiscard]] static OperationResult<Plan32> make(usize size, Mode mode) noexcept;
 
     Plan32(Plan32&& other) noexcept;

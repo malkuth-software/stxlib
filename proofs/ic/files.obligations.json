@@ -111,20 +111,35 @@
       "id": "stxlib.file.read_at.requires.read_at_offset",
       "kind": "entry-check",
       "statement": "read_at runs only when offset <= largest_offset; otherwise failure limit_exceeded (too_long), unchanged.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::files::admits_read_at_offset, called in src/core/files.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:184)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::files::admits_read_at_offset, called in src/core/files.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.read_at.refusal.read_at_offset",
       "kind": "refusal-leaves",
       "statement": "Unless offset <= largest_offset, read_at changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.read_at.outside.closed",
@@ -157,11 +172,19 @@
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
       "kind": "entry-check",
       "statement": "write_all_at runs only when offset <= largest_offset and length <= largest_offset - offset; otherwise failure limit_exceeded (too_long), unchanged.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::files::admits_write_at_extent, called in src/core/files.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:121)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::files::admits_write_at_extent, called in src/core/files.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.write_all_at.exact.write_at_extent",
@@ -181,10 +204,17 @@
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
       "kind": "refusal-leaves",
       "statement": "Unless offset <= largest_offset and length <= largest_offset - offset, write_all_at changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.write_all_at.outside.closed",
@@ -244,20 +274,35 @@
       "id": "stxlib.file.set_size.requires.set_size_bytes",
       "kind": "entry-check",
       "statement": "set_size runs only when bytes <= largest_offset; otherwise failure limit_exceeded (too_long), unchanged.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::detail::ic::files::admits_set_size_bytes, called in src/core/files.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:121)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::files::admits_set_size_bytes, called in src/core/files.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_size.refusal.set_size_bytes",
       "kind": "refusal-leaves",
       "statement": "Unless bytes <= largest_offset, set_size changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_size.outside.closed",

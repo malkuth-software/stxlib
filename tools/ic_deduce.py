@@ -15,9 +15,22 @@ sources they name, and discharges what deduction can:
   declaration names guards the declared refusal: STXLIB_REQUIRE with the
   generated message, or `if (!admits_...)` followed by a return that names
   the declared kind or code, a null or the declared value.
+  The guard may be reached through a selector helper (a function that only
+  returns one of several generated predicates, picked by its bool
+  parameters): every guard of the helper counts, and the callers from the
+  declared class and call must fix the switches to this declaration's
+  predicate. The refusal may be named by a status (`FileStatus::too_large`,
+  `Refusal::input_count`) that a `case` of a mapping switch turns into the
+  declared error, passed to the mapper directly, through one relaying
+  function, or returned and relayed by every caller.
 - refusal-leaves: the guard comes before anything that could change the
-  object: only const locals, other guards and their refusals precede it in
-  its function.
+  object: only const locals, other guards and their refusals, a reset of an
+  output parameter and a void check that only reads, returns or ends the
+  process precede it in its function (and the call that relays its status).
+- structural (`untouched`, `paths`, `metadata`): on every path to a refusal
+  of the named functions no pointer is formed from the untouched names or a
+  value computed from them, nor dereferenced; each call they reach is read
+  the same way, and the metadata accessors are a premise.
 - stated: an obligation with `given` and `shows` (an algebraic lemma), proved
   from its givens with the counter algebra of the allocator study's sxv:
   counters as finite sums (a sum updated at one word is the sum less the old
@@ -48,6 +61,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import hashlib
+import itertools
 import json
 import re
 import sys
@@ -571,12 +585,18 @@ def file_hash(root: Path, path: str) -> str:
     return hashlib.sha256(file.read_bytes()).hexdigest()
 
 
+HEADER_START: re.Pattern[str] = re.compile(r'[A-Za-z_\[]')
+NOT_HEADER: tuple[str, ...] = ('namespace', 'using', 'static_assert', 'template', 'struct', 'class', 'enum')
+
+
 def function_start(lines: list[str], index: int) -> int:
-    """The line opening the function that holds line `index` (a line at column 0 ending with `{`)."""
+    """The first line of the function that holds line `index`: a header at column 0 (it may span lines), or a
+    member function's header indented by four."""
     position: int
     for position in range(index, -1, -1):
         line: str = lines[position]
-        if line and not line[0].isspace() and line.rstrip().endswith('{') and '(' in line:
+        if line and HEADER_START.match(line) and '(' in line and not line.rstrip().endswith(';') and \
+                not line.startswith(NOT_HEADER):
             return position
         if line.startswith('    ') and line.strip().endswith('{') and '(' in line and \
                 re.match(r'\s{4}(\[\[nodiscard\]\] )?[A-Za-z_:<>&* ]+\(', line) and \
@@ -585,13 +605,659 @@ def function_start(lines: list[str], index: int) -> int:
     return 0
 
 
+def body_open(lines: list[str], start: int) -> int:
+    """The line that opens the body of the function whose header starts at `start`."""
+    position: int
+    for position in range(start, min(len(lines), start + 12)):
+        if re.sub(r'//.*', '', lines[position]).rstrip().endswith('{'):
+            return position
+    return start
+
+
+def function_end(lines: list[str], start: int) -> int:
+    """The line that closes the function whose header starts at `start` (its own indent and `}`)."""
+    indent: str = lines[start][:len(lines[start]) - len(lines[start].lstrip())]
+    position: int
+    for position in range(body_open(lines, start) + 1, len(lines)):
+        if lines[position].rstrip() == indent + '}':
+            return position
+    return len(lines) - 1
+
+
+def header_text(lines: list[str], start: int) -> str:
+    return ' '.join(line.strip() for line in lines[start:body_open(lines, start) + 1])
+
+
+def function_name(header: str) -> str:
+    """The qualified name a header declares (`PlanAccess::make32`)."""
+    plain: str = re.sub(r'\[\[[^\]]*\]\]', '', header)
+    match: re.Match[str] | None = re.search(r'([A-Za-z_~][A-Za-z0-9_:]*)\s*\(', plain)
+    return match.group(1) if match else ''
+
+
+def split_top(text: str) -> list[str]:
+    """`text` split at commas outside parentheses, brackets, braces and angle brackets of a template."""
+    parts: list[str] = []
+    depth: int = 0
+    current: str = ''
+    character: str
+    for character in text:
+        if character in '([{':
+            depth = depth + 1
+        elif character in ')]}':
+            depth = depth - 1
+        if character == ',' and depth == 0:
+            parts.append(current.strip())
+            current = ''
+            continue
+        current = current + character
+    if current.strip():
+        parts.append(current.strip())
+    return parts
+
+
+def inside_parentheses(text: str, open_index: int) -> str | None:
+    """The text between the parenthesis at `open_index` and its match."""
+    depth: int = 0
+    index: int
+    for index in range(open_index, len(text)):
+        if text[index] == '(':
+            depth = depth + 1
+        elif text[index] == ')':
+            depth = depth - 1
+            if depth == 0:
+                return text[open_index + 1:index]
+    return None
+
+
+def parameters_of(header: str) -> list[tuple[str, str]]:
+    """(type, name) of each parameter a header declares."""
+    name: str = function_name(header)
+    position: int = header.find(name + '(') if name else -1
+    if position < 0:
+        match: re.Match[str] | None = re.search(re.escape(name) + r'\s*\(', header)
+        if match is None:
+            return []
+        position = match.start()
+    inner: str | None = inside_parentheses(header, header.index('(', position))
+    if not inner:
+        return []
+    result: list[tuple[str, str]] = []
+    part: str
+    for part in split_top(inner):
+        found: re.Match[str] | None = re.match(r'(.*?)([A-Za-z_][A-Za-z0-9_]*)\s*$', part)
+        if found:
+            result.append((found.group(1).strip(), found.group(2)))
+    return result
+
+
+def call_arguments(lines: list[str], index: int, name: str) -> list[str] | None:
+    """The arguments of the call of `name` that starts on line `index`."""
+    window: str = ' '.join(line.strip() for line in lines[index:index + 8])
+    match: re.Match[str] | None = re.search(r'\b' + re.escape(name) + r'\s*\(', window)
+    if match is None:
+        return None
+    inner: str | None = inside_parentheses(window, match.end() - 1)
+    return None if inner is None else split_top(inner)
+
+
+def definition(lines: list[str], name: str) -> int | None:
+    """The first line of the function `name` (its last name part) defined in `lines`."""
+    index: int
+    for index, line in enumerate(lines):
+        if re.search(r'\b' + re.escape(name) + r'\s*\(', line) and function_start(lines, index) == index and \
+                function_name(header_text(lines, index)).split('::')[-1] == name:
+            return index
+    return None
+
+
+def body_statements(lines: list[str], start: int) -> list[str]:
+    """The statements of a function's body, comments dropped, braced initializers as calls, flattened."""
+    body: str = '\n'.join(re.sub(r'//.*', '', line) for line in lines[body_open(lines, start) + 1:
+                                                                        function_end(lines, start)])
+    previous: str = ''
+    while previous != body:
+        previous = body
+        body = re.sub(r'([A-Za-z0-9_>])\{([^{}]*)\}', r'\1(\2)', body)
+    return [' '.join(part.split()) for part in re.split(r'[;{}]', body) if part.strip()]
+
+
+# ---- selector helpers: a function that returns one of several generated predicates ------------------
+
+@dataclasses.dataclass
+class Selector:
+    """A helper whose result is one generated predicate, picked by its bool parameters."""
+    name: str
+    parameters: list[tuple[str, str]]
+    switches: list[str]                       # its bool parameters, in order
+    picks: dict[tuple[bool, ...], str]        # switch values -> the qualified predicate returned
+
+
+class NotSelector(Exception):
+    pass
+
+
+def selector_of(lines: list[str], start: int) -> Selector | None:
+    """The helper at `start` read as a selector, or None when its body is anything else."""
+    header: str = header_text(lines, start)
+    parameters: list[tuple[str, str]] = parameters_of(header)
+    switches: list[str] = [name for kind, name in parameters if kind.replace('const', '').strip() == 'bool']
+    if len(switches) > 6:
+        return None
+    text: str = ' '.join(' '.join(re.sub(r'//.*', '', line).split()) for line in
+                         lines[body_open(lines, start) + 1:function_end(lines, start)])
+    try:
+        statements: list[tuple[object, ...]]
+        statements, rest = parse_selector(text.strip())
+        if rest.strip():
+            return None
+    except NotSelector:
+        return None
+    aliases: dict[str, str] = {str(item[1]): str(item[2]) for item in statements if item[0] == 'alias'}
+    picks: dict[tuple[bool, ...], str] = {}
+    values: tuple[bool, ...]
+    for values in itertools.product((False, True), repeat=len(switches)):
+        environment: dict[str, bool] = dict(zip(switches, values))
+        try:
+            picked: str | None = run_selector(statements, environment, {}, aliases)
+        except NotSelector:
+            return None
+        if picked is None:
+            return None
+        picks[values] = picked
+    if not picks:
+        return None
+    return Selector(function_name(header), parameters, switches, picks)
+
+
+def parse_selector(text: str) -> tuple[list[tuple[object, ...]], str]:
+    """Statements of a selector body: namespace aliases, `if (c) { ... }`, `if (c) return p;`, `return p;`,
+    `const bool name = expression;`."""
+    statements: list[tuple[object, ...]] = []
+    while True:
+        text = text.lstrip()
+        if not text or text.startswith('}'):
+            return statements, text
+        match: re.Match[str] | None = re.match(r'namespace (\w+) = ([\w:]+);', text)
+        if match:
+            statements.append(('alias', match.group(1), match.group(2).lstrip(':')))
+            text = text[match.end():]
+            continue
+        if text.startswith('if ('):
+            inner: str | None = inside_parentheses(text, 3)
+            if inner is None:
+                raise NotSelector()
+            text = text[3 + len(inner) + 2:].lstrip()
+            if text.startswith('{'):
+                block: list[tuple[object, ...]]
+                block, text = parse_selector(text[1:])
+                if not text.startswith('}'):
+                    raise NotSelector()
+                text = text[1:]
+                statements.append(('if', inner, block))
+                continue
+            match = re.match(r'return ([^;]+);', text)
+            if match is None:
+                raise NotSelector()
+            statements.append(('if', inner, [('return', match.group(1))]))
+            text = text[match.end():]
+            continue
+        match = re.match(r'return ([^;]+);', text)
+        if match:
+            statements.append(('return', match.group(1)))
+            text = text[match.end():]
+            continue
+        match = re.match(r'const bool (\w+) = ([^;]+);', text)
+        if match:
+            statements.append(('local', match.group(1), match.group(2)))
+            text = text[match.end():]
+            continue
+        raise NotSelector()
+
+
+def truth(condition: str, environment: dict[str, bool]) -> bool:
+    """A condition over the switches: names, `!`, `&&`, `||`, true and false."""
+    condition = strip_parentheses(condition.strip())
+    parts: list[str] = [part for part in re.split(r'\s*\|\|\s*', condition)]
+    if len(parts) > 1:
+        return any(truth(part, environment) for part in parts)
+    parts = [part for part in re.split(r'\s*&&\s*', condition)]
+    if len(parts) > 1:
+        return all(truth(part, environment) for part in parts)
+    if condition.startswith('!'):
+        return not truth(condition[1:], environment)
+    if condition in ('true', 'false'):
+        return condition == 'true'
+    if condition in environment:
+        return environment[condition]
+    raise NotSelector()
+
+
+def predicate_named(expression: str, aliases: dict[str, str]) -> str:
+    """The qualified generated predicate an expression calls (it must be one call of an admits_ function)."""
+    match: re.Match[str] | None = re.fullmatch(r'([\w:]*admits_\w+)\s*\((.*)\)', expression.strip())
+    if match is None:
+        raise NotSelector()
+    name: str = match.group(1).lstrip(':')
+    head: str = name.split('::')[0]
+    if head in aliases:
+        name = aliases[head] + name[len(head):]
+    return name
+
+
+def run_selector(statements: list[tuple[object, ...]], environment: dict[str, bool], held: dict[str, str],
+                 aliases: dict[str, str]) -> str | None:
+    """The predicate the body returns under `environment`; None when it falls through."""
+    statement: tuple[object, ...]
+    for statement in statements:
+        kind: object = statement[0]
+        if kind == 'alias':
+            continue
+        if kind == 'local':
+            held[str(statement[1])] = chosen(str(statement[2]), environment, held, aliases)
+            continue
+        if kind == 'return':
+            return chosen(str(statement[1]), environment, held, aliases)
+        if kind == 'if' and truth(str(statement[1]), environment):
+            picked: str | None = run_selector(statement[2], environment, held, aliases)  # type: ignore[arg-type]
+            if picked is not None:
+                return picked
+    return None
+
+
+def chosen(expression: str, environment: dict[str, bool], held: dict[str, str], aliases: dict[str, str]) -> str:
+    expression = expression.strip()
+    if expression in held:
+        return held[expression]
+    question: int = expression.find('?')
+    if question >= 0:
+        colon: int = expression.find(':', question)
+        while colon >= 0 and expression[colon:colon + 2] == '::':
+            colon = expression.find(':', colon + 2)
+        if colon < 0:
+            raise NotSelector()
+        picked: str = expression[question + 1:colon] if truth(expression[:question], environment) else \
+            expression[colon + 1:]
+        return predicate_named(picked, aliases)
+    return predicate_named(expression, aliases)
+
+
+# ---- guard sites -------------------------------------------------------------------------------
+
+@dataclasses.dataclass
+class Site:
+    """A guard of a generated predicate (or of a selector that returns it)."""
+    path: str
+    lines: list[str]
+    index: int
+    allowed: list[dict[str, bool]]   # names in the guard's function, values that make it this predicate's
+    notes: list[str]
+
+
+def guard_line(line: str, name: str) -> bool:
+    """`if (!name(` or `if (... || !name(`: the refusal follows when the predicate is false."""
+    pattern: str = r'(if \(|\|\| )!\s*[A-Za-z_:]*\b' + re.escape(name) + r'\('
+    return bool(re.search(pattern, line)) and line.strip().startswith('if (')
+
+
+def guard_sites(root: Path, declaration: ic.Declaration, qualified: str, short: str) \
+        -> tuple[list[Site], list[str]]:
+    """Every guard that evaluates the predicate, directly or through a selector helper; what cannot be read."""
+    sites: list[Site] = []
+    bad: list[str] = []
+    helpers: set[tuple[str, int]] = set()
+    assert declaration.checks is not None
+    path: str
+    lines: list[str]
+    index: int
+    for path, lines, index in site_lines(root, declaration.checks.used_in, short):
+        line: str = lines[index]
+        where: str = path + ':' + str(index + 1)
+        if guard_line(line, short):
+            sites.append(Site(path, lines, index, [{}], []))
+            continue
+        under: re.Match[str] | None = re.match(r'\s*if \(((?:!?[a-z_][a-z0-9_]* && )+)!\s*[\w:]*\b' +
+                                               re.escape(short) + r'\(', line)
+        if under:
+            wanted: dict[str, bool] = {}
+            name: str
+            for name in [part.strip() for part in under.group(1).split('&&') if part.strip()]:
+                wanted[name.lstrip('!')] = not name.startswith('!')
+            sites.append(Site(path, lines, index, [wanted], ['the guard holds the predicate under ' +
+                                                                under.group(1).strip(' &')]))
+            continue
+        start: int = function_start(lines, index)
+        if (path, start) in helpers:
+            continue  # the same selector, read from another of its lines
+        helpers.add((path, start))
+        selector: Selector | None = selector_of(lines, start)
+        if selector is None or qualified not in selector.picks.values():
+            bad.append(where + ': not a guard, nor a selector helper that returns the predicate')
+            continue
+        helper: str = selector.name.split('::')[-1]
+        used: int = 0
+        other: int
+        for other in range(len(lines)):
+            if other == start or not re.search(r'\b' + re.escape(helper) + r'\s*\(', lines[other]):
+                continue
+            if function_start(lines, other) == start:
+                continue
+            other_where: str = path + ':' + str(other + 1)
+            if not guard_line(lines[other], helper):
+                bad.append(other_where + ': ' + helper + ' (a selector of the predicate) is called outside a guard')
+                continue
+            arguments: list[str] | None = call_arguments(lines, other, helper)
+            if arguments is None or len(arguments) != len(selector.parameters):
+                bad.append(other_where + ': the arguments of ' + helper + ' cannot be read')
+                continue
+            allowed: list[dict[str, bool]] = []
+            values: tuple[bool, ...]
+            for values, picked in selector.picks.items():
+                if picked != qualified:
+                    continue
+                wanted = {}
+                consistent: bool = True
+                switch: str
+                value: bool
+                for switch, value in zip(selector.switches, values):
+                    position: int = [name for _, name in selector.parameters].index(switch)
+                    argument: str = arguments[position]
+                    if argument in ('true', 'false'):
+                        consistent = consistent and (argument == 'true') == value
+                    elif re.fullmatch(r'[a-z_][a-z0-9_]*', argument):
+                        if wanted.get(argument, value) != value:
+                            consistent = False
+                        wanted[argument] = value
+                    else:
+                        consistent = False
+                if consistent:
+                    allowed.append(wanted)
+            if not allowed:
+                continue  # this guard evaluates another declaration's predicate
+            used = used + 1
+            sites.append(Site(path, lines, other, allowed, ['through the selector ' + helper + ' (' + where +
+                                                            ')']))
+        if used == 0:
+            bad.append(where + ': no guard of ' + helper + ' evaluates the predicate')
+    return sites, bad
+
+
+def selector_value(expression: str, parameters: list[tuple[str, str]], arguments: list[str]) -> bool | None:
+    """A switch's value at a caller: the parameter's argument, or `parameter ==/!= Enum::value` of it."""
+    names: list[str] = [name for _, name in parameters]
+    expression = strip_parentheses(expression.strip())
+    if expression in names:
+        argument: str = arguments[names.index(expression)].strip()
+        return {'true': True, 'false': False}.get(argument)
+    if expression.startswith('!'):
+        inner: bool | None = selector_value(expression[1:], parameters, arguments)
+        return None if inner is None else not inner
+    match: re.Match[str] | None = re.fullmatch(r'(\w+)\s*(==|!=)\s*([\w:]+)', expression)
+    if match and match.group(1) in names:
+        argument = arguments[names.index(match.group(1))].strip()
+        if not re.fullmatch(r'[\w:]+', argument) or '::' not in argument:
+            return None
+        same: bool = argument.split('::')[-2:] == match.group(3).split('::')[-2:]
+        return same if match.group(2) == '==' else not same
+    return None
+
+
+def selector_holds(root: Path, declaration: ic.Declaration, call: ic.Call, site: Site) -> tuple[bool, list[str]]:
+    """Whether every caller from the declared call picks this predicate at `site`; the steps or the reason."""
+    if site.allowed == [{}]:
+        return True, []
+    lines: list[str] = site.lines
+    start: int = function_start(lines, site.index)
+    header: str = header_text(lines, start)
+    function: str = function_name(header).split('::')[-1]
+    parameters: list[tuple[str, str]] = parameters_of(header)
+    needed: set[str] = {name for wanted in site.allowed for name in wanted}
+    expressions: dict[str, str] = {}
+    name: str
+    for name in sorted(needed):
+        if name in [parameter for _, parameter in parameters]:
+            expressions[name] = name
+            continue
+        local: re.Match[str] | None = None
+        statement: str
+        for statement in body_statements(lines, start):
+            local = re.fullmatch(r'const bool ' + re.escape(name) + r' = (.+)', statement)
+            if local:
+                break
+        if local is None:
+            return False, [site.path + ':' + str(site.index + 1) + ': the switch ' + name + ' is neither a '
+                           'parameter nor a const bool local of ' + function]
+        expressions[name] = local.group(1)
+    owner: str = declaration.manifest_key().split('::')[-1]
+    steps: list[str] = []
+    matched: int = 0
+    assert declaration.checks is not None
+    path: str
+    caller_lines: list[str]
+    index: int
+    for path, caller_lines, index in site_lines(root, declaration.checks.used_in, function):
+        if function_start(caller_lines, index) == index:
+            continue  # the definition
+        caller_start: int = function_start(caller_lines, index)
+        caller: str = header_text(caller_lines, caller_start)
+        if owner not in caller or not re.search(r'::' + re.escape(call.name) + r'\d*\s*\(', caller):
+            continue
+        arguments: list[str] | None = call_arguments(caller_lines, index, function)
+        where: str = path + ':' + str(index + 1)
+        if arguments is None or len(arguments) != len(parameters):
+            return False, [where + ': the arguments of ' + function + ' cannot be read']
+        values: dict[str, bool] = {}
+        for name, expression in expressions.items():
+            value: bool | None = selector_value(expression, parameters, arguments)
+            if value is None:
+                return False, [where + ': the switch ' + name + ' (' + expression + ') is not a literal there']
+            values[name] = value
+        if not any(all(values[key] == wanted[key] for key in wanted) for wanted in site.allowed):
+            return False, [where + ': ' + function_name(caller) + ' picks another predicate at ' + site.path + ':' +
+                           str(site.index + 1)]
+        matched = matched + 1
+        steps.append(function_name(caller) + ' (' + where + ') calls ' + function + ' with ' +
+                     ', '.join(key + ' = ' + str(values[key]).lower() for key in sorted(values)))
+    if matched == 0:
+        return False, [site.path + ':' + str(site.index + 1) + ': no caller of ' + function + ' from ' + owner +
+                       '::' + call.name + ' found to fix its switches']
+    return True, steps
+
+
+# ---- refusals: named at the guard, or relayed through a status and its mapping ------------------
+
+def guard_statement(lines: list[str], index: int) -> str:
+    window: str = ' '.join(line.strip() for line in lines[index:index + 8])
+    end: int = window.find(';')
+    return window[:end + 1] if end >= 0 else window
+
+
+def guard_returns(lines: list[str], index: int, refusal: ic.Refusal, codes: str) -> bool:
+    """Whether the guard at `index` refuses as declared, read from its line and the few after it."""
+    statement: str = guard_statement(lines, index)
+    if refusal.kind == 'null':
+        return 'return nullptr' in statement
+    if refusal.kind == 'value':
+        return 'return ' in statement and refusal.value.split('::')[-1] in statement
+    if refusal.kind == 'failure':
+        block: str = ' '.join(lines[index:index + 8])
+        named: list[str] = []
+        if refusal.failure != 'any':
+            named.append('ErrorKind::' + refusal.failure)
+        if refusal.code:
+            named.append('::' + refusal.code)
+        return 'return' in block and any(text in block for text in named)
+    return False
+
+
+@dataclasses.dataclass
+class Relay:
+    steps: list[str]
+    premises: list[str]
+    callers: list[tuple[str, list[str], int]]   # where a returned status is relayed (they precede the guard)
+
+
+def case_mapping(lines: list[str], case: int, codes: str) -> tuple[list[str], list[str]]:
+    """The error kinds and codes a `case` of a mapping switch names: its own lines, else the function's text
+    outside the switch."""
+    code_type: str = codes.split('::')[-1] if codes else 'HostCode'
+    text: str = ''
+    position: int = case
+    while position < len(lines):
+        line: str = lines[position]
+        text = text + ' ' + line
+        if 'break;' in line or re.search(r'\breturn\b', line):
+            break
+        position = position + 1
+    kinds: list[str] = re.findall(r'ErrorKind::(\w+)', text)
+    found_codes: list[str] = re.findall(code_type + r'::(\w+)', text)
+    start: int = function_start(lines, case)
+    switch: int = case
+    while switch > start and not re.match(r'\s*switch\b', lines[switch]):
+        switch = switch - 1
+    indent: str = lines[switch][:len(lines[switch]) - len(lines[switch].lstrip())]
+    switch_end: int = switch
+    while switch_end < len(lines) and lines[switch_end].rstrip() != indent + '}':
+        switch_end = switch_end + 1
+    outside: str = ' '.join(lines[body_open(lines, start) + 1:switch] +
+                            lines[switch_end + 1:function_end(lines, start)])
+    if not kinds:
+        kinds = sorted(set(re.findall(r'ErrorKind::(\w+)', outside)))
+    if not found_codes:
+        found_codes = sorted(set(item for item in re.findall(code_type + r'::(\w+)', outside) if item != 'none'))
+    return kinds, found_codes
+
+
+def relayed(root: Path, paths: tuple[str, ...], lines: list[str], index: int, refusal: ic.Refusal,
+            codes: str) -> tuple[Relay | None, str]:
+    """A refusal named by a status the guard passes or returns, mapped to the declared error by a switch."""
+    if refusal.kind != 'failure':
+        return None, 'the refusal is not a failure'
+    statement: str = guard_statement(lines, index)
+    statuses: list[tuple[str, str]] = [item for item in re.findall(r'\b([A-Z][A-Za-z0-9]*)::([a-z_][a-z0-9_]*)\b',
+                                                                   statement)
+                                       if item[0] not in ('ErrorKind', 'HostCode', 'OperationStatus',
+                                                          'OperationResult')]
+    if len(statuses) != 1:
+        return None, 'the guard names no single status'
+    enum: str
+    value: str
+    enum, value = statuses[0]
+    files: dict[str, list[str]] = {}
+    path: str
+    for path in paths:
+        file: Path = root / path
+        if file.is_file():
+            files[path] = file.read_text(encoding='utf-8').split('\n')
+    mapping: tuple[str, list[str], int] | None = None
+    lines_of: list[str]
+    for path, lines_of in files.items():
+        position: int
+        for position, line in enumerate(lines_of):
+            if re.match(r'\s*case\s+(?:[\w:]*::)?' + enum + '::' + value + r'\s*:', line):
+                mapping = (path, lines_of, position)
+                break
+        if mapping:
+            break
+    if mapping is None:
+        return None, 'no case maps ' + enum + '::' + value
+    map_path: str
+    map_lines: list[str]
+    case: int
+    map_path, map_lines, case = mapping
+    kinds: list[str]
+    found_codes: list[str]
+    kinds, found_codes = case_mapping(map_lines, case, codes)
+    if refusal.failure != 'any' and kinds != [refusal.failure]:
+        return None, enum + '::' + value + ' maps to ' + (', '.join(kinds) or 'no kind') + ' (' + map_path + ':' + \
+            str(case + 1) + ')'
+    if refusal.code and found_codes != [refusal.code]:
+        return None, enum + '::' + value + ' maps to code ' + (', '.join(found_codes) or 'none') + ' (' + \
+            map_path + ':' + str(case + 1) + ')'
+    mapper: str = function_name(header_text(map_lines, function_start(map_lines, case))).split('::')[-1]
+    steps: list[str] = [enum + '::' + value + ' maps to ' + refusal.described() + ' in ' + mapper + ' (' +
+                        map_path + ':' + str(case + 1) + ')']
+    premises: list[str] = []
+    callers: list[tuple[str, list[str], int]] = []
+    if re.search(r'\b' + mapper + r'\s*\(', statement):
+        return Relay(steps, premises, callers), ''
+    called: str
+    for called in re.findall(r'\b([a-z_][a-z0-9_]*)\s*\(', statement):
+        for path, lines_of in files.items():
+            start: int | None = definition(lines_of, called)
+            if start is None:
+                continue
+            body: str = ' '.join(lines_of[start:function_end(lines_of, start) + 1])
+            if re.search(r'\b' + mapper + r'\s*\(', body):
+                steps.append(called + ' (' + path + ':' + str(start + 1) + ') passes it to ' + mapper)
+                premises.append('the functions between the guard and ' + mapper + ' pass the status through '
+                                'unchanged (read at ' + path + ':' + str(start + 1) + ')')
+                return Relay(steps, premises, callers), ''
+    if not re.search(r'\breturn\s+(?:[\w:]*::)?' + enum + '::' + value + r'\s*;', statement):
+        return None, 'the status reaches ' + mapper + ' by no path read here'
+    # The guard's function returns the status: every caller must relay it to the mapper.
+    start = function_start(lines, index)
+    returning: str = function_name(header_text(lines, start)).split('::')[-1]
+    for path, lines_of in files.items():
+        position = 0
+        for position, line in enumerate(lines_of):
+            if not re.search(r'\b' + returning + r'\s*\(', line) or function_start(lines_of, position) == position:
+                continue
+            assigned: re.Match[str] | None = re.search(r'const [\w:]+ (\w+) = [\w:]*\b' + returning + r'\s*\(', line)
+            where: str = path + ':' + str(position + 1)
+            if assigned is None:
+                return None, where + ': the status ' + returning + ' returns is not kept in a const local'
+            variable: str = assigned.group(1)
+            following: str = ' '.join(item.strip() for item in lines_of[position:position + 5])
+            if not re.search(r'if \(\s*' + variable + r'\s*!=\s*[\w:]*' + enum + r'::\w+\s*\)\s*return\b[^;]*\b' +
+                             mapper + r'\(\s*' + variable + r'\s*\)', following):
+                return None, where + ': the status is not relayed to ' + mapper
+            callers.append((path, lines_of, position))
+    if not callers:
+        return None, 'no caller relays the status ' + returning + ' returns'
+    steps.append(returning + ' returns it; each of its ' + str(len(callers)) + ' callers returns ' + mapper +
+                 ' of it when it is not the none status')
+    premises.append('a status other than the none value is the refusal (each caller tests it against none)')
+    return Relay(steps, premises, callers), ''
+
+
+# ---- what precedes a guard ------------------------------------------------------------------------
+
 SAFE_STATEMENT: re.Pattern[str] = re.compile(r'(const |constexpr |static_assert|STXLIB_REQUIRE|if \()')
 
 
-def precedes_cleanly(lines: list[str], guard: int) -> tuple[bool, str]:
-    """Whether only const locals, guards and their refusal paths precede line `guard` in its function."""
+def output_parameters(header: str) -> list[str]:
+    """The non-const reference parameters of a function: its outputs."""
+    return [name for kind, name in parameters_of(header) if kind.endswith('&') and not kind.startswith('const ')]
+
+
+def quiet_check(lines: list[str], name: str) -> bool:
+    """Whether `name` is a void function of this file whose body only reads, returns or ends the process."""
+    start: int | None = definition(lines, name)
+    if start is None:
+        return False
+    header: str = header_text(lines, start)
+    if not re.match(r'(static |inline )*void\b', re.sub(r'\[\[[^\]]*\]\]\s*', '', header)):
+        return False
+    statement: str
+    for statement in body_statements(lines, start):
+        if statement.startswith('if (') and statement.endswith('return'):
+            continue
+        if SAFE_STATEMENT.match(statement) and not statement.startswith('if ('):
+            continue
+        if re.match(r'(::stxlib::)?fail_fast\(', statement) or statement == 'return':
+            continue
+        return False
+    return True
+
+
+def precedes_cleanly(lines: list[str], guard: int) -> tuple[bool, str, list[str]]:
+    """Whether only const locals, guards and their refusal paths, output resets and checks that only read or end
+    the process precede line `guard` in its function; the offending statement; what was allowed and why."""
     start: int = function_start(lines, guard)
-    body: str = '\n'.join(re.sub(r'//.*', '', line) for line in lines[start + 1:guard])
+    opening: int = body_open(lines, start)
+    outputs: list[str] = output_parameters(header_text(lines, start))
+    body: str = '\n'.join(re.sub(r'//.*', '', line) for line in lines[opening + 1:guard])
     # A braced initializer (`ErrorDetail{...}`) is an expression; a braced
     # block that ends in a return is a refusal path: drop it.
     previous: str = ''
@@ -600,34 +1266,224 @@ def precedes_cleanly(lines: list[str], guard: int) -> tuple[bool, str]:
         body = re.sub(r'([A-Za-z0-9_>])\{([^{}]*)\}', r'\1(\2)', body)
         body = re.sub(r'\{[^{}]*\breturn\b[^{}]*\}', ' return;', body)
     statements: list[str] = [part.strip() for part in body.split(';') if part.strip()]
+    notes: list[str] = []
     statement: str
     for statement in statements:
         flat: str = ' '.join(statement.split())
+        reset: re.Match[str] | None = re.fullmatch(r'(\w+) = [\w:<>]+\(\)', flat)
+        if reset and reset.group(1) in outputs:
+            notes.append('the output parameter ' + reset.group(1) + ' is reset before the guard (an output, not '
+                         'the object)')
+            continue
+        check: re.Match[str] | None = re.fullmatch(r'([a-z_][a-z0-9_]*)\(.*\)', flat)
+        if check and quiet_check(lines, check.group(1)):
+            notes.append(check.group(1) + ' precedes the guard: it only reads, returns or ends the process (read '
+                         'from its body)')
+            continue
         if not SAFE_STATEMENT.match(flat):
-            return False, flat[:80]
+            return False, flat[:80], notes
         if flat.startswith('if (') and 'return' not in flat:
-            return False, flat[:80]
-    return True, ''
+            return False, flat[:80], notes
+    return True, '', notes
 
 
-def guard_returns(lines: list[str], index: int, refusal: ic.Refusal, codes: str) -> bool:
-    """Whether the guard at `index` refuses as declared, read from its line and the few after it."""
-    window: str = ' '.join(lines[index:index + 8])
-    end: int = window.find(';')
-    statement: str = window[:end + 1] if end >= 0 else window
-    if refusal.kind == 'null':
-        return 'return nullptr' in statement
-    if refusal.kind == 'value':
-        return 'return ' in statement and refusal.value.split('::')[-1] in statement
-    if refusal.kind == 'failure':
-        named: list[str] = []
-        if refusal.failure != 'any':
-            named.append('ErrorKind::' + refusal.failure)
-        if refusal.code:
-            named.append('::' + refusal.code)
-        block: str = ' '.join(lines[index:index + 8])
-        return 'return' in block and any(text in block for text in named)
+# ---- structural: no refused path forms a pointer from the untouched names ------------------------
+
+CAST: re.Pattern[str] = re.compile(r'\b(reinterpret_cast|static_cast|const_cast)\s*<([^<>]*(?:<[^<>]*>[^<>]*)*)>\s*\(')
+NOT_CALLS: frozenset[str] = frozenset({'if', 'while', 'for', 'switch', 'return', 'sizeof', 'alignof', 'decltype',
+                                       'static_cast', 'reinterpret_cast', 'const_cast', 'noexcept'})
+
+
+def mentions(text: str, names: set[str]) -> bool:
+    return any(re.search(r'(?<![\w.])' + re.escape(name) + r'\b', text) for name in names)
+
+
+def without_metadata(text: str, metadata: tuple[str, ...]) -> str:
+    """`text` with each metadata accessor call or table (and the index after it) replaced by META."""
+    name: str
+    for name in metadata:
+        while True:
+            match: re.Match[str] | None = re.search(r'(?<![\w.])' + re.escape(name) + r'\s*[(\[]', text)
+            if match is None:
+                break
+            end: int = match.end() - 1
+            if text[end] == '(':
+                inner: str | None = inside_parentheses(text, end)
+                if inner is None:
+                    break
+                end = end + len(inner) + 2
+            while end < len(text) and text[end] == '[':
+                depth: int = 0
+                position: int = end
+                while position < len(text):
+                    if text[position] == '[':
+                        depth = depth + 1
+                    elif text[position] == ']':
+                        depth = depth - 1
+                        if depth == 0:
+                            break
+                    position = position + 1
+                end = position + 1
+            text = text[:match.start()] + 'META' + text[end:]
+    return text
+
+
+def unary_star(text: str, name: str) -> bool:
+    """Whether `*name` dereferences (a unary star) somewhere in `text`."""
+    match: re.Match[str]
+    for match in re.finditer(r'\*\s*' + re.escape(name) + r'\b', text):
+        before: str = text[:match.start()].rstrip()
+        if not before or before[-1] in '(=,!&|?:{;' or before.endswith('return'):
+            return True
     return False
+
+
+class Untouched:
+    """Reads the functions a structural obligation names, following each call the untouched names reach."""
+
+    def __init__(self, root: Path, metadata: tuple[str, ...], listed: dict[str, str], directories: list[str]):
+        self.root: Path = root
+        self.metadata: tuple[str, ...] = metadata
+        self.listed: dict[str, str] = listed          # function -> its refusal text
+        self.files: dict[str, list[str]] = {}
+        directory: str
+        for directory in directories:
+            file: Path
+            for file in sorted((root / directory).iterdir()):
+                if file.suffix in ('.hpp', '.cpp', '.h'):
+                    self.files[file.relative_to(root).as_posix()] = file.read_text(encoding='utf-8').split('\n')
+        self.read: list[str] = []
+        self.problems: list[str] = []
+        self.steps: list[str] = []
+        self.visited: set[tuple[str, tuple[str, ...]]] = set()
+
+    def find(self, name: str) -> tuple[str, list[str], int] | None:
+        path: str
+        lines: list[str]
+        for path, lines in self.files.items():
+            start: int | None = definition(lines, name)
+            if start is not None:
+                return path, lines, start
+        return None
+
+    def function(self, name: str, tainted: set[str], depth: int) -> None:
+        key: tuple[str, tuple[str, ...]] = (name, tuple(sorted(tainted)))
+        if key in self.visited:
+            return
+        self.visited.add(key)
+        if depth > 6:
+            self.problems.append(name + ': calls nest past six levels')
+            return
+        found: tuple[str, list[str], int] | None = self.find(name)
+        if found is None:
+            self.problems.append(name + ' receives an untouched value and is not read (no definition in ' +
+                                 ', '.join(sorted({path.rsplit('/', 1)[0] for path in self.files})) + ')')
+            return
+        path: str
+        lines: list[str]
+        start: int
+        path, lines, start = found
+        if path not in self.read:
+            self.read.append(path)
+        statements: list[str] = body_statements(lines, start)
+        refusal: str | None = self.listed.get(name)
+        last: int = len(statements) - 1
+        if refusal is not None:
+            # A refusal: the function's own, or a call of another listed function (which may refuse).
+            others: list[str] = [other for other in self.listed if other != name]
+            marks: list[int] = [index for index, statement in enumerate(statements) if refusal in statement or
+                                any(re.search(r'(?<![\w.:>])' + re.escape(other) + r'\s*\(', statement)
+                                    for other in others)]
+            if not marks:
+                self.problems.append(name + ' (' + path + ':' + str(start + 1) + ') has no refusal ' + repr(refusal))
+                return
+            last = marks[-1]
+            self.steps.append(name + ' (' + path + ':' + str(start + 1) + '): ' + str(len(marks)) + ' refusal(s), '
+                              'statements read up to the last')
+        held: set[str] = set(tainted)
+        index: int
+        statement: str
+        for index, statement in enumerate(statements[:last + 1]):
+            where: str = name + ' (' + path + ')'
+            text: str = without_metadata(statement, self.metadata)
+            cast: re.Match[str]
+            for cast in CAST.finditer(text):
+                inner: str | None = inside_parentheses(text, cast.end() - 1)
+                if '*' in cast.group(2) and inner is not None and mentions(inner, held):
+                    self.problems.append(where + ' forms a pointer from an untouched value: ' + statement[:90])
+            variable: str
+            for variable in held:
+                if unary_star(text, variable) or re.search(r'(?<![\w.])' + re.escape(variable) + r'\s*(\[|->)', text):
+                    self.problems.append(where + ' dereferences ' + variable + ': ' + statement[:90])
+            constructed: re.Match[str] | None = re.match(r'(?:const\s+)?[\w:]+(?:<[^<>]*>)?[&*]?\s+(\w+)\(', text)
+            call: re.Match[str]
+            for call in re.finditer(r'(?<![\w.>:])([A-Za-z_][\w:]*)\s*\(', text):
+                callee: str = call.group(1)
+                short: str = callee.split('::')[-1]
+                if short in NOT_CALLS or short == 'META':
+                    continue
+                if constructed and call.start() == constructed.start(1):
+                    if mentions(inside_parentheses(text, call.end() - 1) or '', held):
+                        held.add(short)  # a local constructed from an untouched value
+                    continue
+                arguments_text: str | None = inside_parentheses(text, call.end() - 1)
+                if arguments_text is None:
+                    continue
+                arguments: list[str] = split_top(arguments_text)
+                reached: list[int] = [position for position, argument in enumerate(arguments)
+                                      if mentions(argument, held)]
+                if not reached:
+                    continue
+                if short in self.listed:
+                    continue  # read on its own, with its refusals
+                target: tuple[str, list[str], int] | None = self.find(short)
+                if target is None:
+                    self.problems.append(where + ' passes an untouched value to ' + callee + ', which is not read')
+                    continue
+                parameters: list[tuple[str, str]] = parameters_of(header_text(target[1], target[2]))
+                passed: set[str] = {parameters[position][1] for position in reached if position < len(parameters)}
+                self.function(short, passed, depth + 1)
+            local: re.Match[str] | None = re.match(r'(?:const\s+)?[\w:<>]+[&*]?\s+(?:const\s+)?(\w+)\s*=\s*(.+)',
+                                                   statement)
+            if local and mentions(without_metadata(local.group(2), self.metadata), held):
+                held.add(local.group(1))
+            assigned: re.Match[str] | None = re.match(r'(\w+)\s*=\s*(.+)', statement)
+            if assigned and mentions(without_metadata(assigned.group(2), self.metadata), held):
+                held.add(assigned.group(1))
+
+
+def structural(root: Path, obligation: ic.Obligation) -> tuple[bool, list[str], list[str], list[str]]:
+    """Whether no refused path of the named functions forms a pointer from the untouched names; the steps, the
+    files read and the problems."""
+    listed: dict[str, str] = {}
+    directories: list[str] = []
+    order: list[tuple[str, str]] = []
+    entry: str
+    for entry in obligation.paths:
+        parts: list[str] = [part.strip() for part in entry.split(':', 2)]
+        if len(parts) != 3:
+            return False, [], [], [repr(entry) + ' is not `path: function: refusal`']
+        path, function, refusal = parts
+        if not (root / path).is_file():
+            return False, [], [], [path + ' is missing']
+        listed[function] = refusal
+        directory: str = path.rsplit('/', 1)[0]
+        if directory not in directories:
+            directories.append(directory)
+        order.append((path, function))
+    reader: Untouched = Untouched(root, obligation.metadata, listed, directories)
+    for path, function in order:
+        start: int | None = definition(reader.files.get(path, []), function)
+        if start is None:
+            reader.problems.append(function + ' is not defined in ' + path)
+            continue
+        header: str = header_text(reader.files[path], start)
+        names: set[str] = {name for _, name in parameters_of(header) if name in obligation.untouched}
+        if not names:
+            reader.problems.append(function + ' takes none of ' + ', '.join(obligation.untouched))
+            continue
+        reader.function(function, names, 0)
+    return not reader.problems, reader.steps, reader.read, reader.problems
 
 
 @dataclasses.dataclass
@@ -688,77 +1544,151 @@ def deduce_declaration(root: Path, declaration: ic.Declaration) -> tuple[list[Re
             if declaration.checks is None:
                 continue
             name: str = 'admits_' + requirement.check
-            sites: list[tuple[str, list[str], int]] = site_lines(root, declaration.checks.used_in, name)
+            qualified: str = declaration.checks.namespace.lstrip(':') + '::' + name
             entry_id: str = base + '.requires.' + requirement.check
-            if not sites:
-                open_items.append((entry_id, 'no call of ' + name + ' in ' + ', '.join(declaration.checks.used_in)))
-                continue
             codes: str = declaration.engine.codes if declaration.engine is not None else ''
-            good: list[str] = []
-            bad: list[str] = []
-            path: str
-            lines: list[str]
-            index: int
-            for path, lines, index in sites:
-                line: str = lines[index]
-                where: str = path + ':' + str(index + 1)
-                if requirement.refuses.kind == 'requirement':
+            if requirement.refuses.kind == 'requirement':
+                raw: list[tuple[str, list[str], int]] = site_lines(root, declaration.checks.used_in, name)
+                if not raw:
+                    open_items.append((entry_id, 'no call of ' + name + ' in ' +
+                                       ', '.join(declaration.checks.used_in)))
+                    continue
+                good: list[str] = []
+                bad: list[str] = []
+                path: str
+                lines: list[str]
+                index: int
+                for path, lines, index in raw:
                     statement: str = ' '.join(lines[index:index + 2])
-                    if 'STXLIB_REQUIRE(' in line and requirement.check + '_message' in statement:
+                    where: str = path + ':' + str(index + 1)
+                    if 'STXLIB_REQUIRE(' in lines[index] and requirement.check + '_message' in statement:
                         good.append(where)
                     else:
                         bad.append(where + ' is not STXLIB_REQUIRE with ' + requirement.check + '_message')
+                if bad:
+                    open_items.append((entry_id, '; '.join(bad)))
                     continue
-                # `if (!<predicate>(` or `if (... || !<predicate>(`: the refusal follows when it is false.
-                guard_pattern: str = r'(if \(|\|\| )!\s*[A-Za-z_:]*' + re.escape(name) + r'\('
-                if re.search(guard_pattern, line) and line.strip().startswith('if ('):
-                    if guard_returns(lines, index, requirement.refuses, codes):
-                        good.append(where)
-                    else:
-                        bad.append(where + ': the refusal does not name ' + requirement.refuses.described())
-                    continue
-                if '?' in line or 'const bool' in line or 'return float64' in line:
-                    bad.append(where + ': the predicate is combined with others, read by hand')
-                    continue
-                bad.append(where + ': not a guard')
-            if bad:
-                open_items.append((entry_id, '; '.join(bad)))
-            else:
-                premises: list[str] = ['the generated predicate is the clause (tools/ic_declarations.py writes '
-                                       'both from one text)', 'the guard\'s arguments are the declared parameters '
-                                       '(as read at each site)']
-                if requirement.refuses.kind == 'requirement':
-                    premises.append('STXLIB_REQUIRE ends the process when its condition is false '
-                                    '(include/stxlib/require.hpp)')
                 records.append(Record(entry_id, declaration, list(declaration.checks.used_in),
                                       'source structure: each call of the predicate guards the declared refusal',
-                                      premises, ['guard at ' + site for site in good]))
-            if requirement.refuses.kind != 'requirement' and requirement.leaves == 'unchanged':
+                                      ['the generated predicate is the clause (tools/ic_declarations.py writes '
+                                       'both from one text)', 'the guard\'s arguments are the declared parameters '
+                                       '(as read at each site)', 'STXLIB_REQUIRE ends the process when its '
+                                       'condition is false (include/stxlib/require.hpp)'],
+                                      ['guard at ' + site for site in good]))
+                continue
+            sites: list[Site]
+            unread: list[str]
+            sites, unread = guard_sites(root, declaration, qualified, name)
+            if not sites and not unread:
+                open_items.append((entry_id, 'no call of ' + name + ' in ' + ', '.join(declaration.checks.used_in)))
+                continue
+            problems: list[str] = list(unread)
+            steps: list[str] = []
+            premises: list[str] = ['the generated predicate is the clause (tools/ic_declarations.py writes both '
+                                   'from one text)', 'the guard\'s arguments are the declared parameters (as read '
+                                   'at each site)']
+            leave_sites: list[tuple[str, list[str], int]] = []
+            site: Site
+            for site in sites:
+                where = site.path + ':' + str(site.index + 1)
+                fixed: bool
+                found: list[str]
+                fixed, found = selector_holds(root, declaration, call, site)
+                if not fixed:
+                    problems.extend(found)
+                    continue
+                if guard_returns(site.lines, site.index, requirement.refuses, codes):
+                    steps.append('guard at ' + where + (' (' + '; '.join(site.notes) + ')' if site.notes else ''))
+                    steps.extend(found)
+                    leave_sites.append((site.path, site.lines, site.index))
+                    continue
+                relay: Relay | None
+                reason: str
+                relay, reason = relayed(root, declaration.checks.used_in, site.lines, site.index,
+                                        requirement.refuses, codes)
+                if relay is None:
+                    problems.append(where + ': the refusal does not name ' + requirement.refuses.described() +
+                                    ' (' + reason + ')')
+                    continue
+                steps.append('guard at ' + where + (' (' + '; '.join(site.notes) + ')' if site.notes else ''))
+                steps.extend(found)
+                steps.extend(relay.steps)
+                for premise in relay.premises:
+                    if premise not in premises:
+                        premises.append(premise)
+                leave_sites.append((site.path, site.lines, site.index))
+                leave_sites.extend(relay.callers)
+            if any(site.allowed != [{}] for site in sites) and not problems:
+                premises.append('the switches read at the callers decide which declaration\'s predicate a shared '
+                                'guard evaluates (callers named by their class and call)')
+            if problems:
+                open_items.append((entry_id, '; '.join(problems)))
+            else:
+                records.append(Record(entry_id, declaration, list(declaration.checks.used_in),
+                                      'source structure: each evaluation of the predicate guards the declared '
+                                      'refusal (through selector helpers and status mappings where the source '
+                                      'uses them)', premises, steps))
+            if requirement.leaves == 'unchanged':
                 leaves_id: str = base + '.refusal.' + requirement.check
-                if bad:
+                if problems:
                     open_items.append((leaves_id, 'its entry check is not discharged'))
                     continue
                 unclean: list[str] = []
-                for path, lines, index in sites:
+                allowed_notes: list[str] = []
+                seen: set[tuple[str, int]] = set()
+                leave_path: str
+                leave_lines: list[str]
+                leave_index: int
+                for leave_path, leave_lines, leave_index in leave_sites:
+                    if (leave_path, leave_index) in seen:
+                        continue
+                    seen.add((leave_path, leave_index))
                     clean: bool
                     offending: str
-                    clean, offending = precedes_cleanly(lines, index)
+                    notes: list[str]
+                    clean, offending, notes = precedes_cleanly(leave_lines, leave_index)
                     if not clean:
-                        unclean.append(path + ':' + str(index + 1) + ' follows ' + repr(offending))
+                        unclean.append(leave_path + ':' + str(leave_index + 1) + ' follows ' + repr(offending))
+                    allowed_notes.extend(note for note in notes if note not in allowed_notes)
                 if unclean:
                     open_items.append((leaves_id, '; '.join(unclean)))
                 else:
+                    leave_premises: list[str] = ['a const local\'s initializer changes nothing observable (it reads)',
+                                                 'an earlier guard\'s refusal path ends in a return']
+                    if allowed_notes:
+                        leave_premises.append('a check that ends the process changes nothing a caller observes '
+                                              'when it returns; an output parameter is not the object')
                     records.append(Record(leaves_id, declaration, list(declaration.checks.used_in),
-                                          'source structure: only const locals, guards and their refusals precede '
-                                          'the guard in its function',
-                                          ['a const local\'s initializer changes nothing observable (it reads)',
-                                           'an earlier guard\'s refusal path ends in a return'],
-                                          ['guard at ' + path + ':' + str(index + 1) for path, _, index in sites]))
+                                          'source structure: only const locals, guards and their refusals, output '
+                                          'resets and read-only checks precede the guard in its function (and the '
+                                          'call that relays its status)', leave_premises,
+                                          ['guard at ' + seen_path + ':' + str(seen_index + 1) for seen_path,
+                                           seen_index in sorted(seen)] + allowed_notes))
     obligation: ic.Obligation
     for obligation in declaration.obligations:
         identifier = prefix + '.' + obligation.identifier
+        lacking: str = ' (missing: ' + obligation.missing + ')' if obligation.missing else ''
+        if obligation.untouched:
+            held: bool
+            path_steps: list[str]
+            read: list[str]
+            trouble: list[str]
+            held, path_steps, read, trouble = structural(root, obligation)
+            if not held:
+                open_items.append((identifier, '; '.join(trouble) + lacking))
+                continue
+            records.append(Record(identifier, declaration, read, 'source structure: on every path to a refusal, '
+                                  'no pointer is formed from ' + ', '.join(obligation.untouched) + ' or a value '
+                                  'computed from them, nor dereferenced; each call they reach is read the same '
+                                  'way', list(obligation.premises) + [
+                                      'the metadata accessors (' + ', '.join(obligation.metadata) + ') return '
+                                      'pointers outside the block and its neighbours',
+                                      'a member function of an atomic or of metadata takes the value, not memory '
+                                      'at it', 'a statement after a function\'s last refusal is on no refused path'
+                                      ' of that function'], path_steps + ['files read: ' + ', '.join(read)]))
+            continue
         if not obligation.shows:
-            open_items.append((identifier, 'stated in words only (no given and shows)'))
+            open_items.append((identifier, 'stated in words only (no given and shows)' + lacking))
             continue
         proved: bool
         laws: list[str]

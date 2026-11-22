@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/buffer.ic.toml",
-    "sha256": "2ddc1e94d3d402f325c1ad3483b05e4c454b44c9728a27f97095f0e8d9e3a638"
+    "sha256": "fdb931308d9befbd637d759d7d025c9278cb5d55a1fec5c97fe030dbce830175"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -23,7 +23,7 @@
       "evidence": "generated check stxlib::detail::ic::buffer::admits_element_index, called in include/stxlib/buffer.hpp",
       "method": "source structure: each call of the predicate guards the declared refusal",
       "proved_against": {
-        "include/stxlib/buffer.hpp": "0a8078794a1085eb06875865fd78a07ac10376ef43eac386daca8d7710fcc688"
+        "include/stxlib/buffer.hpp": "32719fda3c0f6188bddd583badf221c7e2b32f2cc6c4680e7546a3a317c9cf03"
       }
     }
   ]

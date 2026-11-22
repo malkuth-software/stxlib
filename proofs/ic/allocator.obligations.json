@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "src/state/stx_minmallocpp/allocator.ic.toml",
-    "sha256": "83466179f34b87f70ce039b5379126d4e9afab079344a763bf33081d5b3e6ba0"
+    "sha256": "8326ac684b3abebebf5b3a90c086dfb80464fda8ada4c79e3a1458b4e968964c"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -20,7 +20,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::stx_minmallocpp::ic::admits_allocate, called in src/state/stx_minmallocpp/allocator.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       }
@@ -36,7 +36,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       }
@@ -63,17 +63,48 @@
         "the queue and abandoned-list contracts"
       ],
       "status": "open",
-      "method": "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
+      "method": "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6).",
+      "missing": "a per-bit ownership invariant the counter lemmas do not state: for every block, exactly one of (held by a caller; its bit set in its page's free word; its bit set in its page's remote word), with the summary bit set for every non-zero free word. With it, page_count_take/release/collect/made give sum + live == capacity, so page_whole and the live_count stop hold; released_twice and released_into_freed_page need the invariant itself, and every interleaving needs a model of the step marks (each segment atomic) that the deducer does not have."
     },
     {
       "id": "stxlib.stx_minmallocpp.refusal_reads_nothing",
       "kind": "stated",
       "statement": "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "method": ""
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the region's metadata (slice heads, page records, free and remote words: the slices below first_data_slice) and the directory are not the block or its neighbours (layout.hpp, page.hpp)",
+        "the metadata accessors (slice_heads, page_metas, free_words, remote_words, directory) return pointers outside the block and its neighbours",
+        "a member function of an atomic or of metadata takes the value, not memory at it",
+        "a statement after a function's last refusal is on no refused path of that function"
+      ],
+      "status": "discharged",
+      "method": "source structure: on every path to a refusal, no pointer is formed from address, value or a value computed from them, nor dereferenced; each call they reach is read the same way",
+      "untouched": [
+        "address",
+        "value"
+      ],
+      "paths": [
+        "src/state/stx_minmallocpp/allocator.cpp: release: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_with: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_common: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_general: Release::refused",
+        "src/state/stx_minmallocpp/region.cpp: release_huge: return false"
+      ],
+      "metadata": [
+        "slice_heads",
+        "page_metas",
+        "free_words",
+        "remote_words",
+        "directory"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
+        "src/state/stx_minmallocpp/region.hpp": "079718a533cca1cf0ba7673ccb22387ee3286284ae4a78f0541f4af37ba72152",
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b",
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
+        "src/state/stx_minmallocpp/region.cpp": "929d0478f6c54cd55b30f8a377b4a868bc64a268895a87aaae1e74f8651119cc"
+      }
     },
     {
       "id": "stxlib.stx_minmallocpp.page_count_take",

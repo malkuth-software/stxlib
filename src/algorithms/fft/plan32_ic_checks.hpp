@@ -15,15 +15,17 @@ namespace stxlib::detail::ic::fft_plan32 {
     return result;
 }
 
-// Plan32::make: size <= max_size; else failure limit_exceeded.
-[[nodiscard]] constexpr bool admits_make_size_limit(const usize size) noexcept {
-    const bool result = size <= ::stxlib::fft::max_size;
+// Plan32::make: requested <= max_size; else failure limit_exceeded.
+[[nodiscard]] constexpr bool admits_make_size_limit(const usize requested) noexcept {
+    const bool result = requested <= ::stxlib::fft::max_size;
     return result;
 }
 
-// Plan32::make: power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)); else failure invalid_argument.
-[[nodiscard]] constexpr bool admits_make_size_shape(const usize size, const u8 mode) noexcept {
-    const bool result = (size != 0 && (size & (size - 1)) == 0) && ((size >= 4) || ((mode == 1) && (size >= 2)));
+// Plan32::make: power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)); else failure
+// invalid_argument.
+[[nodiscard]] constexpr bool admits_make_size_shape(const usize requested, const u8 mode) noexcept {
+    const bool result = (requested != 0 && (requested & (requested - 1)) == 0)
+                     && ((requested >= 4) || ((mode == 1) && (requested >= 2)));
     return result;
 }
 

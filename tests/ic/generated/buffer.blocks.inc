@@ -65,29 +65,27 @@ inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& ho
 // Buffer::allocate_zeroed, legal.
 inline ::stxlib_ic::Outcome legal_allocate_zeroed(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     static_cast<void>(holder);
-    const stxlib::u64 t_count = step.before.terms[0];
-    static_cast<void>(t_count);
-    stxlib::u64 count_low = 0ULL;
-    stxlib::u64 count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
-    bool count_open = true;
-    count_open = count_open && ::stxlib_ic::tighten_low(count_low, static_cast<stxlib::u64>(0), false);
-    count_open = count_open && ::stxlib_ic::tighten_high(count_high, static_cast<stxlib::u64>(4096), false);
-    if (!count_open || count_low > count_high) return step.bail("Buffer::allocate_zeroed, legal: no admitted value of count");
-    const stxlib::u64 count_drawn = step.draw.pick(count_low, count_high);
-    const stxlib::usize v_count = static_cast<stxlib::usize>(count_drawn);
-    static_cast<void>(count_low);
-    static_cast<void>(count_high);
-    static_cast<void>(count_open);
-    static_cast<void>(v_count);
-    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::allocate_zeroed(").unsigned_value(static_cast<stxlib::u64>(v_count)).text("));").end();
-    stxlib::OperationResult<Object> made = Object::allocate_zeroed(v_count);
+    stxlib::u64 elements_low = 0ULL;
+    stxlib::u64 elements_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool elements_open = true;
+    elements_open = elements_open && ::stxlib_ic::tighten_low(elements_low, static_cast<stxlib::u64>(0), false);
+    elements_open = elements_open && ::stxlib_ic::tighten_high(elements_high, static_cast<stxlib::u64>(4096), false);
+    if (!elements_open || elements_low > elements_high) return step.bail("Buffer::allocate_zeroed, legal: no admitted value of elements");
+    const stxlib::u64 elements_drawn = step.draw.pick(elements_low, elements_high);
+    const stxlib::usize v_elements = static_cast<stxlib::usize>(elements_drawn);
+    static_cast<void>(elements_low);
+    static_cast<void>(elements_high);
+    static_cast<void>(elements_open);
+    static_cast<void>(v_elements);
+    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::allocate_zeroed(").unsigned_value(static_cast<stxlib::u64>(v_elements)).text("));").end();
+    stxlib::OperationResult<Object> made = Object::allocate_zeroed(v_elements);
     if (made.failed()) return step.failed(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::limit_exceeded) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::out_of_memory), true, step.before.state);
     if (holder.present()) teardown(*holder.get(), step.before.state);
     holder.replace(static_cast<stxlib::OperationResult<Object>&&>(made).take_value());
     Object& object = *holder.get();
     if (!(::stxlib_ic::inputs::all_zero(object.view()))) return step.defect(::stxlib_ic::DefectKind::expectation, "Buffer::allocate_zeroed, legal: ::stxlib_ic::inputs::all_zero(object.view())");
     step.after.live = true;
-    step.after.terms[0] = static_cast<stxlib::u64>(v_count);
+    step.after.terms[0] = static_cast<stxlib::u64>(v_elements);
     return ::stxlib_ic::Outcome::completed;
 }
 

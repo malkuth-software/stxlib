@@ -21,11 +21,11 @@
       "moves": null,
       "inputs": [
         {
-          "name": "size",
+          "name": "requested",
           "type": "usize",
           "bounded_by": [
-            "size <= max_size",
-            "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+            "requested <= max_size",
+            "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))"
           ]
         },
         {
@@ -33,14 +33,14 @@
           "type": "u8",
           "bounded_by": [
             "mode <= 2",
-            "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+            "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))"
           ]
         }
       ],
       "requires": [
         "mode <= 2",
-        "size <= max_size",
-        "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))"
+        "requested <= max_size",
+        "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))"
       ],
       "fails": [
         {
@@ -70,7 +70,7 @@
       "name": "stxlib.fft.plan64.make.misuse.make_size_limit",
       "mode": "misuse",
       "call": "make",
-      "violates": "size <= max_size",
+      "violates": "requested <= max_size",
       "expect": {
         "kind": "failure",
         "failure": "limit_exceeded"
@@ -81,7 +81,7 @@
       "name": "stxlib.fft.plan64.make.misuse.make_size_shape",
       "mode": "misuse",
       "call": "make",
-      "violates": "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))",
+      "violates": "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))",
       "expect": {
         "kind": "failure",
         "failure": "invalid_argument"

@@ -20,7 +20,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::memory::admits_allocate, called in src/state/allocator.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
       }
@@ -36,7 +36,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
       }

@@ -38,7 +38,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::glyph_store::admits_glyph_index, called in src/algorithms/glyphs/glyph_store.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
       }
@@ -47,10 +47,18 @@
       "id": "stxlib.glyphs.glyphstore.glyph.refusal.glyph_index",
       "kind": "refusal-leaves",
       "statement": "Unless glyph < glyph_count, glyph changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return",
+        "a check that ends the process changes nothing a caller observes when it returns; an output parameter is not the object"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+      }
     },
     {
       "id": "stxlib.glyphs.glyphstore.glyph.outside.closed",

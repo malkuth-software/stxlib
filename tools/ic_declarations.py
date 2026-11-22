@@ -11,8 +11,11 @@ writes everything else that states those constraints:
 - an entry-check header: one predicate and one message per clause, which
   the code calls, so a stated condition and its check are one text;
 - a member-manifest column (`constraints`), one row per call;
-- fuzz block stubs (JSON) for the block fuzzer (the IC study's phase IC2);
-- proof obligations (JSON), open until a deduction discharges them.
+- fuzz block stubs (JSON) and, with the project's `engine`, the engine's
+  C++ blocks (the IC study's phase IC2);
+- proof obligations (JSON), open until a deduction discharges them (a
+  deducer's results are merged while their hashes match);
+- with the project's `gate`, the gate results file.
 
 The format is docs/ic_declarations.md; the design is the IC study's (notes,
 gui_forms branch, planning/stages/IC-integrity-constraints/STUDY.md). It
@@ -72,12 +75,15 @@ CONSTANT_KEYS: frozenset[str] = frozenset({'value', 'cpp', 'type'})
 CHECKS_KEYS: frozenset[str] = frozenset({'path', 'namespace', 'includes', 'used_in'})
 CALL_KEYS: frozenset[str] = frozenset(
     {'name', 'id', 'declarations', 'kind', 'thread', 'in', 'outside', 'moves', 'parameters', 'requires',
-     'fails', 'returns', 'transfers', 'engine'})
+     'fails', 'returns', 'transfers', 'engine', 'refusal_order'})
 REQUIRE_KEYS: frozenset[str] = frozenset({'holds', 'refuses', 'message', 'check', 'leaves'})
 FAIL_KEYS: frozenset[str] = frozenset({'failure', 'when', 'leaves'})
 RETURN_KEYS: frozenset[str] = frozenset({'type', 'owns', 'state', 'borrows', 'until', 'revokes'})
 TRANSFER_KEYS: frozenset[str] = frozenset({'what', 'from', 'to'})
-OBLIGATION_KEYS: frozenset[str] = frozenset({'id', 'statement', 'method', 'premises', 'given', 'shows', 'sources'})
+OBLIGATION_KEYS: frozenset[str] = frozenset({'id', 'statement', 'method', 'premises', 'given', 'shows', 'sources',
+                                            'untouched', 'paths', 'metadata', 'missing'})
+# The name refusal_order uses for a call's typestate refusal (its `outside`).
+ORDER_OUTSIDE: str = 'outside'
 
 
 class DeclarationError(Exception):
@@ -493,6 +499,7 @@ class Call:
     returns: tuple[tuple[str, object], ...]
     transfers: tuple[tuple[str, str, str], ...]
     engine: CallEngine | None = None
+    refusal_order: tuple[str, ...] = ()  # empty: undeclared; else every refusal once, the winner first
 
 
 @dataclasses.dataclass(frozen=True)
@@ -521,6 +528,10 @@ class Obligation:
     given: tuple[str, ...] = ()
     shows: str = ''
     sources: tuple[str, ...] = ()
+    untouched: tuple[str, ...] = ()   # names no refused path forms a pointer from (a structural obligation)
+    paths: tuple[str, ...] = ()       # `path: function: refusal` the structural obligation reads
+    metadata: tuple[str, ...] = ()    # accessors whose pointers lie outside what `untouched` names
+    missing: str = ''                 # the premise a deduction lacks, as its author states it
 
 
 @dataclasses.dataclass(frozen=True)
@@ -722,6 +733,10 @@ def call_of(value: object, index: int, declaration: dict[str, object], states: t
     parameter: str
     for parameter in parameter_table:
         identifier_checked(parameter, where + ': parameters')
+        if parameter in known_names:
+            # A parameter named like a term or a constant would make the clause's text and the predicate's
+            # parameters disagree about which one a name means.
+            raise DeclarationError(where + ': parameter ' + repr(parameter) + ' has the name of a term or constant')
         parameters.append((parameter, text_of(parameter_table, parameter, where + ': parameters')))
     visible: dict[str, str] = dict(known_names)
     visible.update(dict(parameters))
@@ -806,10 +821,40 @@ def call_of(value: object, index: int, declaration: dict[str, object], states: t
         engine = call_engine_of(table['engine'], where, terms, visible, states,
                                 'live' if kind == 'member' else ('any' if returns_object else 'none'),
                                 returns_object)
+    order: tuple[str, ...] = refusal_order_of(table, where, requirements, bool(outside))
     call: Call = Call(name, identifier, declarations, kind, thread, admitting, tuple(outside), moves,
                       tuple(parameters), tuple(requirements), tuple(fails), tuple(returns_table.items()),
-                      tuple(transfers), engine)
+                      tuple(transfers), engine, order)
     return call
+
+
+def refusal_order_of(table: dict[str, object], where: str, requirements: list[Requirement],
+                     has_outside: bool) -> tuple[str, ...]:
+    """A call's refusal_order: which refusal wins when several apply, the first listed winning. It names each
+    requirement's check, and `outside` for the typestate refusal, every one exactly once."""
+    if 'refusal_order' not in table:
+        return ()
+    order: tuple[str, ...] = texts_of(table, 'refusal_order', where)
+    refusals: list[str] = [requirement.check for requirement in requirements]
+    if has_outside:
+        refusals.insert(0, ORDER_OUTSIDE)
+    if len(refusals) < 2:
+        raise DeclarationError(where + ': refusal_order needs at least two refusals to order')
+    if len(set(order)) != len(order):
+        raise DeclarationError(where + ': refusal_order names a refusal twice')
+    unknown: list[str] = [item for item in order if item not in refusals]
+    if unknown:
+        raise DeclarationError(where + ': refusal_order names ' + ', '.join(repr(item) for item in unknown)
+                               + ', not a check of this call' + (' nor outside' if has_outside else ''))
+    left_out: list[str] = [item for item in refusals if item not in order]
+    if left_out:
+        raise DeclarationError(where + ': refusal_order must name every refusal; it leaves out ' + ', '.join(left_out))
+    return order
+
+
+def order_text(call: Call) -> str:
+    """The refusal order in words: `the closed state's refusal, then mode, then size`."""
+    return ', then '.join('the state refusal' if item == ORDER_OUTSIDE else item for item in call.refusal_order)
 
 
 def load_declaration(root: Path, relative: str) -> Declaration:
@@ -926,7 +971,19 @@ def load_declaration(root: Path, relative: str) -> Declaration:
                                       texts_of(obligation_table, 'premises', obligation_where),
                                       texts_of(obligation_table, 'given', obligation_where),
                                       text_of(obligation_table, 'shows', obligation_where, ''),
-                                      texts_of(obligation_table, 'sources', obligation_where)))
+                                      texts_of(obligation_table, 'sources', obligation_where),
+                                      texts_of(obligation_table, 'untouched', obligation_where),
+                                      texts_of(obligation_table, 'paths', obligation_where),
+                                      texts_of(obligation_table, 'metadata', obligation_where),
+                                      text_of(obligation_table, 'missing', obligation_where, '')))
+        last: Obligation = obligations[-1]
+        if last.shows and last.untouched:
+            raise DeclarationError(obligation_where + ': an obligation is a lemma (given, shows) or structural '
+                                   '(untouched, paths), not both')
+        if bool(last.untouched) != bool(last.paths):
+            raise DeclarationError(obligation_where + ': untouched and paths go together')
+        if last.metadata and not last.untouched:
+            raise DeclarationError(obligation_where + ': metadata belongs to a structural obligation (untouched)')
     declaration: Declaration = Declaration(relative, identifier, text, component, namespace, header, anchor,
                                            tuple(keys), thread, states, initial, state_query, tuple(observes),
                                            identity_kind, identity_stale, tuple(terms), tuple(constants), checks,
@@ -975,7 +1032,8 @@ def declaration_paths(project: Project) -> list[str]:
     pattern: str
     for pattern in project.declarations:
         match: str
-        for match in glob.glob(pattern, root_dir=project.root):
+        # `**` matches any number of directories, as the docs' project file uses it.
+        for match in glob.glob(pattern, root_dir=project.root, recursive=True):
             found.add(Path(match).as_posix())
     result: list[str] = sorted(found)
     return result
@@ -1017,6 +1075,8 @@ def call_sentences(declaration: Declaration, call: Call) -> list[str]:
     for requirement in call.requires:
         sentences.append('Requires ' + requirement.holds + ', else '
                          + refusal_sentence(requirement.refuses, requirement.message, requirement.leaves) + '.')
+    if call.refusal_order:
+        sentences.append('When several refusals apply: ' + order_text(call) + '.')
     outcomes: list[str] = []
     failure: Failure
     for failure in call.fails:
@@ -1114,12 +1174,16 @@ def matching_line(lines: list[str], start: str, where: str, low: int = 0, high: 
 
 
 def class_end(lines: list[str], anchor_index: int) -> int:
-    """The line after the anchor's class: its first `};` at the anchor's indentation."""
+    """The line after the anchor's class: its first `};` at the anchor's indentation, or, for a C
+    `typedef struct name {`, its first `} name;` there (a C ABI's function table)."""
     line: str = lines[anchor_index]
-    closing: str = line[:len(line) - len(line.lstrip())] + '};'
+    indent: str = line[:len(line) - len(line.lstrip())]
+    closing: str = indent + '};'
+    typedef_closing: re.Pattern[str] = re.compile(re.escape(indent) + r'\}\s*[A-Za-z_][A-Za-z0-9_]*\s*;\Z')
     index: int
     for index in range(anchor_index + 1, len(lines)):
-        if lines[index].rstrip() == closing:
+        text: str = lines[index].rstrip()
+        if text == closing or typedef_closing.match(text):
             return index + 1
     return len(lines)
 
@@ -1223,7 +1287,7 @@ def checks_text(project: Project, declaration: Declaration) -> str:
             if requirement.check in written:
                 continue
             written.add(requirement.check)
-            parameters: list[str] = ['const ' + call_types[name] + ' ' + name for name in requirement.names
+            parameters: list[str] = [const_parameter(call_types[name]) + ' ' + name for name in requirement.names
                                      if name not in constant_names]
             clause: Node = renamed(requirement.clause, cpp_names)
             lines.extend(comment_lines(declaration.component + '::' + call.name + ': ' + requirement.holds + '; else '
@@ -1270,6 +1334,13 @@ def result_lines(clause: Node, limit: int) -> list[str]:
         lines.append(' ' * (len(first) - len(joiner)) + joiner + operand)
     lines[-1] = lines[-1] + ';'
     return lines
+
+
+def const_parameter(type_name: str) -> str:
+    """A predicate parameter's type: const, once (a declared `const T*` already is)."""
+    if type_name.startswith('const '):
+        return type_name
+    return 'const ' + type_name
 
 
 def renamed(node: Node, cpp_names: dict[str, str]) -> Node:
@@ -1357,6 +1428,8 @@ def blocks_text(project: Project, declaration: Declaration) -> str:
                           for failure in call.fails],
                 'returns': dict(call.returns),
             }
+            if call.refusal_order:
+                block['refusal_order'] = list(call.refusal_order)
             blocks.append(block)
         requirement: Requirement
         for requirement in call.requires:
@@ -1411,6 +1484,10 @@ def obligations_text(project: Project, declaration: Declaration) -> str:
                 obligations.append(open_obligation(base + '.refusal.' + requirement.check, 'refusal-leaves',
                                                    'Unless ' + requirement.holds + ', ' + call.name
                                                    + ' changes nothing observable.', ''))
+        if call.refusal_order:
+            obligations.append(open_obligation(base + '.order', 'refusal-order',
+                                               'When several of ' + call.name + '\'s refusals apply, the first of '
+                                               + order_text(call) + ' is the one reported.', ''))
         if call.moves:
             source: str = ', '.join(call.admitting) if call.admitting else 'any state'
             obligations.append(open_obligation(base + '.moves', 'transition',
@@ -1437,6 +1514,12 @@ def obligations_text(project: Project, declaration: Declaration) -> str:
             record['given'] = list(obligation.given)
             record['shows'] = obligation.shows
             record['sources'] = list(obligation.sources)
+        if obligation.untouched:
+            record['untouched'] = list(obligation.untouched)
+            record['paths'] = list(obligation.paths)
+            record['metadata'] = list(obligation.metadata)
+        if obligation.missing:
+            record['missing'] = obligation.missing
         obligations.append(record)
     document: dict[str, object] = {
         'schema': SCHEMA, 'component': declaration.manifest_key(), 'generated_by': project.generator,
@@ -2312,8 +2395,8 @@ class BlockWriter:
                 if not self.codes_enum():
                     raise DeclarationError(self.declaration.path + ': a refusal code needs engine.codes')
                 code = 'static_cast<stxlib::u32>(' + self.codes_enum() + '::' + refusal.code + ')'
-            lines.append('    if (' + outcome + '.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "'
-                         + cpp_string(call_name) + ' succeeded");')
+            lines.append('    if (' + outcome + '.succeeded()) return step.defect('
+                         '::stxlib_ic::DefectKind::misuse_accepted, "' + cpp_string(call_name) + ' succeeded");')
             lines.append('    return step.refused(*' + outcome + '.error(), ' + kind + ', ' + code + ', '
                          + ('true' if refusal.code else 'false') + ');')
             return lines
@@ -2435,8 +2518,8 @@ class BlockWriter:
         else:
             for requirement in requirements:
                 if target is not None and requirement.check == target.check:
-                    body.append('    if (' + self.predicate_call(requirement, variables) + ') return step.bail("' + label
-                                + ': ' + requirement.check + ' holds");')
+                    body.append('    if (' + self.predicate_call(requirement, variables) + ') return step.bail("'
+                                + label + ': ' + requirement.check + ' holds");')
                 else:
                     body.append('    if (!' + self.predicate_call(requirement, variables) + ') return step.bail("'
                                 + label + ': ' + requirement.check + ' fails too");')

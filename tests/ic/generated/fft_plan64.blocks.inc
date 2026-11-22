@@ -73,20 +73,18 @@ inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& ho
 // Plan64::make, legal.
 inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     static_cast<void>(holder);
-    const stxlib::u64 t_size = step.before.terms[0];
-    static_cast<void>(t_size);
-    stxlib::u64 size_low = 0ULL;
-    stxlib::u64 size_high = static_cast<stxlib::u64>(~stxlib::usize{0});
-    bool size_open = true;
-    size_open = size_open && ::stxlib_ic::tighten_high(size_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
-    size_open = size_open && ::stxlib_ic::tighten_low(size_low, static_cast<stxlib::u64>(2), false);
-    size_open = size_open && ::stxlib_ic::tighten_high(size_high, static_cast<stxlib::u64>(4096), false);
-    if (!size_open || size_low > size_high) return step.bail("Plan64::make, legal: no admitted value of size");
-    const stxlib::u64 size_drawn = step.draw.power_of_two(size_low, size_high);
-    const stxlib::usize v_size = static_cast<stxlib::usize>(size_drawn);
-    static_cast<void>(size_low);
-    static_cast<void>(size_high);
-    static_cast<void>(size_open);
+    stxlib::u64 requested_low = 0ULL;
+    stxlib::u64 requested_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool requested_open = true;
+    requested_open = requested_open && ::stxlib_ic::tighten_high(requested_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
+    requested_open = requested_open && ::stxlib_ic::tighten_low(requested_low, static_cast<stxlib::u64>(2), false);
+    requested_open = requested_open && ::stxlib_ic::tighten_high(requested_high, static_cast<stxlib::u64>(4096), false);
+    if (!requested_open || requested_low > requested_high) return step.bail("Plan64::make, legal: no admitted value of requested");
+    const stxlib::u64 requested_drawn = step.draw.power_of_two(requested_low, requested_high);
+    const stxlib::usize v_requested = static_cast<stxlib::usize>(requested_drawn);
+    static_cast<void>(requested_low);
+    static_cast<void>(requested_high);
+    static_cast<void>(requested_open);
     stxlib::u64 mode_low = 0ULL;
     stxlib::u64 mode_high = 0xffULL;
     bool mode_open = true;
@@ -99,19 +97,19 @@ inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& ho
     static_cast<void>(mode_low);
     static_cast<void>(mode_high);
     static_cast<void>(mode_open);
-    static_cast<void>(v_size);
+    static_cast<void>(v_requested);
     static_cast<void>(v_mode);
     if (!::stxlib::detail::ic::fft_plan64::admits_make_mode(v_mode)) return step.bail("Plan64::make, legal: the draw misses make_mode");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_size)) return step.bail("Plan64::make, legal: the draw misses make_size_limit");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_size, v_mode)) return step.bail("Plan64::make, legal: the draw misses make_size_shape");
-    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::make(").unsigned_value(static_cast<stxlib::u64>(v_size)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text(")));").end();
-    stxlib::OperationResult<Object> made = Object::make(v_size, static_cast<::stxlib::fft::Mode>(v_mode));
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_requested)) return step.bail("Plan64::make, legal: the draw misses make_size_limit");
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_requested, v_mode)) return step.bail("Plan64::make, legal: the draw misses make_size_shape");
+    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::make(").unsigned_value(static_cast<stxlib::u64>(v_requested)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text(")));").end();
+    stxlib::OperationResult<Object> made = Object::make(v_requested, static_cast<::stxlib::fft::Mode>(v_mode));
     if (made.failed()) return step.failed(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::out_of_memory), true, step.before.state);
     if (holder.present()) teardown(*holder.get(), step.before.state);
     holder.replace(static_cast<stxlib::OperationResult<Object>&&>(made).take_value());
     step.after.live = true;
     step.observe_term(1U);
-    step.after.terms[0] = static_cast<stxlib::u64>(v_size);
+    step.after.terms[0] = static_cast<stxlib::u64>(v_requested);
     step.after.state = 1U;
     return ::stxlib_ic::Outcome::completed;
 }
@@ -119,20 +117,18 @@ inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& ho
 // Plan64::make, misuse of make_mode.
 inline ::stxlib_ic::Outcome misuse_make_make_mode(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     static_cast<void>(holder);
-    const stxlib::u64 t_size = step.before.terms[0];
-    static_cast<void>(t_size);
-    stxlib::u64 size_low = 0ULL;
-    stxlib::u64 size_high = static_cast<stxlib::u64>(~stxlib::usize{0});
-    bool size_open = true;
-    size_open = size_open && ::stxlib_ic::tighten_high(size_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
-    size_open = size_open && ::stxlib_ic::tighten_low(size_low, static_cast<stxlib::u64>(2), false);
-    size_open = size_open && ::stxlib_ic::tighten_high(size_high, static_cast<stxlib::u64>(4096), false);
-    if (!size_open || size_low > size_high) return step.bail("Plan64::make, misuse of make_mode: no admitted value of size");
-    const stxlib::u64 size_drawn = step.draw.power_of_two(size_low, size_high);
-    const stxlib::usize v_size = static_cast<stxlib::usize>(size_drawn);
-    static_cast<void>(size_low);
-    static_cast<void>(size_high);
-    static_cast<void>(size_open);
+    stxlib::u64 requested_low = 0ULL;
+    stxlib::u64 requested_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool requested_open = true;
+    requested_open = requested_open && ::stxlib_ic::tighten_high(requested_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
+    requested_open = requested_open && ::stxlib_ic::tighten_low(requested_low, static_cast<stxlib::u64>(2), false);
+    requested_open = requested_open && ::stxlib_ic::tighten_high(requested_high, static_cast<stxlib::u64>(4096), false);
+    if (!requested_open || requested_low > requested_high) return step.bail("Plan64::make, misuse of make_mode: no admitted value of requested");
+    const stxlib::u64 requested_drawn = step.draw.power_of_two(requested_low, requested_high);
+    const stxlib::usize v_requested = static_cast<stxlib::usize>(requested_drawn);
+    static_cast<void>(requested_low);
+    static_cast<void>(requested_high);
+    static_cast<void>(requested_open);
     stxlib::u64 mode_low = 0ULL;
     stxlib::u64 mode_high = 0xffULL;
     bool mode_open = true;
@@ -143,13 +139,13 @@ inline ::stxlib_ic::Outcome misuse_make_make_mode(::stxlib_ic::Step& step, Objec
     static_cast<void>(mode_low);
     static_cast<void>(mode_high);
     static_cast<void>(mode_open);
-    static_cast<void>(v_size);
+    static_cast<void>(v_requested);
     static_cast<void>(v_mode);
     if (::stxlib::detail::ic::fft_plan64::admits_make_mode(v_mode)) return step.bail("Plan64::make, misuse of make_mode: make_mode holds");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_size)) return step.bail("Plan64::make, misuse of make_mode: make_size_limit fails too");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_size, v_mode)) return step.bail("Plan64::make, misuse of make_mode: make_size_shape fails too");
-    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_size)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
-    stxlib::OperationResult<Object> made = Object::make(v_size, static_cast<::stxlib::fft::Mode>(v_mode));
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_requested)) return step.bail("Plan64::make, misuse of make_mode: make_size_limit fails too");
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_requested, v_mode)) return step.bail("Plan64::make, misuse of make_mode: make_size_shape fails too");
+    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_requested)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
+    stxlib::OperationResult<Object> made = Object::make(v_requested, static_cast<::stxlib::fft::Mode>(v_mode));
     if (made.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan64::make, misuse of make_mode succeeded");
     return step.refused(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
 }
@@ -157,18 +153,16 @@ inline ::stxlib_ic::Outcome misuse_make_make_mode(::stxlib_ic::Step& step, Objec
 // Plan64::make, misuse of make_size_limit.
 inline ::stxlib_ic::Outcome misuse_make_make_size_limit(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     static_cast<void>(holder);
-    const stxlib::u64 t_size = step.before.terms[0];
-    static_cast<void>(t_size);
-    stxlib::u64 size_low = 0ULL;
-    stxlib::u64 size_high = static_cast<stxlib::u64>(~stxlib::usize{0});
-    bool size_open = true;
-    size_open = size_open && ::stxlib_ic::tighten_high(size_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
-    stxlib::u64 size_drawn = 0;
-    if (!step.draw.outside(size_low, size_high, static_cast<stxlib::u64>(~stxlib::usize{0}), size_drawn)) return step.bail("Plan64::make, misuse of make_size_limit: every value of size is admitted");
-    const stxlib::usize v_size = static_cast<stxlib::usize>(size_drawn);
-    static_cast<void>(size_low);
-    static_cast<void>(size_high);
-    static_cast<void>(size_open);
+    stxlib::u64 requested_low = 0ULL;
+    stxlib::u64 requested_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool requested_open = true;
+    requested_open = requested_open && ::stxlib_ic::tighten_high(requested_high, static_cast<stxlib::u64>(::stxlib::fft::max_size), false);
+    stxlib::u64 requested_drawn = 0;
+    if (!step.draw.outside(requested_low, requested_high, static_cast<stxlib::u64>(~stxlib::usize{0}), requested_drawn)) return step.bail("Plan64::make, misuse of make_size_limit: every value of requested is admitted");
+    const stxlib::usize v_requested = static_cast<stxlib::usize>(requested_drawn);
+    static_cast<void>(requested_low);
+    static_cast<void>(requested_high);
+    static_cast<void>(requested_open);
     stxlib::u64 mode_low = 0ULL;
     stxlib::u64 mode_high = 0xffULL;
     bool mode_open = true;
@@ -181,13 +175,13 @@ inline ::stxlib_ic::Outcome misuse_make_make_size_limit(::stxlib_ic::Step& step,
     static_cast<void>(mode_low);
     static_cast<void>(mode_high);
     static_cast<void>(mode_open);
-    static_cast<void>(v_size);
+    static_cast<void>(v_requested);
     static_cast<void>(v_mode);
     if (!::stxlib::detail::ic::fft_plan64::admits_make_mode(v_mode)) return step.bail("Plan64::make, misuse of make_size_limit: make_mode fails too");
-    if (::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_size)) return step.bail("Plan64::make, misuse of make_size_limit: make_size_limit holds");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_size, v_mode)) return step.bail("Plan64::make, misuse of make_size_limit: make_size_shape fails too");
-    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_size)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
-    stxlib::OperationResult<Object> made = Object::make(v_size, static_cast<::stxlib::fft::Mode>(v_mode));
+    if (::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_requested)) return step.bail("Plan64::make, misuse of make_size_limit: make_size_limit holds");
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_requested, v_mode)) return step.bail("Plan64::make, misuse of make_size_limit: make_size_shape fails too");
+    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_requested)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
+    stxlib::OperationResult<Object> made = Object::make(v_requested, static_cast<::stxlib::fft::Mode>(v_mode));
     if (made.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan64::make, misuse of make_size_limit succeeded");
     return step.refused(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::limit_exceeded), 0U, false);
 }
@@ -195,16 +189,14 @@ inline ::stxlib_ic::Outcome misuse_make_make_size_limit(::stxlib_ic::Step& step,
 // Plan64::make, misuse of make_size_shape.
 inline ::stxlib_ic::Outcome misuse_make_make_size_shape(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     static_cast<void>(holder);
-    const stxlib::u64 t_size = step.before.terms[0];
-    static_cast<void>(t_size);
-    stxlib::u64 size_low = 0ULL;
-    stxlib::u64 size_high = static_cast<stxlib::u64>(~stxlib::usize{0});
-    bool size_open = true;
-    const stxlib::u64 size_drawn = step.draw.not_power_of_two(size_high);
-    const stxlib::usize v_size = static_cast<stxlib::usize>(size_drawn);
-    static_cast<void>(size_low);
-    static_cast<void>(size_high);
-    static_cast<void>(size_open);
+    stxlib::u64 requested_low = 0ULL;
+    stxlib::u64 requested_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool requested_open = true;
+    const stxlib::u64 requested_drawn = step.draw.not_power_of_two(requested_high);
+    const stxlib::usize v_requested = static_cast<stxlib::usize>(requested_drawn);
+    static_cast<void>(requested_low);
+    static_cast<void>(requested_high);
+    static_cast<void>(requested_open);
     stxlib::u64 mode_low = 0ULL;
     stxlib::u64 mode_high = 0xffULL;
     bool mode_open = true;
@@ -217,13 +209,13 @@ inline ::stxlib_ic::Outcome misuse_make_make_size_shape(::stxlib_ic::Step& step,
     static_cast<void>(mode_low);
     static_cast<void>(mode_high);
     static_cast<void>(mode_open);
-    static_cast<void>(v_size);
+    static_cast<void>(v_requested);
     static_cast<void>(v_mode);
     if (!::stxlib::detail::ic::fft_plan64::admits_make_mode(v_mode)) return step.bail("Plan64::make, misuse of make_size_shape: make_mode fails too");
-    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_size)) return step.bail("Plan64::make, misuse of make_size_shape: make_size_limit fails too");
-    if (::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_size, v_mode)) return step.bail("Plan64::make, misuse of make_size_shape: make_size_shape holds");
-    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_size)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
-    stxlib::OperationResult<Object> made = Object::make(v_size, static_cast<::stxlib::fft::Mode>(v_mode));
+    if (!::stxlib::detail::ic::fft_plan64::admits_make_size_limit(v_requested)) return step.bail("Plan64::make, misuse of make_size_shape: make_size_limit fails too");
+    if (::stxlib::detail::ic::fft_plan64::admits_make_size_shape(v_requested, v_mode)) return step.bail("Plan64::make, misuse of make_size_shape: make_size_shape holds");
+    step.line().text("CHECK(::stxlib_ic::refused(Object::make(").unsigned_value(static_cast<stxlib::u64>(v_requested)).text(", static_cast<::stxlib::fft::Mode>(").unsigned_value(static_cast<stxlib::u64>(v_mode)).text("))));").end();
+    stxlib::OperationResult<Object> made = Object::make(v_requested, static_cast<::stxlib::fft::Mode>(v_mode));
     if (made.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan64::make, misuse of make_size_shape succeeded");
     return step.refused(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
 }

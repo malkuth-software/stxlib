@@ -44,15 +44,15 @@ name = "make"
 kind = "static"
 thread = "any"
 declarations = ["[[nodiscard]] static OperationResult<Plan64> make(usize size, Mode mode) noexcept;"]
-parameters = { size = "usize", mode = "u8" }
+parameters = { requested = "usize", mode = "u8" }
 requires = [
   { holds = "mode <= 2", refuses = "failure:invalid_argument", check = "make_mode" },
-  { holds = "size <= max_size", refuses = "failure:limit_exceeded", check = "make_size_limit" },
-  { holds = "power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2))", refuses = "failure:invalid_argument", check = "make_size_shape" },
+  { holds = "requested <= max_size", refuses = "failure:limit_exceeded", check = "make_size_limit" },
+  { holds = "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))", refuses = "failure:invalid_argument", check = "make_size_shape" },
 ]
 fails = [{ failure = "out_of_memory", when = "the plan's state or tables" }]
 returns = { type = "Plan64", state = "ready", owns = "caller" }
-engine = { invoke = "Object::make(size, static_cast<::stxlib::fft::Mode>(mode))", ranges = { size = "[2, 4096]", mode = "[0, 2]" }, ensures = ["size = size"] }
+engine = { invoke = "Object::make(requested, static_cast<::stxlib::fft::Mode>(mode))", ranges = { requested = "[2, 4096]", mode = "[0, 2]" }, ensures = ["size = requested"] }
 
 [[call]]
 name = "empty"

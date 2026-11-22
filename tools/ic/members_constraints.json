@@ -42,7 +42,7 @@
     {
       "type": "stxlib::Buffer",
       "member": "allocate_zeroed",
-      "constraints": "Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
+      "constraints": "Fails limit_exceeded (the elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
       "declaration": "include/stxlib/buffer.ic.toml"
     },
     {
@@ -498,7 +498,7 @@
     {
       "type": "stxlib::fft::Plan32",
       "member": "make",
-      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires size <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by the caller.",
+      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by the caller.",
       "declaration": "include/stxlib/fft_plan32.ic.toml"
     },
     {
@@ -534,7 +534,7 @@
     {
       "type": "stxlib::fft::Plan64",
       "member": "make",
-      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires size <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(size) and (size >= 4 or (mode == 1 and size >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.",
+      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.",
       "declaration": "include/stxlib/fft_plan64.ic.toml"
     },
     {

@@ -20,7 +20,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::thread_pool::admits_create_some_threads, called in src/core/thread_pool.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -36,7 +36,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -53,7 +53,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::thread_pool::admits_create_thread_limit, called in src/core/thread_pool.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -69,7 +69,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -86,7 +86,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::thread_pool::admits_batch_task_limit, called in src/core/thread_pool.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -102,7 +102,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -137,7 +137,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::thread_pool::admits_begin_some_tasks, called in src/core/thread_pool.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -146,10 +146,18 @@
       "id": "stxlib.atomicpool.begin.refusal.begin_some_tasks",
       "kind": "refusal-leaves",
       "statement": "Unless task_count != 0, begin changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return",
+        "a check that ends the process changes nothing a caller observes when it returns; an output parameter is not the object"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.begin.requires.batch_task_limit",
@@ -163,7 +171,7 @@
       ],
       "status": "discharged",
       "evidence": "generated check stxlib::detail::ic::thread_pool::admits_batch_task_limit, called in src/core/thread_pool.cpp",
-      "method": "source structure: each call of the predicate guards the declared refusal",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
@@ -179,7 +187,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "status": "discharged",
-      "method": "source structure: only const locals, guards and their refusals precede the guard in its function",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       }
