@@ -57,7 +57,12 @@
 // inputs (binades, lattice centres, midpoints, neighbours, random phases),
 // at most 0.500020 ulp (sinpi), 0.500113 (cospi), 0.500295 (sincpi),
 // 0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992 (sinc_radians), for a
-// kernel with this one's operations in this order.
+// kernel with this one's operations then. That kernel left the anchors'
+// own 2^-53 out of the second-order terms (rotate_half_turn below), and
+// sincpi reached 0.500748 ulp off the study's sample; with it in, the
+// integrator's run of half_turn_accuracy (2026-11-22, 4 x 100,000 inputs)
+// measured at most 0.500102 (sinpi), 0.500063 (cospi), 0.500129 (sincpi),
+// 0.500169 (cosm1pi), 0.500154 (cosm1) and 0.500001 (sinc_radians).
 //
 // ---- The cosine losses -------------------------------------------------------
 //
@@ -239,11 +244,17 @@ HalfTurn rotate_half_turn(const std::uint64_t index, const double d) noexcept {
     const double d2 = d - d1;  // exact
     const double sine_cross = cell.sine_slope * d2 + cell.sine_slope_low * d;
     const double cosine_cross = cell.cosine_slope * d2 + cell.cosine_slope_low * d;
+    // The second-order terms take the cell's whole sine and cosine: the
+    // lattice anchors alone are up to 2^-53 off, which times a loss of up
+    // to 2^-14 left 2^-67 out of the low part (sincpi measured 0.500748 ulp
+    // at -0x1.8e74a2072cf8p-7 before; the study's kernel too).
+    const double whole_sine = cell.sine + cell.sine_low;
+    const double whole_cosine = cell.cosine + cell.cosine_low;
     HalfTurn result{};
     result.sine.hi = cell.sine + cell.sine_slope * d1;          // exact
     result.cosine.hi = cell.cosine + cell.cosine_slope * d1;    // exact
-    result.sine.lo = cell.sine_low + (sine_cross + (cell.cosine * cubic + cell.sine * loss));
-    result.cosine.lo = cell.cosine_low + (cosine_cross + (cell.cosine * loss - cell.sine * cubic));
+    result.sine.lo = cell.sine_low + (sine_cross + (whole_cosine * cubic + whole_sine * loss));
+    result.cosine.lo = cell.cosine_low + (cosine_cross + (whole_cosine * loss - whole_sine * cubic));
     return result;
 }
 
@@ -346,6 +357,34 @@ double sinc_series(const double a) noexcept {
     return result;
 }
 
+// sincpi within 2^-8 of a nonzero whole number n below 2^52, m = n + d with
+// d != 0: sin(pi m) / (pi m) = (-1)^n (d / m) (sin(pi d) / (pi d)), so pi
+// cancels and the quotient d / m is a double-double with an exact residual.
+// The series' excess sin(a)/a - 1 (a = pi |d| <= 2^-6.3) scales the head
+// into the tail, and the tail is rounded to odd before the one final sum,
+// so a result next to a midpoint of the head's grid (1 - 2^-53 lies 2^-54
+// ulp below one) is not pushed onto it by the tail's own rounding.
+double near_whole_sinc(const double m, const double whole, const double offset) noexcept {
+    const std::uint64_t odd = static_cast<std::uint64_t>(whole) & 1;
+    const double signed_offset = odd != 0 ? -offset : offset;
+    const Wide ratio = divide(signed_offset, 0.0, m, 0.0);
+    const double angle = times_pi(std::fabs(offset)).hi;
+    const double square = angle * angle;
+    const double excess = square * (sin_3 + square * (sin_5 + square * sin_7));
+    double tail = 0.0;
+    double tail_error = 0.0;
+    two_sum(ratio.lo, ratio.hi * excess, tail, tail_error);
+    // Round to odd (as round_wide_to_float): step an even tail toward its
+    // rounding error; tail is nonzero whenever the error is.
+    const std::uint64_t bits = std::bit_cast<std::uint64_t>(tail);
+    const std::uint64_t inexact = static_cast<std::uint64_t>(tail_error != 0.0);
+    const std::uint64_t adjust = inexact & ((bits & 1) ^ 1);
+    const std::uint64_t outward = static_cast<std::uint64_t>((tail_error > 0.0) == (tail > 0.0));
+    const double odd_tail = std::bit_cast<double>((bits + (adjust & outward)) - (adjust & (outward ^ 1)));
+    const double result = ratio.hi + odd_tail;
+    return result;
+}
+
 // -2 (hi + lo)^2 rounded once, for |hi| zero or in [2^-459, 2^502]: the
 // pair is normalized first (the rotations hand over low parts up to 2^-29
 // of the head), the leading square is an exact product, and the cross term
@@ -393,6 +432,15 @@ double sincpi(const double x) noexcept {
     const detail::Wide angle = detail::times_pi(m);
     if (m < 0x1p-8) {
         const double result = detail::sinc_series(angle.hi);
+        return result;
+    }
+    // The nearest whole number (m < 2^52; the sum rounds to it) and the exact
+    // offset from it.
+    const double whole = (m + 0x1p52) - 0x1p52;
+    const double offset = m - whole;
+    if (offset == 0.0) return 0.0;
+    if (whole != 0.0 && std::fabs(offset) < 0x1p-8) {
+        const double result = detail::near_whole_sinc(m, whole, offset);
         return result;
     }
     const detail::Wide sine = detail::half_turn_wide(m).sine;

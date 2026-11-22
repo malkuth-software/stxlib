@@ -471,7 +471,9 @@ void fronts(const int count) {
 // the rounding of the low parts is measured. The study (2026-11-18, 172,288
 // inputs against MPFR) measured 0.500020 (sinpi), 0.500113 (cospi),
 // 0.500295 (sincpi), 0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992
-// (sinc_radians) ulp at worst.
+// (sinc_radians) ulp at worst; this sample found sincpi at 0.500748 until
+// the rotation's second-order terms took the whole cell values (2026-11-22,
+// half_turn.cpp), and now measures at most 0.500169 (cosm1pi).
 constexpr double half_turn_ulp_limit = 0.5005;
 constexpr double half_turn_loss_ulp_limit = 0.502;
 
@@ -627,11 +629,12 @@ void half_turn_special_values() {
             "cosm1: special values");
     require(same_bits(m::cosm1pi(0.0), -0.0) && same_bits(m::cosm1pi(-0.0), -0.0) && same_bits(m::cosm1pi(0x1p-600), -0.0),
             "cosm1pi: special values");
-    // From 2^44 the phase is reduced modulo 2 in whole numbers: 2^45 + j/256
-    // is exact and must give j/256's bits.
+    // From 2^44 the phase is reduced modulo 2 in whole numbers: 2^44 + j/256
+    // is exact (the spacing there is 2^-8; at 2^45 it is 2^-7, so odd j
+    // would round) and must give j/256's bits.
     for (int j = 0; j < 512; ++j) {
         const double phase = static_cast<double>(j) / 256.0;
-        const double far = 0x1p45 + phase;
+        const double far = 0x1p44 + phase;
         require(same_bits(m::sinpi(far), m::sinpi(phase)) && same_bits(m::cospi(far), m::cospi(phase)),
                 "half-turn: the reduction modulo 2 from 2^44");
     }
@@ -665,8 +668,9 @@ void half_turn_special_values() {
 
 // Correctly rounded values from the study (MPFR 4.2.2 at 256 bits,
 // 2026-11-18; the losses through the half-angle identity in the reference
-// too). Every row is expected exactly: each lies far from a rounding
-// boundary for a kernel of this accuracy.
+// too). Every row is expected exactly. Each lies far from a rounding
+// boundary for a kernel of this accuracy except sincpi(1 - 2^-53), 2^-54 ulp
+// below a midpoint, which sincpi's near-whole-number path decides exactly.
 void half_turn_reference_values() {
     namespace m = stxlib::math;
     struct Row final {
@@ -701,20 +705,31 @@ void half_turn_reference_values() {
         {0x1.0000000000001p+49, 0x1.87de2a6aea963p-2, 0x1.d906bcf328d46p-1, 0x1.f2f10e3ce6d4p-53, -0x1.37ca1866b95cfp-4,
          -0x1.2b67bb57f1105p-4, 0x1.804ee2423f73p-51},
     };
+    // Every differing value is printed before the first failure, so one run
+    // lists them all.
+    int differing = 0;
+    const auto check = [&differing](const char* const name, const double x, const double result, const double expected) {
+        if (!same_bits(result, expected)) {
+            differing += 1;
+            std::fprintf(stderr, "%s(%a): result %a, reference %a\n", name, x, result, expected);
+        }
+    };
     for (const Row& row : rows) {
         double sine = 0.0;
         double cosine = 0.0;
         m::sincospi(row.x, sine, cosine);
-        require(same_bits(sine, flushed(row.sine)) && same_bits(cosine, row.cosine), "sincospi: a reference value");
-        require(same_bits(m::sincpi(row.x), row.sinc), "sincpi: a reference value");
-        require(same_bits(m::cosm1pi(row.x), flushed(row.pi_loss)), "cosm1pi: a reference value");
+        check("sincospi (sine)", row.x, sine, flushed(row.sine));
+        check("sincospi (cosine)", row.x, cosine, row.cosine);
+        check("sincpi", row.x, m::sincpi(row.x), row.sinc);
+        check("cosm1pi", row.x, m::cosm1pi(row.x), flushed(row.pi_loss));
         if (row.x <= 0x1p32) {
-            require(same_bits(m::cosm1(row.x), flushed(row.radian_loss)), "cosm1: a reference value");
-            require(same_bits(m::sinc_radians(row.x), row.radian_sinc), "sinc_radians: a reference value");
+            check("cosm1", row.x, m::cosm1(row.x), flushed(row.radian_loss));
+            check("sinc_radians", row.x, m::sinc_radians(row.x), row.radian_sinc);
         } else {
             require(std::isnan(m::cosm1(row.x)) && std::isnan(m::sinc_radians(row.x)), "cosm1, sinc_radians: the angle limit");
         }
     }
+    require(differing == 0, "half-turn: a reference value differs");
     std::printf("half-turn: %d reference rows hold\n", static_cast<int>(sizeof(rows) / sizeof(rows[0])));
 }
 

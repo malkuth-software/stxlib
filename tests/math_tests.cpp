@@ -1395,27 +1395,27 @@ STXLIB_MODULAR std::uint64_t pow_output_hash() {
 // (owner's experiment, adopted 2026-11-02); 6/400k near-overflow inputs
 // differ, both within bound. Same value at the scalar, vector128 and
 // avx2_fma levels and in the Dekker build (x86-64 MinGW).
-// Unfrozen on 2026-11-22 (was 0x3a845b9bad3d2534): today's pow(double) is
+// Refrozen on 2026-11-22 (was 0x3a845b9bad3d2534): today's pow(double) is
 // the reciprocal-grid kernel (pow.cpp; PROVENANCE.md), and pow(float)'s
-// accurate fallback rounds today's double result, so both may move. The
-// integrator's freezing run (STXLIB_FREEZE_HASHES=1) sets the value, which
-// must then be the same at every SIMD level and in the Dekker build.
-constexpr std::uint64_t today_pow_output_hash = 0;
+// accurate fallback rounds today's double result. The integrator's freezing
+// run (STXLIB_FREEZE_HASHES=1, the M4, fused and Dekker builds) gave this
+// value.
+constexpr std::uint64_t today_pow_output_hash = 0x56614a58e7ed624bULL;
 // The hash mixes pow(double) and pow(float) outputs, and each has its own
 // switch, so each of the four switch settings has its own value (R3: one
 // region constant had served all three region settings). Frozen: both on the
 // region path, 2026-11-15 (sbi, main f5cbc30, the all-ON build; it differs
-// from today's: region pow(double) is 0.500097 ulp against 0.576). Not
-// frozen yet (0, printed by check_frozen): only one of the two on the region
-// path; the R3 run list builds each to freeze it.
-// 2026-11-22: the float-only value was today's double kernel's and is
-// unfrozen with it. The two region-double values stand; they too pass
-// through today's double kernel, for results the region kernel flushes
-// (paths.hpp) and in pow(float)'s accurate fallback, so a freezing run that
-// moves them is expected, not a defect.
-constexpr std::uint64_t region_pow_double_only_output_hash = 0x9bc52c7be16de26fULL;
-constexpr std::uint64_t region_pow_float_only_output_hash = 0;
-constexpr std::uint64_t region_pow_output_hash = 0x9bc52c7be16de26fULL;
+// from today's: region pow(double) is 0.500097 ulp against 0.576). A 0
+// would mean not frozen yet (printed by check_frozen).
+// 2026-11-22, the integrator's freezing run with the reciprocal-grid kernel
+// (M4, fused and Dekker builds of each switch setting): the float-only value
+// is today's again (both pow(float) paths give the same bits); the two
+// region-double values moved from 0x9bc52c7be16de26f, as expected: they pass
+// through today's double kernel for results the region kernel flushes
+// (paths.hpp) and in pow(float)'s accurate fallback.
+constexpr std::uint64_t region_pow_double_only_output_hash = 0x7b5fa3cdc97c9f4eULL;
+constexpr std::uint64_t region_pow_float_only_output_hash = 0x56614a58e7ed624bULL;
+constexpr std::uint64_t region_pow_output_hash = 0x7b5fa3cdc97c9f4eULL;
 
 constexpr std::uint64_t pow_expected_hash(const bool double_on_region, const bool float_on_region) {
     std::uint64_t result = today_pow_output_hash;
