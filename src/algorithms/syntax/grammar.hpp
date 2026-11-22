@@ -96,13 +96,23 @@ struct StringRule final {
     bool triple{false};
     // A character literal: it must close within a few bytes, or the quote is not a literal.
     bool character{false};
+    // The language's interpolation opener inside it starts code (GrammarSpec).
+    bool interpolates{false};
     TokenKind kind{TokenKind::string};
 };
 
 inline constexpr usize string_rule_limit = 4;
 
+// Which engine lexes the language.
+enum class Family : u8 {
+    c_like = 0,  // engine.cpp
+    css,         // css.cpp
+    markup,      // markup.cpp
+};
+
 // What languages.cpp writes for each language.
 struct GrammarSpec final {
+    Family family{Family::c_like};
     TextView name;
     TextView display_name;
     // Other names language_named accepts, and file-name endings, each separated by spaces.
@@ -151,6 +161,25 @@ struct GrammarSpec final {
     bool call_functions{false};   // before '(': a function
     // A capitalized word before '(' is a function, not a type (C#'s method names).
     bool calls_before_capitals{false};
+
+    // /pattern/flags where a value cannot stand is a regular-expression literal.
+    bool regex_literals{false};
+    // Inside a string rule that interpolates: the opener ("${", "\\("), the byte that
+    // closes the code and the byte that nests inside it ('}' and '{', or ')' and '(').
+    TextView interpolation_open;
+    char interpolation_close{0};
+    char interpolation_nest{0};
+    // The byte that starts a variable ($name, ${name}); 0 for none.
+    char variable_sigil{0};
+    // A line comment starts only at the line's start or after a space (shell's #).
+    bool comment_needs_space{false};
+    // [[ ... ]] and [=[ ... ]=] are strings across lines (Lua).
+    bool long_brackets{false};
+    // One more than the index of the string rule that @" opens (C# verbatim); 0 for none.
+    u8 verbatim_rule{0};
+    // Markup: element and attribute names compare without regard to case, and the
+    // elements whose content is another language are known (HTML).
+    bool html{false};
 };
 
 struct Grammar final {

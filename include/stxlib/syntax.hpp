@@ -16,7 +16,8 @@
 // Method. One table-driven engine serves every language: a language is constant data (byte
 // classes, a perfect-enough hash of its words with their kinds, its comment and string forms,
 // and a few naming conventions: a word before `(` is a function, a capitalized word is a
-// type where the language's own convention says so). It is a lexical highlighter: it does
+// type where the language's own convention says so). Style sheets and markup have engines
+// of their own behind the same calls. It is a lexical highlighter: it does
 // not parse, so it does not tell a variable from a parameter. What it gives for that is
 // speed that does not depend on the document's size, a state of 8 bytes a line, and a new
 // language for a page of tables. (Compared with SwiftEdit's hand-written lexers, from which
@@ -60,8 +61,13 @@ enum class TokenKind : u8 {
     punctuation,      // ( ) [ ] { } ; , .
     identifier,       // any other name
     invalid,          // text the language cannot contain
+    regex,            // a regular-expression literal (/a+/g)
+    variable,         // a variable by its sigil ($HOME, ${name}); a CSS custom property
+    tag,              // a markup element's name; a CSS type selector
+    selector,         // a CSS class, identity or pseudo selector
+    color,            // a colour literal (#rrggbb)
 };
-inline constexpr usize token_kind_count = 20;
+inline constexpr usize token_kind_count = 25;
 
 // A stable lower-case name for the kind ("operator_symbol"), for themes and reports.
 [[nodiscard]] TextView token_kind_name(TokenKind kind) noexcept;
@@ -100,8 +106,12 @@ enum class Language : u8 {
     sql,
     lua,
     json,
+    shell,
+    css,
+    xml,
+    html,
 };
-inline constexpr usize language_count = 15;
+inline constexpr usize language_count = 19;
 
 // The registry name ("cpp") and what a person reads in a menu ("C++").
 [[nodiscard]] TextView language_name(Language language) noexcept;

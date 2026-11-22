@@ -8,9 +8,9 @@
 // does not have yet.
 //
 // Known gaps of these tables (each is lexical, and listed so nobody takes it for proved):
-// JavaScript and TypeScript regular-expression literals and template interpolation; C#
-// verbatim and interpolated strings; Lua long-bracket strings; Python f-string fields;
-// Swift string interpolation and raw strings; trigraphs.
+// Python f-string fields and C# interpolation holes (the strings are whole tokens); Swift
+// raw strings; Lua long comments with = (--[==[); shell here-documents; trigraphs; the
+// languages inside HTML's <script> and <style>.
 
 #include "grammar.hpp"
 
@@ -33,8 +33,15 @@ constexpr StringRule character_quoted{.quote = '\'', .escape = '\\', .character 
 
 // ---------------------------------------------------------------- plain
 
-constexpr Grammar plain_grammar = make_grammar(GrammarSpec{.name = "plain", .display_name = "Plain text", .aliases = "text txt", .extensions = ".txt"},
-                                               nullptr, 0);
+[[nodiscard]] consteval GrammarSpec plain_spec() {
+    GrammarSpec spec;
+    spec.name = "plain";
+    spec.display_name = "Plain text";
+    spec.aliases = "text txt";
+    spec.extensions = ".txt";
+    return spec;
+}
+constexpr Grammar plain_grammar = make_grammar(plain_spec(), nullptr, 0);
 
 // ---------------------------------------------------------------- C
 
@@ -50,21 +57,26 @@ constexpr WordList c_lists[] = {
     {"include import embed", directive, word_include},
 };
 constexpr WordIndex<256> c_index = make_word_index<256>(c_lists);
-constexpr Grammar c_grammar = make_grammar(GrammarSpec{.name = "c",
-                                                       .display_name = "C",
-                                                       .extensions = ".c",
-                                                       .line_comment = {"//"},
-                                                       .block_open = "/*",
-                                                       .block_close = "*/",
-                                                       .line_splice = true,
-                                                       .documentation = true,
-                                                       .strings = {double_quoted, character_quoted},
-                                                       .number_separator = '\'',
-                                                       .directive = '#',
-                                                       .upper_constants = true,
-                                                       .suffix_t_types = true,
-                                                       .call_functions = true},
-                                           c_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec c_spec() {
+    GrammarSpec spec;
+    spec.name = "c";
+    spec.display_name = "C";
+    spec.extensions = ".c";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.line_splice = true;
+    spec.documentation = true;
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = character_quoted;
+    spec.number_separator = '\'';
+    spec.directive = '#';
+    spec.upper_constants = true;
+    spec.suffix_t_types = true;
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar c_grammar = make_grammar(c_spec(), c_index.slots, 256);
 
 // ---------------------------------------------------------------- C++
 
@@ -83,24 +95,29 @@ constexpr WordList cpp_lists[] = {
     {"include embed", directive, word_include},
 };
 constexpr WordIndex<512> cpp_index = make_word_index<512>(cpp_lists);
-constexpr Grammar cpp_grammar = make_grammar(GrammarSpec{.name = "cpp",
-                                                         .display_name = "C++",
-                                                         .aliases = "c++ cxx cc hpp",
-                                                         .extensions = ".cpp .hpp .cc .hh .cxx .hxx .h .inc .ipp .tpp .mm",
-                                                         .line_comment = {"//"},
-                                                         .block_open = "/*",
-                                                         .block_close = "*/",
-                                                         .line_splice = true,
-                                                         .documentation = true,
-                                                         .strings = {double_quoted, character_quoted},
-                                                         .cpp_raw = true,
-                                                         .number_separator = '\'',
-                                                         .directive = '#',
-                                                         .capital_types = true,
-                                                         .upper_constants = true,
-                                                         .suffix_t_types = true,
-                                                         .call_functions = true},
-                                             cpp_index.slots, 512);
+[[nodiscard]] consteval GrammarSpec cpp_spec() {
+    GrammarSpec spec;
+    spec.name = "cpp";
+    spec.display_name = "C++";
+    spec.aliases = "c++ cxx cc hpp";
+    spec.extensions = ".cpp .hpp .cc .hh .cxx .hxx .h .inc .ipp .tpp .mm";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.line_splice = true;
+    spec.documentation = true;
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = character_quoted;
+    spec.cpp_raw = true;
+    spec.number_separator = '\'';
+    spec.directive = '#';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.suffix_t_types = true;
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar cpp_grammar = make_grammar(cpp_spec(), cpp_index.slots, 512);
 
 // ---------------------------------------------------------------- C#
 
@@ -115,20 +132,27 @@ constexpr WordList csharp_lists[] = {
     {"true false null this", constant, 0},
 };
 constexpr WordIndex<256> csharp_index = make_word_index<256>(csharp_lists);
-constexpr Grammar csharp_grammar = make_grammar(GrammarSpec{.name = "csharp",
-                                                            .display_name = "C#",
-                                                            .aliases = "c# cs",
-                                                            .extensions = ".cs",
-                                                            .line_comment = {"//"},
-                                                            .block_open = "/*",
-                                                            .block_close = "*/",
-                                                            .documentation = true,
-                                                            .strings = {double_quoted, character_quoted},
-                                                            .directive = '#',
-                                                            .capital_types = true,
-                                                            .call_functions = true,
-                                                            .calls_before_capitals = true},
-                                                csharp_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec csharp_spec() {
+    GrammarSpec spec;
+    spec.name = "csharp";
+    spec.display_name = "C#";
+    spec.aliases = "c# cs";
+    spec.extensions = ".cs";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.documentation = true;
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = character_quoted;
+    spec.directive = '#';
+    spec.capital_types = true;
+    spec.call_functions = true;
+    spec.calls_before_capitals = true;
+    spec.strings[2] = StringRule{.quote = '"', .multiline = true, .doubled = true};
+    spec.verbatim_rule = 3;
+    return spec;
+}
+constexpr Grammar csharp_grammar = make_grammar(csharp_spec(), csharp_index.slots, 256);
 
 // ---------------------------------------------------------------- Java
 
@@ -142,20 +166,25 @@ constexpr WordList java_lists[] = {
     {"true false null this", constant, 0},
 };
 constexpr WordIndex<256> java_index = make_word_index<256>(java_lists);
-constexpr Grammar java_grammar = make_grammar(GrammarSpec{.name = "java",
-                                                          .display_name = "Java",
-                                                          .extensions = ".java",
-                                                          .word_extras = "$",
-                                                          .line_comment = {"//"},
-                                                          .block_open = "/*",
-                                                          .block_close = "*/",
-                                                          .documentation = true,
-                                                          .strings = {StringRule{.quote = '"', .escape = '\\', .triple = true}, character_quoted},
-                                                          .attribute = '@',
-                                                          .capital_types = true,
-                                                          .upper_constants = true,
-                                                          .call_functions = true},
-                                              java_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec java_spec() {
+    GrammarSpec spec;
+    spec.name = "java";
+    spec.display_name = "Java";
+    spec.extensions = ".java";
+    spec.word_extras = "$";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.documentation = true;
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .triple = true};
+    spec.strings[1] = character_quoted;
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar java_grammar = make_grammar(java_spec(), java_index.slots, 256);
 
 // ---------------------------------------------------------------- JavaScript and TypeScript
 
@@ -167,22 +196,32 @@ constexpr WordList javascript_lists[] = {
     {"true false null undefined NaN Infinity this globalThis", constant, 0},
 };
 constexpr WordIndex<128> javascript_index = make_word_index<128>(javascript_lists);
-constexpr StringRule template_quoted{.quote = '`', .escape = '\\', .multiline = true};
-constexpr Grammar javascript_grammar = make_grammar(GrammarSpec{.name = "javascript",
-                                                                .display_name = "JavaScript",
-                                                                .aliases = "js jsx node mjs",
-                                                                .extensions = ".js .mjs .cjs .jsx",
-                                                                .word_extras = "$",
-                                                                .line_comment = {"//"},
-                                                                .block_open = "/*",
-                                                                .block_close = "*/",
-                                                                .documentation = true,
-                                                                .strings = {double_quoted, single_quoted, template_quoted},
-                                                                .attribute = '@',
-                                                                .capital_types = true,
-                                                                .upper_constants = true,
-                                                                .call_functions = true},
-                                                    javascript_index.slots, 128);
+constexpr StringRule template_quoted{.quote = '`', .escape = '\\', .multiline = true, .interpolates = true};
+[[nodiscard]] consteval GrammarSpec javascript_spec() {
+    GrammarSpec spec;
+    spec.name = "javascript";
+    spec.display_name = "JavaScript";
+    spec.aliases = "js jsx node mjs";
+    spec.extensions = ".js .mjs .cjs .jsx";
+    spec.word_extras = "$";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.documentation = true;
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = single_quoted;
+    spec.strings[2] = template_quoted;
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    spec.regex_literals = true;
+    spec.interpolation_open = "${";
+    spec.interpolation_close = '}';
+    spec.interpolation_nest = '{';
+    return spec;
+}
+constexpr Grammar javascript_grammar = make_grammar(javascript_spec(), javascript_index.slots, 128);
 
 constexpr WordList typescript_lists[] = {
     {"async await const debugger delete export from get import in instanceof let new of set static super typeof var with as abstract "
@@ -195,21 +234,31 @@ constexpr WordList typescript_lists[] = {
     {"true false null undefined NaN Infinity this globalThis", constant, 0},
 };
 constexpr WordIndex<256> typescript_index = make_word_index<256>(typescript_lists);
-constexpr Grammar typescript_grammar = make_grammar(GrammarSpec{.name = "typescript",
-                                                                .display_name = "TypeScript",
-                                                                .aliases = "ts tsx",
-                                                                .extensions = ".ts .tsx .mts .cts",
-                                                                .word_extras = "$",
-                                                                .line_comment = {"//"},
-                                                                .block_open = "/*",
-                                                                .block_close = "*/",
-                                                                .documentation = true,
-                                                                .strings = {double_quoted, single_quoted, template_quoted},
-                                                                .attribute = '@',
-                                                                .capital_types = true,
-                                                                .upper_constants = true,
-                                                                .call_functions = true},
-                                                    typescript_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec typescript_spec() {
+    GrammarSpec spec;
+    spec.name = "typescript";
+    spec.display_name = "TypeScript";
+    spec.aliases = "ts tsx";
+    spec.extensions = ".ts .tsx .mts .cts";
+    spec.word_extras = "$";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.documentation = true;
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = single_quoted;
+    spec.strings[2] = template_quoted;
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    spec.regex_literals = true;
+    spec.interpolation_open = "${";
+    spec.interpolation_close = '}';
+    spec.interpolation_nest = '{';
+    return spec;
+}
+constexpr Grammar typescript_grammar = make_grammar(typescript_spec(), typescript_index.slots, 256);
 
 // ---------------------------------------------------------------- Go
 
@@ -224,16 +273,22 @@ constexpr WordList go_lists[] = {
     {"true false nil iota", constant, 0},
 };
 constexpr WordIndex<128> go_index = make_word_index<128>(go_lists);
-constexpr Grammar go_grammar = make_grammar(GrammarSpec{.name = "go",
-                                                        .display_name = "Go",
-                                                        .aliases = "golang",
-                                                        .extensions = ".go",
-                                                        .line_comment = {"//"},
-                                                        .block_open = "/*",
-                                                        .block_close = "*/",
-                                                        .strings = {double_quoted, character_quoted, StringRule{.quote = '`', .multiline = true}},
-                                                        .call_functions = true},
-                                            go_index.slots, 128);
+[[nodiscard]] consteval GrammarSpec go_spec() {
+    GrammarSpec spec;
+    spec.name = "go";
+    spec.display_name = "Go";
+    spec.aliases = "golang";
+    spec.extensions = ".go";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = character_quoted;
+    spec.strings[2] = StringRule{.quote = '`', .multiline = true};
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar go_grammar = make_grammar(go_spec(), go_index.slots, 128);
 
 // ---------------------------------------------------------------- Rust
 
@@ -248,24 +303,29 @@ constexpr WordList rust_lists[] = {
     {"r br cr", prefix, word_raw_prefix},
 };
 constexpr WordIndex<128> rust_index = make_word_index<128>(rust_lists);
-constexpr Grammar rust_grammar = make_grammar(GrammarSpec{.name = "rust",
-                                                          .display_name = "Rust",
-                                                          .aliases = "rs",
-                                                          .extensions = ".rs",
-                                                          .line_comment = {"//"},
-                                                          .block_open = "/*",
-                                                          .block_close = "*/",
-                                                          .block_nests = true,
-                                                          .documentation = true,
-                                                          .strings = {StringRule{.quote = '"', .escape = '\\', .multiline = true}, character_quoted},
-                                                          .rust_raw = true,
-                                                          .bracket_attribute = true,
-                                                          .macro_bang = true,
-                                                          .quote_labels = true,
-                                                          .capital_types = true,
-                                                          .upper_constants = true,
-                                                          .call_functions = true},
-                                              rust_index.slots, 128);
+[[nodiscard]] consteval GrammarSpec rust_spec() {
+    GrammarSpec spec;
+    spec.name = "rust";
+    spec.display_name = "Rust";
+    spec.aliases = "rs";
+    spec.extensions = ".rs";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.block_nests = true;
+    spec.documentation = true;
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .multiline = true};
+    spec.strings[1] = character_quoted;
+    spec.rust_raw = true;
+    spec.bracket_attribute = true;
+    spec.macro_bang = true;
+    spec.quote_labels = true;
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar rust_grammar = make_grammar(rust_spec(), rust_index.slots, 128);
 
 // ---------------------------------------------------------------- Swift
 
@@ -280,20 +340,28 @@ constexpr WordList swift_lists[] = {
     {"true false nil self Self", constant, 0},
 };
 constexpr WordIndex<256> swift_index = make_word_index<256>(swift_lists);
-constexpr Grammar swift_grammar = make_grammar(GrammarSpec{.name = "swift",
-                                                           .display_name = "Swift",
-                                                           .extensions = ".swift",
-                                                           .line_comment = {"//"},
-                                                           .block_open = "/*",
-                                                           .block_close = "*/",
-                                                           .block_nests = true,
-                                                           .documentation = true,
-                                                           .strings = {StringRule{.quote = '"', .escape = '\\', .triple = true}},
-                                                           .directive = '#',
-                                                           .attribute = '@',
-                                                           .capital_types = true,
-                                                           .call_functions = true},
-                                               swift_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec swift_spec() {
+    GrammarSpec spec;
+    spec.name = "swift";
+    spec.display_name = "Swift";
+    spec.extensions = ".swift";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.block_nests = true;
+    spec.documentation = true;
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .triple = true};
+    spec.directive = '#';
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.call_functions = true;
+    spec.strings[0].interpolates = true;
+    spec.interpolation_open = "\\(";
+    spec.interpolation_close = ')';
+    spec.interpolation_nest = '(';
+    return spec;
+}
+constexpr Grammar swift_grammar = make_grammar(swift_spec(), swift_index.slots, 256);
 
 // ---------------------------------------------------------------- Kotlin
 
@@ -308,21 +376,30 @@ constexpr WordList kotlin_lists[] = {
     {"true false null this", constant, 0},
 };
 constexpr WordIndex<256> kotlin_index = make_word_index<256>(kotlin_lists);
-constexpr Grammar kotlin_grammar = make_grammar(GrammarSpec{.name = "kotlin",
-                                                            .display_name = "Kotlin",
-                                                            .aliases = "kt kts",
-                                                            .extensions = ".kt .kts",
-                                                            .line_comment = {"//"},
-                                                            .block_open = "/*",
-                                                            .block_close = "*/",
-                                                            .block_nests = true,
-                                                            .documentation = true,
-                                                            .strings = {StringRule{.quote = '"', .escape = '\\', .triple = true}, character_quoted},
-                                                            .attribute = '@',
-                                                            .capital_types = true,
-                                                            .upper_constants = true,
-                                                            .call_functions = true},
-                                                kotlin_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec kotlin_spec() {
+    GrammarSpec spec;
+    spec.name = "kotlin";
+    spec.display_name = "Kotlin";
+    spec.aliases = "kt kts";
+    spec.extensions = ".kt .kts";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.block_nests = true;
+    spec.documentation = true;
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .triple = true};
+    spec.strings[1] = character_quoted;
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    spec.strings[0].interpolates = true;
+    spec.interpolation_open = "${";
+    spec.interpolation_close = '}';
+    spec.interpolation_nest = '{';
+    return spec;
+}
+constexpr Grammar kotlin_grammar = make_grammar(kotlin_spec(), kotlin_index.slots, 256);
 
 // ---------------------------------------------------------------- Python
 
@@ -336,18 +413,22 @@ constexpr WordList python_lists[] = {
     {"r R b B f F u U rb rB Rb RB br bR Br BR fr fR Fr FR rf rF Rf RF", prefix, word_string_prefix},
 };
 constexpr WordIndex<256> python_index = make_word_index<256>(python_lists);
-constexpr Grammar python_grammar = make_grammar(GrammarSpec{.name = "python",
-                                                            .display_name = "Python",
-                                                            .aliases = "py python3",
-                                                            .extensions = ".py .pyi .pyw",
-                                                            .line_comment = {"#"},
-                                                            .strings = {StringRule{.quote = '"', .escape = '\\', .triple = true},
-                                                                        StringRule{.quote = '\'', .escape = '\\', .triple = true}},
-                                                            .attribute = '@',
-                                                            .capital_types = true,
-                                                            .upper_constants = true,
-                                                            .call_functions = true},
-                                                python_index.slots, 256);
+[[nodiscard]] consteval GrammarSpec python_spec() {
+    GrammarSpec spec;
+    spec.name = "python";
+    spec.display_name = "Python";
+    spec.aliases = "py python3";
+    spec.extensions = ".py .pyi .pyw";
+    spec.line_comment[0] = "#";
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .triple = true};
+    spec.strings[1] = StringRule{.quote = '\'', .escape = '\\', .triple = true};
+    spec.attribute = '@';
+    spec.capital_types = true;
+    spec.upper_constants = true;
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar python_grammar = make_grammar(python_spec(), python_index.slots, 256);
 
 // ---------------------------------------------------------------- SQL
 
@@ -363,17 +444,21 @@ constexpr WordList sql_lists[] = {
     {"true false null", constant, 0},
 };
 constexpr WordIndex<512> sql_index = make_word_index<512>(sql_lists);
-constexpr Grammar sql_grammar = make_grammar(GrammarSpec{.name = "sql",
-                                                         .display_name = "SQL",
-                                                         .extensions = ".sql",
-                                                         .fold_case = true,
-                                                         .line_comment = {"--"},
-                                                         .block_open = "/*",
-                                                         .block_close = "*/",
-                                                         .strings = {StringRule{.quote = '\'', .multiline = true, .doubled = true},
-                                                                     StringRule{.quote = '"', .doubled = true}},
-                                                         .call_functions = true},
-                                             sql_index.slots, 512);
+[[nodiscard]] consteval GrammarSpec sql_spec() {
+    GrammarSpec spec;
+    spec.name = "sql";
+    spec.display_name = "SQL";
+    spec.extensions = ".sql";
+    spec.fold_case = true;
+    spec.line_comment[0] = "--";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.strings[0] = StringRule{.quote = '\'', .multiline = true, .doubled = true};
+    spec.strings[1] = StringRule{.quote = '"', .doubled = true};
+    spec.call_functions = true;
+    return spec;
+}
+constexpr Grammar sql_grammar = make_grammar(sql_spec(), sql_index.slots, 512);
 
 // ---------------------------------------------------------------- Lua
 
@@ -384,15 +469,21 @@ constexpr WordList lua_lists[] = {
     {"true false nil self", constant, 0},
 };
 constexpr WordIndex<64> lua_index = make_word_index<64>(lua_lists);
-constexpr Grammar lua_grammar = make_grammar(GrammarSpec{.name = "lua",
-                                                         .display_name = "Lua",
-                                                         .extensions = ".lua",
-                                                         .line_comment = {"--"},
-                                                         .block_open = "--[[",
-                                                         .block_close = "]]",
-                                                         .strings = {double_quoted, single_quoted},
-                                                         .call_functions = true},
-                                             lua_index.slots, 64);
+[[nodiscard]] consteval GrammarSpec lua_spec() {
+    GrammarSpec spec;
+    spec.name = "lua";
+    spec.display_name = "Lua";
+    spec.extensions = ".lua";
+    spec.line_comment[0] = "--";
+    spec.block_open = "--[[";
+    spec.block_close = "]]";
+    spec.strings[0] = double_quoted;
+    spec.strings[1] = single_quoted;
+    spec.call_functions = true;
+    spec.long_brackets = true;
+    return spec;
+}
+constexpr Grammar lua_grammar = make_grammar(lua_spec(), lua_index.slots, 64);
 
 // ---------------------------------------------------------------- JSON
 
@@ -400,21 +491,96 @@ constexpr WordList json_lists[] = {
     {"true false null", constant, 0},
 };
 constexpr WordIndex<8> json_index = make_word_index<8>(json_lists);
-constexpr Grammar json_grammar = make_grammar(GrammarSpec{.name = "json",
-                                                          .display_name = "JSON",
-                                                          .aliases = "jsonc json5",
-                                                          .extensions = ".json .jsonc .json5",
-                                                          .line_comment = {"//"},
-                                                          .block_open = "/*",
-                                                          .block_close = "*/",
-                                                          .strings = {double_quoted},
-                                                          .string_keys = true},
-                                              json_index.slots, 8);
+[[nodiscard]] consteval GrammarSpec json_spec() {
+    GrammarSpec spec;
+    spec.name = "json";
+    spec.display_name = "JSON";
+    spec.aliases = "jsonc json5";
+    spec.extensions = ".json .jsonc .json5";
+    spec.line_comment[0] = "//";
+    spec.block_open = "/*";
+    spec.block_close = "*/";
+    spec.strings[0] = double_quoted;
+    spec.string_keys = true;
+    return spec;
+}
+constexpr Grammar json_grammar = make_grammar(json_spec(), json_index.slots, 8);
+
+// ---------------------------------------------------------------- shell
+
+constexpr WordList shell_lists[] = {
+    {"alias declare export function local readonly set shift source typeset unset eval exec trap in time", keyword, 0},
+    {"if then else elif fi for while until do done case esac select return exit break continue", control, 0},
+    {"true false", constant, 0},
+};
+constexpr WordIndex<128> shell_index = make_word_index<128>(shell_lists);
+[[nodiscard]] consteval GrammarSpec shell_spec() {
+    GrammarSpec spec;
+    spec.name = "shell";
+    spec.display_name = "Shell";
+    spec.aliases = "sh bash zsh";
+    spec.extensions = ".sh .bash .zsh";
+    spec.line_comment[0] = "#";
+    spec.strings[0] = StringRule{.quote = '"', .escape = '\\', .multiline = true};
+    spec.strings[1] = StringRule{.quote = '\'', .multiline = true};
+    spec.strings[2] = StringRule{.quote = '`', .escape = '\\', .multiline = true};
+    spec.variable_sigil = '$';
+    spec.comment_needs_space = true;
+    return spec;
+}
+constexpr Grammar shell_grammar = make_grammar(shell_spec(), shell_index.slots, 128);
+
+// ---------------------------------------------------------------- CSS
+
+constexpr WordList css_lists[] = {
+    {"auto none inherit initial unset revert normal transparent currentcolor true false on off bold italic solid dashed dotted hidden visible "
+     "block inline flex grid absolute relative fixed sticky static center left right top bottom middle",
+     constant, 0},
+    {"and not only or from to", keyword, 0},
+};
+constexpr WordIndex<128> css_index = make_word_index<128>(css_lists);
+[[nodiscard]] consteval GrammarSpec css_spec() {
+    GrammarSpec spec;
+    spec.family = Family::css;
+    spec.name = "css";
+    spec.display_name = "CSS";
+    spec.aliases = "scss less";
+    spec.extensions = ".css";
+    spec.fold_case = true;
+    return spec;
+}
+constexpr Grammar css_grammar = make_grammar(css_spec(), css_index.slots, 128);
+
+// ---------------------------------------------------------------- XML and HTML
+
+[[nodiscard]] consteval GrammarSpec xml_spec() {
+    GrammarSpec spec;
+    spec.family = Family::markup;
+    spec.name = "xml";
+    spec.display_name = "XML";
+    spec.aliases = "svg xsd xsl plist form control";
+    spec.extensions = ".xml .svg .xsd .xsl .xslt .plist .form .control .xaml .csproj .vcxproj";
+    return spec;
+}
+constexpr Grammar xml_grammar = make_grammar(xml_spec(), nullptr, 0);
+
+[[nodiscard]] consteval GrammarSpec html_spec() {
+    GrammarSpec spec;
+    spec.family = Family::markup;
+    spec.name = "html";
+    spec.display_name = "HTML";
+    spec.aliases = "htm xhtml";
+    spec.extensions = ".html .htm .xhtml";
+    spec.html = true;
+    return spec;
+}
+constexpr Grammar html_grammar = make_grammar(html_spec(), nullptr, 0);
 
 // In the order of Language's values.
 constexpr const Grammar* grammars[language_count] = {
     &plain_grammar, &c_grammar,     &cpp_grammar,   &csharp_grammar, &java_grammar, &javascript_grammar, &typescript_grammar, &go_grammar,
     &rust_grammar,  &swift_grammar, &kotlin_grammar, &python_grammar, &sql_grammar,  &lua_grammar,        &json_grammar,
+    &shell_grammar, &css_grammar,   &xml_grammar,    &html_grammar,
 };
 
 [[nodiscard]] constexpr char folded(const char byte) noexcept {
@@ -488,6 +654,11 @@ TextView token_kind_name(const TokenKind kind) noexcept {
     case TokenKind::punctuation: return "punctuation";
     case TokenKind::identifier: return "identifier";
     case TokenKind::invalid: return "invalid";
+    case TokenKind::regex: return "regex";
+    case TokenKind::variable: return "variable";
+    case TokenKind::tag: return "tag";
+    case TokenKind::selector: return "selector";
+    case TokenKind::color: return "color";
     }
     return "unknown";
 }

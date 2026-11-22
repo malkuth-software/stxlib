@@ -735,9 +735,11 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
+    src/algorithms/syntax/css.cpp
     src/algorithms/syntax/document.cpp
     src/algorithms/syntax/engine.cpp
     src/algorithms/syntax/languages.cpp
+    src/algorithms/syntax/markup.cpp
     src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)

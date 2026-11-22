@@ -41,6 +41,11 @@ const char* colour_of(const syntax::TokenKind kind) {
     case syntax::TokenKind::identifier: return "#dfe3e8";
     case syntax::TokenKind::invalid: return "#ff5f5f";
     case syntax::TokenKind::plain: return "#dfe3e8";
+    case syntax::TokenKind::regex: return "#e68a8a";
+    case syntax::TokenKind::variable: return "#9fd0e0";
+    case syntax::TokenKind::tag: return "#e07aa8";
+    case syntax::TokenKind::selector: return "#c9b07a";
+    case syntax::TokenKind::color: return "#d6c46a";
     }
     return "#dfe3e8";
 }

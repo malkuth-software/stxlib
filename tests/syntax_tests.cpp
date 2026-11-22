@@ -6,6 +6,8 @@
 // - The document under random edits against a document reset on the same text: the same
 //   line count, line starts and entry states after every edit (sampled, not proved: the
 //   seeds and counts are below).
+// - The forms beyond plain tokens: regular expressions, interpolation, verbatim and long
+//   strings, shell variables; the style-sheet and markup engines.
 // - The registry: names, aliases and file names.
 
 #include "stxlib/syntax.hpp"
@@ -198,7 +200,7 @@ void other_languages() {
 
     // JavaScript and TypeScript.
     expect(Language::javascript, "const f = async function load(url) { return `a ${url}`; }", code, "load", TokenKind::function);
-    expect(Language::javascript, "const f = async function load(url) { return `a ${url}`; }", code, "`a ${url}`", TokenKind::string);
+    expect(Language::javascript, "const f = async function load(url) { return `a ${url}`; }", code, "`a ", TokenKind::string);
     expect(Language::typescript, "interface Shape { area(): number }", code, "Shape", TokenKind::type);
     expect(Language::typescript, "interface Shape { area(): number }", code, "number", TokenKind::type);
     CHECK(lex(Language::javascript, "x = `open", code, 64).exit != code);
@@ -233,6 +235,134 @@ void other_languages() {
     CHECK(lex(Language::plain, "int x = 1;", code, 64).tokens.empty());
 }
 
+void closed_gaps() {
+    const LineState code;
+    // JavaScript: a regular expression where a value cannot stand; division elsewhere.
+    expect(Language::javascript, "const re = /a[/]b\\/+/gi, half = total / 2 / n;", code, "/a[/]b\\/+/gi", TokenKind::regex);
+    expect(Language::javascript, "const re = /a[/]b\\/+/gi, half = total / 2 / n;", code, "2", TokenKind::number);
+    expect(Language::javascript, "return /^x/.test(s) ? (a) / b : c;", code, "/^x/", TokenKind::regex);
+    expect(Language::javascript, "return /^x/.test(s) ? (a) / b : c;", code, "b", TokenKind::identifier);
+    CHECK(!has("x = a / b; y = c / d;", lex(Language::javascript, "x = a / b; y = c / d;", code, 64), "/ b; y = c /", TokenKind::regex));
+    // Template interpolation: the string stops at ${, code runs to the matching }.
+    const std::string_view t0 = "const s = `a ${ {k: f(1)}.k + \"x\" } b`; done();";
+    const Lexed templ = lex(Language::javascript, t0, code, 64);
+    CHECK(templ.exit == code);
+    CHECK(has(t0, templ, "`a ", TokenKind::string));
+    CHECK(has(t0, templ, "${", TokenKind::punctuation));
+    CHECK(has(t0, templ, "f", TokenKind::function));
+    CHECK(has(t0, templ, "\"x\"", TokenKind::string));
+    CHECK(has(t0, templ, " b`", TokenKind::string));
+    CHECK(has(t0, templ, "done", TokenKind::function));
+    // An interpolation left open across lines, then the template's rest.
+    const Lexed open = lex(Language::typescript, "x = `n: ${ count +", code, 64);
+    CHECK(open.exit != code);
+    const Lexed rest = lex(Language::typescript, "  1 } items` + 2;", open.exit, 64);
+    CHECK(rest.exit == code);
+    CHECK(has("  1 } items` + 2;", rest, "1", TokenKind::number));
+    CHECK(has("  1 } items` + 2;", rest, " items`", TokenKind::string));
+    CHECK(has("  1 } items` + 2;", rest, "2", TokenKind::number));
+    // Swift and Kotlin.
+    expect(Language::swift, "let s = \"n = \\(count + (1)) items\"", code, "count", TokenKind::identifier);
+    expect(Language::swift, "let s = \"n = \\(count + (1)) items\"", code, " items\"", TokenKind::string);
+    expect(Language::kotlin, "val s = \"sum ${a + b}!\"", code, "a", TokenKind::identifier);
+    expect(Language::kotlin, "val s = \"sum ${a + b}!\"", code, "!\"", TokenKind::string);
+    // C# verbatim strings: doubled quotes, backslashes are plain, across lines.
+    expect(Language::csharp, "var p = @\"C:\\dir\\\" + $\"{x}\";", code, "@\"C:\\dir\\\"", TokenKind::string);
+    expect(Language::csharp, "var p = @\"C:\\dir\\\" + $\"{x}\";", code, "$\"{x}\"", TokenKind::string);
+    const Lexed verbatim = lex(Language::csharp, "s = @\"say \"\"hi\"\" and", code, 64);
+    CHECK(verbatim.exit != code);
+    CHECK(lex(Language::csharp, "more\"; x", verbatim.exit, 64).exit == code);
+    // Lua long brackets.
+    expect(Language::lua, "s = [==[ a ]] b ]==] .. x", code, "[==[ a ]] b ]==]", TokenKind::string);
+    const Lexed bracket = lex(Language::lua, "s = [[ open", code, 64);
+    CHECK(bracket.exit != code);
+    CHECK(lex(Language::lua, "close ]] + 1", bracket.exit, 64).exit == code);
+    // Shell.
+    expect(Language::shell, "if [ \"$#\" -gt 0 ]; then echo ${name:-x} $HOME a#b; fi # done", code, "if", TokenKind::control);
+    expect(Language::shell, "if [ \"$#\" -gt 0 ]; then echo ${name:-x} $HOME a#b; fi # done", code, "${name:-x}", TokenKind::variable);
+    expect(Language::shell, "if [ \"$#\" -gt 0 ]; then echo ${name:-x} $HOME a#b; fi # done", code, "$HOME", TokenKind::variable);
+    expect(Language::shell, "if [ \"$#\" -gt 0 ]; then echo ${name:-x} $HOME a#b; fi # done", code, "# done", TokenKind::comment);
+    CHECK(!has("echo a#b", lex(Language::shell, "echo a#b", code, 64), "#b", TokenKind::comment));
+}
+
+void css_kinds() {
+    const Language css = Language::css;
+    const LineState code;
+    expect(css, "@media (min-width: 600px) and (color) {", code, "@media", TokenKind::directive);
+    expect(css, "@media (min-width: 600px) and (color) {", code, "600px", TokenKind::number);
+    expect(css, "@media (min-width: 600px) and (color) {", code, "and", TokenKind::keyword);
+    expect(css, "button.primary:hover > #ok, a::before {", code, "button", TokenKind::tag);
+    expect(css, "button.primary:hover > #ok, a::before {", code, ".primary", TokenKind::selector);
+    expect(css, "button.primary:hover > #ok, a::before {", code, ":hover", TokenKind::selector);
+    expect(css, "button.primary:hover > #ok, a::before {", code, "#ok", TokenKind::selector);
+    expect(css, "button.primary:hover > #ok, a::before {", code, "::before", TokenKind::selector);
+    expect(css, "button.primary:hover > #ok, a::before {", code, ">", TokenKind::operator_symbol);
+    // Inside a block: declarations, and a nested rule told by its brace.
+    const Lexed block = lex(css, "a {", code, 64);
+    CHECK(block.exit != code);
+    const std::string_view d0 = "  color: #1b1f24; margin: -1.5em 50% auto !important; --lift: var(--x, 2px);";
+    expect(css, d0, block.exit, "color", TokenKind::property);
+    expect(css, d0, block.exit, "#1b1f24", TokenKind::color);
+    expect(css, d0, block.exit, "-1.5em", TokenKind::number);
+    expect(css, d0, block.exit, "50%", TokenKind::number);
+    expect(css, d0, block.exit, "auto", TokenKind::constant);
+    expect(css, d0, block.exit, "!important", TokenKind::keyword);
+    expect(css, d0, block.exit, "--lift", TokenKind::variable);
+    expect(css, d0, block.exit, "var", TokenKind::function);
+    CHECK(lex(css, d0, block.exit, 64).exit == block.exit);
+    expect(css, "  &:hover, .child { color: red }", block.exit, ":hover", TokenKind::selector);
+    expect(css, "  &:hover, .child { color: red }", block.exit, ".child", TokenKind::selector);
+    expect(css, "  &:hover, .child { color: red }", block.exit, "color", TokenKind::property);
+    expect(css, "  background: url(img/a.png) no-repeat; color: #12;", block.exit, "img/a.png", TokenKind::string);
+    expect(css, "  background: url(img/a.png) no-repeat; color: #12;", block.exit, "#12", TokenKind::invalid);
+    CHECK(lex(css, "}", block.exit, 64).exit == code);
+    // A comment and a value across lines keep their context.
+    const Lexed comment = lex(css, "  color: /* open", block.exit, 64);
+    CHECK(comment.exit != block.exit);
+    const Lexed after = lex(css, "  still */ red;", comment.exit, 64);
+    CHECK(after.exit == block.exit && has("  still */ red;", after, "red", TokenKind::identifier));
+}
+
+void markup_kinds() {
+    const LineState code;
+    const std::string_view x0 = "<?xml version=\"1.0\"?><form id=\"main\" visible='true'>a &amp; b<br/></form>";
+    expect(Language::xml, x0, code, "<?xml version=\"1.0\"?>", TokenKind::directive);
+    expect(Language::xml, x0, code, "form", TokenKind::tag);
+    expect(Language::xml, x0, code, "id", TokenKind::property);
+    expect(Language::xml, x0, code, "\"main\"", TokenKind::string);
+    expect(Language::xml, x0, code, "'true'", TokenKind::string);
+    expect(Language::xml, x0, code, "&amp;", TokenKind::constant);
+    expect(Language::xml, x0, code, "br", TokenKind::tag);
+    expect(Language::xml, x0, code, "/>", TokenKind::punctuation);
+    expect(Language::xml, x0, code, "</", TokenKind::punctuation);
+    CHECK(lex(Language::xml, x0, code, 64).exit == code);
+    // A comment, CDATA and an attribute value across lines.
+    const Lexed comment = lex(Language::xml, "<a> <!-- open", code, 64);
+    CHECK(comment.exit != code);
+    CHECK(lex(Language::xml, "still", comment.exit, 64).exit == comment.exit);
+    const Lexed closed = lex(Language::xml, "done --> <b x=1>", comment.exit, 64);
+    CHECK(closed.exit == code && has("done --> <b x=1>", closed, "done -->", TokenKind::comment));
+    CHECK(has("done --> <b x=1>", closed, "1", TokenKind::string));
+    const Lexed value = lex(Language::xml, "<tag name=\"two", code, 64);
+    CHECK(value.exit != code);
+    const Lexed value_end = lex(Language::xml, "lines\" other=\"x\">", value.exit, 64);
+    CHECK(value_end.exit == code && has("lines\" other=\"x\">", value_end, "other", TokenKind::property));
+    const Lexed tag_open = lex(Language::xml, "<tag", code, 64);
+    CHECK(tag_open.exit != code);
+    expect(Language::xml, "   attr=\"v\" />", tag_open.exit, "attr", TokenKind::property);
+    CHECK(lex(Language::xml, "<![CDATA[ <not a tag> ", code, 64).exit != code);
+    // HTML: a script's content is plain up to its close tag, without regard to case.
+    const Lexed script = lex(Language::html, "<p class=x>t</p><SCRIPT type=\"module\">if (a < b) {", code, 64);
+    CHECK(script.exit != code);
+    CHECK(has("<p class=x>t</p><SCRIPT type=\"module\">if (a < b) {", script, "SCRIPT", TokenKind::tag));
+    CHECK(!has("<p class=x>t</p><SCRIPT type=\"module\">if (a < b) {", script, "b", TokenKind::tag));
+    const Lexed inside = lex(Language::html, "  x = '<b>';", script.exit, 64);
+    CHECK(inside.tokens.empty() && inside.exit == script.exit);
+    const Lexed script_end = lex(Language::html, "} </script><b>", script.exit, 64);
+    CHECK(script_end.exit == code && has("} </script><b>", script_end, "b", TokenKind::tag));
+    CHECK(has("<!DOCTYPE html>", lex(Language::html, "<!DOCTYPE html>", code, 64), "<!DOCTYPE html>", TokenKind::directive));
+}
+
 const char* const sample_lines[] = {
     "#include <vector>",
     "template <typename T> class Box final { /* a",
@@ -246,10 +376,38 @@ const char* const sample_lines[] = {
     "",
 };
 
+// Lines of several languages at once: every engine must get through any bytes.
+const char* const mixed_lines[] = {
+    "const s = `a ${ {k: 1}.k } b ${",
+    "x } c`; re = /a\\/b/g; y = s / 2;",
+    "<div class=\"a\" id=x><!-- c",
+    "--><script>let a = '</b>';</script></div>",
+    "a.b:hover > c { color: #fff; margin: 0 auto; /* x",
+    "*/ } @media (x) { d { e: url(f.png) } }",
+    "s = [==[ long ]] ]==] .. @\"v \"\" w\" $HOME ${x} \"n = \\(k + (1))\" # c",
+    "",
+    "\\ ' \" ` } ) ] > --> */ ]]> ?>",
+};
+
 void small_buffers_agree() {
-    const Language languages[] = {Language::cpp, Language::rust, Language::python, Language::javascript, Language::sql, Language::json};
+    const Language languages[] = {Language::cpp,   Language::rust,  Language::python, Language::javascript, Language::sql, Language::json,
+                                  Language::swift, Language::shell, Language::lua,    Language::csharp,     Language::css, Language::xml,
+                                  Language::html};
     for (const Language language : languages) {
         LineState state;
+        for (const char* const text : mixed_lines) {
+            const std::string_view line(text);
+            const Lexed wide = lex(language, line, state, 64);
+            const Lexed narrow = lex(language, line, state, 1);
+            tokens_are_ordered(line, wide);
+            CHECK(wide.exit == narrow.exit && wide.tokens.size() == narrow.tokens.size());
+            for (usize k = 0; k < wide.tokens.size() && k < narrow.tokens.size(); ++k) {
+                CHECK(wide.tokens[k].column == narrow.tokens[k].column && wide.tokens[k].length == narrow.tokens[k].length &&
+                      wide.tokens[k].kind == narrow.tokens[k].kind);
+            }
+            state = wide.exit;
+        }
+        state = LineState{};
         for (const char* const text : sample_lines) {
             const std::string_view line(text);
             const Lexed wide = lex(language, line, state, 64);
@@ -349,9 +507,10 @@ void edits_converge() {
 }
 
 void random_edits() {
-    const char* const pieces[] = {"/*", "*/", "\"", "\n", "\r\n", "\r", "//", "\\", "R\"ab(", ")ab\"", "int x = 1;", " ", "'", "#include <a>", "x"};
+    const char* const pieces[] = {"/*", "*/",  "\"", "\n", "\r\n", "\r", "//", "\\", "R\"ab(", ")ab\"", "int x = 1;", " ",  "'",       "#include <a>", "x",
+                                  "`",  "${",  "}",  "{",  "<a b=",  ">",  "<!--", "-->", "<script>", "</script>", ":", ";", "@media", "/"};
     const usize piece_count = sizeof(pieces) / sizeof(pieces[0]);
-    const Language languages[] = {Language::cpp, Language::rust, Language::python};
+    const Language languages[] = {Language::cpp, Language::rust, Language::python, Language::javascript, Language::css, Language::html};
     usize edits = 0;
     for (const Language language : languages) {
         Random random;
@@ -409,6 +568,9 @@ void registry() {
 int main() {
     cpp_kinds();
     other_languages();
+    closed_gaps();
+    css_kinds();
+    markup_kinds();
     small_buffers_agree();
     document_basics();
     edits_converge();
