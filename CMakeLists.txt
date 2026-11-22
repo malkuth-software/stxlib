@@ -1747,6 +1747,17 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_stx_minmallocpp_surface_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_object_surface_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # The behavioural constraint declarations (tools/ic/project.toml;
+        # template_harness's tools/ic_declarations.py, kept identical here):
+        # every generated output current and every generated check called,
+        # then STXlib's own cases (the components IC1 covers, each
+        # requirement through its generated check, each message spelled once).
+        add_test(NAME stxlib_ic_declarations
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic_declarations.py check
+                    --config ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic/project.toml --root ${CMAKE_CURRENT_SOURCE_DIR})
+        add_test(NAME stxlib_ic_declarations_tool
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ic_declarations_tests.py
+                    ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
         # Under Emscripten the program runs under the emulator, named before it.

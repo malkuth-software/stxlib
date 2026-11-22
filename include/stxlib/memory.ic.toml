@@ -1,0 +1,50 @@
+# Behavioural constraints of stxlib::memory (memory.hpp), STXlib's allocator
+# used by name, the IC declaration (template_harness docs/ic_declarations.md;
+# STXlib's project file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# The backend refuses: stx_minmallocpp by its own declaration
+# (src/state/stx_minmallocpp/allocator.ic.toml), the host backend by the
+# check generated here (src/state/allocator.cpp).
+
+schema = 1
+component = "memory"
+namespace = "stxlib::memory"
+header = "include/stxlib/memory.hpp"
+anchor = "namespace stxlib::memory {"
+keys = { manifest = "stxlib::memory" }
+thread = "any"
+identity = { kind = "block address: the start of a block from allocate, not yet released", stale = "requirement" }
+
+[checks]
+path = "src/state/memory_ic_checks.hpp"
+namespace = "stxlib::detail::ic::memory"
+includes = ["stxlib/types.hpp"]
+used_in = ["src/state/allocator.cpp"]
+
+[[call]]
+name = "backend"
+kind = "free"
+declarations = ["[[nodiscard]] Backend backend() noexcept;"]
+
+[[call]]
+name = "tags_checked"
+kind = "free"
+declarations = ["[[nodiscard]] bool tags_checked() noexcept;"]
+
+[[call]]
+name = "allocate"
+kind = "free"
+declarations = ["[[nodiscard]] STXLIB_NO_UNWIND void* allocate(usize size, usize alignment) noexcept;"]
+parameters = { alignment = "usize" }
+requires = [
+  { holds = "power_of_two(alignment)", refuses = "null" },
+]
+fails = [{ failure = "exhausted", when = "memory is exhausted, or the size is not representable with the alignment's bookkeeping: a null result" }]
+returns = { type = "void*", owns = "caller" }
+
+[[call]]
+name = "release"
+kind = "free"
+declarations = ["STXLIB_NO_UNWIND void release(void* address) noexcept;"]
+transfers = [{ what = "the block", from = "caller", to = "the allocator" }]

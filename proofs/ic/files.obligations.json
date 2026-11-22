@@ -1,0 +1,285 @@
+{
+  "schema": 1,
+  "component": "stxlib::File",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/files.ic.toml",
+    "sha256": "a610cf0bf7e4bb52dc1610476102a898c53c2c44e60cf2bc430ba720c66a55d2"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.file.read.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "read in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read.outside.writing",
+      "kind": "typestate-refusal",
+      "statement": "read in writing: failure any, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read.outside.appending",
+      "kind": "typestate-refusal",
+      "statement": "read in appending: failure any, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "write_all in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all.outside.reading",
+      "kind": "typestate-refusal",
+      "statement": "write_all in reading: failure any, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.size.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "size in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.position.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "position in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.seek.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "seek in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.sync.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "sync in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.close.moves",
+      "kind": "transition",
+      "statement": "close succeeding in reading, writing, appending leaves the object in closed.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.close.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "close in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read_at.requires.read_at_offset",
+      "kind": "entry-check",
+      "statement": "read_at runs only when offset <= largest_offset; otherwise failure limit_exceeded (too_long), unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::files::admits_read_at_offset, called in src/core/files.cpp"
+    },
+    {
+      "id": "stxlib.file.read_at.refusal.read_at_offset",
+      "kind": "refusal-leaves",
+      "statement": "Unless offset <= largest_offset, read_at changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read_at.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "read_at in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read_at.outside.writing",
+      "kind": "typestate-refusal",
+      "statement": "read_at in writing: failure any, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.read_at.outside.appending",
+      "kind": "typestate-refusal",
+      "statement": "read_at in appending: failure any, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all_at.requires.write_at_extent",
+      "kind": "entry-check",
+      "statement": "write_all_at runs only when offset <= largest_offset and length <= largest_offset - offset; otherwise failure limit_exceeded (too_long), unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::files::admits_write_at_extent, called in src/core/files.cpp"
+    },
+    {
+      "id": "stxlib.file.write_all_at.refusal.write_at_extent",
+      "kind": "refusal-leaves",
+      "statement": "Unless offset <= largest_offset and length <= largest_offset - offset, write_all_at changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "write_all_at in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.reading",
+      "kind": "typestate-refusal",
+      "statement": "write_all_at in reading: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.appending",
+      "kind": "typestate-refusal",
+      "statement": "write_all_at in appending: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.information.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "information in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_modified.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "set_modified in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_modified.outside.reading",
+      "kind": "typestate-refusal",
+      "statement": "set_modified in reading: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_size.requires.set_size_bytes",
+      "kind": "entry-check",
+      "statement": "set_size runs only when bytes <= largest_offset; otherwise failure limit_exceeded (too_long), unchanged.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::files::admits_set_size_bytes, called in src/core/files.cpp"
+    },
+    {
+      "id": "stxlib.file.set_size.refusal.set_size_bytes",
+      "kind": "refusal-leaves",
+      "statement": "Unless bytes <= largest_offset, set_size changes nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_size.outside.closed",
+      "kind": "typestate-refusal",
+      "statement": "set_size in closed: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_size.outside.reading",
+      "kind": "typestate-refusal",
+      "statement": "set_size in reading: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.set_size.outside.appending",
+      "kind": "typestate-refusal",
+      "statement": "set_size in appending: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.file.identity",
+      "kind": "identity",
+      "statement": "A stale identity (host handle, -1 once closed or moved from) is refused: failure disposed (closed_handle), changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "component": "stxlib::Buffer",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/buffer.ic.toml",
+    "sha256": "8f9ff7570e1efba015bcd33e5b264ef571182327dcc2a8913f12afaea3170676"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.buffer.element.requires.element_index",
+      "kind": "entry-check",
+      "statement": "operator[] runs only when index < count; otherwise requirement (\"Buffer: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::buffer::admits_element_index, called in include/stxlib/buffer.hpp"
+    }
+  ]
+}

@@ -1,0 +1,218 @@
+{
+  "schema": 1,
+  "component": "stxlib::FrozenTextMap",
+  "declaration": "include/stxlib/frozen_text_map.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.frozentextmap.build",
+      "mode": "legal",
+      "call": "build",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "keys not strictly ascending in byte order, or lengths that differ",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "more than key_limit keys, or text whose total length is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "storage cannot be had",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "FrozenTextMap",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.frozentextmap.build_weighted",
+      "mode": "legal",
+      "call": "build_weighted",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "keys not strictly ascending, lengths that differ, or weights the construction refuses",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "more than key_limit keys, or text whose total length is not representable",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "storage cannot be had",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "FrozenTextMap",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.frozentextmap.find",
+      "mode": "legal",
+      "call": "find",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenTextMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a move from the map",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.frozentextmap.contains",
+      "mode": "legal",
+      "call": "contains",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenTextMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozentextmap.lower_bound",
+      "mode": "legal",
+      "call": "lower_bound",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenTextMap"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozentextmap.key_at",
+      "mode": "legal",
+      "call": "key_at",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenTextMap"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {
+        "borrows": "self",
+        "until": [
+          "a move from the map",
+          "its destruction"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.frozentextmap.key_at.misuse.key_index",
+      "mode": "misuse",
+      "call": "key_at",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "FrozenTextMap::key_at: index out of range"
+      },
+      "leaves": "process stops"
+    },
+    {
+      "name": "stxlib.frozentextmap.value_at",
+      "mode": "legal",
+      "call": "value_at",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FrozenTextMap"
+        },
+        {
+          "name": "index",
+          "type": "usize",
+          "bounded_by": [
+            "index < count"
+          ]
+        }
+      ],
+      "requires": [
+        "index < count"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.frozentextmap.value_at.misuse.value_index",
+      "mode": "misuse",
+      "call": "value_at",
+      "violates": "index < count",
+      "expect": {
+        "kind": "requirement",
+        "message": "FrozenTextMap::value_at: index out of range"
+      },
+      "leaves": "process stops"
+    }
+  ]
+}

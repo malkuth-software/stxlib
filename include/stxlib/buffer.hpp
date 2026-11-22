@@ -17,6 +17,7 @@
 // constructor and assignment fail fast on it); moving transfers the storage and leaves
 // the source empty.
 
+#include "stxlib/detail/ic/buffer_checks.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
@@ -32,6 +33,8 @@ template <typename Element>
 struct BufferAdoption;
 } // namespace detail
 
+// ic: stxlib::Buffer: generated from include/stxlib/buffer.ic.toml by tools/ic_declarations.py; edit the declaration,
+// ic: not these lines. Thread: owner, unless a call says otherwise.
 template <typename Element>
 class Buffer final {
     static_assert(__is_trivially_copyable(Element), "Buffer holds trivially copyable elements");
@@ -43,6 +46,8 @@ public:
     // A buffer of `count` zeroed elements. Fails with limit_exceeded when
     // count * sizeof(Element) is not representable, out_of_memory when the
     // allocator refuses. Zero yields the empty buffer.
+    // ic: Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: refuses), unchanged. Returns Buffer, owned by the caller.
     [[nodiscard]] static OperationResult<Buffer> allocate_zeroed(const usize count) noexcept {
         if (count == 0) return OperationResult<Buffer>::success(Buffer());
         if (count > usize_max / sizeof(Element)) {
@@ -67,6 +72,7 @@ public:
     // A second buffer with the same elements. Fails with out_of_memory when
     // the allocator refuses (nothing changes). The empty buffer copies to
     // the empty buffer without allocating.
+    // ic: Fails out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.
     [[nodiscard]] OperationResult<Buffer> copy() const noexcept {
         if (count_ == 0) return OperationResult<Buffer>::success(Buffer());
         const usize bytes = count_ * sizeof(Element);
@@ -126,11 +132,13 @@ public:
 
     // Borrowed from this buffer: valid until it is released, moved from or
     // destroyed.
+    // ic: Returns a borrow of the object, valid until release, a move from the buffer or its destruction.
     [[nodiscard]] View<Element> view() const& noexcept {
         const View<Element> result(elements_, count_);
         return result;
     }
     View<Element> view() const&& = delete;
+    // ic: Returns a borrow of the object, valid until release, a move from the buffer or its destruction.
     [[nodiscard]] MutableView<Element> mutable_view() & noexcept {
         const MutableView<Element> result(elements_, count_);
         return result;
@@ -138,12 +146,14 @@ public:
     MutableView<Element> mutable_view() && = delete;
 
     // Requirement: index < count().
+    // ic: Requires index < count, else requirement ("Buffer: index out of range"). Returns a borrow of the object,
+    // ic: valid until release, a move from the buffer or its destruction.
     [[nodiscard]] Element& operator[](const usize index) noexcept {
-        STXLIB_REQUIRE(index < count_, "Buffer: index out of range");
+        STXLIB_REQUIRE(detail::ic::buffer::admits_element_index(index, count_), detail::ic::buffer::element_index_message);
         return elements_[index];
     }
     [[nodiscard]] const Element& operator[](const usize index) const noexcept {
-        STXLIB_REQUIRE(index < count_, "Buffer: index out of range");
+        STXLIB_REQUIRE(detail::ic::buffer::admits_element_index(index, count_), detail::ic::buffer::element_index_message);
         return elements_[index];
     }
 

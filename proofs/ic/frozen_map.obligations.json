@@ -1,0 +1,32 @@
+{
+  "schema": 1,
+  "component": "stxlib::FrozenMap",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/frozen_map.ic.toml",
+    "sha256": "e5e7a900a80478ed545eb3a06f80429828143572f6f3258f0c77a76ce08268f8"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.frozenmap.key_at.requires.key_index",
+      "kind": "entry-check",
+      "statement": "key_at runs only when index < count; otherwise requirement (\"FrozenMap::key_at: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::frozen_map::admits_key_index, called in src/algorithms/frozen_map.cpp"
+    },
+    {
+      "id": "stxlib.frozenmap.value_at.requires.value_index",
+      "kind": "entry-check",
+      "statement": "value_at runs only when index < count; otherwise requirement (\"FrozenMap::value_at: index out of range\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::frozen_map::admits_value_index, called in src/algorithms/frozen_map.cpp"
+    }
+  ]
+}

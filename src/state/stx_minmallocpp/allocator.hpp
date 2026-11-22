@@ -50,6 +50,9 @@
 
 #include "stxlib/types.hpp"
 
+// ic: stxlib::stx_minmallocpp: generated from src/state/stx_minmallocpp/allocator.ic.toml by tools/ic_declarations.py;
+// ic: edit the declaration, not these lines. Thread: any, unless a call says otherwise. Identity: block address: the
+// ic: start of a live block; a stale one: returns Release::refused, unchanged.
 namespace stxlib::stx_minmallocpp {
 
 enum class Release : u8 {
@@ -64,11 +67,15 @@ enum class Release : u8 {
 // half the address space, or on exhaustion. The contents are
 // indeterminate. Blocks of up to 512 KiB with an alignment of up to 64 KiB
 // cost a fixed number of steps on the fast path.
+// ic: Requires power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request, else returns null,
+// ic: unchanged. Fails exhausted (the host refuses address space or memory, or a fixed table is full: a null result,
+// ic: nothing else changes), unchanged. Returns void*, owned by the caller.
 [[nodiscard]] void* allocate(usize size, usize alignment) noexcept;
 
 // Releases a block from allocate. Refuses null, an address outside the
 // allocator's address space, an address inside its metadata, an address
 // that is not a block's start, and a block that is already free.
+// ic: Transfers the block from caller to allocator.
 [[nodiscard]] Release release(void* address) noexcept;
 
 // Merges releases from other threads into the calling thread's pages,

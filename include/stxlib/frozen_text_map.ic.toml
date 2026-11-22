@@ -1,0 +1,75 @@
+# Behavioural constraints of stxlib::FrozenTextMap (frozen_map.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project file
+# is tools/ic/project.toml). FrozenMap, in the same header, has its own
+# (frozen_map.ic.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+
+schema = 1
+component = "FrozenTextMap"
+namespace = "stxlib"
+header = "include/stxlib/frozen_map.hpp"
+anchor = "class FrozenTextMap final {"
+keys = { manifest = "stxlib::FrozenTextMap" }
+# A built map is immutable: any number of threads may read it at once.
+thread = "any"
+
+[terms]
+count = "usize"
+
+[checks]
+path = "src/algorithms/frozen_text_map_ic_checks.hpp"
+namespace = "stxlib::detail::ic::frozen_text_map"
+includes = ["stxlib/types.hpp"]
+used_in = ["src/algorithms/frozen_map.cpp"]
+
+[[call]]
+name = "build"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<FrozenTextMap> build(View<TextView> keys, View<u64> values) noexcept;"]
+fails = [
+  { failure = "invalid_argument", when = "keys not strictly ascending in byte order, or lengths that differ" },
+  { failure = "limit_exceeded", when = "more than key_limit keys, or text whose total length is not representable" },
+  { failure = "out_of_memory", when = "storage cannot be had" },
+]
+returns = { type = "FrozenTextMap", owns = "caller" }
+
+[[call]]
+name = "build_weighted"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<FrozenTextMap> build_weighted(View<TextView> keys, View<u64> values,"]
+fails = [
+  { failure = "invalid_argument", when = "keys not strictly ascending, lengths that differ, or weights the construction refuses" },
+  { failure = "limit_exceeded", when = "more than key_limit keys, or text whose total length is not representable" },
+  { failure = "out_of_memory", when = "storage cannot be had" },
+]
+returns = { type = "FrozenTextMap", owns = "caller" }
+
+[[call]]
+name = "find"
+declarations = ["[[nodiscard]] const u64* find(TextView key) const& noexcept;"]
+returns = { borrows = "self", until = ["a move from the map", "its destruction"] }
+
+[[call]]
+name = "contains"
+declarations = ["[[nodiscard]] bool contains(TextView key) const noexcept;"]
+
+[[call]]
+name = "lower_bound"
+declarations = ["[[nodiscard]] usize lower_bound(TextView key) const noexcept;"]
+
+[[call]]
+name = "key_at"
+declarations = ["[[nodiscard]] TextView key_at(usize index) const& noexcept;"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "FrozenTextMap::key_at: index out of range", check = "key_index" },
+]
+returns = { borrows = "self", until = ["a move from the map", "its destruction"] }
+
+[[call]]
+name = "value_at"
+declarations = ["[[nodiscard]] u64 value_at(usize index) const noexcept;"]
+parameters = { index = "usize" }
+requires = [
+  { holds = "index < count", refuses = "requirement", message = "FrozenTextMap::value_at: index out of range", check = "value_index" },
+]

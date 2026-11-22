@@ -1,0 +1,445 @@
+{
+  "schema": 1,
+  "column": "constraints",
+  "generated_by": "tools/ic_declarations.py",
+  "rows": [
+    {
+      "type": "stxlib::Buffer",
+      "member": "allocate_zeroed",
+      "constraints": "Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::Buffer",
+      "member": "copy",
+      "constraints": "Fails out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::Buffer",
+      "member": "mutable_view",
+      "constraints": "Returns a borrow of the object, valid until release, a move from the buffer or its destruction.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::Buffer",
+      "member": "operator[]",
+      "constraints": "Requires index < count, else requirement (\"Buffer: index out of range\"). Returns a borrow of the object, valid until release, a move from the buffer or its destruction.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::Buffer",
+      "member": "release",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::Buffer",
+      "member": "view",
+      "constraints": "Returns a borrow of the object, valid until release, a move from the buffer or its destruction.",
+      "declaration": "include/stxlib/buffer.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "close",
+      "constraints": "Admitted in reading, writing, appending; then closed. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host reports a close failure; the File is closed even then), partly changed.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "copy_file",
+      "constraints": "Fails already_exists (fail_if_exists and to exists, or from and to are one file), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "create_directories",
+      "constraints": "Fails invalid_argument (not_a_directory: the name exists as something else), partly changed. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "create_directory",
+      "constraints": "Fails already_exists (anything has that name), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "information",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "inspect",
+      "constraints": "Fails not_found (nothing has that name), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "list_directory",
+      "constraints": "Fails limit_exceeded (too_long: more than limit entries, unnamed ones included), unchanged; out_of_memory, unchanged. Thread: any. Returns DirectoryListing, owned by the caller.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "open",
+      "constraints": "Fails not_found (a missing name opened for reading), unchanged; already_exists (create_new and the name is taken), unchanged; invalid_argument (is_a_directory for a directory opened for reading; invalid_name for a name the host cannot spell), unchanged; permission_denied, unchanged; out_of_memory (the host name cannot be built), unchanged. Thread: any. Returns File in reading, writing or appending, owned by the caller.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "position",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "read",
+      "constraints": "Admitted in reading. In closed: failure disposed (closed_handle), unchanged. In writing, appending: failure any, unchanged. Fails io_failure (the host refuses the read), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "read_at",
+      "constraints": "Admitted in reading. In closed: failure disposed (closed_handle), unchanged. In writing, appending: failure any, unchanged. Requires offset <= largest_offset, else failure limit_exceeded (too_long), unchanged. Fails io_failure (the host refuses the read), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "read_file",
+      "constraints": "Fails limit_exceeded (too_long: more than limit bytes, checked before allocating, or grown past limit while read), unchanged; not_found, unchanged; out_of_memory, unchanged. Thread: any. Returns Buffer<Byte>, owned by the caller.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "remove",
+      "constraints": "Fails not_found (nothing has that name), unchanged; invalid_argument (directory_not_empty), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "remove_tree",
+      "constraints": "Fails limit_exceeded (too_long: deeper than limits.depth or more than limits.entries_per_directory in one directory; busy: a parent changed), partly changed. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "rename",
+      "constraints": "Fails unsupported (cross_device), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "seek",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "set_modified",
+      "constraints": "Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure invalid_argument (invalid_state), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "set_size",
+      "constraints": "Admitted in writing. In closed: failure disposed (closed_handle), unchanged. In reading, appending: failure invalid_argument (invalid_state), unchanged. Requires bytes <= largest_offset, else failure limit_exceeded (too_long), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "size",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "sync",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host cannot flush as level says), unchanged.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "write_all",
+      "constraints": "Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure any, unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been written), partly changed.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "write_all_at",
+      "constraints": "Admitted in writing. In closed: failure disposed (closed_handle), unchanged. In reading, appending: failure invalid_argument (invalid_state), unchanged. Requires offset <= largest_offset and length <= largest_offset - offset, else failure limit_exceeded (too_long), unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been written), partly changed.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
+      "member": "write_file",
+      "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "build",
+      "constraints": "Fails invalid_argument (keys not strictly ascending (detail: the first key out of order), or lengths that differ), unchanged; limit_exceeded (more than key_limit keys), unchanged; out_of_memory (storage cannot be had), unchanged. Returns FrozenMap, owned by the caller.",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "build_weighted",
+      "constraints": "Fails invalid_argument (keys not strictly ascending, lengths that differ, or weights the construction refuses), unchanged; limit_exceeded (more than key_limit keys), unchanged; out_of_memory (storage cannot be had), unchanged. Returns FrozenMap, owned by the caller.",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "contains",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "find",
+      "constraints": "Returns a borrow of the object, valid until a move from the map or its destruction.",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "key_at",
+      "constraints": "Requires index < count, else requirement (\"FrozenMap::key_at: index out of range\").",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "lower_bound",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenMap",
+      "member": "value_at",
+      "constraints": "Requires index < count, else requirement (\"FrozenMap::value_at: index out of range\").",
+      "declaration": "include/stxlib/frozen_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "build",
+      "constraints": "Fails invalid_argument (keys not strictly ascending in byte order, or lengths that differ), unchanged; limit_exceeded (more than key_limit keys, or text whose total length is not representable), unchanged; out_of_memory (storage cannot be had), unchanged. Returns FrozenTextMap, owned by the caller.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "build_weighted",
+      "constraints": "Fails invalid_argument (keys not strictly ascending, lengths that differ, or weights the construction refuses), unchanged; limit_exceeded (more than key_limit keys, or text whose total length is not representable), unchanged; out_of_memory (storage cannot be had), unchanged. Returns FrozenTextMap, owned by the caller.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "contains",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "find",
+      "constraints": "Returns a borrow of the object, valid until a move from the map or its destruction.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "key_at",
+      "constraints": "Requires index < count, else requirement (\"FrozenTextMap::key_at: index out of range\"). Returns a borrow of the object, valid until a move from the map or its destruction.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "lower_bound",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::FrozenTextMap",
+      "member": "value_at",
+      "constraints": "Requires index < count, else requirement (\"FrozenTextMap::value_at: index out of range\").",
+      "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "append_copies",
+      "constraints": "Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator refuses), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "clear",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "copy",
+      "constraints": "Fails limit_exceeded (the bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Vector, owned by the caller.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "copy_of",
+      "constraints": "Fails limit_exceeded (the elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Vector, owned by the caller.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "emplace",
+      "constraints": "Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator refuses; nothing is constructed), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "erase",
+      "constraints": "Requires index < count, else requirement (\"Vector::erase: index out of range\").",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "erase_range",
+      "constraints": "Requires first <= count and length <= count - first, else requirement (\"Vector::erase_range: range out of range\").",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "first_element",
+      "constraints": "Requires count != 0, else requirement (\"Vector::first_element: the vector is empty\"). Returns a borrow of the object, valid until a call that may reallocate or end the element.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "insert",
+      "constraints": "Requires index <= count, else requirement (\"Vector::insert: index out of range\"). Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator refuses; element is not moved from), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "last_element",
+      "constraints": "Requires count != 0, else requirement (\"Vector::last_element: the vector is empty\"). Returns a borrow of the object, valid until a call that may reallocate or end the element.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "mutable_view",
+      "constraints": "Returns a borrow of the object, valid until a call that may reallocate or end an element, a move from the vector or its destruction.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "operator[]",
+      "constraints": "Requires index < count, else requirement (\"Vector: index out of range\"). Returns a borrow of the object, valid until a call that may reallocate or end the element.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "push",
+      "constraints": "Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator refuses; element is not moved from), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "push_copy",
+      "constraints": "Fails limit_exceeded (the grown capacity is not representable), unchanged; out_of_memory (the allocator refuses), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "release",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "remove_last",
+      "constraints": "Requires count != 0, else requirement (\"Vector::remove_last: the vector is empty\").",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "reserve",
+      "constraints": "Fails limit_exceeded (wanted elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "resize",
+      "constraints": "Fails limit_exceeded (wanted elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "take_last",
+      "constraints": "Requires count != 0, else requirement (\"Vector::take_last: the vector is empty\"). Returns Element, owned by the caller.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "truncate",
+      "constraints": "Requires smaller <= count, else requirement (\"Vector::truncate: count out of range\").",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "view",
+      "constraints": "Returns a borrow of the object, valid until a call that may reallocate or end an element, a move from the vector or its destruction.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::Vector",
+      "member": "with_capacity",
+      "constraints": "Fails limit_exceeded (room elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Vector, owned by the caller.",
+      "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::memory",
+      "member": "allocate",
+      "constraints": "Requires power_of_two(alignment), else returns null, unchanged. Fails exhausted (memory is exhausted, or the size is not representable with the alignment's bookkeeping: a null result), unchanged. Returns void*, owned by the caller.",
+      "declaration": "include/stxlib/memory.ic.toml"
+    },
+    {
+      "type": "stxlib::memory",
+      "member": "backend",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/memory.ic.toml"
+    },
+    {
+      "type": "stxlib::memory",
+      "member": "release",
+      "constraints": "Transfers the block from caller to the allocator.",
+      "declaration": "include/stxlib/memory.ic.toml"
+    },
+    {
+      "type": "stxlib::memory",
+      "member": "tags_checked",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/memory.ic.toml"
+    },
+    {
+      "type": "stxlib::stx_minmallocpp",
+      "member": "allocate",
+      "constraints": "Requires power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request, else returns null, unchanged. Fails exhausted (the host refuses address space or memory, or a fixed table is full: a null result, nothing else changes), unchanged. Returns void*, owned by the caller.",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml"
+    },
+    {
+      "type": "stxlib::stx_minmallocpp",
+      "member": "end_thread",
+      "constraints": "No declared constraint.",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml"
+    },
+    {
+      "type": "stxlib::stx_minmallocpp",
+      "member": "release",
+      "constraints": "Transfers the block from caller to allocator.",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml"
+    },
+    {
+      "type": "stxlib::stx_minmallocpp",
+      "member": "trim",
+      "constraints": "No declared constraint.",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml"
+    }
+  ]
+}

@@ -1,0 +1,233 @@
+# Behavioural constraints of stxlib::File and the whole-file operations
+# (files.hpp), the IC declaration (template_harness docs/ic_declarations.md;
+# STXlib's project file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: an open File is in the state its FileMode gives (read: reading;
+# create_new and replace: writing; append: appending). is_open() tells closed
+# from open; the mode is not yet observable from outside (the IC study's IC3
+# adds a state query per stateful type).
+
+schema = 1
+component = "File"
+namespace = "stxlib"
+header = "include/stxlib/files.hpp"
+anchor = "class File final {"
+keys = { manifest = "stxlib::File" }
+# Operations on distinct File objects may run on any threads; one File is
+# used by one thread at a time.
+thread = "owner"
+states = ["closed", "reading", "writing", "appending"]
+initial = "closed"
+state_query = { call = "is_open", observes = { closed = "false", reading = "true", writing = "true", appending = "true" } }
+identity = { kind = "host handle, -1 once closed or moved from", stale = "failure:disposed:closed_handle" }
+
+[constants]
+# Offsets above 2^63 - 1 are refused (positioned I/O, set_size).
+largest_offset = { value = "2^63 - 1", type = "u64" }
+
+[checks]
+path = "src/core/files_ic_checks.hpp"
+namespace = "stxlib::detail::ic::files"
+includes = ["stxlib/types.hpp"]
+used_in = ["src/core/files.cpp"]
+
+[[call]]
+name = "open"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<File> open(const Path& path, FileMode mode) noexcept;"]
+thread = "any"
+fails = [
+  { failure = "not_found", when = "a missing name opened for reading" },
+  { failure = "already_exists", when = "create_new and the name is taken" },
+  { failure = "invalid_argument", when = "is_a_directory for a directory opened for reading; invalid_name for a name the host cannot spell" },
+  { failure = "permission_denied" },
+  { failure = "out_of_memory", when = "the host name cannot be built" },
+]
+returns = { type = "File", state = ["reading", "writing", "appending"], owns = "caller" }
+
+[[call]]
+name = "read"
+declarations = ["[[nodiscard]] OperationResult<usize> read(MutableView<Byte> output) noexcept;"]
+in = ["reading"]
+outside = { closed = "failure:disposed:closed_handle", writing = "failure:any", appending = "failure:any" }
+fails = [{ failure = "io_failure", when = "the host refuses the read" }]
+
+[[call]]
+name = "write_all"
+declarations = ["[[nodiscard]] OperationStatus write_all(View<Byte> input) noexcept;"]
+in = ["writing", "appending"]
+outside = { closed = "failure:disposed:closed_handle", reading = "failure:any" }
+fails = [
+  { failure = "limit_exceeded", when = "no_space", leaves = "partial" },
+  { failure = "io_failure", when = "an unknown prefix may have been written", leaves = "partial" },
+]
+
+[[call]]
+name = "size"
+declarations = ["[[nodiscard]] OperationResult<u64> size() noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+
+[[call]]
+name = "position"
+declarations = ["[[nodiscard]] OperationResult<u64> position() noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+
+[[call]]
+name = "seek"
+declarations = ["[[nodiscard]] OperationStatus seek(u64 offset) noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+
+[[call]]
+name = "sync"
+declarations = ["[[nodiscard]] OperationStatus sync(Durability level) noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+fails = [{ failure = "io_failure", when = "the host cannot flush as level says" }]
+
+[[call]]
+name = "close"
+declarations = ["[[nodiscard]] OperationStatus close() noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+moves = "closed"
+fails = [{ failure = "io_failure", when = "the host reports a close failure; the File is closed even then", leaves = "partial" }]
+
+[[call]]
+name = "read_at"
+declarations = ["[[nodiscard]] OperationResult<usize> read_at(u64 offset, MutableView<Byte> output) noexcept;"]
+in = ["reading"]
+outside = { closed = "failure:disposed:closed_handle", writing = "failure:any", appending = "failure:any" }
+parameters = { offset = "u64" }
+requires = [
+  { holds = "offset <= largest_offset", refuses = "failure:limit_exceeded:too_long", check = "read_at_offset" },
+]
+fails = [{ failure = "io_failure", when = "the host refuses the read" }]
+
+[[call]]
+name = "write_all_at"
+declarations = ["[[nodiscard]] OperationStatus write_all_at(u64 offset, View<Byte> input) noexcept;"]
+in = ["writing"]
+outside = { closed = "failure:disposed:closed_handle", reading = "failure:invalid_argument:invalid_state", appending = "failure:invalid_argument:invalid_state" }
+# length is input.count().
+parameters = { offset = "u64", length = "usize" }
+requires = [
+  { holds = "offset <= largest_offset and length <= largest_offset - offset", refuses = "failure:limit_exceeded:too_long", check = "write_at_extent" },
+]
+fails = [
+  { failure = "limit_exceeded", when = "no_space", leaves = "partial" },
+  { failure = "io_failure", when = "an unknown prefix may have been written", leaves = "partial" },
+]
+
+[[call]]
+name = "information"
+declarations = ["[[nodiscard]] OperationResult<FileInformation> information() noexcept;"]
+in = ["reading", "writing", "appending"]
+outside = "failure:disposed:closed_handle"
+
+[[call]]
+name = "set_modified"
+declarations = ["[[nodiscard]] OperationStatus set_modified(WallTime modified) noexcept;"]
+in = ["writing", "appending"]
+outside = { closed = "failure:disposed:closed_handle", reading = "failure:invalid_argument:invalid_state" }
+
+[[call]]
+name = "set_size"
+declarations = ["[[nodiscard]] OperationStatus set_size(u64 bytes) noexcept;"]
+in = ["writing"]
+outside = { closed = "failure:disposed:closed_handle", reading = "failure:invalid_argument:invalid_state", appending = "failure:invalid_argument:invalid_state" }
+parameters = { bytes = "u64" }
+requires = [
+  { holds = "bytes <= largest_offset", refuses = "failure:limit_exceeded:too_long", check = "set_size_bytes" },
+]
+
+[[call]]
+name = "read_file"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationResult<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;"]
+fails = [
+  { failure = "limit_exceeded", when = "too_long: more than limit bytes, checked before allocating, or grown past limit while read" },
+  { failure = "not_found" },
+  { failure = "out_of_memory" },
+]
+returns = { type = "Buffer<Byte>", owns = "caller" }
+
+[[call]]
+name = "write_file"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus write_file(const Path& path, View<Byte> content, Durability level) noexcept;"]
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: a path without a final name" },
+  { failure = "limit_exceeded", when = "no_space; the old file is unchanged and the temporary file removed" },
+  { failure = "io_failure", when = "the old file is unchanged and the temporary file removed" },
+]
+
+[[call]]
+name = "inspect"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationResult<FileInformation> inspect(const Path& path, LinkMode links) noexcept;"]
+fails = [{ failure = "not_found", when = "nothing has that name" }]
+
+[[call]]
+name = "create_directory"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus create_directory(const Path& path) noexcept;"]
+fails = [{ failure = "already_exists", when = "anything has that name" }]
+
+[[call]]
+name = "create_directories"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus create_directories(const Path& path) noexcept;"]
+fails = [{ failure = "invalid_argument", when = "not_a_directory: the name exists as something else", leaves = "partial" }]
+
+[[call]]
+name = "remove"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus remove(const Path& path) noexcept;"]
+fails = [
+  { failure = "not_found", when = "nothing has that name" },
+  { failure = "invalid_argument", when = "directory_not_empty" },
+]
+
+[[call]]
+name = "remove_tree"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationResult<u64> remove_tree(const Path& path, const RemoveTreeLimits& limits = {}) noexcept;"]
+fails = [
+  { failure = "limit_exceeded", when = "too_long: deeper than limits.depth or more than limits.entries_per_directory in one directory; busy: a parent changed", leaves = "partial" },
+]
+
+[[call]]
+name = "rename"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus rename(const Path& from, const Path& to) noexcept;"]
+fails = [{ failure = "unsupported", when = "cross_device" }]
+
+[[call]]
+name = "copy_file"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus copy_file(const Path& from, const Path& to, CopyMode mode,"]
+fails = [{ failure = "already_exists", when = "fail_if_exists and to exists, or from and to are one file" }]
+
+[[call]]
+name = "list_directory"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationResult<DirectoryListing> list_directory(const Path& path, usize limit) noexcept;"]
+fails = [
+  { failure = "limit_exceeded", when = "too_long: more than limit entries, unnamed ones included" },
+  { failure = "out_of_memory" },
+]
+returns = { type = "DirectoryListing", owns = "caller" }

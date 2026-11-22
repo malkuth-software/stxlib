@@ -1,0 +1,1194 @@
+{
+  "schema": 1,
+  "component": "stxlib::File",
+  "declaration": "include/stxlib/files.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "closed",
+    "reading",
+    "writing",
+    "appending"
+  ],
+  "initial": "closed",
+  "state_query": "is_open",
+  "blocks": [
+    {
+      "name": "stxlib.file.open",
+      "mode": "legal",
+      "call": "open",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "not_found",
+          "when": "a missing name opened for reading",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "already_exists",
+          "when": "create_new and the name is taken",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "invalid_argument",
+          "when": "is_a_directory for a directory opened for reading; invalid_name for a name the host cannot spell",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the host name cannot be built",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "File",
+        "state": [
+          "reading",
+          "writing",
+          "appending"
+        ],
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.file.read.reading",
+      "mode": "legal",
+      "call": "read",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host refuses the read",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.read.outside.closed",
+      "mode": "misuse",
+      "call": "read",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read.outside.writing",
+      "mode": "misuse",
+      "call": "read",
+      "state": "writing",
+      "expect": {
+        "kind": "failure",
+        "failure": "any"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read.outside.appending",
+      "mode": "misuse",
+      "call": "read",
+      "state": "appending",
+      "expect": {
+        "kind": "failure",
+        "failure": "any"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all.writing",
+      "mode": "legal",
+      "call": "write_all",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "no_space",
+          "leaves": "partial"
+        },
+        {
+          "failure": "io_failure",
+          "when": "an unknown prefix may have been written",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.write_all.appending",
+      "mode": "legal",
+      "call": "write_all",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "no_space",
+          "leaves": "partial"
+        },
+        {
+          "failure": "io_failure",
+          "when": "an unknown prefix may have been written",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.write_all.outside.closed",
+      "mode": "misuse",
+      "call": "write_all",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all.outside.reading",
+      "mode": "misuse",
+      "call": "write_all",
+      "state": "reading",
+      "expect": {
+        "kind": "failure",
+        "failure": "any"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.size.reading",
+      "mode": "legal",
+      "call": "size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.size.writing",
+      "mode": "legal",
+      "call": "size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.size.appending",
+      "mode": "legal",
+      "call": "size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.size.outside.closed",
+      "mode": "misuse",
+      "call": "size",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.position.reading",
+      "mode": "legal",
+      "call": "position",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.position.writing",
+      "mode": "legal",
+      "call": "position",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.position.appending",
+      "mode": "legal",
+      "call": "position",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.position.outside.closed",
+      "mode": "misuse",
+      "call": "position",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.seek.reading",
+      "mode": "legal",
+      "call": "seek",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.seek.writing",
+      "mode": "legal",
+      "call": "seek",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.seek.appending",
+      "mode": "legal",
+      "call": "seek",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.seek.outside.closed",
+      "mode": "misuse",
+      "call": "seek",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.sync.reading",
+      "mode": "legal",
+      "call": "sync",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host cannot flush as level says",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.sync.writing",
+      "mode": "legal",
+      "call": "sync",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host cannot flush as level says",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.sync.appending",
+      "mode": "legal",
+      "call": "sync",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host cannot flush as level says",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.sync.outside.closed",
+      "mode": "misuse",
+      "call": "sync",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.close.reading",
+      "mode": "legal",
+      "call": "close",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": "closed",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host reports a close failure; the File is closed even then",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.close.writing",
+      "mode": "legal",
+      "call": "close",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": "closed",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host reports a close failure; the File is closed even then",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.close.appending",
+      "mode": "legal",
+      "call": "close",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": "closed",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host reports a close failure; the File is closed even then",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.close.outside.closed",
+      "mode": "misuse",
+      "call": "close",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read_at.reading",
+      "mode": "legal",
+      "call": "read_at",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        },
+        {
+          "name": "offset",
+          "type": "u64",
+          "bounded_by": [
+            "offset <= largest_offset"
+          ]
+        }
+      ],
+      "requires": [
+        "offset <= largest_offset"
+      ],
+      "fails": [
+        {
+          "failure": "io_failure",
+          "when": "the host refuses the read",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.read_at.misuse.read_at_offset",
+      "mode": "misuse",
+      "call": "read_at",
+      "violates": "offset <= largest_offset",
+      "expect": {
+        "kind": "failure",
+        "failure": "limit_exceeded",
+        "code": "too_long"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read_at.outside.closed",
+      "mode": "misuse",
+      "call": "read_at",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read_at.outside.writing",
+      "mode": "misuse",
+      "call": "read_at",
+      "state": "writing",
+      "expect": {
+        "kind": "failure",
+        "failure": "any"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read_at.outside.appending",
+      "mode": "misuse",
+      "call": "read_at",
+      "state": "appending",
+      "expect": {
+        "kind": "failure",
+        "failure": "any"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all_at.writing",
+      "mode": "legal",
+      "call": "write_all_at",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        },
+        {
+          "name": "offset",
+          "type": "u64",
+          "bounded_by": [
+            "offset <= largest_offset and length <= largest_offset - offset"
+          ]
+        },
+        {
+          "name": "length",
+          "type": "usize",
+          "bounded_by": [
+            "offset <= largest_offset and length <= largest_offset - offset"
+          ]
+        }
+      ],
+      "requires": [
+        "offset <= largest_offset and length <= largest_offset - offset"
+      ],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "no_space",
+          "leaves": "partial"
+        },
+        {
+          "failure": "io_failure",
+          "when": "an unknown prefix may have been written",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.write_all_at.misuse.write_at_extent",
+      "mode": "misuse",
+      "call": "write_all_at",
+      "violates": "offset <= largest_offset and length <= largest_offset - offset",
+      "expect": {
+        "kind": "failure",
+        "failure": "limit_exceeded",
+        "code": "too_long"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all_at.outside.closed",
+      "mode": "misuse",
+      "call": "write_all_at",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all_at.outside.reading",
+      "mode": "misuse",
+      "call": "write_all_at",
+      "state": "reading",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "invalid_state"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.write_all_at.outside.appending",
+      "mode": "misuse",
+      "call": "write_all_at",
+      "state": "appending",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "invalid_state"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.information.reading",
+      "mode": "legal",
+      "call": "information",
+      "kind": "member",
+      "thread": "owner",
+      "state": "reading",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "reading"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.information.writing",
+      "mode": "legal",
+      "call": "information",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.information.appending",
+      "mode": "legal",
+      "call": "information",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.information.outside.closed",
+      "mode": "misuse",
+      "call": "information",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_modified.writing",
+      "mode": "legal",
+      "call": "set_modified",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.set_modified.appending",
+      "mode": "legal",
+      "call": "set_modified",
+      "kind": "member",
+      "thread": "owner",
+      "state": "appending",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "appending"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.set_modified.outside.closed",
+      "mode": "misuse",
+      "call": "set_modified",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_modified.outside.reading",
+      "mode": "misuse",
+      "call": "set_modified",
+      "state": "reading",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "invalid_state"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_size.writing",
+      "mode": "legal",
+      "call": "set_size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "writing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::File",
+          "state": "writing"
+        },
+        {
+          "name": "bytes",
+          "type": "u64",
+          "bounded_by": [
+            "bytes <= largest_offset"
+          ]
+        }
+      ],
+      "requires": [
+        "bytes <= largest_offset"
+      ],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.set_size.misuse.set_size_bytes",
+      "mode": "misuse",
+      "call": "set_size",
+      "violates": "bytes <= largest_offset",
+      "expect": {
+        "kind": "failure",
+        "failure": "limit_exceeded",
+        "code": "too_long"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_size.outside.closed",
+      "mode": "misuse",
+      "call": "set_size",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "disposed",
+        "code": "closed_handle"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_size.outside.reading",
+      "mode": "misuse",
+      "call": "set_size",
+      "state": "reading",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "invalid_state"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.set_size.outside.appending",
+      "mode": "misuse",
+      "call": "set_size",
+      "state": "appending",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument",
+        "code": "invalid_state"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.file.read_file",
+      "mode": "legal",
+      "call": "read_file",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "too_long: more than limit bytes, checked before allocating, or grown past limit while read",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "not_found",
+          "when": "",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "Buffer<Byte>",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.file.write_file",
+      "mode": "legal",
+      "call": "write_file",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "invalid_name: a path without a final name",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "no_space; the old file is unchanged and the temporary file removed",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "io_failure",
+          "when": "the old file is unchanged and the temporary file removed",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.inspect",
+      "mode": "legal",
+      "call": "inspect",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "not_found",
+          "when": "nothing has that name",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.create_directory",
+      "mode": "legal",
+      "call": "create_directory",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "already_exists",
+          "when": "anything has that name",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.create_directories",
+      "mode": "legal",
+      "call": "create_directories",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "invalid_argument",
+          "when": "not_a_directory: the name exists as something else",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.remove",
+      "mode": "legal",
+      "call": "remove",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "not_found",
+          "when": "nothing has that name",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "invalid_argument",
+          "when": "directory_not_empty",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.remove_tree",
+      "mode": "legal",
+      "call": "remove_tree",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "too_long: deeper than limits.depth or more than limits.entries_per_directory in one directory; busy: a parent changed",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.rename",
+      "mode": "legal",
+      "call": "rename",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "unsupported",
+          "when": "cross_device",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.copy_file",
+      "mode": "legal",
+      "call": "copy_file",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "already_exists",
+          "when": "fail_if_exists and to exists, or from and to are one file",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.file.list_directory",
+      "mode": "legal",
+      "call": "list_directory",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "too_long: more than limit entries, unnamed ones included",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "DirectoryListing",
+        "owns": "caller"
+      }
+    }
+  ]
+}

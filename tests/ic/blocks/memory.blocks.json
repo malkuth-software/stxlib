@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "component": "stxlib::memory",
+  "declaration": "include/stxlib/memory.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.memory.backend",
+      "mode": "legal",
+      "call": "backend",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.memory.tags_checked",
+      "mode": "legal",
+      "call": "tags_checked",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.memory.allocate",
+      "mode": "legal",
+      "call": "allocate",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "alignment",
+          "type": "usize",
+          "bounded_by": [
+            "power_of_two(alignment)"
+          ]
+        }
+      ],
+      "requires": [
+        "power_of_two(alignment)"
+      ],
+      "fails": [
+        {
+          "failure": "exhausted",
+          "when": "memory is exhausted, or the size is not representable with the alignment's bookkeeping: a null result",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "void*",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.memory.allocate.misuse.allocate",
+      "mode": "misuse",
+      "call": "allocate",
+      "violates": "power_of_two(alignment)",
+      "expect": {
+        "kind": "null"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.memory.release",
+      "mode": "legal",
+      "call": "release",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}
