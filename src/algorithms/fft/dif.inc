@@ -1108,6 +1108,7 @@ static inline void norm2_inv_fused_f32(float* __restrict p, int q,
         B1[n] = c * In - s * Rn;
         B1[qh + n] = c * Ih - s * Rh;
     }
+}
 
 class DifKernel final {
 public:
