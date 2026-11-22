@@ -95,6 +95,20 @@ struct Kernels final {
     float (*expm1_f)(float) noexcept = nullptr;
     double (*log1p_d)(double) noexcept = nullptr;
     float (*log1p_f)(float) noexcept = nullptr;
+    void (*sincospi_f)(float, float&, float&) noexcept = nullptr;
+    void (*sincospi_d)(double, double&, double&) noexcept = nullptr;
+    double (*sinpi_d)(double) noexcept = nullptr;
+    float (*sinpi_f)(float) noexcept = nullptr;
+    double (*cospi_d)(double) noexcept = nullptr;
+    float (*cospi_f)(float) noexcept = nullptr;
+    double (*sincpi_d)(double) noexcept = nullptr;
+    float (*sincpi_f)(float) noexcept = nullptr;
+    double (*sinc_radians_d)(double) noexcept = nullptr;
+    float (*sinc_radians_f)(float) noexcept = nullptr;
+    double (*cosm1_d)(double) noexcept = nullptr;
+    float (*cosm1_f)(float) noexcept = nullptr;
+    double (*cosm1pi_d)(double) noexcept = nullptr;
+    float (*cosm1pi_f)(float) noexcept = nullptr;
 };
 
 constexpr Kernels v128_kernels = {
@@ -142,6 +156,20 @@ constexpr Kernels v128_kernels = {
     v128::expm1,
     v128::log1p,
     v128::log1p,
+    v128::sincospi,
+    v128::sincospi,
+    v128::sinpi,
+    v128::sinpi,
+    v128::cospi,
+    v128::cospi,
+    v128::sincpi,
+    v128::sincpi,
+    v128::sinc_radians,
+    v128::sinc_radians,
+    v128::cosm1,
+    v128::cosm1,
+    v128::cosm1pi,
+    v128::cosm1pi,
 };
 
 constexpr Kernels avx2_fma_kernels = {
@@ -189,6 +217,20 @@ constexpr Kernels avx2_fma_kernels = {
     avx2_fma::expm1,
     avx2_fma::log1p,
     avx2_fma::log1p,
+    avx2_fma::sincospi,
+    avx2_fma::sincospi,
+    avx2_fma::sinpi,
+    avx2_fma::sinpi,
+    avx2_fma::cospi,
+    avx2_fma::cospi,
+    avx2_fma::sincpi,
+    avx2_fma::sincpi,
+    avx2_fma::sinc_radians,
+    avx2_fma::sinc_radians,
+    avx2_fma::cosm1,
+    avx2_fma::cosm1,
+    avx2_fma::cosm1pi,
+    avx2_fma::cosm1pi,
 };
 
 const Kernels* select_kernels() noexcept {
@@ -419,6 +461,74 @@ float resolve_log1p_f(const float x) noexcept {
     return result;
 }
 
+void resolve_sincospi_f(const float x, float& s, float& c) noexcept {
+    (*(*resolve()).sincospi_f)(x, s, c);
+}
+
+void resolve_sincospi_d(const double x, double& s, double& c) noexcept {
+    (*(*resolve()).sincospi_d)(x, s, c);
+}
+
+double resolve_sinpi_d(const double x) noexcept {
+    const double result = (*(*resolve()).sinpi_d)(x);
+    return result;
+}
+
+float resolve_sinpi_f(const float x) noexcept {
+    const float result = (*(*resolve()).sinpi_f)(x);
+    return result;
+}
+
+double resolve_cospi_d(const double x) noexcept {
+    const double result = (*(*resolve()).cospi_d)(x);
+    return result;
+}
+
+float resolve_cospi_f(const float x) noexcept {
+    const float result = (*(*resolve()).cospi_f)(x);
+    return result;
+}
+
+double resolve_sincpi_d(const double x) noexcept {
+    const double result = (*(*resolve()).sincpi_d)(x);
+    return result;
+}
+
+float resolve_sincpi_f(const float x) noexcept {
+    const float result = (*(*resolve()).sincpi_f)(x);
+    return result;
+}
+
+double resolve_sinc_radians_d(const double x) noexcept {
+    const double result = (*(*resolve()).sinc_radians_d)(x);
+    return result;
+}
+
+float resolve_sinc_radians_f(const float x) noexcept {
+    const float result = (*(*resolve()).sinc_radians_f)(x);
+    return result;
+}
+
+double resolve_cosm1_d(const double x) noexcept {
+    const double result = (*(*resolve()).cosm1_d)(x);
+    return result;
+}
+
+float resolve_cosm1_f(const float x) noexcept {
+    const float result = (*(*resolve()).cosm1_f)(x);
+    return result;
+}
+
+double resolve_cosm1pi_d(const double x) noexcept {
+    const double result = (*(*resolve()).cosm1pi_d)(x);
+    return result;
+}
+
+float resolve_cosm1pi_f(const float x) noexcept {
+    const float result = (*(*resolve()).cosm1pi_f)(x);
+    return result;
+}
+
 constexpr Kernels resolving_kernels = {
     resolve_sincos_f,
     resolve_sincos_d,
@@ -464,6 +574,20 @@ constexpr Kernels resolving_kernels = {
     resolve_expm1_f,
     resolve_log1p_d,
     resolve_log1p_f,
+    resolve_sincospi_f,
+    resolve_sincospi_d,
+    resolve_sinpi_d,
+    resolve_sinpi_f,
+    resolve_cospi_d,
+    resolve_cospi_f,
+    resolve_sincpi_d,
+    resolve_sincpi_f,
+    resolve_sinc_radians_d,
+    resolve_sinc_radians_f,
+    resolve_cosm1_d,
+    resolve_cosm1_f,
+    resolve_cosm1pi_d,
+    resolve_cosm1pi_f,
 };
 
 std::atomic<const Kernels*> active{&resolving_kernels};
@@ -696,6 +820,74 @@ float log1p(const float x) noexcept {
     return result;
 }
 
+void sincospi(const float x, float& s, float& c) noexcept {
+    (*(*active.load(std::memory_order_relaxed)).sincospi_f)(x, s, c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    (*(*active.load(std::memory_order_relaxed)).sincospi_d)(x, s, c);
+}
+
+double sinpi(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).sinpi_d)(x);
+    return result;
+}
+
+float sinpi(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).sinpi_f)(x);
+    return result;
+}
+
+double cospi(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).cospi_d)(x);
+    return result;
+}
+
+float cospi(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).cospi_f)(x);
+    return result;
+}
+
+double sincpi(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).sincpi_d)(x);
+    return result;
+}
+
+float sincpi(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).sincpi_f)(x);
+    return result;
+}
+
+double sinc_radians(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).sinc_radians_d)(x);
+    return result;
+}
+
+float sinc_radians(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).sinc_radians_f)(x);
+    return result;
+}
+
+double cosm1(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).cosm1_d)(x);
+    return result;
+}
+
+float cosm1(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).cosm1_f)(x);
+    return result;
+}
+
+double cosm1pi(const double x) noexcept {
+    const double result = (*(*active.load(std::memory_order_relaxed)).cosm1pi_d)(x);
+    return result;
+}
+
+float cosm1pi(const float x) noexcept {
+    const float result = (*(*active.load(std::memory_order_relaxed)).cosm1pi_f)(x);
+    return result;
+}
+
 } // namespace unflushed
 
 } // namespace stxlib::math
@@ -925,6 +1117,74 @@ double log1p(const double x) noexcept {
 
 float log1p(const float x) noexcept {
     const float result = native::log1p(x);
+    return result;
+}
+
+void sincospi(const float x, float& s, float& c) noexcept {
+    native::sincospi(x, s, c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    native::sincospi(x, s, c);
+}
+
+double sinpi(const double x) noexcept {
+    const double result = native::sinpi(x);
+    return result;
+}
+
+float sinpi(const float x) noexcept {
+    const float result = native::sinpi(x);
+    return result;
+}
+
+double cospi(const double x) noexcept {
+    const double result = native::cospi(x);
+    return result;
+}
+
+float cospi(const float x) noexcept {
+    const float result = native::cospi(x);
+    return result;
+}
+
+double sincpi(const double x) noexcept {
+    const double result = native::sincpi(x);
+    return result;
+}
+
+float sincpi(const float x) noexcept {
+    const float result = native::sincpi(x);
+    return result;
+}
+
+double sinc_radians(const double x) noexcept {
+    const double result = native::sinc_radians(x);
+    return result;
+}
+
+float sinc_radians(const float x) noexcept {
+    const float result = native::sinc_radians(x);
+    return result;
+}
+
+double cosm1(const double x) noexcept {
+    const double result = native::cosm1(x);
+    return result;
+}
+
+float cosm1(const float x) noexcept {
+    const float result = native::cosm1(x);
+    return result;
+}
+
+double cosm1pi(const double x) noexcept {
+    const double result = native::cosm1pi(x);
+    return result;
+}
+
+float cosm1pi(const float x) noexcept {
+    const float result = native::cosm1pi(x);
     return result;
 }
 

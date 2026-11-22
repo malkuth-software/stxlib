@@ -289,6 +289,12 @@ void math_items() {
         {"math.log1p.double", static_cast<DoubleFunction>(&math::log1p)},
         {"math.sin.double" STXLIB_TRIG_DOUBLE_PATH, static_cast<DoubleFunction>(&math::sin)},
         {"math.cos.double" STXLIB_TRIG_DOUBLE_PATH, static_cast<DoubleFunction>(&math::cos)},
+        {"math.sinpi.double", static_cast<DoubleFunction>(&math::sinpi)},
+        {"math.cospi.double", static_cast<DoubleFunction>(&math::cospi)},
+        {"math.sincpi.double", static_cast<DoubleFunction>(&math::sincpi)},
+        {"math.sinc_radians.double", static_cast<DoubleFunction>(&math::sinc_radians)},
+        {"math.cosm1.double", static_cast<DoubleFunction>(&math::cosm1)},
+        {"math.cosm1pi.double", static_cast<DoubleFunction>(&math::cosm1pi)},
     };
     for (const UnaryDouble& entry : unary_doubles) {
         Digest digest;
@@ -305,6 +311,17 @@ void math_items() {
             digest.real(cosine);
         }
         print("math.sincos.double" STXLIB_TRIG_DOUBLE_PATH, digest);
+    }
+    {
+        Digest digest;
+        for (const double input : doubles) {
+            double sine = 0.0;
+            double cosine = 0.0;
+            math::sincospi(input, sine, cosine);
+            digest.real(sine);
+            digest.real(cosine);
+        }
+        print("math.sincospi.double", digest);
     }
     const BinaryDouble binary_doubles[] = {
         {STXLIB_POW_DOUBLE_ITEM, static_cast<DoublePair>(&math::pow)},
@@ -344,6 +361,12 @@ void math_items() {
         {"math.log1p.float", static_cast<FloatFunction>(&math::log1p)},
         {"math.sin.float", static_cast<FloatFunction>(&math::sin)},
         {"math.cos.float", static_cast<FloatFunction>(&math::cos)},
+        {"math.sinpi.float", static_cast<FloatFunction>(&math::sinpi)},
+        {"math.cospi.float", static_cast<FloatFunction>(&math::cospi)},
+        {"math.sincpi.float", static_cast<FloatFunction>(&math::sincpi)},
+        {"math.sinc_radians.float", static_cast<FloatFunction>(&math::sinc_radians)},
+        {"math.cosm1.float", static_cast<FloatFunction>(&math::cosm1)},
+        {"math.cosm1pi.float", static_cast<FloatFunction>(&math::cosm1pi)},
     };
     for (const UnaryFloat& entry : unary_floats) {
         Digest digest;
@@ -360,6 +383,17 @@ void math_items() {
             digest.real(cosine);
         }
         print("math.sincos.float", digest);
+    }
+    {
+        Digest digest;
+        for (const float input : floats) {
+            float sine = 0.0f;
+            float cosine = 0.0f;
+            math::sincospi(input, sine, cosine);
+            digest.real(sine);
+            digest.real(cosine);
+        }
+        print("math.sincospi.float", digest);
     }
     const BinaryFloat binary_floats[] = {
         {STXLIB_POW_FLOAT_ITEM, static_cast<FloatPair>(&math::pow)},

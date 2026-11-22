@@ -1,5 +1,7 @@
 // Tests of exp2, expm1, log1p, sin and cos (stxlib/math.hpp; roadmap R1),
-// against the double-double references of tests/reference/wide.hpp.
+// and of the half-turn functions and cosine losses (sincospi, sinpi, cospi,
+// sincpi, sinc_radians, cosm1, cosm1pi; 2026-11-22), against the
+// double-double references of tests/reference/wide.hpp.
 //
 //   math_completion_tests               sampled checks (the ctest run)
 //   math_completion_tests --exhaustive  every float through the float
@@ -461,6 +463,278 @@ void fronts(const int count) {
     std::printf("sin, cos: sincos' bits at %d inputs, both precisions\n", checked);
 }
 
+// ---- half-turn trigonometry and cosine losses -------------------------------------
+//
+// sincospi, sinpi, cospi, sincpi, sinc_radians, cosm1 and cosm1pi
+// (src/algorithms/math/half_turn.cpp). The limits below are tests, not
+// proofs: the exact head is proved (tools/math/half_turn_certificate.py),
+// the rounding of the low parts is measured. The study (2026-11-18, 172,288
+// inputs against MPFR) measured 0.500020 (sinpi), 0.500113 (cospi),
+// 0.500295 (sincpi), 0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992
+// (sinc_radians) ulp at worst; this sample found sincpi at 0.500748 until
+// the rotation's second-order terms took the whole cell values (2026-11-22,
+// half_turn.cpp), and now measures at most 0.500169 (cosm1pi).
+constexpr double half_turn_ulp_limit = 0.5005;
+constexpr double half_turn_loss_ulp_limit = 0.502;
+
+// pi as a double-double (wide.hpp's pi/2 parts doubled, ~107 bits).
+constexpr wide::Wide wide_pi{2.0 * wide::half_pi_1, 2.0 * wide::half_pi_2};
+
+// sin(pi m) and cos(pi m) for 0 <= m < 2^52: m = n/2 + f exactly with
+// |f| <= 1/4, then wide.hpp's series at pi f and the quarter turn n mod 4.
+wide::WideSinCos half_turn_reference(const double m) {
+    const double n = std::nearbyint(2.0 * m);
+    const double f = m - 0.5 * n;  // exact
+    const wide::WideSinCos base = wide::series(wide::multiply(wide_pi, f));
+    const std::int64_t quarter = static_cast<std::int64_t>(std::fmod(n, 4.0));
+    wide::WideSinCos result{};
+    if (quarter == 0) {
+        result = base;
+    } else if (quarter == 1) {
+        result = wide::WideSinCos{base.c, wide::negate(base.s)};
+    } else if (quarter == 2) {
+        result = wide::WideSinCos{wide::negate(base.s), wide::negate(base.c)};
+    } else {
+        result = wide::WideSinCos{wide::negate(base.c), base.s};
+    }
+    return result;
+}
+
+// -2 s^2 for a double-double s.
+wide::Wide negative_twice_square_reference(const wide::Wide s) {
+    const wide::Wide square = wide::multiply(s, s);
+    const wide::Wide result = wide::negate(wide::add(square, square));
+    return result;
+}
+
+// One half-turn input of the region: [0, 2) uniform; tiny (2^-30 to 2^-8);
+// near the 1/128 lattice; large magnitudes (2^20 to 2^51). Signs alternate.
+double half_turn_input(const int region, Lcg& lcg) {
+    double m = 0.0;
+    if (region == 0) m = 2.0 * lcg.unit();
+    if (region == 1) m = geometric(lcg, -30.0, -8.0);
+    if (region == 2) {
+        const double lattice = std::floor(256.0 * lcg.unit()) / 128.0;
+        m = lattice + (lcg.unit() - 0.5) * geometric(lcg, -50.0, -9.0);
+        m = std::fabs(m);
+    }
+    if (region == 3) m = geometric(lcg, 20.0, 51.0);
+    const double result = lcg.unit() < 0.5 ? -m : m;
+    return result;
+}
+
+void track_worst(const double error, const double x, double& worst, double& worst_x) {
+    if (error > worst) {
+        worst = error;
+        worst_x = x;
+    }
+}
+
+void half_turn_accuracy(const int per_region) {
+    namespace m = stxlib::math;
+    const char* const names[] = {"[0, 2)", "[2^-30, 2^-8]", "1/128 lattice", "[2^20, 2^51]"};
+    Lcg lcg{3011};
+    for (int region = 0; region < 4; ++region) {
+        double worst_sine = 0.0;
+        double worst_sine_x = 0.0;
+        double worst_cosine = 0.0;
+        double worst_cosine_x = 0.0;
+        double worst_sinc = 0.0;
+        double worst_sinc_x = 0.0;
+        double worst_loss = 0.0;
+        double worst_loss_x = 0.0;
+        for (int i = 0; i < per_region; ++i) {
+            const double x = half_turn_input(region, lcg);
+            const double magnitude = std::fabs(x);
+            const wide::WideSinCos exact = half_turn_reference(magnitude);
+            double sine = 0.0;
+            double cosine = 0.0;
+            m::sincospi(x, sine, cosine);
+            require(same_bits(sine, m::sinpi(x)) && same_bits(cosine, m::cospi(x)), "sincospi: not sinpi's and cospi's bits");
+            require(same_bits(m::sinpi(-x), -sine) && same_bits(m::cospi(-x), cosine), "sinpi odd, cospi even");
+            const wide::Wide signed_sine = std::signbit(x) ? wide::negate(exact.s) : exact.s;
+            if (exact.s.hi != 0.0) track_worst(wide_ulps(sine, signed_sine), x, worst_sine, worst_sine_x);
+            if (exact.c.hi != 0.0) track_worst(wide_ulps(cosine, exact.c), x, worst_cosine, worst_cosine_x);
+            if (magnitude < 0x1p52 && exact.s.hi != 0.0) {
+                const wide::Wide angle = wide::multiply(wide_pi, magnitude);
+                track_worst(wide_ulps(m::sincpi(x), wide::divide(exact.s, angle)), x, worst_sinc, worst_sinc_x);
+            }
+            const wide::Wide half_sine = half_turn_reference(0.5 * magnitude).s;
+            if (half_sine.hi != 0.0) {
+                track_worst(wide_ulps(m::cosm1pi(x), negative_twice_square_reference(half_sine)), x, worst_loss,
+                            worst_loss_x);
+            }
+        }
+        std::printf("half-turn %-15s %10d inputs  sinpi %.6f at %a  cospi %.6f at %a  sincpi %.6f at %a  "
+                    "cosm1pi %.6f at %a\n",
+                    names[region], per_region, worst_sine, worst_sine_x, worst_cosine, worst_cosine_x, worst_sinc,
+                    worst_sinc_x, worst_loss, worst_loss_x);
+        require(worst_sine <= half_turn_ulp_limit && worst_cosine <= half_turn_ulp_limit, "sinpi/cospi: error above the limit");
+        require(worst_sinc <= half_turn_ulp_limit, "sincpi: error above the limit");
+        require(worst_loss <= half_turn_loss_ulp_limit, "cosm1pi: error above the limit");
+    }
+    // The radian functions, against wide.hpp's radian reference, for
+    // |x| in [2^-7, 2^32] (cosm1 also below, where it is -x^2/2).
+    double worst_sinc = 0.0;
+    double worst_sinc_x = 0.0;
+    double worst_loss = 0.0;
+    double worst_loss_x = 0.0;
+    for (int i = 0; i < per_region; ++i) {
+        const double x = (lcg.unit() < 0.5 ? -1.0 : 1.0) * geometric(lcg, -7.0, 32.0);
+        const double magnitude = std::fabs(x);
+        const wide::WideSinCos exact = wide::reference(magnitude);
+        track_worst(wide_ulps(m::sinc_radians(x), wide::divide(exact.s, wide::Wide{magnitude, 0.0})), x, worst_sinc,
+                    worst_sinc_x);
+        const wide::Wide half_sine = wide::reference(0.5 * magnitude).s;
+        track_worst(wide_ulps(m::cosm1(x), negative_twice_square_reference(half_sine)), x, worst_loss, worst_loss_x);
+    }
+    std::printf("radian sinc  %10d inputs  max %.6f ulp at %a;  cosm1 max %.6f ulp at %a\n", per_region, worst_sinc,
+                worst_sinc_x, worst_loss, worst_loss_x);
+    require(worst_sinc <= half_turn_ulp_limit, "sinc_radians: error above the limit");
+    require(worst_loss <= half_turn_ulp_limit, "cosm1: error above the limit");
+}
+
+// Exact cases, special values, the reductions and the float functions.
+void half_turn_special_values() {
+    namespace m = stxlib::math;
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    // Whole and half numbers are exact, the sine's zeros with x's sign.
+    for (int n = -64; n <= 64; ++n) {
+        const double x = static_cast<double>(n);
+        const double zero = n < 0 ? -0.0 : 0.0;
+        const double parity = (n % 2 == 0) ? 1.0 : -1.0;
+        require(same_bits(m::sinpi(x), zero) && m::cospi(x) == parity, "sinpi/cospi at a whole number");
+        // sin(pi (n + 1/2)) = cos(pi n) = (-1)^n; cos(pi (n + 1/2)) = +0.
+        require(same_bits(m::cospi(x + 0.5), 0.0) && m::sinpi(x + 0.5) == parity, "sinpi/cospi at a half number");
+        require(same_bits(m::cosm1pi(x), n % 2 == 0 ? -0.0 : -2.0), "cosm1pi at a whole number");
+        if (n != 0) require(same_bits(m::sincpi(x), 0.0), "sincpi at a nonzero whole number");
+    }
+    require(same_bits(m::sinpi(-tiny), -0.0) && same_bits(m::cospi(tiny), 1.0), "half-turn: subnormal argument");
+    require(m::cospi(0x1.fffffffffffffp52) == -1.0 && m::cospi(0x1p53) == 1.0 && same_bits(m::sinpi(-0x1p60), -0.0),
+            "half-turn: parity of large whole numbers");
+    require(std::isnan(m::sinpi(inf)) && std::isnan(m::cospi(-inf)) && std::isnan(m::cospi(nan)) &&
+                std::isnan(m::cosm1pi(inf)) && std::isnan(m::cosm1pi(nan)),
+            "half-turn: nonfinite argument");
+    require(m::sincpi(0.0) == 1.0 && m::sincpi(-0.0) == 1.0 && m::sincpi(tiny) == 1.0 && same_bits(m::sincpi(inf), 0.0) &&
+                same_bits(m::sincpi(-inf), 0.0) && std::isnan(m::sincpi(nan)),
+            "sincpi: special values");
+    require(m::sinc_radians(0.0) == 1.0 && m::sinc_radians(-0.0) == 1.0 && std::isnan(m::sinc_radians(0x1.0000000000001p32)) &&
+                std::isnan(m::sinc_radians(inf)) && std::isnan(m::sinc_radians(nan)),
+            "sinc_radians: special values");
+    require(same_bits(m::cosm1(0.0), -0.0) && same_bits(m::cosm1(-0.0), -0.0) && same_bits(m::cosm1(tiny), -0.0) &&
+                same_bits(m::cosm1(0x1p-600), -0.0) && std::isnan(m::cosm1(0x1.0000000000001p32)) &&
+                std::isnan(m::cosm1(inf)) && std::isnan(m::cosm1(nan)),
+            "cosm1: special values");
+    require(same_bits(m::cosm1pi(0.0), -0.0) && same_bits(m::cosm1pi(-0.0), -0.0) && same_bits(m::cosm1pi(0x1p-600), -0.0),
+            "cosm1pi: special values");
+    // From 2^44 the phase is reduced modulo 2 in whole numbers: 2^44 + j/256
+    // is exact (the spacing there is 2^-8; at 2^45 it is 2^-7, so odd j
+    // would round) and must give j/256's bits.
+    for (int j = 0; j < 512; ++j) {
+        const double phase = static_cast<double>(j) / 256.0;
+        const double far = 0x1p44 + phase;
+        require(same_bits(m::sinpi(far), m::sinpi(phase)) && same_bits(m::cospi(far), m::cospi(phase)),
+                "half-turn: the reduction modulo 2 from 2^44");
+    }
+    // Float: the double function of the widened argument, rounded once (and
+    // flushed).
+    Lcg lcg{3012};
+    for (int i = 0; i < 4096; ++i) {
+        const float x = static_cast<float>((lcg.unit() - 0.5) * std::exp2(40.0 * lcg.unit() - 20.0));
+        const double wide_x = static_cast<double>(x);
+        float s = 0.0f;
+        float c = 0.0f;
+        m::sincospi(x, s, c);
+        require(same_bits(s, flushed(static_cast<float>(m::sinpi(wide_x)))) &&
+                    same_bits(c, flushed(static_cast<float>(m::cospi(wide_x)))) && same_bits(m::sinpi(x), s) &&
+                    same_bits(m::cospi(x), c),
+                "sincospi(float): not the double result rounded once");
+        require(same_bits(m::sincpi(x), flushed(static_cast<float>(m::sincpi(wide_x)))) &&
+                    same_bits(m::sinc_radians(x), flushed(static_cast<float>(m::sinc_radians(wide_x)))) &&
+                    same_bits(m::cosm1(x), flushed(static_cast<float>(m::cosm1(wide_x)))) &&
+                    same_bits(m::cosm1pi(x), flushed(static_cast<float>(m::cosm1pi(wide_x)))),
+                "half-turn (float): not the double result rounded once");
+    }
+    require(same_bits(m::sinpi(-0.0f), -0.0f) && same_bits(m::cospi(0.5f), 0.0f) && m::cospi(0x1.fffffep23f) == -1.0f &&
+                m::cospi(0x1p24f) == 1.0f,
+            "half-turn (float): exact cases");
+    require(m::sincpi(0.5f) == 0x1.45f306p-1f && m::sinc_radians(0.0f) == 1.0f &&
+                m::cosm1pi(0x1p-36f) == -0x1.3bd3ccp-70f && m::cosm1(0x1p-36f) == -0x1p-73f,
+            "half-turn (float): reference values");
+    std::printf("half-turn: special values, reductions and float functions hold\n");
+}
+
+// A reference row's value: a differing one is printed and counted.
+void check_reference(int& differing, const char* const name, const double x, const double result, const double expected) {
+    if (!same_bits(result, expected)) {
+        differing += 1;
+        std::fprintf(stderr, "%s(%a): result %a, reference %a\n", name, x, result, expected);
+    }
+}
+
+// Correctly rounded values from the study (MPFR 4.2.2 at 256 bits,
+// 2026-11-18; the losses through the half-angle identity in the reference
+// too). Every row is expected exactly. Each lies far from a rounding
+// boundary for a kernel of this accuracy except sincpi(1 - 2^-53), 2^-54 ulp
+// below a midpoint, which sincpi's near-whole-number path decides exactly.
+void half_turn_reference_values() {
+    namespace m = stxlib::math;
+    struct Row final {
+        double x;
+        double sine;
+        double cosine;
+        double sinc;
+        double pi_loss;
+        double radian_loss;
+        double radian_sinc;
+    };
+    const Row rows[] = {
+        {0x1.3fce88ac7919cp-1022, 0x1.f659ef13b0045p-1021, 0x1p+0, 0x1p+0, -0x0p+0, -0x0p+0, 0x1p+0},
+        {0x1p-511, 0x1.921fb54442d18p-510, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-1020, -0x0p+0, 0x1p+0},
+        {0x1p-36, 0x1.921fb54442d18p-35, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-70, -0x1p-73, 0x1p+0},
+        {0x1.fffffffffffffp-9, 0x1.921d1fcdec784p-7, 0x1.fff62169b92dbp-1, 0x1.fffcb5ccd351fp-1, -0x1.3bd2c8da4951p-14,
+         -0x1.ffffd55556c15p-18, 0x1.ffffaaaaaeeefp-1},
+        {0x1.a8p-2, 0x1.ed740e7684963p-1, 0x1.111d262b1f677p-2, 0x1.7b576ab7a364dp-1, -0x1.77716cea704c4p-1,
+         -0x1.5a230f1cf30fcp-4, 0x1.f17ea4721d5dp-1},
+        {0x1.fffffffffffffp-1, 0x1.921fb54442d18p-52, -0x1p+0, 0x1p-53, -0x1p+1, -0x1.d6bafe095f2e7p-2,
+         0x1.aed548f090ceep-1},
+        {0x1.0000000000001p+0, -0x1.921fb54442d18p-51, -0x1p+0, -0x1.ffffffffffffep-53, -0x1p+1, -0x1.d6bafe095f2ecp-2,
+         0x1.aed548f090cedp-1},
+        {0x1.921fb54442d18p+2, 0x1.8dbfb48815e49p-1, 0x1.4265a4a213109p-1, 0x1.42672fc9aa464p-5, -0x1.7b34b6bbd9deep-2,
+         -0x1.377ce858a5d48p-105, -0x1.678afae35cdd1p-55},
+        {0x1.864p+18, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.6ab2a5e19722p-2, -0x1.006f87fc84d5bp-19},
+        {0x1.fffffffffffp+31, -0x1.921fb49ee4ea6p-12, 0x1.fffffd8858675p-1, -0x1.ffffff2d72ddp-46, -0x1.3bd3cc5af3e1dp-24,
+         -0x1.e30eb761a9edcp+0, -0x1.d8f6a0ed038dbp-34},
+        {0x1p+32, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.e30b055806644p+0, -0x1.d9130288cfb14p-34},
+        {0x1.fffffffffffffp+43, -0x1.921f0fe670071p-8, 0x1.fffd8858e8a92p-1, -0x1.ffff2d72e6e74p-54,
+         -0x1.3bd38bab6d94cp-16, -0x1.418596f856448p-4, 0x1.8db0e7d572806p-46},
+        {0x1.0000000000001p+49, 0x1.87de2a6aea963p-2, 0x1.d906bcf328d46p-1, 0x1.f2f10e3ce6d4p-53, -0x1.37ca1866b95cfp-4,
+         -0x1.2b67bb57f1105p-4, 0x1.804ee2423f73p-51},
+    };
+    // Every differing value is printed before the first failure, so one run
+    // lists them all.
+    int differing = 0;
+    for (const Row& row : rows) {
+        double sine = 0.0;
+        double cosine = 0.0;
+        m::sincospi(row.x, sine, cosine);
+        check_reference(differing, "sincospi (sine)", row.x, sine, flushed(row.sine));
+        check_reference(differing, "sincospi (cosine)", row.x, cosine, row.cosine);
+        check_reference(differing, "sincpi", row.x, m::sincpi(row.x), row.sinc);
+        check_reference(differing, "cosm1pi", row.x, m::cosm1pi(row.x), flushed(row.pi_loss));
+        if (row.x <= 0x1p32) {
+            check_reference(differing, "cosm1", row.x, m::cosm1(row.x), flushed(row.radian_loss));
+            check_reference(differing, "sinc_radians", row.x, m::sinc_radians(row.x), row.radian_sinc);
+        } else {
+            require(std::isnan(m::cosm1(row.x)) && std::isnan(m::sinc_radians(row.x)), "cosm1, sinc_radians: the angle limit");
+        }
+    }
+    require(differing == 0, "half-turn: a reference value differs");
+    std::printf("half-turn: %d reference rows hold\n", static_cast<int>(sizeof(rows) / sizeof(rows[0])));
+}
+
 // ---- determinism -------------------------------------------------------------
 
 STXLIB_MODULAR void hash_word(std::uint64_t& hash, const std::uint64_t word) {
@@ -646,6 +920,9 @@ int main(const int argument_count, char** const arguments) {
         exp2_double_accuracy(exhaustive ? 20000000 : 100000);
         expm1_double_accuracy(exhaustive ? 20000000 : 100000);
         log1p_double_accuracy(exhaustive ? 20000000 : 100000);
+        half_turn_special_values();
+        half_turn_reference_values();
+        half_turn_accuracy(exhaustive ? 20000000 : 100000);
         float_screen(exhaustive ? 1 : 997);
         determinism();
     } catch (const std::exception& failure) {

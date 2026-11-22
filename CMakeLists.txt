@@ -643,6 +643,7 @@ set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/cbrt.cpp
     src/algorithms/math/completions.cpp
     src/algorithms/math/exp.cpp
+    src/algorithms/math/half_turn.cpp
     src/algorithms/math/hyperbolic.cpp
     src/algorithms/math/hypot.cpp
     src/algorithms/math/log.cpp
@@ -1192,7 +1193,11 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_textlayout_bidi_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_textlayout_bidi_tests
             COMMAND stxlib_textlayout_bidi_tests ${CMAKE_CURRENT_SOURCE_DIR}/third_party/unicode-18.0.0 ${STXLIB_UNICODE_TEST_DATA})
-        set_tests_properties(stxlib_textlayout_bidi_tests PROPERTIES TIMEOUT 1200)
+        # Slow unoptimized: about 7.5 million bracket sequences to length 6.
+        # Windows Debug took 564 s on one CI run and over 1200 s on a runner
+        # twice as slow (run 45008874456), Linux Debug 1027 s, so the limit
+        # leaves room for a slow runner.
+        set_tests_properties(stxlib_textlayout_bidi_tests PROPERTIES TIMEOUT 2700)
         add_executable(stxlib_textlayout_tests tests/textlayout_tests.cpp)
         target_link_libraries(stxlib_textlayout_tests PRIVATE stxlib::algorithms)
         target_include_directories(stxlib_textlayout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests

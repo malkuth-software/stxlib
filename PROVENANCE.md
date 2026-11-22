@@ -810,6 +810,55 @@ controls, 520 differ, each by one 32nd of a level (stx_conv's are binary64
 values rounded to a 32nd; these are the exact values rounded).
 Nothing of stx_conv is compiled or linked.
 
+### pow(double): the reciprocal grid (STXlib's own change, 2026-11-22)
+
+Today's pow(double) kernel (`src/algorithms/math/pow.cpp`, `pow_positive`)
+is replaced. The owner approved the faster pow on 2026-11-18 from a study
+made outside this repository (projects' Codex outputs of that day:
+`stxlib-pow-grid.patch`, an opt-in experiment against `b78906e`, and
+`pow-investigation.md`). Owner ruling: such math is never folded as
+written. The kernel here is a reimplementation in the house style with the
+study's code as the reference: the same mathematics (a 1024-cell
+reciprocal grid that makes the logarithm's reduction exact without an
+exact product, a shorter logarithm polynomial, one rounded exp argument),
+now the default instead of a switch, taking subnormal bases by exact
+scaling instead of the old kernel, with the table's facts checked at
+compile time. New: `src/algorithms/math/pow_grid_table1024.hpp` (24 KiB)
+from `tools/math/gen_pow_grid_table.py` (Python's decimal module; the
+written table equals the study's, cell for cell) and the error budget
+`tools/math/pow_grid_certificate.py` (0.509424 ulp for normal results,
+within the stated 0.51; the study's own budget script gave the same). The
+study measured 8.57 against 10.96 ns per call on the M4 and 0.501712 ulp
+at worst against MPFR over 2.45 million pairs; neither is remeasured here
+(nothing on this branch has been compiled).
+
+Results change: pow(double) on today's path, and pow(float) wherever its
+accurate fallback rounds today's double result. `math.pow.double` and
+`math.pow.float` in `tests/bit_identity_expected.txt` and the today and
+float-only pow hashes in `tests/math_tests.cpp` are unfrozen for the
+integrator's freezing run; `pow_ulp_limit` tightens from 0.576 to 0.51.
+The log2-table kernel and its table are removed.
+
+### Half-turn trigonometry and cosine losses (STXlib's own, 2026-11-22)
+
+`sincospi`, `sinpi`, `cospi`, `sincpi`, `sinc_radians`, `cosm1` and
+`cosm1pi` (`include/stxlib/math.hpp`, `src/algorithms/math/half_turn.cpp`),
+in both precisions. The reference is a study made outside this repository
+(branch `codex/pi-trig-and-interval-study`, `f341b2c`), reimplemented in
+the house style, not folded: the half-turn cells are built at compile time
+from `sincos_table256.hpp` (the study generated them with a script), the
+lattice facts that make the head exact are checked by `static_assert` and
+by `tools/math/half_turn_certificate.py`, the phase is reduced modulo 2 in
+whole numbers from 2^44 (the study called the host's `nearbyint`), and the
+float functions round the double result once (the study had a separate
+float kernel in the public fronts). The study's normalized `sinc`, which
+duplicated `sincpi`, is left out. The study's Gaussian interval mass was
+rejected by the owner (a 140 KiB table, subnormals) and is not part of
+this change. The reference values in `tests/math_completion_tests.cpp` are
+the study's, rounded from MPFR 4.2.2; MPFR is not used here. No existing
+result changes; the new bit-identity items are unfrozen until the
+integrator's first freezing run.
+
 ## Third party
 
 ### mimalloc (removed, 2026-11-15)

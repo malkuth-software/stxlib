@@ -48,7 +48,13 @@ jobs:
     # Debug (shadowing and allocation tags on), ASan+UBSan and TSan, with
     # libc++ (the Linux profile's C++ library), then the advisory clang-tidy.
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # 60 (was 40): since 2026-11-17 the job has needed about 41 minutes
+    # (TSan alone about 15, stxlib_textlayout_bidi_tests 9 of them) and was
+    # cancelled with three TSan tests left, every test passed so far.
+    # Run 45003504714 (2026-11-22) was cancelled at 60 minutes in TSan,
+    # 127 of 130 done, every test passed: the four font and exhaustive tests
+    # take 3 to 4 minutes each under TSan. 90 leaves room.
+    timeout-minutes: 90
     env:
       CC: clang-22
       CXX: clang++-22
@@ -203,13 +209,16 @@ jobs:
           key: ccache-v1-linux-musl-${{ github.sha }}
           restore-keys: ccache-v1-linux-musl-
       - name: Plain
+        id: plain
+        if: ${{ !cancelled() }}
         run: |
           cmake -S . -B build-plain -G Ninja -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_CXX_FLAGS=-stdlib=libc++ "-DCMAKE_EXE_LINKER_FLAGS=$LINK" "-DCMAKE_SHARED_LINKER_FLAGS=$LINK"
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
       - name: Bit identity (this host's lines)
-        if: always()
+        # Needs build-plain; when Plain did not run, this step has nothing to read.
+        if: ${{ !cancelled() && steps.plain.outcome != 'skipped' }}
         run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Debug
         run: |
@@ -227,7 +236,8 @@ jobs:
     # over an executable throw) runs here for the first time: its output says
     # which kind Windows reports.
     runs-on: windows-2025
-    timeout-minutes: 50
+    # The Debug tests alone took 22 minutes on a slow runner (run 45008874456).
+    timeout-minutes: 80
     defaults:
       run:
         shell: msys2 {0}
@@ -267,13 +277,16 @@ jobs:
         if: always()
         run: ctest --test-dir build-debug -R '^stxlib_two_module_tests$' -V | grep -i -E 'case 2|kind|invalid_argument|foreign_exception' | head -20 || true
       - name: Plain
+        id: plain
+        if: ${{ !cancelled() }}
         run: |
           cmake -S . -B build-plain -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_EXE_LINKER_FLAGS=-static -DCMAKE_SHARED_LINKER_FLAGS=-static
           cmake --build build-plain --parallel 4
           ctest --test-dir build-plain --output-on-failure --parallel 3 --timeout 1800
       - name: Bit identity (this host's lines)
-        if: always()
+        # Needs build-plain; when Plain did not run, this step has nothing to read.
+        if: ${{ !cancelled() && steps.plain.outcome != 'skipped' }}
         run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
       - name: Compiler cache statistics
         if: always()

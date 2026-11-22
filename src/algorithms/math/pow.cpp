@@ -4,53 +4,66 @@
 // test (the owner's log2 formulation, adopted 2026-11-02). One formulation
 // on every tier: the exact products are FMA or Dekker's, with the same bits.
 //
+// The reciprocal grid (adopted 2026-11-22; the owner approved the faster
+// pow on 2026-11-18, from the study in projects' Codex outputs of that
+// day, stxlib-pow-grid.patch and pow-investigation.md, reimplemented here
+// in the house style; PROVENANCE.md names the change of results). With
+// x = 2^k M / 2^52, M in [2^52, 2^53), the leading ten fraction bits choose
+// a cell of pow_grid_table1024.hpp, holding a short reciprocal n/1024 and
+// -log2(n/1024) = head + tail:
+//
+//   r = (M n - 2^62) / 2^62                      exact (|M n - 2^62| <= 2^53)
+//   log2 x = (k + head) + log1p(r) / ln 2 + tail  k + head exact
+//   log1p(r) = r - r^2/2 + r^3 (c3 + r^2 (c5 + r^2 c7)),  ci = 1/i - r/(i + 1)
+//
+// with |r| <= 0x1.35cp-10. r - r^2/2 is kept as a + a_error exactly (r^2
+// from an exact product); the terms r^3 to r^8 come from three independent
+// coefficient pairs, truncated at r^9/9 < 2^-90. log2 x is normalized to
+// log_hi + log_lo before the one exact product with y:
+//
+//   p + p_lo = y log_hi + y log_lo
+//
+// and 2^(p + p_lo) = 2^e 2^(j/256) e^u, with q = round(256 p) = 256 e + j,
+// t = p - q/256 exact plus p_lo, u = t ln 2 (|u| <= 2^-9.5), from the exp
+// table and e^u - 1 - u to the u^5 term. Against the log2-table kernel it
+// replaces: the reduction needs no exact product, the logarithm's
+// polynomial is shorter (|r| <= 2^-9.6 against 2^-8), and the exp side
+// takes one rounded t; the 1024 cells cost 24 KiB.
+//
 // The same bits need every exact product inside the range where both forms
-// are exact (kernel_support.hpp two_product; float_exact's in_product_range:
-// each factor zero or of magnitude in [2^-969, 2^995], exponents summing to
-// at least -918). The factors are y, k + H_i, s, r, a, t, u and table
-// constants. The kernel therefore takes only 2^-80 <= |y| < 2^64; the
-// other factors are zero or between 2^-600 and 2^11 there: k + H_i is a
-// multiple of 2^-41 below 1077; r is a multiple of 2^-53, so r, a and s are
-// zero or at least 2^-54; t (and u = t ln 2) is zero or at least 2^-600,
-// because t_head and p_lo are sums of products and roundings of values on
-// grids no finer than 2^-600 once |y| >= 2^-80 (a rounded sum of terms on a
-// grid stays on it). Products of zero are exact in both forms. Outside that
-// y range the result is decided
-// without the kernel (pow_y_kernel_low, pow_y_kernel_high). Before
-// 2026-11-13 the kernel took every finite y: for x = 1 and |y| > 2^996,
-// Dekker's split of y overflowed (y * 134217729 = inf, so the split and
-// y (k + H) = 0's error term were NaN) and the Dekker form returned NaN
-// where the fused form returned 1, which made pow(double)'s bits depend on
-// the host's FMA (bit identity, item math.pow.double).
+// are exact (kernel_support.hpp two_product; float_exact's
+// in_product_range: each factor zero or of magnitude in [2^-969, 2^995],
+// exponents summing to at least -918). The factors are r (twice), a, y,
+// log_hi, a table head T and u; the kernel takes only 2^-80 <= |y| < 2^64
+// (outside it the result is decided without the kernel: pow_y_kernel_low,
+// pow_y_kernel_high). Every other factor is zero or between 2^-788 and
+// 2^11, by grids: a rounded sum of values on grids of powers of two lies on
+// the finer grid, a rounded product on the product of the grids, and a
+// nonzero value on grid g is at least g. r lies on 2^-62; r^2, its error,
+// a and a_error on 2^-125; the coefficient pairs (constants on 2^-55 or
+// coarser, times r) on 2^-117; the r^3 polynomial on 2^-551; tail on 2^-122
+// (zero or at least 2^-70, checked by the generator); k + head on 2^-41;
+// so low, log_hi and log_lo lie on 2^-603, y (|y| >= 2^-80) on 2^-132,
+// p_lo and t on 2^-735 and u (ln2_hi on 2^-53) on 2^-788. Products of zero
+// are exact in both forms.
 //
-//   log2 x = (k + H_i) + s + s_lo
-// with x = 2^k z, the log table's bucket i (log_core.hpp: r = z inv_i - 1,
-// |r| <= 2^-8, exact as r + r_lo), H_i = -log2(inv_i) cut to a multiple of
-// 2^-41 so that k + H_i is exact, s = log1p(r) / ln 2 rounded and s_lo
-// carrying its error with mid_i = -log2(inv_i) - H_i. Then
-//   p + p_lo = y (k + H_i) + y s + y s_lo
-// from two exact products and an exact sum, and 2^(p + p_lo) =
-// 2^e 2^(j/256) e^(t ln 2) with q = round(256 p) = 256 e + j and
-// t = p - q/256 exact (|t| <= 2^-9), from the exp table and a degree-6
-// polynomial.
-//
-// Error bound (dev/x86/pow_bound.py in the hot-paths record): the absolute
-// error of log2 x is below 2^-66.6 |log2 x| (worst in buckets 80 and 81,
-// where log2 x is smallest; bucket 80 has inv = 1 and H = 0, so x near 1
-// does not cancel), which p carries times |y|: below 2^-56.2 absolute for
-// |p| <= 1076; the exp side adds 2^-70.7 relative. In all, 2^-56.7 relative
-// before the final rounding: within 0.5 + 0.076 ulp. MPFR measures
-// 2^-68.2 and 2^-58.9 for the two (the worst result 0.5027 ulp in 2 x 10^6
-// inputs over five regions). Subnormal results round once on the subnormal
-// grid (scale_wide), where the same relative error is at most 0.038 of the
-// subnormal ulp. Negative x with integer y takes the sign of the integer's
-// parity; every other special input follows C99 Annex F.
+// Error bound (tools/math/pow_grid_certificate.py, exact rational upper
+// bounds per cell): the relative error of log2 x is below 9.71e-22, which p
+// carries times |y log2 x| <= 1025 for a finite normal result; the exp side
+// adds 3.58e-19 relative. In all, within 0.5095 ulp for normal results,
+// before review of the correspondence between the certificate's model and
+// this code (argued, not machine checked). The study measured 0.501712 ulp
+// at worst against MPFR on 2.45 million pairs (Apple M4, 2026-11-18).
+// Subnormal results round once on the subnormal grid (scale_wide). Negative
+// x with integer y takes the sign of the integer's parity; every other
+// special input follows C99 Annex F.
 
 #include "stxlib/math.hpp"
 
 #include "exp_core.hpp"
 #include "log_core.hpp"
 #include "log_table128.hpp"
+#include "pow_grid_table1024.hpp"
 
 #include <limits>
 
@@ -98,8 +111,8 @@ constexpr double pow2_c3 = 0.05550410866482158;
 // rounds to +0. Between them the exponent e = floor(q / 256) lies in
 // [-1077, 1024], inside scale_wide's range: e = 1024 scales in two steps
 // (an overflow rounds once), and results below 2^-1022 round once on the
-// subnormal grid. With |y| < 2^64, y (k + H) stays below 2^75 and p is
-// finite.
+// subnormal grid. With |y| < 2^64 and |log_hi| < 1077, y log_hi stays
+// below 2^75 and p is finite.
 constexpr double pow_overflow_limit = 1024.5;
 constexpr double pow_underflow_limit = -1076.0;
 
@@ -118,118 +131,117 @@ constexpr double pow_underflow_limit = -1076.0;
 constexpr std::uint64_t pow_y_kernel_low = 0x3af0000000000000ULL;   // 2^-80
 constexpr std::uint64_t pow_y_kernel_high = 0x43f0000000000000ULL;  // 2^64
 
-// H_i + mid_i = -log2(inv_i) for each log bucket: H_i a multiple of 2^-41,
-// so k + H_i is exact (|k| <= 1075 takes 11 bits above the point, H_i 41
-// below), and |mid_i| <= 2^-42.
-struct Log2Entry final {
-    double head{0.0};
-    double mid{0.0};
-};
+// pow_grid_table1024.hpp's facts, checked at compile time (the generator
+// checks them too): cell 0 is unity and the last cell reduces against 2,
+// every head is a multiple of 2^-41 in [0, 1], every tail is zero or at
+// least 2^-70 (the grid argument at the head of this file), and for both
+// ends of every cell 0 < M n < 2^63 and |M n - 2^62| <= 2^53 (M n - 2^62 is
+// linear in M, so the ends are its extremes).
+constexpr int pow_grid_cell_count = 1024;
+constexpr int pow_grid_cell_shift = 42;
+constexpr std::int64_t pow_grid_unity = std::int64_t{1} << 62;
+constexpr std::int64_t pow_grid_residual_limit = std::int64_t{1} << 53;
 
-struct Log2Table final {
-    Log2Entry values[128];
-};
-
-// From the log table's -log(inv) = logc_hi + logc_lo (error ~1e-32) times
-// 1/ln 2 as a double-double: the product's error is near 2^-105, against
-// 2^-95 for mid's own rounding. Dekker's product, written out because
-// two_product is not constexpr; constant evaluation rounds as the run time
-// does.
-constexpr Log2Table make_log2_table() noexcept {
-    Log2Table table{};
-    const Split inverse_ln2_parts = veltkamp_split(log_inv_ln2_hi);
-    for (int i = 0; i < 128; ++i) {
-        const LogEntry& entry = log_table_128[i];
-        const Split logc_parts = veltkamp_split(entry.logc_hi);
-        const double product = entry.logc_hi * log_inv_ln2_hi;
-        const double product_error =
-            ((logc_parts.hi * inverse_ln2_parts.hi - product) + logc_parts.hi * inverse_ln2_parts.lo +
-             logc_parts.lo * inverse_ln2_parts.hi) +
-            logc_parts.lo * inverse_ln2_parts.lo;
-        const double low = product_error + (entry.logc_hi * log_inv_ln2_lo + entry.logc_lo * log_inv_ln2_hi);
-        // Round to a multiple of 2^-41: |product| * 2^41 < 2^40, so the
-        // shift leaves the nearest integer.
-        const double scaled = product * 0x1p41 + rounding_shift;
-        const double head = (scaled - rounding_shift) * 0x1p-41;
-        const double mid = (product - head) + low;  // product - head is exact
-        table.values[i] = Log2Entry{head, mid};
-    }
-    return table;
+constexpr bool pow_grid_cell_valid(const int index) noexcept {
+    const PowGridCell& cell = pow_grid_cells[index];
+    const std::int64_t lowest = static_cast<std::int64_t>(pow_grid_cell_count + index) << pow_grid_cell_shift;
+    const std::int64_t highest =
+        (static_cast<std::int64_t>(pow_grid_cell_count + index + 1) << pow_grid_cell_shift) - 1;
+    // n <= 1024 and M < 2^53 keep both products below 2^63 before the test.
+    if (cell.numerator < 1 || cell.numerator > pow_grid_cell_count) return false;
+    const std::int64_t low_residual = lowest * cell.numerator - pow_grid_unity;
+    const std::int64_t high_residual = highest * cell.numerator - pow_grid_unity;
+    if (low_residual < -pow_grid_residual_limit || low_residual > pow_grid_residual_limit) return false;
+    if (high_residual < -pow_grid_residual_limit || high_residual > pow_grid_residual_limit) return false;
+    if (cell.head < 0.0 || cell.head > 1.0) return false;
+    const double head_units = cell.head * 0x1p41;
+    if (head_units != static_cast<double>(static_cast<std::int64_t>(head_units))) return false;
+    // Spelled as two comparisons: std::fabs is not constexpr in C++20.
+    if (cell.tail != 0.0 && cell.tail < 0x1p-70 && cell.tail > -0x1p-70) return false;
+    return true;
 }
 
-alignas(64) constexpr Log2Table log2_table = make_log2_table();
+constexpr bool pow_grid_table_valid() noexcept {
+    if (pow_grid_cells[0].numerator != pow_grid_cell_count || pow_grid_cells[0].head != 0.0 ||
+        pow_grid_cells[0].tail != 0.0) {
+        return false;
+    }
+    const PowGridCell& last = pow_grid_cells[pow_grid_cell_count - 1];
+    if (last.numerator != pow_grid_cell_count / 2 || last.head != 1.0 || last.tail != 0.0) return false;
+    for (int index = 0; index < pow_grid_cell_count; ++index) {
+        if (!pow_grid_cell_valid(index)) return false;
+    }
+    return true;
+}
+
+static_assert(pow_grid_table_valid(), "pow_grid_table1024.hpp breaks a fact pow_positive relies on");
 
 // x^y for positive finite x (normal or subnormal) and 2^-80 <= |y| < 2^64
-// (pow_y_kernel_low, pow_y_kernel_high).
-// Modular by design: the log table's offset arithmetic (see log_core.hpp).
-STXLIB_MODULAR double pow_positive(const double x, const double y) noexcept {
+// (pow_y_kernel_low, pow_y_kernel_high). The head of this file gives the
+// steps and their exactness.
+double pow_positive(const double x, const double y) noexcept {
     double scaled = x;
-    double exponent_adjust = 0.0;
-    if (x < 0x1p-1022) {
+    std::int64_t exponent_adjust = 0;
+    if (x < smallest_normal) {
         scaled = x * 0x1p52;  // subnormal: exact scaling into the normal range
-        exponent_adjust = 52.0;
+        exponent_adjust = 52;
     }
-    // log2 x: x = 2^k z, r + r_lo = z inv - 1 exactly.
+    // x = 2^k M / 2^52; the cell from the leading ten fraction bits.
     const std::uint64_t bits = std::bit_cast<std::uint64_t>(scaled);
-    const std::uint64_t offset = bits - log_offset_bits;
-    const std::uint64_t index = (offset >> 45) & log_index_mask;
-    const std::int64_t k_bits = static_cast<std::int64_t>(offset) >> 52;
-    const double k = static_cast<double>(k_bits) - exponent_adjust;
-    const double z = std::bit_cast<double>(bits - (offset & exponent_field));
-    const LogEntry& entry = log_table_128[index];
-    double product = 0.0;
-    double r_lo = 0.0;
-    two_product_split(entry.inv, log_splits.values[index], z, product, r_lo);
-    const double r = product - 1.0;  // exact: product is within 2^-7 of 1
-    // log1p(r + r_lo) = a + a_lo: r - r^2/2 exactly, the rest below r^3/3.
+    const std::uint64_t fraction = bits & mantissa_mask;
+    const std::int64_t significand = static_cast<std::int64_t>(fraction | implicit_bit);
+    const std::int64_t k = static_cast<std::int64_t>(bits >> 52) - exponent_bias - exponent_adjust;
+    const PowGridCell& cell = pow_grid_cells[fraction >> pow_grid_cell_shift];
+    // r = (M n - 2^62) / 2^62: the product is below 2^63 and the centred
+    // difference at most 2^53 (pow_grid_table_valid), so both are exact.
+    const std::int64_t residual = significand * cell.numerator - pow_grid_unity;
+    const double r = static_cast<double>(residual) * 0x1p-62;
+    const double whole = static_cast<double>(k) + cell.head;  // exact
+    // log1p(r) = a + a_tail: r - r^2/2 exactly, the rest from r^3 to r^8.
     double r_squared = 0.0;
     double r_squared_error = 0.0;
     two_product(r, r, r_squared, r_squared_error);
-    const double cubic =
-        (r * r_squared) * (kernel_constants.log_3 + r * (kernel_constants.log_4 + r * (kernel_constants.log_5 + r * (kernel_constants.log_6 + r * (kernel_constants.log_7 + r * (kernel_constants.log_8 + r * (kernel_constants.log_9 + r * kernel_constants.log_10)))))));
     double a = 0.0;
     double a_error = 0.0;
-    fast_two_sum(r, -(r_squared * 0.5), a, a_error);  // |r| >= r^2/2
-    const double r_lo_scaled = r_lo * (1.0 - r * (1.0 - r * (1.0 - r)));
-    const double a_lo = a_error + (r_lo_scaled + (cubic - r_squared_error * 0.5));
-    // s + s_lo = (a + a_lo) / ln 2 + mid.
+    fast_two_sum(r, -0.5 * r_squared, a, a_error);  // |r| >= r^2/2
+    const double pair_3 = kernel_constants.log_3 + r * kernel_constants.log_4;
+    const double pair_5 = kernel_constants.log_5 + r * kernel_constants.log_6;
+    const double pair_7 = kernel_constants.log_7 + r * kernel_constants.log_8;
+    const double cubic = (r * r_squared) * (pair_3 + r_squared * (pair_5 + r_squared * pair_7));
+    const double a_tail = a_error + (cubic - 0.5 * r_squared_error);
+    // log2 x = whole + (a + a_tail) / ln 2 + tail, normalized to log_hi + log_lo.
     double s = 0.0;
     double s_error = 0.0;
     two_product(a, kernel_constants.inverse_ln2_hi, s, s_error);
-    const Log2Entry& log2_entry = log2_table.values[index];
-    const double s_lo = s_error + ((a * kernel_constants.inverse_ln2_lo + a_lo * kernel_constants.inverse_ln2_hi) + log2_entry.mid);
-    // p + p_lo = y (k + H) + y s + y s_lo.
-    const double whole = k + log2_entry.head;  // exact
-    double big = 0.0;
-    double big_error = 0.0;
-    two_product(y, whole, big, big_error);
-    double small = 0.0;
-    double small_error = 0.0;
-    two_product(y, s, small, small_error);
+    double h = 0.0;
+    double h_error = 0.0;
+    two_sum(whole, s, h, h_error);
+    const double scaled_tail = a_tail * kernel_constants.inverse_ln2_hi + a * kernel_constants.inverse_ln2_lo;
+    const double low = (scaled_tail + cell.tail) + (s_error + h_error);
+    double log_hi = 0.0;
+    double log_lo = 0.0;
+    two_sum(h, low, log_hi, log_lo);
+    // p + p_lo = y log2 x.
     double p = 0.0;
     double p_error = 0.0;
-    two_sum(big, small, p, p_error);
+    two_product(y, log_hi, p, p_error);
     if (p > pow_overflow_limit) return std::numeric_limits<double>::infinity();
     if (p < pow_underflow_limit) return 0.0;
-    const double p_lo = p_error + ((big_error + small_error) + y * s_lo);
-    // q = round(256 p) = 256 e + j; t + t_lo = p + p_lo - q/256.
+    const double p_lo = p_error + y * log_lo;
+    // q = round(256 p) = 256 e + j; t = p + p_lo - q/256, one rounding.
     const double shifted = p * 256.0 + kernel_constants.rounding_shift;
     const std::int64_t q_bits = std::bit_cast<std::int64_t>(shifted) -
                                 std::bit_cast<std::int64_t>(kernel_constants.rounding_shift);
     const std::uint64_t j = static_cast<std::uint64_t>(q_bits) & exp_index_mask;
     const std::int64_t exponent = q_bits >> 8;  // floor(q / 256): an arithmetic shift in C++20
     const double t_head = p - (shifted - kernel_constants.rounding_shift) * (1.0 / 256.0);  // exact
-    double t = 0.0;
-    double t_lo = 0.0;
-    two_sum(t_head, p_lo, t, t_lo);
-    // u + u_lo = (t + t_lo) ln 2; e^u - 1 - u to u^6/720 (truncation 2^-70.7).
-    double u = 0.0;
-    double u_error = 0.0;
-    two_product(t, kernel_constants.ln2_hi, u, u_error);
-    const double u_lo = u_error + (t * kernel_constants.ln2_lo + t_lo * kernel_constants.ln2_hi);
-    const double polynomial_tail =
-        (u * u) * (exp_2 + u * (kernel_constants.exp_3 + u * (kernel_constants.exp_4 + u * (kernel_constants.exp_5 + u * kernel_constants.exp_6))));
-    // 2^(j/256) e^u = T_hi + T_hi u + [T_hi (e^u - 1 - u + u_lo) + T_lo (1 + u)].
+    const double t = t_head + p_lo;
+    // u = t ln 2; e^u - 1 - u to the u^5 term (truncation below u^6/720).
+    const double u = t * kernel_constants.ln2_hi;
+    const double u_squared = u * u;
+    const double higher = u_squared * ((exp_2 + u * kernel_constants.exp_3) +
+                                       u_squared * (kernel_constants.exp_4 + u * kernel_constants.exp_5));
+    // 2^(j/256) e^u = T_hi + T_hi u + [T_lo (1 + u) + T_hi (e^u - 1 - u)].
     const ExpEntry& power = exp_table_256[j];
     double rotation = 0.0;
     double rotation_error = 0.0;
@@ -237,7 +249,7 @@ STXLIB_MODULAR double pow_positive(const double x, const double y) noexcept {
     double head = 0.0;
     double head_error = 0.0;
     fast_two_sum(power.hi, rotation, head, head_error);  // |T| >= 1 > |T u|
-    const double tail = head_error + (rotation_error + (power.hi * (polynomial_tail + u_lo) + (power.lo + power.lo * u)));
+    const double tail = head_error + (rotation_error + (power.lo * (1.0 + u) + power.hi * higher));
     const double result = scale_wide(head, tail, exponent);
     return result;
 }
