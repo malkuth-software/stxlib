@@ -30,10 +30,12 @@ struct FieldState final {
     bool ready{false};
     const Kernels* kernels{nullptr};
     Vector<u8> source;
-    // corrections[row_start[y] .. row_start[y + 1]) are row y's.
-    Vector<usize> row_start;
-    Vector<Correction> corrections;
+    // Row y's run list, sorted by (cell, channel); one list per row, so a recompile replaces
+    // only the rows an edit reaches.
+    Vector<Vector<Correction>> rows;
 };
+
+inline View<Correction> row_corrections(const FieldState& field, const usize y) noexcept { return field.rows[y].view(); }
 
 struct WorkspaceState final {
     // Field values at the destination pixels of one region row (channel innermost).

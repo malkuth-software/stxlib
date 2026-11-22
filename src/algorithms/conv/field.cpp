@@ -119,7 +119,7 @@ void contest_interior(const Kernels& kernels, const usize width, const double* p
     scratch.listed_count[c] = kept;
 }
 
-OperationStatus push_end_cell(FieldState& field, const double* planes, const usize cell) noexcept {
+OperationStatus push_end_cell(const FieldState& field, const double* planes, const usize cell, Vector<Correction>& out) noexcept {
     const usize width = field.width;
     const usize stride = width + 2;
     const CellShape shape = cell_shape(cell, width);
@@ -136,15 +136,18 @@ OperationStatus push_end_cell(FieldState& field, const double* planes, const usi
         entry.channel = static_cast<u32>(c);
         raw_for_shape(window, shape, raw);
         (void)admit_cell(window, shape, raw, entry.e, false);
-        const OperationStatus pushed = field.corrections.push(static_cast<Correction&&>(entry));
+        const OperationStatus pushed = out.push(static_cast<Correction&&>(entry));
         if (pushed.failed()) return pushed;
     }
     return OperationStatus::success();
 }
 
-// Appends row y's run list: end cells, then the interior cells merged across channels in
-// (cell, channel) order, then the far end cells.
-OperationStatus compile_row(FieldState& field, CompileScratch& scratch, const usize y) noexcept {
+// Writes row y's run list into `out` (cleared first): end cells, then the interior cells merged
+// across channels in (cell, channel) order, then the far end cells. It reads only row y of the
+// source copy, so rows compile independently: a recompile of some rows gives the bytes a whole
+// compile gives.
+OperationStatus compile_row(const FieldState& field, CompileScratch& scratch, const usize y, Vector<Correction>& out) noexcept {
+    out.clear();
     const usize width = field.width;
     const usize cells = width - 1;
     const usize stride = width + 2;
@@ -156,7 +159,7 @@ OperationStatus compile_row(FieldState& field, CompileScratch& scratch, const us
     // Cells before the interior: 0 and 1 (fewer when the line is short).
     const usize first_interior = interior > 0 ? 2 : cells;
     for (usize cell = 0; cell < first_interior && cell < cells; ++cell) {
-        const OperationStatus pushed = push_end_cell(field, planes, cell);
+        const OperationStatus pushed = push_end_cell(field, planes, cell, out);
         if (pushed.failed()) return pushed;
     }
     usize next[channel_count]{0, 0, 0, 0};
@@ -178,13 +181,13 @@ OperationStatus compile_row(FieldState& field, CompileScratch& scratch, const us
             entry.channel = static_cast<u32>(c);
             const double* const e = scratch.listed_e.view().data() + (c * lanes + next[c]) * 5;
             for (usize r = 0; r < 5; ++r) entry.e[r] = e[r];
-            const OperationStatus pushed = field.corrections.push(static_cast<Correction&&>(entry));
+            const OperationStatus pushed = out.push(static_cast<Correction&&>(entry));
             if (pushed.failed()) return pushed;
             next[c] = next[c] + 1;
         }
     }
     for (usize cell = interior > 0 ? width - 3 : cells; cell < cells; ++cell) {
-        const OperationStatus pushed = push_end_cell(field, planes, cell);
+        const OperationStatus pushed = push_end_cell(field, planes, cell, out);
         if (pushed.failed()) return pushed;
     }
     return OperationStatus::success();
@@ -192,9 +195,10 @@ OperationStatus compile_row(FieldState& field, CompileScratch& scratch, const us
 
 // The listed correction of (y, i, c), or null.
 const Correction* find(const FieldState& field, const usize y, const usize i, const usize c) noexcept {
-    const Correction* const all = field.corrections.view().data();
-    usize low = field.row_start.view().data()[y];
-    usize high = field.row_start.view().data()[y + 1];
+    const View<Correction> row = row_corrections(field, y);
+    const Correction* const all = row.data();
+    usize low = 0;
+    usize high = row.count();
     // First entry with cell >= i.
     while (low < high) {
         const usize middle = low + (high - low) / 2;
@@ -204,8 +208,7 @@ const Correction* find(const FieldState& field, const usize y, const usize i, co
             high = middle;
         }
     }
-    const usize end = field.row_start.view().data()[y + 1];
-    for (usize k = low; k < end && all[k].cell == i; ++k) {
+    for (usize k = low; k < row.count() && all[k].cell == i; ++k) {
         if (all[k].channel == c) return all + k;
     }
     return nullptr;
@@ -348,7 +351,7 @@ OperationResult<Field> Field::make(const usize width, const usize height, const 
     // width, height <= 2^15, so width * height * 4 <= 2^32 fits usize on every target.
     const OperationStatus source = (*state).source.resize(width * height * 4);
     if (source.failed()) return OperationResult<Field>::failure(exhausted);
-    const OperationStatus rows = (*state).row_start.resize(height + 1);
+    const OperationStatus rows = (*state).rows.resize(height);
     if (rows.failed()) return OperationResult<Field>::failure(exhausted);
     return OperationResult<Field>::success(static_cast<Field&&>(field));
 }
@@ -374,19 +377,58 @@ OperationStatus Field::compile(const Rgba8Image& source) noexcept {
     for (usize y = 0; y < field.height; ++y) {
         for (usize b = 0; b < field.width * 4; ++b) copy[y * field.width * 4 + b] = from[y * source.row_stride + b];
     }
-    field.corrections.clear();
-    usize* const row_start = field.row_start.mutable_view().data();
     for (usize y = 0; y < field.height; ++y) {
-        row_start[y] = field.corrections.count();
-        const OperationStatus row = detail::compile_row(field, scratch, y);
+        const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
         if (row.failed()) {
-            field.corrections.clear();
+            for (usize k = 0; k < field.height; ++k) field.rows[k].clear();
             return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.compile"));
         }
     }
-    row_start[field.height] = field.corrections.count();
     field.ready = true;
     return OperationStatus::success();
+}
+
+OperationResult<NodeBox> Field::recompile(const Rgba8Image& source, const Region& changed) noexcept {
+    if (!ready()) {
+        return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.recompile",
+                                                                   ErrorDetail{.message = "the field is not compiled"}));
+    }
+    FieldState& field = *state_;
+    if (source.width != field.width || source.height != field.height || source.row_stride < field.width * 4 ||
+        source.pixels.count() < (field.height - 1) * source.row_stride + field.width * 4) {
+        return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.recompile",
+                                                                   ErrorDetail{.message = "the image does not have the field's size"}));
+    }
+    if (changed.x0 > changed.x1 || changed.y0 > changed.y1 || changed.x1 > field.width || changed.y1 > field.height) {
+        return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.recompile",
+                                                                   ErrorDetail{.message = "the changed region is not inside the source"}));
+    }
+    NodeBox box;
+    if (changed.x0 == changed.x1 || changed.y0 == changed.y1) return OperationResult<NodeBox>::success(box);
+    detail::CompileScratch scratch;
+    if (detail::prepare(scratch, field.width).failed()) {
+        return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.recompile"));
+    }
+    u8* const copy = field.source.mutable_view().data();
+    const u8* const from = source.pixels.data();
+    for (usize y = changed.y0; y < changed.y1; ++y) {
+        for (usize b = changed.x0 * 4; b < changed.x1 * 4; ++b) copy[y * field.width * 4 + b] = from[y * source.row_stride + b];
+    }
+    for (usize y = changed.y0; y < changed.y1; ++y) {
+        const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
+        if (row.failed()) {
+            field.ready = false;
+            return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.recompile"));
+        }
+    }
+    // A pixel x reaches the cells i with i - 3 <= x <= i + 4 (the window y[i-3 .. i+4]), so the
+    // values of u in [x - 4, x + 4]; likewise along v through the vertical windows.
+    box.u0 = changed.x0 >= 4 ? changed.x0 - 4 : 0;
+    box.v0 = changed.y0 >= 4 ? changed.y0 - 4 : 0;
+    box.u1 = changed.x1 + 3 < field.width ? changed.x1 + 3 : field.width - 1;
+    box.v1 = changed.y1 + 3 < field.height ? changed.y1 + 3 : field.height - 1;
+    box.empty = false;
+    return OperationResult<NodeBox>::success(box);
 }
 
 bool Field::ready() const noexcept { return state_ != nullptr && (*state_).ready; }
@@ -396,8 +438,8 @@ usize Field::height() const noexcept { return state_ == nullptr ? 0 : (*state_).
 usize Field::storage_bytes() const noexcept {
     if (state_ == nullptr) return 0;
     const FieldState& field = *state_;
-    const usize total = sizeof(FieldState) + field.source.capacity() + field.row_start.capacity() * sizeof(usize) +
-                        field.corrections.capacity() * sizeof(detail::Correction);
+    usize total = sizeof(FieldState) + field.source.capacity() + field.rows.capacity() * sizeof(Vector<detail::Correction>);
+    for (usize y = 0; y < field.height; ++y) total = total + field.rows[y].capacity() * sizeof(detail::Correction);
     return total;
 }
 

@@ -323,8 +323,6 @@ void build_local(const FieldState& field, const usize r0, const usize r1, const 
     double* const decoded = w.decoded.mutable_view().data();
     const usize inner_first = imin > 2 ? imin : 2;
     const usize inner_last = width >= 4 ? (imax < width - 4 ? imax : width - 4) : 0;
-    const Correction* const corrections = field.corrections.view().data();
-    const usize* const row_start = field.row_start.view().data();
     for (usize r = r0; r <= r1; ++r) {
         double* const row_local = local + (r - r0) * ncells * 24;
         const u8* const row = field.source.view().data() + r * width * 4;
@@ -340,8 +338,9 @@ void build_local(const FieldState& field, const usize r0, const usize r1, const 
             decode(row + i * 4, anchor);
             for (usize c = 0; c < channel_count; ++c) cell[c] = anchor[c];
         }
-        for (usize k = row_start[r]; k < row_start[r + 1]; ++k) {
-            const Correction& entry = corrections[k];
+        const View<Correction> row_list = row_corrections(field, r);
+        for (usize k = 0; k < row_list.count(); ++k) {
+            const Correction& entry = row_list.data()[k];
             if (entry.cell < imin || entry.cell > imax) continue;
             double* const cell = row_local + (entry.cell - imin) * 24;
             const usize c = entry.channel;
@@ -627,6 +626,103 @@ OperationStatus transfer(const Field& field, const ProjectiveMap& map, const Mod
     any.kind = detail::MapKind::projective;
     any.projective = &map;
     return detail::preview(*FieldAccess::state(field), any, destination, region, *FieldAccess::state(workspace));
+}
+
+
+namespace {
+
+usize clamp_index(const double x, const usize limit) noexcept {
+    if (!(x > 0.0)) return 0;
+    if (x >= static_cast<double>(limit)) return limit;
+    return static_cast<usize>(x);
+}
+
+} // namespace
+
+Region affected_region(const NodeBox& box, const AxisMap& map, const usize source_width, const usize source_height) noexcept {
+    Region region;
+    if (box.empty || map.target_width == 0 || map.target_height == 0 || source_width < 2 || source_height < 2) return region;
+    const double W = static_cast<double>(map.target_width);
+    const double H = static_cast<double>(map.target_height);
+    const double w = static_cast<double>(source_width);
+    const double h = static_cast<double>(source_height);
+    // Preview: x reads u = x (w - 1) / (W - 1). Canon: footprint [x s - 1/2, (x + 1) s - 1/2],
+    // s = w / W. The union of both pixel ranges, grown by one.
+    const double u0 = static_cast<double>(box.u0);
+    const double u1 = static_cast<double>(box.u1);
+    const double v0 = static_cast<double>(box.v0);
+    const double v1 = static_cast<double>(box.v1);
+    const double px0 = W > 1.0 ? u0 * (W - 1.0) / (w - 1.0) : 0.0;
+    const double px1 = W > 1.0 ? u1 * (W - 1.0) / (w - 1.0) : 0.0;
+    const double py0 = H > 1.0 ? v0 * (H - 1.0) / (h - 1.0) : 0.0;
+    const double py1 = H > 1.0 ? v1 * (H - 1.0) / (h - 1.0) : 0.0;
+    const double cx0 = (u0 + 0.5) * W / w - 1.0;
+    const double cx1 = (u1 + 0.5) * W / w;
+    const double cy0 = (v0 + 0.5) * H / h - 1.0;
+    const double cy1 = (v1 + 0.5) * H / h;
+    const double x0 = (px0 < cx0 ? px0 : cx0) - 1.0;
+    const double x1 = (px1 > cx1 ? px1 : cx1) + 2.0;
+    const double y0 = (py0 < cy0 ? py0 : cy0) - 1.0;
+    const double y1 = (py1 > cy1 ? py1 : cy1) + 2.0;
+    region.x0 = clamp_index(x0, map.target_width);
+    region.x1 = clamp_index(x1, map.target_width);
+    region.y0 = clamp_index(y0, map.target_height);
+    region.y1 = clamp_index(y1, map.target_height);
+    return region;
+}
+
+Region affected_region(const NodeBox& box, const AffineMap& map, const usize source_width, const usize source_height, const usize destination_width,
+                       const usize destination_height) noexcept {
+    Region region;
+    if (box.empty || destination_width == 0 || destination_height == 0) return region;
+    const double det = map.a11 * map.a22 - map.a12 * map.a21;
+    const Region whole{0, 0, destination_width, destination_height};
+    if (!(det == det) || det == 0.0) return whole;
+    // Destination of a source point: p = A^-1 (q - o). The box grown by the canon tile box's
+    // one-region margin plus one, its corners mapped, the bounding box grown by a pixel (the
+    // half-pixel footprint, and rounding), then widened to whole 16-pixel canon tiles: canon
+    // carries its primitive Q along a tile row, so an edit can change the rounding of every
+    // pixel of a tile whose cell box it reaches (canon.cpp; tiles sit on the destination grid).
+    // Coordinates outside the source clamp to its border, so a box reaching a border reaches
+    // without limit beyond it (reach: a distance past any destination).
+    const double reach = 1e15;
+    const double us[2]{box.u0 == 0 ? -reach : static_cast<double>(box.u0) - 2.0,
+                       box.u1 + 1 >= source_width ? reach : static_cast<double>(box.u1) + 2.0};
+    const double vs[2]{box.v0 == 0 ? -reach : static_cast<double>(box.v0) - 2.0,
+                       box.v1 + 1 >= source_height ? reach : static_cast<double>(box.v1) + 2.0};
+    double xmin = 1e300;
+    double xmax = -1e300;
+    double ymin = 1e300;
+    double ymax = -1e300;
+    for (usize a = 0; a < 2; ++a) {
+        for (usize b = 0; b < 2; ++b) {
+            const double du = us[a] - map.ou;
+            const double dv = vs[b] - map.ov;
+            const double x = (map.a22 * du - map.a12 * dv) / det;
+            const double y = (map.a11 * dv - map.a21 * du) / det;
+            xmin = x < xmin ? x : xmin;
+            xmax = x > xmax ? x : xmax;
+            ymin = y < ymin ? y : ymin;
+            ymax = y > ymax ? y : ymax;
+        }
+    }
+    if (!(xmin == xmin) || !(ymin == ymin) || !(xmax == xmax) || !(ymax == ymax)) return whole;
+    constexpr usize canon_tile = 16;
+    const usize x0 = clamp_index(xmin - 1.5, destination_width);
+    const usize x1 = clamp_index(xmax + 2.5, destination_width);
+    const usize y0 = clamp_index(ymin - 1.5, destination_height);
+    const usize y1 = clamp_index(ymax + 2.5, destination_height);
+    region.x0 = x0 / canon_tile * canon_tile;
+    region.y0 = y0 / canon_tile * canon_tile;
+    const usize xr = (x1 + canon_tile - 1) / canon_tile * canon_tile;
+    const usize yr = (y1 + canon_tile - 1) / canon_tile * canon_tile;
+    region.x1 = xr < destination_width ? xr : destination_width;
+    region.y1 = yr < destination_height ? yr : destination_height;
+    if (region.x0 >= region.x1 || region.y0 >= region.y1) {
+        const Region nothing;
+        return nothing;
+    }
+    return region;
 }
 
 } // namespace stxlib::conv

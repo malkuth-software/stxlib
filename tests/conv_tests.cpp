@@ -18,6 +18,7 @@
 #include "algorithms/conv/kernels.hpp"
 #include "algorithms/conv/line.hpp"
 
+#include "core/checked.hpp"
 #include "test_support.hpp"
 
 #include <cmath>
@@ -40,7 +41,7 @@ constexpr u64 expected_digest = 0x273d96e8953415eeull;
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
-    u32 next() {
+    STXLIB_MODULAR u32 next() {
         state = state * 6364136223846793005ull + 1442695040888963407ull;
         const u32 result = static_cast<u32>(state >> 33);
         return result;
@@ -749,6 +750,121 @@ void projective_canon() {
     }
 }
 
+// ---------------------------------------------------------------- local recompile
+
+// Renders `map` whole into `out` (preview or canon).
+template <class Map>
+void render(const conv::Field& field, const Map& map, const conv::Mode mode, Destination& out, conv::Workspace& workspace) {
+    CHECK(conv::transfer(field, map, mode, out.view(), conv::Region{0, 0, out.width, out.height}, workspace).succeeded());
+}
+
+void local_recompile() {
+    Image image = fixture(Kind::icon, 83, 61, 17);
+    conv::Field local = compiled(image);
+    conv::Workspace workspace = workspace_made();
+    conv::AxisMap axis;
+    axis.target_width = 131;
+    axis.target_height = 47;
+    conv::AffineMap rotation;
+    const double c = std::cos(0.61);
+    const double sn = std::sin(0.61);
+    rotation.a11 = c;
+    rotation.a12 = sn;
+    rotation.a21 = -sn;
+    rotation.a22 = c;
+    rotation.ou = 41.0 - c * 50.0 - sn * 40.0;
+    rotation.ov = 30.0 + sn * 50.0 - c * 40.0;
+    // Destinations kept up to date by re-rendering only the affected regions.
+    Destination axis_preview(131, 47);
+    Destination axis_canon(131, 47);
+    Destination rotated_preview(100, 80);
+    Destination rotated_canon(100, 80);
+    render(local, axis, conv::Mode::preview, axis_preview, workspace);
+    render(local, axis, conv::Mode::canon, axis_canon, workspace);
+    render(local, rotation, conv::Mode::preview, rotated_preview, workspace);
+    render(local, rotation, conv::Mode::canon, rotated_canon, workspace);
+    Random random;
+    usize field_differences = 0;
+    usize stale_pixels = 0;
+    // Fixed edits first (corners, borders, a single pixel, the whole image), then random ones;
+    // successive edits overlap.
+    const usize fixed[][4] = {{0, 0, 3, 2}, {80, 58, 83, 61}, {0, 30, 83, 31}, {40, 0, 41, 61}, {41, 30, 42, 31}, {0, 0, 83, 61}};
+    const usize edits = 6 + 40;
+    for (usize e = 0; e < edits; ++e) {
+        conv::Region rect;
+        if (e < 6) {
+            rect = conv::Region{fixed[e][0], fixed[e][1], fixed[e][2], fixed[e][3]};
+        } else {
+            const usize x0 = random.next() % 83;
+            const usize y0 = random.next() % 61;
+            const usize x1 = x0 + 1 + random.next() % (e % 3 == 0 ? 20 : 6);
+            const usize y1 = y0 + 1 + random.next() % (e % 4 == 0 ? 15 : 5);
+            rect = conv::Region{x0, y0, x1 < 83 ? x1 : 83, y1 < 61 ? y1 : 61};
+        }
+        for (usize y = rect.y0; y < rect.y1; ++y) {
+            for (usize x = rect.x0; x < rect.x1; ++x) {
+                u8* const p = image.rgba.data() + (y * 83 + x) * 4;
+                for (usize k = 0; k < 4; ++k) p[k] = static_cast<u8>(random.next() >> 24);
+            }
+        }
+        stxlib::OperationResult<conv::NodeBox> box = local.recompile(image.view(), rect);
+        CHECK(box.succeeded());
+        const conv::Field whole = compiled(image);
+        // The field: bit-equal to a whole compile at points across and outside the source.
+        for (usize q = 0; q < 300; ++q) {
+            const double u = (static_cast<double>(random.next()) / 4294967296.0) * 86.0 - 1.5;
+            const double v = (static_cast<double>(random.next()) / 4294967296.0) * 64.0 - 1.5;
+            double a[4];
+            double b[4];
+            CHECK(local.evaluate(u, v, stxlib::MutableView<double>(a, 4)).succeeded());
+            CHECK(whole.evaluate(u, v, stxlib::MutableView<double>(b, 4)).succeeded());
+            field_differences = field_differences + (std::memcmp(a, b, sizeof(a)) == 0 ? 0 : 1);
+        }
+        // Re-render only the affected regions; the result must equal a whole render of the
+        // whole compile, everywhere.
+        const conv::NodeBox changed = *box.value();
+        const conv::Region axis_region = conv::affected_region(changed, axis, 83, 61);
+        const conv::Region rotated_region = conv::affected_region(changed, rotation, 83, 61, 100, 80);
+        CHECK(conv::transfer(local, axis, conv::Mode::preview, axis_preview.view(), axis_region, workspace).succeeded());
+        CHECK(conv::transfer(local, axis, conv::Mode::canon, axis_canon.view(), axis_region, workspace).succeeded());
+        CHECK(conv::transfer(local, rotation, conv::Mode::preview, rotated_preview.view(), rotated_region, workspace).succeeded());
+        CHECK(conv::transfer(local, rotation, conv::Mode::canon, rotated_canon.view(), rotated_region, workspace).succeeded());
+        Destination fresh_axis_preview(131, 47);
+        Destination fresh_axis_canon(131, 47);
+        Destination fresh_rotated_preview(100, 80);
+        Destination fresh_rotated_canon(100, 80);
+        render(whole, axis, conv::Mode::preview, fresh_axis_preview, workspace);
+        render(whole, axis, conv::Mode::canon, fresh_axis_canon, workspace);
+        render(whole, rotation, conv::Mode::preview, fresh_rotated_preview, workspace);
+        render(whole, rotation, conv::Mode::canon, fresh_rotated_canon, workspace);
+        const Destination* const kept[4] = {&axis_preview, &axis_canon, &rotated_preview, &rotated_canon};
+        const Destination* const fresh[4] = {&fresh_axis_preview, &fresh_axis_canon, &fresh_rotated_preview, &fresh_rotated_canon};
+        for (usize d = 0; d < 4; ++d) {
+            usize stale_here = 0;
+            for (usize k = 0; k < (*kept[d]).rgba.size(); k += 4) {
+                stale_here = stale_here + (std::memcmp((*kept[d]).rgba.data() + k, (*fresh[d]).rgba.data() + k, 4) == 0 ? 0 : 1);
+            }
+            if (stale_here > 0) {
+                std::printf("  edit %zu [%zu,%zu)x[%zu,%zu): destination %zu has %zu stale pixels\n", e, rect.x0, rect.x1, rect.y0, rect.y1, d,
+                            stale_here);
+            }
+            stale_pixels = stale_pixels + stale_here;
+        }
+    }
+    std::printf("local recompile: %zu edits, %zu field points differ, %zu stale destination pixels\n", edits, field_differences, stale_pixels);
+    CHECK(field_differences == 0);
+    CHECK(stale_pixels == 0);
+    // Refusals and the empty edit.
+    stxlib::OperationResult<conv::NodeBox> empty = local.recompile(image.view(), conv::Region{5, 5, 5, 9});
+    CHECK(empty.succeeded() && (*empty.value()).empty);
+    CHECK(conv::affected_region(*empty.value(), axis, 83, 61).x1 == 0);
+    CHECK(local.recompile(image.view(), conv::Region{0, 0, 84, 2}).failed());
+    const Image wrong = fixture(Kind::icon, 82, 61, 1);
+    CHECK(local.recompile(wrong.view(), conv::Region{0, 0, 1, 1}).failed());
+    conv::Field empty_field;
+    CHECK(empty_field.recompile(image.view(), conv::Region{0, 0, 1, 1}).failed());
+}
+
 // ---------------------------------------------------------------- lines
 
 void line_field() {
@@ -898,7 +1014,7 @@ void refusals() {
 
 // ---------------------------------------------------------------- the frozen digest
 
-u64 fnv(u64 hash, const std::vector<u8>& bytes) {
+STXLIB_MODULAR u64 fnv(u64 hash, const std::vector<u8>& bytes) {
     for (const u8 b : bytes) {
         hash = hash ^ b;
         hash = hash * 0x100000001b3ull;
@@ -954,6 +1070,7 @@ int main() {
     axis_canon();
     affine_and_mesh_canon();
     projective_canon();
+    local_recompile();
     line_field();
     refusals();
     digest_outputs();
