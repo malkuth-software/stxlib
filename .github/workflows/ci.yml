@@ -48,7 +48,10 @@ jobs:
     # Debug (shadowing and allocation tags on), ASan+UBSan and TSan, with
     # libc++ (the Linux profile's C++ library), then the advisory clang-tidy.
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    # 60 (was 40): since 2026-11-17 the job has needed about 41 minutes
+    # (TSan alone about 15, stxlib_textlayout_bidi_tests 9 of them) and was
+    # cancelled with three TSan tests left, every test passed so far.
+    timeout-minutes: 60
     env:
       CC: clang-22
       CXX: clang++-22
