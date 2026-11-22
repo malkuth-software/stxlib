@@ -291,4 +291,80 @@ float log1p(const float x) noexcept {
     return result;
 }
 
+void sincospi(const float x, float& s, float& c) noexcept {
+    float kernel_s = 0.0f;
+    float kernel_c = 0.0f;
+    unflushed::sincospi(flush(x), kernel_s, kernel_c);
+    s = flush(kernel_s);
+    c = flush(kernel_c);
+}
+
+void sincospi(const double x, double& s, double& c) noexcept {
+    double kernel_s = 0.0;
+    double kernel_c = 0.0;
+    unflushed::sincospi(flush(x), kernel_s, kernel_c);
+    s = flush(kernel_s);
+    c = flush(kernel_c);
+}
+
+double sinpi(const double x) noexcept {
+    const double result = flush(unflushed::sinpi(flush(x)));
+    return result;
+}
+
+float sinpi(const float x) noexcept {
+    const float result = flush(unflushed::sinpi(flush(x)));
+    return result;
+}
+
+double cospi(const double x) noexcept {
+    const double result = flush(unflushed::cospi(flush(x)));
+    return result;
+}
+
+float cospi(const float x) noexcept {
+    const float result = flush(unflushed::cospi(flush(x)));
+    return result;
+}
+
+double sincpi(const double x) noexcept {
+    const double result = flush(unflushed::sincpi(flush(x)));
+    return result;
+}
+
+float sincpi(const float x) noexcept {
+    const float result = flush(unflushed::sincpi(flush(x)));
+    return result;
+}
+
+double sinc_radians(const double x) noexcept {
+    const double result = flush(unflushed::sinc_radians(flush(x)));
+    return result;
+}
+
+float sinc_radians(const float x) noexcept {
+    const float result = flush(unflushed::sinc_radians(flush(x)));
+    return result;
+}
+
+double cosm1(const double x) noexcept {
+    const double result = flush(unflushed::cosm1(flush(x)));
+    return result;
+}
+
+float cosm1(const float x) noexcept {
+    const float result = flush(unflushed::cosm1(flush(x)));
+    return result;
+}
+
+double cosm1pi(const double x) noexcept {
+    const double result = flush(unflushed::cosm1pi(flush(x)));
+    return result;
+}
+
+float cosm1pi(const float x) noexcept {
+    const float result = flush(unflushed::cosm1pi(flush(x)));
+    return result;
+}
+
 } // namespace stxlib::math

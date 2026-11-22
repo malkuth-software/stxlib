@@ -129,9 +129,12 @@ void sincos(double x, double& s, double& c) noexcept;
 // otherwise) and takes the sign of the integer's parity; zero and infinite
 // x and infinite y give the Annex F zeros and infinities. Exactly
 // representable results (2^n, 3^2, 10^n for n <= 22, x^1, ...) are exact.
-// Double, today's kernel (the default): within 0.5 + 0.076 ulp by analysis
-// of every rounding, for normal results; measured 0.5027 ulp at worst over 2
-// million inputs, the same bits at every SIMD level. Double, region kernel:
+// Double, today's kernel (the default; the reciprocal grid since
+// 2026-11-22): within 0.51 ulp for normal results, by an exact rational
+// budget of every rounding (0.509424 ulp, tools/math/
+// pow_grid_certificate.py; the model's correspondence with the code is
+// argued, not machine checked); measured 0.501712 ulp at worst over 2.45
+// million pairs, the same bits at every SIMD level. Double, region kernel:
 // within 0.500097 ulp for normal results, proved (tools/math/
 // region_certificate.py, exact rational accounting of every rounding). A result below the smallest normal returns zero of
 // its sign (stx_auxlib's kernel rounded those on the subnormal grid, 1 ulp
@@ -139,7 +142,7 @@ void sincos(double x, double& s, double& c) noexcept;
 // Annex F zero cases then apply: pow(subnormal, -1) = +infinity), and a
 // subnormal y as zero (pow(x, subnormal) = 1). Float, today's kernel (the
 // default): a cheap double kernel certified for rounding, else the double
-// result (within 0.576 ulp) rounded once, then flushed. By that analysis
+// result (within 0.51 ulp) rounded once, then flushed. By that analysis
 // (argued, not machine checked): correctly rounded at every pair whose x^y
 // is not within 2^-52.7 (relative) of a float midpoint, at every exact
 // result and exact midpoint, and at every pair with integer y in [1, 40]
@@ -247,5 +250,56 @@ void sincos(double x, double& s, double& c) noexcept;
 // and gives that zero. No result is subnormal.
 [[nodiscard]] double log1p(double x) noexcept;
 [[nodiscard]] float log1p(float x) noexcept;
+
+// Half-turn sine and cosine: sin(pi x) and cos(pi x), for every finite x.
+// The reduction to the nearest multiple of 1/128 is exact, so no multiple of
+// pi is subtracted and large arguments lose nothing (at and above 2^53 every
+// double is an even whole number: sine 0, cosine 1). Exact at whole and half
+// numbers: the sine's zeros take x's sign (sinpi(-3) = -0), cospi of a half
+// number is +0, and +-1 are exact. Infinities and NaN give NaN (NaN payloads
+// kept). Double: measured within 0.50002 ulp (sinpi) and 0.50012 ulp (cospi)
+// over 172,288 inputs against MPFR, for this kernel's operations in this
+// order (the study, 2026-11-18); the exact head is proved
+// (tools/math/half_turn_certificate.py and compile-time checks), the
+// rounding of the low parts is not. A subnormal x is read as zero of its
+// sign: sine that zero, cosine 1; no normal x has a subnormal result. Float:
+// the double result of the widened argument, rounded once.
+void sincospi(float x, float& s, float& c) noexcept;
+void sincospi(double x, double& s, double& c) noexcept;
+[[nodiscard]] double sinpi(double x) noexcept;
+[[nodiscard]] float sinpi(float x) noexcept;
+[[nodiscard]] double cospi(double x) noexcept;
+[[nodiscard]] float cospi(float x) noexcept;
+
+// Normalized sinc, sin(pi x) / (pi x): even, 1 at zero (and below 2^-28 in
+// magnitude), +0 at every nonzero whole number and at both infinities; NaN
+// gives NaN. Double: measured within 0.5003 ulp (as sinpi). A subnormal x
+// gives 1. Float: the double result rounded once.
+[[nodiscard]] double sincpi(double x) noexcept;
+[[nodiscard]] float sincpi(float x) noexcept;
+
+// Unnormalized sinc in radians, sin(x) / x: even, 1 at zero. The angle limit
+// is sin's: |x| above 2^32, infinities and NaN give NaN. Double: measured
+// within 0.49999 ulp (as sinpi). A subnormal x gives 1. Float: the double
+// result rounded once.
+[[nodiscard]] double sinc_radians(double x) noexcept;
+[[nodiscard]] float sinc_radians(float x) noexcept;
+
+// cos(x) - 1 in radians without cancellation, as -2 sin^2(x/2), for
+// |x| <= 2^32 (sin's limit); larger |x|, infinities and NaN give NaN.
+// cosm1(+-0) = -0. Double: measured within 0.5001 ulp (as sinpi). A result
+// below the smallest normal (|x| below about 2^-511) returns -0, and a
+// subnormal x gives -0. Float: the double result rounded once, then
+// flushed.
+[[nodiscard]] double cosm1(double x) noexcept;
+[[nodiscard]] float cosm1(float x) noexcept;
+
+// cos(pi x) - 1 without cancellation, as -2 sin^2(pi x / 2), for every
+// finite x: -0 at even whole numbers (zero included), -2 exactly at odd
+// ones; infinities and NaN give NaN. Double: measured within 0.5015 ulp (as
+// sinpi). Results below the smallest normal return -0, as for cosm1. Float:
+// the double result rounded once, then flushed.
+[[nodiscard]] double cosm1pi(double x) noexcept;
+[[nodiscard]] float cosm1pi(float x) noexcept;
 
 } // namespace stxlib::math

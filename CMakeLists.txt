@@ -643,6 +643,7 @@ set(STXLIB_MATH_KERNEL_SOURCES
     src/algorithms/math/cbrt.cpp
     src/algorithms/math/completions.cpp
     src/algorithms/math/exp.cpp
+    src/algorithms/math/half_turn.cpp
     src/algorithms/math/hyperbolic.cpp
     src/algorithms/math/hypot.cpp
     src/algorithms/math/log.cpp

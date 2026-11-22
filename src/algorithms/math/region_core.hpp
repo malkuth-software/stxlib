@@ -31,7 +31,8 @@
 //     terms above 2^-33 are exact and the tail holds the rest.
 // Proved bound (tools/math/region_certificate.py): pow(double) within
 // 0.500097 ulp (2^-66.3 relative before the final rounding), against 0.5569
-// for the current kernel by the same accounting (0.576 as pow.cpp states).
+// for the log2-table kernel pow.cpp had until 2026-11-22 by the same
+// accounting; today's reciprocal grid: 0.509424 (pow_grid_certificate.py).
 //
 // Every operation here is a plain IEEE operation or an exact product by
 // two_product (fused or Dekker, the same bits), so every variant returns the

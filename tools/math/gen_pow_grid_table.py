@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""Generates src/algorithms/math/pow_grid_table1024.hpp, the reciprocal grid
+of pow(double)'s logarithm (src/algorithms/math/pow.cpp).
+
+A positive normal double is x = 2^k M / 2^52 with M in [2^52, 2^53). Its
+leading ten fraction bits choose cell i, which covers M in
+[(1024 + i) 2^42, (1025 + i) 2^42). Each cell holds a short reciprocal
+n/1024 (n a whole number, at most 11 bits) and -log2(n/1024) in two parts,
+so that the kernel's reduction
+
+  r = (M n - 2^62) / 2^62,   log2 x = k - log2(n/1024) + log1p(r) / ln 2
+
+is exact in r (M n - 2^62 is a whole number of magnitude at most 2^53) and
+k + head is exact (head a multiple of 2^-41).
+
+The choice of n: the nearest whole number to 1024 over the cell's centre,
+except n = 1024 in cell 0, so that x = 1 gives r = 0 and log2 x = +0
+exactly. In the last cell that rule gives n = 512 (head 1, tail 0): x just
+below 2 is reduced against 2, and r = x/2 - 1 stays small on that side of
+1 too.
+
+What the script checks, for both ends of every cell (the extremes of
+M n - 2^62, which is linear in M): 0 < M n < 2^63 (a signed 64-bit product)
+and |M n - 2^62| <= 2^53 (an exact conversion to double). It also checks
+that every tail is zero or at least 2^-70 in magnitude, the grid fact
+pow.cpp's product-range argument relies on, and records the largest |r|.
+
+head is -log2(n/1024) rounded to the nearest multiple of 2^-41 (ties are
+impossible: the value is irrational unless n is a power of two, where it is
+a whole number); tail is the nearest double to the rest. The logarithm comes
+from Python's decimal module at 100 digits, far beyond the 2^-95 the tail
+needs; tools/math/pow_grid_certificate.py checks the stored parts against
+tools/math/region_reference.py's independent reference.
+
+Usage:
+  gen_pow_grid_table.py --write PATH   write the header
+  gen_pow_grid_table.py --check PATH   fail unless PATH is what --write makes
+"""
+
+import decimal
+import pathlib
+import sys
+from fractions import Fraction
+
+CELL_COUNT = 1024
+CELL_SHIFT = 42          # M >> 42 is 1024 + i
+HEAD_BITS = 41           # head is a multiple of 2^-41
+TAIL_FLOOR = Fraction(1, 2 ** 70)
+
+
+def cell_numerator(index):
+    if index == 0:
+        return CELL_COUNT
+    # 1024 / (1 + (index + 1/2) / 1024) = 2 * 1024^2 / (2048 + 2 index + 1),
+    # rounded to the nearest whole number (no ties: the denominator is odd).
+    numerator = 2 * CELL_COUNT * CELL_COUNT
+    denominator = 2 * CELL_COUNT + 2 * index + 1
+    whole = (2 * numerator + denominator) // (2 * denominator)
+    return whole
+
+
+def check_cell(index, n, failures):
+    lowest = (CELL_COUNT + index) << CELL_SHIFT
+    highest = ((CELL_COUNT + index + 1) << CELL_SHIFT) - 1
+    largest = 0
+    for m in (lowest, highest):
+        product = m * n
+        centred = product - (1 << 62)
+        if not (0 < product < (1 << 63)):
+            failures.append('cell %d: M n = %d is outside the signed 64-bit range' % (index, product))
+        if abs(centred) > (1 << 53):
+            failures.append('cell %d: |M n - 2^62| = %d exceeds 2^53' % (index, abs(centred)))
+        largest = max(largest, abs(centred))
+    return largest
+
+
+def logarithm_parts(n, context):
+    # Every operation goes through the 100-digit context, never the
+    # module's 28-digit default.
+    reciprocal = context.divide(decimal.Decimal(n), decimal.Decimal(CELL_COUNT))
+    exact = context.minus(context.divide(context.ln(reciprocal), context.ln(decimal.Decimal(2))))
+    scaled = context.multiply(exact, decimal.Decimal(1 << HEAD_BITS))
+    head_units = int(scaled.to_integral_value(rounding=decimal.ROUND_HALF_EVEN))
+    head = Fraction(head_units, 1 << HEAD_BITS)
+    head_decimal = context.divide(decimal.Decimal(head.numerator), decimal.Decimal(head.denominator))
+    rest = context.subtract(exact, head_decimal)
+    tail = float(rest)
+    return float(head), tail
+
+
+def format_double(value):
+    if value == 0.0:
+        return '0x0p+0'
+    return value.hex()
+
+
+def render():
+    context = decimal.Context(prec=100)
+    failures = []
+    largest_residual = 0
+    rows = []
+    for index in range(CELL_COUNT):
+        n = cell_numerator(index)
+        largest_residual = max(largest_residual, check_cell(index, n, failures))
+        head, tail = logarithm_parts(n, context)
+        if tail != 0.0 and abs(Fraction(tail)) < TAIL_FLOOR:
+            failures.append('cell %d: tail %s is below 2^-70' % (index, tail.hex()))
+        if Fraction(head) * (1 << HEAD_BITS) != int(Fraction(head) * (1 << HEAD_BITS)):
+            failures.append('cell %d: head is not a multiple of 2^-41' % index)
+        rows.append('    {%d, %s, %s},' % (n, format_double(head), format_double(tail)))
+    if failures:
+        for failure in failures:
+            print('FAIL: ' + failure, file=sys.stderr)
+        sys.exit(1)
+    largest_r = Fraction(largest_residual, 1 << 62)
+    lines = [
+        '#pragma once',
+        '',
+        '// Generated by tools/math/gen_pow_grid_table.py. Do not edit by hand.',
+        '// Cell i covers the doubles whose leading ten fraction bits are i. n/1024',
+        '// is the cell\'s reciprocal; -log2(n/1024) = head + tail, head a multiple',
+        '// of 2^-41 (so k + head is exact for |k| < 2^11) and tail the nearest',
+        '// double to the rest (zero or at least 2^-70 in magnitude). For every M',
+        '// of the cell, |M n - 2^62| <= 2^53; the largest |r| is %s.' % float(largest_r).hex(),
+        '',
+        '#include <cstdint>',
+        '',
+        'namespace stxlib::math::detail {',
+        '',
+        'struct PowGridCell final {',
+        '    std::int64_t numerator;',
+        '    double head;',
+        '    double tail;',
+        '};',
+        '',
+        '// 1024 entries of 24 bytes: 24 KiB.',
+        'alignas(64) inline constexpr PowGridCell pow_grid_cells[1024] = {',
+    ]
+    lines.extend(rows)
+    lines.extend(['};', '', '} // namespace stxlib::math::detail', ''])
+    return '\n'.join(lines)
+
+
+def main(arguments):
+    if len(arguments) != 2 or arguments[0] not in ('--write', '--check'):
+        print(__doc__, file=sys.stderr)
+        return 2
+    path = pathlib.Path(arguments[1])
+    text = render()
+    if arguments[0] == '--write':
+        path.write_text(text)
+        return 0
+    if path.read_text() != text:
+        print('FAIL: %s is not what --write makes' % path, file=sys.stderr)
+        return 1
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

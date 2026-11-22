@@ -15,9 +15,10 @@ counts that make them exact.
 Steps:
   pow   double pow: the relative error of log2 x per log bucket (the part
         that |y| multiplies), the relative error of 2^t per exp-table
-        index, and the composed bound in ulps, for the current kernel
-        (src/algorithms/math/pow.cpp, measured here for comparison) and for
-        the region kernel.
+        index, and the composed bound in ulps, for the log2-table kernel
+        pow.cpp had until 2026-11-22 (kept here for comparison; today's
+        reciprocal-grid kernel has its own budget,
+        tools/math/pow_grid_certificate.py) and for the region kernel.
   logf  float log, log2, log10: the absolute error bound of the region
         kernel's double-double per bucket, as a relative bound the
         exhaustive screen (tools/math/region_exhaustive.py) uses.
