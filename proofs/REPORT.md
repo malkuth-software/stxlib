@@ -781,3 +781,15 @@ Nothing on this branch has been compiled or run yet (no compiler on Neo).
 | `src/algorithms/math/half_turn.cpp` (exact cases and reductions) | whole and half numbers exact with the stated signs; the reduction modulo 2 from 2^44 gives the bits of the reduced phase; the float functions are the double results rounded once | tested case by case and over 512 phases and 4,096 floats (not yet run) | `tests/math_completion_tests.cpp` (`half_turn_special_values`, `half_turn_reference_values`) |
 
 Nothing on this branch has been compiled or run yet (no compiler on Neo).
+
+## stx_fft, 2026-11-22 (branch `claude/stx-fft`; BFFT's kernels at `edf5f01`)
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/fft/` (all tiers) | every SIMD tier gives the scalar tier's value for every output (a zero's sign may differ) | **argued, then tested**: every kernel operation is elementwise (no reduction), the transform spelled each of BFFT's fused multiply-adds as the multiply and the add or subtract in BFFT's operand order, and the build has contraction off, so each vector lane evaluates the scalar expression for its element up to the commutativity of + and x and `x - (-y) = x + y`, which IEEE 754 makes exact; BFFT's `0 - x` against `-x` differs only in the sign of a zero. The comparison runs in one process for every size 2..2^18, both directions, both precisions (not yet run) | `tests/fft_tests.cpp` (F6) |
+| `src/algorithms/fft/` (accuracy) | relative L2 error of rfft, and the round trip's largest error, at most (log2 N + 2) epsilons; Parseval's defect at most 4 (log2 N + 2) | **bounds stated, to be measured**: the test prints the worst error per mode and precision against a double-double reference over long-double twiddles (every size to 4096, single bins at 2^17 and 2^18); the bound is a test limit, not a derived error bound (none is proved for these kernels) | `tests/fft_tests.cpp` (F1-F4) |
+| `src/algorithms/fft/bodft.inc` | the shifted transform is computed by BFFT's paired radix-4 butterflies, never by modulating the input | by construction (the kernel text is BFFT's) and compared with the direct half-bin sum, which the test computes as the sum itself | `tests/fft_tests.cpp` (F1, F2) |
+| `src/algorithms/fft/plan.cpp` | refusals write nothing; counts, overlap, the empty and moved-from plan; subnormal results flushed | tested (not yet run) | `tests/fft_tests.cpp` (F8, F9) |
+| `src/algorithms/fft/` against BFFT | agreement within twice the accuracy bound, every mode and precision to 2^16 | tested when `STXLIB_BFFT_ORACLE_DIR` names a BFFT checkout (not yet run) | `tests/fft_bfft_oracle_tests.cpp` |
+
+Nothing on this branch has been compiled or run yet (no compiler on Neo).

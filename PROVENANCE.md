@@ -859,6 +859,35 @@ the study's, rounded from MPFR 4.2.2; MPFR is not used here. No existing
 result changes; the new bit-identity items are unfrozen until the
 integrator's first freezing run.
 
+### stx_fft: BFFT's three kernels, from `edf5f01` (first party, MIT; 2026-11-22)
+
+BFFT (falseywinchnet/bfft, the owner's own real FFT library) at
+`edf5f0134290d4cc368c50a77cc19040882beb48`, on the owner's direction of
+2026-11-22 (projects `tracks/stxlib/stx_fft.md`). Three modes, each its own
+kernel: plain (the DIF kernel), shifted (BODFT, its paired radix-4
+butterflies kept exactly) and dip (the DIP kernel, float64 only as in
+BFFT). The kernel text is BFFT's after a mechanical transform: fused
+multiply-adds spelled out (A1 rule 1, so every SIMD tier gives the scalar
+tier's values), BFFT's vector macros as `lanes.inc` functions, the
+compile-time tier replaced by one compilation per run-time tier. The tables
+moved into the plan and every twiddle is recomputed from `sincospi` and
+`cospi`; BFFT's sin/cos tables and code are not copied. Left out of the DIF
+kernel: the native output order, the fused scatter codelets, the schedules
+and the magnitude/phase front end (the residue engine BFFT uses for its
+float32 forward, its large float64 forward and both inverses runs at every
+size). `src/algorithms/fft/NOTICE.md` carries BFFT's licence and the file
+map.
+
+| STXlib file | BFFT file (at `edf5f01`) | Source SHA-256 |
+|---|---|---|
+| `src/algorithms/fft/dif.inc` | `src/detail/bruun_dif_kernel.hpp` | `30ac06593d895f2861a7b97582e13751f3938ff2a977fe03a4208e190e702421` |
+| `src/algorithms/fft/bodft.inc` | `src/detail/bodft_kernel.hpp` | `9cf1ec5fdcd23550235cc9ffa61166070e6be33d25ddd0d7206ae3be0afa6022` |
+| `src/algorithms/fft/dip.inc` | `src/detail/bruun_dip_kernel.hpp` | `ac1a377c97ad81881a27bb0b09b2ae058cb8c61040acaf3df58a23682b0c2977` |
+| `src/algorithms/fft/lanes.inc` | `src/detail/bruun_simd_backend.hpp` | `5786c268c7bbda85f0f0b81873ef337b8d88a62dd46b884db41055f35a769da7` |
+| `src/algorithms/fft/plan.cpp` | `src/bfft.cpp`, `src/bodft.cpp` (the plans) | `275d4d63e90870ec0ea8f9bf5f73c7364cc16942f4872b321b4c266d674d250a`, `a014504c578fc7b2dc6bd7f89e7effd08491cd4a5a36ccb0d0a0781ebddb4916` |
+| `include/stxlib/fft.hpp` | `include/bfft/bfft.hpp`, `include/bfft/bodft.hpp` (the interface's meaning, not its text) | `e40d5c82715c5747ad008e6f4059b1a1680005c4c1de8ebfe189f23b34f33ed1`, `46546cedfa60e095812783e18ab0a89c89e6da41863322fb93dfcf19a07cedb6` |
+| `src/algorithms/fft/NOTICE.md` | `LICENSE` (quoted verbatim) | `a03d30bb4f88439a5403d76cf44ef66a818d85327312cf20f9bf42f95b970cf5` |
+
 ## Third party
 
 ### mimalloc (removed, 2026-11-15)

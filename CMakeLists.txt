@@ -708,6 +708,15 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/numeric_text.cpp
     src/algorithms/precedence.cpp
     src/algorithms/frozen_map.cpp
+    # stx_fft (include/stxlib/fft.hpp): the plans, and BFFT's three kernels
+    # compiled once per SIMD tier (src/algorithms/fft/variant.inc; the
+    # vector128 and avx2_fma files are empty where the tier does not exist,
+    # and avx2_fma's code is compiled for that target by an attribute, never
+    # by a command-line -mavx2).
+    src/algorithms/fft/plan.cpp
+    src/algorithms/fft/kernels_scalar.cpp
+    src/algorithms/fft/kernels_v128.cpp
+    src/algorithms/fft/kernels_avx2_fma.cpp
     src/algorithms/glyphs/font_cff.cpp
     src/algorithms/glyphs/font_file.cpp
     src/algorithms/glyphs/font_names.cpp
@@ -1476,6 +1485,43 @@ if(STXLIB_TESTS)
         target_link_options(stxlib_voting_tests PRIVATE "SHELL:-s NODERAWFS=1")
     endif()
     add_test(NAME stxlib_voting_tests COMMAND stxlib_voting_tests ${stxlib_voting_argument})
+
+    # stx_fft (include/stxlib/fft.hpp): the three kernels against a direct
+    # DFT and the direct half-bin sum, round trip, Parseval, every tier
+    # against the scalar tier in one process, refusals and the subnormal
+    # rule (tests/fft_tests.cpp); once at the machine's level and once per
+    # forced level, as the math tests are.
+    add_executable(stxlib_fft_tests tests/fft_tests.cpp)
+    target_link_libraries(stxlib_fft_tests PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_fft_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_fft_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_fft_tests COMMAND stxlib_fft_tests)
+    foreach(level IN ITEMS scalar vector128 avx2_fma)
+        add_test(NAME stxlib_fft_tests_${level} COMMAND stxlib_fft_tests)
+        set_tests_properties(stxlib_fft_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+    endforeach()
+    # The benchmark beside BFFT's (tests/fft_bench.cpp), for the integrator
+    # to run by hand; not a ctest.
+    add_executable(stxlib_fft_bench tests/fft_bench.cpp)
+    target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
+    target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})
+    # BFFT itself as the oracle (tests/fft_bfft_oracle_tests.cpp) and in the
+    # benchmark's table, when a BFFT checkout is named. Its kernel headers
+    # are compiled from there unchanged, as system headers.
+    set(STXLIB_BFFT_ORACLE_DIR "" CACHE PATH "BFFT checkout (src/detail/) for stxlib_fft_bfft_oracle_tests and stxlib_fft_bench")
+    if(STXLIB_BFFT_ORACLE_DIR)
+        add_executable(stxlib_fft_bfft_oracle_tests tests/fft_bfft_oracle_tests.cpp)
+        target_link_libraries(stxlib_fft_bfft_oracle_tests PRIVATE stxlib::algorithms)
+        target_include_directories(stxlib_fft_bfft_oracle_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+        target_include_directories(stxlib_fft_bfft_oracle_tests SYSTEM PRIVATE
+            ${STXLIB_BFFT_ORACLE_DIR}/src ${STXLIB_BFFT_ORACLE_DIR}/include)
+        target_compile_options(stxlib_fft_bfft_oracle_tests PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_fft_bfft_oracle_tests COMMAND stxlib_fft_bfft_oracle_tests)
+        target_compile_definitions(stxlib_fft_bench PRIVATE STXLIB_FFT_BENCH_BFFT=1)
+        target_include_directories(stxlib_fft_bench SYSTEM PRIVATE
+            ${STXLIB_BFFT_ORACLE_DIR}/src ${STXLIB_BFFT_ORACLE_DIR}/include)
+    endif()
 
     # The thread pool against the C original it ports (tests/reference/,
     # PROVENANCE.md): one conformance source, written against the
