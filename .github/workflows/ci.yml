@@ -51,7 +51,10 @@ jobs:
     # 60 (was 40): since 2026-11-17 the job has needed about 41 minutes
     # (TSan alone about 15, stxlib_textlayout_bidi_tests 9 of them) and was
     # cancelled with three TSan tests left, every test passed so far.
-    timeout-minutes: 60
+    # Run 45003504714 (2026-11-22) was cancelled at 60 minutes in TSan,
+    # 127 of 130 done, every test passed: the four font and exhaustive tests
+    # take 3 to 4 minutes each under TSan. 90 leaves room.
+    timeout-minutes: 90
     env:
       CC: clang-22
       CXX: clang++-22
