@@ -110,6 +110,15 @@ struct FieldOptions final {
     bool bubble{false};
 };
 
+// A box of source node coordinates, closed: u0 <= u <= u1 and v0 <= v <= v1. Empty when `empty`.
+struct NodeBox final {
+    usize u0{0};
+    usize v0{0};
+    usize u1{0};
+    usize v1{0};
+    bool empty{true};
+};
+
 // A compiled field. Move-only; the default field is empty and every operation refuses it.
 class Field final {
 public:
@@ -126,6 +135,16 @@ public:
     // Copies the source and settles every row's admission. The image must have the field's
     // size. On failure the field is left empty-of-content (not ready) and its storage is kept.
     [[nodiscard]] OperationStatus compile(const Rgba8Image& source) noexcept;
+
+    // Local recompile (owner, 2026-11-23, for edited canvases): copies the pixels of `changed`
+    // (source pixels [x0, x1) x [y0, y1)) from `source` into the field and recompiles the rows
+    // they lie in. Rows compile independently, so the field afterwards is, byte for byte, the
+    // field a whole compile of the edited source gives, provided the source's pixels outside
+    // `changed` are the ones the field already holds (they are not read). The result is the
+    // node box outside which every field value is unchanged (the edit grown by the closure's
+    // reach, four nodes each way, clamped; conservative). Requires a compiled field and an image
+    // of its size. On failure the field is not ready (compile it whole again).
+    [[nodiscard]] OperationResult<NodeBox> recompile(const Rgba8Image& source, const Region& changed) noexcept;
 
     [[nodiscard]] bool ready() const noexcept;
     [[nodiscard]] usize width() const noexcept;
@@ -165,6 +184,16 @@ private:
     detail::WorkspaceState* state_{nullptr};
     friend struct detail::FieldAccess;
 };
+
+// The destination pixels whose preview or canon may change when the field of a source_width x
+// source_height source changes only inside `box` (conservative): for an axis map onto a
+// destination of the map's target size, and for an affine map onto a destination_width x
+// destination_height destination. A box touching a source border reaches without limit beyond
+// it (coordinates outside the source clamp to the border). Affine regions are whole 16-pixel
+// canon tiles. A singular affine map gives the whole destination; an empty box an empty region.
+[[nodiscard]] Region affected_region(const NodeBox& box, const AxisMap& map, usize source_width, usize source_height) noexcept;
+[[nodiscard]] Region affected_region(const NodeBox& box, const AffineMap& map, usize source_width, usize source_height,
+                                     usize destination_width, usize destination_height) noexcept;
 
 // ---------------------------------------------------------------- lines (1D)
 //

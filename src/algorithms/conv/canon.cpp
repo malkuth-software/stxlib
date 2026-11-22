@@ -380,10 +380,10 @@ struct Strip final {
 
 // The listed correction of row r, cell i, channel c (field.cpp's run lists), or null.
 const Correction* find_correction(const FieldState& field, const usize r, const usize i, const usize c) noexcept {
-    const Correction* const all = field.corrections.view().data();
-    const usize* const start = field.row_start.view().data();
-    usize low = start[r];
-    usize high = start[r + 1];
+    const View<Correction> row = row_corrections(field, r);
+    const Correction* const all = row.data();
+    usize low = 0;
+    usize high = row.count();
     while (low < high) {
         const usize middle = low + (high - low) / 2;
         if (all[middle].cell < i) {
@@ -392,7 +392,7 @@ const Correction* find_correction(const FieldState& field, const usize r, const 
             high = middle;
         }
     }
-    for (usize k = low; k < start[r + 1] && all[k].cell == i; ++k) {
+    for (usize k = low; k < row.count() && all[k].cell == i; ++k) {
         if (all[k].channel == c) return all + k;
     }
     return nullptr;

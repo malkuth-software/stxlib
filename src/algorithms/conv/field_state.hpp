@@ -30,18 +30,17 @@ struct FieldState final {
     bool ready{false};
     const Kernels* kernels{nullptr};
     Vector<u8> source;
-    // corrections[row_start[y] .. row_start[y + 1]) are row y's.
-    Vector<usize> row_start;
-    Vector<Correction> corrections;
+    // Row y's run list, sorted by (cell, channel); one list per row, so a recompile replaces
+    // only the rows an edit reaches.
+    Vector<Vector<Correction>> rows;
 };
+
+inline View<Correction> row_corrections(const FieldState& field, const usize y) noexcept { return field.rows[y].view(); }
 
 struct WorkspaceState final {
     // Field values at the destination pixels of one region row (channel innermost).
     Vector<double> values;
-    // Axis canon: per source row, one column of row values (channel innermost); the
-    // per-v-cell settle stamps, idle flags and admitted cells.
-    Vector<double> column;
-    Vector<u32> settled;
+    // Axis canon: the per-v-cell idle flags and admitted cells.
     Vector<u8> simple;
     Vector<double> cells;
     Vector<double> accumulator;
@@ -62,6 +61,15 @@ struct WorkspaceState final {
     Vector<u8> idle;
     Vector<usize> end_queries;
     Vector<usize> query_cell_v;
+    // Axis canon: per source row its cached row cell (24 doubles) for the column's cell, and the
+    // vertical contest batch (lanes = v-cell x channel).
+    Vector<double> row_cells;
+    Vector<double> padded_column;
+    Vector<double> axis_raw;
+    Vector<u32> axis_list;
+    Vector<double> axis_gather;
+    Vector<double> axis_admitted;
+    Vector<u8> axis_idle;
 };
 
 // A line field: the samples (node-major, lanes innermost, packed) and per cell and lane its
@@ -85,6 +93,10 @@ struct FieldAccess final {
 // (raw + e) . tau for interior cells (e on listed channels only), anchor plus c . tau for end
 // cells.
 void row_value(const FieldState& field, usize y, usize i, const double* s, const double* tau, double* out) noexcept;
+
+// Row y's cell i: anchor[4] then five currents (channel innermost, 24 doubles), as row_value
+// uses them; a value is cell[c] + cell[4 + c] tau0 + ... + cell[20 + c] tau4.
+void row_cell(const FieldState& field, usize y, usize i, double* cell) noexcept;
 
 // The vertical cell j's value in channel c from the window w[0..7] (rows j-3 .. j+4).
 double vertical_value(const FieldState& field, usize j, const double* w, const double* sv, const double* tauv) noexcept;
