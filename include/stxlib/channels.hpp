@@ -27,10 +27,11 @@
 // caller of stx_mcp can observe beside a pipe's.
 //
 // Locks: each channel has one Mutex, held only around its own ring; no
-// channel calls code it does not own while holding it. A select's notifier
-// is signalled after the channel's lock is released. Lock order, where two
-// are ever held: never (a channel never takes another channel's or a
-// notifier's lock under its own).
+// channel calls code it does not own while holding it. One nesting exists:
+// a channel signals the notifiers of the selects watching it under its own
+// lock (a notifier's lock is taken inside a channel's, never the reverse),
+// so a select can detach its notifier safely. No channel's lock is taken
+// under another channel's.
 //
 // Records: a channel moves records in and out (Record's move constructor
 // and destructor must not throw). A record is owned by the channel from a
@@ -131,8 +132,8 @@ public:
     ChannelNotifier(const ChannelNotifier&) = delete;
     ChannelNotifier& operator=(const ChannelNotifier&) = delete;
 
-    // Raised by a channel after a send or a close (without the channel's
-    // lock held).
+    // Raised by a channel after a send or a close (under the channel's
+    // lock; the notifier takes only its own).
     void signal() noexcept;
     // Waits until signalled since `seen` (the value signals() returned
     // before the caller checked the channels), or until `until`.

@@ -181,8 +181,10 @@ private:
 // (src/mcp/json.cpp). Not for use outside it.
 class JsonParser;
 
-// The most nesting a JsonWriter tracks.
-inline constexpr u32 json_writer_depth_limit = 64;
+// The most nesting a JsonWriter tracks: room for a reply's own levels
+// around a tool schema of stx_mcp's deepest (32 schema levels, two JSON
+// levels each).
+inline constexpr u32 json_writer_depth_limit = 128;
 
 // Appends JSON text to a Utf8String it borrows (house style, section 6: the
 // caller holds the storage and sees its size). The writer checks structure:
@@ -242,6 +244,11 @@ public:
     void member_integer(TextView name, i64 value) noexcept;
     void member_boolean(TextView name, bool value) noexcept;
     void member_number(TextView name, double value) noexcept;
+
+    // Starts over: forgets the structure written so far and any failure,
+    // so the next value is a fresh top-level value. The string is not
+    // touched (its owner clears it when the text is to go too).
+    void reset() noexcept;
 
     // Whether one whole value has been written (every container closed).
     [[nodiscard]] bool complete() const noexcept;
