@@ -694,6 +694,13 @@ set(stxlib_math_options ${stxlib_fp_options})
 set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
+    src/algorithms/conv/canon.cpp
+    src/algorithms/conv/field.cpp
+    src/algorithms/conv/kernels.cpp
+    src/algorithms/conv/kernels_avx2_fma.cpp
+    src/algorithms/conv/kernels_scalar.cpp
+    src/algorithms/conv/kernels_v128.cpp
+    src/algorithms/conv/transfer.cpp
     src/algorithms/case_folding.cpp
     src/algorithms/textlayout/analysis.cpp
     src/algorithms/textlayout/line_break.cpp
@@ -1022,13 +1029,19 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_surface_tests COMMAND stxlib_surface_tests)
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd)
+    foreach(test_name IN ITEMS calendar conv frozen_map hash numeric_text precedence random simd)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
         # core/checked.hpp (the modular marker) for the tests' own generators.
         target_include_directories(stxlib_${test_name}_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
+    endforeach()
+    # stxlib::conv on every SIMD tier this machine runs: the same frozen digests
+    # (tests/conv_tests.cpp) through each forced level.
+    foreach(level IN ITEMS scalar vector128 avx2_fma)
+        add_test(NAME stxlib_conv_tests_${level} COMMAND stxlib_conv_tests)
+        set_tests_properties(stxlib_conv_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
     endforeach()
     # stxlib::glyphs: the coverage mask against exact areas (tests/
     # glyph_mask_tests.cpp).

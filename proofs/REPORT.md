@@ -781,3 +781,20 @@ Nothing on this branch has been compiled or run yet (no compiler on Neo).
 | `src/algorithms/math/half_turn.cpp` (exact cases and reductions) | whole and half numbers exact with the stated signs; the reduction modulo 2 from 2^44 gives the bits of the reduced phase; the float functions are the double results rounded once | tested case by case and over 512 phases and 4,096 floats (not yet run) | `tests/math_completion_tests.cpp` (`half_turn_special_values`, `half_turn_reference_values`) |
 
 Nothing on this branch has been compiled or run yet (no compiler on Neo).
+
+## stxlib::conv (the canonical CONV field and its transfers; branch `claude/conv-filesign-337056`)
+
+Design and evidence live outside this repository: work/conv FFT_MATH.md, SIMD_DESIGN.md, API_DESIGN.md and PERSPECTIVE_OPTIONS.md.
+Owner decisions (2026-11-23): STXlib is the home; the bubble is behind a flag and not yet implemented; strip splitting is skipped.
+
+| Module | Property | Status | Evidence |
+|---|---|---|---|
+| `src/algorithms/conv/field.cpp`, `line.hpp` (the separated field) | `Field::evaluate` equals the stx_conv Surface (paper closure, bubble off) to rounding | tested, not proved: largest difference 3.5e-15 against an unseparated restatement of the Surface (every row and vertical cell compiled whole), 8 sizes from 2×2 to 61×37, 3 fixtures, 400 points each (RunPod Linux x86-64, clang 18.1.3, Release and ASan/UBSan, 2026-11-23). The separation theorem behind it (FFT_MATH Part II) is argued on paper, not machine checked | `tests/conv_tests.cpp` (`field_matches_reference`) |
+| `src/algorithms/conv/contest.inc` (K1) on every tier | scalar, vector128 and avx2_fma give the same bits | tested on 1,003 windows per run, and on 9.3 million windows per fixture in the bench (photo and noise at 2000²); not proved. The argument: same operation order, no contraction, compare-select min and max, no FMA (`variant.inc`) | `tests/conv_tests.cpp` (`k1_tiers_identical`), work/conv SIMD_DESIGN Round 2 |
+| the module, every forced SIMD level | identical output bytes | tested: one frozen digest (cf8544c12ec0b512) through `STX_SIMD_LEVEL` scalar, vector128 and avx2_fma, Release and ASan/UBSan (RunPod Linux x86-64, clang 18.1.3, job 20261122T205139Z-5df9b8f6) | `tests/conv_tests.cpp` (`digest_outputs`) |
+| `transfer.cpp` (preview, all four maps) | each pixel is the encoded field at the map's pulled-back centre; only the region is written; a refused call writes nothing | tested | `tests/conv_tests.cpp` (`previews_match_field`, `refusals`) |
+| `transfer.cpp` (axis canon) | the exact average of the canon field over each footprint (Fubini; three-point Gauss is exact for the quintic pieces) | tested: every byte equal to a direct quadrature through `Field::evaluate`; a constant source maps to itself (2,361 of 2,361 pixels exact). Exactness argued, not proved | `tests/conv_tests.cpp` (`axis_canon`) |
+| `canon.cpp` (affine and mesh canon) | the average of the canon field over each destination pixel. Term 3 is the fixed 4-strip interpolant, whose measured error is at most 0.32 codes on a normal mesh and 2.46 codes on a hostile one | tested against an independent destination-space quadrature in premultiplied codes: rotation, skew, 5× magnification through the uncached box path, a mesh with a fold: every pixel within 1 premultiplied code, 91–98% byte-exact; a region gives the whole image's bytes. Not proved | `tests/conv_tests.cpp` (`affine_and_mesh_canon`) |
+| projective canon | — | **held**: option (b) measured wrong near the horizon (up to 489 codes), cause open; the transfer refuses with unsupported | work/conv PERSPECTIVE_OPTIONS.md |
+| subnormals (appendix A1) | no subnormal is produced | **not yet proved.** Inputs are bytes. Intermediates are differences and products of byte-decoded values and fixed coefficients; a subnormal can arise only from cancellation below 2^-1022, which needs an argument not yet written | — |
+| speed (twice-the-platform ceiling) | — | not yet measured on STXlib's code. Preview evaluates per pixel, without the bench's K2 tile path (2–3× slower than the bench's K2 on its own figures) | work/conv SIMD_DESIGN |
