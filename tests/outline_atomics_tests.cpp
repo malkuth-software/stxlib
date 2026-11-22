@@ -22,6 +22,7 @@
 // counts are tests, not proofs (AGENTS.md, "Verification").
 // Elsewhere the program checks what simd.hpp promises of Features::lse.
 
+#include "core/checked.hpp"
 #include "hosted/outline_atomics_backend.hpp"
 #include "stxlib/simd.hpp"
 #include "stxlib/types.hpp"
@@ -327,7 +328,8 @@ u64 mask_of(const u32 size) noexcept {
 }
 
 // The plain reference: the value a fetch-and-op stores.
-u64 reference_store(const Kind kind, const u64 old, const u64 argument, const u64 mask) noexcept {
+// add is modulo 2^64 (then masked), as the helpers are.
+STXLIB_MODULAR u64 reference_store(const Kind kind, const u64 old, const u64 argument, const u64 mask) noexcept {
     u64 result = old;
     switch (kind) {
     case Kind::swp:

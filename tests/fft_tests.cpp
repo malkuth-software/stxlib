@@ -47,6 +47,7 @@
 #include "stxlib/view.hpp"
 
 #include "algorithms/fft/plan_state.hpp"
+#include "core/checked.hpp"
 #include "test_support.hpp"
 
 #include <cfloat>
@@ -81,7 +82,7 @@ constexpr double epsilon32 = static_cast<double>(FLT_EPSILON);
 struct Stream final {
     u64 state{0x9E3779B97F4A7C15ULL};
 
-    [[nodiscard]] double next() noexcept {
+    [[nodiscard]] STXLIB_MODULAR double next() noexcept {
         state ^= state >> 12;
         state ^= state << 25;
         state ^= state >> 27;
@@ -91,7 +92,8 @@ struct Stream final {
     }
 };
 
-[[nodiscard]] std::vector<double> random_signal(const usize n, const u64 seed) {
+// The seed mix and the generator are modulo 2^64.
+[[nodiscard]] STXLIB_MODULAR std::vector<double> random_signal(const usize n, const u64 seed) {
     Stream stream;
     stream.state = stream.state ^ (seed * 0xD1B54A32D192ED03ULL);
     std::vector<double> signal(n);
