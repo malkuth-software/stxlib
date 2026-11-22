@@ -1058,6 +1058,24 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_layout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_layout_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_layout_tests COMMAND stxlib_glyph_layout_tests)
+    # The glyph rasterizer's speed on a published same-task benchmark
+    # (tests/glyph_raster_bench.cpp): one glyph to 8-bit coverage at 10 to
+    # 100 px/em. Opt in; built only with the option, never run by ctest. The
+    # flags it was built with are printed in its header.
+    option(STXLIB_GLYPH_RASTER_BENCH "Build stxlib_glyph_raster_bench (tests/glyph_raster_bench.cpp)" OFF)
+    if(STXLIB_GLYPH_RASTER_BENCH)
+        add_executable(stxlib_glyph_raster_bench tests/glyph_raster_bench.cpp)
+        target_link_libraries(stxlib_glyph_raster_bench PRIVATE stxlib::algorithms)
+        target_compile_options(stxlib_glyph_raster_bench PRIVATE ${stxlib_test_warnings})
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" stxlib_glyph_bench_config)
+        string(JOIN " " stxlib_glyph_bench_options ${stxlib_test_warnings})
+        set(stxlib_glyph_bench_flags
+            "${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${stxlib_glyph_bench_config}} ${stxlib_glyph_bench_options}")
+        string(REPLACE "\"" "'" stxlib_glyph_bench_flags "${stxlib_glyph_bench_flags}")
+        string(STRIP "${stxlib_glyph_bench_flags}" stxlib_glyph_bench_flags)
+        target_compile_definitions(stxlib_glyph_raster_bench PRIVATE
+            "STXLIB_BENCH_FLAGS=\"${stxlib_glyph_bench_flags}\"")
+    endif()
     # stxlib::glyphs: a mask's surface and its turning, against numbers
     # worked out by tools/turn_lattice_oracle.py (tests/glyph_turn_tests.cpp);
     # it reads the internal header.
