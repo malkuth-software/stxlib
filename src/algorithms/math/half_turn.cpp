@@ -1,6 +1,7 @@
 // Half-turn trigonometry and cancellation-safe cosine losses (declared, with
 // their contracts, in stxlib/math.hpp): sincospi, sinpi, cospi, sincpi,
-// sinc_radians, cosm1 and cosm1pi.
+// cosm1 and cosm1pi. The radian sinc, sin(x) / x, is not provided (owner,
+// 2026-11-22): it is sincpi(x / pi), with the rounding of x / pi.
 //
 // Adopted 2026-11-22 from the study on branch codex/pi-trig-and-interval-study
 // (f341b2c), reimplemented here in the house style; the study's Gaussian
@@ -56,21 +57,21 @@
 // certificate. The study measured, against MPFR at 256 bits over 172,288
 // inputs (binades, lattice centres, midpoints, neighbours, random phases),
 // at most 0.500020 ulp (sinpi), 0.500113 (cospi), 0.500295 (sincpi),
-// 0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992 (sinc_radians), for a
+// 0.501493 (cosm1pi) and 0.500100 (cosm1), for a
 // kernel with this one's operations then. That kernel left the anchors'
 // own 2^-53 out of the second-order terms (rotate_half_turn below), and
 // sincpi reached 0.500748 ulp off the study's sample; with it in, the
 // integrator's run of half_turn_accuracy (2026-11-22, 4 x 100,000 inputs)
 // measured at most 0.500102 (sinpi), 0.500063 (cospi), 0.500129 (sincpi),
-// 0.500169 (cosm1pi), 0.500154 (cosm1) and 0.500001 (sinc_radians).
+// 0.500169 (cosm1pi) and 0.500154 (cosm1).
 //
 // ---- The cosine losses -------------------------------------------------------
 //
 // cos t - 1 = -2 sin^2(t/2): the half-angle sine comes from the kernels
 // above (half-turns) or from the radian kernel (sincos_core.hpp), and its
 // square is formed with an exact product, so no 1 - cos t is ever
-// subtracted. sincpi and sinc_radians divide the double-double sine by the
-// double-double angle once.
+// subtracted. sincpi divides the double-double sine by the double-double
+// angle once.
 //
 // Product ranges (the same bits from both product forms, kernel_support.hpp
 // two_product): pi times m is formed for m in [2^-474, 2^53) only (smaller
@@ -452,27 +453,6 @@ double sincpi(const double x) noexcept {
     return result;
 }
 
-// sin(x) / x in radians: even, 1 near zero; NaN above 2^32 (sin's limit).
-double sinc_radians(const double x) noexcept {
-    const double m = std::fabs(x);
-    if (m < 0x1p-7) {
-        const double result = detail::sinc_series(m);
-        return result;
-    }
-    if (!(m <= detail::sincos_medium_limit)) {
-        double refused = std::numeric_limits<double>::quiet_NaN();
-        if (x != x) refused = x + x;
-        return refused;
-    }
-    const detail::Wide sine = detail::radian_sine(m);
-    double sine_hi = 0.0;
-    double sine_lo = 0.0;
-    detail::two_sum(sine.hi, sine.lo, sine_hi, sine_lo);
-    const detail::Wide quotient = detail::divide(sine_hi, sine_lo, m, 0.0);
-    const double result = quotient.hi + quotient.lo;
-    return result;
-}
-
 // cos(x) - 1 = -2 sin^2(x/2) for |x| <= 2^32 radians; NaN beyond.
 double cosm1(const double x) noexcept {
     const double m = std::fabs(x);
@@ -536,11 +516,6 @@ float cospi(const float x) noexcept {
 
 float sincpi(const float x) noexcept {
     const double result = sincpi(detail::widen(x));
-    return static_cast<float>(result);
-}
-
-float sinc_radians(const float x) noexcept {
-    const double result = sinc_radians(detail::widen(x));
     return static_cast<float>(result);
 }
 

@@ -841,9 +841,9 @@ The log2-table kernel and its table are removed.
 
 ### Half-turn trigonometry and cosine losses (STXlib's own, 2026-11-22)
 
-`sincospi`, `sinpi`, `cospi`, `sincpi`, `sinc_radians`, `cosm1` and
-`cosm1pi` (`include/stxlib/math.hpp`, `src/algorithms/math/half_turn.cpp`),
-in both precisions. The reference is a study made outside this repository
+`sincospi`, `sinpi`, `cospi`, `sincpi`, `cosm1` and `cosm1pi`
+(`include/stxlib/math.hpp`, `src/algorithms/math/half_turn.cpp`), in both
+precisions. The reference is a study made outside this repository
 (branch `codex/pi-trig-and-interval-study`, `f341b2c`), reimplemented in
 the house style, not folded: the half-turn cells are built at compile time
 from `sincos_table256.hpp` (the study generated them with a script), the
@@ -852,7 +852,11 @@ by `tools/math/half_turn_certificate.py`, the phase is reduced modulo 2 in
 whole numbers from 2^44 (the study called the host's `nearbyint`), and the
 float functions round the double result once (the study had a separate
 float kernel in the public fronts). The study's normalized `sinc`, which
-duplicated `sincpi`, is left out. The study's Gaussian interval mass was
+duplicated `sincpi`, is left out. `sinc_radians` (sin(x) / x) was in the
+first adoption and was removed by the owner on 2026-11-22: sin(x) / x is
+`sincpi(x / pi)`, with pi and the quotient rounded to double (an argument
+error of about 1.4 * 2^-53, relative), and its two frozen bit-identity
+lines went with it. The study's Gaussian interval mass was
 rejected by the owner (a 140 KiB table, subnormals) and is not part of
 this change. The reference values in `tests/math_completion_tests.cpp` are
 the study's, rounded from MPFR 4.2.2; MPFR is not used here. No existing

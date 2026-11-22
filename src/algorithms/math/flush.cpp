@@ -337,16 +337,6 @@ float sincpi(const float x) noexcept {
     return result;
 }
 
-double sinc_radians(const double x) noexcept {
-    const double result = flush(unflushed::sinc_radians(flush(x)));
-    return result;
-}
-
-float sinc_radians(const float x) noexcept {
-    const float result = flush(unflushed::sinc_radians(flush(x)));
-    return result;
-}
-
 double cosm1(const double x) noexcept {
     const double result = flush(unflushed::cosm1(flush(x)));
     return result;

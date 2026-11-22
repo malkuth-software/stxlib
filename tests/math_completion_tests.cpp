@@ -1,6 +1,6 @@
 // Tests of exp2, expm1, log1p, sin and cos (stxlib/math.hpp; roadmap R1),
 // and of the half-turn functions and cosine losses (sincospi, sinpi, cospi,
-// sincpi, sinc_radians, cosm1, cosm1pi; 2026-11-22), against the
+// sincpi, cosm1, cosm1pi; 2026-11-22), against the
 // double-double references of tests/reference/wide.hpp.
 //
 //   math_completion_tests               sampled checks (the ctest run)
@@ -465,13 +465,12 @@ void fronts(const int count) {
 
 // ---- half-turn trigonometry and cosine losses -------------------------------------
 //
-// sincospi, sinpi, cospi, sincpi, sinc_radians, cosm1 and cosm1pi
+// sincospi, sinpi, cospi, sincpi, cosm1 and cosm1pi
 // (src/algorithms/math/half_turn.cpp). The limits below are tests, not
 // proofs: the exact head is proved (tools/math/half_turn_certificate.py),
 // the rounding of the low parts is measured. The study (2026-11-18, 172,288
 // inputs against MPFR) measured 0.500020 (sinpi), 0.500113 (cospi),
-// 0.500295 (sincpi), 0.501493 (cosm1pi), 0.500100 (cosm1) and 0.499992
-// (sinc_radians) ulp at worst; this sample found sincpi at 0.500748 until
+// 0.500295 (sincpi), 0.501493 (cosm1pi) and 0.500100 (cosm1) ulp at worst; this sample found sincpi at 0.500748 until
 // the rotation's second-order terms took the whole cell values (2026-11-22,
 // half_turn.cpp), and now measures at most 0.500169 (cosm1pi).
 constexpr double half_turn_ulp_limit = 0.5005;
@@ -573,25 +572,36 @@ void half_turn_accuracy(const int per_region) {
         require(worst_sinc <= half_turn_ulp_limit, "sincpi: error above the limit");
         require(worst_loss <= half_turn_loss_ulp_limit, "cosm1pi: error above the limit");
     }
-    // The radian functions, against wide.hpp's radian reference, for
-    // |x| in [2^-7, 2^32] (cosm1 also below, where it is -x^2/2).
-    double worst_sinc = 0.0;
-    double worst_sinc_x = 0.0;
+    // The radian function cosm1, against wide.hpp's radian reference, for
+    // |x| in [2^-7, 2^32].
     double worst_loss = 0.0;
     double worst_loss_x = 0.0;
     for (int i = 0; i < per_region; ++i) {
         const double x = (lcg.unit() < 0.5 ? -1.0 : 1.0) * geometric(lcg, -7.0, 32.0);
         const double magnitude = std::fabs(x);
-        const wide::WideSinCos exact = wide::reference(magnitude);
-        track_worst(wide_ulps(m::sinc_radians(x), wide::divide(exact.s, wide::Wide{magnitude, 0.0})), x, worst_sinc,
-                    worst_sinc_x);
         const wide::Wide half_sine = wide::reference(0.5 * magnitude).s;
         track_worst(wide_ulps(m::cosm1(x), negative_twice_square_reference(half_sine)), x, worst_loss, worst_loss_x);
     }
-    std::printf("radian sinc  %10d inputs  max %.6f ulp at %a;  cosm1 max %.6f ulp at %a\n", per_region, worst_sinc,
-                worst_sinc_x, worst_loss, worst_loss_x);
-    require(worst_sinc <= half_turn_ulp_limit, "sinc_radians: error above the limit");
+    std::printf("radian cosm1 %10d inputs  max %.6f ulp at %a\n", per_region, worst_loss, worst_loss_x);
     require(worst_loss <= half_turn_ulp_limit, "cosm1: error above the limit");
+    // There is no radian sinc (owner, 2026-11-22): sin(x) / x is
+    // sincpi(x / pi), with pi and the quotient rounded to double. For |x| in
+    // [2^-7, 2], before the first zero, the argument's relative error of
+    // about 1.4 * 2^-53 (pi, then the quotient) moves the result by at most
+    // about 2.4 ulp of sin(x) / x (at x = 2), so with sincpi's own rounding
+    // the recipe the header gives stays within 4 ulp there.
+    double worst_recipe = 0.0;
+    double worst_recipe_x = 0.0;
+    for (int i = 0; i < per_region; ++i) {
+        const double x = (lcg.unit() < 0.5 ? -1.0 : 1.0) * geometric(lcg, -7.0, 1.0);
+        const double magnitude = std::fabs(x);
+        const wide::WideSinCos exact = wide::reference(magnitude);
+        track_worst(wide_ulps(m::sincpi(x / wide_pi.hi), wide::divide(exact.s, wide::Wide{magnitude, 0.0})), x,
+                    worst_recipe, worst_recipe_x);
+    }
+    std::printf("sincpi(x / pi) %8d inputs  max %.6f ulp of sin(x) / x at %a\n", per_region, worst_recipe,
+                worst_recipe_x);
+    require(worst_recipe <= 4.0, "sincpi(x / pi): further than 4 ulp from sin(x) / x");
 }
 
 // Exact cases, special values, the reductions and the float functions.
@@ -620,9 +630,6 @@ void half_turn_special_values() {
     require(m::sincpi(0.0) == 1.0 && m::sincpi(-0.0) == 1.0 && m::sincpi(tiny) == 1.0 && same_bits(m::sincpi(inf), 0.0) &&
                 same_bits(m::sincpi(-inf), 0.0) && std::isnan(m::sincpi(nan)),
             "sincpi: special values");
-    require(m::sinc_radians(0.0) == 1.0 && m::sinc_radians(-0.0) == 1.0 && std::isnan(m::sinc_radians(0x1.0000000000001p32)) &&
-                std::isnan(m::sinc_radians(inf)) && std::isnan(m::sinc_radians(nan)),
-            "sinc_radians: special values");
     require(same_bits(m::cosm1(0.0), -0.0) && same_bits(m::cosm1(-0.0), -0.0) && same_bits(m::cosm1(tiny), -0.0) &&
                 same_bits(m::cosm1(0x1p-600), -0.0) && std::isnan(m::cosm1(0x1.0000000000001p32)) &&
                 std::isnan(m::cosm1(inf)) && std::isnan(m::cosm1(nan)),
@@ -652,7 +659,6 @@ void half_turn_special_values() {
                     same_bits(m::cospi(x), c),
                 "sincospi(float): not the double result rounded once");
         require(same_bits(m::sincpi(x), flushed(static_cast<float>(m::sincpi(wide_x)))) &&
-                    same_bits(m::sinc_radians(x), flushed(static_cast<float>(m::sinc_radians(wide_x)))) &&
                     same_bits(m::cosm1(x), flushed(static_cast<float>(m::cosm1(wide_x)))) &&
                     same_bits(m::cosm1pi(x), flushed(static_cast<float>(m::cosm1pi(wide_x)))),
                 "half-turn (float): not the double result rounded once");
@@ -660,7 +666,7 @@ void half_turn_special_values() {
     require(same_bits(m::sinpi(-0.0f), -0.0f) && same_bits(m::cospi(0.5f), 0.0f) && m::cospi(0x1.fffffep23f) == -1.0f &&
                 m::cospi(0x1p24f) == 1.0f,
             "half-turn (float): exact cases");
-    require(m::sincpi(0.5f) == 0x1.45f306p-1f && m::sinc_radians(0.0f) == 1.0f &&
+    require(m::sincpi(0.5f) == 0x1.45f306p-1f && m::sincpi(0.0f) == 1.0f &&
                 m::cosm1pi(0x1p-36f) == -0x1.3bd3ccp-70f && m::cosm1(0x1p-36f) == -0x1p-73f,
             "half-turn (float): reference values");
     std::printf("half-turn: special values, reductions and float functions hold\n");
@@ -688,30 +694,27 @@ void half_turn_reference_values() {
         double sinc;
         double pi_loss;
         double radian_loss;
-        double radian_sinc;
     };
     const Row rows[] = {
-        {0x1.3fce88ac7919cp-1022, 0x1.f659ef13b0045p-1021, 0x1p+0, 0x1p+0, -0x0p+0, -0x0p+0, 0x1p+0},
-        {0x1p-511, 0x1.921fb54442d18p-510, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-1020, -0x0p+0, 0x1p+0},
-        {0x1p-36, 0x1.921fb54442d18p-35, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-70, -0x1p-73, 0x1p+0},
+        {0x1.3fce88ac7919cp-1022, 0x1.f659ef13b0045p-1021, 0x1p+0, 0x1p+0, -0x0p+0, -0x0p+0},
+        {0x1p-511, 0x1.921fb54442d18p-510, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-1020, -0x0p+0},
+        {0x1p-36, 0x1.921fb54442d18p-35, 0x1p+0, 0x1p+0, -0x1.3bd3cc9be45dep-70, -0x1p-73},
         {0x1.fffffffffffffp-9, 0x1.921d1fcdec784p-7, 0x1.fff62169b92dbp-1, 0x1.fffcb5ccd351fp-1, -0x1.3bd2c8da4951p-14,
-         -0x1.ffffd55556c15p-18, 0x1.ffffaaaaaeeefp-1},
+         -0x1.ffffd55556c15p-18},
         {0x1.a8p-2, 0x1.ed740e7684963p-1, 0x1.111d262b1f677p-2, 0x1.7b576ab7a364dp-1, -0x1.77716cea704c4p-1,
-         -0x1.5a230f1cf30fcp-4, 0x1.f17ea4721d5dp-1},
-        {0x1.fffffffffffffp-1, 0x1.921fb54442d18p-52, -0x1p+0, 0x1p-53, -0x1p+1, -0x1.d6bafe095f2e7p-2,
-         0x1.aed548f090ceep-1},
-        {0x1.0000000000001p+0, -0x1.921fb54442d18p-51, -0x1p+0, -0x1.ffffffffffffep-53, -0x1p+1, -0x1.d6bafe095f2ecp-2,
-         0x1.aed548f090cedp-1},
+         -0x1.5a230f1cf30fcp-4},
+        {0x1.fffffffffffffp-1, 0x1.921fb54442d18p-52, -0x1p+0, 0x1p-53, -0x1p+1, -0x1.d6bafe095f2e7p-2},
+        {0x1.0000000000001p+0, -0x1.921fb54442d18p-51, -0x1p+0, -0x1.ffffffffffffep-53, -0x1p+1, -0x1.d6bafe095f2ecp-2},
         {0x1.921fb54442d18p+2, 0x1.8dbfb48815e49p-1, 0x1.4265a4a213109p-1, 0x1.42672fc9aa464p-5, -0x1.7b34b6bbd9deep-2,
-         -0x1.377ce858a5d48p-105, -0x1.678afae35cdd1p-55},
-        {0x1.864p+18, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.6ab2a5e19722p-2, -0x1.006f87fc84d5bp-19},
+         -0x1.377ce858a5d48p-105},
+        {0x1.864p+18, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.6ab2a5e19722p-2},
         {0x1.fffffffffffp+31, -0x1.921fb49ee4ea6p-12, 0x1.fffffd8858675p-1, -0x1.ffffff2d72ddp-46, -0x1.3bd3cc5af3e1dp-24,
-         -0x1.e30eb761a9edcp+0, -0x1.d8f6a0ed038dbp-34},
-        {0x1p+32, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.e30b055806644p+0, -0x1.d9130288cfb14p-34},
+         -0x1.e30eb761a9edcp+0},
+        {0x1p+32, 0x0p+0, 0x1p+0, 0x0p+0, -0x0p+0, -0x1.e30b055806644p+0},
         {0x1.fffffffffffffp+43, -0x1.921f0fe670071p-8, 0x1.fffd8858e8a92p-1, -0x1.ffff2d72e6e74p-54,
-         -0x1.3bd38bab6d94cp-16, -0x1.418596f856448p-4, 0x1.8db0e7d572806p-46},
+         -0x1.3bd38bab6d94cp-16, -0x1.418596f856448p-4},
         {0x1.0000000000001p+49, 0x1.87de2a6aea963p-2, 0x1.d906bcf328d46p-1, 0x1.f2f10e3ce6d4p-53, -0x1.37ca1866b95cfp-4,
-         -0x1.2b67bb57f1105p-4, 0x1.804ee2423f73p-51},
+         -0x1.2b67bb57f1105p-4},
     };
     // Every differing value is printed before the first failure, so one run
     // lists them all.
@@ -726,9 +729,8 @@ void half_turn_reference_values() {
         check_reference(differing, "cosm1pi", row.x, m::cosm1pi(row.x), flushed(row.pi_loss));
         if (row.x <= 0x1p32) {
             check_reference(differing, "cosm1", row.x, m::cosm1(row.x), flushed(row.radian_loss));
-            check_reference(differing, "sinc_radians", row.x, m::sinc_radians(row.x), row.radian_sinc);
         } else {
-            require(std::isnan(m::cosm1(row.x)) && std::isnan(m::sinc_radians(row.x)), "cosm1, sinc_radians: the angle limit");
+            require(std::isnan(m::cosm1(row.x)), "cosm1: the angle limit");
         }
     }
     require(differing == 0, "half-turn: a reference value differs");
