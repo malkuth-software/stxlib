@@ -4,7 +4,8 @@
 // map is Fubini with combined weights (work/conv FFT_MATH.md Part III): each destination
 // pixel's footprint is cut at source cells along each axis, three-point Gauss on each piece
 // (exact for the quintic pieces), the row values computed once per u node for every source
-// row, and each vertical cell settled once per u node and shared by every destination row
+// row (cached per source cell), and the vertical cells settled once per u node in one K1 batch
+// and shared by every destination row
 // that reads it, its nodes' weights combined.
 //
 // Every transfer validates everything before it writes: on failure no pixel of the region
@@ -134,33 +135,77 @@ OperationStatus combine_rows(const usize height, const usize target_height, cons
     return OperationStatus::success();
 }
 
-// Settles vertical cell j of the current column in every channel: simple (the linear
-// kernel) or its admitted cell (anchor and five currents).
-void settle(const FieldState& field, const usize j, const double* column, u8* simple, double* cells) noexcept {
+// One u node's vertical cells j in [jlo, jhi], every channel, in one batch: simple (the linear
+// kernel) or the admitted cell (anchor and five currents). Interior cells go through K1 over lanes
+// (j - first) * 4 + c: pass A lists the windows whose raw currents are not one-signed, pass B
+// projects the listed ones; a listed window inside its box stays simple. End cells are compiled
+// whole. The same arithmetic as compile and Field::evaluate's vertical_value. `column` holds the
+// column's row values with four padding rows before and after (column[-16 ..]).
+void settle_range(const FieldState& field, const usize jlo, const usize jhi, const double* column, u8* simple, double* cells,
+                  WorkspaceState& w) noexcept {
     const usize rows = field.height;
-    const CellShape shape = cell_shape(j, rows);
-    for (usize c = 0; c < channel_count; ++c) {
-        double w[8];
-        for (usize k = 0; k < 8; ++k) {
-            const i64 row = static_cast<i64>(j) - 3 + static_cast<i64>(k);
-            const usize clamped = row < 0 ? 0 : static_cast<usize>(row) >= rows ? rows - 1 : static_cast<usize>(row);
-            w[k] = column[clamped * channel_count + c];
-        }
-        double raw[5];
-        double admitted[5];
-        raw_for_shape(w, shape, raw);
-        double* const cell = cells + (j * channel_count + c) * 6;
-        simple[j * channel_count + c] = 0;
-        if (interior_cell(j, rows)) {
-            if (admit_cell(w, shape, raw, admitted, true)) {
-                simple[j * channel_count + c] = 1;
-                continue;
+    const usize first = jlo > 2 ? jlo : 2;
+    const usize last = rows >= 6 ? (jhi < rows - 4 ? jhi : rows - 4) : 0;
+    for (usize j = jlo; j <= jhi; ++j) {
+        if (rows >= 6 && j >= first && j <= last) continue;
+        const CellShape shape = cell_shape(j, rows);
+        for (usize c = 0; c < channel_count; ++c) {
+            double win[8];
+            for (usize k = 0; k < 8; ++k) {
+                const i64 row = static_cast<i64>(j) - 3 + static_cast<i64>(k);
+                const usize clamped = row < 0 ? 0 : static_cast<usize>(row) >= rows ? rows - 1 : static_cast<usize>(row);
+                win[k] = column[clamped * channel_count + c];
             }
-        } else {
-            (void)admit_cell(w, shape, raw, admitted, false);
+            double raw[5];
+            double admitted[5];
+            raw_for_shape(win, shape, raw);
+            (void)admit_cell(win, shape, raw, admitted, false);
+            simple[j * channel_count + c] = 0;
+            double* const cell = cells + (j * channel_count + c) * 6;
+            cell[0] = win[3];
+            for (usize m = 0; m < 5; ++m) cell[m + 1] = admitted[m];
         }
-        cell[0] = w[3];
-        for (usize m = 0; m < 5; ++m) cell[m + 1] = admitted[m];
+    }
+    if (!(rows >= 6 && first <= last)) return;
+    const usize n = (last - first + 1) * channel_count;
+    const double* window[8];
+    for (usize k = 0; k < 8; ++k) window[k] = column + (static_cast<i64>(first) - 3 + static_cast<i64>(k)) * static_cast<i64>(channel_count);
+    double* const raw_base = w.axis_raw.mutable_view().data();
+    double* raw[5];
+    for (usize r = 0; r < 5; ++r) raw[r] = raw_base + r * n;
+    u32* const list = w.axis_list.mutable_view().data();
+    const Kernels& kernels = *field.kernels;
+    const usize m = kernels.pass_a(window, raw, list, n);
+    for (usize lane = 0; lane < n; ++lane) simple[first * channel_count + lane] = 1;
+    if (m == 0) return;
+    double* const gather = w.axis_gather.mutable_view().data();
+    double* const admitted_base = w.axis_admitted.mutable_view().data();
+    const usize stride = m;
+    double* cw[4];
+    double* cr[5];
+    double* ca[5];
+    for (usize k = 0; k < 4; ++k) cw[k] = gather + k * stride;
+    for (usize r = 0; r < 5; ++r) {
+        cr[r] = gather + (4 + r) * stride;
+        ca[r] = admitted_base + r * stride;
+    }
+    for (usize g = 0; g < m; ++g) {
+        const usize lane = list[g];
+        for (usize k = 0; k < 4; ++k) cw[k][g] = window[k + 2][lane];
+        for (usize r = 0; r < 5; ++r) cr[r][g] = raw[r][lane];
+    }
+    const double* const cwc[8]{cw[0], cw[0], cw[0], cw[1], cw[2], cw[3], cw[3], cw[3]};
+    const double* const crc[5]{cr[0], cr[1], cr[2], cr[3], cr[4]};
+    u8* const idle = w.axis_idle.mutable_view().data();
+    kernels.pass_b(cwc, crc, ca, idle, m);
+    for (usize g = 0; g < m; ++g) {
+        if (idle[g] != 0) continue;
+        const usize lane = list[g];
+        const usize slot = first * channel_count + lane;
+        simple[slot] = 0;
+        double* const cell = cells + slot * 6;
+        cell[0] = window[3][lane];
+        for (usize r = 0; r < 5; ++r) cell[r + 1] = ca[r][g];
     }
 }
 
@@ -168,48 +213,71 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
                            WorkspaceState& workspace) noexcept {
     const usize rows = field.height;
     const usize region_rows = region.y1 - region.y0;
+    if (region_rows == 0 || region.x0 == region.x1) return OperationStatus::success();
     AxisCanonScratch scratch;
     const OperationStatus combined = combine_rows(rows, map.target_height, region, scratch);
     if (combined.failed()) return combined;
+    // The v-cells the region's rows read: one contiguous range, settled per u node.
+    usize jlo = rows;
+    usize jhi = 0;
+    for (usize e = 0; e < scratch.rows.count(); ++e) {
+        const usize j = scratch.rows[e].cell;
+        jlo = j < jlo ? j : jlo;
+        jhi = j > jhi ? j : jhi;
+    }
+    constexpr usize pad = 4 * channel_count;
+    const usize lanes = rows * channel_count;
     Vector<FootprintNode> u_nodes;
     OperationStatus status = u_nodes.resize(footprint_room(field.width, map.target_width));
-    if (status.succeeded()) status = workspace.column.resize(rows * channel_count);
-    if (status.succeeded()) status = workspace.settled.resize(rows);
-    if (status.succeeded()) status = workspace.simple.resize(rows * channel_count);
-    if (status.succeeded()) status = workspace.cells.resize(rows * channel_count * 6);
+    if (status.succeeded()) status = workspace.padded_column.resize(lanes + 2 * pad);
+    if (status.succeeded()) status = workspace.simple.resize(lanes);
+    if (status.succeeded()) status = workspace.cells.resize(lanes * 6);
     if (status.succeeded()) status = workspace.accumulator.resize(region_rows * channel_count);
+    if (status.succeeded()) status = workspace.row_cells.resize(rows * 6 * channel_count);
+    if (status.succeeded()) status = workspace.axis_raw.resize(5 * lanes);
+    if (status.succeeded()) status = workspace.axis_list.resize(lanes);
+    if (status.succeeded()) status = workspace.axis_gather.resize(9 * lanes);
+    if (status.succeeded()) status = workspace.axis_admitted.resize(5 * lanes);
+    if (status.succeeded()) status = workspace.axis_idle.resize(lanes);
     if (status.failed()) return exhausted("stxlib.conv.transfer");
-    double* const column = workspace.column.mutable_view().data();
-    u32* const settled = workspace.settled.mutable_view().data();
+    double* const padded = workspace.padded_column.mutable_view().data();
+    for (usize k = 0; k < lanes + 2 * pad; ++k) padded[k] = 0.0;
+    double* const column = padded + pad;
     u8* const simple = workspace.simple.mutable_view().data();
     double* const cells = workspace.cells.mutable_view().data();
     double* const accumulator = workspace.accumulator.mutable_view().data();
-    for (usize j = 0; j < rows; ++j) settled[j] = 0;
-    u32 stamp = 0;
+    double* const row_cells = workspace.row_cells.mutable_view().data();
+    // The cell whose row cells are cached (none yet).
+    usize cached = field.width;
     for (usize x = region.x0; x < region.x1; ++x) {
         for (usize k = 0; k < region_rows * channel_count; ++k) accumulator[k] = 0.0;
         FootprintNode* const nodes = u_nodes.mutable_view().data();
         const usize node_count = footprint(x, field.width, map.target_width, nodes);
         for (usize a = 0; a < node_count; ++a) {
-            double su[6];
-            double tauu[5];
-            kernel_weights(nodes[a].t, su);
-            tail_weights(nodes[a].t, tauu);
-            for (usize r = 0; r < rows; ++r) row_value(field, r, nodes[a].cell, su, tauu, column + r * channel_count);
-            if (stamp == 0xffffffffu) {
-                for (usize j = 0; j < rows; ++j) settled[j] = 0;
-                stamp = 0;
+            const usize i = nodes[a].cell;
+            if (i != cached) {
+                for (usize r = 0; r < rows; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
+                cached = i;
             }
-            stamp = stamp + 1;
+            double tauu[5];
+            tail_weights(nodes[a].t, tauu);
+            for (usize r = 0; r < rows; ++r) {
+                const double* const cell = row_cells + r * 6 * channel_count;
+                for (usize c = 0; c < channel_count; ++c) {
+                    double value = cell[c] + cell[1 * channel_count + c] * tauu[0];
+                    value = value + cell[2 * channel_count + c] * tauu[1];
+                    value = value + cell[3 * channel_count + c] * tauu[2];
+                    value = value + cell[4 * channel_count + c] * tauu[3];
+                    value = value + cell[5 * channel_count + c] * tauu[4];
+                    column[r * channel_count + c] = value;
+                }
+            }
+            settle_range(field, jlo, jhi, column, simple, cells, workspace);
             for (usize y = 0; y < region_rows; ++y) {
                 double sum[channel_count]{0.0, 0.0, 0.0, 0.0};
                 for (usize e = scratch.row_offset[y]; e < scratch.row_offset[y + 1]; ++e) {
                     const RowCellWeights& entry = scratch.rows[e];
                     const usize j = entry.cell;
-                    if (settled[j] != stamp) {
-                        settled[j] = stamp;
-                        settle(field, j, column, simple, cells);
-                    }
                     for (usize c = 0; c < channel_count; ++c) {
                         double value = 0.0;
                         if (simple[j * channel_count + c] != 0) {
@@ -544,8 +612,13 @@ OperationResult<Workspace> Workspace::make() noexcept {
 usize Workspace::storage_bytes() const noexcept {
     if (state_ == nullptr) return 0;
     const WorkspaceState& w = *state_;
-    const usize total = sizeof(WorkspaceState) + (w.values.capacity() + w.column.capacity() + w.cells.capacity() + w.accumulator.capacity()) * sizeof(double) +
-                        w.settled.capacity() * sizeof(u32) + w.simple.capacity();
+    const usize doubles = w.values.capacity() + w.cells.capacity() + w.accumulator.capacity() + w.us.capacity() + w.vs.capacity() +
+                          w.local.capacity() + w.decoded.capacity() + w.planes.capacity() + w.sv.capacity() + w.tau_u.capacity() +
+                          w.tau_v.capacity() + w.compact.capacity() + w.row_cells.capacity() + w.padded_column.capacity() +
+                          w.axis_raw.capacity() + w.axis_gather.capacity() + w.axis_admitted.capacity();
+    const usize total = sizeof(WorkspaceState) + doubles * sizeof(double) + w.simple.capacity() + w.idle.capacity() + w.axis_idle.capacity() +
+                        (w.list.capacity() + w.axis_list.capacity()) * sizeof(u32) + w.row_pointers.capacity() * sizeof(const double*) +
+                        (w.end_queries.capacity() + w.query_cell_v.capacity()) * sizeof(usize);
     return total;
 }
 

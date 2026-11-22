@@ -21,6 +21,7 @@
 #include "core/checked.hpp"
 #include "test_support.hpp"
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -865,6 +866,29 @@ void local_recompile() {
     CHECK(empty_field.recompile(image.view(), conv::Region{0, 0, 1, 1}).failed());
 }
 
+// ---------------------------------------------------------------- timing (printed, not checked)
+
+void timing() {
+    const Image image = fixture(Kind::noise, 1024, 768, 31);
+    const conv::Field field = compiled(image);
+    conv::Workspace workspace = workspace_made();
+    const usize targets[3][2] = {{512, 384}, {1600, 500}, {2047, 1535}};
+    for (const usize(&target)[2] : targets) {
+        conv::AxisMap map;
+        map.target_width = target[0];
+        map.target_height = target[1];
+        Destination out(target[0], target[1]);
+        const conv::Region all{0, 0, target[0], target[1]};
+        for (usize m = 0; m < 2; ++m) {
+            const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+            const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+            CHECK(conv::transfer(field, map, mode, out.view(), all, workspace).succeeded());
+            const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+            std::printf("timing: 1024x768 -> %zux%zu %s %.1f ms\n", target[0], target[1], m == 0 ? "preview" : "canon", ms);
+        }
+    }
+}
+
 // ---------------------------------------------------------------- lines
 
 void line_field() {
@@ -1074,5 +1098,6 @@ int main() {
     line_field();
     refusals();
     digest_outputs();
+    timing();
     return stxlib_tests::finish("stxlib conv");
 }

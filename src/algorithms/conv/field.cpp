@@ -216,41 +216,39 @@ const Correction* find(const FieldState& field, const usize y, const usize i, co
 
 } // namespace
 
-void row_value(const FieldState& field, const usize y, const usize i, const double* s, const double* tau, double* out) noexcept {
-    (void)s;
+void row_cell(const FieldState& field, const usize y, const usize i, double* cell) noexcept {
     const usize width = field.width;
-    const bool end = !interior_cell(i, width);
     const u8* const row = field.source.view().data() + y * width * 4;
-    // Interior cells: anchor plus (raw + e) . tau, raw in K2 row_cells' operation order, so the
-    // tiled preview (transfer.cpp) and this point evaluation give the same bits. In exact
-    // arithmetic the uncorrected form equals the linear kernel s_t over y[i-2 .. i+3].
-    double window[6][channel_count];
-    if (!end) {
-        for (usize r = 0; r < 6; ++r) decode(row + (i - 2 + r) * 4, window[r]);
+    if (interior_cell(i, width)) {
+        // Interior: anchor and raw currents by K2 row_cells (raw_for_shape's operation order), then
+        // + e on listed channels.
+        double decoded[6 * channel_count];
+        for (usize r = 0; r < 6; ++r) decode(row + (i - 2 + r) * 4, decoded + r * channel_count);
+        (*field.kernels).row_cells(decoded, 1, cell);
+        for (usize c = 0; c < channel_count; ++c) {
+            const Correction* const k = find(field, y, i, c);
+            if (k == nullptr) continue;
+            for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = cell[(m + 1) * channel_count + c] + (*k).e[m];
+        }
+        return;
     }
-    double anchor[channel_count];
-    decode(row + i * 4, anchor);
-    const CellShape interior_shape{};
+    decode(row + i * 4, cell);
     for (usize c = 0; c < channel_count; ++c) {
         const Correction* const k = find(field, y, i, c);
-        double currents[5]{0.0, 0.0, 0.0, 0.0, 0.0};
-        if (end) {
-            for (usize m = 0; m < 5; ++m) currents[m] = k == nullptr ? 0.0 : (*k).e[m];
-        } else {
-            double w[8];
-            w[0] = window[0][c];
-            for (usize r = 0; r < 6; ++r) w[r + 1] = window[r][c];
-            w[7] = window[5][c];
-            raw_for_shape(w, interior_shape, currents);
-            if (k != nullptr) {
-                for (usize m = 0; m < 5; ++m) currents[m] = currents[m] + (*k).e[m];
-            }
-        }
-        double value = anchor[c] + currents[0] * tau[0];
-        value = value + currents[1] * tau[1];
-        value = value + currents[2] * tau[2];
-        value = value + currents[3] * tau[3];
-        value = value + currents[4] * tau[4];
+        for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = k == nullptr ? 0.0 : (*k).e[m];
+    }
+}
+
+void row_value(const FieldState& field, const usize y, const usize i, const double* s, const double* tau, double* out) noexcept {
+    (void)s;
+    double cell[6 * channel_count];
+    row_cell(field, y, i, cell);
+    for (usize c = 0; c < channel_count; ++c) {
+        double value = cell[c] + cell[1 * channel_count + c] * tau[0];
+        value = value + cell[2 * channel_count + c] * tau[1];
+        value = value + cell[3 * channel_count + c] * tau[2];
+        value = value + cell[4 * channel_count + c] * tau[3];
+        value = value + cell[5 * channel_count + c] * tau[4];
         out[c] = value;
     }
 }
