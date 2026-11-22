@@ -22,6 +22,15 @@ the Itanium and in the Microsoft spelling of the names:
   stxlib::ErrorRecord::make                                  (a refusal's record)
   stxlib::Mutex: its making, lock, unlock and unmaking       (a Typeface)
   stxlib::detail::requirement_failed                         (a broken requirement stops the program)
+  __aarch64_<op><size>_<order>                               (STXlib's outline-atomics helpers)
+
+The last are the helpers the compilers call for atomic read-modify-writes
+on Linux and FreeBSD aarch64 (compare-and-swap, swap, add, and-not, xor, or,
+in four orderings). STXlib defines every one of them itself
+(src/hosted/elf/outline_atomics_aarch64.cpp, in stxlib_outline_atomics),
+so they are its own leaves, not the toolchain runtime's;
+tools/check_outline_atomics.py checks on the linked binaries that they
+resolve there. GCC's _sync ordering is not one of them.
 
 Toolchain helpers allowed on every host: block set and copy (memset, memcpy,
 memmove, bzero, Apple's memset_pattern4/8/16, and the fortified _chk forms),
@@ -54,6 +63,7 @@ printed as object: symbol.
 
 import argparse
 import pathlib
+import re
 import subprocess
 import sys
 
@@ -70,6 +80,9 @@ STXLIB_LEAVES = (
     ('6stxlib5Mutex6unlockEv', '?unlock@Mutex@stxlib@@'),
     ('6stxlib6detail18requirement_failedE', '?requirement_failed@detail@stxlib@@'),
 )
+
+# STXlib's outline-atomics helpers, by their bare name (no leading underscores).
+OUTLINE_ATOMICS = re.compile(r'^aarch64_(cas(1|2|4|8|16)|swp[1248]|ld(add|clr|eor|set)[1248])_(relax|acq|rel|acq_rel)$')
 
 MUST_SEE = 'vocabulary_allocate'
 
@@ -138,6 +151,8 @@ def allowed(name: str, web: bool, sanitized: bool) -> bool:
     if stxlib_leaf(name):
         return True
     bare: str = normalised(name)
+    if OUTLINE_ATOMICS.match(bare):
+        return True
     if bare in TOOLCHAIN_HELPERS:
         return True
     if web and bare in WASM_ABI_GLOBALS:

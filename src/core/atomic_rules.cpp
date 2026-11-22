@@ -9,6 +9,15 @@
 // std::atomic_ref<T> in src/ whose T has no assert in the checked tree, so a
 // new atomic type is added here (or beside its use) in the same change.
 // Object pointers share one assert (they are one size on every host).
+//
+// Lock-free does not mean inline. On Linux and FreeBSD aarch64 the
+// compilers turn each read-modify-write of these types into a call to an
+// outline-atomics helper (__aarch64_cas4_acq_rel and its kin), still
+// lock-free: the helper runs one LSE instruction or a load-exclusive/
+// store-exclusive loop. STXlib defines those helpers itself
+// (src/hosted/elf/outline_atomics_aarch64.cpp), so these atomics reach
+// neither the toolchain's runtime nor the C library's getauxval; the
+// asserts below are unchanged by that.
 
 #include "stxlib/types.hpp"
 
