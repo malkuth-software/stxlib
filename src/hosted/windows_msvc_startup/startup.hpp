@@ -31,7 +31,9 @@
 
 #pragma once
 
-#if !defined(_MSC_VER) || defined(__MINGW32__)
+// The census (proofs/b1/tools/census.py, STXLIB_CENSUS) parses every file
+// of the tree on Linux; it reads this header without building it.
+#if (!defined(_MSC_VER) || defined(__MINGW32__)) && !defined(STXLIB_CENSUS)
 #error "the MSVC-target startup shim is built for x86_64-pc-windows-msvc only"
 #endif
 

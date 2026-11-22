@@ -16,4 +16,10 @@
 
 #include <typeinfo>
 
+#if defined(STXLIB_CENSUS) && !defined(_MSC_VER)
+// The census (proofs/b1/tools/census.py) parses this file on Linux, where
+// type_info is declared only in std; the Microsoft ABI declares it global.
+using std::type_info;
+#endif
+
 type_info::~type_info() noexcept {}
