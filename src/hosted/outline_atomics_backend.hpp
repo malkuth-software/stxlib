@@ -55,7 +55,7 @@
 // tests write it, to force one path or to send the next call through
 // detection again; storing 3 on a CPU without LSE makes the next helper
 // call an undefined instruction.
-extern "C" __attribute__((visibility("hidden"))) u8 stxlib_outline_atomics_memo;
+extern "C" __attribute__((visibility("hidden"))) stxlib::u8 stxlib_outline_atomics_memo;
 
 // Whether the CPU has LSE, detecting first if this module has not yet
 // (the same detection and memo as the helpers). An ordinary AAPCS64
