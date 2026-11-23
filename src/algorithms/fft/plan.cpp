@@ -995,22 +995,50 @@ template <typename Complex>
 // ---------------------------------------------------------------------------
 
 // The engine policy (owner, 2026-11-22: "so each size can use whichever is
-// faster"). DIF in both directions everywhere until stxlib_fft_bench has
-// measured the tiers against each other on the machines that matter; the
-// benchmark prints the per-size winners as the table to put here.
-Engines engine_policy(const simd::Level level, const usize size) noexcept {
-    (void)level;
-    (void)size;
-    const Engines engines{};
+// faster"). The table is stxlib_fft_bench's, run once on the M4 (macOS
+// arm64, Release, idle machine) on 2026-11-23 at checkpoint stx5: per tier,
+// a mask over log2(size) of the sizes where DIT was faster, for forward and
+// inverse in each precision. Sizes above 2^20 take the 2^20 row. avx2_fma
+// was not measured (no x86-64 run yet) and keeps DIF; below 16 a plan runs
+// DIF whatever the policy says (effective_engines).
+namespace {
+
+struct EngineMasks final {
+    u32 forward64;
+    u32 inverse64;
+    u32 forward32;
+    u32 inverse32;
+};
+
+constexpr EngineMasks scalar_masks{0x1FFFF0U, 0x09FF0U, 0xCFFF0U, 0xFFFF0U};
+constexpr EngineMasks vector128_masks{0x1FFFF0U, 0xFFFF0U, 0x1FFE30U, 0x1F2BF0U};
+
+[[nodiscard]] Engine engine_of(const u32 mask, const u32 log2_size) noexcept {
+    const Engine result = ((mask >> log2_size) & 1U) != 0 ? Engine::dit : Engine::dif;
+    return result;
+}
+
+} // namespace
+
+Engines engine_policy(const simd::Level level, const usize size, const bool float64) noexcept {
+    Engines engines{};
+    const EngineMasks* masks = nullptr;
+    if (level == simd::Level::scalar) masks = &scalar_masks;
+    if (level == simd::Level::vector128) masks = &vector128_masks;
+    if (masks == nullptr || size == 0) return engines;
+    u32 log2_size = static_cast<u32>(std::bit_width(size) - 1);
+    if (log2_size > 20) log2_size = 20;
+    engines.forward = engine_of(float64 ? masks->forward64 : masks->forward32, log2_size);
+    engines.inverse = engine_of(float64 ? masks->inverse64 : masks->inverse32, log2_size);
     return engines;
 }
 
 OperationResult<Plan64> PlanAccess::make64(const usize size, const Mode mode, const simd::Level level) noexcept {
-    return make64(size, mode, level, engine_policy(level, size));
+    return make64(size, mode, level, engine_policy(level, size, true));
 }
 
 OperationResult<Plan32> PlanAccess::make32(const usize size, const Mode mode, const simd::Level level) noexcept {
-    return make32(size, mode, level, engine_policy(level, size));
+    return make32(size, mode, level, engine_policy(level, size, false));
 }
 
 OperationResult<Plan64> PlanAccess::make64(const usize size, const Mode mode, const simd::Level level,

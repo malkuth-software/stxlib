@@ -267,7 +267,8 @@ struct PlanAccess final {
     static void use_kernels(Plan32& plan, const Kernels& kernels) noexcept;
 };
 
-// The engines the policy gives a plain plan of `size` at `level` (plan.cpp).
-[[nodiscard]] Engines engine_policy(simd::Level level, usize size) noexcept;
+// The engines the policy gives a plain plan of `size` at `level`, float64 or
+// float32 (plan.cpp).
+[[nodiscard]] Engines engine_policy(simd::Level level, usize size, bool float64) noexcept;
 
 } // namespace stxlib::fft::detail

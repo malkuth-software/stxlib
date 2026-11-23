@@ -842,7 +842,9 @@ void dit_engine_choice() {
     // make() runs the policy's engines; the other modes run DIF.
     for (usize n = 16; n <= (usize{1} << 20); n <<= 2) {
         Plan64 wide = plan64(n, Mode::plain);
-        CHECK(same_engines(PlanAccess::engines(wide), stxlib::fft::detail::engine_policy(selected, n)));
+        CHECK(same_engines(PlanAccess::engines(wide), stxlib::fft::detail::engine_policy(selected, n, true)));
+        Plan32 narrow = plan32(n, Mode::plain);
+        CHECK(same_engines(PlanAccess::engines(narrow), stxlib::fft::detail::engine_policy(selected, n, false)));
         Plan64 shifted = plan64(n, Mode::shifted);
         CHECK(same_engines(PlanAccess::engines(shifted), Engines{}));
     }
