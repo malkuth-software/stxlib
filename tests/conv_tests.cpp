@@ -1289,6 +1289,65 @@ void digest_outputs() {
 
 } // namespace
 
+// ---------------------------------------------------------------- regional axis canon
+
+// Axis canon over a region equals the whole transfer there, byte for byte, whatever the regions'
+// shape (row strips, column strips, tiles), on wide and tall (transposed) sources, enlarging and
+// reducing. Then the cost of a reduction done in strips against the same reduction whole: the
+// region evaluates only its own band of source rows, so strips cost about the whole once.
+void regional_axis_canon() {
+    conv::Workspace workspace = workspace_made();
+    const usize sources[2][2] = {{120, 90}, {60, 130}};
+    const usize scales[2][2] = {{2, 1}, {3, 5}}; // target = source * numerator / denominator
+    usize differ = 0;
+    for (const usize(&size)[2] : sources) {
+        const Image image = fixture(Kind::noise, size[0], size[1], 41);
+        const conv::Field field = compiled(image);
+        for (const usize(&scale)[2] : scales) {
+            conv::AxisMap map;
+            map.target_width = size[0] * scale[0] / scale[1];
+            map.target_height = size[1] * scale[0] / scale[1];
+            const usize w = map.target_width;
+            const usize h = map.target_height;
+            Destination whole(w, h);
+            CHECK(conv::transfer(field, map, conv::Mode::canon, whole.view(), conv::Region{0, 0, w, h}, workspace).succeeded());
+            const usize shapes[3][2] = {{w, 16}, {16, h}, {32, 32}};
+            for (const usize(&shape)[2] : shapes) {
+                Destination pieces(w, h);
+                for (usize y0 = 0; y0 < h; y0 += shape[1]) {
+                    for (usize x0 = 0; x0 < w; x0 += shape[0]) {
+                        const usize x1 = x0 + shape[0] < w ? x0 + shape[0] : w;
+                        const usize y1 = y0 + shape[1] < h ? y0 + shape[1] : h;
+                        CHECK(conv::transfer(field, map, conv::Mode::canon, pieces.view(), conv::Region{x0, y0, x1, y1}, workspace).succeeded());
+                    }
+                }
+                differ = differ + (whole.rgba == pieces.rgba ? 0 : 1);
+            }
+        }
+    }
+    CHECK(differ == 0);
+    std::printf("regional axis canon: %zu of 24 piecewise renders differ from the whole\n", differ);
+
+    const Image image = fixture(Kind::noise, 2049, 1602, 43);
+    const conv::Field field = compiled(image);
+    conv::AxisMap map;
+    map.target_width = 1102;
+    map.target_height = 862;
+    Destination whole(1102, 862);
+    Destination strips(1102, 862);
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    CHECK(conv::transfer(field, map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 1102, 862}, workspace).succeeded());
+    const double whole_ms = milliseconds_since(start);
+    start = std::chrono::steady_clock::now();
+    for (usize y0 = 0; y0 < 862; y0 += 32) {
+        const usize y1 = y0 + 32 < 862 ? y0 + 32 : 862;
+        CHECK(conv::transfer(field, map, conv::Mode::canon, strips.view(), conv::Region{0, y0, 1102, y1}, workspace).succeeded());
+    }
+    const double strips_ms = milliseconds_since(start);
+    CHECK(whole.rgba == strips.rgba);
+    std::printf("regional axis canon: 2049x1602 -> 1102x862 whole %.1f ms, in 32-row strips %.1f ms\n", whole_ms, strips_ms);
+}
+
 int main() {
     field_matches_reference();
     k1_tiers_identical();
@@ -1298,6 +1357,7 @@ int main() {
     projective_canon();
     local_recompile();
     longer_axis_first();
+    regional_axis_canon();
     line_field();
     refusals();
     digest_outputs();

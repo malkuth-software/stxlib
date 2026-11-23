@@ -227,6 +227,13 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         jlo = j < jlo ? j : jlo;
         jhi = j > jhi ? j : jhi;
     }
+    // The source rows those cells read: each cell's window is rows j - 3 .. j + 4, clamped to the
+    // field (settle_range), and the simple kernel reads j - 2 .. j + 3. Only these rows are
+    // evaluated, so a region costs in proportion to its own rows, not the field's (a display
+    // reduction split into strips does the work once in all, not once per strip). The bytes are
+    // the same: the rows outside the band are never read.
+    const usize rlo = jlo > 3 ? jlo - 3 : 0;
+    const usize rhi = jhi + 4 < rows - 1 ? jhi + 4 : rows - 1;
     constexpr usize pad = 4 * channel_count;
     const usize lanes = rows * channel_count;
     Vector<FootprintNode> u_nodes;
@@ -260,17 +267,17 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         // then one vertical contest per destination column on those averages, as the 1D method
         // orders it; exact canon contests at every u node instead.
         if (fused) {
-            for (usize k = 0; k < lanes; ++k) column[k] = 0.0;
+            for (usize k = rlo * channel_count; k < (rhi + 1) * channel_count; ++k) column[k] = 0.0;
         }
         for (usize a = 0; a < node_count; ++a) {
             const usize i = nodes[a].cell;
             if (i != cached) {
-                for (usize r = 0; r < rows; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
+                for (usize r = rlo; r <= rhi; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
                 cached = i;
             }
             double tauu[5];
             tail_weights(nodes[a].t, tauu);
-            for (usize r = 0; r < rows; ++r) {
+            for (usize r = rlo; r <= rhi; ++r) {
                 const double* const cell = row_cells + r * 6 * channel_count;
                 for (usize c = 0; c < channel_count; ++c) {
                     double value = cell[c] + cell[1 * channel_count + c] * tauu[0];
