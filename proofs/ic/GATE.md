@@ -8,28 +8,28 @@ states and edges a run reached, the defects found and fixed, and the legal-mode 
 a stated run. Results of the engine are tests, by the owner's definition; the obligations column
 counts deductions, and an obligation still open names the blocks or tests that cover it.
 
-Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_run.cpp, `--gate`); until then the run columns read "not run".
+Run: 20000 legal and 20000 misuse cases of up to 48 steps per component, seed 0x1c2b3a4d5e6f7081, stopping misuses run in child processes.
 
 | Component | Clauses | Calls driven | Blocks (legal + misuse) | States reached | Edges reached | Defects (found / fixed) | Legal false positives | Obligations (discharged / all) |
 |---|---|---|---|---|---|---|---|---|
-| stxlib::AtomicWord | 0 | 4 of 8 | 5 + 0 | not run | not run | not run | not run | 0 / 0 |
-| stxlib::Buffer | 1 | 6 of 6 | 7 + 1 | not run | not run | not run | not run | 1 / 1 |
-| stxlib::fft::Plan32 | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 18 / 18 |
-| stxlib::fft::Plan64 | 9 | 6 of 6 | 7 + 9 | not run | not run | not run | not run | 16 / 16 |
-| stxlib::File | 25 | 17 of 23 | 18 + 26 | not run | not run | not run | not run | 27 / 31 (4 open, covered by blocks or tests) |
-| stxlib::FrozenMap | 2 | 7 of 7 | 8 + 2 | not run | not run | not run | not run | 2 / 2 |
-| stxlib::FrozenTextMap | 2 | 7 of 7 | 8 + 2 | not run | not run | not run | not run | 2 / 2 |
-| stxlib::glyphs::GlyphStore | 3 | 7 of 7 | 8 + 3 | not run | not run | not run | not run | 6 / 6 |
-| stxlib::memory | 1 | 4 of 4 | 5 + 1 | not run | not run | not run | not run | 2 / 3 (1 open, covered by blocks or tests) |
-| stxlib::Mutex | 3 | 3 of 3 | 4 + 3 | not run | not run | not run | not run | 6 / 6 |
-| stxlib::RecursiveMutex | 1 | 3 of 4 | 4 + 0 | not run | not run | not run | not run | 3 / 3 |
-| stxlib::StopCallback | 1 | 1 of 1 | 1 + 1 | not run | not run | not run | not run | 1 / 1 |
-| stxlib::StopSource | 1 | 5 of 6 | 6 + 1 | not run | not run | not run | not run | 2 / 2 |
-| stxlib::StopToken | 0 | 2 of 4 | 3 + 0 | not run | not run | not run | not run | 0 / 0 |
-| stxlib::AtomicPool | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 17 / 17 |
-| stxlib::Thread | 4 | 5 of 5 | 6 + 4 | not run | not run | not run | not run | 8 / 8 |
-| stxlib::UniqueLock | 6 | 7 of 11 | 8 + 6 | not run | not run | not run | not run | 10 / 10 |
-| stxlib::Vector | 9 | 22 of 22 | 23 + 10 | not run | not run | not run | not run | 10 / 10 |
+| stxlib::AtomicWord | 0 | 4 of 8 | 5 + 0 | 1 of 1 | 5 of 4 | 0 / 0 | 0 | 0 / 0 |
+| stxlib::Buffer | 1 | 6 of 6 | 7 + 1 | 1 of 1 | 7 of 6 | 0 / 0 | 0 | 1 / 1 |
+| stxlib::fft::Plan32 | 10 | 6 of 6 | 7 + 10 | 2 of 2 | 12 of 10 | 0 / 0 | 0 | 18 / 18 |
+| stxlib::fft::Plan64 | 9 | 6 of 6 | 7 + 9 | 2 of 2 | 12 of 10 | 0 / 0 | 0 | 16 / 16 |
+| stxlib::File | 25 | 17 of 23 | 18 + 26 | 4 of 4 | 58 of 46 | 0 / 0 | 0 | 27 / 31 (4 open, covered by blocks or tests) |
+| stxlib::FrozenMap | 2 | 7 of 7 | 8 + 2 | 1 of 1 | 8 of 7 | 0 / 0 | 0 | 2 / 2 |
+| stxlib::FrozenTextMap | 2 | 7 of 7 | 8 + 2 | 1 of 1 | 8 of 7 | 0 / 0 | 0 | 2 / 2 |
+| stxlib::glyphs::GlyphStore | 3 | 7 of 7 | 8 + 3 | 2 of 2 | 14 of 12 | 0 / 0 | 0 | 6 / 6 |
+| stxlib::memory | 1 | 4 of 4 | 5 + 1 | 1 of 1 | 5 of 4 | 0 / 0 | 0 | 2 / 3 (1 open, covered by blocks or tests) |
+| stxlib::Mutex | 3 | 3 of 3 | 4 + 3 | 2 of 2 | 5 of 3 | 0 / 0 | 0 | 6 / 6 |
+| stxlib::RecursiveMutex | 1 | 3 of 4 | 4 + 0 | 2 of 2 | 8 of 6 | 0 / 0 | 0 | 3 / 3 |
+| stxlib::StopCallback | 1 | 1 of 1 | 1 + 1 | 0 of 3 | 0 of 3 | 0 / 0 | 0 | 1 / 1 |
+| stxlib::StopSource | 1 | 5 of 6 | 6 + 1 | 3 of 3 | 17 of 14 | 0 / 0 | 0 | 2 / 2 |
+| stxlib::StopToken | 0 | 2 of 4 | 3 + 0 | 1 of 3 | 3 of 6 | 0 / 0 | 0 | 0 / 0 |
+| stxlib::AtomicPool | 10 | 6 of 6 | 7 + 10 | 3 of 3 | 16 of 13 | 0 / 0 | 0 | 17 / 17 |
+| stxlib::Thread | 4 | 5 of 5 | 6 + 4 | 2 of 2 | 10 of 8 | 0 / 0 | 0 | 8 / 8 |
+| stxlib::UniqueLock | 6 | 7 of 11 | 8 + 6 | 3 of 3 | 18 of 15 | 0 / 0 | 0 | 10 / 10 |
+| stxlib::Vector | 9 | 22 of 22 | 23 + 10 | 1 of 1 | 23 of 22 | 0 / 0 | 0 | 10 / 10 |
 | stxlib::stx_minmallocpp | 1 | 3 of 4 | 4 + 3 | not run | not run | not run | not run | 27 / 28 (1 open, covered by blocks or tests) |
 
 ## Calls the engine does not drive
@@ -53,3 +53,7 @@ Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_
 - stxlib::UniqueLock UniqueLock: arguments the engine does not draw (no engine.invoke).
 - stxlib::UniqueLock operator=: arguments the engine does not draw (no engine.invoke).
 - stxlib::stx_minmallocpp end_thread: ends the calling thread's allocator state, which the engine's own thread still uses.
+
+## Defects the run found
+
+None.
