@@ -374,6 +374,22 @@ void give_huge_record(const usize index) noexcept {
     structure.free_huge_count = structure.free_huge_count + 1;
 }
 
+// The bytes a huge mapping reserves for `committed` bytes (region.hpp,
+// "huge mappings"): whole regions where addresses are wide, where address
+// space costs nothing until committed; the committed bytes themselves on
+// wasm32, where every reserved byte is linear memory.
+[[nodiscard]] constexpr usize huge_reservation(const usize committed) noexcept {
+    if constexpr (wide_addresses) return round_up(committed, region_bytes);
+    return committed;
+}
+
+// The directory cells a huge mapping of `reserved` bytes touches; its last
+// cell is partly its own on wasm32.
+[[nodiscard]] constexpr usize huge_cells(const usize reserved) noexcept {
+    if constexpr (wide_addresses) return reserved >> region_shift;
+    return round_up(reserved, region_bytes) >> region_shift;
+}
+
 } // namespace
 
 void* allocate_huge(const usize bytes) noexcept {
@@ -382,7 +398,7 @@ void* allocate_huge(const usize bytes) noexcept {
     const usize index = take_huge_record();
     if (index == huge_capacity) return nullptr;
     const usize committed = round_up(bytes, structure.os_page);
-    const usize reserved = round_up(committed, region_bytes);
+    const usize reserved = huge_reservation(committed);
     void* const block = os::reserve(reserved, region_bytes);
     if (block == nullptr) {
         give_huge_record(index);
@@ -399,7 +415,7 @@ void* allocate_huge(const usize bytes) noexcept {
     record.reserved_bytes = reserved;
     record.block.store(address);
     const usize first_cell = static_cast<usize>(address >> region_shift);
-    const usize cells = reserved >> region_shift;
+    const usize cells = huge_cells(reserved);
     for (usize cell = 0; cell < cells; ++cell) {
         set_directory_cell(first_cell + cell, cell_huge_first + static_cast<u32>(index));
     }
@@ -416,7 +432,7 @@ bool release_huge(const u32 cell, const uptr address) noexcept {
     if (address == 0 || !record.block.compare_exchange_strong(expected, 0)) return false;
     const usize reserved = record.reserved_bytes;
     const usize first_cell = static_cast<usize>(address >> region_shift);
-    const usize cells = reserved >> region_shift;
+    const usize cells = huge_cells(reserved);
     for (usize cell_index = 0; cell_index < cells; ++cell_index) {
         set_directory_cell(first_cell + cell_index, cell_none);
     }

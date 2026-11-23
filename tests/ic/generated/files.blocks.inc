@@ -367,7 +367,7 @@ inline ::stxlib_ic::Outcome legal_sync(::stxlib_ic::Step& step, ObjectHolder& ho
     static_cast<void>(v_level);
     step.line().text("static_cast<void>(").object(step.slot).text(".sync(static_cast<stxlib::Durability>(").unsigned_value(static_cast<stxlib::u64>(v_level)).text(")));").end();
     const stxlib::OperationStatus status = object.sync(static_cast<stxlib::Durability>(v_level));
-    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure), true, step.before.state);
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::permission_denied), true, step.before.state);
     return ::stxlib_ic::Outcome::completed;
 }
 
@@ -1036,7 +1036,7 @@ inline ::stxlib_ic::Outcome legal_write_file(::stxlib_ic::Step& step, ObjectHold
     static_cast<void>(v_level);
     step.line().text("static_cast<void>(::stxlib::write_file(::stxlib_ic::inputs::scratch_file(").unsigned_value(step.slot).text("), ::stxlib_ic::inputs::scratch_view(").unsigned_value(static_cast<stxlib::u64>(v_length)).text("), static_cast<stxlib::Durability>(").unsigned_value(static_cast<stxlib::u64>(v_level)).text(")));").end();
     const stxlib::OperationStatus status = ::stxlib::write_file(::stxlib_ic::inputs::scratch_file(step.slot), ::stxlib_ic::inputs::scratch_view(v_length), static_cast<stxlib::Durability>(v_level));
-    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::limit_exceeded) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure), true, step.before.state);
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::limit_exceeded) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::permission_denied), true, step.before.state);
     return ::stxlib_ic::Outcome::completed;
 }
 

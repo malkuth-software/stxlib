@@ -240,7 +240,7 @@
     {
       "type": "stxlib::File",
       "member": "sync",
-      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host cannot flush as level says), unchanged.",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host cannot flush as level says), unchanged; permission_denied (on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)), unchanged.",
       "declaration": "include/stxlib/files.ic.toml"
     },
     {
@@ -258,7 +258,7 @@
     {
       "type": "stxlib::File",
       "member": "write_file",
-      "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
+      "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged; permission_denied (the host refuses the replace: on Windows, while the old file is open (MoveFileExW refuses an open target); the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
       "declaration": "include/stxlib/files.ic.toml"
     },
     {
@@ -701,6 +701,24 @@
     },
     {
       "type": "stxlib::fft::Plan32",
+      "member": "irfft_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "magnitude",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "magnitude_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
       "member": "make",
       "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by the caller.",
       "declaration": "include/stxlib/fft_plan32.ic.toml"
@@ -713,7 +731,19 @@
     },
     {
       "type": "stxlib::fft::Plan32",
+      "member": "rfft_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
       "member": "size",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "work_size",
       "constraints": "No declared constraint.",
       "declaration": "include/stxlib/fft_plan32.ic.toml"
     },
@@ -737,6 +767,24 @@
     },
     {
       "type": "stxlib::fft::Plan64",
+      "member": "irfft_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "magnitude",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "magnitude_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
       "member": "make",
       "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.",
       "declaration": "include/stxlib/fft_plan64.ic.toml"
@@ -749,7 +797,19 @@
     },
     {
       "type": "stxlib::fft::Plan64",
+      "member": "rfft_with_work",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's mode is not plain), unchanged. Thread: any.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
       "member": "size",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "work_size",
       "constraints": "No declared constraint.",
       "declaration": "include/stxlib/fft_plan64.ic.toml"
     },

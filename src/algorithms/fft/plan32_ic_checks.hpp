@@ -59,4 +59,70 @@ namespace stxlib::detail::ic::fft_plan32 {
     return result;
 }
 
+// Plan32::magnitude: input_count == size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_magnitude_input(const usize input_count, const usize size) noexcept {
+    const bool result = input_count == size;
+    return result;
+}
+
+// Plan32::magnitude: output_count == bins; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_magnitude_output(const usize output_count, const usize bins) noexcept {
+    const bool result = output_count == bins;
+    return result;
+}
+
+// Plan32::rfft_with_work: input_count == size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_rfft_input(const usize input_count, const usize size) noexcept {
+    const bool result = input_count == size;
+    return result;
+}
+
+// Plan32::rfft_with_work: output_count == bins; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_rfft_output(const usize output_count, const usize bins) noexcept {
+    const bool result = output_count == bins;
+    return result;
+}
+
+// Plan32::rfft_with_work: work_count >= work_size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_rfft_work(const usize work_count, const usize work_size) noexcept {
+    const bool result = work_count >= work_size;
+    return result;
+}
+
+// Plan32::irfft_with_work: input_count == bins; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_irfft_input(const usize input_count, const usize bins) noexcept {
+    const bool result = input_count == bins;
+    return result;
+}
+
+// Plan32::irfft_with_work: output_count == size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_irfft_output(const usize output_count, const usize size) noexcept {
+    const bool result = output_count == size;
+    return result;
+}
+
+// Plan32::irfft_with_work: work_count >= work_size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_irfft_work(const usize work_count, const usize work_size) noexcept {
+    const bool result = work_count >= work_size;
+    return result;
+}
+
+// Plan32::magnitude_with_work: input_count == size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_magnitude_input(const usize input_count, const usize size) noexcept {
+    const bool result = input_count == size;
+    return result;
+}
+
+// Plan32::magnitude_with_work: output_count == bins; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_magnitude_output(const usize output_count, const usize bins) noexcept {
+    const bool result = output_count == bins;
+    return result;
+}
+
+// Plan32::magnitude_with_work: work_count >= work_size; else failure invalid_argument.
+[[nodiscard]] constexpr bool admits_work_magnitude_work(const usize work_count, const usize work_size) noexcept {
+    const bool result = work_count >= work_size;
+    return result;
+}
+
 } // namespace stxlib::detail::ic::fft_plan32

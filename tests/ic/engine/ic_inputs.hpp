@@ -567,6 +567,43 @@ inline stxlib::View<Complex> spectrum(const usize count) noexcept {
     return result;
 }
 
+// A plan's const transforms' workspace: `count` reals (at most
+// work_capacity), apart from every buffer above.
+inline constexpr usize work_capacity = 4 * fft_capacity;
+
+template <typename Real>
+inline stxlib::MutableView<Real> work(const usize count) noexcept {
+    static Real storage[work_capacity]{};
+    const usize kept = count < work_capacity ? count : work_capacity;
+    const stxlib::MutableView<Real> result(storage, kept);
+    return result;
+}
+
+// magnitude's output: `count` reals (at most fft_capacity), apart from the
+// samples it reads.
+template <typename Real>
+inline Real* magnitude_storage() noexcept {
+    static Real storage[fft_capacity]{};
+    return storage;
+}
+
+template <typename Real>
+inline stxlib::MutableView<Real> magnitude_output(const usize count) noexcept {
+    const usize kept = count < fft_capacity ? count : fft_capacity;
+    const stxlib::MutableView<Real> result(magnitude_storage<Real>(), kept);
+    return result;
+}
+
+// The first `count` magnitudes are finite and not negative.
+template <typename Real>
+inline bool magnitudes_finite(const usize count) noexcept {
+    const Real* const storage = magnitude_storage<Real>();
+    for (usize index = 0; index < count && index < fft_capacity; ++index) {
+        if (!std::isfinite(storage[index]) || storage[index] < Real{0}) return false;
+    }
+    return true;
+}
+
 // The first `count` outputs are finite.
 template <typename Real>
 inline bool samples_finite(const usize count) noexcept {

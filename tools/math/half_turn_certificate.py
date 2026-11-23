@@ -23,7 +23,9 @@
      most 24, so the product has at most 50 and the anchor is zero.
 
 Not covered (half_turn.cpp says so): the rounding error of the low parts,
-the quotients and the squared half-angles; those are measured, not proved.
+the quotients and the squared half-angles; those are measured, not proved
+here. tools/math/half_turn_low_certificate.py proves the low parts' bound
+(0.5011 ulp for 2^-100 <= m < 2^53; proofs/half_turn/PROOF.md).
 
 Usage:
   half_turn_certificate.py    print the checks; exit 1 on a failure

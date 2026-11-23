@@ -456,15 +456,18 @@ set(STXLIB_HOSTED_POSIX_SOURCES
 set(STXLIB_HOSTED_MACOS_SOURCES
     src/hosted/macos/atomic_wait_macos.cpp
     src/hosted/macos/image_regions_macos.cpp
-    src/hosted/macos/process_macos.cpp)
+    src/hosted/macos/process_macos.cpp
+    src/hosted/macos/cache_macos.cpp)
 set(STXLIB_HOSTED_LINUX_SOURCES
     src/hosted/elf/image_regions_elf.cpp
     src/hosted/linux/atomic_wait_linux.cpp
-    src/hosted/linux/process_linux.cpp)
+    src/hosted/linux/process_linux.cpp
+    src/hosted/linux/cache_linux.cpp)
 set(STXLIB_HOSTED_FREEBSD_SOURCES
     src/hosted/elf/image_regions_elf.cpp
     src/hosted/freebsd/atomic_wait_freebsd.cpp
-    src/hosted/freebsd/process_freebsd.cpp)
+    src/hosted/freebsd/process_freebsd.cpp
+    src/hosted/cache_default.cpp)
 # Emscripten (owner decision 2026-11-15): the POSIX modules that hold on
 # Emscripten's musl and file system, and emscripten/ for the services a page
 # provides differently (clocks, traces, the wake channel, the zone name, the
@@ -496,7 +499,8 @@ set(STXLIB_HOSTED_EMSCRIPTEN_SOURCES
     src/hosted/emscripten/process_emscripten.cpp
     src/hosted/emscripten/runtime_emscripten.cpp
     src/hosted/emscripten/trace_emscripten.cpp
-    src/hosted/emscripten/wake_emscripten.cpp)
+    src/hosted/emscripten/wake_emscripten.cpp
+    src/hosted/cache_default.cpp)
 set(STXLIB_EMSCRIPTEN_FILESYSTEM js CACHE STRING "Emscripten file system: js (MEMFS and IDBFS) or wasmfs (memory and OPFS)")
 set_property(CACHE STXLIB_EMSCRIPTEN_FILESYSTEM PROPERTY STRINGS js wasmfs)
 if(NOT STXLIB_EMSCRIPTEN_FILESYSTEM MATCHES "^(js|wasmfs)$")
@@ -542,7 +546,8 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/threads_windows.cpp
     src/hosted/windows/trace_windows.cpp
     src/hosted/windows/utf16.cpp
-    src/hosted/windows/wake_windows.cpp)
+    src/hosted/windows/wake_windows.cpp
+    src/hosted/cache_default.cpp)
 if(STXLIB_HOST_FAMILY STREQUAL "windows")
     list(APPEND STXLIB_BOUNDARY_SOURCES ${STXLIB_HOSTED_WINDOWS_SOURCES})
 elseif(STXLIB_HOST_FAMILY STREQUAL "macos")
@@ -770,6 +775,13 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/fft/kernels_scalar.cpp
     src/algorithms/fft/kernels_v128.cpp
     src/algorithms/fft/kernels_avx2_fma.cpp
+    # The plain mode's PSFT (src/algorithms/fft/walk.inc) per walk tier: the
+    # exact build on plain lanes everywhere, on 128-bit vectors, and the fused
+    # build on 128-bit vectors (NEON; SSE with FMA3 through an attribute).
+    src/algorithms/fft/walk_plan.cpp
+    src/algorithms/fft/walk_portable.cpp
+    src/algorithms/fft/walk_exact128.cpp
+    src/algorithms/fft/walk_fused128.cpp
     src/algorithms/glyphs/font_cff.cpp
     src/algorithms/glyphs/font_file.cpp
     src/algorithms/glyphs/font_names.cpp
@@ -1275,6 +1287,10 @@ if(STXLIB_TESTS)
         target_link_libraries(stxlib_ic_run PRIVATE stxlib_ic_engine)
         target_compile_options(stxlib_ic_run PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_ic_engine_run COMMAND stxlib_ic_run --cases 200 --steps 32)
+        # The engine locks its Mutex slots in whatever order a case draws, in
+        # one thread; ThreadSanitizer's lock-order check reads that as a
+        # potential deadlock (STXlib CI, 2026-11-23), so it is off here.
+        set_tests_properties(stxlib_ic_engine_run PROPERTIES ENVIRONMENT "TSAN_OPTIONS=detect_deadlocks=0")
         file(GLOB stxlib_ic_regressions CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/ic/regressions/*.cpp)
         foreach(regression IN LISTS stxlib_ic_regressions)
             get_filename_component(regression_name ${regression} NAME_WE)
@@ -1698,12 +1714,38 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_fft_tests_${level} COMMAND stxlib_fft_tests)
         set_tests_properties(stxlib_fft_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
     endforeach()
+    # The PSFT, the plain mode's kernel from N = 16 (tests/fft_walk_tests.cpp):
+    # every size to 2^20 against a long-double DFT, round trip and magnitude,
+    # the frozen hashes of its exact and fused builds at every walk tier this
+    # machine runs, layout invariance, eight threads on one plan, and the
+    # const calls' refusals; once per forced level for make()'s choices.
+    add_executable(stxlib_fft_walk_tests tests/fft_walk_tests.cpp)
+    target_link_libraries(stxlib_fft_walk_tests PRIVATE stxlib::algorithms Threads::Threads)
+    target_include_directories(stxlib_fft_walk_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/tests ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_compile_options(stxlib_fft_walk_tests PRIVATE ${stxlib_test_warnings})
+    add_test(NAME stxlib_fft_walk_tests COMMAND stxlib_fft_walk_tests)
+    foreach(level IN ITEMS scalar vector128)
+        add_test(NAME stxlib_fft_walk_tests_${level} COMMAND stxlib_fft_walk_tests)
+        set_tests_properties(stxlib_fft_walk_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+    endforeach()
     # The benchmark beside BFFT's (tests/fft_bench.cpp), for the integrator
     # to run by hand; not a ctest.
-    add_executable(stxlib_fft_bench tests/fft_bench.cpp)
+    # tests/fft_fused_kernels.cpp is the fused measuring variant of the
+    # kernels (variant.inc with STXLIB_FFT_FUSED), compiled into the
+    # benchmark only, never into the library.
+    add_executable(stxlib_fft_bench tests/fft_bench.cpp tests/fft_fused_kernels.cpp)
     target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
     target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})
+    # FFTW 3 (double and float) beside the PSFT in the benchmark's walk table,
+    # when a prefix holding include/fftw3.h and lib/libfftw3{,f} is named.
+    set(STXLIB_FFT_BENCH_FFTW_DIR "" CACHE PATH "FFTW 3 prefix for stxlib_fft_bench's walk table")
+    if(STXLIB_FFT_BENCH_FFTW_DIR)
+        target_compile_definitions(stxlib_fft_bench PRIVATE STXLIB_FFT_BENCH_FFTW=1)
+        target_include_directories(stxlib_fft_bench SYSTEM PRIVATE ${STXLIB_FFT_BENCH_FFTW_DIR}/include)
+        target_link_libraries(stxlib_fft_bench PRIVATE ${STXLIB_FFT_BENCH_FFTW_DIR}/lib/libfftw3.a
+                              ${STXLIB_FFT_BENCH_FFTW_DIR}/lib/libfftw3f.a)
+    endif()
     # BFFT itself as the oracle (tests/fft_bfft_oracle_tests.cpp) and in the
     # benchmark's table, when a BFFT checkout is named. Its kernel headers
     # are compiled from there unchanged, as system headers.

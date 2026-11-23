@@ -13,18 +13,29 @@
 //     vector paths round as the scalar paths do;
 //   - BFFT's vector macros are lanes.inc's functions (V2_ADD is v2_add);
 //   - BRUUN_LEVEL is STXLIB_FFT_LEVEL, RESTRICT is __restrict.
-// What the port leaves out: BFFT's native (heap-optimised) output order,
-// its fused scatter codelets for the float64 forward, its precomputed op
-// schedules and its magnitude/phase front end. They reorder or fuse the
-// same arithmetic; this file keeps the residue engine BFFT uses for its
-// float32 forward, its large float64 forward ("two-phase") and both
-// inverses, at every size.
+// The float64 forward follows BFFT's policy (forward_standard): below the
+// tier's two-phase size it runs the fused scatter, whose leaf codelets
+// write each bin straight into the native spectrum (BFFT's
+// BRUUN_HEAPOPT_SPECTRUM_ORDER, on in every BFFT build: an order in which
+// every Bruun factor node's leaves stay contiguous, DifTables::outidx), and
+// one gather pass then puts the bins in bin order; from that size it runs
+// the residue walk and packs through KINV ("two-phase"). The fused codelets
+// compute the residue codelets' expressions, so both give the same values.
+// The walks for N >= 64 run BFFT's precomputed op schedules (DifTables;
+// built in plan.cpp). Left out: BFFT's magnitude/phase front end and its
+// native-order public interfaces.
+//
+// One addition: BFFT's float64 residue codelets have an AVX2 body and the
+// scalar ladder only, so its vector128 tier runs the ladder in its inverse
+// and two-phase forward. Here the vector128 tier has V2 bodies of both
+// (codelet_d3_tw_res, codelet_d3_tw_res_inv), the ladder's expressions in
+// the ladder's order, lane for lane.
 //
 // Layout. A forward fills the work buffer with residues: leaf m holds
 // (v[2m], v[2m+1]) = (Re X[IDX[m]], -Im X[IDX[m]]), and v[0] +- v[1] are DC
-// and Nyquist. The pack then writes X in bin order through KINV. The
-// inverse unpacks X into the output buffer through IDX and runs the walk
-// backwards there.
+// and Nyquist. The two-phase pack then writes X in bin order through KINV.
+// The inverse unpacks X into the output buffer through IDX and runs the
+// walk backwards there.
 
 // ---------------------------------------------------------------------------
 // Streaming kernels. Each has an optional 256 block,
@@ -1114,32 +1125,26 @@ class DifKernel final {
 public:
     explicit DifKernel(const DifTables& tables) noexcept
         : N(tables.n), L(tables.log2n), IDX(tables.idx), KINV(tables.kinv), C(tables.c), CF(tables.cf),
-          TW(tables.tw), TWF(tables.twf) {}
+          TW(tables.tw), TWF(tables.twf), OUTIDX(tables.outidx), STANDARD_NATIVE_POS(tables.standard_native),
+          FWD_SCHEDULE(tables.forward_ops), FWD_SCHEDULE_COUNT(tables.forward_op_count),
+          FWD_RES_SCHEDULE(tables.residue_ops), FWD_RES_SCHEDULE_COUNT(tables.residue_op_count),
+          INV_RES_SCHEDULE(tables.inverse_ops), INV_RES_SCHEDULE_COUNT(tables.inverse_op_count) {}
 
-    // float64 forward: residues into work, then X in bin order through KINV
-    // (BFFT's forward_standard_two_phase, at every size).
-    void forward_standard(const double* __restrict input, Complex64* __restrict X, double* __restrict v) const {
-        forward_residues(input, v);
-
-        X[0].re = v[0] + v[1];
-        X[0].im = 0.0;
-        X[N / 2].re = v[0] - v[1];
-        X[N / 2].im = 0.0;
-
-        const int* __restrict kin = KINV;
-        int k = 1;
-#if STXLIB_FFT_LEVEL >= 1
-        for (; k < N / 2; ++k) {
-            const V2 r = v2_ld(v + 2*kin[k]);
-            v2_st(&X[k].re, v2_neghi(r));
+    // float64 forward (BFFT's forward_standard): two-phase from the tier's
+    // size, else the fused scatter into the native spectrum and the gather
+    // to bin order (below N = 32 the scatter writes bin order directly).
+    void forward_standard(const double* __restrict input, Complex64* __restrict X, double* __restrict v,
+                          Complex64* __restrict native_tmp) const {
+        if (standard_output_uses_two_phase()) {
+            forward_standard_two_phase(input, v, X);
+            return;
         }
-#else
-        for (; k < N / 2; ++k) {
-            const int m = kin[k];
-            X[k].re = v[2*m];
-            X[k].im = -v[2*m + 1];
+        if (N < 32) {
+            forward_native(input, X, v);
+            return;
         }
-#endif
+        forward_native(input, native_tmp, v);
+        native_to_standard_complex(native_tmp, X);
     }
 
     // float64 inverse, in the output buffer (BFFT's inverse).
@@ -1200,6 +1205,29 @@ private:
     const float* CF;
     const LeafTw* TW;
     const LeafTwF* TWF;
+    const int* OUTIDX;
+    const int* STANDARD_NATIVE_POS;
+    const DifOp* FWD_SCHEDULE;
+    u32 FWD_SCHEDULE_COUNT;
+    const DifOp* FWD_RES_SCHEDULE;
+    u32 FWD_RES_SCHEDULE_COUNT;
+    const DifOp* INV_RES_SCHEDULE;
+    u32 INV_RES_SCHEDULE_COUNT;
+
+    // AVX2 measured better with two-phase packing from 8192; 128-bit SIMD keeps
+    // fused scatter through 1048576 and only switches above it.
+    static constexpr int kAvx2TwoPhaseMinN = 8192;
+    static constexpr int kSimd128TwoPhaseMinExclusiveN = 1048576;
+
+    bool standard_output_uses_two_phase() const {
+#if STXLIB_FFT_LEVEL >= 2
+        return N >= kAvx2TwoPhaseMinN;
+#elif STXLIB_FFT_LEVEL == 1
+        return N > kSimd128TwoPhaseMinExclusiveN;
+#else
+        return false;
+#endif
+    }
 
     // The sine of leaf m's angle is its sibling's cosine (m > 1); leaf 1's
     // angle is pi/4.
@@ -1601,11 +1629,65 @@ private:
         codelet_d3_tw_res_inv_f32(v + 16, TWF[1]);
     }
 
+    // BFFT's run_inv_residue_schedule_f32: the inverse schedule, which
+    // applies the same operations to the same disjoint blocks as the
+    // recursion below. Requires N >= 64.
+    void run_inv_residue_schedule_f32(float* __restrict v) const {
+        const DifOp* __restrict ops = INV_RES_SCHEDULE;
+        const u32 op_count = INV_RES_SCHEDULE_COUNT;
+        for (u32 op_index = 0; op_index < op_count; ++op_index) {
+            const DifOp& op = ops[op_index];
+            float* __restrict base = v + op.base;
+#if defined(__GNUC__) || defined(__clang__)
+            const u32 next_base = op_index + 1 < op_count ? ops[op_index + 1].base : 0;
+            __builtin_prefetch(v + next_base, 1, 1);
+#endif
+            switch (op.kind) {
+            case DifOpKind::norm2: {
+                const int m = static_cast<int>(op.m);
+                const int q = static_cast<int>(op.q);
+                norm2_inv_fused_f32(base, q, CF[m], sf_twiddle(m), CF[2*m], sf_twiddle(2*m),
+                                    CF[2*m+1], sf_twiddle(2*m+1));
+                break;
+            }
+            case DifOpKind::codelet_q8: {
+                const int m = static_cast<int>(op.m);
+                codelet_d3_tw_res_inv_f32(base, TWF[2*m]);
+                codelet_d3_tw_res_inv_f32(base + 16, TWF[2*m + 1]);
+                norm_q_inv_f32(base, 8, CF[m], sf_twiddle(m));
+                break;
+            }
+            case DifOpKind::codelet_d3:
+            case DifOpKind::spine_d3:
+                codelet_d3_tw_res_inv_f32(base, TWF[op.m]);
+                break;
+            case DifOpKind::binomial:
+                binomial_inv_f32(base, static_cast<int>(op.q));
+                break;
+            case DifOpKind::spine_d1:
+                norm_q_inv_f32(base, 1, CF[1], sf_twiddle(1));
+                break;
+            case DifOpKind::spine_norm2:
+                norm_q_inv_f32(base, 1, CF[2], sf_twiddle(2));
+                norm_q_inv_f32(base + 4, 1, CF[3], sf_twiddle(3));
+                norm_q_inv_f32(base, 2, CF[1], sf_twiddle(1));
+                break;
+            case DifOpKind::spine_d2:
+            case DifOpKind::spine_leaf:
+            case DifOpKind::dc_nyquist:
+            default:
+                break;
+            }
+        }
+    }
+
     // Exact reverse of forward_residues_recursive_f32. Requires N >= 64.
-    // (BFFT runs its precomputed inverse schedule at BRUUN_LEVEL 1 instead;
-    // the schedule applies the same operations to the same disjoint blocks,
-    // so the values are the same.)
+    // BFFT runs the schedule at level 1 and the recursion elsewhere; both
+    // give the same values.
     void inverse_residues_recursive_f32(float* __restrict v) const {
+#if STXLIB_FFT_LEVEL == 1
+        run_inv_residue_schedule_f32(v);
+#else
         residue_spine_tail_inv_f32(v);
 
         for (int h = 32; h <= N / 2; h <<= 1) {
@@ -1614,6 +1696,7 @@ private:
         }
 
         binomial_inv_f32(v, N / 2);
+#endif
     }
 
     void inverse_residues_inplace_f32(float* __restrict v) const {
@@ -1730,6 +1813,68 @@ private:
         _mm256_storeu_pd(p + 4,  _mm256_permute2f128_pd(t1, t3, 0x20));
         _mm256_storeu_pd(p + 8,  _mm256_permute2f128_pd(t0, t2, 0x31));
         _mm256_storeu_pd(p + 12, _mm256_permute2f128_pd(t1, t3, 0x31));
+#elif STXLIB_FFT_LEVEL == 1
+        // The ladder below in V2: level 1 (q = 4) and level 2 (q = 2) as in
+        // codelet_d3_tw_v2; level 3 (q = 1) takes leaf blocks (0, 1) and
+        // (2, 3) as lane pairs, so each lane is one norm_q1_fwd.
+        const V2 c1 = v2_set1(t.c1);
+        const V2 s1 = v2_set1(t.s1);
+
+        V2 u[2], w[2], v[2], x[2];
+        for (int j = 0; j < 2; ++j) {
+            const V2 b0 = v2_ld(p + 4 + 2*j);
+            const V2 b1 = v2_ld(p + 12 + 2*j);
+            const V2 R = v2_sub(v2_mul(c1, b0), v2_mul(s1, b1));
+            const V2 I = v2_add(v2_mul(s1, b0), v2_mul(c1, b1));
+            const V2 a0 = v2_ld(p + 2*j);
+            const V2 a1 = v2_ld(p + 8 + 2*j);
+            u[j] = v2_add(a0, R);
+            w[j] = v2_add(a1, I);
+            v[j] = v2_sub(a0, R);
+            x[j] = v2_sub(I, a1);
+        }
+
+        const V2 c20 = v2_set1(t.c2[0]);
+        const V2 s20 = v2_set1(t.c2[1]);
+        const V2 R0 = v2_sub(v2_mul(c20, u[1]), v2_mul(s20, w[1]));
+        const V2 I0 = v2_add(v2_mul(s20, u[1]), v2_mul(c20, w[1]));
+        const V2 g0a = v2_add(u[0], R0);
+        const V2 g0b = v2_add(w[0], I0);
+        const V2 g1a = v2_sub(u[0], R0);
+        const V2 g1b = v2_sub(I0, w[0]);
+
+        const V2 c21 = v2_set1(t.c2[1]);
+        const V2 s21 = v2_set1(t.c2[0]);
+        const V2 R1 = v2_sub(v2_mul(c21, v[1]), v2_mul(s21, x[1]));
+        const V2 I1 = v2_add(v2_mul(s21, v[1]), v2_mul(c21, x[1]));
+        const V2 g2a = v2_add(v[0], R1);
+        const V2 g2b = v2_add(x[0], I1);
+        const V2 g3a = v2_sub(v[0], R1);
+        const V2 g3b = v2_sub(I1, x[0]);
+
+        // Leaf block g is [ga[g], gb[g]] = [A0, B0 | A1, B1]; lanes (g, g + 1)
+        // take blocks 0, 1 and then 2, 3 with (c, s) = (c4[g], c4[g ^ 1]).
+        const V2 ga[4] = { g0a, g1a, g2a, g3a };
+        const V2 gb[4] = { g0b, g1b, g2b, g3b };
+        for (int pair = 0; pair < 2; ++pair) {
+            const int g = 2 * pair;
+            const V2 A0 = v2_unplo(ga[g], ga[g + 1]);
+            const V2 B0 = v2_unphi(ga[g], ga[g + 1]);
+            const V2 A1 = v2_unplo(gb[g], gb[g + 1]);
+            const V2 B1 = v2_unphi(gb[g], gb[g + 1]);
+            const V2 c = v2_ld(t.c4 + g);
+            const V2 s = v2_swap(c);
+            const V2 R = v2_sub(v2_mul(c, B0), v2_mul(s, B1));
+            const V2 I = v2_add(v2_mul(s, B0), v2_mul(c, B1));
+            const V2 E0 = v2_add(A0, R);
+            const V2 E1 = v2_add(A1, I);
+            const V2 O0 = v2_sub(A0, R);
+            const V2 O1 = v2_sub(I, A1);
+            v2_st(p + 4*g,     v2_unplo(E0, E1));
+            v2_st(p + 4*g + 2, v2_unplo(O0, O1));
+            v2_st(p + 4*g + 4, v2_unphi(E0, E1));
+            v2_st(p + 4*g + 6, v2_unphi(O0, O1));
+        }
 #else
         norm_q_fwd(p, 4, t.c1, t.s1);
         norm_q2_fwd(p, t.c2[0], t.c2[1]);
@@ -1806,6 +1951,65 @@ private:
         _mm256_storeu_pd(p + 4,  B0);
         _mm256_storeu_pd(p + 8,  A1);
         _mm256_storeu_pd(p + 12, B1);
+#elif STXLIB_FFT_LEVEL == 1
+        // The ladder below in V2, each lane one norm_q_inv step. Level 3
+        // (q = 1) takes leaf blocks (0, 1) and (2, 3) as lane pairs.
+        const V2 half = v2_set1(0.5);
+        V2 A0[2], B0[2], A1[2], B1[2];
+        for (int pair = 0; pair < 2; ++pair) {
+            const int g = 2 * pair;
+            const V2 X0 = v2_ld(p + 4*g);         // [C0, C1] of block g
+            const V2 Y0 = v2_ld(p + 4*g + 2);     // [D0, D1] of block g
+            const V2 X1 = v2_ld(p + 4*g + 4);     // block g + 1
+            const V2 Y1 = v2_ld(p + 4*g + 6);
+            const V2 C0v = v2_unplo(X0, X1);
+            const V2 C1v = v2_unphi(X0, X1);
+            const V2 D0v = v2_unplo(Y0, Y1);
+            const V2 D1v = v2_unphi(Y0, Y1);
+            const V2 c = v2_ld(t.c4 + g);
+            const V2 s = v2_swap(c);
+            const V2 R = v2_mul(half, v2_sub(C0v, D0v));
+            const V2 I = v2_mul(half, v2_add(C1v, D1v));
+            A0[pair] = v2_mul(half, v2_add(C0v, D0v));
+            A1[pair] = v2_mul(half, v2_sub(C1v, D1v));
+            B0[pair] = v2_add(v2_mul(c, R), v2_mul(s, I));
+            B1[pair] = v2_sub(v2_mul(c, I), v2_mul(s, R));
+        }
+
+        // Level 2 (q = 2) on blocks [0, 1] with (c2[0], c2[1]) and [2, 3]
+        // with (c2[1], c2[0]); its outputs feed level 1 in registers.
+        V2 L0[2], L1[2], L2[2], L3[2];   // per half: p[0..1], p[2..3], p[4..5], p[6..7]
+        for (int pair = 0; pair < 2; ++pair) {
+            const V2 C0v = v2_unplo(A0[pair], B0[pair]);
+            const V2 C1v = v2_unplo(A1[pair], B1[pair]);
+            const V2 D0v = v2_unphi(A0[pair], B0[pair]);
+            const V2 D1v = v2_unphi(A1[pair], B1[pair]);
+            const V2 c = v2_set1(t.c2[pair]);
+            const V2 s = v2_set1(t.c2[pair ^ 1]);
+            const V2 R = v2_mul(half, v2_sub(C0v, D0v));
+            const V2 I = v2_mul(half, v2_add(C1v, D1v));
+            L0[pair] = v2_mul(half, v2_add(C0v, D0v));
+            L2[pair] = v2_mul(half, v2_sub(C1v, D1v));
+            L1[pair] = v2_add(v2_mul(c, R), v2_mul(s, I));
+            L3[pair] = v2_sub(v2_mul(c, I), v2_mul(s, R));
+        }
+
+        // Level 1 (q = 4): C0 = p[n], C1 = p[4 + n], D0 = p[8 + n],
+        // D1 = p[12 + n], two n per V2.
+        const V2 c1 = v2_set1(t.c1);
+        const V2 s1 = v2_set1(t.s1);
+        const V2 C0s[2] = { L0[0], L1[0] };
+        const V2 C1s[2] = { L2[0], L3[0] };
+        const V2 D0s[2] = { L0[1], L1[1] };
+        const V2 D1s[2] = { L2[1], L3[1] };
+        for (int j = 0; j < 2; ++j) {
+            const V2 R = v2_mul(half, v2_sub(C0s[j], D0s[j]));
+            const V2 I = v2_mul(half, v2_add(C1s[j], D1s[j]));
+            v2_st(p + 2*j,      v2_mul(half, v2_add(C0s[j], D0s[j])));
+            v2_st(p + 4 + 2*j,  v2_add(v2_mul(c1, R), v2_mul(s1, I)));
+            v2_st(p + 8 + 2*j,  v2_mul(half, v2_sub(C1s[j], D1s[j])));
+            v2_st(p + 12 + 2*j, v2_sub(v2_mul(c1, I), v2_mul(s1, R)));
+        }
 #else
         norm_q_inv(p,      1, t.c4[0], t.c4[1]);
         norm_q_inv(p + 4,  1, t.c4[1], t.c4[0]);
@@ -1817,72 +2021,59 @@ private:
 #endif
     }
 
-    // The float64 depth-first walk: the float32 walk above (BFFT lines
-    // 2530-2650) in double. BFFT runs its float64 forward through a
-    // precomputed schedule of the same operations on the same blocks.
+    // ---- float64 walks: BFFT's schedules (FwdOp; DifTables) ----
 
-    struct DoubleSegment {
-        double* data;
-        int q;
-        int m;
-    };
-
-    void run_fwd_res_segments(double* __restrict root, int root_q, int root_m) const {
-        DoubleSegment stack[96];
-        int stack_size = 0;
-        stack[stack_size++] = DoubleSegment{root, root_q, root_m};
-
-        while (stack_size > 0) {
-            --stack_size;
-            const DoubleSegment segment = stack[stack_size];
-            double* __restrict v = segment.data;
-            const int q = segment.q;
-            const int m = segment.m;
-
-            if (q >= 16) {
-                norm2_fused(v, q, C[m], s_twiddle(m), C[2*m], s_twiddle(2*m), C[2*m+1], s_twiddle(2*m+1));
-                const int qq = q >> 2;
-                const int child_m = 4 * m;
-
-                stack[stack_size++] = DoubleSegment{v + 3*q, qq, child_m + 3};
-                stack[stack_size++] = DoubleSegment{v + 2*q, qq, child_m + 2};
-                stack[stack_size++] = DoubleSegment{v + q,   qq, child_m + 1};
-                stack[stack_size++] = DoubleSegment{v,       qq, child_m};
-                continue;
+    // BFFT's run_fwd_residue_schedule. Requires N >= 64.
+    void run_fwd_residue_schedule(double* __restrict v) const {
+        const DifOp* __restrict ops = FWD_RES_SCHEDULE;
+        const u32 op_count = FWD_RES_SCHEDULE_COUNT;
+        for (u32 op_index = 0; op_index < op_count; ++op_index) {
+            const DifOp& op = ops[op_index];
+            double* __restrict base = v + op.base;
+            switch (op.kind) {
+            case DifOpKind::norm2: {
+                const int m = static_cast<int>(op.m);
+                const int q = static_cast<int>(op.q);
+                norm2_fused(base, q, C[m], s_twiddle(m), C[2*m], s_twiddle(2*m), C[2*m+1], s_twiddle(2*m+1));
+                break;
             }
-
-            if (q == 8) {
-                norm_q_fwd(v, 8, C[m], s_twiddle(m));
-                codelet_d3_tw_res(v, TW[2*m]);
-                codelet_d3_tw_res(v + 16, TW[2*m + 1]);
-                continue;
+            case DifOpKind::codelet_q8: {
+                const int m = static_cast<int>(op.m);
+                norm_q_fwd(base, 8, C[m], s_twiddle(m));
+                codelet_d3_tw_res(base, TW[2*m]);
+                codelet_d3_tw_res(base + 16, TW[2*m + 1]);
+                break;
             }
-
-            codelet_d3_tw_res(v, TW[m]);
+            case DifOpKind::codelet_d3:
+                codelet_d3_tw_res(base, TW[op.m]);
+                break;
+            case DifOpKind::binomial:
+                binomial_fwd(base, static_cast<int>(op.q));
+                break;
+            case DifOpKind::spine_d3:
+                codelet_d3_tw_res(base, TW[1]);
+                break;
+            case DifOpKind::spine_d1:
+                norm_q1_fwd(base, C[1], s_twiddle(1));
+                break;
+            case DifOpKind::spine_norm2:
+                norm_q_fwd(base, 2, C[1], s_twiddle(1));
+                norm_q1_fwd(base, C[2], s_twiddle(2));
+                norm_q1_fwd(base + 4, C[3], s_twiddle(3));
+                break;
+            case DifOpKind::spine_d2:
+            case DifOpKind::spine_leaf:
+            case DifOpKind::dc_nyquist:
+            default:
+                break;
+            }
         }
     }
 
-    void residue_spine_tail_fwd(double* __restrict v) const {
-        codelet_d3_tw_res(v + 16, TW[1]);
-        binomial_fwd(v, 8);
-        norm_q_fwd(v + 8, 2, C[1], s_twiddle(1));
-        norm_q1_fwd(v + 8, C[2], s_twiddle(2));
-        norm_q1_fwd(v + 12, C[3], s_twiddle(3));
-        binomial_fwd(v, 4);
-        norm_q1_fwd(v + 4, C[1], s_twiddle(1));
-        binomial_fwd(v, 2);
-    }
-
-    // Fast depth-first double residue forward with fused input copy. Requires N >= 64.
+    // Fast depth-first residue forward with fused input copy. Requires N >= 64.
     void forward_residues_recursive(const double* __restrict input, double* __restrict v) const {
         binomial_oop(input, v, N / 2);
-
-        for (int h = N / 2; h >= 32; h >>= 1) {
-            run_fwd_res_segments(v + h, h >> 2, 1);
-            binomial_fwd(v, h >> 1);
-        }
-
-        residue_spine_tail_fwd(v);
+        run_fwd_residue_schedule(v);
     }
 
     // Time -> residues, double. Leaf m lands in (v[2m], v[2m+1]); v[0], v[1]
@@ -1896,49 +2087,451 @@ private:
         forward_residues_inplace(v);
     }
 
-    void rec_inv_res(double* __restrict v, int q, int m) const {
-        if (q >= 16) {
-            const int qq = q >> 2;
-            rec_inv_res(v,       qq, 4*m);
-            rec_inv_res(v + q,   qq, 4*m + 1);
-            rec_inv_res(v + 2*q, qq, 4*m + 2);
-            rec_inv_res(v + 3*q, qq, 4*m + 3);
-            norm2_inv_fused(v, q, C[m], s_twiddle(m), C[2*m], s_twiddle(2*m), C[2*m+1], s_twiddle(2*m+1));
-            return;
+    // BFFT's run_inv_residue_schedule: the residue schedule reversed, then
+    // the first binomial split. Requires N >= 64.
+    void run_inv_residue_schedule(double* __restrict v) const {
+        const DifOp* __restrict ops = INV_RES_SCHEDULE;
+        const u32 op_count = INV_RES_SCHEDULE_COUNT;
+        for (u32 op_index = 0; op_index < op_count; ++op_index) {
+            const DifOp& op = ops[op_index];
+            double* __restrict base = v + op.base;
+#if defined(__GNUC__) || defined(__clang__)
+            const u32 next_base = op_index + 1 < op_count ? ops[op_index + 1].base : 0;
+            __builtin_prefetch(v + next_base, 1, 1);
+#endif
+            switch (op.kind) {
+            case DifOpKind::norm2: {
+                const int m = static_cast<int>(op.m);
+                const int q = static_cast<int>(op.q);
+                norm2_inv_fused(base, q, C[m], s_twiddle(m), C[2*m], s_twiddle(2*m), C[2*m+1], s_twiddle(2*m+1));
+                break;
+            }
+            case DifOpKind::codelet_q8: {
+                const int m = static_cast<int>(op.m);
+                codelet_d3_tw_res_inv(base, TW[2*m]);
+                codelet_d3_tw_res_inv(base + 16, TW[2*m + 1]);
+                norm_q_inv(base, 8, C[m], s_twiddle(m));
+                break;
+            }
+            case DifOpKind::codelet_d3:
+            case DifOpKind::spine_d3:
+                codelet_d3_tw_res_inv(base, TW[op.m]);
+                break;
+            case DifOpKind::binomial:
+                binomial_inv(base, static_cast<int>(op.q));
+                break;
+            case DifOpKind::spine_d1:
+                norm_q_inv(base, 1, C[1], s_twiddle(1));
+                break;
+            case DifOpKind::spine_norm2:
+                norm_q_inv(base, 1, C[2], s_twiddle(2));
+                norm_q_inv(base + 4, 1, C[3], s_twiddle(3));
+                norm_q_inv(base, 2, C[1], s_twiddle(1));
+                break;
+            case DifOpKind::spine_d2:
+            case DifOpKind::spine_leaf:
+            case DifOpKind::dc_nyquist:
+            default:
+                break;
+            }
         }
-        if (q == 8) {
-            codelet_d3_tw_res_inv(v, TW[2*m]);
-            codelet_d3_tw_res_inv(v + 16, TW[2*m + 1]);
-            norm_q_inv(v, 8, C[m], s_twiddle(m));
-            return;
-        }
-        codelet_d3_tw_res_inv(v, TW[m]);
     }
 
-    void residue_spine_tail_inv(double* __restrict v) const {
-        binomial_inv(v, 2);
-        norm_q_inv(v + 4, 1, C[1], s_twiddle(1));
-        binomial_inv(v, 4);
-        norm_q_inv(v + 8, 1, C[2], s_twiddle(2));
-        norm_q_inv(v + 12, 1, C[3], s_twiddle(3));
-        norm_q_inv(v + 8, 2, C[1], s_twiddle(1));
-        binomial_inv(v, 8);
-        codelet_d3_tw_res_inv(v + 16, TW[1]);
-    }
-
-    // Exact reverse of forward_residues_recursive_f32. Requires N >= 64.
-    // (BFFT runs its precomputed inverse schedule instead;
-    // the schedule applies the same operations to the same disjoint blocks,
-    // so the values are the same.)
+    // Fast scheduled residue inverse: exact reverse of
+    // forward_residues_recursive, on every tier. Requires N >= 64.
     void inverse_residues_recursive(double* __restrict v) const {
-        residue_spine_tail_inv(v);
+        run_inv_residue_schedule(v);
+    }
 
-        for (int h = 32; h <= N / 2; h <<= 1) {
-            binomial_inv(v, h >> 1);
-            rec_inv_res(v + h, h >> 2, 1);
+    // Two-phase standard-output forward: residues land in block order in v, then
+    // one pass writes ordinary FFT bins sequentially while reading residue pairs
+    // through KINV. Policy uses this only for large standard-layout outputs.
+    void forward_standard_two_phase(const double* __restrict input, double* __restrict v,
+                                    Complex64* __restrict X) const {
+        forward_residues(input, v);
+
+        X[0].re = v[0] + v[1];
+        X[0].im = 0.0;
+        X[N / 2].re = v[0] - v[1];
+        X[N / 2].im = 0.0;
+
+        const int* __restrict kin = KINV;
+        int k = 1;
+#if STXLIB_FFT_LEVEL >= 1
+        for (; k < N / 2; ++k) {
+            const V2 r = v2_ld(v + 2*kin[k]);
+            v2_st(&X[k].re, v2_neghi(r));
+        }
+#else
+        for (; k < N / 2; ++k) {
+            const int m = kin[k];
+            X[k].re = v[2*m];
+            X[k].im = -v[2*m + 1];
+        }
+#endif
+    }
+
+    // ---- float64 fused scatter (BFFT's forward_native) ----
+    // The packing codelets compute the residue codelets' expressions and
+    // write leaf m's bin (v[2m], -v[2m+1]) to native slot OUTIDX[m].
+
+    inline void codelet_d1_pack(const double* __restrict p, int m, Complex64* __restrict X) const {
+        const double t0 = C[m];
+        const double t1 = s_twiddle(m);
+        const double t2 = t0 * p[1] - t1 * p[3];
+        const double t3 = t1 * p[1] + t0 * p[3];
+        const int k0 = OUTIDX[2*m];
+        X[k0].re = p[0] + t2;
+        X[k0].im = -(p[2] + t3);
+        const int k1 = OUTIDX[2*m + 1];
+        X[k1].re = p[0] - t2;
+        X[k1].im = p[2] - t3;
+    }
+
+    inline void codelet_d2_pack(const double* __restrict p, int m, Complex64* __restrict X) const {
+        const double t0 = C[m];
+        const double t1 = s_twiddle(m);
+        const double t2 = t0 * p[2] - t1 * p[6];
+        const double t3 = t1 * p[2] + t0 * p[6];
+        const double t4 = t0 * p[3] - t1 * p[7];
+        const double t5 = t1 * p[3] + t0 * p[7];
+        const double t6 = C[2*m];
+        const double t7 = s_twiddle(2*m);
+        const double t8 = t6 * (p[1] + t4) - t7 * (p[5] + t5);
+        const double t9 = t7 * (p[1] + t4) + t6 * (p[5] + t5);
+        const int k0 = OUTIDX[4*m];
+        X[k0].re = (p[0] + t2) + t8;
+        X[k0].im = -((p[4] + t3) + t9);
+        const int k1 = OUTIDX[4*m + 1];
+        X[k1].re = (p[0] + t2) - t8;
+        X[k1].im = (p[4] + t3) - t9;
+        const double t12 = C[2*m + 1];
+        const double t13 = s_twiddle(2*m + 1);
+        const double t14 = t12 * (p[1] - t4) - t13 * (t5 - p[5]);
+        const double t15 = t13 * (p[1] - t4) + t12 * (t5 - p[5]);
+        const int k2 = OUTIDX[4*m + 2];
+        X[k2].re = (p[0] - t2) + t14;
+        X[k2].im = -((t3 - p[4]) + t15);
+        const int k3 = OUTIDX[4*m + 3];
+        X[k3].re = (p[0] - t2) - t14;
+        X[k3].im = (t3 - p[4]) - t15;
+    }
+
+#if STXLIB_FFT_LEVEL == 0
+    // Scalar reference leaf codelet: 16-double block of node m -> 8 spectrum
+    // bins. (BFFT's text has a dead placeholder loop before the block that
+    // computes g; it writes a slot the block overwrites and is left out.)
+    inline void codelet_d3_tw_scalar(const double* __restrict p, const LeafTw& t, Complex64* __restrict X) const {
+        double u[4], w[4], v[4], x[4];
+        for (int j = 0; j < 4; ++j) {
+            const double R = t.c1 * p[4 + j] - t.s1 * p[12 + j];
+            const double I = t.s1 * p[4 + j] + t.c1 * p[12 + j];
+            u[j] = p[j] + R;
+            w[j] = p[8 + j] + I;
+            v[j] = p[j] - R;
+            x[j] = I - p[8 + j];
         }
 
-        binomial_inv(v, N / 2);
+        double g[4][4]; // four leaf blocks [A0, B0, A1, B1]
+        // child 0 = [u | w], child 1 = [v | x]; each splits into two leaf blocks.
+        {
+            const double R0a = t.c2[0] * u[2] - t.c2[1] * w[2];
+            const double I0a = t.c2[1] * u[2] + t.c2[0] * w[2];
+            const double R0b = t.c2[0] * u[3] - t.c2[1] * w[3];
+            const double I0b = t.c2[1] * u[3] + t.c2[0] * w[3];
+            g[0][0] = u[0] + R0a; g[0][1] = u[1] + R0b; g[0][2] = w[0] + I0a; g[0][3] = w[1] + I0b;
+            g[1][0] = u[0] - R0a; g[1][1] = u[1] - R0b; g[1][2] = I0a - w[0]; g[1][3] = I0b - w[1];
+
+            const double R1a = t.c2[1] * v[2] - t.c2[0] * x[2];
+            const double I1a = t.c2[0] * v[2] + t.c2[1] * x[2];
+            const double R1b = t.c2[1] * v[3] - t.c2[0] * x[3];
+            const double I1b = t.c2[0] * v[3] + t.c2[1] * x[3];
+            g[2][0] = v[0] + R1a; g[2][1] = v[1] + R1b; g[2][2] = x[0] + I1a; g[2][3] = x[1] + I1b;
+            g[3][0] = v[0] - R1a; g[3][1] = v[1] - R1b; g[3][2] = I1a - x[0]; g[3][3] = I1b - x[1];
+        }
+
+        for (int gi = 0; gi < 4; ++gi) {
+            const double c = t.c4[gi];
+            const double s = t.c4[gi ^ 1];
+            const double R = c * g[gi][1] - s * g[gi][3];
+            const double I = s * g[gi][1] + c * g[gi][3];
+            const int ke = t.idx[2*gi];
+            const int ko = t.idx[2*gi + 1];
+            X[ke].re = g[gi][0] + R;
+            X[ke].im = -(g[gi][2] + I);
+            X[ko].re = g[gi][0] - R;
+            X[ko].im = g[gi][2] - I;
+        }
+    }
+#endif
+
+#if STXLIB_FFT_LEVEL == 1
+    // 128-bit leaf codelet. Levels 1 and 2 are naturally 2-lane contiguous;
+    // level 3 pairs (re, im) so each spectrum bin is one 128-bit store.
+    inline void codelet_d3_tw_v2(const double* __restrict p, const LeafTw& t, Complex64* __restrict X) const {
+        const V2 c1 = v2_set1(t.c1);
+        const V2 s1 = v2_set1(t.s1);
+
+        V2 u[2], w[2], v[2], x[2];
+        for (int j = 0; j < 2; ++j) {
+            const V2 b0 = v2_ld(p + 4 + 2*j);
+            const V2 b1 = v2_ld(p + 12 + 2*j);
+            const V2 R = v2_sub(v2_mul(c1, b0), v2_mul(s1, b1));
+            const V2 I = v2_add(v2_mul(s1, b0), v2_mul(c1, b1));
+            const V2 a0 = v2_ld(p + 2*j);
+            const V2 a1 = v2_ld(p + 8 + 2*j);
+            u[j] = v2_add(a0, R);
+            w[j] = v2_add(a1, I);
+            v[j] = v2_sub(a0, R);
+            x[j] = v2_sub(I, a1);
+        }
+
+        const V2 c20 = v2_set1(t.c2[0]);
+        const V2 s20 = v2_set1(t.c2[1]);
+        const V2 R0 = v2_sub(v2_mul(c20, u[1]), v2_mul(s20, w[1]));
+        const V2 I0 = v2_add(v2_mul(s20, u[1]), v2_mul(c20, w[1]));
+        const V2 g0a = v2_add(u[0], R0);
+        const V2 g0b = v2_add(w[0], I0);
+        const V2 g1a = v2_sub(u[0], R0);
+        const V2 g1b = v2_sub(I0, w[0]);
+
+        const V2 c21 = v2_set1(t.c2[1]);
+        const V2 s21 = v2_set1(t.c2[0]);
+        const V2 R1 = v2_sub(v2_mul(c21, v[1]), v2_mul(s21, x[1]));
+        const V2 I1 = v2_add(v2_mul(s21, v[1]), v2_mul(c21, x[1]));
+        const V2 g2a = v2_add(v[0], R1);
+        const V2 g2b = v2_add(x[0], I1);
+        const V2 g3a = v2_sub(v[0], R1);
+        const V2 g3b = v2_sub(I1, x[0]);
+
+        const V2 ga[4] = { g0a, g1a, g2a, g3a };
+        const V2 gb[4] = { g0b, g1b, g2b, g3b };
+
+        for (int gi = 0; gi < 4; ++gi) {
+            const V2 a02 = v2_unplo(ga[gi], gb[gi]); // [x0, x2]
+            const V2 b13 = v2_unphi(ga[gi], gb[gi]); // [x1, x3]
+            const V2 csv = v2_setlh(t.c4[gi], t.c4[gi ^ 1]);   // [ c, s]
+            const V2 cs2 = v2_setlh(-t.c4[gi ^ 1], t.c4[gi]);  // [-s, c]
+            const V2 tv = v2_add(v2_mul(csv, v2_dup0(b13)), v2_mul(cs2, v2_dup1(b13))); // [R, I]
+            const V2 ev = v2_neghi(v2_add(a02, tv)); // [x0+R, -(x2+I)]
+            const V2 od = v2_sub(a02, tv);           // [x0-R,   x2-I ]
+            v2_st(&X[t.idx[2*gi]].re, ev);
+            v2_st(&X[t.idx[2*gi + 1]].re, od);
+        }
+    }
+#endif
+
+#if STXLIB_FFT_LEVEL >= 2
+    // 256-bit depth-3 leaf core operating on register inputs: the four quarters
+    // of one 16-double leaf block.
+    inline void d3_avx2_core(V4D A0, V4D B0, V4D A1, V4D B1,
+                             const LeafTw& t, Complex64* __restrict X) const {
+        const V4D c1 = v4d_set1(t.c1);
+        const V4D s1 = v4d_set1(t.s1);
+        const V4D R1 = v4d_sub(v4d_mul(c1, B0), v4d_mul(s1, B1));
+        const V4D I1 = v4d_add(v4d_mul(s1, B0), v4d_mul(c1, B1));
+
+        const V4D c0a = v4d_add(A0, R1);
+        const V4D c0b = v4d_add(A1, I1);
+        const V4D c1a = v4d_sub(A0, R1);
+        const V4D c1b = v4d_sub(I1, A1);
+
+        const V4D A0v = v4d_cat128_lohi(c0a, c1a);
+        const V4D B0v = v4d_cat128_hihi(c0a, c1a);
+        const V4D A1v = v4d_cat128_lohi(c0b, c1b);
+        const V4D B1v = v4d_cat128_hihi(c0b, c1b);
+
+        const V4D c2 = v4d_ld2_dup(t.c2);
+        const V4D s2 = v4d_swap_halves(c2);
+        const V4D R2 = v4d_sub(v4d_mul(c2, B0v), v4d_mul(s2, B1v));
+        const V4D I2 = v4d_add(v4d_mul(s2, B0v), v4d_mul(c2, B1v));
+
+        const V4D P = v4d_add(A0v, R2);
+        const V4D Q = v4d_add(A1v, I2);
+        const V4D M = v4d_sub(A0v, R2);
+        const V4D W = v4d_sub(I2, A1v);
+
+        const V4D A0w = v4d_unplo(P, M);
+        const V4D B0w = v4d_unphi(P, M);
+        const V4D A1w = v4d_unplo(Q, W);
+        const V4D B1w = v4d_unphi(Q, W);
+
+        const V4D c4 = v4d_ld(t.c4);
+        const V4D s4 = v4d_swap_pairs(c4);
+        const V4D R3 = v4d_sub(v4d_mul(c4, B0w), v4d_mul(s4, B1w));
+        const V4D I3 = v4d_add(v4d_mul(s4, B0w), v4d_mul(c4, B1w));
+
+        const V4D sgn = v4d_neg_zero();
+        const V4D re_e = v4d_add(A0w, R3);
+        const V4D re_o = v4d_sub(A0w, R3);
+        const V4D im_e = v4d_xor(v4d_add(A1w, I3), sgn);
+        const V4D im_o = v4d_sub(A1w, I3);
+
+        const V4D pe = v4d_unplo(re_e, im_e); // leaves 8m,   8m+4
+        const V4D ph = v4d_unphi(re_e, im_e); // leaves 8m+2, 8m+6
+        const V4D qe = v4d_unplo(re_o, im_o); // leaves 8m+1, 8m+5
+        const V4D qh = v4d_unphi(re_o, im_o); // leaves 8m+3, 8m+7
+
+        const i32* __restrict idx = t.idx;
+        _mm_storeu_pd(&X[idx[0]].re, _mm256_castpd256_pd128(pe));
+        _mm_storeu_pd(&X[idx[4]].re, _mm256_extractf128_pd(pe, 1));
+        _mm_storeu_pd(&X[idx[2]].re, _mm256_castpd256_pd128(ph));
+        _mm_storeu_pd(&X[idx[6]].re, _mm256_extractf128_pd(ph, 1));
+        _mm_storeu_pd(&X[idx[1]].re, _mm256_castpd256_pd128(qe));
+        _mm_storeu_pd(&X[idx[5]].re, _mm256_extractf128_pd(qe, 1));
+        _mm_storeu_pd(&X[idx[3]].re, _mm256_castpd256_pd128(qh));
+        _mm_storeu_pd(&X[idx[7]].re, _mm256_extractf128_pd(qh, 1));
+    }
+
+    inline void codelet_d3_tw_avx2(const double* __restrict p, const LeafTw& t, Complex64* __restrict X) const {
+        d3_avx2_core(v4d_ld(p), v4d_ld(p + 4),
+                     v4d_ld(p + 8), v4d_ld(p + 12), t, X);
+    }
+#endif
+
+    inline void d3_one(const double* __restrict p, int m, Complex64* __restrict X) const {
+        const LeafTw& t = TW[m];
+#if STXLIB_FFT_LEVEL >= 2
+        codelet_d3_tw_avx2(p, t, X);
+#elif STXLIB_FFT_LEVEL == 1
+        codelet_d3_tw_v2(p, t, X);
+#else
+        codelet_d3_tw_scalar(p, t, X);
+#endif
+    }
+
+    inline void pack_leaf_node(int leaf, double r0, double r1, Complex64* __restrict X) const {
+        const int k = OUTIDX[leaf];
+        X[k].re = r0;
+        X[k].im = -r1;
+    }
+
+    // BFFT's forward_recursive: the fused schedule. Requires N >= 64.
+    void forward_recursive(const double* __restrict input, double* __restrict v, Complex64* __restrict X) const {
+        binomial_oop(input, v, N / 2);
+
+        const DifOp* __restrict ops = FWD_SCHEDULE;
+        const u32 op_count = FWD_SCHEDULE_COUNT;
+        for (u32 op_index = 0; op_index < op_count; ++op_index) {
+            const DifOp& op = ops[op_index];
+            double* __restrict base = v + op.base;
+            switch (op.kind) {
+            case DifOpKind::norm2: {
+                const int m = static_cast<int>(op.m);
+                const int q = static_cast<int>(op.q);
+                norm2_fused(base, q, C[m], s_twiddle(m), C[2*m], s_twiddle(2*m), C[2*m+1], s_twiddle(2*m+1));
+                break;
+            }
+            case DifOpKind::codelet_q8: {
+                const int m = static_cast<int>(op.m);
+                norm_q_fwd(base, 8, C[m], s_twiddle(m));
+                d3_one(base, 2*m, X);
+                d3_one(base + 16, 2*m + 1, X);
+                break;
+            }
+            case DifOpKind::codelet_d3:
+                d3_one(base, static_cast<int>(op.m), X);
+                break;
+            case DifOpKind::binomial:
+                binomial_fwd(base, static_cast<int>(op.q));
+                break;
+            case DifOpKind::spine_d3:
+                d3_one(base, 1, X);
+                break;
+            case DifOpKind::spine_d2:
+                codelet_d2_pack(base, 1, X);
+                break;
+            case DifOpKind::spine_d1:
+                codelet_d1_pack(base, 1, X);
+                break;
+            case DifOpKind::spine_leaf:
+                pack_leaf_node(1, v[2], v[3], X);
+                break;
+            case DifOpKind::dc_nyquist:
+                X[0].re = v[0] + v[1];
+                X[0].im = 0.0;
+                X[N / 2].re = v[0] - v[1];
+                X[N / 2].im = 0.0;
+                break;
+            case DifOpKind::spine_norm2:
+            default:
+                break;
+            }
+        }
+    }
+
+    // N = 32: the stages, then the spine packs and the leaf codelets.
+    void forward_fused_tail(double* __restrict v, Complex64* __restrict X) const {
+        for (int jj = 0; jj <= L - 5; ++jj) {
+            forward_stage(v, jj);
+        }
+
+        binomial_fwd(v, 8);
+        binomial_fwd(v, 4);
+        binomial_fwd(v, 2);
+
+        X[0].re = v[0] + v[1];
+        X[0].im = 0.0;
+        X[N / 2].re = v[0] - v[1];
+        X[N / 2].im = 0.0;
+
+        pack_leaf_node(1, v[2], v[3], X);
+        codelet_d1_pack(v + 4, 1, X);
+        codelet_d2_pack(v + 8, 1, X);
+
+        for (int m = 1; m < N / 16; ++m) {
+            d3_one(v + 16*m, m, X);
+        }
+    }
+
+    // Below N = 32 there are no leaf blocks: the stages, then bin order
+    // through IDX (BFFT's residues_to_complex; its native order is bin
+    // order there).
+    void residues_to_complex(const double* __restrict v, Complex64* __restrict X) const {
+        X[0].re = v[0] + v[1];
+        X[0].im = 0.0;
+        X[N / 2].re = v[0] - v[1];
+        X[N / 2].im = 0.0;
+
+        for (int m = 1; m < N / 2; ++m) {
+            const int k = IDX[m];
+            X[k].re = v[2*m];
+            X[k].im = -v[2*m + 1];
+        }
+    }
+
+    // BFFT's forward_native: X in native order for N >= 32, bin order below.
+    void forward_native(const double* __restrict input, Complex64* __restrict X, double* __restrict v) const {
+        if (N >= 64) {
+            forward_recursive(input, v, X);
+            return;
+        }
+
+        __builtin_memcpy(v, input, sizeof(double) * N);
+
+        if (N >= 32) {
+            forward_fused_tail(v, X);
+        } else {
+            forward_residues_inplace(v);
+            residues_to_complex(v, X);
+        }
+    }
+
+    // BFFT's native_to_standard_complex for N >= 32: bin k from its native slot.
+    void native_to_standard_complex(const Complex64* __restrict nativeX, Complex64* __restrict standardX) const {
+        standardX[0] = nativeX[0];
+        standardX[N / 2] = nativeX[N / 2];
+        const int* __restrict map = STANDARD_NATIVE_POS;
+        int k = 1;
+        for (; k + 3 < N / 2; k += 4) {
+            standardX[k] = nativeX[map[k]];
+            standardX[k + 1] = nativeX[map[k + 1]];
+            standardX[k + 2] = nativeX[map[k + 2]];
+            standardX[k + 3] = nativeX[map[k + 3]];
+        }
+        for (; k < N / 2; ++k) {
+            standardX[k] = nativeX[map[k]];
+        }
     }
 
     void forward_stage(double* __restrict v, int jj) const {

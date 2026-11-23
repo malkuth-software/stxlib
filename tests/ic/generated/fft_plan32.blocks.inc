@@ -18,10 +18,10 @@ using Object = stxlib::fft::Plan32;
 using ObjectHolder = ::stxlib_ic::Holder<Object>;
 
 inline constexpr stxlib::usize slot_count = 2;
-inline constexpr const char* term_names[] = {"size", "bins"};
-inline constexpr const char* term_reads[] = {"object.size()", "object.bins()"};
+inline constexpr const char* term_names[] = {"size", "bins", "work_size"};
+inline constexpr const char* term_reads[] = {"object.size()", "object.bins()", "object.work_size()"};
 inline constexpr const char* state_names[] = {"empty", "ready"};
-inline constexpr const char* call_names[] = {"make", "empty", "size", "bins", "rfft", "irfft", "fresh"};
+inline constexpr const char* call_names[] = {"make", "empty", "size", "bins", "rfft", "irfft", "magnitude", "work_size", "rfft_with_work", "irfft_with_work", "magnitude_with_work", "fresh"};
 
 struct Slots final {
     ObjectHolder holders[slot_count]{};
@@ -32,6 +32,7 @@ inline void observe(const Object& object, ::stxlib_ic::Model& model) noexcept {
     static_cast<void>(model);
     model.terms[0] = static_cast<stxlib::u64>(object.size());
     model.terms[1] = static_cast<stxlib::u64>(object.bins());
+    model.terms[2] = static_cast<stxlib::u64>(object.work_size());
 }
 
 inline bool state_agrees(const Object& object, const stxlib::u32 state) noexcept {
@@ -67,6 +68,7 @@ inline ::stxlib_ic::Outcome legal_fresh(::stxlib_ic::Step& step, ObjectHolder& h
     step.after.state = 0U;
     step.observe_term(0U);
     step.observe_term(1U);
+    step.observe_term(2U);
     return ::stxlib_ic::Outcome::completed;
 }
 
@@ -110,6 +112,7 @@ inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& ho
     holder.replace(static_cast<stxlib::OperationResult<Object>&&>(made).take_value());
     step.after.live = true;
     step.observe_term(1U);
+    step.observe_term(2U);
     step.after.terms[0] = static_cast<stxlib::u64>(v_requested);
     step.after.state = 1U;
     return ::stxlib_ic::Outcome::completed;
@@ -641,6 +644,1065 @@ inline ::stxlib_ic::Outcome outside_irfft_empty(::stxlib_ic::Step& step, ObjectH
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
 }
 
+// Plan32::magnitude, legal.
+inline ::stxlib_ic::Outcome legal_magnitude(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude, legal: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude, legal: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude, legal: the draw misses magnitude_input");
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude, legal: the draw misses magnitude_output");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, legal: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, legal: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    step.line().text("static_cast<void>(").object(step.slot).text(".magnitude(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text(")));").end();
+    const stxlib::OperationStatus status = object.magnitude(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count));
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::unsupported), true, step.before.state);
+    if (!(::stxlib_ic::inputs::magnitudes_finite<float>(v_output_count))) return step.defect(::stxlib_ic::DefectKind::expectation, "Plan32::magnitude, legal: ::stxlib_ic::inputs::magnitudes_finite<float>(v_output_count)");
+    return ::stxlib_ic::Outcome::completed;
+}
+
+// Plan32::magnitude, misuse of magnitude_input.
+inline ::stxlib_ic::Outcome misuse_magnitude_magnitude_input(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    stxlib::u64 input_count_drawn = 0;
+    if (!step.draw.outside(input_count_low, input_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), input_count_drawn)) return step.bail("Plan32::magnitude, misuse of magnitude_input: every value of input_count is admitted");
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude, misuse of magnitude_input: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    if (::stxlib::detail::ic::fft_plan32::admits_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude, misuse of magnitude_input: magnitude_input holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude, misuse of magnitude_input: magnitude_output fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, misuse of magnitude_input: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, misuse of magnitude_input: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude, misuse of magnitude_input succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude, misuse of magnitude_output.
+inline ::stxlib_ic::Outcome misuse_magnitude_magnitude_output(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude, misuse of magnitude_output: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    stxlib::u64 output_count_drawn = 0;
+    if (!step.draw.outside(output_count_low, output_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), output_count_drawn)) return step.bail("Plan32::magnitude, misuse of magnitude_output: every value of output_count is admitted");
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude, misuse of magnitude_output: magnitude_input fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude, misuse of magnitude_output: magnitude_output holds");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, misuse of magnitude_output: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude, misuse of magnitude_output: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude, misuse of magnitude_output succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude in empty.
+inline ::stxlib_ic::Outcome outside_magnitude_empty(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude in empty: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude in empty: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude in empty: magnitude_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude in empty: magnitude_output fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude in empty: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude in empty: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude in empty succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::work_size, legal.
+inline ::stxlib_ic::Outcome legal_work_size(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    step.line().text("static_cast<void>(").object(step.slot).text(".work_size());").end();
+    const stxlib::usize result = object.work_size();
+    if (!(result == t_work_size)) return step.defect(::stxlib_ic::DefectKind::expectation, "Plan32::work_size, legal: result == t_work_size");
+    return ::stxlib_ic::Outcome::completed;
+}
+
+// Plan32::rfft_with_work, legal.
+inline ::stxlib_ic::Outcome legal_rfft_with_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::rfft_with_work, legal: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::rfft_with_work, legal: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::rfft_with_work, legal: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::rfft_with_work, legal: the draw misses work_rfft_input");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::rfft_with_work, legal: the draw misses work_rfft_output");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::rfft_with_work, legal: the draw misses work_rfft_work");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, legal: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, legal: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::rfft_with_work, legal: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("static_cast<void>(").object(step.slot).text(".rfft_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text(")));").end();
+    const stxlib::OperationStatus status = object.rfft_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::unsupported), true, step.before.state);
+    if (!(::stxlib_ic::inputs::spectrum_finite<::stxlib::fft::Complex32>(v_output_count))) return step.defect(::stxlib_ic::DefectKind::expectation, "Plan32::rfft_with_work, legal: ::stxlib_ic::inputs::spectrum_finite<::stxlib::fft::Complex32>(v_output_count)");
+    return ::stxlib_ic::Outcome::completed;
+}
+
+// Plan32::rfft_with_work, misuse of work_rfft_input.
+inline ::stxlib_ic::Outcome misuse_rfft_with_work_work_rfft_input(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    stxlib::u64 input_count_drawn = 0;
+    if (!step.draw.outside(input_count_low, input_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), input_count_drawn)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: every value of input_count is admitted");
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (::stxlib::detail::ic::fft_plan32::admits_work_rfft_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: work_rfft_input holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: work_rfft_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: work_rfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_input: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".rfft_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.rfft_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::rfft_with_work, misuse of work_rfft_input succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::rfft_with_work, misuse of work_rfft_output.
+inline ::stxlib_ic::Outcome misuse_rfft_with_work_work_rfft_output(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    stxlib::u64 output_count_drawn = 0;
+    if (!step.draw.outside(output_count_low, output_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), output_count_drawn)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: every value of output_count is admitted");
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: work_rfft_input fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_rfft_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: work_rfft_output holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: work_rfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_output: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".rfft_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.rfft_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::rfft_with_work, misuse of work_rfft_output succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::rfft_with_work, misuse of work_rfft_work.
+inline ::stxlib_ic::Outcome misuse_rfft_with_work_work_rfft_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    stxlib::u64 work_count_drawn = 0;
+    if (!step.draw.outside(work_count_low, work_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), work_count_drawn)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: every value of work_count is admitted");
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: work_rfft_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: work_rfft_output fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_rfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: work_rfft_work holds");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::rfft_with_work, misuse of work_rfft_work: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".rfft_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.rfft_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::rfft_with_work, misuse of work_rfft_work succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::rfft_with_work in empty.
+inline ::stxlib_ic::Outcome outside_rfft_with_work_empty(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::rfft_with_work in empty: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::rfft_with_work in empty: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::rfft_with_work in empty: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::rfft_with_work in empty: work_rfft_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::rfft_with_work in empty: work_rfft_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_rfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::rfft_with_work in empty: work_rfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work in empty: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::rfft_with_work in empty: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::rfft_with_work in empty: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".rfft_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.rfft_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex32>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::rfft_with_work in empty succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::irfft_with_work, legal.
+inline ::stxlib_ic::Outcome legal_irfft_with_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_bins), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::irfft_with_work, legal: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_size), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::irfft_with_work, legal: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::irfft_with_work, legal: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_input(v_input_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::irfft_with_work, legal: the draw misses work_irfft_input");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_output(v_output_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::irfft_with_work, legal: the draw misses work_irfft_output");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::irfft_with_work, legal: the draw misses work_irfft_work");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, legal: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, legal: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::irfft_with_work, legal: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("static_cast<void>(").object(step.slot).text(".irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::sample_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text(")));").end();
+    const stxlib::OperationStatus status = object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(v_input_count), ::stxlib_ic::inputs::sample_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::unsupported), true, step.before.state);
+    if (!(::stxlib_ic::inputs::samples_finite<float>(v_output_count))) return step.defect(::stxlib_ic::DefectKind::expectation, "Plan32::irfft_with_work, legal: ::stxlib_ic::inputs::samples_finite<float>(v_output_count)");
+    return ::stxlib_ic::Outcome::completed;
+}
+
+// Plan32::irfft_with_work, misuse of work_irfft_input.
+inline ::stxlib_ic::Outcome misuse_irfft_with_work_work_irfft_input(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_bins), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_bins), false);
+    stxlib::u64 input_count_drawn = 0;
+    if (!step.draw.outside(input_count_low, input_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), input_count_drawn)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: every value of input_count is admitted");
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_size), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (::stxlib::detail::ic::fft_plan32::admits_work_irfft_input(v_input_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: work_irfft_input holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_output(v_output_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: work_irfft_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: work_irfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_input: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::sample_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(v_input_count), ::stxlib_ic::inputs::sample_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::irfft_with_work, misuse of work_irfft_input succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::irfft_with_work, misuse of work_irfft_output.
+inline ::stxlib_ic::Outcome misuse_irfft_with_work_work_irfft_output(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_bins), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_size), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_size), false);
+    stxlib::u64 output_count_drawn = 0;
+    if (!step.draw.outside(output_count_low, output_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), output_count_drawn)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: every value of output_count is admitted");
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_input(v_input_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: work_irfft_input fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_irfft_output(v_output_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: work_irfft_output holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: work_irfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_output: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::sample_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(v_input_count), ::stxlib_ic::inputs::sample_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::irfft_with_work, misuse of work_irfft_output succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::irfft_with_work, misuse of work_irfft_work.
+inline ::stxlib_ic::Outcome misuse_irfft_with_work_work_irfft_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_bins), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_size), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    stxlib::u64 work_count_drawn = 0;
+    if (!step.draw.outside(work_count_low, work_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), work_count_drawn)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: every value of work_count is admitted");
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_input(v_input_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: work_irfft_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_output(v_output_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: work_irfft_output fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_irfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: work_irfft_work holds");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::irfft_with_work, misuse of work_irfft_work: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::sample_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(v_input_count), ::stxlib_ic::inputs::sample_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::irfft_with_work, misuse of work_irfft_work succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::irfft_with_work in empty.
+inline ::stxlib_ic::Outcome outside_irfft_with_work_empty(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_bins), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::irfft_with_work in empty: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_size), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::irfft_with_work in empty: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::irfft_with_work in empty: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_input(v_input_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::irfft_with_work in empty: work_irfft_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_output(v_output_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::irfft_with_work in empty: work_irfft_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_irfft_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::irfft_with_work in empty: work_irfft_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work in empty: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::irfft_with_work in empty: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::irfft_with_work in empty: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::sample_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex32>(v_input_count), ::stxlib_ic::inputs::sample_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::irfft_with_work in empty succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude_with_work, legal.
+inline ::stxlib_ic::Outcome legal_magnitude_with_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude_with_work, legal: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude_with_work, legal: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::magnitude_with_work, legal: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude_with_work, legal: the draw misses work_magnitude_input");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude_with_work, legal: the draw misses work_magnitude_output");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::magnitude_with_work, legal: the draw misses work_magnitude_work");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, legal: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, legal: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::magnitude_with_work, legal: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("static_cast<void>(").object(step.slot).text(".magnitude_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text(")));").end();
+    const stxlib::OperationStatus status = object.magnitude_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::unsupported), true, step.before.state);
+    if (!(::stxlib_ic::inputs::magnitudes_finite<float>(v_output_count))) return step.defect(::stxlib_ic::DefectKind::expectation, "Plan32::magnitude_with_work, legal: ::stxlib_ic::inputs::magnitudes_finite<float>(v_output_count)");
+    return ::stxlib_ic::Outcome::completed;
+}
+
+// Plan32::magnitude_with_work, misuse of work_magnitude_input.
+inline ::stxlib_ic::Outcome misuse_magnitude_with_work_work_magnitude_input(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    stxlib::u64 input_count_drawn = 0;
+    if (!step.draw.outside(input_count_low, input_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), input_count_drawn)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: every value of input_count is admitted");
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (::stxlib::detail::ic::fft_plan32::admits_work_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: work_magnitude_input holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: work_magnitude_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: work_magnitude_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_input: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude_with_work, misuse of work_magnitude_input succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude_with_work, misuse of work_magnitude_output.
+inline ::stxlib_ic::Outcome misuse_magnitude_with_work_work_magnitude_output(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    stxlib::u64 output_count_drawn = 0;
+    if (!step.draw.outside(output_count_low, output_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), output_count_drawn)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: every value of output_count is admitted");
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: work_magnitude_input fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: work_magnitude_output holds");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: work_magnitude_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_output: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude_with_work, misuse of work_magnitude_output succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude_with_work, misuse of work_magnitude_work.
+inline ::stxlib_ic::Outcome misuse_magnitude_with_work_work_magnitude_work(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    stxlib::u64 work_count_drawn = 0;
+    if (!step.draw.outside(work_count_low, work_count_high, static_cast<stxlib::u64>(~stxlib::usize{0}), work_count_drawn)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: every value of work_count is admitted");
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: work_magnitude_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: work_magnitude_output fails too");
+    if (::stxlib::detail::ic::fft_plan32::admits_work_magnitude_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: work_magnitude_work holds");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::magnitude_with_work, misuse of work_magnitude_work: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude_with_work, misuse of work_magnitude_work succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
+// Plan32::magnitude_with_work in empty.
+inline ::stxlib_ic::Outcome outside_magnitude_with_work_empty(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+    static_cast<void>(holder);
+    Object& object = *holder.get();
+    static_cast<void>(object);
+    const stxlib::u64 t_size = step.before.terms[0];
+    static_cast<void>(t_size);
+    const stxlib::u64 t_bins = step.before.terms[1];
+    static_cast<void>(t_bins);
+    const stxlib::u64 t_work_size = step.before.terms[2];
+    static_cast<void>(t_work_size);
+    stxlib::u64 input_count_low = 0ULL;
+    stxlib::u64 input_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool input_count_open = true;
+    input_count_open = input_count_open && ::stxlib_ic::tighten_low(input_count_low, static_cast<stxlib::u64>(t_size), false);
+    input_count_open = input_count_open && ::stxlib_ic::tighten_high(input_count_high, static_cast<stxlib::u64>(t_size), false);
+    if (!input_count_open || input_count_low > input_count_high) return step.bail("Plan32::magnitude_with_work in empty: no admitted value of input_count");
+    const stxlib::u64 input_count_drawn = step.draw.pick(input_count_low, input_count_high);
+    const stxlib::usize v_input_count = static_cast<stxlib::usize>(input_count_drawn);
+    static_cast<void>(input_count_low);
+    static_cast<void>(input_count_high);
+    static_cast<void>(input_count_open);
+    stxlib::u64 output_count_low = 0ULL;
+    stxlib::u64 output_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool output_count_open = true;
+    output_count_open = output_count_open && ::stxlib_ic::tighten_low(output_count_low, static_cast<stxlib::u64>(t_bins), false);
+    output_count_open = output_count_open && ::stxlib_ic::tighten_high(output_count_high, static_cast<stxlib::u64>(t_bins), false);
+    if (!output_count_open || output_count_low > output_count_high) return step.bail("Plan32::magnitude_with_work in empty: no admitted value of output_count");
+    const stxlib::u64 output_count_drawn = step.draw.pick(output_count_low, output_count_high);
+    const stxlib::usize v_output_count = static_cast<stxlib::usize>(output_count_drawn);
+    static_cast<void>(output_count_low);
+    static_cast<void>(output_count_high);
+    static_cast<void>(output_count_open);
+    stxlib::u64 work_count_low = 0ULL;
+    stxlib::u64 work_count_high = static_cast<stxlib::u64>(~stxlib::usize{0});
+    bool work_count_open = true;
+    work_count_open = work_count_open && ::stxlib_ic::tighten_low(work_count_low, static_cast<stxlib::u64>(t_work_size), false);
+    if (!work_count_open || work_count_low > work_count_high) return step.bail("Plan32::magnitude_with_work in empty: no admitted value of work_count");
+    const stxlib::u64 work_count_drawn = step.draw.pick(work_count_low, work_count_high);
+    const stxlib::usize v_work_count = static_cast<stxlib::usize>(work_count_drawn);
+    static_cast<void>(work_count_low);
+    static_cast<void>(work_count_high);
+    static_cast<void>(work_count_open);
+    static_cast<void>(v_input_count);
+    static_cast<void>(v_output_count);
+    static_cast<void>(v_work_count);
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_input(v_input_count, static_cast<stxlib::usize>(t_size))) return step.bail("Plan32::magnitude_with_work in empty: work_magnitude_input fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_output(v_output_count, static_cast<stxlib::usize>(t_bins))) return step.bail("Plan32::magnitude_with_work in empty: work_magnitude_output fails too");
+    if (!::stxlib::detail::ic::fft_plan32::admits_work_magnitude_work(v_work_count, static_cast<stxlib::usize>(t_work_size))) return step.bail("Plan32::magnitude_with_work in empty: work_magnitude_work fails too");
+    if (!(v_input_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work in empty: the inputs cannot realise input_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_output_count <= ::stxlib_ic::inputs::fft_capacity)) return step.bail("Plan32::magnitude_with_work in empty: the inputs cannot realise output_count <= ::stxlib_ic::inputs::fft_capacity");
+    if (!(v_work_count <= ::stxlib_ic::inputs::work_capacity)) return step.bail("Plan32::magnitude_with_work in empty: the inputs cannot realise work_count <= ::stxlib_ic::inputs::work_capacity");
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".magnitude_with_work(::stxlib_ic::inputs::samples<float>(").unsigned_value(static_cast<stxlib::u64>(v_input_count)).text("), ::stxlib_ic::inputs::magnitude_output<float>(").unsigned_value(static_cast<stxlib::u64>(v_output_count)).text("), ::stxlib_ic::inputs::work<float>(").unsigned_value(static_cast<stxlib::u64>(v_work_count)).text("))));").end();
+    const stxlib::OperationStatus status = object.magnitude_with_work(::stxlib_ic::inputs::samples<float>(v_input_count), ::stxlib_ic::inputs::magnitude_output<float>(v_output_count), ::stxlib_ic::inputs::work<float>(v_work_count));
+    if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Plan32::magnitude_with_work in empty succeeded");
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), 0U, false);
+}
+
 inline ::stxlib_ic::Outcome run(void* const storage, const stxlib::usize block, ::stxlib_ic::Step& step) noexcept {
     Slots& slots = *static_cast<Slots*>(storage);
     ObjectHolder& holder = slots.holders[step.slot];
@@ -679,13 +1741,53 @@ inline ::stxlib_ic::Outcome run(void* const storage, const stxlib::usize block, 
         return misuse_irfft_irfft_output(step, holder);
     case 16U:
         return outside_irfft_empty(step, holder);
+    case 17U:
+        return legal_magnitude(step, holder);
+    case 18U:
+        return misuse_magnitude_magnitude_input(step, holder);
+    case 19U:
+        return misuse_magnitude_magnitude_output(step, holder);
+    case 20U:
+        return outside_magnitude_empty(step, holder);
+    case 21U:
+        return legal_work_size(step, holder);
+    case 22U:
+        return legal_rfft_with_work(step, holder);
+    case 23U:
+        return misuse_rfft_with_work_work_rfft_input(step, holder);
+    case 24U:
+        return misuse_rfft_with_work_work_rfft_output(step, holder);
+    case 25U:
+        return misuse_rfft_with_work_work_rfft_work(step, holder);
+    case 26U:
+        return outside_rfft_with_work_empty(step, holder);
+    case 27U:
+        return legal_irfft_with_work(step, holder);
+    case 28U:
+        return misuse_irfft_with_work_work_irfft_input(step, holder);
+    case 29U:
+        return misuse_irfft_with_work_work_irfft_output(step, holder);
+    case 30U:
+        return misuse_irfft_with_work_work_irfft_work(step, holder);
+    case 31U:
+        return outside_irfft_with_work_empty(step, holder);
+    case 32U:
+        return legal_magnitude_with_work(step, holder);
+    case 33U:
+        return misuse_magnitude_with_work_work_magnitude_input(step, holder);
+    case 34U:
+        return misuse_magnitude_with_work_work_magnitude_output(step, holder);
+    case 35U:
+        return misuse_magnitude_with_work_work_magnitude_work(step, holder);
+    case 36U:
+        return outside_magnitude_with_work_empty(step, holder);
     default:
         return ::stxlib_ic::Outcome::skipped;
     }
 }
 
 inline constexpr ::stxlib_ic::BlockInfo blocks[] = {
-    {"legal_fresh", 6U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
+    {"legal_fresh", 11U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
     {"legal_make", 0U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
     {"misuse_make_make_mode", 0U, ::stxlib_ic::BlockMode::misuse, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::failure},
     {"misuse_make_make_size_limit", 0U, ::stxlib_ic::BlockMode::misuse, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::failure},
@@ -702,6 +1804,26 @@ inline constexpr ::stxlib_ic::BlockInfo blocks[] = {
     {"misuse_irfft_irfft_input", 5U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
     {"misuse_irfft_irfft_output", 5U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
     {"outside_irfft_empty", 5U, ::stxlib_ic::BlockMode::outside, 0x1U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"legal_magnitude", 6U, ::stxlib_ic::BlockMode::legal, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::none},
+    {"misuse_magnitude_magnitude_input", 6U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_magnitude_magnitude_output", 6U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"outside_magnitude_empty", 6U, ::stxlib_ic::BlockMode::outside, 0x1U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"legal_work_size", 7U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::none},
+    {"legal_rfft_with_work", 8U, ::stxlib_ic::BlockMode::legal, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::none},
+    {"misuse_rfft_with_work_work_rfft_input", 8U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_rfft_with_work_work_rfft_output", 8U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_rfft_with_work_work_rfft_work", 8U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"outside_rfft_with_work_empty", 8U, ::stxlib_ic::BlockMode::outside, 0x1U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"legal_irfft_with_work", 9U, ::stxlib_ic::BlockMode::legal, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::none},
+    {"misuse_irfft_with_work_work_irfft_input", 9U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_irfft_with_work_work_irfft_output", 9U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_irfft_with_work_work_irfft_work", 9U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"outside_irfft_with_work_empty", 9U, ::stxlib_ic::BlockMode::outside, 0x1U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"legal_magnitude_with_work", 10U, ::stxlib_ic::BlockMode::legal, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::none},
+    {"misuse_magnitude_with_work_work_magnitude_input", 10U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_magnitude_with_work_work_magnitude_output", 10U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"misuse_magnitude_with_work_work_magnitude_work", 10U, ::stxlib_ic::BlockMode::misuse, 0x2U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
+    {"outside_magnitude_with_work_empty", 10U, ::stxlib_ic::BlockMode::outside, 0x1U, ::stxlib_ic::Needs::live, ::stxlib_ic::Refusal::failure},
 };
 
 inline void* create() noexcept { return ::stxlib_ic::create_slots<Slots>(); }
@@ -729,15 +1851,15 @@ inline constexpr ::stxlib_ic::Component component{
     "include/stxlib/fft_plan32.ic.toml",
     "stxlib::fft::Plan32",
     slot_count,
-    2U,
+    3U,
     term_names,
     term_reads,
     2U,
     state_names,
     0U,
-    7U,
+    12U,
     call_names,
-    17U,
+    37U,
     blocks,
     &create,
     &destroy,

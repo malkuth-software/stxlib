@@ -4,8 +4,9 @@
 #   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
 #
 # input_count and output_count are the views' counts; mode is Mode's value.
-# Not declared: the refusal of input and output that overlap (a relation of
-# addresses, which the clause language does not state; fft_tests covers it).
+# Not declared: the refusal of input, output and work that overlap (a
+# relation of addresses, which the clause language does not state; fft_tests
+# and fft_walk_tests cover it).
 
 schema = 1
 component = "Plan64"
@@ -21,6 +22,7 @@ state_query = { call = "empty", observes = { empty = "true", ready = "false" } }
 [terms]
 size = "usize"
 bins = "usize"
+work_size = "usize"
 
 [constants]
 max_size = { cpp = "::stxlib::fft::max_size", type = "usize" }
@@ -42,7 +44,7 @@ states = { empty = "state_ == nullptr", ready = "state_ != nullptr" }
 object = "stxlib::fft::Plan64"
 includes = ["stxlib/fft.hpp", "ic/engine/ic_inputs.hpp"]
 make = "default"
-observe = { size = "object.size()", bins = "object.bins()" }
+observe = { size = "object.size()", bins = "object.bins()", work_size = "object.work_size()" }
 
 [[call]]
 name = "make"
@@ -96,3 +98,68 @@ requires = [
   { holds = "output_count == size", refuses = "failure:invalid_argument", check = "irfft_output" },
 ]
 engine = { invoke = "object.irfft(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex64>(input_count), ::stxlib_ic::inputs::sample_output<double>(output_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity"], expect = ["::stxlib_ic::inputs::samples_finite<double>(output_count)"] }
+
+[[call]]
+name = "magnitude"
+declarations = ["[[nodiscard]] OperationStatus magnitude(View<double> input, MutableView<double> output) noexcept;"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize" }
+requires = [
+  { holds = "input_count == size", refuses = "failure:invalid_argument", check = "magnitude_input" },
+  { holds = "output_count == bins", refuses = "failure:invalid_argument", check = "magnitude_output" },
+]
+fails = [{ failure = "unsupported", when = "the plan's mode is not plain" }]
+engine = { invoke = "object.magnitude(::stxlib_ic::inputs::samples<double>(input_count), ::stxlib_ic::inputs::magnitude_output<double>(output_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity"], expect = ["::stxlib_ic::inputs::magnitudes_finite<double>(output_count)"] }
+
+[[call]]
+name = "work_size"
+declarations = ["[[nodiscard]] usize work_size() const noexcept;"]
+engine = { result_type = "stxlib::usize", expect = ["result == work_size"] }
+
+# The const calls on the caller's workspace: any thread, any number at
+# once on one plan.
+[[call]]
+name = "rfft_with_work"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus rfft_with_work(View<double> input, MutableView<Complex64> output,"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize", work_count = "usize" }
+requires = [
+  { holds = "input_count == size", refuses = "failure:invalid_argument", check = "work_rfft_input" },
+  { holds = "output_count == bins", refuses = "failure:invalid_argument", check = "work_rfft_output" },
+  { holds = "work_count >= work_size", refuses = "failure:invalid_argument", check = "work_rfft_work" },
+]
+fails = [{ failure = "unsupported", when = "the plan's mode is not plain" }]
+engine = { invoke = "object.rfft_with_work(::stxlib_ic::inputs::samples<double>(input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex64>(output_count), ::stxlib_ic::inputs::work<double>(work_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity", "work_count <= ::stxlib_ic::inputs::work_capacity"], expect = ["::stxlib_ic::inputs::spectrum_finite<::stxlib::fft::Complex64>(output_count)"] }
+
+[[call]]
+name = "irfft_with_work"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus irfft_with_work(View<Complex64> input, MutableView<double> output,"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize", work_count = "usize" }
+requires = [
+  { holds = "input_count == bins", refuses = "failure:invalid_argument", check = "work_irfft_input" },
+  { holds = "output_count == size", refuses = "failure:invalid_argument", check = "work_irfft_output" },
+  { holds = "work_count >= work_size", refuses = "failure:invalid_argument", check = "work_irfft_work" },
+]
+fails = [{ failure = "unsupported", when = "the plan's mode is not plain" }]
+engine = { invoke = "object.irfft_with_work(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex64>(input_count), ::stxlib_ic::inputs::sample_output<double>(output_count), ::stxlib_ic::inputs::work<double>(work_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity", "work_count <= ::stxlib_ic::inputs::work_capacity"], expect = ["::stxlib_ic::inputs::samples_finite<double>(output_count)"] }
+
+[[call]]
+name = "magnitude_with_work"
+thread = "any"
+declarations = ["[[nodiscard]] OperationStatus magnitude_with_work(View<double> input, MutableView<double> output,"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize", work_count = "usize" }
+requires = [
+  { holds = "input_count == size", refuses = "failure:invalid_argument", check = "work_magnitude_input" },
+  { holds = "output_count == bins", refuses = "failure:invalid_argument", check = "work_magnitude_output" },
+  { holds = "work_count >= work_size", refuses = "failure:invalid_argument", check = "work_magnitude_work" },
+]
+fails = [{ failure = "unsupported", when = "the plan's mode is not plain" }]
+engine = { invoke = "object.magnitude_with_work(::stxlib_ic::inputs::samples<double>(input_count), ::stxlib_ic::inputs::magnitude_output<double>(output_count), ::stxlib_ic::inputs::work<double>(work_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity", "work_count <= ::stxlib_ic::inputs::work_capacity"], expect = ["::stxlib_ic::inputs::magnitudes_finite<double>(output_count)"] }

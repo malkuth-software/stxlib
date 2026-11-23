@@ -41,6 +41,19 @@ builds, by these rules.
    - A fused multiply-add appears only where we write one. It is allowed
      only where it is exact (an error-free transformation) or where the
      result is shown to be the same with and without it.
+   - One exception (owner, 2026-11-23): stx_fft's PSFT
+     (`src/algorithms/fft/walk.inc`) has two builds of one source. The
+     exact build has no fused multiply-add. The fused build fuses exactly
+     the products the source marks, each of the form `a + b*c` or
+     `a - b*c`, written as explicit intrinsics (`vfmaq`/`vfmsq` on NEON,
+     `_mm_fmadd`/`_mm_fnmadd` on SSE with FMA3), never by contraction:
+     `-ffp-contract=off` holds everywhere, this kernel included. Each build
+     is bit-identical on every target that runs it, and frozen hashes in
+     `tests/fft_walk_tests.cpp` hold both. A plan runs the fused build at
+     the upper tier (NEON, or 128-bit SSE with FMA3) and the exact build at
+     the lower tier (scalar, or 128-bit vectors without FMA: wasm SIMD128,
+     x86-64 without FMA3). `include/stxlib/fft.hpp` states which results
+     differ between the two.
    - `CMakeLists.txt` refuses a target without these options, or with a
      flag that undoes them. `src/core/float_discipline.hpp` stops a
      fast-math build at compile time.

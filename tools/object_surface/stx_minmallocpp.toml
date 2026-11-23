@@ -53,10 +53,9 @@ allowed = [
 [families.web]
 # Emscripten: no mmap, mprotect or munmap. The wasm globals are the WebAssembly tool
 # conventions' ABI (DynamicLinking.md, read 2026-11-15), not calls.
-must_see = "emscripten_builtin_memalign"
+must_see = "sbrk"
 allowed = [
-  { symbol = "emscripten_builtin_memalign", reason = "the address space (minmallocpp_os_emscripten.cpp)" },
-  { symbol = "emscripten_builtin_free", reason = "returns address space (minmallocpp_os_emscripten.cpp)" },
+  { symbol = "sbrk", reason = "the address space, from the top of linear memory (minmallocpp_os_emscripten.cpp)" },
   { symbol = "sched_yield", reason = "backs off a contended spin (os.hpp)" },
   { symbol = "sysconf", reason = "reads the page size once (os.hpp)" },
   { symbol = "pthread_key_create", reason = "registers the thread-exit hook (os.hpp)" },

@@ -30,7 +30,6 @@
 #include <climits>
 #include <ctime>
 
-#include <linux/futex.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -48,6 +47,13 @@ constexpr long futex_system_call = SYS_futex;
 
 constexpr i64 nanoseconds_per_second = 1000000000;
 
+// The futex operations, as Linux's UAPI header linux/futex.h numbers them
+// (FUTEX_WAIT 0, FUTEX_WAKE 1, FUTEX_PRIVATE_FLAG 128; kernel ABI, fixed).
+// Spelled here because musl's toolchains need not carry the kernel headers.
+constexpr int futex_private_flag = 128;
+constexpr int futex_wait_private = 0 | futex_private_flag;
+constexpr int futex_wake_private = 1 | futex_private_flag;
+
 [[noreturn]] void defect(const TextView message, const int error) noexcept {
     const ErrorRecord record =
         ErrorRecord::make(ErrorKind::internal_failure, "stxlib.atomic_word",
@@ -64,7 +70,7 @@ long futex(const u32* const word, const int operation, const u32 value, const ti
 }
 
 void wake(const u32* const word, const u32 count) noexcept {
-    if (futex(word, FUTEX_WAKE_PRIVATE, count, nullptr) < 0) defect("futex FUTEX_WAKE_PRIVATE failed", errno);
+    if (futex(word, futex_wake_private, count, nullptr) < 0) defect("futex FUTEX_WAKE_PRIVATE failed", errno);
 }
 
 } // namespace
@@ -78,7 +84,7 @@ bool wait(const u32* const word, const u32 expected, const bool timed, const Dur
         relative.tv_nsec = static_cast<long>(nanoseconds % nanoseconds_per_second);
         timeout = &relative;
     }
-    if (futex(word, FUTEX_WAIT_PRIVATE, expected, timeout) == 0) return false;
+    if (futex(word, futex_wait_private, expected, timeout) == 0) return false;
     const int error = errno;
     if (error == ETIMEDOUT) return true;
     if (error == EAGAIN || error == EINTR) return false;

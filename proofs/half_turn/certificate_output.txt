@@ -1,0 +1,5 @@
+table: 256 cells rebuilt; anchors on 2^-52, slopes on 2^-22 below 4, axis cells as the head needs
+lattice points: all 512 table values correctly rounded, and head + low rounds to the head
+table errors: anchor + low within 2^-104.9, slope + slope_low within 2^-77.1, of the true values
+every double, 2^-100 <= m < 2^53: error at most (1/2 + 0.00108) ulp = 0.501081 ulp
+    worst: cell 1, sin, 0.003662 < |d| <= 0.003906; E <= 2^-68.85, ulp(V) >= 2^-59

@@ -431,6 +431,11 @@
           "failure": "io_failure",
           "when": "the host cannot flush as level says",
           "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)",
+          "leaves": "unchanged"
         }
       ],
       "returns": {}
@@ -456,6 +461,11 @@
           "failure": "io_failure",
           "when": "the host cannot flush as level says",
           "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)",
+          "leaves": "unchanged"
         }
       ],
       "returns": {}
@@ -480,6 +490,11 @@
         {
           "failure": "io_failure",
           "when": "the host cannot flush as level says",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)",
           "leaves": "unchanged"
         }
       ],
@@ -1021,6 +1036,11 @@
         {
           "failure": "io_failure",
           "when": "the old file is unchanged and the temporary file removed",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "the host refuses the replace: on Windows, while the old file is open (MoveFileExW refuses an open target); the old file is unchanged and the temporary file removed",
           "leaves": "unchanged"
         }
       ],
