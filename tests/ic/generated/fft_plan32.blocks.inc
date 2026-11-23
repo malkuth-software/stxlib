@@ -21,7 +21,7 @@ inline constexpr stxlib::usize slot_count = 2;
 inline constexpr const char* term_names[] = {"size", "bins"};
 inline constexpr const char* term_reads[] = {"object.size()", "object.bins()"};
 inline constexpr const char* state_names[] = {"empty", "ready"};
-inline constexpr const char* call_names[] = {"make", "empty", "size", "bins", "rfft", "irfft", "make"};
+inline constexpr const char* call_names[] = {"make", "empty", "size", "bins", "rfft", "irfft", "fresh"};
 
 struct Slots final {
     ObjectHolder holders[slot_count]{};
@@ -59,7 +59,7 @@ inline void teardown(Object& object, const stxlib::u32 state) noexcept {
 }
 
 // A fresh object in the initial state.
-inline ::stxlib_ic::Outcome legal_make(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
+inline ::stxlib_ic::Outcome legal_fresh(::stxlib_ic::Step& step, ObjectHolder& holder) noexcept {
     step.line().holder(step.slot).text(".emplace();").end();
     if (holder.present()) teardown(*holder.get(), step.before.state);
     holder.emplace();
@@ -646,7 +646,7 @@ inline ::stxlib_ic::Outcome run(void* const storage, const stxlib::usize block, 
     ObjectHolder& holder = slots.holders[step.slot];
     switch (block) {
     case 0U:
-        return legal_make(step, holder);
+        return legal_fresh(step, holder);
     case 1U:
         return legal_make(step, holder);
     case 2U:
@@ -685,7 +685,7 @@ inline ::stxlib_ic::Outcome run(void* const storage, const stxlib::usize block, 
 }
 
 inline constexpr ::stxlib_ic::BlockInfo blocks[] = {
-    {"legal_make", 6U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
+    {"legal_fresh", 6U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
     {"legal_make", 0U, ::stxlib_ic::BlockMode::legal, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::none},
     {"misuse_make_make_mode", 0U, ::stxlib_ic::BlockMode::misuse, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::failure},
     {"misuse_make_make_size_limit", 0U, ::stxlib_ic::BlockMode::misuse, 0x3U, ::stxlib_ic::Needs::any, ::stxlib_ic::Refusal::failure},

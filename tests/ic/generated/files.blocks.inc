@@ -9,6 +9,7 @@
 #include "ic/engine/ic_engine.hpp"
 #include "stxlib/files.hpp"
 #include "stxlib/clocks.hpp"
+#include "stxlib/capabilities.hpp"
 #include "ic/engine/ic_inputs.hpp"
 #include "core/files_ic_checks.hpp"
 

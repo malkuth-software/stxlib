@@ -31,7 +31,7 @@ largest_offset = { value = "2^63 - 1", type = "u64" }
 # decides the state.
 [engine]
 object = "stxlib::File"
-includes = ["stxlib/files.hpp", "stxlib/clocks.hpp", "ic/engine/ic_inputs.hpp"]
+includes = ["stxlib/files.hpp", "stxlib/clocks.hpp", "stxlib/capabilities.hpp", "ic/engine/ic_inputs.hpp"]
 make = "default"
 
 [checks]
