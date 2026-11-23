@@ -182,9 +182,13 @@ void field_value(const FieldState& field, double u, double v, double* out) noexc
 OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
                                  Workspace& workspace) noexcept;
 
-// The composited affine transfer (experiment, transfer.cpp): a row pass along the stored rows,
-// then a column pass along destination lines, each the 1D field. Tests and measurements only.
-// Refuses (unsupported) a map whose passes would be singular or reduce by more than 32.
+// The affine transfers (transfer.cpp), for tests and measurements. affine_composited is the
+// default's composited path alone (a row pass along the stored rows, then a pass along
+// destination lines, each the 1D field); it refuses (unsupported) a map whose passes would be
+// singular or reduce by more than 32, where the default falls back to affine_field, the 2D
+// field's path (the field at the pulled-back centre; canon its exact pixel average).
+OperationStatus affine_field(const Field& field, const AffineMap& map, Mode mode, const MutableRgba8Image& destination,
+                             const Region& region, Workspace& workspace) noexcept;
 OperationStatus affine_composited(const Field& field, const AffineMap& map, Mode mode, const MutableRgba8Image& destination,
                                   const Region& region, Workspace& workspace) noexcept;
 

@@ -864,7 +864,9 @@ OperationStatus affine_composited_state(const FieldState& field, const AffineMap
     const double det = map.a11 * map.a22 - map.a12 * map.a21;
     const double m21 = map.a21 < 0.0 ? 0.0 - map.a21 : map.a21;
     const double m22 = map.a22 < 0.0 ? 0.0 - map.a22 : map.a22;
-    const bool by_columns = m22 >= m21;
+    // On a tie the line direction follows the stored orientation, so a transposed field still
+    // gives the transpose of its transpose's bytes.
+    const bool by_columns = m22 > m21 || (m22 == m21 && !field.transposed);
     if ((by_columns ? m22 : m21) == 0.0 || det == 0.0) {
         return OperationStatus::failure(ErrorRecord::make(ErrorKind::unsupported, "stxlib.conv.transfer.affine_composited",
                                                           ErrorDetail{.message = "the map does not separate into two passes"}));
@@ -1072,6 +1074,11 @@ OperationStatus affine_composited_state(const FieldState& field, const AffineMap
     return OperationStatus::success();
 }
 
+// The 2D field's affine transfer: the field at each pulled-back centre (preview) or its exact
+// average over the pulled-back pixel (canon.cpp).
+OperationStatus affine_field_state(const FieldState& field, const AffineMap& stored, const Mode mode, const MutableRgba8Image& destination,
+                                   const Region& region, WorkspaceState& w) noexcept;
+
 OperationStatus preview(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const Region& region,
                         WorkspaceState& workspace) noexcept {
     if (region.x0 == region.x1 || region.y0 == region.y1) return OperationStatus::success();
@@ -1084,6 +1091,15 @@ OperationStatus preview(const FieldState& field, const AnyMap& map, const Mutabl
         }
     }
     return OperationStatus::success();
+}
+
+OperationStatus affine_field_state(const FieldState& field, const AffineMap& stored, const Mode mode, const MutableRgba8Image& destination,
+                                   const Region& region, WorkspaceState& w) noexcept {
+    if (mode == Mode::canon) return affine_canon(field, stored, destination, region, w);
+    AnyMap any;
+    any.kind = MapKind::affine;
+    any.affine = &stored;
+    return preview(field, any, destination, region, w);
 }
 
 
@@ -1199,13 +1215,11 @@ OperationStatus transfer(const Field& field, const AffineMap& map, const Mode mo
         stored.ou = map.ov;
         stored.ov = map.ou;
     }
-    if (mode == Mode::canon) {
-        return detail::affine_canon(*FieldAccess::state(field), stored, destination, region, *FieldAccess::state(workspace));
-    }
-    detail::AnyMap any;
-    any.kind = detail::MapKind::affine;
-    any.affine = &stored;
-    return detail::preview(*FieldAccess::state(field), any, destination, region, *FieldAccess::state(workspace));
+    // The composited transfer (two 1D passes); the 2D field's path for maps it does not take.
+    const OperationStatus composited =
+        detail::affine_composited_state(*FieldAccess::state(field), stored, mode, destination, region, *FieldAccess::state(workspace));
+    if (composited.succeeded() || (*composited.error()).kind() != ErrorKind::unsupported) return composited;
+    return detail::affine_field_state(*FieldAccess::state(field), stored, mode, destination, region, *FieldAccess::state(workspace));
 }
 
 OperationStatus transfer(const Field& field, const MeshMap& map, const Mode mode, const MutableRgba8Image& destination, const Region& region,
@@ -1335,10 +1349,36 @@ Region affected_region(const NodeBox& box, const AffineMap& map, const usize sou
     // Coordinates outside the source clamp to its border, so a box reaching a border reaches
     // without limit beyond it (reach: a distance past any destination).
     const double reach = 1e15;
-    const double us[2]{box.u0 == 0 ? -reach : static_cast<double>(box.u0) - 2.0,
-                       box.u1 + 1 >= source_width ? reach : static_cast<double>(box.u1) + 2.0};
-    const double vs[2]{box.v0 == 0 ? -reach : static_cast<double>(box.v0) - 2.0,
-                       box.v1 + 1 >= source_height ? reach : static_cast<double>(box.v1) + 2.0};
+    // The composited transfer reads, for a pixel at (u, v) in the stored orientation, the rows
+    // within 4 nodes (plus the canon half-extent) of v, each at u + beta (r - v), widened by the
+    // canon half-extent along u: so the box grows by that much more along the stored u.
+    const bool transposed = source_height * 2 > source_width * 3;
+    const double s11 = transposed ? map.a21 : map.a11;
+    const double s12 = transposed ? map.a22 : map.a12;
+    const double s21 = transposed ? map.a11 : map.a21;
+    const double s22 = transposed ? map.a12 : map.a22;
+    const double m21 = s21 < 0.0 ? 0.0 - s21 : s21;
+    const double m22 = s22 < 0.0 ? 0.0 - s22 : s22;
+    const bool by_columns = m22 > m21 || (m22 == m21 && !transposed);
+    const double divisor = by_columns ? s22 : s21;
+    double grow_u = 0.0;
+    double grow_v = 0.0;
+    if (divisor != 0.0) {
+        const double beta = (by_columns ? s12 : s11) / divisor;
+        const double alpha = by_columns ? s11 - s12 * s21 / s22 : s12 - s11 * s22 / s21;
+        const double eps = by_columns ? m22 : m21;
+        const double mb = beta < 0.0 ? 0.0 - beta : beta;
+        const double ma = alpha < 0.0 ? 0.0 - alpha : alpha;
+        grow_v = 0.5 * eps + 1.0;
+        grow_u = mb * (5.0 + 0.5 * eps) + 0.5 * ma + 1.0;
+        if (!(grow_u == grow_u) || grow_u > reach) grow_u = reach;
+    }
+    const double gx = transposed ? grow_v : grow_u;
+    const double gy = transposed ? grow_u : grow_v;
+    const double us[2]{box.u0 == 0 ? -reach : static_cast<double>(box.u0) - 2.0 - gx,
+                       box.u1 + 1 >= source_width ? reach : static_cast<double>(box.u1) + 2.0 + gx};
+    const double vs[2]{box.v0 == 0 ? -reach : static_cast<double>(box.v0) - 2.0 - gy,
+                       box.v1 + 1 >= source_height ? reach : static_cast<double>(box.v1) + 2.0 + gy};
     double xmin = 1e300;
     double xmax = -1e300;
     double ymin = 1e300;
@@ -1387,7 +1427,26 @@ OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const M
     return axis_canon(*FieldAccess::state(field), map, destination, region, *FieldAccess::state(workspace), true);
 }
 
-// The composited affine transfer (experiment): tests and measurements only, not part of the API.
+// The 2D field's affine transfer, which the public transfer falls back to: tests and measurements.
+OperationStatus affine_field(const Field& field, const AffineMap& map, const Mode mode, const MutableRgba8Image& destination,
+                             const Region& region, Workspace& workspace) noexcept {
+    const OperationStatus common = check_common("stxlib.conv.transfer.affine", field, destination, region, workspace);
+    if (common.failed()) return common;
+    const bool valid = finite(map.a11) && finite(map.a12) && finite(map.a21) && finite(map.a22) && finite(map.ou) && finite(map.ov);
+    if (!valid) return refused("stxlib.conv.transfer.affine", "the map's coefficients must be finite");
+    AffineMap stored = map;
+    if ((*FieldAccess::state(field)).transposed) {
+        stored.a11 = map.a21;
+        stored.a12 = map.a22;
+        stored.a21 = map.a11;
+        stored.a22 = map.a12;
+        stored.ou = map.ov;
+        stored.ov = map.ou;
+    }
+    return affine_field_state(*FieldAccess::state(field), stored, mode, destination, region, *FieldAccess::state(workspace));
+}
+
+// The composited affine transfer alone (no fallback): tests and measurements.
 OperationStatus affine_composited(const Field& field, const AffineMap& map, const Mode mode, const MutableRgba8Image& destination,
                                   const Region& region, Workspace& workspace) noexcept {
     const OperationStatus common = check_common("stxlib.conv.transfer.affine_composited", field, destination, region, workspace);

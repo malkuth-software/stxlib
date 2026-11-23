@@ -39,7 +39,7 @@ using stxlib::u64;
 using stxlib::usize;
 
 // The digest of digest_outputs() on the fixtures below; 0 prints it without checking.
-constexpr u64 expected_digest = 0x9e4bf8cae5299346ull;
+constexpr u64 expected_digest = 0x868bb92c32018a82ull;
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
@@ -350,7 +350,7 @@ void previews_match_field() {
         map.ou = 19.5 - c * 19.5 - s * 14.5;
         map.ov = 14.5 + s * 19.5 - c * 14.5;
         const conv::Region region{5, 4, 31, 22};
-        CHECK(conv::transfer(field, map, conv::Mode::preview, out.view(), region, workspace).succeeded());
+        CHECK(line::affine_field(field, map, conv::Mode::preview, out.view(), region, workspace).succeeded());
         for (usize y = 0; y < 30; ++y) {
             for (usize x = 0; x < 40; ++x) {
                 const u8* const p = out.rgba.data() + (y * 40 + x) * 4;
@@ -651,7 +651,7 @@ void affine_and_mesh_canon() {
         pull.map.ou = maps[k][4];
         pull.map.ov = maps[k][5];
         Destination out(24, 20);
-        CHECK(conv::transfer(field, pull.map, conv::Mode::canon, out.view(), all, workspace).succeeded());
+        CHECK(line::affine_field(field, pull.map, conv::Mode::canon, out.view(), all, workspace).succeeded());
         Agreement agreement;
         for (usize y = 0; y < 20; ++y) {
             for (usize x = 0; x < 24; ++x) compare_pixel(field, pull, out.rgba.data() + (y * 24 + x) * 4, x, y, steps[k], agreement);
@@ -708,9 +708,9 @@ void affine_and_mesh_canon() {
     pull.map.ov = 80.0;
     Destination whole(40, 36);
     Destination part(40, 36);
-    CHECK(conv::transfer(field, pull.map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 40, 36}, workspace).succeeded());
+    CHECK(line::affine_field(field, pull.map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 40, 36}, workspace).succeeded());
     const conv::Region inner{5, 19, 37, 33};
-    CHECK(conv::transfer(field, pull.map, conv::Mode::canon, part.view(), inner, workspace).succeeded());
+    CHECK(line::affine_field(field, pull.map, conv::Mode::canon, part.view(), inner, workspace).succeeded());
     usize differing = 0;
     for (usize y = 0; y < 36; ++y) {
         for (usize x = 0; x < 40; ++x) {
@@ -943,11 +943,11 @@ void timing() {
                 double best = 1e30;
                 for (usize run = 0; run < 3; ++run) {
                     const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
-                    CHECK(conv::transfer(field, rotation, mode, rotated.view(), region, workspace).succeeded());
+                    CHECK(line::affine_field(field, rotation, mode, rotated.view(), region, workspace).succeeded());
                     const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
                     best = ms < best ? ms : best;
                 }
-                std::printf("timing: rotate %.0f deg %s %s %.2f ms\n", degrees, part == 0 ? "1024x768" : "brush 128x128",
+                std::printf("timing: 2D field rotate %.0f deg %s %s %.2f ms\n", degrees, part == 0 ? "1024x768" : "brush 128x128",
                             m == 0 ? "preview" : "canon", best);
             }
         }
@@ -1470,6 +1470,8 @@ void composited_affine() {
                     Destination composited(dw, dh);
                     CHECK(conv::transfer(field, map, mode, reference.view(), all, workspace).succeeded());
                     CHECK(line::affine_composited(field, map, mode, composited.view(), all, workspace).succeeded());
+                    // The default affine transfer is the composited one.
+                    CHECK(reference.rgba == composited.rgba);
                     hash = fnv(hash, composited.rgba);
                     // A sub-region writes the same bytes as the whole, and nothing outside it.
                     const conv::Region part{dw / 4, dh / 3, dw / 4 + dw / 2, dh / 3 + dh / 2};
@@ -1537,7 +1539,7 @@ void composited_affine() {
             Destination reference(512, 384);
             Destination composited(512, 384);
             const conv::Region all{0, 0, 512, 384};
-            CHECK(conv::transfer(photo_field, map, mode, reference.view(), all, workspace).succeeded());
+            CHECK(line::affine_field(photo_field, map, mode, reference.view(), all, workspace).succeeded());
             CHECK(line::affine_composited(photo_field, map, mode, composited.view(), all, workspace).succeeded());
             // Pixels whose centre pulls back at least 4 nodes inside the source, and the rest.
             usize worst[2]{0, 0};
