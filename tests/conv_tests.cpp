@@ -15,6 +15,7 @@
 #include "stxlib/conv.hpp"
 #include "stxlib/simd.hpp"
 
+#include "algorithms/conv/field_state.hpp"
 #include "algorithms/conv/kernels.hpp"
 #include "algorithms/conv/line.hpp"
 
@@ -99,6 +100,16 @@ Image fixture(const Kind kind, const usize width, const usize height, const u32 
     return image;
 }
 
+Image transposed_image(const Image& image) {
+    Image out;
+    out.width = image.height;
+    out.height = image.width;
+    out.rgba.resize(image.rgba.size());
+    for (usize y = 0; y < image.height; ++y)
+        for (usize x = 0; x < image.width; ++x) std::memcpy(out.rgba.data() + (x * out.width + y) * 4, image.rgba.data() + (y * image.width + x) * 4, 4);
+    return out;
+}
+
 // ---------------------------------------------------------------- the unseparated reference
 
 struct Reference final {
@@ -178,7 +189,10 @@ void field_matches_reference() {
             const Image image = fixture(kind, size[0], size[1], static_cast<u32>(size[0] * 31 + size[1]));
             const conv::Field field = compiled(image);
             CHECK(field.ready());
-            const Reference reference(image);
+            // The longer axis first: a source over 150% taller than wide is compiled transposed,
+            // so its reference is the transposed image's, read at (v, u).
+            const bool tall = size[1] * 2 > size[0] * 3;
+            const Reference reference(tall ? transposed_image(image) : image);
             Random random;
             for (usize q = 0; q < 400; ++q) {
                 // Points across and slightly outside the source, plus exact nodes.
@@ -189,7 +203,11 @@ void field_matches_reference() {
                 double got[4];
                 double want[4];
                 CHECK(field.evaluate(u, v, stxlib::MutableView<double>(got, 4)).succeeded());
-                reference.value(u, v, want);
+                if (tall) {
+                    reference.value(v, u, want);
+                } else {
+                    reference.value(u, v, want);
+                }
                 for (usize c = 0; c < 4; ++c) {
                     const double difference = std::fabs(got[c] - want[c]);
                     worst = difference > worst ? difference : worst;
@@ -889,6 +907,190 @@ void timing() {
     }
 }
 
+// ---------------------------------------------------------------- fused axis canon (experiment)
+
+Image transposed(const Image& image) {
+    Image out;
+    out.width = image.height;
+    out.height = image.width;
+    out.rgba.resize(image.rgba.size());
+    for (usize y = 0; y < image.height; ++y) {
+        for (usize x = 0; x < image.width; ++x) std::memcpy(out.rgba.data() + (x * out.width + y) * 4, image.rgba.data() + (y * image.width + x) * 4, 4);
+    }
+    return out;
+}
+
+struct Difference final {
+    double differing_percent = 0.0;
+    int worst = 0;
+    double mean = 0.0;
+};
+
+// Premultiplied-code difference of two RGBA8 buffers of one size.
+Difference compare_images(const std::vector<u8>& a, const std::vector<u8>& b) {
+    Difference d;
+    usize differing = 0;
+    double sum = 0.0;
+    const usize pixels = a.size() / 4;
+    for (usize k = 0; k < pixels; ++k) {
+        const u8* const p = a.data() + 4 * k;
+        const u8* const q = b.data() + 4 * k;
+        int pixel_worst = 0;
+        for (usize c = 0; c < 4; ++c) {
+            const double g = c == 3 ? p[3] : static_cast<double>(p[c]) * p[3] / 255.0;
+            const double w = c == 3 ? q[3] : static_cast<double>(q[c]) * q[3] / 255.0;
+            const int diff = static_cast<int>(std::lround(g)) - static_cast<int>(std::lround(w));
+            const int magnitude = diff < 0 ? -diff : diff;
+            pixel_worst = magnitude > pixel_worst ? magnitude : pixel_worst;
+            sum = sum + (magnitude > 0 ? magnitude : 0);
+        }
+        differing = differing + (std::memcmp(p, q, 4) == 0 ? 0 : 1);
+        d.worst = pixel_worst > d.worst ? pixel_worst : d.worst;
+    }
+    d.differing_percent = 100.0 * static_cast<double>(differing) / static_cast<double>(pixels);
+    d.mean = sum / static_cast<double>(pixels * 4);
+    return d;
+}
+
+double milliseconds_since(const std::chrono::steady_clock::time_point start) {
+    return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+}
+
+void fused_experiment() {
+    conv::Workspace workspace = workspace_made();
+    const Kind kinds[2] = {Kind::noise, Kind::icon};
+    const char* const kind_names[2] = {"noise", "icon"};
+    const usize shapes[2][2] = {{1024, 768}, {768, 1024}};
+    for (usize kk = 0; kk < 2; ++kk) {
+        for (usize sh = 0; sh < 2; ++sh) {
+            const Image image = fixture(kinds[kk], shapes[sh][0], shapes[sh][1], 41);
+            const Image flipped = transposed(image);
+            const conv::Field field = compiled(image);
+            const conv::Field field_t = compiled(flipped);
+            const usize w = image.width;
+            const usize h = image.height;
+            const usize targets[3][2] = {{w / 2, h / 2}, {w * 3 / 2, h / 2}, {w / 3, h * 2 / 3}};
+            for (const usize(&target)[2] : targets) {
+                conv::AxisMap map;
+                map.target_width = target[0];
+                map.target_height = target[1];
+                const conv::Region all{0, 0, target[0], target[1]};
+                Destination exact(target[0], target[1]);
+                std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+                CHECK(conv::transfer(field, map, conv::Mode::canon, exact.view(), all, workspace).succeeded());
+                const double exact_ms = milliseconds_since(start);
+                Destination fused(target[0], target[1]);
+                start = std::chrono::steady_clock::now();
+                CHECK(line::axis_canon_fused(field, map, fused.view(), all, workspace).succeeded());
+                const double fused_ms = milliseconds_since(start);
+                // Longer axis first: transpose, resize with the transposed map, transpose back.
+                conv::AxisMap map_t;
+                map_t.target_width = target[1];
+                map_t.target_height = target[0];
+                Destination out_t(target[1], target[0]);
+                start = std::chrono::steady_clock::now();
+                CHECK(line::axis_canon_fused(field_t, map_t, out_t.view(), conv::Region{0, 0, target[1], target[0]}, workspace).succeeded());
+                const double transposed_ms = milliseconds_since(start);
+                Image back_in;
+                back_in.width = target[1];
+                back_in.height = target[0];
+                back_in.rgba = out_t.rgba;
+                const Image back = transposed(back_in);
+                const Difference fd = compare_images(fused.rgba, exact.rgba);
+                const Difference td = compare_images(back.rgba, exact.rgba);
+                std::printf("fused %s %zux%zu -> %zux%zu | exact canon %.1f ms | rows-first fused %.1f ms: %.2f%% px differ, max %d, mean %.4f codes"
+                            " | transposed fused %.1f ms: %.2f%% px differ, max %d, mean %.4f codes\n",
+                            kind_names[kk], w, h, target[0], target[1], exact_ms, fused_ms, fd.differing_percent, fd.worst, fd.mean, transposed_ms,
+                            td.differing_percent, td.worst, td.mean);
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- the longer axis first
+
+void longer_axis_first() {
+    // 40 x 70: height over 150% of width, so the field is stored transposed. Every result must be
+    // the transpose of the transposed (wide, 70 x 40) source's, bit for bit.
+    const Image tall = fixture(Kind::icon, 40, 70, 23);
+    const Image wide = transposed_image(tall);
+    conv::Field ft = compiled(tall);
+    conv::Field fw = compiled(wide);
+    CHECK(ft.width() == 40 && ft.height() == 70);
+    usize differ = 0;
+    Random random;
+    for (usize q = 0; q < 500; ++q) {
+        const double u = (static_cast<double>(random.next()) / 4294967296.0) * 42.0 - 1.0;
+        const double v = (static_cast<double>(random.next()) / 4294967296.0) * 72.0 - 1.0;
+        double a[4];
+        double b[4];
+        CHECK(ft.evaluate(u, v, stxlib::MutableView<double>(a, 4)).succeeded());
+        CHECK(fw.evaluate(v, u, stxlib::MutableView<double>(b, 4)).succeeded());
+        differ = differ + (std::memcmp(a, b, sizeof(a)) == 0 ? 0 : 1);
+    }
+    conv::Workspace workspace = workspace_made();
+    usize pixels = 0;
+    for (usize m = 0; m < 2; ++m) {
+        const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+        conv::AxisMap mt;
+        mt.target_width = 31;
+        mt.target_height = 97;
+        conv::AxisMap mw;
+        mw.target_width = 97;
+        mw.target_height = 31;
+        Destination dt(31, 97);
+        Destination dw(97, 31);
+        CHECK(conv::transfer(ft, mt, mode, dt.view(), conv::Region{0, 0, 31, 97}, workspace).succeeded());
+        CHECK(conv::transfer(fw, mw, mode, dw.view(), conv::Region{0, 0, 97, 31}, workspace).succeeded());
+        for (usize y = 0; y < 97; ++y)
+            for (usize x = 0; x < 31; ++x) pixels = pixels + (std::memcmp(dt.rgba.data() + (y * 31 + x) * 4, dw.rgba.data() + (x * 97 + y) * 4, 4) == 0 ? 0 : 1);
+    }
+    {
+        // Affine preview: the transposed map on the transposed destination.
+        conv::AffineMap at;
+        at.a11 = 0.8;
+        at.a12 = 0.3;
+        at.a21 = -0.2;
+        at.a22 = 0.9;
+        at.ou = 5.0;
+        at.ov = 7.0;
+        conv::AffineMap aw;
+        aw.a11 = at.a22;
+        aw.a12 = at.a21;
+        aw.a21 = at.a12;
+        aw.a22 = at.a11;
+        aw.ou = at.ov;
+        aw.ov = at.ou;
+        Destination dt(36, 60);
+        Destination dw(60, 36);
+        CHECK(conv::transfer(ft, at, conv::Mode::preview, dt.view(), conv::Region{0, 0, 36, 60}, workspace).succeeded());
+        CHECK(conv::transfer(fw, aw, conv::Mode::preview, dw.view(), conv::Region{0, 0, 60, 36}, workspace).succeeded());
+        for (usize y = 0; y < 60; ++y)
+            for (usize x = 0; x < 36; ++x) pixels = pixels + (std::memcmp(dt.rgba.data() + (y * 36 + x) * 4, dw.rgba.data() + (x * 60 + y) * 4, 4) == 0 ? 0 : 1);
+    }
+    // Local recompile on the transposed field equals a whole compile.
+    Image edited = tall;
+    for (usize y = 30; y < 38; ++y)
+        for (usize x = 5; x < 9; ++x) edited.rgba[(y * 40 + x) * 4] = static_cast<u8>(random.next() >> 24);
+    stxlib::OperationResult<conv::NodeBox> box = ft.recompile(edited.view(), conv::Region{5, 30, 9, 38});
+    CHECK(box.succeeded() && (*box.value()).u0 == 1 && (*box.value()).v0 == 26 && (*box.value()).u1 == 12 && (*box.value()).v1 == 41);
+    const conv::Field whole = compiled(edited);
+    usize recompile_differ = 0;
+    for (usize q = 0; q < 300; ++q) {
+        const double u = (static_cast<double>(random.next()) / 4294967296.0) * 40.0;
+        const double v = (static_cast<double>(random.next()) / 4294967296.0) * 70.0;
+        double a[4];
+        double b[4];
+        CHECK(ft.evaluate(u, v, stxlib::MutableView<double>(a, 4)).succeeded());
+        CHECK(whole.evaluate(u, v, stxlib::MutableView<double>(b, 4)).succeeded());
+        recompile_differ = recompile_differ + (std::memcmp(a, b, sizeof(a)) == 0 ? 0 : 1);
+    }
+    std::printf("longer axis first: %zu field points, %zu destination pixels, %zu recompiled points differ\n", differ, pixels, recompile_differ);
+    CHECK(differ == 0);
+    CHECK(pixels == 0);
+    CHECK(recompile_differ == 0);
+}
+
 // ---------------------------------------------------------------- lines
 
 void line_field() {
@@ -1095,9 +1297,11 @@ int main() {
     affine_and_mesh_canon();
     projective_canon();
     local_recompile();
+    longer_axis_first();
     line_field();
     refusals();
     digest_outputs();
     timing();
+    fused_experiment();
     return stxlib_tests::finish("stxlib conv");
 }

@@ -25,8 +25,13 @@ struct Correction final {
 };
 
 struct FieldState final {
+    // The stored orientation. When the source's height is over 150% of its width the field is
+    // stored transposed (owner, 2026-11-23: the 1D form along the longer axis first), so the rows,
+    // the first admitted axis, run along the source's longer side; width and height here are then
+    // the source's height and width, and every entry point swaps coordinates.
     usize width{0};
     usize height{0};
+    bool transposed{false};
     bool ready{false};
     const Kernels* kernels{nullptr};
     Vector<u8> source;
@@ -42,6 +47,9 @@ struct WorkspaceState final {
     Vector<double> values;
     // Axis canon: the per-v-cell idle flags and admitted cells.
     Vector<u8> simple;
+    // Transposed fields: a mesh's swapped node positions, and axis canon's transposed scratch.
+    Vector<double> swapped_uv;
+    Vector<u8> transposed_pixels;
     Vector<double> cells;
     Vector<double> accumulator;
     // Tiled preview (transfer.cpp): per tile the pulled-back points, the local row cells, the
@@ -103,5 +111,10 @@ double vertical_value(const FieldState& field, usize j, const double* w, const d
 
 // The field at (u, v), all channels (Field::evaluate's arithmetic).
 void field_value(const FieldState& field, double u, double v, double* out) noexcept;
+
+// The fused axis canon (experiment, transfer.cpp): horizontal integration first, then one
+// vertical contest per destination column. Tests and measurements only.
+OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
+                                 Workspace& workspace) noexcept;
 
 } // namespace stxlib::conv::detail

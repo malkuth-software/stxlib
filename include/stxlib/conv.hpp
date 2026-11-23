@@ -15,6 +15,14 @@
 //            (exact for the piecewise-polynomial canon field on axis and affine maps and
 //            meshes; perspective by subdivision with a stated density bound).
 //
+// The field is the 1D form along the longer axis first (owner, 2026-11-23: three forms, of which
+// preview and canon are the default and Plan Paint's): rows are admitted first, and a source over
+// 150% taller than wide is compiled transposed, so a tall source gives the transpose of its
+// transpose's results, bit for bit. The ordered form keeps a small directional difference where
+// admission acts (a few codes, under 1% of pixels on photographs). The third form, CONV high
+// quality (the truly 2D, order-free joint admission, C2), is documented and not implemented:
+// work/conv HIGH_QUALITY.md.
+//
 // Every transfer writes only inside its destination region, so a caller updates the part of
 // a destination that a moved mesh node changed, and splits a destination into regions to run
 // them on separate threads (one workspace per thread).

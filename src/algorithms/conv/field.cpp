@@ -300,6 +300,20 @@ void field_value(const FieldState& field, const double u, const double v, double
     }
 }
 
+// Copies the source pixels of `rect` (source coordinates) into the stored orientation.
+void copy_source(FieldState& field, const Rgba8Image& source, const Region& rect) noexcept {
+    u8* const copy = field.source.mutable_view().data();
+    const u8* const from = source.pixels.data();
+    const usize stored_row = field.width * 4;
+    for (usize y = rect.y0; y < rect.y1; ++y) {
+        for (usize x = rect.x0; x < rect.x1; ++x) {
+            const usize sx = field.transposed ? y : x;
+            const usize sy = field.transposed ? x : y;
+            for (usize k = 0; k < 4; ++k) copy[sy * stored_row + sx * 4 + k] = from[y * source.row_stride + x * 4 + k];
+        }
+    }
+}
+
 } // namespace stxlib::conv::detail
 
 namespace stxlib::conv {
@@ -343,13 +357,16 @@ OperationResult<Field> Field::make(const usize width, const usize height, const 
     if (block == nullptr) return OperationResult<Field>::failure(exhausted);
     FieldState* const state = ::new (block) FieldState();
     Field field(state);
-    (*state).width = width;
-    (*state).height = height;
+    // The longer axis first: a source more than 150% taller than wide is stored transposed.
+    const bool transposed = height * 2 > width * 3;
+    (*state).transposed = transposed;
+    (*state).width = transposed ? height : width;
+    (*state).height = transposed ? width : height;
     (*state).kernels = &detail::kernels_for(simd::selected_level());
     // width, height <= 2^15, so width * height * 4 <= 2^32 fits usize on every target.
     const OperationStatus source = (*state).source.resize(width * height * 4);
     if (source.failed()) return OperationResult<Field>::failure(exhausted);
-    const OperationStatus rows = (*state).rows.resize(height);
+    const OperationStatus rows = (*state).rows.resize((*state).height);
     if (rows.failed()) return OperationResult<Field>::failure(exhausted);
     return OperationResult<Field>::success(static_cast<Field&&>(field));
 }
@@ -360,8 +377,9 @@ OperationStatus Field::compile(const Rgba8Image& source) noexcept {
                                                           ErrorDetail{.message = "empty field"}));
     }
     FieldState& field = *state_;
-    if (source.width != field.width || source.height != field.height || source.row_stride < field.width * 4 ||
-        source.pixels.count() < (field.height - 1) * source.row_stride + field.width * 4) {
+    const usize sw = field.transposed ? field.height : field.width;
+    const usize sh = field.transposed ? field.width : field.height;
+    if (source.width != sw || source.height != sh || source.row_stride < sw * 4 || source.pixels.count() < (sh - 1) * source.row_stride + sw * 4) {
         return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.compile",
                                                           ErrorDetail{.message = "the image does not have the field's size"}));
     }
@@ -370,11 +388,7 @@ OperationStatus Field::compile(const Rgba8Image& source) noexcept {
     if (detail::prepare(scratch, field.width).failed()) {
         return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.compile"));
     }
-    u8* const copy = field.source.mutable_view().data();
-    const u8* const from = source.pixels.data();
-    for (usize y = 0; y < field.height; ++y) {
-        for (usize b = 0; b < field.width * 4; ++b) copy[y * field.width * 4 + b] = from[y * source.row_stride + b];
-    }
+    detail::copy_source(field, source, Region{0, 0, sw, sh});
     for (usize y = 0; y < field.height; ++y) {
         const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
         if (row.failed()) {
@@ -392,12 +406,13 @@ OperationResult<NodeBox> Field::recompile(const Rgba8Image& source, const Region
                                                                    ErrorDetail{.message = "the field is not compiled"}));
     }
     FieldState& field = *state_;
-    if (source.width != field.width || source.height != field.height || source.row_stride < field.width * 4 ||
-        source.pixels.count() < (field.height - 1) * source.row_stride + field.width * 4) {
+    const usize sw = field.transposed ? field.height : field.width;
+    const usize sh = field.transposed ? field.width : field.height;
+    if (source.width != sw || source.height != sh || source.row_stride < sw * 4 || source.pixels.count() < (sh - 1) * source.row_stride + sw * 4) {
         return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.recompile",
                                                                    ErrorDetail{.message = "the image does not have the field's size"}));
     }
-    if (changed.x0 > changed.x1 || changed.y0 > changed.y1 || changed.x1 > field.width || changed.y1 > field.height) {
+    if (changed.x0 > changed.x1 || changed.y0 > changed.y1 || changed.x1 > sw || changed.y1 > sh) {
         return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.recompile",
                                                                    ErrorDetail{.message = "the changed region is not inside the source"}));
     }
@@ -407,12 +422,10 @@ OperationResult<NodeBox> Field::recompile(const Rgba8Image& source, const Region
     if (detail::prepare(scratch, field.width).failed()) {
         return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.recompile"));
     }
-    u8* const copy = field.source.mutable_view().data();
-    const u8* const from = source.pixels.data();
-    for (usize y = changed.y0; y < changed.y1; ++y) {
-        for (usize b = changed.x0 * 4; b < changed.x1 * 4; ++b) copy[y * field.width * 4 + b] = from[y * source.row_stride + b];
-    }
-    for (usize y = changed.y0; y < changed.y1; ++y) {
+    detail::copy_source(field, source, changed);
+    // The changed rectangle in the stored orientation.
+    const Region stored = field.transposed ? Region{changed.y0, changed.x0, changed.y1, changed.x1} : changed;
+    for (usize y = stored.y0; y < stored.y1; ++y) {
         const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
         if (row.failed()) {
             field.ready = false;
@@ -420,18 +433,19 @@ OperationResult<NodeBox> Field::recompile(const Rgba8Image& source, const Region
         }
     }
     // A pixel x reaches the cells i with i - 3 <= x <= i + 4 (the window y[i-3 .. i+4]), so the
-    // values of u in [x - 4, x + 4]; likewise along v through the vertical windows.
+    // values of u in [x - 4, x + 4]; likewise along v through the vertical windows. In the
+    // source's own coordinates either way.
     box.u0 = changed.x0 >= 4 ? changed.x0 - 4 : 0;
     box.v0 = changed.y0 >= 4 ? changed.y0 - 4 : 0;
-    box.u1 = changed.x1 + 3 < field.width ? changed.x1 + 3 : field.width - 1;
-    box.v1 = changed.y1 + 3 < field.height ? changed.y1 + 3 : field.height - 1;
+    box.u1 = changed.x1 + 3 < sw ? changed.x1 + 3 : sw - 1;
+    box.v1 = changed.y1 + 3 < sh ? changed.y1 + 3 : sh - 1;
     box.empty = false;
     return OperationResult<NodeBox>::success(box);
 }
 
 bool Field::ready() const noexcept { return state_ != nullptr && (*state_).ready; }
-usize Field::width() const noexcept { return state_ == nullptr ? 0 : (*state_).width; }
-usize Field::height() const noexcept { return state_ == nullptr ? 0 : (*state_).height; }
+usize Field::width() const noexcept { return state_ == nullptr ? 0 : (*state_).transposed ? (*state_).height : (*state_).width; }
+usize Field::height() const noexcept { return state_ == nullptr ? 0 : (*state_).transposed ? (*state_).width : (*state_).height; }
 
 usize Field::storage_bytes() const noexcept {
     if (state_ == nullptr) return 0;
@@ -450,7 +464,11 @@ OperationStatus Field::evaluate(const double u, const double v, const MutableVie
         return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.evaluate",
                                                           ErrorDetail{.message = "four values and finite coordinates are needed"}));
     }
-    detail::field_value(*state_, u, v, values.data());
+    if ((*state_).transposed) {
+        detail::field_value(*state_, v, u, values.data());
+    } else {
+        detail::field_value(*state_, u, v, values.data());
+    }
     return OperationStatus::success();
 }
 
