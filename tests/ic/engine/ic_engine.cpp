@@ -14,6 +14,9 @@
 #include <unistd.h>
 #define STXLIB_IC_FORKS 1
 #endif
+#if defined(__linux__)
+#include <sys/prctl.h>
+#endif
 
 namespace stxlib_ic {
 
@@ -374,6 +377,13 @@ Outcome Step::requirement(void (*const call)(void*), void* const context, const 
         // 2026-11-23: stxlib_ic_engine_run ran past 30 minutes).
         const struct rlimit no_core{0, 0};
         static_cast<void>(::setrlimit(RLIMIT_CORE, &no_core));
+#if defined(__linux__)
+        // Where core_pattern pipes to a handler (apport on GitHub's
+        // runners, for the musl job's container too), the kernel runs the
+        // handler whatever RLIMIT_CORE says; a process that is not dumpable
+        // is never handed to it (STXlib CI linux-musl, run 45249417858).
+        static_cast<void>(::prctl(PR_SET_DUMPABLE, 0, 0, 0, 0));
+#endif
         ::dup2(ends[1], 2);
         ::close(ends[0]);
         (*call)(context);
