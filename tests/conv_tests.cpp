@@ -39,7 +39,7 @@ using stxlib::u64;
 using stxlib::usize;
 
 // The digest of digest_outputs() on the fixtures below; 0 prints it without checking.
-constexpr u64 expected_digest = 0x273d96e8953415eeull;
+constexpr u64 expected_digest = 0x9e4bf8cae5299346ull;
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
@@ -331,8 +331,8 @@ void previews_match_field() {
         CHECK(conv::transfer(field, map, conv::Mode::preview, out.view(), all, workspace).succeeded());
         for (usize y = 0; y < 23; ++y) {
             for (usize x = 0; x < 57; ++x) {
-                const double u = static_cast<double>(x) * 39.0 / 56.0;
-                const double v = static_cast<double>(y) * 29.0 / 22.0;
+                const double u = (static_cast<double>(x) + 0.5) * 40.0 / 57.0 - 0.5;
+                const double v = (static_cast<double>(y) + 0.5) * 30.0 / 23.0 - 0.5;
                 expect_pixel(field, u, v, out.rgba.data() + (y * 57 + x) * 4, mismatches);
             }
         }
@@ -1162,7 +1162,7 @@ void line_field() {
         CHECK(conv::transfer(whole_line, conv::Mode::preview, target).succeeded());
         for (usize k = 0; k < n; ++k) {
             double value[4];
-            CHECK(whole_line.evaluate(static_cast<double>(k) * 36.0 / static_cast<double>(n - 1), stxlib::MutableView<double>(value, 4)).succeeded());
+            CHECK(whole_line.evaluate((static_cast<double>(k) + 0.5) * 37.0 / static_cast<double>(n) - 0.5, stxlib::MutableView<double>(value, 4)).succeeded());
             CHECK(std::memcmp(value, out.data() + k * 6, sizeof(value)) == 0);
         }
     }
