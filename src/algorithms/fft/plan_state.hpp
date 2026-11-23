@@ -155,11 +155,15 @@ struct DipTables final {
 // kernels_avx2_fma.cpp). Each reads its tables, the input and its work
 // buffer, and writes only the work buffer and the output; requirements
 // (checked by plan.cpp before the call): counts match the tables' size,
-// input and output do not overlap.
+// input and output do not overlap. The plain mode's DIF and DIT kernels take
+// their work buffers as arguments (N reals; DIF's float64 forward also the
+// native spectrum, N/2 + 1 values, from N = 32), so a call may run on the
+// plan's own buffers or on a caller's workspace; the other modes use the
+// plan's.
 struct Kernels final {
-    void (*dif_forward64)(const DifTables&, const double*, Complex64*) noexcept = nullptr;
+    void (*dif_forward64)(const DifTables&, const double*, Complex64*, double*, Complex64*) noexcept = nullptr;
     void (*dif_inverse64)(const DifTables&, const Complex64*, double*) noexcept = nullptr;
-    void (*dif_forward32)(const DifTables&, const float*, Complex32*) noexcept = nullptr;
+    void (*dif_forward32)(const DifTables&, const float*, Complex32*, float*) noexcept = nullptr;
     void (*dif_inverse32)(const DifTables&, const Complex32*, float*) noexcept = nullptr;
     void (*bodft_forward64)(const BodftTables&, const double*, Complex64*) noexcept = nullptr;
     void (*bodft_inverse64)(const BodftTables&, const Complex64*, double*) noexcept = nullptr;
@@ -167,10 +171,10 @@ struct Kernels final {
     void (*bodft_inverse32)(const BodftTables&, const Complex32*, float*) noexcept = nullptr;
     void (*dip_forward64)(const DipTables&, const double*, Complex64*) noexcept = nullptr;
     void (*dip_inverse64)(const DipTables&, const Complex64*, double*) noexcept = nullptr;
-    void (*dit_forward64)(const DitTables&, const double*, Complex64*) noexcept = nullptr;
-    void (*dit_inverse64)(const DitTables&, const Complex64*, double*) noexcept = nullptr;
-    void (*dit_forward32)(const DitTables&, const float*, Complex32*) noexcept = nullptr;
-    void (*dit_inverse32)(const DitTables&, const Complex32*, float*) noexcept = nullptr;
+    void (*dit_forward64)(const DitTables&, const double*, Complex64*, double*) noexcept = nullptr;
+    void (*dit_inverse64)(const DitTables&, const Complex64*, double*, double*) noexcept = nullptr;
+    void (*dit_forward32)(const DitTables&, const float*, Complex32*, float*) noexcept = nullptr;
+    void (*dit_inverse32)(const DitTables&, const Complex32*, float*, float*) noexcept = nullptr;
 };
 
 // The tiers this build compiles: scalar everywhere; vector128 on x86-64
@@ -201,8 +205,220 @@ extern const Kernels kernels;
 // has. The caller makes sure the machine runs `level` (simd::hardware_level).
 [[nodiscard]] const Kernels& kernels_for(simd::Level level) noexcept;
 
+// ---------------------------------------------------------------------------
+// The walk: the plain mode's kernel from N = 16 (walk.inc, walk_plan.cpp).
+// ---------------------------------------------------------------------------
+
+// The walk's two builds of one source (docs/CODE_STYLE_APPENDIX.md, A1 rule
+// 1, the walk's exception; owner, 2026-11-23). Each is bit-identical on every
+// target of its family; the two differ from each other.
+//   exact_portable  the exact build on plain lanes (every target; the scalar
+//                   tier, and wasm without SIMD128)
+//   exact128        the exact build on 128-bit vectors: SSE2 on x86-64
+//                   without FMA3, SIMD128 on wasm (and NEON, for tests)
+//   fused128        the fused build on 128-bit vectors: NEON on arm64, SSE
+//                   with FMA3 on x86-64; never wider (owner: wider units
+//                   throttle the CPU)
+enum class WalkTier : u8 {
+    exact_portable = 0,
+    exact128 = 1,
+    fused128 = 2,
+};
+
+// Whether a tier computes the fused build's values.
+[[nodiscard]] constexpr bool walk_fused(const WalkTier tier) noexcept { return tier == WalkTier::fused128; }
+
+// Which buffer a pass reads or writes: the caller's input (forward) or output
+// (inverse), or one of the two work buffers.
+enum class WalkBuffer : u32 {
+    caller = 0,
+    first = 1,
+    second = 2,
+};
+
+// One radix-4 cell: the physical places of its row's real and imaginary runs
+// before the pass, and of its two output rows after it.
+struct WalkCell4 final {
+    u32 in_re{0};
+    u32 in_im{0};
+    u32 out_o{0};
+    u32 out_b{0};
+};
+
+// One radix-2 cell: its input runs and its four output runs.
+struct WalkCell2 final {
+    u32 in_re{0};
+    u32 in_im{0};
+    u32 out0{0};
+    u32 out1{0};
+    u32 out2{0};
+    u32 out3{0};
+};
+
+// One row of the terminal pass: four reals of its real part, four of its
+// imaginary part, and its angle index k (the row's smaller angle is
+// 2 pi k / N, its larger 4 pi k / N).
+struct WalkRow final {
+    u32 in_re{0};
+    u32 in_im{0};
+    u32 k{0};
+};
+
+// One radix-4 or radix-2 pass of the walk. Places are physical: offsets into
+// the gapped work buffers (walk_plan.cpp, "Gaps"). A pass's runs are `chunk`
+// reals long and are worked in stretches of `stretch` reals that hold no gap;
+// a stretch at logical offset z starts at in_place(z) on the input side and
+// out_place(z) on the output side.
+struct WalkPass final {
+    u32 radix{4};
+    WalkBuffer source{WalkBuffer::caller};
+    WalkBuffer destination{WalkBuffer::first};
+    u32 chunk{0};
+    u32 stretch{0};
+    u32 quarters[4]{};     // the input run's quarters (radix 2: halves 0, 1)
+    u32 offsets[4]{};      // each quarter's far run on the output side
+    u32 dc_in{0};
+    u32 dc_out[4]{};
+    bool ridge{false};     // the real row 2^(t-1) (t >= 1)
+    u32 ridge_in{0};
+    u32 ridge_out[4]{};
+    // The gap rule: place(k) = k + (k >> shift) gap + (k >> shift2) gap2.
+    u32 shift{31};
+    u32 shift2{31};
+    u32 in_gap{0};
+    u32 in_gap2{0};
+    u32 out_gap{0};
+    u32 out_gap2{0};
+    const WalkCell4* cells4{nullptr};   // radix 4
+    const WalkCell2* cells2{nullptr};   // radix 2
+    u32 cell_count{0};
+    // The twiddles of the cells in the order they run, copied from the
+    // plan's table: four per radix-4 cell (cos and sin of the first-stage
+    // angle, then of the second), two per radix-2 cell.
+    const double* strip64{nullptr};
+    const float* strip32{nullptr};
+};
+
+[[nodiscard]] constexpr u32 walk_in_place(const WalkPass& pass, const u32 k) noexcept {
+    return k + (k >> pass.shift) * pass.in_gap + (k >> pass.shift2) * pass.in_gap2;
+}
+
+[[nodiscard]] constexpr u32 walk_out_place(const WalkPass& pass, const u32 k) noexcept {
+    return k + (k >> pass.shift) * pass.out_gap + (k >> pass.shift2) * pass.out_gap2;
+}
+
+// The last two stages: rows 0 and N/8 (dc_in, ridge_in) and every other row,
+// k = 1 .. N/8 - 1 in order. The first direct_rows rows (k <= N/16) read
+// their larger angle straight from the table; the rest from its complement.
+struct WalkTerminal final {
+    WalkBuffer source{WalkBuffer::first};
+    u32 dc_in{0};
+    u32 ridge_in{0};
+    const WalkRow* rows{nullptr};
+    u32 row_count{0};
+    u32 direct_rows{0};
+};
+
+// What one step of the schedule runs: part 0 a pass's row 0, part 1 its
+// ridge, part 2 its cells first .. first + count - 1.
+enum class WalkPart : u32 {
+    dc = 0,
+    ridge = 1,
+    cells = 2,
+};
+
+struct WalkSegment final {
+    u32 pass{0};
+    WalkPart part{WalkPart::dc};
+    u32 first{0};
+    u32 count{0};
+};
+
+// The walk's tables for one size and precision. The twiddle table holds
+// (cos, sin) of 2 pi a / N side by side, a = 0 .. N/8, both from STXlib's
+// sincospi (the sine as the cosine of the complement); an angle between an
+// eighth and a quarter turn is read from its complement with the two
+// exchanged. Every kernel reads it, the straight-line ones included.
+struct WalkTables final {
+    i32 n{0};
+    u32 eighth{0};                     // N/8, the table's last angle
+    // The straight-line kernels (walk_small_*.inc) run instead of the passes:
+    // up to N = 128 in float64 and N = 256 in float32.
+    bool straight_line{false};
+    const double* twiddles64{nullptr}; // [2 (N/8 + 1)]
+    const float* twiddles32{nullptr};
+    const WalkPass* passes{nullptr};
+    u32 pass_count{0};
+    WalkTerminal terminal{};
+    const WalkSegment* segments{nullptr};
+    u32 segment_count{0};
+    usize elements{0};                 // one gapped work buffer, in reals
+    usize stagger{0};                  // reals between the two buffers
+    usize work_count{0};               // reals a transform's work takes (0 straight-line)
+};
+
+// One walk tier's kernels (walk_portable.cpp, walk_exact128.cpp,
+// walk_fused128.cpp through walk_variant.inc). `work` holds work_count
+// reals (unused by the straight-line kernels). Requirements, checked by
+// plan.cpp: counts are the tables' size; input, output and work do not
+// overlap.
+struct WalkKernels final {
+    void (*forward64)(const WalkTables&, const double*, Complex64*, double*) noexcept = nullptr;
+    void (*inverse64)(const WalkTables&, const Complex64*, double*, double*) noexcept = nullptr;
+    void (*magnitude64)(const WalkTables&, const double*, double*, double*) noexcept = nullptr;
+    void (*forward32)(const WalkTables&, const float*, Complex32*, float*) noexcept = nullptr;
+    void (*inverse32)(const WalkTables&, const Complex32*, float*, float*) noexcept = nullptr;
+    void (*magnitude32)(const WalkTables&, const float*, float*, float*) noexcept = nullptr;
+};
+
+// The walk tiers this build compiles: exact_portable everywhere; exact128
+// on x86-64, arm64 and wasm with SIMD128; fused128 on x86-64 and arm64.
+#if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
+#define STXLIB_FFT_WALK_EXACT128 1
+#define STXLIB_FFT_WALK_FUSED128 1
+#elif defined(__wasm_simd128__)
+#define STXLIB_FFT_WALK_EXACT128 1
+#endif
+
+namespace walk_portable {
+extern const WalkKernels kernels;
+} // namespace walk_portable
+#if defined(STXLIB_FFT_WALK_EXACT128)
+namespace walk_exact128 {
+extern const WalkKernels kernels;
+} // namespace walk_exact128
+#endif
+#if defined(STXLIB_FFT_WALK_FUSED128)
+namespace walk_fused128 {
+extern const WalkKernels kernels;
+} // namespace walk_fused128
+#endif
+
+// The walk tier a plan made at `level` runs: fused128 where
+// simd::fma128_at(level), else exact128 where this build has it and the
+// level is above scalar, else exact_portable.
+[[nodiscard]] WalkTier walk_tier_for(simd::Level level) noexcept;
+// Whether this build has `tier` and this machine runs it.
+[[nodiscard]] bool walk_tier_runs(WalkTier tier) noexcept;
+[[nodiscard]] const WalkKernels& walk_kernels_for(WalkTier tier) noexcept;
+
+// How a plan's walk is laid out and which tier runs it. The defaults are
+// make's; tests and the benchmark choose others through PlanAccess. No choice
+// here changes a value the walk computes except the tier's family.
+inline constexpr u32 walk_granule_automatic = u32_max;
+struct WalkOptions final {
+    bool automatic_tier{true};               // walk_tier_for(level)
+    WalkTier tier{WalkTier::exact_portable}; // when not automatic
+    bool straight_line{true};                // the straight-line kernels where they exist
+    bool gaps{true};
+    // Blocks of at most this many reals are worked pass by pass before the
+    // next block; larger ones depth-first. 0: every pass is one sweep;
+    // walk_granule_automatic: from the first-level cache.
+    u32 granule{walk_granule_automatic};
+};
+
 // The most blocks one plan owns (tables and workspace).
-inline constexpr usize plan_block_capacity = 32;
+inline constexpr usize plan_block_capacity = 48;
 
 // The plain mode's two kernels, BFFT's DIF and DIT. Both compute the same
 // bins (each within its own rounding), so a plan may run either in either
@@ -212,6 +428,7 @@ inline constexpr usize plan_block_capacity = 32;
 enum class Engine : u8 {
     dif = 0,
     dit = 1,
+    walk = 2,   // the walk (walk.inc), from N = 16
 };
 
 struct Engines final {
@@ -230,10 +447,18 @@ struct PlanState final {
     DitTables dit{};
     BodftTables bodft{};
     DipTables dip{};
+    WalkTables walk{};
+    WalkTier walk_tier{WalkTier::exact_portable};
+    const WalkKernels* walk_kernels{nullptr};
     // size + 2 reals of the plan's precision (one of the blocks below): the
     // flushed copy of a transform's input when that input holds a subnormal
     // (rfft reads size reals, irfft bins complex values, at most size + 2).
     void* staging{nullptr};
+    // The plain mode: the plan's own workspace for rfft, irfft and magnitude
+    // without a caller's (work_size reals of the plan's precision; plan.cpp,
+    // "Workspace").
+    void* workspace{nullptr};
+    usize work_size{0};
     // Every block allocated for this plan (memory::allocate), released by
     // destroy_plan_state; unused entries are null.
     void* blocks[plan_block_capacity]{};
@@ -252,6 +477,17 @@ struct PlanAccess final {
                                                         Engines engines) noexcept;
     [[nodiscard]] static OperationResult<Plan32> make32(usize size, Mode mode, simd::Level level,
                                                         Engines engines) noexcept;
+    // The plain mode with chosen engines and walk options.
+    [[nodiscard]] static OperationResult<Plan64> make64(usize size, Mode mode, simd::Level level, Engines engines,
+                                                        WalkOptions walk) noexcept;
+    [[nodiscard]] static OperationResult<Plan32> make32(usize size, Mode mode, simd::Level level, Engines engines,
+                                                        WalkOptions walk) noexcept;
+    // The walk tier the plan runs; exact_portable for the empty plan.
+    [[nodiscard]] static WalkTier walk_tier(const Plan64& plan) noexcept;
+    [[nodiscard]] static WalkTier walk_tier(const Plan32& plan) noexcept;
+    // Whether the plan's walk runs the straight-line kernels.
+    [[nodiscard]] static bool straight_line(const Plan64& plan) noexcept;
+    [[nodiscard]] static bool straight_line(const Plan32& plan) noexcept;
     // The plan's tier; scalar for the empty plan.
     [[nodiscard]] static simd::Level level(const Plan64& plan) noexcept;
     [[nodiscard]] static simd::Level level(const Plan32& plan) noexcept;
@@ -266,6 +502,17 @@ struct PlanAccess final {
     static void use_kernels(Plan64& plan, const Kernels& kernels) noexcept;
     static void use_kernels(Plan32& plan, const Kernels& kernels) noexcept;
 };
+
+// A zeroed block of count elements of `size` bytes, owned by the plan
+// (released with it); null when the allocator refuses, the byte count is not
+// representable or the plan holds plan_block_capacity blocks (plan.cpp).
+[[nodiscard]] void* take_plan_block(PlanState& state, usize count, usize size) noexcept;
+
+// Builds the walk's tables for a plain plan of n = 2^m >= 16 reals: the
+// twiddle table, and the passes, cells, schedule and the plan's own work
+// unless the straight-line kernels cover n; false when a block is refused
+// (walk_plan.cpp).
+[[nodiscard]] bool build_walk(PlanState& state, i32 n, bool float64, const WalkOptions& options) noexcept;
 
 // The engines the policy gives a plain plan of `size` at `level`, float64 or
 // float32 (plan.cpp).

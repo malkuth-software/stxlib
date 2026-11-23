@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/fft_plan32.ic.toml",
-    "sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3"
+    "sha256": "43af23a13db49f1a4f6cd52cf28c21955b19e7d2883f76fcc8f65e11b801fd01"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -23,7 +23,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_make_mode, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -39,7 +39,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -57,7 +57,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_make_size_limit, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -73,7 +73,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -91,7 +91,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_make_size_shape, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -107,7 +107,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -125,7 +125,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_make_float32_mode, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -141,7 +141,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -160,7 +160,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_rfft_input, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -176,7 +176,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -195,7 +195,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_rfft_output, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -211,7 +211,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -238,7 +238,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -257,7 +257,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_irfft_input, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -273,7 +273,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -292,7 +292,7 @@
       "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_irfft_output, called in src/algorithms/fft/plan.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -308,7 +308,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     },
     {
@@ -335,7 +335,478 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "src/algorithms/fft/plan.cpp": "3bb7ad960f3bf7e31eda23d9e41646d5a06da36c838aac0026ecd3ea4b81391d"
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude.requires.magnitude_input",
+      "kind": "entry-check",
+      "statement": "magnitude runs only when input_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_magnitude_input, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude.refusal.magnitude_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == size, magnitude changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude.requires.magnitude_output",
+      "kind": "entry-check",
+      "statement": "magnitude runs only when output_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_magnitude_output, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude.refusal.magnitude_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == bins, magnitude changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "magnitude in empty: failure invalid_argument, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.magnitude.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives magnitude in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.requires.work_rfft_input",
+      "kind": "entry-check",
+      "statement": "rfft_with_work runs only when input_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_rfft_input, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.refusal.work_rfft_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == size, rfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.requires.work_rfft_output",
+      "kind": "entry-check",
+      "statement": "rfft_with_work runs only when output_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_rfft_output, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.refusal.work_rfft_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == bins, rfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.requires.work_rfft_work",
+      "kind": "entry-check",
+      "statement": "rfft_with_work runs only when work_count >= work_size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_rfft_work, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.refusal.work_rfft_work",
+      "kind": "refusal-leaves",
+      "statement": "Unless work_count >= work_size, rfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.rfft_with_work.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "rfft_with_work in empty: failure invalid_argument, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.rfft_with_work.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives rfft_with_work in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.requires.work_irfft_input",
+      "kind": "entry-check",
+      "statement": "irfft_with_work runs only when input_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_irfft_input, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.refusal.work_irfft_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == bins, irfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.requires.work_irfft_output",
+      "kind": "entry-check",
+      "statement": "irfft_with_work runs only when output_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_irfft_output, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.refusal.work_irfft_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == size, irfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.requires.work_irfft_work",
+      "kind": "entry-check",
+      "statement": "irfft_with_work runs only when work_count >= work_size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_irfft_work, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.refusal.work_irfft_work",
+      "kind": "refusal-leaves",
+      "statement": "Unless work_count >= work_size, irfft_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft_with_work.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "irfft_with_work in empty: failure invalid_argument, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.irfft_with_work.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives irfft_with_work in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.requires.work_magnitude_input",
+      "kind": "entry-check",
+      "statement": "magnitude_with_work runs only when input_count == size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_magnitude_input, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.refusal.work_magnitude_input",
+      "kind": "refusal-leaves",
+      "statement": "Unless input_count == size, magnitude_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.requires.work_magnitude_output",
+      "kind": "entry-check",
+      "statement": "magnitude_with_work runs only when output_count == bins; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_magnitude_output, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.refusal.work_magnitude_output",
+      "kind": "refusal-leaves",
+      "statement": "Unless output_count == bins, magnitude_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.requires.work_magnitude_work",
+      "kind": "entry-check",
+      "statement": "magnitude_with_work runs only when work_count >= work_size; otherwise failure invalid_argument, unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::fft_plan32::admits_work_magnitude_work, called in src/algorithms/fft/plan.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.refusal.work_magnitude_work",
+      "kind": "refusal-leaves",
+      "statement": "Unless work_count >= work_size, magnitude_with_work changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
+      }
+    },
+    {
+      "id": "stxlib.fft.plan32.magnitude_with_work.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "magnitude_with_work in empty: failure invalid_argument, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.magnitude_with_work.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives magnitude_with_work in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "045291b82678ae0638d56a1d8fe59ad159aa7a7bdb4d833e5a5669c4c09b761b"
       }
     }
   ]

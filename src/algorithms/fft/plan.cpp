@@ -12,10 +12,18 @@
 // and op schedules, DIT's bit reversal, BODFT's digit reversal, DIP's
 // boundary permutations) are BFFT's constructions, copied.
 //
-// Engines. The plain mode has two kernels, BFFT's DIF and DIT; a plan runs
-// the ones engine_policy gives its size and tier (PlanAccess can choose
-// them for tests and the benchmark), and builds DIT's tables only when it
-// runs DIT.
+// Engines. The plain mode has three kernels: the walk (walk.inc,
+// walk_plan.cpp) and BFFT's DIF and DIT. A plan runs the ones engine_policy
+// gives its size (PlanAccess can choose them for tests and the benchmark),
+// and builds each kernel's tables only when it runs that kernel.
+//
+// Workspace. A plain plan's transforms run on a workspace of work_size
+// reals: the caller's (the const calls, which any number of threads may make
+// on one plan at once) or the plan's own (the others). It is [staging:
+// size + 2][scratch]: the staging area holds the flushed copy of an input
+// that has a subnormal; the scratch is the walk's work_count reals, or
+// 3 size + 4 for DIF and DIT (their work, N; DIF's native spectrum, N + 2;
+// the spectrum magnitude reads, N + 2), the larger of the plan's engines'.
 //
 // Tiers. A plan takes its kernels from simd::selected_level() when it is
 // made and keeps the pointer, so no transform checks the CPU (simd.hpp:
@@ -38,6 +46,7 @@
 #include "stxlib/view.hpp"
 
 #include <bit>
+#include <cmath>
 #include <new>
 
 namespace stxlib::fft::detail {
@@ -70,11 +79,13 @@ enum class Precision : u8 {
     return record;
 }
 
+} // namespace
+
 // A zeroed block of count elements of `size` bytes, recorded in the state
 // so destroy_state releases it; null when the allocator refuses or the
 // byte count is not representable (the caller then fails with
 // out_of_memory, and destroy_state releases what was taken).
-[[nodiscard]] void* take_block(PlanState& state, const usize count, const usize size) noexcept {
+void* take_plan_block(PlanState& state, const usize count, const usize size) noexcept {
     if (state.block_count == plan_block_capacity) return nullptr;
     if (count == 0 || count > usize_max / size) return nullptr;
     const usize bytes = count * size;
@@ -83,6 +94,13 @@ enum class Precision : u8 {
     __builtin_memset(block, 0, bytes);
     state.blocks[state.block_count] = block;
     state.block_count = state.block_count + 1;
+    return block;
+}
+
+namespace {
+
+[[nodiscard]] void* take_block(PlanState& state, const usize count, const usize size) noexcept {
+    void* const block = take_plan_block(state, count, size);
     return block;
 }
 
@@ -533,12 +551,29 @@ struct NativeScratch final {
     return true;
 }
 
-// DIT runs from N = 16; a DIT choice below that runs DIF.
+// DIT and the walk run from N = 16; below that a plan runs DIF. The other
+// modes read as dif, dif.
 [[nodiscard]] Engines effective_engines(const Engines engines, const Mode mode, const usize size) noexcept {
     Engines result{};
     if (mode != Mode::plain || size < 16) return result;
     result = engines;
     return result;
+}
+
+[[nodiscard]] bool runs(const Engines engines, const Engine engine) noexcept {
+    return engines.forward == engine || engines.inverse == engine;
+}
+
+// The scratch a plain plan's transforms take beyond the staging area
+// ("Workspace").
+[[nodiscard]] usize scratch_of(const PlanState& plan) noexcept {
+    usize scratch = 0;
+    if (runs(plan.engines, Engine::walk)) scratch = plan.walk.work_count;
+    if (runs(plan.engines, Engine::dif) || runs(plan.engines, Engine::dit)) {
+        const usize classic = 3 * plan.size + 4;
+        if (classic > scratch) scratch = classic;
+    }
+    return scratch;
 }
 
 // ---------------------------------------------------------------------------
@@ -749,7 +784,8 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
 // A new plan state at `level`, its tables built; null with `failure` set
 // when the arguments are refused or an allocation fails.
 [[nodiscard]] PlanState* make_state(const usize size, const Mode mode, const Precision precision,
-                                    const simd::Level level, const Engines engines, ErrorRecord& failure) noexcept {
+                                    const simd::Level level, const Engines engines, const WalkOptions& walk,
+                                    ErrorRecord& failure) noexcept {
     const u8 mode_value = static_cast<u8>(mode);
     const bool float64 = precision == Precision::float64;
     if (!mode_admitted(mode_value, float64)) {
@@ -772,6 +808,12 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
                                     ErrorDetail{.message = "the dip mode is float64 only"});
         return nullptr;
     }
+    const WalkTier tier = walk.automatic_tier ? walk_tier_for(level) : walk.tier;
+    if (!walk_tier_runs(tier)) {
+        failure = ErrorRecord::make(ErrorKind::unsupported, "stxlib.fft.make",
+                                    ErrorDetail{.message = "this build or machine does not run the walk tier"});
+        return nullptr;
+    }
     void* const block = memory::allocate(sizeof(PlanState), alignof(PlanState));
     if (block == nullptr) {
         failure = exhausted();
@@ -786,17 +828,27 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     plan.engines = effective_engines(engines, mode, size);
     const i32 n = static_cast<i32>(size);
     bool built = false;
+    plan.walk_tier = tier;
+    plan.walk_kernels = &walk_kernels_for(tier);
     if (mode == Mode::plain) {
-        built = build_dif(plan, n, precision);
-        const bool dit = plan.engines.forward == Engine::dit || plan.engines.inverse == Engine::dit;
+        built = true;
+        const bool dit = runs(plan.engines, Engine::dit);
+        if (dit || runs(plan.engines, Engine::dif)) built = build_dif(plan, n, precision);
         if (built && dit) built = build_dit(plan, n, precision);
+        if (built && runs(plan.engines, Engine::walk)) built = build_walk(plan, n, float64, walk);
     }
     if (mode == Mode::shifted) built = build_bodft(plan, n, precision);
     if (mode == Mode::dip) built = build_dip(plan, n);
-    if (built) {
+    if (built && mode != Mode::plain) {
         const usize element = precision == Precision::float32 ? sizeof(float) : sizeof(double);
         plan.staging = take_block(plan, size + 2, element);
         built = plan.staging != nullptr;
+    }
+    if (built && mode == Mode::plain) {
+        const usize element = precision == Precision::float32 ? sizeof(float) : sizeof(double);
+        plan.work_size = size + 2 + scratch_of(plan);
+        plan.workspace = take_block(plan, plan.work_size, element);
+        built = plan.workspace != nullptr;
     }
     if (!built) {
         destroy_state(state);
@@ -828,6 +880,8 @@ enum class Refusal : u8 {
     input_count,
     output_count,
     overlap,
+    work_count,
+    work_overlap,
 };
 
 [[nodiscard]] ErrorRecord refused(const Refusal refusal) noexcept {
@@ -844,6 +898,12 @@ enum class Refusal : u8 {
         break;
     case Refusal::overlap:
         message = "the input and output overlap";
+        break;
+    case Refusal::work_count:
+        message = "the work count is below the plan's work_size";
+        break;
+    case Refusal::work_overlap:
+        message = "the work overlaps the input or the output";
         break;
     case Refusal::none:
     default:
@@ -876,6 +936,77 @@ enum class Refusal : u8 {
     }
     if (float64) return plan64::admits_irfft_output(output_count, samples);
     return plan32::admits_irfft_output(output_count, samples);
+}
+
+// magnitude's count clauses (the generated checks; `input` picks the
+// input's clause, else the output's).
+[[nodiscard]] bool magnitude_admitted(const usize input_count, const usize output_count, const usize samples,
+                                      const usize bins, const bool float64, const bool input) noexcept {
+    namespace plan64 = ::stxlib::detail::ic::fft_plan64;
+    namespace plan32 = ::stxlib::detail::ic::fft_plan32;
+    if (input) {
+        if (float64) return plan64::admits_magnitude_input(input_count, samples);
+        return plan32::admits_magnitude_input(input_count, samples);
+    }
+    if (float64) return plan64::admits_magnitude_output(output_count, bins);
+    return plan32::admits_magnitude_output(output_count, bins);
+}
+
+// rfft_with_work's clauses: `input` picks the input's, else `output`
+// the output's, else the work's.
+[[nodiscard]] bool rfft_work_admitted(const usize input_count, const usize output_count, const usize work_count,
+                                      const usize samples, const usize bins, const usize work_size,
+                                      const bool float64, const bool input, const bool output) noexcept {
+    namespace plan64 = ::stxlib::detail::ic::fft_plan64;
+    namespace plan32 = ::stxlib::detail::ic::fft_plan32;
+    if (input) {
+        if (float64) return plan64::admits_work_rfft_input(input_count, samples);
+        return plan32::admits_work_rfft_input(input_count, samples);
+    }
+    if (output) {
+        if (float64) return plan64::admits_work_rfft_output(output_count, bins);
+        return plan32::admits_work_rfft_output(output_count, bins);
+    }
+    if (float64) return plan64::admits_work_rfft_work(work_count, work_size);
+    return plan32::admits_work_rfft_work(work_count, work_size);
+}
+
+// irfft_with_work's clauses: `input` picks the input's, else `output`
+// the output's, else the work's.
+[[nodiscard]] bool irfft_work_admitted(const usize input_count, const usize output_count, const usize work_count,
+                                       const usize samples, const usize bins, const usize work_size,
+                                       const bool float64, const bool input, const bool output) noexcept {
+    namespace plan64 = ::stxlib::detail::ic::fft_plan64;
+    namespace plan32 = ::stxlib::detail::ic::fft_plan32;
+    if (input) {
+        if (float64) return plan64::admits_work_irfft_input(input_count, bins);
+        return plan32::admits_work_irfft_input(input_count, bins);
+    }
+    if (output) {
+        if (float64) return plan64::admits_work_irfft_output(output_count, samples);
+        return plan32::admits_work_irfft_output(output_count, samples);
+    }
+    if (float64) return plan64::admits_work_irfft_work(work_count, work_size);
+    return plan32::admits_work_irfft_work(work_count, work_size);
+}
+
+// magnitude_with_work's clauses: `input` picks the input's, else `output`
+// the output's, else the work's.
+[[nodiscard]] bool magnitude_work_admitted(const usize input_count, const usize output_count, const usize work_count,
+                                           const usize samples, const usize bins, const usize work_size,
+                                           const bool float64, const bool input, const bool output) noexcept {
+    namespace plan64 = ::stxlib::detail::ic::fft_plan64;
+    namespace plan32 = ::stxlib::detail::ic::fft_plan32;
+    if (input) {
+        if (float64) return plan64::admits_work_magnitude_input(input_count, samples);
+        return plan32::admits_work_magnitude_input(input_count, samples);
+    }
+    if (output) {
+        if (float64) return plan64::admits_work_magnitude_output(output_count, bins);
+        return plan32::admits_work_magnitude_output(output_count, bins);
+    }
+    if (float64) return plan64::admits_work_magnitude_work(work_count, work_size);
+    return plan32::admits_work_magnitude_work(work_count, work_size);
 }
 
 // The checks every transform makes before it writes: a plan, the counts,
@@ -937,28 +1068,29 @@ void flush_outputs(Complex32* const values, const usize count) noexcept {
 }
 
 template <typename Real>
-[[nodiscard]] const Real* flushed_reals(const PlanState& plan, const Real* const values, const usize count) noexcept {
+[[nodiscard]] const Real* flushed_reals(void* const staging_block, const Real* const values,
+                                        const usize count) noexcept {
     bool found = false;
     for (usize index = 0; index < count && !found; ++index) found = subnormal(values[index]);
     if (!found) return values;
-    Real* const staging = static_cast<Real*>(plan.staging);
+    Real* const staging = static_cast<Real*>(staging_block);
     for (usize index = 0; index < count; ++index) staging[index] = stxlib::detail::flush_subnormal(values[index]);
     return staging;
 }
 
 [[nodiscard]] const double* flushed_inputs(const PlanState& plan, const double* const values,
                                            const usize count) noexcept {
-    return flushed_reals(plan, values, count);
+    return flushed_reals(plan.staging, values, count);
 }
 
 [[nodiscard]] const float* flushed_inputs(const PlanState& plan, const float* const values,
                                           const usize count) noexcept {
-    return flushed_reals(plan, values, count);
+    return flushed_reals(plan.staging, values, count);
 }
 
 // A complex input is flushed part by part.
 template <typename Complex>
-[[nodiscard]] const Complex* flushed_complex(const PlanState& plan, const Complex* const values,
+[[nodiscard]] const Complex* flushed_complex(void* const staging_block, const Complex* const values,
                                              const usize count) noexcept {
     bool found = false;
     for (usize index = 0; index < count && !found; ++index) {
@@ -966,7 +1098,7 @@ template <typename Complex>
         found = subnormal(value.re) || subnormal(value.im);
     }
     if (!found) return values;
-    Complex* const staging = static_cast<Complex*>(plan.staging);
+    Complex* const staging = static_cast<Complex*>(staging_block);
     for (usize index = 0; index < count; ++index) {
         const Complex& value = values[index];
         Complex& copy = staging[index];
@@ -979,13 +1111,140 @@ template <typename Complex>
 [[nodiscard]] const Complex64* flushed_inputs(const PlanState& plan, const Complex64* const values,
                                               const usize count) noexcept {
     static_assert(sizeof(Complex64) == 2 * sizeof(double) && alignof(Complex64) <= block_alignment);
-    return flushed_complex(plan, values, count);
+    return flushed_complex(plan.staging, values, count);
 }
 
 [[nodiscard]] const Complex32* flushed_inputs(const PlanState& plan, const Complex32* const values,
                                               const usize count) noexcept {
     static_assert(sizeof(Complex32) == 2 * sizeof(float) && alignof(Complex32) <= block_alignment);
-    return flushed_complex(plan, values, count);
+    return flushed_complex(plan.staging, values, count);
+}
+
+// ---------------------------------------------------------------------------
+// The plain mode's transforms on a workspace ("Workspace"): `work` holds
+// plan.work_size reals; the checks are the caller's.
+// ---------------------------------------------------------------------------
+
+void plain_forward64(const PlanState& plan, const double* const input, Complex64* const output,
+                     double* const work) noexcept {
+    const usize n = plan.size;
+    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
+    double* const scratch = work + n + 2;
+    if (plan.engines.forward == Engine::walk) {
+        (*plan.walk_kernels).forward64(plan.walk, source, output, scratch);
+    } else if (plan.engines.forward == Engine::dit) {
+        (*plan.kernels).dit_forward64(plan.dit, source, output, scratch);
+    } else {
+        (*plan.kernels).dif_forward64(plan.dif, source, output, scratch, reinterpret_cast<Complex64*>(scratch + n));
+    }
+    flush_outputs(output, n / 2 + 1);
+}
+
+void plain_forward32(const PlanState& plan, const float* const input, Complex32* const output,
+                     float* const work) noexcept {
+    const usize n = plan.size;
+    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
+    float* const scratch = work + n + 2;
+    if (plan.engines.forward == Engine::walk) {
+        (*plan.walk_kernels).forward32(plan.walk, source, output, scratch);
+    } else if (plan.engines.forward == Engine::dit) {
+        (*plan.kernels).dit_forward32(plan.dit, source, output, scratch);
+    } else {
+        (*plan.kernels).dif_forward32(plan.dif, source, output, scratch);
+    }
+    flush_outputs(output, n / 2 + 1);
+}
+
+void plain_inverse64(const PlanState& plan, const Complex64* const input, double* const output,
+                     double* const work) noexcept {
+    const usize n = plan.size;
+    const Complex64* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
+    double* const scratch = work + n + 2;
+    if (plan.engines.inverse == Engine::walk) {
+        (*plan.walk_kernels).inverse64(plan.walk, source, output, scratch);
+    } else if (plan.engines.inverse == Engine::dit) {
+        (*plan.kernels).dit_inverse64(plan.dit, source, output, scratch);
+    } else {
+        (*plan.kernels).dif_inverse64(plan.dif, source, output);
+    }
+    flush_outputs(output, n);
+}
+
+void plain_inverse32(const PlanState& plan, const Complex32* const input, float* const output,
+                     float* const work) noexcept {
+    const usize n = plan.size;
+    const Complex32* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
+    float* const scratch = work + n + 2;
+    if (plan.engines.inverse == Engine::walk) {
+        (*plan.walk_kernels).inverse32(plan.walk, source, output, scratch);
+    } else if (plan.engines.inverse == Engine::dit) {
+        (*plan.kernels).dit_inverse32(plan.dit, source, output, scratch);
+    } else {
+        (*plan.kernels).dif_inverse32(plan.dif, source, output);
+    }
+    flush_outputs(output, n);
+}
+
+// |X[k]|: the walk's own magnitude pass, or DIF's or DIT's spectrum (in the
+// scratch's last N + 2 reals) and sqrt(re^2 + im^2).
+void plain_magnitude64(const PlanState& plan, const double* const input, double* const output,
+                       double* const work) noexcept {
+    const usize n = plan.size;
+    const usize bins = n / 2 + 1;
+    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
+    double* const scratch = work + n + 2;
+    if (plan.engines.forward == Engine::walk) {
+        (*plan.walk_kernels).magnitude64(plan.walk, source, output, scratch);
+    } else {
+        Complex64* const spectrum = reinterpret_cast<Complex64*>(scratch + 2 * n + 2);
+        if (plan.engines.forward == Engine::dit) {
+            (*plan.kernels).dit_forward64(plan.dit, source, spectrum, scratch);
+        } else {
+            (*plan.kernels).dif_forward64(plan.dif, source, spectrum, scratch,
+                                          reinterpret_cast<Complex64*>(scratch + n));
+        }
+        for (usize k = 0; k < bins; ++k) {
+            const Complex64& value = spectrum[k];
+            output[k] = std::sqrt(value.re * value.re + value.im * value.im);
+        }
+    }
+    flush_outputs(output, bins);
+}
+
+void plain_magnitude32(const PlanState& plan, const float* const input, float* const output,
+                       float* const work) noexcept {
+    const usize n = plan.size;
+    const usize bins = n / 2 + 1;
+    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
+    float* const scratch = work + n + 2;
+    if (plan.engines.forward == Engine::walk) {
+        (*plan.walk_kernels).magnitude32(plan.walk, source, output, scratch);
+    } else {
+        Complex32* const spectrum = reinterpret_cast<Complex32*>(scratch + 2 * n + 2);
+        if (plan.engines.forward == Engine::dit) {
+            (*plan.kernels).dit_forward32(plan.dit, source, spectrum, scratch);
+        } else {
+            (*plan.kernels).dif_forward32(plan.dif, source, spectrum, scratch);
+        }
+        for (usize k = 0; k < bins; ++k) {
+            const Complex32& value = spectrum[k];
+            output[k] = std::sqrt(value.re * value.re + value.im * value.im);
+        }
+    }
+    flush_outputs(output, bins);
+}
+
+// A plain-only call on a plan of another mode.
+[[nodiscard]] ErrorRecord not_plain() noexcept {
+    const ErrorRecord record = ErrorRecord::make(ErrorKind::unsupported, "stxlib.fft.transform",
+                                                 ErrorDetail{.message = "the plan's mode is not plain"});
+    return record;
+}
+
+// Whether the work shares a byte with the input or the output.
+[[nodiscard]] bool work_overlaps(const void* const work, const usize work_bytes, const void* const input,
+                                 const usize input_bytes, const void* const output, const usize output_bytes) noexcept {
+    return overlap(work, work_bytes, input, input_bytes) || overlap(work, work_bytes, output, output_bytes);
 }
 
 } // namespace
@@ -994,42 +1253,17 @@ template <typename Complex>
 // PlanAccess: the factories behind make, at a chosen tier.
 // ---------------------------------------------------------------------------
 
-// The engine policy (owner, 2026-11-22: "so each size can use whichever is
-// faster"). The table is stxlib_fft_bench's, run once on the M4 (macOS
-// arm64, Release, idle machine) on 2026-11-23 at checkpoint stx5: per tier,
-// a mask over log2(size) of the sizes where DIT was faster, for forward and
-// inverse in each precision. Sizes above 2^20 take the 2^20 row. avx2_fma
-// was not measured (no x86-64 run yet) and keeps DIF; below 16 a plan runs
-// DIF whatever the policy says (effective_engines).
-namespace {
-
-struct EngineMasks final {
-    u32 forward64;
-    u32 inverse64;
-    u32 forward32;
-    u32 inverse32;
-};
-
-constexpr EngineMasks scalar_masks{0x1FFFF0U, 0x09FF0U, 0xCFFF0U, 0xFFFF0U};
-constexpr EngineMasks vector128_masks{0x1FFFF0U, 0xFFFF0U, 0x1FFE30U, 0x1F2BF0U};
-
-[[nodiscard]] Engine engine_of(const u32 mask, const u32 log2_size) noexcept {
-    const Engine result = ((mask >> log2_size) & 1U) != 0 ? Engine::dit : Engine::dif;
-    return result;
-}
-
-} // namespace
-
+// The engine policy (owner, 2026-11-23: two tiers, the fused and the exact
+// walk, both 128-bit at most): the walk in both directions from N = 16 at
+// every tier, DIF below (where the walk has no kernel). The tier picks only
+// the walk's build (walk_tier_for), not the engine.
 Engines engine_policy(const simd::Level level, const usize size, const bool float64) noexcept {
+    static_cast<void>(level);
+    static_cast<void>(float64);
     Engines engines{};
-    const EngineMasks* masks = nullptr;
-    if (level == simd::Level::scalar) masks = &scalar_masks;
-    if (level == simd::Level::vector128) masks = &vector128_masks;
-    if (masks == nullptr || size == 0) return engines;
-    u32 log2_size = static_cast<u32>(std::bit_width(size) - 1);
-    if (log2_size > 20) log2_size = 20;
-    engines.forward = engine_of(float64 ? masks->forward64 : masks->forward32, log2_size);
-    engines.inverse = engine_of(float64 ? masks->inverse64 : masks->inverse32, log2_size);
+    if (size < 16) return engines;
+    engines.forward = Engine::walk;
+    engines.inverse = Engine::walk;
     return engines;
 }
 
@@ -1043,8 +1277,13 @@ OperationResult<Plan32> PlanAccess::make32(const usize size, const Mode mode, co
 
 OperationResult<Plan64> PlanAccess::make64(const usize size, const Mode mode, const simd::Level level,
                                            const Engines engines) noexcept {
+    return make64(size, mode, level, engines, WalkOptions{});
+}
+
+OperationResult<Plan64> PlanAccess::make64(const usize size, const Mode mode, const simd::Level level,
+                                           const Engines engines, const WalkOptions walk) noexcept {
     ErrorRecord failure = ErrorRecord::make(ErrorKind::internal_failure, "stxlib.fft.make");
-    PlanState* const state = make_state(size, mode, Precision::float64, level, engines, failure);
+    PlanState* const state = make_state(size, mode, Precision::float64, level, engines, walk, failure);
     if (state == nullptr) return OperationResult<Plan64>::failure(failure);
     Plan64 plan;
     plan.state_ = state;
@@ -1053,8 +1292,13 @@ OperationResult<Plan64> PlanAccess::make64(const usize size, const Mode mode, co
 
 OperationResult<Plan32> PlanAccess::make32(const usize size, const Mode mode, const simd::Level level,
                                            const Engines engines) noexcept {
+    return make32(size, mode, level, engines, WalkOptions{});
+}
+
+OperationResult<Plan32> PlanAccess::make32(const usize size, const Mode mode, const simd::Level level,
+                                           const Engines engines, const WalkOptions walk) noexcept {
     ErrorRecord failure = ErrorRecord::make(ErrorKind::internal_failure, "stxlib.fft.make");
-    PlanState* const state = make_state(size, mode, Precision::float32, level, engines, failure);
+    PlanState* const state = make_state(size, mode, Precision::float32, level, engines, walk, failure);
     if (state == nullptr) return OperationResult<Plan32>::failure(failure);
     Plan32 plan;
     plan.state_ = state;
@@ -1076,9 +1320,29 @@ Engines PlanAccess::engines(const Plan64& plan) noexcept {
     return (*plan.state_).engines;
 }
 
+WalkTier PlanAccess::walk_tier(const Plan64& plan) noexcept {
+    if (plan.state_ == nullptr) return WalkTier::exact_portable;
+    return (*plan.state_).walk_tier;
+}
+
+bool PlanAccess::straight_line(const Plan64& plan) noexcept {
+    if (plan.state_ == nullptr) return false;
+    return (*plan.state_).walk.straight_line;
+}
+
 Engines PlanAccess::engines(const Plan32& plan) noexcept {
     if (plan.state_ == nullptr) return Engines{};
     return (*plan.state_).engines;
+}
+
+WalkTier PlanAccess::walk_tier(const Plan32& plan) noexcept {
+    if (plan.state_ == nullptr) return WalkTier::exact_portable;
+    return (*plan.state_).walk_tier;
+}
+
+bool PlanAccess::straight_line(const Plan32& plan) noexcept {
+    if (plan.state_ == nullptr) return false;
+    return (*plan.state_).walk.straight_line;
 }
 
 void PlanAccess::use_kernels(Plan64& plan, const Kernels& kernels) noexcept {
@@ -1134,14 +1398,11 @@ OperationStatus Plan64::rfft(const View<double> input, const MutableView<Complex
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    const double* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::plain) {
-        if (plan.engines.forward == detail::Engine::dit) {
-            kernels.dit_forward64(plan.dit, source, output.data());
-        } else {
-            kernels.dif_forward64(plan.dif, source, output.data());
-        }
+        detail::plain_forward64(plan, input.data(), output.data(), static_cast<double*>(plan.workspace));
+        return OperationStatus::success();
     }
+    const double* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::shifted) kernels.bodft_forward64(plan.bodft, source, output.data());
     if (plan.mode == Mode::dip) kernels.dip_forward64(plan.dip, source, output.data());
     detail::flush_outputs(output.data(), output.count());
@@ -1154,17 +1415,126 @@ OperationStatus Plan64::irfft(const View<Complex64> input, const MutableView<dou
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    const Complex64* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::plain) {
-        if (plan.engines.inverse == detail::Engine::dit) {
-            kernels.dit_inverse64(plan.dit, source, output.data());
-        } else {
-            kernels.dif_inverse64(plan.dif, source, output.data());
-        }
+        detail::plain_inverse64(plan, input.data(), output.data(), static_cast<double*>(plan.workspace));
+        return OperationStatus::success();
     }
+    const Complex64* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::shifted) kernels.bodft_inverse64(plan.bodft, source, output.data());
     if (plan.mode == Mode::dip) kernels.dip_inverse64(plan.dip, source, output.data());
     detail::flush_outputs(output.data(), output.count());
+    return OperationStatus::success();
+}
+
+usize Plan64::work_size() const noexcept { return state_ == nullptr ? 0 : (*state_).work_size; }
+
+OperationStatus Plan64::magnitude(const View<double> input, const MutableView<double> output) noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    if (!detail::magnitude_admitted(input.count(), output.count(), (*state_).size, detail::bins_of(state_), true,
+                                    true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::magnitude_admitted(input.count(), output.count(), (*state_).size, detail::bins_of(state_), true,
+                                    false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (detail::overlap(input.data(), input.count() * sizeof(double), output.data(),
+                        output.count() * sizeof(double))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    detail::plain_magnitude64(plan, input.data(), output.data(), static_cast<double*>(plan.workspace));
+    return OperationStatus::success();
+}
+
+OperationStatus Plan64::rfft_with_work(const View<double> input, const MutableView<Complex64> output,
+                                       const MutableView<double> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    true, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    true, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    true, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(double), output.data(),
+                        output.count() * sizeof(Complex64))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(double), input.data(),
+                              input.count() * sizeof(double), output.data(), output.count() * sizeof(Complex64))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_forward64(plan, input.data(), output.data(), work.data());
+    return OperationStatus::success();
+}
+
+OperationStatus Plan64::irfft_with_work(const View<Complex64> input, const MutableView<double> output,
+                                        const MutableView<double> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     true, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     true, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     true, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(Complex64), output.data(),
+                        output.count() * sizeof(double))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(double), input.data(),
+                              input.count() * sizeof(Complex64), output.data(), output.count() * sizeof(double))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_inverse64(plan, input.data(), output.data(), work.data());
+    return OperationStatus::success();
+}
+
+OperationStatus Plan64::magnitude_with_work(const View<double> input, const MutableView<double> output,
+                                            const MutableView<double> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         true, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         true, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         true, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(double), output.data(),
+                        output.count() * sizeof(double))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(double), input.data(),
+                              input.count() * sizeof(double), output.data(), output.count() * sizeof(double))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_magnitude64(plan, input.data(), output.data(), work.data());
     return OperationStatus::success();
 }
 
@@ -1208,14 +1578,11 @@ OperationStatus Plan32::rfft(const View<float> input, const MutableView<Complex3
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    const float* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::plain) {
-        if (plan.engines.forward == detail::Engine::dit) {
-            kernels.dit_forward32(plan.dit, source, output.data());
-        } else {
-            kernels.dif_forward32(plan.dif, source, output.data());
-        }
+        detail::plain_forward32(plan, input.data(), output.data(), static_cast<float*>(plan.workspace));
+        return OperationStatus::success();
     }
+    const float* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::shifted) kernels.bodft_forward32(plan.bodft, source, output.data());
     detail::flush_outputs(output.data(), output.count());
     return OperationStatus::success();
@@ -1227,16 +1594,125 @@ OperationStatus Plan32::irfft(const View<Complex32> input, const MutableView<flo
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
-    const Complex32* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::plain) {
-        if (plan.engines.inverse == detail::Engine::dit) {
-            kernels.dit_inverse32(plan.dit, source, output.data());
-        } else {
-            kernels.dif_inverse32(plan.dif, source, output.data());
-        }
+        detail::plain_inverse32(plan, input.data(), output.data(), static_cast<float*>(plan.workspace));
+        return OperationStatus::success();
     }
+    const Complex32* const source = detail::flushed_inputs(plan, input.data(), input.count());
     if (plan.mode == Mode::shifted) kernels.bodft_inverse32(plan.bodft, source, output.data());
     detail::flush_outputs(output.data(), output.count());
+    return OperationStatus::success();
+}
+
+usize Plan32::work_size() const noexcept { return state_ == nullptr ? 0 : (*state_).work_size; }
+
+OperationStatus Plan32::magnitude(const View<float> input, const MutableView<float> output) noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    if (!detail::magnitude_admitted(input.count(), output.count(), (*state_).size, detail::bins_of(state_), false,
+                                    true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::magnitude_admitted(input.count(), output.count(), (*state_).size, detail::bins_of(state_), false,
+                                    false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (detail::overlap(input.data(), input.count() * sizeof(float), output.data(),
+                        output.count() * sizeof(float))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    detail::plain_magnitude32(plan, input.data(), output.data(), static_cast<float*>(plan.workspace));
+    return OperationStatus::success();
+}
+
+OperationStatus Plan32::rfft_with_work(const View<float> input, const MutableView<Complex32> output,
+                                       const MutableView<float> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    false, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    false, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::rfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                    false, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(float), output.data(),
+                        output.count() * sizeof(Complex32))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(float), input.data(),
+                              input.count() * sizeof(float), output.data(), output.count() * sizeof(Complex32))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_forward32(plan, input.data(), output.data(), work.data());
+    return OperationStatus::success();
+}
+
+OperationStatus Plan32::irfft_with_work(const View<Complex32> input, const MutableView<float> output,
+                                        const MutableView<float> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     false, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     false, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::irfft_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                     false, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(Complex32), output.data(),
+                        output.count() * sizeof(float))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(float), input.data(),
+                              input.count() * sizeof(Complex32), output.data(), output.count() * sizeof(float))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_inverse32(plan, input.data(), output.data(), work.data());
+    return OperationStatus::success();
+}
+
+OperationStatus Plan32::magnitude_with_work(const View<float> input, const MutableView<float> output,
+                                            const MutableView<float> work) const noexcept {
+    if (state_ == nullptr) return OperationStatus::failure(detail::refused(detail::Refusal::empty_plan));
+    const detail::PlanState& plan = *state_;
+    const usize bins = detail::bins_of(state_);
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         false, true, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::input_count));
+    }
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         false, false, true)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::output_count));
+    }
+    if (plan.mode != Mode::plain) return OperationStatus::failure(detail::not_plain());
+    if (!detail::magnitude_work_admitted(input.count(), output.count(), work.count(), plan.size, bins, plan.work_size,
+                                         false, false, false)) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_count));
+    }
+    if (detail::overlap(input.data(), input.count() * sizeof(float), output.data(),
+                        output.count() * sizeof(float))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::overlap));
+    }
+    if (detail::work_overlaps(work.data(), work.count() * sizeof(float), input.data(),
+                              input.count() * sizeof(float), output.data(), output.count() * sizeof(float))) {
+        return OperationStatus::failure(detail::refused(detail::Refusal::work_overlap));
+    }
+    detail::plain_magnitude32(plan, input.data(), output.data(), work.data());
     return OperationStatus::success();
 }
 

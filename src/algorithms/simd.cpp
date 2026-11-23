@@ -192,6 +192,18 @@ bool request_level(const Level level) noexcept {
     return false;
 }
 
+bool fma128_at(const Level level) noexcept {
+    if (level == Level::scalar) return false;
+#if defined(STXLIB_SIMD_X86_64)
+    const bool result = detect().fma;
+    return result;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return true;
+#else
+    return false;
+#endif
+}
+
 TextView level_name(const Level level) noexcept {
     switch (level) {
     case Level::scalar:

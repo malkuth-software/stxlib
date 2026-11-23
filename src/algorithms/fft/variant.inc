@@ -92,9 +92,10 @@ inline unsigned ctz_u32(unsigned x) noexcept { return static_cast<unsigned>(std:
 
 #include "dit.inc"
 
-void dif_forward64(const DifTables& tables, const double* input, Complex64* output) noexcept {
+void dif_forward64(const DifTables& tables, const double* input, Complex64* output, double* work,
+                   Complex64* native) noexcept {
     const DifKernel kernel(tables);
-    kernel.forward_standard(input, output, tables.work64, tables.native64);
+    kernel.forward_standard(input, output, work, native);
 }
 
 void dif_inverse64(const DifTables& tables, const Complex64* input, double* output) noexcept {
@@ -102,9 +103,9 @@ void dif_inverse64(const DifTables& tables, const Complex64* input, double* outp
     kernel.inverse(input, output);
 }
 
-void dif_forward32(const DifTables& tables, const float* input, Complex32* output) noexcept {
+void dif_forward32(const DifTables& tables, const float* input, Complex32* output, float* work) noexcept {
     const DifKernel kernel(tables);
-    kernel.forward_standard_f32(input, output, tables.work32);
+    kernel.forward_standard_f32(input, output, work);
 }
 
 void dif_inverse32(const DifTables& tables, const Complex32* input, float* output) noexcept {
@@ -145,24 +146,24 @@ void dip_inverse64(const DipTables& tables, const Complex64* input, double* outp
     kernel.inverse_standard(input, output, tables.work);
 }
 
-void dit_forward64(const DitTables& tables, const double* input, Complex64* output) noexcept {
+void dit_forward64(const DitTables& tables, const double* input, Complex64* output, double* work) noexcept {
     const DitKernel kernel(tables);
-    kernel.forward64(input, output, tables.work64);
+    kernel.forward64(input, output, work);
 }
 
-void dit_inverse64(const DitTables& tables, const Complex64* input, double* output) noexcept {
+void dit_inverse64(const DitTables& tables, const Complex64* input, double* output, double* work) noexcept {
     const DitKernel kernel(tables);
-    kernel.inverse64(input, output, tables.work64);
+    kernel.inverse64(input, output, work);
 }
 
-void dit_forward32(const DitTables& tables, const float* input, Complex32* output) noexcept {
+void dit_forward32(const DitTables& tables, const float* input, Complex32* output, float* work) noexcept {
     const DitKernel kernel(tables);
-    kernel.forward32(input, output, tables.work32);
+    kernel.forward32(input, output, work);
 }
 
-void dit_inverse32(const DitTables& tables, const Complex32* input, float* output) noexcept {
+void dit_inverse32(const DitTables& tables, const Complex32* input, float* output, float* work) noexcept {
     const DitKernel kernel(tables);
-    kernel.inverse32(input, output, tables.work32);
+    kernel.inverse32(input, output, work);
 }
 
 } // namespace

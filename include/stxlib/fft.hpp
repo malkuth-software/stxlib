@@ -13,10 +13,14 @@
 //
 // Three modes, each its own kernel:
 //
-//   plain    BFFT's DIF kernel (Bruun's real factorisation, decimation in
-//            frequency) or, from N = 16, its DIT kernel (the same
-//            factorisation, decimation in time); the plan picks per size
-//            and tier, each within the same bounds. N >= 4. N/2 + 1 bins
+//   plain    From N = 16 the walk (src/algorithms/fft/walk.inc): radix-4
+//            and radix-2 passes over real storage, the first half of the
+//            stages in place and the second "crossed", each writing its sums
+//            and differences to the runs where they belong, so the output
+//            needs no reordering pass. Sorting inside the butterflies is not
+//            new (Temperton 1991, Hegland 1994). Below N = 16, BFFT's DIF
+//            kernel (Bruun's real factorisation, decimation in frequency).
+//            N >= 4. N/2 + 1 bins
 //              X[k] = sum_n x[n] e^(-2 pi i k n / N),  k = 0 .. N/2,
 //            X[0] and X[N/2] real.
 //   shifted  BFFT's BODFT (odd-frequency DFT): the spectrum sampled halfway
@@ -37,16 +41,28 @@
 // counted with its conjugate). irfft ignores the imaginary parts of plain's
 // and dip's X[0] and X[N/2].
 //
-// Floating point (docs/CODE_STYLE_APPENDIX.md, A1): no fused multiply-add,
-// no contraction; every SIMD tier (stxlib/simd.hpp) computes the scalar
-// tier's value for every output (a zero's sign may differ). Accuracy is
+// Floating point (docs/CODE_STYLE_APPENDIX.md, A1): no contraction. The
+// walk has two builds of one source, A1 rule 1's one exception: the exact
+// build (no fused multiply-add), run at the lower tier (scalar, or 128-bit
+// vectors without FMA: wasm SIMD128, x86-64 without FMA3), and the fused
+// build, run at the upper tier (NEON, or 128-bit SSE with FMA3), which
+// fuses exactly the products a + b c and a - b c the source marks, as
+// explicit intrinsics. Each build gives the same bits on every machine that
+// runs it; the two differ from each other within rounding. No tier uses
+// vectors wider than 128 bits. The other kernels have no fused
+// multiply-add, and every SIMD tier computes the scalar tier's value for
+// every output (a zero's sign may differ). Accuracy is
 // measured by tests/fft_tests.cpp against a long-double DFT and stated in
 // proofs/REPORT.md. Subnormals (A1 rule 4): a subnormal input is read as
 // zero of its sign (the caller's input is not changed), and a subnormal
 // result is returned as zero of its sign.
 //
-// A plan is not thread-safe: rfft and irfft use its workspace, so one plan
-// serves one thread at a time. Plans of the same size are independent.
+// Threads. rfft, irfft and magnitude without a workspace argument use the
+// plan's own workspace, so they serve one thread at a time. In the plain
+// mode rfft_with_work, irfft_with_work and magnitude_with_work take the
+// caller's workspace (work_size() reals) and change nothing in the plan, so
+// any number of threads may run them on one plan at once, each with its own
+// workspace. Plans are independent.
 
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"
@@ -124,6 +140,40 @@ public:
     // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
     // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus irfft(View<Complex64> input, MutableView<double> output) noexcept;
+    // The magnitudes |X[k]| of the forward transform, k = 0 .. N/2: size()
+    // samples to bins() values (plain only; another mode fails with
+    // unsupported), with rfft's other failures.
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Fails
+    // ic: unsupported (the plan's mode is not plain), unchanged.
+    [[nodiscard]] OperationStatus magnitude(View<double> input, MutableView<double> output) noexcept;
+
+    // The plain mode on the caller's workspace: reals the work of the
+    // *_with_work calls needs; 0 for the empty plan and the other modes.
+    [[nodiscard]] usize work_size() const noexcept;
+    // rfft, irfft and magnitude on `work` (at least work_size() reals),
+    // safe from any number of threads on one plan. They fail as the calls
+    // above, with unsupported for a mode other than plain and
+    // invalid_argument for less work than work_size() or work that
+    // overlaps the input or the output.
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus rfft_with_work(View<double> input, MutableView<Complex64> output,
+                                                 MutableView<double> work) const noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus irfft_with_work(View<Complex64> input, MutableView<double> output,
+                                                  MutableView<double> work) const noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus magnitude_with_work(View<double> input, MutableView<double> output,
+                                                      MutableView<double> work) const noexcept;
 
 private:
     friend struct detail::PlanAccess;
@@ -165,6 +215,30 @@ public:
     // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
     // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus irfft(View<Complex32> input, MutableView<float> output) noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged. Fails
+    // ic: unsupported (the plan's mode is not plain), unchanged.
+    [[nodiscard]] OperationStatus magnitude(View<float> input, MutableView<float> output) noexcept;
+
+    [[nodiscard]] usize work_size() const noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus rfft_with_work(View<float> input, MutableView<Complex32> output,
+                                                 MutableView<float> work) const noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus irfft_with_work(View<Complex32> input, MutableView<float> output,
+                                                  MutableView<float> work) const noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
+    // ic: Requires work_count >= work_size, else failure invalid_argument, unchanged. Fails unsupported (the plan's
+    // ic: mode is not plain), unchanged. Thread: any.
+    [[nodiscard]] OperationStatus magnitude_with_work(View<float> input, MutableView<float> output,
+                                                      MutableView<float> work) const noexcept;
 
 private:
     friend struct detail::PlanAccess;

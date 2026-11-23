@@ -14,8 +14,8 @@ Run: 20000 legal and 20000 misuse cases of up to 48 steps per component, seed 0x
 |---|---|---|---|---|---|---|---|---|
 | stxlib::AtomicWord | 0 | 4 of 8 | 5 + 0 | 1 of 1 | 5 of 4 | 0 / 0 | 0 | 0 / 0 |
 | stxlib::Buffer | 1 | 6 of 6 | 7 + 1 | 1 of 1 | 7 of 6 | 0 / 0 | 0 | 1 / 1 |
-| stxlib::fft::Plan32 | 10 | 6 of 6 | 7 + 10 | 2 of 2 | 12 of 10 | 0 / 0 | 0 | 18 / 18 |
-| stxlib::fft::Plan64 | 9 | 6 of 6 | 7 + 9 | 2 of 2 | 12 of 10 | 0 / 0 | 0 | 16 / 16 |
+| stxlib::fft::Plan32 | 25 | 11 of 11 | 12 + 25 | 2 of 2 | 12 of 16 | 0 / 0 | 0 | 44 / 44 |
+| stxlib::fft::Plan64 | 24 | 11 of 11 | 12 + 24 | 2 of 2 | 12 of 16 | 0 / 0 | 0 | 42 / 42 |
 | stxlib::File | 25 | 17 of 23 | 18 + 26 | 4 of 4 | 58 of 46 | 0 / 0 | 0 | 27 / 31 (4 open, covered by blocks or tests) |
 | stxlib::FrozenMap | 2 | 7 of 7 | 8 + 2 | 1 of 1 | 8 of 7 | 0 / 0 | 0 | 2 / 2 |
 | stxlib::FrozenTextMap | 2 | 7 of 7 | 8 + 2 | 1 of 1 | 8 of 7 | 0 / 0 | 0 | 2 / 2 |

@@ -100,6 +100,17 @@ struct Features final {
 // program-level override for tests and benchmarks; libraries never call it.
 [[nodiscard]] bool request_level(Level level) noexcept;
 
+// Whether a kernel running at `level` may use the 128-bit fused multiply-add
+// instructions on this machine: NEON's FMLA and FMLS (every arm64 CPU, at
+// vector128 and up), or FMA3 on SSE registers (x86-64 with the CPU's FMA flag
+// and the operating system's AVX state, at vector128 and up). False at
+// scalar, on wasm and elsewhere. This is the dispatch of the fused 128-bit
+// tier of a kernel that has one (stx_fft's walk; owner, 2026-11-23: "128 with
+// FMA is the only tier"): such a kernel runs no wider than 128 bits whatever
+// the level, since wider units throttle the CPU, and runs its exact build
+// where this is false. Computed on each call (detected_features()).
+[[nodiscard]] bool fma128_at(Level level) noexcept;
+
 // "scalar", "sse2-128", "neon-128", "wasm-simd-128" or "avx2-fma-256"
 // (BFFT's names, with wasm's named the same way).
 [[nodiscard]] TextView level_name(Level level) noexcept;

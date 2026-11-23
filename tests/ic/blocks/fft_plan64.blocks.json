@@ -339,6 +339,401 @@
         "failure": "invalid_argument"
       },
       "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude.ready",
+      "mode": "legal",
+      "call": "magnitude",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == size"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == bins"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == size",
+        "output_count == bins"
+      ],
+      "fails": [
+        {
+          "failure": "unsupported",
+          "when": "the plan's mode is not plain",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude.misuse.magnitude_input",
+      "mode": "misuse",
+      "call": "magnitude",
+      "violates": "input_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude.misuse.magnitude_output",
+      "mode": "misuse",
+      "call": "magnitude",
+      "violates": "output_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude.outside.empty",
+      "mode": "misuse",
+      "call": "magnitude",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.work_size.empty",
+      "mode": "legal",
+      "call": "work_size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.work_size.ready",
+      "mode": "legal",
+      "call": "work_size",
+      "kind": "member",
+      "thread": "owner",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft_with_work.ready",
+      "mode": "legal",
+      "call": "rfft_with_work",
+      "kind": "member",
+      "thread": "any",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == size"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == bins"
+          ]
+        },
+        {
+          "name": "work_count",
+          "type": "usize",
+          "bounded_by": [
+            "work_count >= work_size"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == size",
+        "output_count == bins",
+        "work_count >= work_size"
+      ],
+      "fails": [
+        {
+          "failure": "unsupported",
+          "when": "the plan's mode is not plain",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft_with_work.misuse.work_rfft_input",
+      "mode": "misuse",
+      "call": "rfft_with_work",
+      "violates": "input_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft_with_work.misuse.work_rfft_output",
+      "mode": "misuse",
+      "call": "rfft_with_work",
+      "violates": "output_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft_with_work.misuse.work_rfft_work",
+      "mode": "misuse",
+      "call": "rfft_with_work",
+      "violates": "work_count >= work_size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.rfft_with_work.outside.empty",
+      "mode": "misuse",
+      "call": "rfft_with_work",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft_with_work.ready",
+      "mode": "legal",
+      "call": "irfft_with_work",
+      "kind": "member",
+      "thread": "any",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == bins"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == size"
+          ]
+        },
+        {
+          "name": "work_count",
+          "type": "usize",
+          "bounded_by": [
+            "work_count >= work_size"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == bins",
+        "output_count == size",
+        "work_count >= work_size"
+      ],
+      "fails": [
+        {
+          "failure": "unsupported",
+          "when": "the plan's mode is not plain",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft_with_work.misuse.work_irfft_input",
+      "mode": "misuse",
+      "call": "irfft_with_work",
+      "violates": "input_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft_with_work.misuse.work_irfft_output",
+      "mode": "misuse",
+      "call": "irfft_with_work",
+      "violates": "output_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft_with_work.misuse.work_irfft_work",
+      "mode": "misuse",
+      "call": "irfft_with_work",
+      "violates": "work_count >= work_size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.irfft_with_work.outside.empty",
+      "mode": "misuse",
+      "call": "irfft_with_work",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude_with_work.ready",
+      "mode": "legal",
+      "call": "magnitude_with_work",
+      "kind": "member",
+      "thread": "any",
+      "state": "ready",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::fft::Plan64",
+          "state": "ready"
+        },
+        {
+          "name": "input_count",
+          "type": "usize",
+          "bounded_by": [
+            "input_count == size"
+          ]
+        },
+        {
+          "name": "output_count",
+          "type": "usize",
+          "bounded_by": [
+            "output_count == bins"
+          ]
+        },
+        {
+          "name": "work_count",
+          "type": "usize",
+          "bounded_by": [
+            "work_count >= work_size"
+          ]
+        }
+      ],
+      "requires": [
+        "input_count == size",
+        "output_count == bins",
+        "work_count >= work_size"
+      ],
+      "fails": [
+        {
+          "failure": "unsupported",
+          "when": "the plan's mode is not plain",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude_with_work.misuse.work_magnitude_input",
+      "mode": "misuse",
+      "call": "magnitude_with_work",
+      "violates": "input_count == size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude_with_work.misuse.work_magnitude_output",
+      "mode": "misuse",
+      "call": "magnitude_with_work",
+      "violates": "output_count == bins",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude_with_work.misuse.work_magnitude_work",
+      "mode": "misuse",
+      "call": "magnitude_with_work",
+      "violates": "work_count >= work_size",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.fft.plan64.magnitude_with_work.outside.empty",
+      "mode": "misuse",
+      "call": "magnitude_with_work",
+      "state": "empty",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
     }
   ]
 }
