@@ -7,6 +7,8 @@
 #include "stxwin_supplement.h"
 
 #define FIND_FIRST_EX_LARGE_FETCH 2
+#define LOCKFILE_EXCLUSIVE_LOCK 2
+#define LOCKFILE_FAIL_IMMEDIATELY 1
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

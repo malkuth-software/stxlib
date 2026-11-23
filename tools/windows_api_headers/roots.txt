@@ -369,6 +369,9 @@ FILE_MAP_READ
 FILE_MAP_WRITE
 FILE_NAME_NORMALIZED
 FILE_READ_ATTRIBUTES
+FILE_RENAME_FLAG_POSIX_SEMANTICS
+FILE_RENAME_FLAG_REPLACE_IF_EXISTS
+FILE_RENAME_INFO
 FILE_SHARE_DELETE
 FILE_SHARE_READ
 FILE_SHARE_WRITE
@@ -796,6 +799,8 @@ LOCALE_SNAME
 LOCALE_SSHORTDATE
 LOCALE_SSHORTTIME
 LOCALE_STHOUSAND
+LOCKFILE_EXCLUSIVE_LOCK
+LOCKFILE_FAIL_IMMEDIATELY
 LOGPIXELSX
 LONG
 LONGLONG
@@ -832,6 +837,7 @@ LoadLibraryExW
 LoadLibraryW
 LoadPackagedLibrary
 LocalFree
+LockFileEx
 LresultFromObject
 MARGINS
 MAXIMUM_REPARSE_DATA_BUFFER_SIZE
@@ -1200,6 +1206,7 @@ SetParent
 SetPixel
 SetProcessDPIAware
 SetProcessDpiAwarenessContext
+SetStdHandle
 SetStretchBltMode
 SetThreadPriority
 SetThreadpoolWait
@@ -1394,6 +1401,7 @@ UiaRect
 UiaReturnRawElementProvider
 UiaRootObjectId
 UnhookWindowsHookEx
+UnlockFileEx
 UnmapViewOfFile
 UnregisterClassW
 UpdateProcThreadAttribute
@@ -1600,7 +1608,10 @@ WaitForMultipleObjects
 WaitForSingleObject
 WaitForSingleObjectEx
 WaitForThreadpoolWaitCallbacks
+WaitOnAddress
 WakeAllConditionVariable
+WakeByAddressAll
+WakeByAddressSingle
 WakeConditionVariable
 WideCharToMultiByte
 WindowFromDC

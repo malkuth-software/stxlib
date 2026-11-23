@@ -1082,6 +1082,7 @@ class Emitter:
 # Export lists are named for the import library the build links.
 DEF_FILE_NAMES = {
     'api-ms-win-core-realtime-l1-1-1': 'mincore',
+    'api-ms-win-core-synch-l1-2-0': 'synchronization',
     'api-ms-win-core-winrt-l1-1-0': 'runtimeobject',
     'api-ms-win-core-winrt-string-l1-1-0': 'runtimeobject_string',
     'api-ms-win-shcore-scaling-l1-1-1': 'shcore',

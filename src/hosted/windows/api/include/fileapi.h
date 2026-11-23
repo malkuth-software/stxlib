@@ -38,6 +38,7 @@ __declspec(dllimport) DWORD __stdcall GetFileType(HANDLE hFile);
 __declspec(dllimport) DWORD __stdcall GetFinalPathNameByHandleW(HANDLE hFile, LPWSTR lpszFilePath, DWORD cchFilePath, DWORD dwFlags);
 __declspec(dllimport) DWORD __stdcall GetFullPathNameW(LPCWSTR lpFileName, DWORD nBufferLength, LPWSTR lpBuffer, LPWSTR *lpFilePart);
 __declspec(dllimport) DWORD __stdcall GetTempPathW(DWORD nBufferLength, LPWSTR lpBuffer);
+__declspec(dllimport) BOOL __stdcall LockFileEx(HANDLE hFile, DWORD dwFlags, DWORD dwReserved, DWORD nNumberOfBytesToLockLow, DWORD nNumberOfBytesToLockHigh, LPOVERLAPPED lpOverlapped);
 __declspec(dllimport) BOOL __stdcall ReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped);
 __declspec(dllimport) BOOL __stdcall RemoveDirectoryW(LPCWSTR lpPathName);
 __declspec(dllimport) BOOL __stdcall SetEndOfFile(HANDLE hFile);
@@ -45,6 +46,7 @@ __declspec(dllimport) BOOL __stdcall SetFileAttributesW(LPCWSTR lpFileName, DWOR
 __declspec(dllimport) BOOL __stdcall SetFileInformationByHandle(HANDLE hFile, FILE_INFO_BY_HANDLE_CLASS FileInformationClass, LPVOID lpFileInformation, DWORD dwBufferSize);
 __declspec(dllimport) BOOL __stdcall SetFilePointerEx(HANDLE hFile, LARGE_INTEGER liDistanceToMove, PLARGE_INTEGER lpNewFilePointer, DWORD dwMoveMethod);
 __declspec(dllimport) BOOL __stdcall SetFileTime(HANDLE hFile, const FILETIME *lpCreationTime, const FILETIME *lpLastAccessTime, const FILETIME *lpLastWriteTime);
+__declspec(dllimport) BOOL __stdcall UnlockFileEx(HANDLE hFile, DWORD dwReserved, DWORD nNumberOfBytesToUnlockLow, DWORD nNumberOfBytesToUnlockHigh, LPOVERLAPPED lpOverlapped);
 __declspec(dllimport) BOOL __stdcall WriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, LPOVERLAPPED lpOverlapped);
 #ifdef __cplusplus
 }
