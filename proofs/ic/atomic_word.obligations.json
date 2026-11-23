@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "component": "stxlib::AtomicWord",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/atomic_word.ic.toml",
+    "sha256": "49e09a630311d2187250e07b32a6d09344d7f7255500d4e73a89af7fe1f2955e"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": []
+}

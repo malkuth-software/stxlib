@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "component": "stxlib::RecursiveMutex",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/recursive_mutex.ic.toml",
+    "sha256": "ebf1e090f5dc4a022ff0c4c0667f3ca2dd5a91792091d3a95a1932db2c3b59a2"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.recursivemutex.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in any state leaves the object in held.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.recursivemutex.unlock.outside.free",
+      "kind": "typestate-refusal",
+      "statement": "unlock in free: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

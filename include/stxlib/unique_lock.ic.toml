@@ -1,0 +1,98 @@
+# Behavioural constraints of stxlib::UniqueLock (threads.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: empty (no mutex), unlocked (a mutex, not held), locked (a mutex,
+# held by this lock). owns() tells locked from the others; mutex() is null
+# exactly when empty. The typestate refusals are STXLIB_REQUIRE in every
+# build (the lock's own state); the Mutex's own misuse is D11's, trapped in
+# check builds.
+
+schema = 1
+component = "UniqueLock"
+namespace = "stxlib"
+header = "include/stxlib/threads.hpp"
+anchor = "class STXLIB_EARLY_EXIT_LOCK UniqueLock final {"
+keys = { manifest = "stxlib::UniqueLock" }
+# One UniqueLock is used by one thread at a time; the thread that locked it
+# unlocks it.
+thread = "owner"
+states = ["empty", "unlocked", "locked"]
+initial = "empty"
+state_query = { call = "owns", observes = { empty = "false", unlocked = "false", locked = "true" } }
+
+[[call]]
+name = "UniqueLock"
+id = "make_empty"
+kind = "constructor"
+declarations = ["UniqueLock() noexcept = default;"]
+returns = { type = "UniqueLock", state = "empty" }
+
+[[call]]
+name = "UniqueLock"
+id = "make_locked"
+kind = "constructor"
+declarations = ["explicit UniqueLock(Mutex& mutex) noexcept"]
+returns = { type = "UniqueLock", state = "locked" }
+
+[[call]]
+name = "deferred"
+kind = "static"
+declarations = ["[[nodiscard]] static UniqueLock deferred(Mutex& mutex) noexcept {"]
+returns = { type = "UniqueLock", state = "unlocked", owns = "caller" }
+
+[[call]]
+name = "UniqueLock"
+id = "move_construct"
+kind = "constructor"
+declarations = ["UniqueLock(UniqueLock&& other) noexcept"]
+# The new lock takes the source's state; the source is left empty.
+transfers = [{ what = "the mutex and its state", from = "other", to = "the new lock" }]
+
+[[call]]
+name = "operator="
+id = "move_assign"
+declarations = ["UniqueLock& operator=(UniqueLock&& other) noexcept {"]
+# Unlocks this lock's own mutex first when locked, then takes the source's
+# state; the source is left empty.
+transfers = [{ what = "the mutex and its state", from = "other", to = "this lock" }]
+
+[[call]]
+name = "lock"
+declarations = ["void lock() noexcept {"]
+in = ["unlocked"]
+outside = "requirement"
+moves = "locked"
+
+[[call]]
+name = "try_lock"
+declarations = ["[[nodiscard]] bool try_lock() noexcept {"]
+in = ["unlocked"]
+outside = "requirement"
+# true: locked; false: still unlocked (another thread holds the mutex).
+returns = { type = "bool" }
+
+[[call]]
+name = "unlock"
+declarations = ["void unlock() noexcept {"]
+in = ["locked"]
+outside = "requirement"
+moves = "unlocked"
+
+[[call]]
+name = "release"
+declarations = ["[[nodiscard]] Mutex* release() noexcept {"]
+moves = "empty"
+returns = { type = "Mutex*" }
+transfers = [{ what = "the duty to unlock a held mutex", from = "this lock", to = "caller" }]
+
+[[call]]
+name = "owns"
+declarations = ["[[nodiscard]] bool owns() const noexcept"]
+returns = { type = "bool" }
+
+[[call]]
+name = "mutex"
+declarations = ["[[nodiscard]] Mutex* mutex() const noexcept"]
+returns = { type = "Mutex*", borrows = "the named mutex" }

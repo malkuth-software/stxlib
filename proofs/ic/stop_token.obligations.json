@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopToken",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/stop_token.ic.toml",
+    "sha256": "8e6e6ff5312434affda54348a81169491a7cfa7c505437e98d3356e2187555d3"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": []
+}

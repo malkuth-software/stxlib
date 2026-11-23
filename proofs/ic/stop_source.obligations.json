@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopSource",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/stop_source.ic.toml",
+    "sha256": "534a461632574adc650385b5999a1a29562d8d9903218ad7d93b311ee4b9375a"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.stopsource.request_stop.moves",
+      "kind": "transition",
+      "statement": "request_stop succeeding in armed, stopped leaves the object in stopped.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.stopsource.request_stop.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "request_stop in empty: returns false, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

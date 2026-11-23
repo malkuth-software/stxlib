@@ -66,9 +66,19 @@
 // a cancellation unwinds into fails fast (gate.hpp). Windows has no thread
 // cancellation.
 
+//
+// Additions for the shield (owner-approved, 2026-11-22: the threading
+// pieces GUI.Forms still took from std): UniqueLock, RecursiveMutex and
+// RecursiveLock, MultiLock below; AtomicWord and its waits in
+// atomic_word.hpp; StopSource, StopToken and StopCallback in
+// stop_token.hpp. RecursiveMutex does not relax D11 for Mutex: re-locking a
+// Mutex stays a defect, and a recursive lock is a separate type chosen by
+// name.
+
 #include "stxlib/detail/early_exit.hpp"
 #include "stxlib/clocks.hpp"
 #include "stxlib/identity.hpp"
+#include "stxlib/require.hpp"
 #include "stxlib/result.hpp"
 #include "stxlib/types.hpp"
 
@@ -170,6 +180,258 @@ private:
     Mutex& mutex_;
 };
 
+// A Mutex held for a scope that may let it go and take it again before the
+// scope ends, or hand it on (std::unique_lock's replacement; the shield's
+// item 4, 2026-11-22). Three states, one at a time:
+//   empty    no mutex (default, moved from, or released);
+//   unlocked a mutex, not held by this lock;
+//   locked   a mutex, held by this lock.
+// The destructor unlocks in the locked state. A misuse of the lock's own
+// state (lock or try_lock while locked or empty, unlock while not locked)
+// is a failed requirement in every build: the state is this object's, so
+// the check costs one comparison. Misuse of the Mutex itself (locking it on
+// a thread that holds it through another lock) is the Mutex's defect,
+// trapped in check builds (D11). One UniqueLock is used by one thread at a
+// time, and only the thread that locked it unlocks it.
+// ic: stxlib::UniqueLock: generated from include/stxlib/unique_lock.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. States: empty (initial), unlocked, locked. Observed by owns(): empty false,
+// ic: unlocked false, locked true. Thread: owner, unless a call says otherwise.
+class STXLIB_EARLY_EXIT_LOCK UniqueLock final {
+public:
+    // Empty.
+    // ic: Returns UniqueLock in empty.
+    UniqueLock() noexcept = default;
+    // Locks `mutex`: the locked state.
+    // ic: Returns UniqueLock in locked.
+    explicit UniqueLock(Mutex& mutex) noexcept : mutex_(&mutex), owns_(true) { mutex.lock(); }
+    // Names `mutex` without taking it: the unlocked state.
+    // ic: Returns UniqueLock in unlocked, owned by the caller.
+    [[nodiscard]] static UniqueLock deferred(Mutex& mutex) noexcept {
+        UniqueLock result(&mutex);
+        return result;
+    }
+    ~UniqueLock() {
+        if (owns_) (*mutex_).unlock();
+    }
+    UniqueLock(const UniqueLock&) = delete;
+    UniqueLock& operator=(const UniqueLock&) = delete;
+    // Moving transfers the mutex and its state; the source is left empty.
+    // ic: Transfers the mutex and its state from other to the new lock.
+    UniqueLock(UniqueLock&& other) noexcept : mutex_(other.mutex_), owns_(other.owns_) {
+        other.mutex_ = nullptr;
+        other.owns_ = false;
+    }
+    // Unlocks this lock's own mutex first when it holds it.
+    // ic: Transfers the mutex and its state from other to this lock.
+    UniqueLock& operator=(UniqueLock&& other) noexcept {
+        if (this == &other) return *this;
+        Mutex* const held = owns_ ? mutex_ : nullptr;
+        mutex_ = other.mutex_;
+        owns_ = other.owns_;
+        other.mutex_ = nullptr;
+        other.owns_ = false;
+        if (held != nullptr) (*held).unlock();
+        return *this;
+    }
+
+    // unlocked -> locked.
+    // ic: Admitted in unlocked; then locked. In empty, locked: requirement, unchanged.
+    void lock() noexcept {
+        STXLIB_REQUIRE(mutex_ != nullptr, "UniqueLock::lock on an empty lock");
+        STXLIB_REQUIRE(!owns_, "UniqueLock::lock while it holds its mutex");
+        (*mutex_).lock();
+        owns_ = true;
+    }
+    // unlocked -> locked when the mutex was free; true then.
+    // ic: Admitted in unlocked. In empty, locked: requirement, unchanged. Returns bool.
+    [[nodiscard]] bool try_lock() noexcept {
+        STXLIB_REQUIRE(mutex_ != nullptr, "UniqueLock::try_lock on an empty lock");
+        STXLIB_REQUIRE(!owns_, "UniqueLock::try_lock while it holds its mutex");
+        owns_ = (*mutex_).try_lock();
+        return owns_;
+    }
+    // locked -> unlocked.
+    // ic: Admitted in locked; then unlocked. In empty, unlocked: requirement, unchanged.
+    void unlock() noexcept {
+        STXLIB_REQUIRE(owns_, "UniqueLock::unlock while it does not hold its mutex");
+        owns_ = false;
+        (*mutex_).unlock();
+    }
+    // Any state -> empty, without unlocking: returns the mutex (null when
+    // empty), which the caller now unlocks itself if owns() was true. Read
+    // owns() first.
+    // ic: Admitted in any state; then empty. Returns Mutex*. Transfers the duty to unlock a held mutex from this lock
+    // ic: to caller.
+    [[nodiscard]] Mutex* release() noexcept {
+        Mutex* const result = mutex_;
+        mutex_ = nullptr;
+        owns_ = false;
+        return result;
+    }
+    // True in the locked state.
+    // ic: Returns bool.
+    [[nodiscard]] bool owns() const noexcept { return owns_; }
+    // The named mutex, null when empty. Borrowed: the mutex is the caller's.
+    // ic: Returns a borrow of the named mutex.
+    [[nodiscard]] Mutex* mutex() const noexcept { return mutex_; }
+
+private:
+    friend class ConditionVariable;
+    explicit UniqueLock(Mutex* const mutex) noexcept : mutex_(mutex), owns_(false) {}
+    // owns_ is true only while mutex_ is not null; every member keeps it so.
+    Mutex* mutex_{nullptr};
+    bool owns_{false};
+};
+
+// A mutual-exclusion lock that its holder may take again (std::recursive_
+// mutex's replacement; the shield's item 2, 2026-11-22, for GUI.Forms' C
+// ABI, whose operations re-enter through callbacks). D11 makes re-locking a
+// Mutex a defect; a RecursiveMutex is the explicit, separate choice where
+// re-entry is the design, and nothing converts one into the other.
+//
+// The holder may lock it again up to maximum_recursive_depth times in all;
+// each lock is matched by one unlock, and the last unlock frees it.
+// Unlocking it on a thread that does not hold it, exceeding the depth, and
+// destroying it while held are defects that fail fast in every build (the
+// holder's identity is kept anyway, so the check costs nothing extra). It
+// cannot be waited on with a ConditionVariable: a wait would release only
+// one level. Prefer RecursiveLock.
+inline constexpr u32 maximum_recursive_depth = 0xffffffffU;
+
+// ic: stxlib::RecursiveMutex: generated from include/stxlib/recursive_mutex.ic.toml by tools/ic_declarations.py; edit
+// ic: the declaration, not these lines. States: free (initial), held. Observed by held_by_current_thread(): free false,
+// ic: held true. Thread: any, unless a call says otherwise.
+class RecursiveMutex final {
+public:
+    RecursiveMutex() noexcept = default;
+    ~RecursiveMutex();
+    RecursiveMutex(const RecursiveMutex&) = delete;
+    RecursiveMutex& operator=(const RecursiveMutex&) = delete;
+    RecursiveMutex(RecursiveMutex&&) = delete;
+    RecursiveMutex& operator=(RecursiveMutex&&) = delete;
+
+    // ic: Admitted in any state; then held.
+    void lock() noexcept;
+    // Succeeds at once for the holder; for another thread, when it is free.
+    // ic: Returns bool.
+    [[nodiscard]] bool try_lock() noexcept;
+    // ic: Admitted in held. In free: requirement, unchanged.
+    void unlock() noexcept;
+    // True when the calling thread holds it.
+    // ic: Returns bool.
+    [[nodiscard]] bool held_by_current_thread() const noexcept;
+
+private:
+    Mutex mutex_{};
+    // The holder's ThreadIdentity value, 0 when free. Written only by the
+    // holder (set after taking mutex_, cleared before releasing it) and read
+    // atomically by any thread, which can see its own identity there only if
+    // it wrote it.
+    u64 holder_{0};
+    // Locks held by the holder; read and written only by the holder.
+    u32 depth_{0};
+};
+
+// Holds a RecursiveMutex for its own lifetime (one level of it).
+class STXLIB_EARLY_EXIT_LOCK RecursiveLock final {
+public:
+    explicit RecursiveLock(RecursiveMutex& mutex) noexcept : mutex_(mutex) { mutex_.lock(); }
+    ~RecursiveLock() { mutex_.unlock(); }
+    RecursiveLock(const RecursiveLock&) = delete;
+    RecursiveLock& operator=(const RecursiveLock&) = delete;
+    RecursiveLock(RecursiveLock&&) = delete;
+    RecursiveLock& operator=(RecursiveLock&&) = delete;
+
+private:
+    RecursiveMutex& mutex_;
+};
+
+namespace detail {
+
+// The mutexes MultiLock admits (house style, section 7: explicit
+// participation, never a coincidentally named lock member).
+template <typename Lockable>
+struct MultiLockable final {
+    static constexpr bool admitted = false;
+    static constexpr bool recursive = false;
+};
+template <>
+struct MultiLockable<Mutex> final {
+    static constexpr bool admitted = true;
+    static constexpr bool recursive = false;
+};
+template <>
+struct MultiLockable<RecursiveMutex> final {
+    static constexpr bool admitted = true;
+    static constexpr bool recursive = true;
+};
+
+} // namespace detail
+
+// The most mutexes one MultiLock takes.
+inline constexpr usize maximum_multi_lock_count = 8;
+
+// Holds several mutexes of one kind for its own lifetime, taken without
+// deadlock against every other MultiLock (std::scoped_lock over several
+// mutexes; the shield's item 2). The mutexes are taken in increasing order
+// of address and released in the reverse order, so two MultiLocks that
+// share mutexes always take the shared ones in the same order, whatever
+// order their callers named them in. This is the whole deadlock argument:
+// it holds against other MultiLocks and against any code that also takes
+// these mutexes in address order, not against a thread that already holds
+// one of them and waits for another (no algorithm can serve that one).
+//
+// Naming one Mutex twice is a failed requirement (it would be locked twice,
+// D11's defect); naming one RecursiveMutex twice takes it twice, as its own
+// recursion allows. Spelled with its kind and count:
+//   const MultiLock<RecursiveMutex, 2> both(left.operation_mutex, right.operation_mutex);
+template <typename Lockable, usize lock_count>
+class STXLIB_EARLY_EXIT_LOCK MultiLock final {
+    static_assert(detail::MultiLockable<Lockable>::admitted, "MultiLock takes Mutex or RecursiveMutex");
+    static_assert(lock_count >= 2 && lock_count <= maximum_multi_lock_count,
+                  "MultiLock takes 2 to maximum_multi_lock_count mutexes; one takes ScopedLock or RecursiveLock");
+
+public:
+    template <typename... Lockables>
+    explicit MultiLock(Lockables&... mutexes) noexcept : ordered_{&mutexes...} {
+        static_assert(sizeof...(Lockables) == lock_count, "MultiLock: name exactly lock_count mutexes");
+        order_by_address();
+        for (usize index = 0; index < lock_count; ++index) (*ordered_[index]).lock();
+    }
+    ~MultiLock() {
+        for (usize index = lock_count; index > 0; --index) (*ordered_[index - 1]).unlock();
+    }
+    MultiLock(const MultiLock&) = delete;
+    MultiLock& operator=(const MultiLock&) = delete;
+    MultiLock(MultiLock&&) = delete;
+    MultiLock& operator=(MultiLock&&) = delete;
+
+private:
+    // Insertion sort by address (at most eight entries), compared as uptr:
+    // the relational operators on unrelated pointers are unspecified.
+    void order_by_address() noexcept {
+        for (usize index = 1; index < lock_count; ++index) {
+            Lockable* const moving = ordered_[index];
+            const uptr address = reinterpret_cast<uptr>(moving);
+            usize slot = index;
+            while (slot > 0 && reinterpret_cast<uptr>(ordered_[slot - 1]) > address) {
+                ordered_[slot] = ordered_[slot - 1];
+                slot = slot - 1;
+            }
+            ordered_[slot] = moving;
+        }
+        if constexpr (!detail::MultiLockable<Lockable>::recursive) {
+            for (usize index = 1; index < lock_count; ++index) {
+                STXLIB_REQUIRE(ordered_[index - 1] != ordered_[index], "MultiLock: one Mutex named twice");
+            }
+        }
+    }
+
+    // The mutexes in the order they are taken. Borrowed: each is the
+    // caller's and must outlive this lock.
+    Lockable* ordered_[lock_count];
+};
+
 // A named predicate over the waited-for state: true when the wait is over.
 // It is called with the lock held, so it reads state that lock guards. It
 // must return (AGENTS.md, early exits): no longjmp out of it.
@@ -204,10 +466,20 @@ public:
     // The deadline is now plus `interval`, saturating.
     [[nodiscard]] WaitResult wait_for(ScopedLock& lock, WaitPredicate predicate, const void* context,
                                       Duration interval) noexcept;
+    // The same waits under a UniqueLock, which must hold its mutex (a failed
+    // requirement otherwise) and holds it again when the wait returns.
+    void wait(UniqueLock& lock, WaitPredicate predicate, const void* context) noexcept;
+    [[nodiscard]] WaitResult wait_until(UniqueLock& lock, WaitPredicate predicate, const void* context,
+                                        IntervalTime deadline) noexcept;
+    [[nodiscard]] WaitResult wait_for(UniqueLock& lock, WaitPredicate predicate, const void* context,
+                                      Duration interval) noexcept;
     void notify_one() noexcept;
     void notify_all() noexcept;
 
 private:
+    void wait_held(Mutex& mutex, WaitPredicate predicate, const void* context) noexcept;
+    [[nodiscard]] WaitResult wait_held_until(Mutex& mutex, WaitPredicate predicate, const void* context,
+                                             IntervalTime deadline) noexcept;
     alignas(16) unsigned char storage_[64];
 };
 

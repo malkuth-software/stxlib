@@ -1,0 +1,41 @@
+# Behavioural constraints of stxlib::StopToken (stop_token.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: none (no stop state: default, moved from, or from an empty
+# source), observing (a state, no stop requested), stopped (requested).
+# stop_requested() tells stopped; stop_possible() is false in none, true in
+# stopped, and in observing true while a source of the state exists.
+
+schema = 1
+component = "StopToken"
+namespace = "stxlib"
+header = "include/stxlib/stop_token.hpp"
+anchor = "class StopToken final {"
+keys = { manifest = "stxlib::StopToken" }
+thread = "owner"
+states = ["none", "observing", "stopped"]
+initial = "none"
+state_query = { call = "stop_requested", observes = { none = "false", observing = "false", stopped = "true" } }
+
+[[call]]
+name = "StopToken"
+id = "copy"
+kind = "constructor"
+declarations = ["StopToken(const StopToken& other) noexcept;"]
+
+[[call]]
+name = "stop_requested"
+declarations = ["[[nodiscard]] bool stop_requested() const noexcept;"]
+returns = { type = "bool" }
+
+[[call]]
+name = "stop_possible"
+declarations = ["[[nodiscard]] bool stop_possible() const noexcept;"]
+returns = { type = "bool" }
+
+[[call]]
+name = "same_state"
+declarations = ["[[nodiscard]] bool same_state(const StopToken& other) const noexcept"]
+returns = { type = "bool" }

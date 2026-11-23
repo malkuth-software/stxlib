@@ -1,0 +1,55 @@
+# Behavioural constraints of stxlib::AtomicWord (atomic_word.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# No typestate: the word is a value any thread may change. The memory-order
+# requirements (a load order for a load, a wait and a compare-exchange's
+# failure; a store order for a store) are STXLIB_REQUIRE in the header,
+# whose MemoryOrder the clause grammar cannot name.
+
+schema = 1
+component = "AtomicWord"
+namespace = "stxlib"
+header = "include/stxlib/atomic_word.hpp"
+anchor = "class AtomicWord final {"
+keys = { manifest = "stxlib::AtomicWord" }
+thread = "any"
+
+[[call]]
+name = "load"
+declarations = ["[[nodiscard]] u32 load(const MemoryOrder order = MemoryOrder::sequential) const noexcept {"]
+returns = { type = "u32" }
+
+[[call]]
+name = "store"
+declarations = ["void store(const u32 value, const MemoryOrder order = MemoryOrder::sequential) noexcept {"]
+
+[[call]]
+name = "compare_exchange"
+declarations = ["[[nodiscard]] bool compare_exchange(u32& expected, const u32 desired,"]
+returns = { type = "bool" }
+
+[[call]]
+name = "wait"
+declarations = ["u32 wait(u32 expected, MemoryOrder order = MemoryOrder::sequential) const noexcept;"]
+# Returns the first loaded value other than expected.
+returns = { type = "u32" }
+
+[[call]]
+name = "wait_until"
+declarations = ["[[nodiscard]] WaitResult wait_until(u32 expected, IntervalTime deadline,"]
+returns = { type = "WaitResult" }
+
+[[call]]
+name = "wait_for"
+declarations = ["[[nodiscard]] WaitResult wait_for(u32 expected, Duration interval,"]
+returns = { type = "WaitResult" }
+
+[[call]]
+name = "notify_one"
+declarations = ["void notify_one() noexcept;"]
+
+[[call]]
+name = "notify_all"
+declarations = ["void notify_all() noexcept;"]

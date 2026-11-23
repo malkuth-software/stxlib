@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "component": "stxlib::RecursiveMutex",
+  "declaration": "include/stxlib/recursive_mutex.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "free",
+    "held"
+  ],
+  "initial": "free",
+  "state_query": "held_by_current_thread",
+  "blocks": [
+    {
+      "name": "stxlib.recursivemutex.lock.free",
+      "mode": "legal",
+      "call": "lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "free",
+      "moves": "held",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "free"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.recursivemutex.lock.held",
+      "mode": "legal",
+      "call": "lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "held",
+      "moves": "held",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.recursivemutex.try_lock.free",
+      "mode": "legal",
+      "call": "try_lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "free",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "free"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.recursivemutex.try_lock.held",
+      "mode": "legal",
+      "call": "try_lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "held",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.recursivemutex.unlock.held",
+      "mode": "legal",
+      "call": "unlock",
+      "kind": "member",
+      "thread": "any",
+      "state": "held",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.recursivemutex.unlock.outside.free",
+      "mode": "misuse",
+      "call": "unlock",
+      "state": "free",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.recursivemutex.held_by_current_thread.free",
+      "mode": "legal",
+      "call": "held_by_current_thread",
+      "kind": "member",
+      "thread": "any",
+      "state": "free",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "free"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.recursivemutex.held_by_current_thread.held",
+      "mode": "legal",
+      "call": "held_by_current_thread",
+      "kind": "member",
+      "thread": "any",
+      "state": "held",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::RecursiveMutex",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    }
+  ]
+}

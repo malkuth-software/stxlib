@@ -1,0 +1,38 @@
+# Behavioural constraints of stxlib::StopCallback (stop_token.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: listed (registered, not yet run), finished (run, by the request or
+# at construction), inert (never to run: no state, or no source left). No
+# query observes them; the destructor unregisters a listed callback and
+# waits for one running on another thread.
+
+schema = 1
+component = "StopCallback"
+namespace = "stxlib"
+header = "include/stxlib/stop_token.hpp"
+anchor = "class StopCallback final {"
+keys = { manifest = "stxlib::StopCallback" }
+thread = "owner"
+states = ["listed", "finished", "inert"]
+initial = "inert"
+
+[checks]
+path = "src/core/stop_token_ic_checks.hpp"
+namespace = "stxlib::detail::ic::stop_callback"
+includes = ["stxlib/stop_token.hpp"]
+used_in = ["src/core/stop_token.cpp"]
+
+[[call]]
+name = "StopCallback"
+id = "register"
+kind = "constructor"
+declarations = ["StopCallback(const StopToken& token, StopFunction function, void* context) noexcept;"]
+parameters = { function = "StopFunction" }
+requires = [
+  { holds = "not_null(function)", refuses = "requirement", message = "StopCallback: a callback needs a function", check = "callback_function" },
+]
+# listed before the request; finished (run here, now) after it; inert on a
+# token with no state or no source left.
+returns = { type = "StopCallback", state = ["listed", "finished", "inert"] }

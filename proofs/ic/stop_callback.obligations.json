@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopCallback",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/stop_callback.ic.toml",
+    "sha256": "d4c9dcc204cd1f0ee08e9f2d06ad9fc8ff327e49508e75087b8a9d54f5d3a9d2"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.stopcallback.register.requires.callback_function",
+      "kind": "entry-check",
+      "statement": "StopCallback runs only when not_null(function); otherwise requirement (\"StopCallback: a callback needs a function\").",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open",
+      "evidence": "generated check stxlib::detail::ic::stop_callback::admits_callback_function, called in src/core/stop_token.cpp"
+    }
+  ]
+}

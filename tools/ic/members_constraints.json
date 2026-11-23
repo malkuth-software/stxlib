@@ -4,6 +4,54 @@
   "generated_by": "tools/ic_declarations.py",
   "rows": [
     {
+      "type": "stxlib::AtomicWord",
+      "member": "compare_exchange",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "load",
+      "constraints": "Returns u32.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "notify_all",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "notify_one",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "store",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait",
+      "constraints": "Returns u32.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait_for",
+      "constraints": "Returns WaitResult.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait_until",
+      "constraints": "Returns WaitResult.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
       "type": "stxlib::Buffer",
       "member": "allocate_zeroed",
       "constraints": "Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
@@ -260,6 +308,162 @@
       "member": "value_at",
       "constraints": "Requires index < count, else requirement (\"FrozenTextMap::value_at: index out of range\").",
       "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "held_by_current_thread",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "lock",
+      "constraints": "Admitted in any state; then held.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "try_lock",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "unlock",
+      "constraints": "Admitted in held. In free: requirement, unchanged.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::StopCallback",
+      "member": "StopCallback",
+      "constraints": "Requires not_null(function), else requirement (\"StopCallback: a callback needs a function\"). Returns StopCallback in listed, finished or inert.",
+      "declaration": "include/stxlib/stop_callback.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "StopSource",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "create",
+      "constraints": "Fails out_of_memory (the allocator refuses the shared state), unchanged. Thread: any. Returns StopSource in armed, owned by the caller.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "request_stop",
+      "constraints": "Admitted in armed, stopped; then stopped. In empty: returns false, unchanged. Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "stop_possible",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "stop_requested",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "token",
+      "constraints": "Returns StopToken, owned by the caller.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "StopToken",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "same_state",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "stop_possible",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "stop_requested",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Returns UniqueLock in empty.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Returns UniqueLock in locked.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Transfers the mutex and its state from other to the new lock.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "deferred",
+      "constraints": "Returns UniqueLock in unlocked, owned by the caller.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "lock",
+      "constraints": "Admitted in unlocked; then locked. In empty, locked: requirement, unchanged.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "mutex",
+      "constraints": "Returns a borrow of the named mutex.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "operator=",
+      "constraints": "Transfers the mutex and its state from other to this lock.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "owns",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "release",
+      "constraints": "Admitted in any state; then empty. Returns Mutex*. Transfers the duty to unlock a held mutex from this lock to caller.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "try_lock",
+      "constraints": "Admitted in unlocked. In empty, locked: requirement, unchanged. Returns bool.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "unlock",
+      "constraints": "Admitted in locked; then unlocked. In empty, unlocked: requirement, unchanged.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
     },
     {
       "type": "stxlib::Vector",

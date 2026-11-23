@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "component": "stxlib::UniqueLock",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/unique_lock.ic.toml",
+    "sha256": "65dc6307ab8f0365e03aa276ff718d47a228bff231249b01d93d11f660212037"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.uniquelock.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in unlocked leaves the object in locked.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "lock in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.locked",
+      "kind": "typestate-refusal",
+      "statement": "lock in locked: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.locked",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in locked: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.moves",
+      "kind": "transition",
+      "statement": "unlock succeeding in locked leaves the object in unlocked.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "unlock in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.unlocked",
+      "kind": "typestate-refusal",
+      "statement": "unlock in unlocked: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.uniquelock.release.moves",
+      "kind": "transition",
+      "statement": "release succeeding in any state leaves the object in empty.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

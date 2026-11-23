@@ -1,0 +1,218 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopToken",
+  "declaration": "include/stxlib/stop_token.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "none",
+    "observing",
+    "stopped"
+  ],
+  "initial": "none",
+  "state_query": "stop_requested",
+  "blocks": [
+    {
+      "name": "stxlib.stoptoken.copy",
+      "mode": "legal",
+      "call": "StopToken",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.stoptoken.stop_requested.none",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "none",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "none"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.stop_requested.observing",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "observing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "observing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.stop_requested.stopped",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.stop_possible.none",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "none",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "none"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.stop_possible.observing",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "observing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "observing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.stop_possible.stopped",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.same_state.none",
+      "mode": "legal",
+      "call": "same_state",
+      "kind": "member",
+      "thread": "owner",
+      "state": "none",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "none"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.same_state.observing",
+      "mode": "legal",
+      "call": "same_state",
+      "kind": "member",
+      "thread": "owner",
+      "state": "observing",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "observing"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stoptoken.same_state.stopped",
+      "mode": "legal",
+      "call": "same_state",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopToken",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    }
+  ]
+}
