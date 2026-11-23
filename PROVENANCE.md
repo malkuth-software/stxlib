@@ -863,6 +863,22 @@ the study's, rounded from MPFR 4.2.2; MPFR is not used here. No existing
 result changes; the new bit-identity items are unfrozen until the
 integrator's first freezing run.
 
+### Sine and cosine in degrees (STXlib's own, 2026-11-22)
+
+`sincosd` (`include/stxlib/math.hpp`, `src/algorithms/math/half_turn.cpp`),
+in both precisions, added for GUI.Forms, whose own deterministic
+`engine_sine_cosine_degrees` (GUI.Forms `src/core/engine/engine_math/`,
+removed by the same change on its side) it replaces. The contract keeps
+what GUI.Forms relied on: every multiple of 90 degrees exact and every zero
++0. The implementation is new, not a fold of GUI.Forms': the reduction to
+the nearest quarter turn is exact without the host's `fmod` (integer
+arithmetic from 2^53), and the rest goes through the half-turn kernel as a
+double-double number of half-turns, where GUI.Forms rounded it to radians
+once and used a Taylor kernel. Infinities and NaN give NaN (GUI.Forms gave
+sine 0 and cosine 1). No existing result changes; `math.sincosd.double`
+and `math.sincosd.float` in `tests/bit_identity_expected.txt` are unfrozen
+until the integrator's freezing run.
+
 ### stx_fft: BFFT's three kernels, from `edf5f01` (first party, MIT; 2026-11-22)
 
 BFFT (falseywinchnet/bfft, the owner's own real FFT library) at

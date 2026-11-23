@@ -1,7 +1,8 @@
 // Tests of exp2, expm1, log1p, sin and cos (stxlib/math.hpp; roadmap R1),
 // and of the half-turn functions and cosine losses (sincospi, sinpi, cospi,
-// sincpi, cosm1, cosm1pi; 2026-11-22), against the
-// double-double references of tests/reference/wide.hpp.
+// sincpi, cosm1, cosm1pi; 2026-11-22) and the degree sine and cosine
+// (sincosd, 2026-11-22), against the double-double references of
+// tests/reference/wide.hpp.
 //
 //   math_completion_tests               sampled checks (the ctest run)
 //   math_completion_tests --exhaustive  every float through the float
@@ -672,6 +673,159 @@ void half_turn_special_values() {
     std::printf("half-turn: special values, reductions and float functions hold\n");
 }
 
+// ---- sine and cosine in degrees --------------------------------------------------
+//
+// sincosd (src/algorithms/math/half_turn.cpp, "The degree reduction"). The
+// reference reduces with the C++ library's fmod (exact) instead of the
+// kernel's integer reduction, turns the rest into radians in double-double
+// (rest/180 times pi, about 2^-104 relative) and takes wide.hpp's series.
+// The limit is the half-turn kernel's: a test, not a proof.
+
+// sin and cos of x degrees, x finite.
+wide::WideSinCos degree_reference(const double x) {
+    const double turn = std::fmod(std::fabs(x), 360.0);  // exact
+    const double n = std::nearbyint(turn / 90.0);
+    const double rest = turn - 90.0 * n;  // exact: |turn| < 360
+    const wide::Wide radians = wide::multiply(wide_pi, wide::divide(wide::Wide{rest, 0.0}, 180.0));
+    const wide::WideSinCos base = wide::series(radians);
+    const std::int64_t quarter = static_cast<std::int64_t>(n) % 4;
+    wide::WideSinCos result{};
+    if (quarter == 0) {
+        result = base;
+    } else if (quarter == 1) {
+        result = wide::WideSinCos{base.c, wide::negate(base.s)};
+    } else if (quarter == 2) {
+        result = wide::WideSinCos{wide::negate(base.s), wide::negate(base.c)};
+    } else {
+        result = wide::WideSinCos{wide::negate(base.c), base.s};
+    }
+    if (std::signbit(x)) result.s = wide::negate(result.s);
+    return result;
+}
+
+// One degree input of the region: [-720, 720] uniform; small (2^-60 to
+// 2^-1); next to a multiple of 90 within [-3600, 3600]; large (2^20 to
+// 2^60). Signs alternate.
+double degree_input(const int region, Lcg& lcg) {
+    double m = 0.0;
+    if (region == 0) m = 720.0 * lcg.unit();
+    if (region == 1) m = geometric(lcg, -60.0, -1.0);
+    if (region == 2) {
+        const double multiple = 90.0 * std::floor(40.0 * lcg.unit());
+        m = std::fabs(multiple + (lcg.unit() - 0.5) * geometric(lcg, -40.0, -1.0));
+    }
+    if (region == 3) m = geometric(lcg, 20.0, 60.0);
+    const double result = lcg.unit() < 0.5 ? -m : m;
+    return result;
+}
+
+void degree_accuracy(const int per_region) {
+    namespace m = stxlib::math;
+    const char* const names[] = {"[-720, 720]", "[2^-60, 2^-1]", "near 90 k", "[2^20, 2^60]"};
+    Lcg lcg{3013};
+    for (int region = 0; region < 4; ++region) {
+        double worst_sine = 0.0;
+        double worst_sine_x = 0.0;
+        double worst_cosine = 0.0;
+        double worst_cosine_x = 0.0;
+        for (int i = 0; i < per_region; ++i) {
+            const double x = degree_input(region, lcg);
+            const wide::WideSinCos exact = degree_reference(x);
+            double sine = 0.0;
+            double cosine = 0.0;
+            m::sincosd(x, sine, cosine);
+            double mirrored_sine = 0.0;
+            double mirrored_cosine = 0.0;
+            m::sincosd(-x, mirrored_sine, mirrored_cosine);
+            require(same_bits(mirrored_sine, sine == 0.0 ? 0.0 : -sine) && same_bits(mirrored_cosine, cosine),
+                    "sincosd: sine not odd or cosine not even");
+            if (exact.s.hi != 0.0) track_worst(wide_ulps(sine, exact.s), x, worst_sine, worst_sine_x);
+            if (exact.c.hi != 0.0) track_worst(wide_ulps(cosine, exact.c), x, worst_cosine, worst_cosine_x);
+        }
+        std::printf("degrees %-15s %10d inputs  sine %.6f at %a  cosine %.6f at %a\n", names[region], per_region,
+                    worst_sine, worst_sine_x, worst_cosine, worst_cosine_x);
+        require(worst_sine <= half_turn_ulp_limit && worst_cosine <= half_turn_ulp_limit,
+                "sincosd: error above the limit");
+    }
+}
+
+// Quarter turns, zeros, the reduction of large angles, special values and
+// the float function.
+void degree_special_values() {
+    namespace m = stxlib::math;
+    const double inf = std::numeric_limits<double>::infinity();
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    double s = 0.0;
+    double c = 0.0;
+    // Every multiple of 90 is exact, every zero +0.
+    const double quarter_sine[4] = {0.0, 1.0, 0.0, -1.0};
+    const double quarter_cosine[4] = {1.0, 0.0, -1.0, 0.0};
+    for (int k = -4000; k <= 4000; ++k) {
+        const int quarter = ((k % 4) + 4) % 4;
+        m::sincosd(90.0 * static_cast<double>(k), s, c);
+        require(same_bits(s, quarter_sine[quarter]) && same_bits(c, quarter_cosine[quarter]),
+                "sincosd: a multiple of 90 not exact, or a zero not +0");
+    }
+    m::sincosd(-0.0, s, c);
+    require(same_bits(s, 0.0) && same_bits(c, 1.0), "sincosd(-0)");
+    m::sincosd(-tiny, s, c);
+    require(same_bits(s, 0.0) && same_bits(c, 1.0), "sincosd: subnormal argument");
+    m::sincosd(-0x1p-1020, s, c);
+    require(same_bits(s, 0.0) && same_bits(c, 1.0), "sincosd: a subnormal sine is +0");
+    // Exact values: sin 30 = cos 60 = 1/2, sin 45 = cos 45 = sqrt(1/2) rounded.
+    m::sincosd(30.0, s, c);
+    require(s == 0.5, "sincosd(30): sine not 1/2");
+    m::sincosd(-60.0, s, c);
+    require(c == 0.5, "sincosd(-60): cosine not 1/2");
+    m::sincosd(45.0, s, c);
+    require(s == 0x1.6a09e667f3bcdp-1 && c == 0x1.6a09e667f3bcdp-1, "sincosd(45)");
+    m::sincosd(-1125.0, s, c);  // -3 turns - 45
+    require(s == -0x1.6a09e667f3bcdp-1 && c == 0x1.6a09e667f3bcdp-1, "sincosd(-1125)");
+    // The tiny path: m pi/180 rounded once.
+    const double tiny_angle = 0x1.8p-500;
+    m::sincosd(tiny_angle, s, c);
+    const wide::Wide tiny_radians = wide::multiply(wide_pi, wide::divide(wide::Wide{tiny_angle, 0.0}, 180.0));
+    require(wide_ulps(s, tiny_radians) <= half_turn_ulp_limit && c == 1.0, "sincosd: the tiny path");
+    // From 2^53 the reduction is in integers: it must agree with the
+    // library's exact fmod, the largest finite double included.
+    const double large[] = {0x1p53, 0x1.0000000000001p53, 0x1p60, 0x1.23456789abcdep200, 1e300,
+                            std::numeric_limits<double>::max()};
+    for (const double x : large) {
+        double near_s = 0.0;
+        double near_c = 0.0;
+        m::sincosd(x, s, c);
+        m::sincosd(std::fmod(x, 360.0), near_s, near_c);
+        require(same_bits(s, near_s) && same_bits(c, near_c), "sincosd: the reduction of a large angle");
+        m::sincosd(-x, near_s, near_c);
+        require(same_bits(near_s, s == 0.0 ? 0.0 : -s) && same_bits(near_c, c), "sincosd: a large negative angle");
+    }
+    m::sincosd(inf, s, c);
+    require(std::isnan(s) && std::isnan(c), "sincosd(inf)");
+    m::sincosd(-inf, s, c);
+    require(std::isnan(s) && std::isnan(c), "sincosd(-inf)");
+    m::sincosd(nan, s, c);
+    require(std::isnan(s) && std::isnan(c), "sincosd(nan)");
+    // Float: the double function of the widened argument, rounded once,
+    // flushed, a zero +0.
+    Lcg lcg{3014};
+    for (int i = 0; i < 4096; ++i) {
+        const float x = static_cast<float>((lcg.unit() - 0.5) * std::exp2(60.0 * lcg.unit() - 30.0));
+        float sf = 0.0f;
+        float cf = 0.0f;
+        m::sincosd(x, sf, cf);
+        m::sincosd(static_cast<double>(x), s, c);
+        require(same_bits(sf, flushed(static_cast<float>(s)) + 0.0f) &&
+                    same_bits(cf, flushed(static_cast<float>(c)) + 0.0f),
+                "sincosd(float): not the double result rounded once");
+    }
+    float sf = 0.0f;
+    float cf = 0.0f;
+    m::sincosd(-180.0f, sf, cf);
+    require(same_bits(sf, 0.0f) && cf == -1.0f, "sincosd(float): a half turn");
+    std::printf("degrees: quarter turns, zeros, large angles and the float function hold\n");
+}
+
 // A reference row's value: a differing one is printed and counted.
 void check_reference(int& differing, const char* const name, const double x, const double result, const double expected) {
     if (!same_bits(result, expected)) {
@@ -925,6 +1079,8 @@ int main(const int argument_count, char** const arguments) {
         half_turn_special_values();
         half_turn_reference_values();
         half_turn_accuracy(exhaustive ? 20000000 : 100000);
+        degree_special_values();
+        degree_accuracy(exhaustive ? 20000000 : 100000);
         float_screen(exhaustive ? 1 : 997);
         determinism();
     } catch (const std::exception& failure) {

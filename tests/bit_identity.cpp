@@ -322,6 +322,17 @@ void math_items() {
         }
         print("math.sincospi.double", digest);
     }
+    {
+        Digest digest;
+        for (const double input : doubles) {
+            double sine = 0.0;
+            double cosine = 0.0;
+            math::sincosd(input, sine, cosine);
+            digest.real(sine);
+            digest.real(cosine);
+        }
+        print("math.sincosd.double", digest);
+    }
     const BinaryDouble binary_doubles[] = {
         {STXLIB_POW_DOUBLE_ITEM, static_cast<DoublePair>(&math::pow)},
         {"math.hypot.double", static_cast<DoublePair>(&math::hypot)},
@@ -392,6 +403,17 @@ void math_items() {
             digest.real(cosine);
         }
         print("math.sincospi.float", digest);
+    }
+    {
+        Digest digest;
+        for (const float input : floats) {
+            float sine = 0.0f;
+            float cosine = 0.0f;
+            math::sincosd(input, sine, cosine);
+            digest.real(sine);
+            digest.real(cosine);
+        }
+        print("math.sincosd.float", digest);
     }
     const BinaryFloat binary_floats[] = {
         {STXLIB_POW_FLOAT_ITEM, static_cast<FloatPair>(&math::pow)},

@@ -68,5 +68,7 @@ double cosm1(double x) noexcept;
 float cosm1(float x) noexcept;
 double cosm1pi(double x) noexcept;
 float cosm1pi(float x) noexcept;
+void sincosd(double x, double& s, double& c) noexcept;
+void sincosd(float x, float& s, float& c) noexcept;
 
 } // namespace stxlib::math::<variant>
