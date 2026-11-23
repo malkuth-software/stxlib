@@ -279,7 +279,7 @@ OperationStatus report(const JsonDocument& instance, const Vector<Visit>& trail,
             append_token(problem, instance.key(visit.value));
         } else {
             char digits[32]{};
-            const Formatted formatted = format_unsigned(MutableView<char>(digits), static_cast<u64>(visit.position));
+            const text::Formatted formatted = text::format_unsigned(MutableView<char>(digits), static_cast<u64>(visit.position));
             if (formatted.succeeded()) append_token(problem, *formatted.text());
         }
     }

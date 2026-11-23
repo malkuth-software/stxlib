@@ -395,7 +395,7 @@ JsonDocument read_message(Client& client) {
     return static_cast<OperationResult<JsonDocument>&&>(parsed).take_value();
 }
 
-JsonDocument exchange(Client& client, const std::string& line) {
+JsonDocument exchange_line(Client& client, const std::string& line) {
     send_line(client, line);
     return read_message(client);
 }
@@ -403,7 +403,7 @@ JsonDocument exchange(Client& client, const std::string& line) {
 // ---- the modern era --------------------------------------------------------------------------
 
 void discover_and_list(Client& client) {
-    const JsonDocument discovered = exchange(client, modern("1", "server/discover", ""));
+    const JsonDocument discovered = exchange_line(client, modern("1", "server/discover", ""));
     CHECK(text_at(discovered, "jsonrpc") == "2.0");
     CHECK(integer_at(discovered, "id") == 1);
     CHECK(text_at(discovered, "result|supportedVersions|0") == "2026-07-28");
@@ -415,7 +415,7 @@ void discover_and_list(Client& client) {
     CHECK(text_at(discovered, "result|cacheScope") == "private");
     CHECK(boolean_at(discovered, "result|capabilities|tools|listChanged"));
 
-    const JsonDocument tools = exchange(client, modern("\"two\"", "tools/list", ""));
+    const JsonDocument tools = exchange_line(client, modern("\"two\"", "tools/list", ""));
     CHECK(text_at(tools, "id") == "two");
     CHECK(count_at(tools, "result|tools") == 5);
     // Bindings keep their order until an unbind.
@@ -434,30 +434,30 @@ void discover_and_list(Client& client) {
     CHECK(boolean_at(tools, "result|tools|4|annotations|destructiveHint"));
     CHECK(has(tools, "result|ttlMs"));
 
-    const JsonDocument resources = exchange(client, modern("3", "resources/list", ""));
+    const JsonDocument resources = exchange_line(client, modern("3", "resources/list", ""));
     CHECK(count_at(resources, "result|resources") == 1);
     CHECK(text_at(resources, "result|resources|0|uri") == "gui://about");
     CHECK(text_at(resources, "result|resources|0|mimeType") == "text/plain");
-    const JsonDocument templates = exchange(client, modern("4", "resources/templates/list", ""));
+    const JsonDocument templates = exchange_line(client, modern("4", "resources/templates/list", ""));
     CHECK(count_at(templates, "result|resourceTemplates") == 1);
     CHECK(text_at(templates, "result|resourceTemplates|0|uriTemplate") == "gui://window/{window}/outline");
-    const JsonDocument prompts = exchange(client, modern("5", "prompts/list", ""));
+    const JsonDocument prompts = exchange_line(client, modern("5", "prompts/list", ""));
     CHECK(text_at(prompts, "result|prompts|0|name") == "summarize");
     CHECK(text_at(prompts, "result|prompts|0|arguments|0|name") == "topic");
     CHECK(boolean_at(prompts, "result|prompts|0|arguments|0|required"));
-    const JsonDocument paged = exchange(client, modern("6", "tools/list", R"("cursor":"anything")"));
+    const JsonDocument paged = exchange_line(client, modern("6", "tools/list", R"("cursor":"anything")"));
     CHECK(integer_at(paged, "error|code") == -32602);
 }
 
 void tool_calls(Client& client) {
-    const JsonDocument echoed = exchange(client, modern("10", "tools/call", R"("name":"echo","arguments":{"text":"hi"})"));
+    const JsonDocument echoed = exchange_line(client, modern("10", "tools/call", R"("name":"echo","arguments":{"text":"hi"})"));
     CHECK(text_at(echoed, "result|structuredContent|echoed") == "hi");
     CHECK(text_at(echoed, "result|content|0|type") == "text");
     CHECK(text_at(echoed, "result|content|0|text") == R"({"echoed":"hi"})");
     CHECK(!has(echoed, "result|isError"));
     CHECK(text_at(echoed, "result|resultType") == "complete");
 
-    const JsonDocument missing = exchange(client, modern("11", "tools/call", R"("name":"echo","arguments":{})"));
+    const JsonDocument missing = exchange_line(client, modern("11", "tools/call", R"("name":"echo","arguments":{})"));
     CHECK(boolean_at(missing, "result|isError"));
     const std::string missing_text = text_at(missing, "result|content|0|text");
     CHECK(contains(missing_text, "invalid_arguments"));
@@ -465,27 +465,27 @@ void tool_calls(Client& client) {
     CHECK(contains(missing_text, "hint"));
 
     const JsonDocument extra =
-        exchange(client, modern("12", "tools/call", R"("name":"echo","arguments":{"text":"hi","more":1})"));
+        exchange_line(client, modern("12", "tools/call", R"("name":"echo","arguments":{"text":"hi","more":1})"));
     CHECK(boolean_at(extra, "result|isError"));
     CHECK(contains(text_at(extra, "result|content|0|text"), "/more"));
 
-    const JsonDocument wrong_kind = exchange(client, modern("13", "tools/call", R"("name":"echo","arguments":{"text":5})"));
+    const JsonDocument wrong_kind = exchange_line(client, modern("13", "tools/call", R"("name":"echo","arguments":{"text":5})"));
     CHECK(boolean_at(wrong_kind, "result|isError"));
     CHECK(contains(text_at(wrong_kind, "result|content|0|text"), "expected string"));
 
-    const JsonDocument empty_text = exchange(client, modern("14", "tools/call", R"("name":"echo","arguments":{"text":""})"));
+    const JsonDocument empty_text = exchange_line(client, modern("14", "tools/call", R"("name":"echo","arguments":{"text":""})"));
     CHECK(boolean_at(empty_text, "result|isError"));
 
-    const JsonDocument unknown = exchange(client, modern("15", "tools/call", R"("name":"nope")"));
+    const JsonDocument unknown = exchange_line(client, modern("15", "tools/call", R"("name":"nope")"));
     CHECK(integer_at(unknown, "error|code") == -32602);
     CHECK(integer_at(unknown, "id") == 15);
 
-    const JsonDocument broken = exchange(client, modern("16", "tools/call", R"("name":"broken")"));
+    const JsonDocument broken = exchange_line(client, modern("16", "tools/call", R"("name":"broken")"));
     CHECK(boolean_at(broken, "result|isError"));
     CHECK(contains(text_at(broken, "result|content|0|text"), "internal_failure"));
     CHECK(!has(broken, "result|structuredContent"));
 
-    const JsonDocument failed = exchange(client, modern("17", "tools/call", R"("name":"fails")"));
+    const JsonDocument failed = exchange_line(client, modern("17", "tools/call", R"("name":"fails")"));
     CHECK(boolean_at(failed, "result|isError"));
     const std::string failure_text = text_at(failed, "result|content|0|text");
     CHECK(contains(failure_text, R"("error":"not_found")"));
@@ -493,7 +493,7 @@ void tool_calls(Client& client) {
     CHECK(contains(failure_text, "call list_windows first"));
     CHECK(text_at(failed, "result|content|1|text") == "kept after the error");
 
-    const JsonDocument plain = exchange(client, modern("18", "tools/call", R"("name":"plain")"));
+    const JsonDocument plain = exchange_line(client, modern("18", "tools/call", R"("name":"plain")"));
     CHECK(count_at(plain, "result|content") == 3);
     CHECK(text_at(plain, "result|content|1|type") == "image");
     CHECK(text_at(plain, "result|content|1|data") == "iVBORw==");
@@ -515,29 +515,29 @@ void tool_calls(Client& client) {
 }
 
 void reads_and_prompts(Client& client) {
-    const JsonDocument about = exchange(client, modern("20", "resources/read", R"("uri":"gui://about")"));
+    const JsonDocument about = exchange_line(client, modern("20", "resources/read", R"("uri":"gui://about")"));
     CHECK(text_at(about, "result|contents|0|uri") == "gui://about"); // filled in from the request
     CHECK(text_at(about, "result|contents|0|text") == "about this program");
     CHECK(has(about, "result|ttlMs"));
-    const JsonDocument outline = exchange(client, modern("21", "resources/read", R"("uri":"gui://window/main/outline")"));
+    const JsonDocument outline = exchange_line(client, modern("21", "resources/read", R"("uri":"gui://window/main/outline")"));
     CHECK(text_at(outline, "result|contents|0|text") == "outline of main");
-    const JsonDocument nothing = exchange(client, modern("22", "resources/read", R"("uri":"gui://nothing")"));
+    const JsonDocument nothing = exchange_line(client, modern("22", "resources/read", R"("uri":"gui://nothing")"));
     CHECK(integer_at(nothing, "error|code") == -32602);
     CHECK(text_at(nothing, "error|data|uri") == "gui://nothing");
-    const JsonDocument gone = exchange(client, modern("23", "resources/read", R"("uri":"gui://window/missing/outline")"));
+    const JsonDocument gone = exchange_line(client, modern("23", "resources/read", R"("uri":"gui://window/missing/outline")"));
     CHECK(integer_at(gone, "error|code") == -32602);
-    const JsonDocument nested = exchange(client, modern("24", "resources/read", R"("uri":"gui://window/a/b/outline")"));
+    const JsonDocument nested = exchange_line(client, modern("24", "resources/read", R"("uri":"gui://window/a/b/outline")"));
     CHECK(integer_at(nested, "error|code") == -32602); // a parameter never spans a '/'
 
     const JsonDocument prompt =
-        exchange(client, modern("25", "prompts/get", R"("name":"summarize","arguments":{"topic":"pipes"})"));
+        exchange_line(client, modern("25", "prompts/get", R"("name":"summarize","arguments":{"topic":"pipes"})"));
     CHECK(text_at(prompt, "result|description") == "Summarize a topic");
     CHECK(text_at(prompt, "result|messages|0|role") == "user");
     CHECK(text_at(prompt, "result|messages|0|content|text") == "Summarize pipes");
     CHECK(text_at(prompt, "result|messages|1|role") == "assistant");
-    const JsonDocument no_topic = exchange(client, modern("26", "prompts/get", R"("name":"summarize")"));
+    const JsonDocument no_topic = exchange_line(client, modern("26", "prompts/get", R"("name":"summarize")"));
     CHECK(integer_at(no_topic, "error|code") == -32602);
-    const JsonDocument no_prompt = exchange(client, modern("27", "prompts/get", R"("name":"other")"));
+    const JsonDocument no_prompt = exchange_line(client, modern("27", "prompts/get", R"("name":"other")"));
     CHECK(integer_at(no_prompt, "error|code") == -32602);
 }
 
@@ -545,36 +545,36 @@ void protocol_errors(Client& client) {
     const std::string wrong_version = R"({"jsonrpc":"2.0","id":30,"method":"tools/list","params":{"_meta":{)"
                                       R"("io.modelcontextprotocol/protocolVersion":"1999-01-01",)"
                                       R"("io.modelcontextprotocol/clientCapabilities":{}}}})";
-    const JsonDocument unsupported = exchange(client, wrong_version);
+    const JsonDocument unsupported = exchange_line(client, wrong_version);
     CHECK(integer_at(unsupported, "error|code") == -32022);
     CHECK(text_at(unsupported, "error|data|requested") == "1999-01-01");
     CHECK(text_at(unsupported, "error|data|supported|0") == "2026-07-28");
 
-    const JsonDocument no_meta = exchange(client, R"({"jsonrpc":"2.0","id":31,"method":"tools/list"})");
+    const JsonDocument no_meta = exchange_line(client, R"({"jsonrpc":"2.0","id":31,"method":"tools/list"})");
     CHECK(integer_at(no_meta, "error|code") == -32602);
     CHECK(has(no_meta, "error|data|supported"));
 
     const std::string no_capabilities = R"({"jsonrpc":"2.0","id":32,"method":"tools/list","params":{"_meta":{)"
                                         R"("io.modelcontextprotocol/protocolVersion":"2026-07-28"}}})";
-    CHECK(integer_at(exchange(client, no_capabilities), "error|code") == -32602);
+    CHECK(integer_at(exchange_line(client, no_capabilities), "error|code") == -32602);
 
-    const JsonDocument unparsable = exchange(client, "{not json");
+    const JsonDocument unparsable = exchange_line(client, "{not json");
     CHECK(integer_at(unparsable, "error|code") == -32700);
     const Optional<JsonRef> null_id = at(unparsable, "id");
     CHECK(null_id.present() && unparsable.is(*null_id.value(), JsonKind::null_value));
 
-    CHECK(integer_at(exchange(client, "[1,2]"), "error|code") == -32600);
-    CHECK(integer_at(exchange(client, R"({"jsonrpc":"1.0","id":33,"method":"tools/list"})"), "error|code") == -32600);
-    CHECK(integer_at(exchange(client, R"({"jsonrpc":"2.0","id":1.5,"method":"tools/list"})"), "error|code") == -32600);
-    CHECK(integer_at(exchange(client, R"({"jsonrpc":"2.0","id":34})"), "error|code") == -32600);
-    CHECK(integer_at(exchange(client, modern("35", "nope/nope", "")), "error|code") == -32601);
-    CHECK(integer_at(exchange(client, modern("36", "ping", "")), "error|code") == -32601); // removed in 2026-07-28
+    CHECK(integer_at(exchange_line(client, "[1,2]"), "error|code") == -32600);
+    CHECK(integer_at(exchange_line(client, R"({"jsonrpc":"1.0","id":33,"method":"tools/list"})"), "error|code") == -32600);
+    CHECK(integer_at(exchange_line(client, R"({"jsonrpc":"2.0","id":1.5,"method":"tools/list"})"), "error|code") == -32600);
+    CHECK(integer_at(exchange_line(client, R"({"jsonrpc":"2.0","id":34})"), "error|code") == -32600);
+    CHECK(integer_at(exchange_line(client, modern("35", "nope/nope", "")), "error|code") == -32601);
+    CHECK(integer_at(exchange_line(client, modern("36", "ping", "")), "error|code") == -32601); // removed in 2026-07-28
 
     // A line past the message limit is refused, and the stream goes on.
     const std::string huge = R"({"jsonrpc":"2.0","id":37,"method":"tools/list","pad":")" + std::string(20000, 'x') + "\"}";
-    const JsonDocument oversized = exchange(client, huge);
+    const JsonDocument oversized = exchange_line(client, huge);
     CHECK(integer_at(oversized, "error|code") == -32600);
-    const JsonDocument after = exchange(client, modern("38", "server/discover", ""));
+    const JsonDocument after = exchange_line(client, modern("38", "server/discover", ""));
     CHECK(integer_at(after, "id") == 38);
     CHECK(client.server.counters().oversized_messages == 1);
     CHECK(client.server.counters().parse_errors == 1);
@@ -582,7 +582,7 @@ void protocol_errors(Client& client) {
     // Notifications get no answer; a response from the client is ignored.
     send_line(client, R"({"jsonrpc":"2.0","method":"notifications/initialized"})");
     send_line(client, R"({"jsonrpc":"2.0","id":99,"result":{}})");
-    const JsonDocument next = exchange(client, modern("39", "server/discover", ""));
+    const JsonDocument next = exchange_line(client, modern("39", "server/discover", ""));
     CHECK(integer_at(next, "id") == 39);
 }
 
@@ -604,7 +604,7 @@ void cancellation(Client& client, Fixture& fixture) {
     wait_for(fixture.slow_finished);
     CHECK(fixture.slow_end.load() == static_cast<int>(ContextEnd::cancelled));
     // No reply for 60 (and no second progress): the next line answers 61.
-    const JsonDocument next = exchange(client, modern("61", "server/discover", ""));
+    const JsonDocument next = exchange_line(client, modern("61", "server/discover", ""));
     CHECK(integer_at(next, "id") == 61);
     const stxlib::mcp::ServerCounters counters = client.server.counters();
     CHECK(counters.cancellations == 1);
@@ -636,7 +636,7 @@ void subscriptions(Client& client) {
     client.server.notify_prompts_changed();
     client.server.notify_resource_updated("gui://other");
     client.server.log(LogLevel::emergency, "modern clients get logs only through requests");
-    const JsonDocument next = exchange(client, modern("51", "server/discover", ""));
+    const JsonDocument next = exchange_line(client, modern("51", "server/discover", ""));
     CHECK(integer_at(next, "id") == 51);
 
     // Binding a tool notifies by itself.
@@ -651,7 +651,7 @@ void subscriptions(Client& client) {
     CHECK(text_at(unbound, "method") == "notifications/tools/list_changed");
 
     // An id in use by an open subscription is refused.
-    const JsonDocument duplicate = exchange(client, modern("50", "tools/call", R"("name":"echo","arguments":{"text":"x"})"));
+    const JsonDocument duplicate = exchange_line(client, modern("50", "tools/call", R"("name":"echo","arguments":{"text":"x"})"));
     CHECK(integer_at(duplicate, "error|code") == -32600);
 }
 
@@ -692,10 +692,10 @@ void legacy_session() {
     Fixture fixture;
     Client client;
     if (!open_client(client, fixture, 16 * 1024)) return;
-    const JsonDocument early = exchange(client, legacy("1", "tools/list", ""));
+    const JsonDocument early = exchange_line(client, legacy("1", "tools/list", ""));
     CHECK(integer_at(early, "error|code") == -32602);
 
-    const JsonDocument initialized = exchange(
+    const JsonDocument initialized = exchange_line(
         client, legacy("2", "initialize",
                        R"("protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"old","version":"2"})"));
     CHECK(text_at(initialized, "result|protocolVersion") == "2025-06-18");
@@ -706,10 +706,10 @@ void legacy_session() {
     CHECK(text_of(seen.name()) == "old");
     send_line(client, R"({"jsonrpc":"2.0","method":"notifications/initialized"})");
 
-    const JsonDocument pong = exchange(client, legacy("3", "ping", ""));
+    const JsonDocument pong = exchange_line(client, legacy("3", "ping", ""));
     CHECK(has(pong, "result"));
     CHECK(count_at(pong, "result") == 0);
-    const JsonDocument tools = exchange(client, legacy("4", "tools/list", ""));
+    const JsonDocument tools = exchange_line(client, legacy("4", "tools/list", ""));
     CHECK(count_at(tools, "result|tools") == 5);
     CHECK(!has(tools, "result|ttlMs"));
     CHECK(!has(tools, "result|resultType"));
@@ -719,8 +719,8 @@ void legacy_session() {
     CHECK(text_at(changed, "method") == "notifications/tools/list_changed");
     CHECK(!has(changed, "params|_meta"));
 
-    CHECK(has(exchange(client, legacy("5", "logging/setLevel", R"("level":"warning")")), "result"));
-    CHECK(integer_at(exchange(client, legacy("6", "logging/setLevel", R"("level":"loud")")), "error|code") == -32602);
+    CHECK(has(exchange_line(client, legacy("5", "logging/setLevel", R"("level":"warning")")), "result"));
+    CHECK(integer_at(exchange_line(client, legacy("6", "logging/setLevel", R"("level":"loud")")), "error|code") == -32602);
     client.server.log(LogLevel::info, "below the level");
     client.server.log(LogLevel::error, "bad");
     const JsonDocument logged = read_message(client);
@@ -728,24 +728,24 @@ void legacy_session() {
     CHECK(text_at(logged, "params|level") == "error");
     CHECK(text_at(logged, "params|data") == "bad");
 
-    CHECK(has(exchange(client, legacy("7", "resources/subscribe", R"("uri":"gui://about")")), "result"));
+    CHECK(has(exchange_line(client, legacy("7", "resources/subscribe", R"("uri":"gui://about")")), "result"));
     client.server.notify_resource_updated("gui://about");
     const JsonDocument updated = read_message(client);
     CHECK(text_at(updated, "method") == "notifications/resources/updated");
     CHECK(text_at(updated, "params|uri") == "gui://about");
-    CHECK(has(exchange(client, legacy("8", "resources/unsubscribe", R"("uri":"gui://about")")), "result"));
+    CHECK(has(exchange_line(client, legacy("8", "resources/unsubscribe", R"("uri":"gui://about")")), "result"));
     client.server.notify_resource_updated("gui://about");
 
-    const JsonDocument missing = exchange(client, legacy("9", "resources/read", R"("uri":"gui://nothing")"));
+    const JsonDocument missing = exchange_line(client, legacy("9", "resources/read", R"("uri":"gui://nothing")"));
     CHECK(integer_at(missing, "error|code") == -32002); // the legacy code
-    const JsonDocument echoed = exchange(client, legacy("10", "tools/call", R"("name":"echo","arguments":{"text":"old"})"));
+    const JsonDocument echoed = exchange_line(client, legacy("10", "tools/call", R"("name":"echo","arguments":{"text":"old"})"));
     CHECK(text_at(echoed, "result|structuredContent|echoed") == "old");
     CHECK(!has(echoed, "result|resultType"));
 
     const JsonDocument newest =
-        exchange(client, legacy("11", "initialize", R"("protocolVersion":"2099-01-01","capabilities":{})"));
+        exchange_line(client, legacy("11", "initialize", R"("protocolVersion":"2099-01-01","capabilities":{})"));
     CHECK(text_at(newest, "result|protocolVersion") == text_of(stxlib::mcp::legacy_protocol_version(0)));
-    CHECK(integer_at(exchange(client, legacy("12", "subscriptions/listen", "")), "error|code") == -32601);
+    CHECK(integer_at(exchange_line(client, legacy("12", "subscriptions/listen", "")), "error|code") == -32601);
 
     // stop(): serving ends with the input still open; the reader is
     // abandoned, the output ends.

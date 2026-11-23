@@ -353,14 +353,14 @@ OperationStatus JsonParser::read_number(const u32 node) noexcept {
     for (usize index = 0; index < length; ++index) arena[offset + index] = bytes_[start + index];
     arena_used_ = arena_used_ + static_cast<u32>(length);
     const TextView number_text = arena_view(offset, static_cast<u32>(length));
-    const Parsed<double> real = parse_double(number_text);
+    const text::Parsed<double> real = text::parse_double(number_text);
     if (!real.succeeded()) return OperationStatus::failure(parse_failure(start, "a JSON number out of range"));
     detail::JsonNode& target = document_.nodes_[node];
     target.text_offset = offset;
     target.text_count = static_cast<u32>(length);
     target.real = *real.value();
     if (whole) {
-        const Parsed<i64> integer = parse_signed(number_text);
+        const text::Parsed<i64> integer = text::parse_signed(number_text);
         if (integer.succeeded()) {
             target.integral = true;
             target.integer = *integer.value();
@@ -812,7 +812,7 @@ void JsonWriter::boolean(const bool value) noexcept {
 void JsonWriter::integer(const i64 value) noexcept {
     if (!before_value()) return;
     char digits[32]{};
-    const Formatted formatted = format_signed(MutableView<char>(digits), value);
+    const text::Formatted formatted = text::format_signed(MutableView<char>(digits), value);
     if (!formatted.succeeded()) {
         fail(ErrorKind::internal_failure, "an integer did not format");
         return;
@@ -824,7 +824,7 @@ void JsonWriter::integer(const i64 value) noexcept {
 void JsonWriter::unsigned_integer(const u64 value) noexcept {
     if (!before_value()) return;
     char digits[32]{};
-    const Formatted formatted = format_unsigned(MutableView<char>(digits), value);
+    const text::Formatted formatted = text::format_unsigned(MutableView<char>(digits), value);
     if (!formatted.succeeded()) {
         fail(ErrorKind::internal_failure, "an integer did not format");
         return;
@@ -842,7 +842,7 @@ void JsonWriter::number(const double value) noexcept {
     }
     if (!before_value()) return;
     char digits[64]{};
-    const Formatted formatted = format_real(MutableView<char>(digits), value);
+    const text::Formatted formatted = text::format_real(MutableView<char>(digits), value);
     if (!formatted.succeeded()) {
         fail(ErrorKind::internal_failure, "a number did not format");
         return;

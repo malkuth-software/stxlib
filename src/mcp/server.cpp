@@ -162,7 +162,7 @@ void reader_entry(const StopSignal& stop, void* const context) noexcept {
 
 void write_record(detail::ServerState& state, detail::OutRecord& record, bool& healthy) noexcept {
     if (!healthy) {
-        if (record.response) bump(state.counters.replies_discarded);
+        if (record.response) detail::bump(state.counters.replies_discarded);
         return;
     }
     if (record.line.empty() || record.line.view().data()[record.line.count() - 1] != '\n') {
@@ -178,9 +178,9 @@ void write_record(detail::ServerState& state, detail::OutRecord& record, bool& h
         return;
     }
     if (record.response) {
-        bump(state.counters.replies_sent);
+        detail::bump(state.counters.replies_sent);
     } else {
-        bump(state.counters.notifications_sent);
+        detail::bump(state.counters.notifications_sent);
     }
 }
 
