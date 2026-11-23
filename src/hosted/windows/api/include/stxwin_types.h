@@ -110,6 +110,7 @@ typedef struct FILE_END_OF_FILE_INFO FILE_END_OF_FILE_INFO;
 typedef struct FILE_FULL_DIR_INFO FILE_FULL_DIR_INFO;
 typedef struct FILE_ID_128 FILE_ID_128;
 typedef struct FILE_ID_INFO FILE_ID_INFO;
+typedef struct FILE_RENAME_INFO FILE_RENAME_INFO;
 typedef struct FILE_STANDARD_INFO FILE_STANDARD_INFO;
 typedef struct FINDREPLACEA FINDREPLACEA;
 typedef struct FINDREPLACEW FINDREPLACEW;
@@ -1644,6 +1645,17 @@ typedef enum FILE_INFO_BY_HANDLE_CLASS {
     FileNormalizedNameInfo = 24,
     MaximumFileInfoByHandleClass = 25,
 } FILE_INFO_BY_HANDLE_CLASS;
+
+/* winbase.h */
+struct FILE_RENAME_INFO {
+    union {
+        BOOLEAN ReplaceIfExists;
+        DWORD Flags;
+    };
+    HANDLE RootDirectory;
+    DWORD FileNameLength;
+    WCHAR FileName[1];
+};
 
 /* winbase.h */
 struct FILE_STANDARD_INFO {
