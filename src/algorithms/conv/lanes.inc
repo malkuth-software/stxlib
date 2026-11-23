@@ -53,6 +53,30 @@ struct Lanes final {
         return static_cast<std::size_t>(bits & 1U);
     }
 };
+#elif STXLIB_CONV_LEVEL == 1 && defined(STXLIB_CONV_WASM)
+struct Lanes final {
+    using Value = v128_t;
+    using Mask = v128_t;
+    static constexpr std::size_t width = 2U;
+    static STXLIB_CONV_INLINE Value load(const double* p) noexcept { return wasm_v128_load(p); }
+    static STXLIB_CONV_INLINE void store(double* p, Value a) noexcept { wasm_v128_store(p, a); }
+    static STXLIB_CONV_INLINE Value set(double x) noexcept { return wasm_f64x2_splat(x); }
+    static STXLIB_CONV_INLINE Value add(Value a, Value b) noexcept { return wasm_f64x2_add(a, b); }
+    static STXLIB_CONV_INLINE Value sub(Value a, Value b) noexcept { return wasm_f64x2_sub(a, b); }
+    static STXLIB_CONV_INLINE Value mul(Value a, Value b) noexcept { return wasm_f64x2_mul(a, b); }
+    static STXLIB_CONV_INLINE Value div(Value a, Value b) noexcept { return wasm_f64x2_div(a, b); }
+    static STXLIB_CONV_INLINE Mask less(Value a, Value b) noexcept { return wasm_f64x2_lt(a, b); }
+    static STXLIB_CONV_INLINE Mask equal(Value a, Value b) noexcept { return wasm_f64x2_eq(a, b); }
+    static STXLIB_CONV_INLINE Mask both(Mask a, Mask b) noexcept { return wasm_v128_and(a, b); }
+    static STXLIB_CONV_INLINE Mask either(Mask a, Mask b) noexcept { return wasm_v128_or(a, b); }
+    static STXLIB_CONV_INLINE Mask invert(Mask a) noexcept { return wasm_v128_not(a); }
+    // bitselect(a, b, m) takes a's bits where m is set: the same as NEON's vbslq.
+    static STXLIB_CONV_INLINE Value select(Mask m, Value a, Value b) noexcept { return wasm_v128_bitselect(a, b, m); }
+    static STXLIB_CONV_INLINE std::size_t flag(Mask m, std::size_t k) noexcept {
+        const std::int64_t bits = k == 0U ? wasm_i64x2_extract_lane(m, 0) : wasm_i64x2_extract_lane(m, 1);
+        return static_cast<std::size_t>(bits & 1);
+    }
+};
 #elif STXLIB_CONV_LEVEL == 1 && defined(STXLIB_CONV_X86)
 struct Lanes final {
     using Value = __m128d;

@@ -211,6 +211,65 @@ void settle_range(const FieldState& field, const usize jlo, const usize jhi, con
     }
 }
 
+// settle_range's interior settle for a list of interior cells js[0 .. count) instead of a range:
+// their windows gathered from the column, the same K1 calls, the same results per (j, channel).
+void settle_list(const FieldState& field, const usize* const js, const usize count, const double* column, u8* simple, double* cells,
+                 WorkspaceState& w) noexcept {
+    if (count == 0) return;
+    const usize n = count * channel_count;
+    double* const planes = w.axis_windows.mutable_view().data();
+    const double* window[8];
+    for (usize k = 0; k < 8; ++k) {
+        double* const plane = planes + k * n;
+        for (usize l = 0; l < count; ++l) {
+            const double* const source = column + (static_cast<i64>(js[l]) - 3 + static_cast<i64>(k)) * static_cast<i64>(channel_count);
+            for (usize c = 0; c < channel_count; ++c) plane[l * channel_count + c] = source[c];
+        }
+        window[k] = plane;
+    }
+    double* const raw_base = w.axis_raw.mutable_view().data();
+    double* raw[5];
+    for (usize r = 0; r < 5; ++r) raw[r] = raw_base + r * n;
+    u32* const list = w.axis_list.mutable_view().data();
+    const Kernels& kernels = *field.kernels;
+    const usize m = kernels.pass_a(window, raw, list, n);
+    for (usize l = 0; l < count; ++l) {
+        for (usize c = 0; c < channel_count; ++c) simple[js[l] * channel_count + c] = 1;
+    }
+    if (m == 0) return;
+    double* const gather = w.axis_gather.mutable_view().data();
+    double* const admitted_base = w.axis_admitted.mutable_view().data();
+    double* cw[4];
+    double* cr[5];
+    double* ca[5];
+    for (usize k = 0; k < 4; ++k) cw[k] = gather + k * m;
+    for (usize r = 0; r < 5; ++r) {
+        cr[r] = gather + (4 + r) * m;
+        ca[r] = admitted_base + r * m;
+    }
+    for (usize g = 0; g < m; ++g) {
+        const usize lane = list[g];
+        for (usize k = 0; k < 4; ++k) cw[k][g] = window[k + 2][lane];
+        for (usize r = 0; r < 5; ++r) cr[r][g] = raw[r][lane];
+    }
+    const double* const cwc[8]{cw[0], cw[0], cw[0], cw[1], cw[2], cw[3], cw[3], cw[3]};
+    const double* const crc[5]{cr[0], cr[1], cr[2], cr[3], cr[4]};
+    u8* const idle = w.axis_idle.mutable_view().data();
+    kernels.pass_b(cwc, crc, ca, idle, m);
+    for (usize g = 0; g < m; ++g) {
+        if (idle[g] != 0) continue;
+        const usize lane = list[g];
+        const usize slot = js[lane / channel_count] * channel_count + lane % channel_count;
+        simple[slot] = 0;
+        double* const cell = cells + slot * 6;
+        cell[0] = window[3][lane];
+        for (usize r = 0; r < 5; ++r) cell[r + 1] = ca[r][g];
+    }
+}
+
+// Cells per row_segment call on the axis paths: the cache holds this many cells of every band row.
+constexpr usize axis_block = 16;
+
 OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
                            WorkspaceState& workspace, const bool fused) noexcept {
     const usize rows = field.height;
@@ -242,7 +301,8 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
     if (status.succeeded()) status = workspace.simple.resize(lanes);
     if (status.succeeded()) status = workspace.cells.resize(lanes * 6);
     if (status.succeeded()) status = workspace.accumulator.resize(region_rows * channel_count);
-    if (status.succeeded()) status = workspace.row_cells.resize(rows * 6 * channel_count);
+    if (status.succeeded()) status = workspace.row_cells.resize(rows * axis_block * 24);
+    if (status.succeeded()) status = prepare_segment(workspace.segment, axis_block);
     if (status.succeeded()) status = workspace.axis_raw.resize(5 * lanes);
     if (status.succeeded()) status = workspace.axis_list.resize(lanes);
     if (status.succeeded()) status = workspace.axis_gather.resize(9 * lanes);
@@ -256,7 +316,8 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
     double* const cells = workspace.cells.mutable_view().data();
     double* const accumulator = workspace.accumulator.mutable_view().data();
     double* const row_cells = workspace.row_cells.mutable_view().data();
-    // The cell whose row cells are cached (none yet).
+    const SegmentBuffers buffers = segment_buffers(workspace.segment);
+    // The block of cells [cached, cached + axis_block) whose row cells are cached (none yet).
     usize cached = field.width;
     for (usize x = region.x0; x < region.x1; ++x) {
         for (usize k = 0; k < region_rows * channel_count; ++k) accumulator[k] = 0.0;
@@ -271,14 +332,15 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         }
         for (usize a = 0; a < node_count; ++a) {
             const usize i = nodes[a].cell;
-            if (i != cached) {
-                for (usize r = rlo; r <= rhi; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
+            if (cached == field.width || i < cached || i >= cached + axis_block) {
                 cached = i;
+                const usize last = cached + axis_block - 1 < field.width - 2 ? cached + axis_block - 1 : field.width - 2;
+                for (usize r = rlo; r <= rhi; ++r) row_segment(field, r, cached, last, row_cells + r * axis_block * 24, buffers);
             }
             double tauu[5];
             tail_weights(nodes[a].t, tauu);
             for (usize r = rlo; r <= rhi; ++r) {
-                const double* const cell = row_cells + r * 6 * channel_count;
+                const double* const cell = row_cells + (r * axis_block + (i - cached)) * 24;
                 for (usize c = 0; c < channel_count; ++c) {
                     double value = cell[c] + cell[1 * channel_count + c] * tauu[0];
                     value = value + cell[2 * channel_count + c] * tauu[1];
@@ -409,45 +471,16 @@ OperationStatus prepare_tiled(WorkspaceState& w) noexcept {
     if (status.succeeded()) status = w.idle.resize(tile_lanes);
     if (status.succeeded()) status = w.end_queries.resize(tile_queries);
     if (status.succeeded()) status = w.query_cell_v.resize(tile_queries);
+    if (status.succeeded()) status = prepare_segment(w.segment, limit_cells);
     return status;
 }
 
-// Builds the local cells of rows r0..r1, cells imin..imax.
+// Builds the local cells of rows r0..r1, cells imin..imax (row_segment, compile's arithmetic).
 void build_local(const FieldState& field, const usize r0, const usize r1, const usize imin, const usize imax, WorkspaceState& w) noexcept {
-    const usize width = field.width;
     const usize ncells = imax - imin + 1;
     double* const local = w.local.mutable_view().data();
-    double* const decoded = w.decoded.mutable_view().data();
-    const usize inner_first = imin > 2 ? imin : 2;
-    const usize inner_last = width >= 4 ? (imax < width - 4 ? imax : width - 4) : 0;
-    for (usize r = r0; r <= r1; ++r) {
-        double* const row_local = local + (r - r0) * ncells * 24;
-        const u8* const row = field.source.view().data() + r * width * 4;
-        if (width >= 6 && inner_first <= inner_last) {
-            for (usize x = inner_first - 2; x <= inner_last + 3; ++x) decode(row + x * 4, decoded + (x - (inner_first - 2)) * channel_count);
-            (*field.kernels).row_cells(decoded, inner_last - inner_first + 1, row_local + (inner_first - imin) * 24);
-        }
-        // End cells: anchor, then their stored currents from the run list below.
-        for (usize i = imin; i <= imax; ++i) {
-            if (interior_cell(i, width)) continue;
-            double* const cell = row_local + (i - imin) * 24;
-            double anchor[channel_count];
-            decode(row + i * 4, anchor);
-            for (usize c = 0; c < channel_count; ++c) cell[c] = anchor[c];
-        }
-        const View<Correction> row_list = row_corrections(field, r);
-        for (usize k = 0; k < row_list.count(); ++k) {
-            const Correction& entry = row_list.data()[k];
-            if (entry.cell < imin || entry.cell > imax) continue;
-            double* const cell = row_local + (entry.cell - imin) * 24;
-            const usize c = entry.channel;
-            if (interior_cell(entry.cell, width)) {
-                for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = cell[(m + 1) * channel_count + c] + entry.e[m];
-            } else {
-                for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = entry.e[m];
-            }
-        }
-    }
+    const SegmentBuffers buffers = segment_buffers(w.segment);
+    for (usize r = r0; r <= r1; ++r) row_segment(field, r, imin, imax, local + (r - r0) * ncells * 24, buffers);
 }
 
 void preview_tile(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const usize tx0, const usize ty0,
@@ -583,6 +616,145 @@ void preview_tile(const FieldState& field, const AnyMap& map, const MutableRgba8
     for (usize q = 0; q < count; ++q) encode(value + q * channel_count, pixel_at(destination, tx0 + q % tw, ty0 + q / tw));
 }
 
+// ---------------------------------------------------------------- separable axis preview
+//
+// An axis map's u depends on x alone and v on y alone, so the preview separates exactly: per
+// destination column, the row values at u for the band of source rows the region reads (from
+// row_segment blocks, cached across columns), then one vertical settle per cell j (K1, as axis
+// canon's settle_range), shared by every destination row in that cell; per pixel only the cell's
+// value at v. Every value is Field::evaluate's: the row values have row_value's operation order,
+// interior vertical cells settle_range's (vertical_value's arithmetic), and end vertical cells go
+// through vertical_value itself on field_value's window (rows outside the field read 0).
+
+OperationStatus axis_preview(const FieldState& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
+                             WorkspaceState& w) noexcept {
+    const usize rows = field.height;
+    const usize width = field.width;
+    const usize region_rows = region.y1 - region.y0;
+    if (region_rows == 0 || region.x0 == region.x1) return OperationStatus::success();
+    constexpr usize pad = 4 * channel_count;
+    const usize lanes = rows * channel_count;
+    OperationStatus status = w.axis_cells.resize(region_rows);
+    if (status.succeeded()) status = w.axis_listed.resize(region_rows);
+    if (status.succeeded()) status = w.axis_windows.resize(8 * region_rows * channel_count);
+    if (status.succeeded()) status = w.axis_weights.resize(region_rows * 11);
+    if (status.succeeded()) status = w.padded_column.resize(lanes + 2 * pad);
+    if (status.succeeded()) status = w.simple.resize(lanes);
+    if (status.succeeded()) status = w.cells.resize(lanes * 6);
+    if (status.succeeded()) status = w.row_cells.resize(rows * axis_block * 24);
+    if (status.succeeded()) status = w.axis_raw.resize(5 * lanes);
+    if (status.succeeded()) status = w.axis_list.resize(lanes);
+    if (status.succeeded()) status = w.axis_gather.resize(9 * lanes);
+    if (status.succeeded()) status = w.axis_admitted.resize(5 * lanes);
+    if (status.succeeded()) status = w.axis_idle.resize(lanes);
+    if (status.succeeded()) status = prepare_segment(w.segment, axis_block);
+    if (status.failed()) return exhausted("stxlib.conv.transfer");
+    const double sw = static_cast<double>(width);
+    const double sh = static_cast<double>(rows);
+    const double tw = static_cast<double>(map.target_width);
+    const double th = static_cast<double>(map.target_height);
+    // Per region row: the vertical cell and its weights.
+    usize* const cell_of = w.axis_cells.mutable_view().data();
+    double* const weights = w.axis_weights.mutable_view().data();
+    usize jlo = rows;
+    usize jhi = 0;
+    for (usize y = region.y0; y < region.y1; ++y) {
+        double u = 0.0;
+        double v = 0.0;
+        axis_at(sw, sh, tw, th, region.x0, y, u, v);
+        usize j = 0;
+        double tv = 0.0;
+        locate(v, rows - 1, j, tv);
+        cell_of[y - region.y0] = j;
+        kernel_weights(tv, weights + (y - region.y0) * 11);
+        tail_weights(tv, weights + (y - region.y0) * 11 + 6);
+        jlo = j < jlo ? j : jlo;
+        jhi = j > jhi ? j : jhi;
+    }
+    const usize rlo = jlo > 3 ? jlo - 3 : 0;
+    const usize rhi = jhi + 4 < rows - 1 ? jhi + 4 : rows - 1;
+    // The distinct interior cells the rows read (v grows with y, so equal cells are adjacent).
+    // When they are most of the range, settle the range; otherwise only the listed cells.
+    usize* const listed = w.axis_listed.mutable_view().data();
+    usize listed_count = 0;
+    for (usize y = 0; y < region_rows; ++y) {
+        const usize j = cell_of[y];
+        if (!interior_cell(j, rows)) continue;
+        if (listed_count > 0 && listed[listed_count - 1] == j) continue;
+        listed[listed_count] = j;
+        listed_count = listed_count + 1;
+    }
+    const bool dense = listed_count * 4 >= (jhi - jlo + 1) * 3;
+    double* const padded = w.padded_column.mutable_view().data();
+    for (usize k = 0; k < lanes + 2 * pad; ++k) padded[k] = 0.0;
+    double* const column = padded + pad;
+    u8* const simple = w.simple.mutable_view().data();
+    double* const cells = w.cells.mutable_view().data();
+    double* const row_cells = w.row_cells.mutable_view().data();
+    const SegmentBuffers buffers = segment_buffers(w.segment);
+    usize cached = width;
+    for (usize x = region.x0; x < region.x1; ++x) {
+        double u = 0.0;
+        double v = 0.0;
+        axis_at(sw, sh, tw, th, x, region.y0, u, v);
+        usize i = 0;
+        double tu = 0.0;
+        locate(u, width - 1, i, tu);
+        double tauu[5];
+        tail_weights(tu, tauu);
+        if (cached == width || i < cached || i >= cached + axis_block) {
+            cached = i;
+            const usize last = cached + axis_block - 1 < width - 2 ? cached + axis_block - 1 : width - 2;
+            for (usize r = rlo; r <= rhi; ++r) row_segment(field, r, cached, last, row_cells + r * axis_block * 24, buffers);
+        }
+        for (usize r = rlo; r <= rhi; ++r) {
+            const double* const cell = row_cells + (r * axis_block + (i - cached)) * 24;
+            for (usize c = 0; c < channel_count; ++c) {
+                double value = cell[c] + cell[1 * channel_count + c] * tauu[0];
+                value = value + cell[2 * channel_count + c] * tauu[1];
+                value = value + cell[3 * channel_count + c] * tauu[2];
+                value = value + cell[4 * channel_count + c] * tauu[3];
+                value = value + cell[5 * channel_count + c] * tauu[4];
+                column[r * channel_count + c] = value;
+            }
+        }
+        if (dense) {
+            settle_range(field, jlo, jhi, column, simple, cells, w);
+        } else {
+            settle_list(field, listed, listed_count, column, simple, cells, w);
+        }
+        for (usize y = 0; y < region_rows; ++y) {
+            const usize j = cell_of[y];
+            const double* const sv = weights + y * 11;
+            const double* const tauv = sv + 6;
+            double value[channel_count];
+            if (!interior_cell(j, rows)) {
+                for (usize c = 0; c < channel_count; ++c) {
+                    double window[8];
+                    for (usize k = 0; k < 8; ++k) {
+                        const i64 row = static_cast<i64>(j) - 3 + static_cast<i64>(k);
+                        window[k] = row < 0 || static_cast<usize>(row) >= rows ? 0.0 : column[static_cast<usize>(row) * channel_count + c];
+                    }
+                    value[c] = vertical_value(field, j, window, sv, tauv);
+                }
+            } else {
+                for (usize c = 0; c < channel_count; ++c) {
+                    if (simple[j * channel_count + c] != 0) {
+                        double linear = 0.0;
+                        for (usize r = 0; r < 6; ++r) linear = linear + sv[r] * column[(j - 2 + r) * channel_count + c];
+                        value[c] = linear;
+                    } else {
+                        const double* const cell = cells + (j * channel_count + c) * 6;
+                        value[c] = evaluate_cell(cell[0], cell + 1, tauv);
+                    }
+                }
+            }
+            encode(value, pixel_at(destination, x, region.y0 + y));
+        }
+    }
+    return OperationStatus::success();
+}
+
 OperationStatus preview(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const Region& region,
                         WorkspaceState& workspace) noexcept {
     if (region.x0 == region.x1 || region.y0 == region.y1) return OperationStatus::success();
@@ -659,7 +831,7 @@ OperationStatus transfer(const Field& field, const AxisMap& map, const Mode mode
         return detail::refused("stxlib.conv.transfer.axis", "the destination must have the map's target size");
     }
     const FieldState& state = *FieldAccess::state(field);
-    if (mode == Mode::canon && state.transposed) {
+    if (state.transposed && (mode == Mode::canon || (state.width >= 8 && state.height >= 8))) {
         // The stored field's rows run along the destination's columns: render the transposed
         // destination and copy it back, so a tall source gives the transpose of its transpose's
         // resize, bit for bit.
@@ -674,7 +846,8 @@ OperationStatus transfer(const Field& field, const AxisMap& map, const Mode mode
         scratch.height = destination.width;
         scratch.row_stride = destination.height * 4;
         const Region turned{region.y0, region.x0, region.y1, region.x1};
-        const OperationStatus done = detail::axis_canon(state, swapped, scratch, turned, w, false);
+        const OperationStatus done = mode == Mode::canon ? detail::axis_canon(state, swapped, scratch, turned, w, false)
+                                                         : detail::axis_preview(state, swapped, scratch, turned, w);
         if (done.failed()) return done;
         const u8* const t = w.transposed_pixels.view().data();
         for (usize y = region.y0; y < region.y1; ++y) {
@@ -685,6 +858,7 @@ OperationStatus transfer(const Field& field, const AxisMap& map, const Mode mode
         return OperationStatus::success();
     }
     if (mode == Mode::canon) return detail::axis_canon(state, map, destination, region, *FieldAccess::state(workspace), false);
+    if (state.width >= 8 && state.height >= 8) return detail::axis_preview(state, map, destination, region, *FieldAccess::state(workspace));
     detail::AnyMap any;
     any.kind = detail::MapKind::axis;
     any.axis = &map;

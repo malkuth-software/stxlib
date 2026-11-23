@@ -378,26 +378,6 @@ struct Strip final {
     bool contested{false};
 };
 
-// The listed correction of row r, cell i, channel c (field.cpp's run lists), or null.
-const Correction* find_correction(const FieldState& field, const usize r, const usize i, const usize c) noexcept {
-    const View<Correction> row = row_corrections(field, r);
-    const Correction* const all = row.data();
-    usize low = 0;
-    usize high = row.count();
-    while (low < high) {
-        const usize middle = low + (high - low) / 2;
-        if (all[middle].cell < i) {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    for (usize k = low; k < row.count() && all[k].cell == i; ++k) {
-        if (all[k].channel == c) return all + k;
-    }
-    return nullptr;
-}
-
 void node(const FieldState& field, const usize x, const usize r, double* out) noexcept {
     decode(field.source.view().data() + (r * field.width + x) * 4, out);
 }
@@ -458,32 +438,15 @@ struct Sink final {
             }
             return;
         }
+        // The row cell (row_segment: raw currents plus the contest's e, or an end cell's admitted
+        // currents; compile's arithmetic).
         const usize i = static_cast<usize>(iu);
-        const bool end = i < 2 || i + 4 > width;
-        double anchor[cc];
-        node(f, i, r, anchor);
-        double decoded[6][cc]{};
-        if (!end) {
-            for (usize k = 0; k < 6; ++k) node(f, i + k - 2, r, decoded[k]);
-        }
-        const CellShape interior_shape{};
+        double cell[24];
+        SmallSegment small;
+        row_segment(f, r, i, i, cell, small.buffers());
         for (usize c = 0; c < cc; ++c) {
-            double currents[5]{0.0, 0.0, 0.0, 0.0, 0.0};
-            const Correction* const kept = find_correction(f, r, i, c);
-            if (end) {
-                if (kept != nullptr) {
-                    for (usize m = 0; m < 5; ++m) currents[m] = (*kept).e[m];
-                }
-            } else {
-                double w[8]{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-                for (usize k = 1; k <= 6; ++k) w[k] = decoded[k - 1][c];
-                raw_for_shape(w, interior_shape, currents);
-                if (kept != nullptr) {
-                    for (usize m = 0; m < 5; ++m) currents[m] = currents[m] + (*kept).e[m];
-                }
-            }
-            P[c][0] = anchor[c];
-            for (usize m = 0; m < 5; ++m) P[c][m + 1] = P[c][m] + currents[m];
+            P[c][0] = cell[c];
+            for (usize m = 0; m < 5; ++m) P[c][m + 1] = P[c][m] + cell[(m + 1) * cc + c];
         }
     }
 
