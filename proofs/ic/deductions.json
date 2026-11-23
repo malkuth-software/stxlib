@@ -737,7 +737,7 @@
     {
       "id": "stxlib.file.read_at.requires.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -758,7 +758,7 @@
     {
       "id": "stxlib.file.read_at.refusal.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -776,7 +776,7 @@
     {
       "id": "stxlib.file.write_all_at.exact.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {},
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -792,7 +792,7 @@
     {
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -813,7 +813,7 @@
     {
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -831,7 +831,7 @@
     {
       "id": "stxlib.file.set_size.requires.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -852,7 +852,7 @@
     {
       "id": "stxlib.file.set_size.refusal.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -870,7 +870,7 @@
     {
       "id": "stxlib.file.read.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -892,7 +892,7 @@
     {
       "id": "stxlib.file.write_all.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -914,7 +914,7 @@
     {
       "id": "stxlib.file.size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -936,7 +936,7 @@
     {
       "id": "stxlib.file.position.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -958,7 +958,7 @@
     {
       "id": "stxlib.file.seek.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -980,7 +980,7 @@
     {
       "id": "stxlib.file.sync.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1002,7 +1002,7 @@
     {
       "id": "stxlib.file.close.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1024,7 +1024,7 @@
     {
       "id": "stxlib.file.close.moves",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1051,7 +1051,7 @@
     {
       "id": "stxlib.file.read_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1073,7 +1073,7 @@
     {
       "id": "stxlib.file.write_all_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1095,7 +1095,7 @@
     {
       "id": "stxlib.file.write_all_at.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1117,7 +1117,7 @@
     {
       "id": "stxlib.file.write_all_at.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1139,7 +1139,7 @@
     {
       "id": "stxlib.file.information.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1161,7 +1161,7 @@
     {
       "id": "stxlib.file.set_modified.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1183,7 +1183,7 @@
     {
       "id": "stxlib.file.set_modified.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1205,7 +1205,7 @@
     {
       "id": "stxlib.file.set_size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1227,7 +1227,7 @@
     {
       "id": "stxlib.file.set_size.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1249,7 +1249,7 @@
     {
       "id": "stxlib.file.set_size.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
@@ -1271,7 +1271,7 @@
     {
       "id": "stxlib.file.identity",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -1385,7 +1385,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1403,7 +1403,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1423,7 +1423,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea",
         "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
       },
       "level": "deduced",
@@ -1448,7 +1448,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea",
         "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
       },
       "level": "deduced",
@@ -1472,7 +1472,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea",
         "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
       },
       "level": "deduced",
@@ -1498,7 +1498,7 @@
       "declaration": "include/stxlib/glyph_store.ic.toml",
       "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
-        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+        "src/algorithms/glyphs/glyph_store.cpp": "22013d14e01d9d1fe68b6cb2b1e6ca27d549a3f3e441166dabf8ad4f0a7bbeea"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
