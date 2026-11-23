@@ -14,9 +14,9 @@
 // pthread_key_create, pthread_setspecific and pthread_getspecific, and
 // abort; on Windows, VirtualAlloc, VirtualFree, GetSystemInfo,
 // SwitchToThread, GetModuleHandleW, GetProcAddress, ntdll's
-// RtlDllShutdownInProgress and abort; on Emscripten, emscripten_builtin_memalign and
-// emscripten_builtin_free in place of mmap, mprotect and munmap
-// (minmallocpp_os_emscripten.cpp gives the reasons). None can unwind.
+// RtlDllShutdownInProgress and abort; on Emscripten, sbrk in place of
+// mmap, mprotect and munmap (minmallocpp_os_emscripten.cpp gives the
+// reasons). None can unwind.
 // mmap, mprotect, munmap and sched_yield are in neither list of
 // cancellation points (POSIX.1-2024, XSH 2.9.5.2, read 2026-11-15); sysconf
 // and the three pthread key calls were not looked up there (unconfirmed).

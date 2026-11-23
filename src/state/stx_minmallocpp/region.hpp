@@ -188,7 +188,13 @@ inline constexpr usize huge_capacity = 4096;
 
 // One block with a mapping to itself. `block` is the block's address while
 // it is live and 0 otherwise; a release takes it with a compare-exchange,
-// so a second release is refused.
+// so a second release is refused. A mapping starts on a region boundary
+// and its directory cells name its record. Where addresses are wide it
+// reserves whole regions, address space that costs nothing until
+// committed; on wasm32, where every reserved byte is linear memory, it
+// reserves only its own pages (reserved_bytes, region.cpp
+// huge_reservation), and the rest of its last cell is never another
+// mapping's or region's, since those start on a region boundary too.
 struct HugeRecord final {
     std::atomic<uptr> block{0};
     usize reserved_bytes{0};

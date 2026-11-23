@@ -58,9 +58,9 @@ def families(tool, component) -> None:
     check(not allowed('mmap', 'web', False), 'S1 mmap refused on web')
     check(not allowed('mprotect', 'web', False), 'S1 mprotect refused on web')
     check(not allowed('munmap', 'web', False), 'S1 munmap refused on web')
-    check(allowed('emscripten_builtin_memalign', 'web', False), 'S1 memalign on web')
-    check(allowed('emscripten_builtin_free', 'web', False), 'S1 free on web')
-    check(not allowed('emscripten_builtin_memalign', 'posix', False), 'S1 memalign refused on posix')
+    check(allowed('sbrk', 'web', False), 'S1 sbrk on web')
+    check(not allowed('sbrk', 'posix', False), 'S1 sbrk refused on posix')
+    check(not allowed('emscripten_builtin_memalign', 'web', False), 'S1 memalign refused on web')
     check(not allowed('emscripten_builtin_malloc', 'web', False), 'S1 malloc refused on web')
     for name in ('sched_yield', 'sysconf', 'pthread_key_create', 'pthread_setspecific', 'pthread_getspecific', 'abort'):
         check(allowed(name, 'web', False), 'S1 ' + name + ' on web')
@@ -103,10 +103,10 @@ def run_main(tool, config: pathlib.Path, table: Table, *extra: str) -> int:
 
 def whole_runs(tool, config: pathlib.Path) -> None:
     # The leaves the web run of 2026-11-15 showed, with the POSIX address
-    # space replaced by the Emscripten one.
+    # space replaced by the Emscripten one (sbrk since 2026-11-23).
     good: Table = {
         'minmallocpp_os_emscripten.cpp.o': ({'_ZN6stxlib15stx_minmallocpp2os7reserveEmm'},
-                                            {'emscripten_builtin_memalign', 'emscripten_builtin_free', 'memset',
+                                            {'sbrk', '_ZN6stxlib15stx_minmallocpp2os5yieldEv', 'memset',
                                              '__memory_base', '__stack_pointer'}),
         'minmallocpp_os_posix.cpp.o': ({'_ZN6stxlib15stx_minmallocpp2os5yieldEv'},
                                        {'sched_yield', 'sysconf', 'pthread_key_create', 'pthread_setspecific',
