@@ -755,6 +755,323 @@ OperationStatus axis_preview(const FieldState& field, const AxisMap& map, const 
     return OperationStatus::success();
 }
 
+// ---------------------------------------------------------------- composited affine (experiment)
+//
+// An affine map as two 1D passes (Catmull-Smith), each the 1D CONV field. Destination lines p
+// (columns when |a22| >= |a21|, rows otherwise) and positions q along them. Pass 2 reads each
+// line's column of intermediate values at v = delta p + eps q + zeta; pass 1 makes those values
+// from the stored rows: the value of line p at source row r is row r's 1D field at
+// u = alpha p + beta r + gamma (eliminating q). Each row's cells come from one row_segment over
+// the strip's cells, each line's vertical cells from one settle_range. Canon averages each pass
+// over its pixel's extent (|alpha| along u, |eps| along v; exact for the quintic cells), so the
+// footprint is the destination pixel sheared along the line, area preserved. Outside the source
+// the passes clamp separately: a row is clamped along u at its own u, not at the point's.
+
+// Weights of the interval [left, right] (right > left) of the 1D field on `nodes` nodes, per cell
+// touched: the parts outside [0, nodes - 1] read the border value, the rest is cut at cells with
+// three-point Gauss per piece. Returns the entry count (at most room), or room + 1 if more.
+usize interval_weights(const double left, const double right, const usize nodes, RowCellWeights* out, const usize room) noexcept {
+    const double extent = static_cast<double>(nodes - 1);
+    const double length = right - left;
+    usize count = 0;
+    double outside_left = 0.0;
+    double outside_right = 0.0;
+    double a = left;
+    double b_end = right;
+    if (a < 0.0) {
+        outside_left = (b_end < 0.0 ? b_end : 0.0) - a;
+        a = 0.0;
+    }
+    if (b_end > extent) {
+        outside_right = b_end - (a > extent ? a : extent);
+        b_end = extent;
+    }
+    if (outside_left > 0.0) {
+        RowCellWeights e;
+        e.cell = 0;
+        double s[6];
+        double tau[5];
+        kernel_weights(0.0, s);
+        tail_weights(0.0, tau);
+        const double weight = outside_left / length;
+        for (usize r = 0; r < 6; ++r) e.linear[r] = weight * s[r];
+        for (usize k = 0; k < 5; ++k) e.tail[k] = weight * tau[k];
+        e.total = weight;
+        out[0] = e;
+        count = 1;
+    }
+    while (a < b_end) {
+        // a is in [0, extent), so truncation is floor.
+        double whole = static_cast<double>(static_cast<u64>(a));
+        if (whole >= extent) whole = extent - 1.0;
+        double b = whole + 1.0;
+        if (b > b_end) b = b_end;
+        const usize cell = static_cast<usize>(whole);
+        if (count == 0 || out[count - 1].cell != cell) {
+            if (count == room) return room + 1;
+            out[count] = RowCellWeights{};
+            out[count].cell = cell;
+            count = count + 1;
+        }
+        RowCellWeights& e = out[count - 1];
+        const double half = 0.5 * (b - a);
+        const double mid = 0.5 * (a + b);
+        for (usize k = 0; k < 3; ++k) {
+            const double t = mid + half * gauss_x[k] - whole;
+            const double weight = gauss_w[k] * half / length;
+            double s[6];
+            double tau[5];
+            kernel_weights(t, s);
+            tail_weights(t, tau);
+            for (usize r = 0; r < 6; ++r) e.linear[r] = e.linear[r] + weight * s[r];
+            for (usize m = 0; m < 5; ++m) e.tail[m] = e.tail[m] + weight * tau[m];
+            e.total = e.total + weight;
+        }
+        a = b;
+    }
+    if (outside_right > 0.0) {
+        const usize cell = nodes - 2;
+        if (count == 0 || out[count - 1].cell != cell) {
+            if (count == room) return room + 1;
+            out[count] = RowCellWeights{};
+            out[count].cell = cell;
+            count = count + 1;
+        }
+        RowCellWeights& e = out[count - 1];
+        double s[6];
+        double tau[5];
+        kernel_weights(1.0, s);
+        tail_weights(1.0, tau);
+        const double weight = outside_right / length;
+        for (usize r = 0; r < 6; ++r) e.linear[r] = e.linear[r] + weight * s[r];
+        for (usize k = 0; k < 5; ++k) e.tail[k] = e.tail[k] + weight * tau[k];
+        e.total = e.total + weight;
+    }
+    return count;
+}
+
+// The largest reduction a composited pass takes, and so the interval entries it can need.
+constexpr double composite_reach = 32.0;
+constexpr usize composite_room = 40;
+// Destination lines per strip: the rows' cells are made once per strip.
+constexpr usize composite_strip = 32;
+
+OperationStatus affine_composited_state(const FieldState& field, const AffineMap& map, const Mode mode,
+                                        const MutableRgba8Image& destination, const Region& region, WorkspaceState& w) noexcept {
+    const usize width = field.width;
+    const usize rows = field.height;
+    const bool canon = mode == Mode::canon;
+    const double det = map.a11 * map.a22 - map.a12 * map.a21;
+    const double m21 = map.a21 < 0.0 ? 0.0 - map.a21 : map.a21;
+    const double m22 = map.a22 < 0.0 ? 0.0 - map.a22 : map.a22;
+    const bool by_columns = m22 >= m21;
+    if ((by_columns ? m22 : m21) == 0.0 || det == 0.0) {
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::unsupported, "stxlib.conv.transfer.affine_composited",
+                                                          ErrorDetail{.message = "the map does not separate into two passes"}));
+    }
+    double alpha = 0.0;
+    double beta = 0.0;
+    double gamma = 0.0;
+    double delta = 0.0;
+    double eps = 0.0;
+    if (by_columns) {
+        alpha = map.a11 - map.a12 * map.a21 / map.a22;
+        beta = map.a12 / map.a22;
+        gamma = map.ou - map.a12 * map.ov / map.a22;
+        delta = map.a21;
+        eps = map.a22;
+    } else {
+        alpha = map.a12 - map.a11 * map.a22 / map.a21;
+        beta = map.a11 / map.a21;
+        gamma = map.ou - map.a11 * map.ov / map.a21;
+        delta = map.a22;
+        eps = map.a21;
+    }
+    const double zeta = map.ov;
+    const double reach_u = alpha < 0.0 ? 0.0 - alpha : alpha;
+    const double reach_v = eps < 0.0 ? 0.0 - eps : eps;
+    if (!finite(alpha) || !finite(beta) || !finite(gamma) || reach_u > composite_reach || reach_v > composite_reach) {
+        return OperationStatus::failure(ErrorRecord::make(ErrorKind::unsupported, "stxlib.conv.transfer.affine_composited",
+                                                          ErrorDetail{.message = "a pass reduces by more than the composited reach"}));
+    }
+    const double hu = canon ? 0.5 * reach_u : 0.0;
+    const double hv = canon ? 0.5 * reach_v : 0.0;
+    const usize p0 = by_columns ? region.x0 : region.y0;
+    const usize p1 = by_columns ? region.x1 : region.y1;
+    const usize q0 = by_columns ? region.y0 : region.x0;
+    const usize q1 = by_columns ? region.y1 : region.x1;
+    if (p0 == p1 || q0 == q1) return OperationStatus::success();
+    constexpr usize pad = 4 * channel_count;
+    const usize lanes = rows * channel_count;
+    // Cells per row segment: a strip's lines move u by |alpha| each, plus the canon reach.
+    const double span = static_cast<double>(composite_strip) * reach_u + 2.0 * hu + 4.0;
+    const usize capacity = span >= static_cast<double>(width) ? width : static_cast<usize>(span) + 1;
+    OperationStatus status = w.composite_values.resize(composite_strip * lanes);
+    if (status.succeeded()) status = w.composite_ranges.resize(composite_strip * 4);
+    if (status.succeeded()) status = w.row_cells.resize(capacity * 24);
+    if (status.succeeded()) status = prepare_segment(w.segment, capacity);
+    if (status.succeeded()) status = w.padded_column.resize(lanes + 2 * pad);
+    if (status.succeeded()) status = w.simple.resize(lanes);
+    if (status.succeeded()) status = w.cells.resize(lanes * 6);
+    if (status.succeeded()) status = w.axis_raw.resize(5 * lanes);
+    if (status.succeeded()) status = w.axis_list.resize(lanes);
+    if (status.succeeded()) status = w.axis_gather.resize(9 * lanes);
+    if (status.succeeded()) status = w.axis_admitted.resize(5 * lanes);
+    if (status.succeeded()) status = w.axis_idle.resize(lanes);
+    if (status.failed()) return exhausted("stxlib.conv.transfer");
+    double* const values = w.composite_values.mutable_view().data();
+    usize* const ranges = w.composite_ranges.mutable_view().data();
+    double* const row_cells = w.row_cells.mutable_view().data();
+    const SegmentBuffers buffers = segment_buffers(w.segment);
+    double* const padded = w.padded_column.mutable_view().data();
+    for (usize k = 0; k < lanes + 2 * pad; ++k) padded[k] = 0.0;
+    double* const column = padded + pad;
+    u8* const simple = w.simple.mutable_view().data();
+    double* const cells = w.cells.mutable_view().data();
+    RowCellWeights entries[composite_room];
+    const double fq0 = static_cast<double>(q0);
+    const double fq1 = static_cast<double>(q1 - 1);
+    for (usize s0 = p0; s0 < p1; s0 += composite_strip) {
+        const usize s1 = s0 + composite_strip < p1 ? s0 + composite_strip : p1;
+        // Per line: its vertical cells and the source rows their windows read.
+        usize srlo = rows;
+        usize srhi = 0;
+        for (usize p = s0; p < s1; ++p) {
+            const double base = delta * static_cast<double>(p) + zeta;
+            const double va = base + eps * fq0;
+            const double vb = base + eps * fq1;
+            const double vmin = (va < vb ? va : vb) - hv;
+            const double vmax = (va < vb ? vb : va) + hv;
+            usize jlo = 0;
+            usize jhi = 0;
+            double t = 0.0;
+            locate(vmin, rows - 1, jlo, t);
+            locate(vmax, rows - 1, jhi, t);
+            const usize rlo = jlo > 3 ? jlo - 3 : 0;
+            const usize rhi = jhi + 4 < rows - 1 ? jhi + 4 : rows - 1;
+            usize* const range = ranges + (p - s0) * 4;
+            range[0] = jlo;
+            range[1] = jhi;
+            range[2] = rlo;
+            range[3] = rhi;
+            srlo = rlo < srlo ? rlo : srlo;
+            srhi = rhi > srhi ? rhi : srhi;
+        }
+        // Pass 1: per source row, its cells over the strip's lines once, then each line's value.
+        for (usize r = srlo; r <= srhi; ++r) {
+            const double row_base = beta * static_cast<double>(r) + gamma;
+            usize ilo = width;
+            usize ihi = 0;
+            for (usize p = s0; p < s1; ++p) {
+                const usize* const range = ranges + (p - s0) * 4;
+                if (r < range[2] || r > range[3]) continue;
+                const double u = alpha * static_cast<double>(p) + row_base;
+                usize ia = 0;
+                usize ib = 0;
+                double t = 0.0;
+                locate(u - hu, width - 1, ia, t);
+                locate(u + hu, width - 1, ib, t);
+                ilo = ia < ilo ? ia : ilo;
+                ihi = ib > ihi ? ib : ihi;
+            }
+            if (ilo > ihi) continue;
+            row_segment(field, r, ilo, ihi, row_cells, buffers);
+            for (usize p = s0; p < s1; ++p) {
+                const usize* const range = ranges + (p - s0) * 4;
+                if (r < range[2] || r > range[3]) continue;
+                const double u = alpha * static_cast<double>(p) + row_base;
+                double* const out = values + ((p - s0) * rows + r) * channel_count;
+                if (!canon) {
+                    usize i = 0;
+                    double t = 0.0;
+                    locate(u, width - 1, i, t);
+                    double tau[5];
+                    tail_weights(t, tau);
+                    const double* const cell = row_cells + (i - ilo) * 24;
+                    for (usize c = 0; c < channel_count; ++c) {
+                        double value = cell[c] + cell[1 * channel_count + c] * tau[0];
+                        value = value + cell[2 * channel_count + c] * tau[1];
+                        value = value + cell[3 * channel_count + c] * tau[2];
+                        value = value + cell[4 * channel_count + c] * tau[3];
+                        value = value + cell[5 * channel_count + c] * tau[4];
+                        out[c] = value;
+                    }
+                } else {
+                    const usize count = interval_weights(u - hu, u + hu, width, entries, composite_room);
+                    double sum[channel_count]{0.0, 0.0, 0.0, 0.0};
+                    for (usize e = 0; e < count && e < composite_room; ++e) {
+                        const double* const cell = row_cells + (entries[e].cell - ilo) * 24;
+                        for (usize c = 0; c < channel_count; ++c) {
+                            double value = entries[e].total * cell[c];
+                            for (usize k = 0; k < 5; ++k) value = value + entries[e].tail[k] * cell[(k + 1) * channel_count + c];
+                            sum[c] = sum[c] + value;
+                        }
+                    }
+                    for (usize c = 0; c < channel_count; ++c) out[c] = sum[c];
+                }
+            }
+        }
+        // Pass 2: per line, its column settled once, then each position's value.
+        for (usize p = s0; p < s1; ++p) {
+            const usize* const range = ranges + (p - s0) * 4;
+            const usize jlo = range[0];
+            const usize jhi = range[1];
+            const double* const line_values = values + (p - s0) * rows * channel_count;
+            for (usize k = range[2] * channel_count; k < (range[3] + 1) * channel_count; ++k) column[k] = line_values[k];
+            settle_range(field, jlo, jhi, column, simple, cells, w);
+            const double base = delta * static_cast<double>(p) + zeta;
+            for (usize q = q0; q < q1; ++q) {
+                const double v = base + eps * static_cast<double>(q);
+                double value[channel_count]{0.0, 0.0, 0.0, 0.0};
+                usize count = 1;
+                if (!canon) {
+                    double t = 0.0;
+                    entries[0] = RowCellWeights{};
+                    locate(v, rows - 1, entries[0].cell, t);
+                    kernel_weights(t, entries[0].linear);
+                    tail_weights(t, entries[0].tail);
+                    entries[0].total = 1.0;
+                } else {
+                    count = interval_weights(v - hv, v + hv, rows, entries, composite_room);
+                    if (count > composite_room) count = composite_room;
+                }
+                if (!canon && !interior_cell(entries[0].cell, rows)) {
+                    // As Field::evaluate: an end cell through vertical_value, rows outside read 0.
+                    const usize j = entries[0].cell;
+                    for (usize c = 0; c < channel_count; ++c) {
+                        double window[8];
+                        for (usize k = 0; k < 8; ++k) {
+                            const i64 row = static_cast<i64>(j) - 3 + static_cast<i64>(k);
+                            window[k] = row < 0 || static_cast<usize>(row) >= rows ? 0.0 : column[static_cast<usize>(row) * channel_count + c];
+                        }
+                        value[c] = vertical_value(field, j, window, entries[0].linear, entries[0].tail);
+                    }
+                    count = 0;
+                }
+                for (usize e = 0; e < count; ++e) {
+                    const RowCellWeights& entry = entries[e];
+                    const usize j = entry.cell;
+                    for (usize c = 0; c < channel_count; ++c) {
+                        double part = 0.0;
+                        if (simple[j * channel_count + c] != 0) {
+                            for (usize r = 0; r < 6; ++r) part = part + entry.linear[r] * column[(j + r - 2) * channel_count + c];
+                        } else {
+                            const double* const cell = cells + (j * channel_count + c) * 6;
+                            part = entry.total * cell[0];
+                            for (usize k = 0; k < 5; ++k) part = part + entry.tail[k] * cell[k + 1];
+                        }
+                        value[c] = value[c] + part;
+                    }
+                }
+                const usize x = by_columns ? p : q;
+                const usize y = by_columns ? q : p;
+                encode(value, pixel_at(destination, x, y));
+            }
+        }
+    }
+    return OperationStatus::success();
+}
+
 OperationStatus preview(const FieldState& field, const AnyMap& map, const MutableRgba8Image& destination, const Region& region,
                         WorkspaceState& workspace) noexcept {
     if (region.x0 == region.x1 || region.y0 == region.y1) return OperationStatus::success();
@@ -1068,6 +1385,25 @@ OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const M
         return refused("stxlib.conv.transfer.axis", "the destination must have the map's target size");
     }
     return axis_canon(*FieldAccess::state(field), map, destination, region, *FieldAccess::state(workspace), true);
+}
+
+// The composited affine transfer (experiment): tests and measurements only, not part of the API.
+OperationStatus affine_composited(const Field& field, const AffineMap& map, const Mode mode, const MutableRgba8Image& destination,
+                                  const Region& region, Workspace& workspace) noexcept {
+    const OperationStatus common = check_common("stxlib.conv.transfer.affine_composited", field, destination, region, workspace);
+    if (common.failed()) return common;
+    const bool valid = finite(map.a11) && finite(map.a12) && finite(map.a21) && finite(map.a22) && finite(map.ou) && finite(map.ov);
+    if (!valid) return refused("stxlib.conv.transfer.affine_composited", "the map's coefficients must be finite");
+    AffineMap stored = map;
+    if ((*FieldAccess::state(field)).transposed) {
+        stored.a11 = map.a21;
+        stored.a12 = map.a22;
+        stored.a21 = map.a11;
+        stored.a22 = map.a12;
+        stored.ou = map.ov;
+        stored.ov = map.ou;
+    }
+    return affine_composited_state(*FieldAccess::state(field), stored, mode, destination, region, *FieldAccess::state(workspace));
 }
 } // namespace detail
 

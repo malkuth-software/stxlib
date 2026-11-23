@@ -137,6 +137,10 @@ struct WorkspaceState final {
     // windows (8 planes, lanes = listed cell x channel).
     Vector<usize> axis_listed;
     Vector<double> axis_windows;
+    // Composited affine transfer (experiment): a strip of lines' row-pass values (line-major,
+    // rows, channel innermost) and per line its source rows and vertical cells.
+    Vector<double> composite_values;
+    Vector<usize> composite_ranges;
     // row_segment's scratch (tiled preview: limit_cells; axis paths: a block of cells).
     SegmentScratch segment;
 };
@@ -177,5 +181,11 @@ void field_value(const FieldState& field, double u, double v, double* out) noexc
 // vertical contest per destination column. Tests and measurements only.
 OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
                                  Workspace& workspace) noexcept;
+
+// The composited affine transfer (experiment, transfer.cpp): a row pass along the stored rows,
+// then a column pass along destination lines, each the 1D field. Tests and measurements only.
+// Refuses (unsupported) a map whose passes would be singular or reduce by more than 32.
+OperationStatus affine_composited(const Field& field, const AffineMap& map, Mode mode, const MutableRgba8Image& destination,
+                                  const Region& region, Workspace& workspace) noexcept;
 
 } // namespace stxlib::conv::detail
