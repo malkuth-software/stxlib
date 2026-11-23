@@ -38,4 +38,23 @@ namespace stxlib::detail {
     return value;
 }
 
+// 1 when the value is subnormal, else 0, with no branch: an OR of these over
+// a run of values is a loop the compiler can vectorise (the transforms'
+// scans, fft/plan.cpp). Zero is not subnormal.
+[[nodiscard]] inline std::uint64_t subnormal_bit(const double value) noexcept {
+    const std::uint64_t bits = std::bit_cast<std::uint64_t>(value);
+    const std::uint64_t exponent_bits = 0x7ff0000000000000ULL;
+    const std::uint64_t no_exponent = static_cast<std::uint64_t>((bits & exponent_bits) == 0);
+    const std::uint64_t not_zero = static_cast<std::uint64_t>((bits << 1) != 0);
+    return no_exponent & not_zero;
+}
+
+[[nodiscard]] inline std::uint32_t subnormal_bit(const float value) noexcept {
+    const std::uint32_t bits = std::bit_cast<std::uint32_t>(value);
+    const std::uint32_t exponent_bits = 0x7f800000U;
+    const std::uint32_t no_exponent = static_cast<std::uint32_t>((bits & exponent_bits) == 0);
+    const std::uint32_t not_zero = static_cast<std::uint32_t>((bits << 1) != 0);
+    return no_exponent & not_zero;
+}
+
 } // namespace stxlib::detail

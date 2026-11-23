@@ -25,7 +25,7 @@
 //
 //   stxlib_fft_bench [repetitions] walk
 //
-// times only the walk (the plain mode's kernel from N = 16): the fused and
+// times only the PSFT (the plain mode's kernel from N = 16): the fused and
 // exact builds at 128 bits through the public calls on a caller's workspace
 // (rfft_with_work, irfft_with_work, magnitude_with_work, so STXlib's
 // subnormal scan and flush are in the time), beside BFFT's DIF and DIT
@@ -637,7 +637,7 @@ void bench_mode(const Mode mode, const int repetitions) {
 }
 
 // ---------------------------------------------------------------------------
-// The walk beside BFFT and FFTW ("stxlib_fft_bench [repetitions] walk").
+// The PSFT beside BFFT and FFTW ("stxlib_fft_bench [repetitions] walk").
 // ---------------------------------------------------------------------------
 
 enum class Run : int { forward = 0, inverse = 1, magnitude = 2 };

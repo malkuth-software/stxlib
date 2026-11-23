@@ -77,7 +77,7 @@ struct DifTables final {
     const LeafTwiddles32* twf{nullptr};    // [N/16] when N >= 32
     const i32* outidx{nullptr};            // [N/2]: leaf -> native slot (Plan64, N >= 32)
     const i32* standard_native{nullptr};   // [N/2]: bin -> native slot (Plan64, N >= 32)
-    // The walk schedules (N >= 64): the fused-scatter forward, the residue
+    // The PSFT schedules (N >= 64): the fused-scatter forward, the residue
     // forward, and the residue inverse (the residue forward reversed, then
     // the first binomial split).
     const DifOp* forward_ops{nullptr};
@@ -206,11 +206,11 @@ extern const Kernels kernels;
 [[nodiscard]] const Kernels& kernels_for(simd::Level level) noexcept;
 
 // ---------------------------------------------------------------------------
-// The walk: the plain mode's kernel from N = 16 (walk.inc, walk_plan.cpp).
+// The PSFT: the plain mode's kernel from N = 16 (walk.inc, walk_plan.cpp).
 // ---------------------------------------------------------------------------
 
-// The walk's two builds of one source (docs/CODE_STYLE_APPENDIX.md, A1 rule
-// 1, the walk's exception; owner, 2026-11-23). Each is bit-identical on every
+// The PSFT's two builds of one source (docs/CODE_STYLE_APPENDIX.md, A1 rule
+// 1, the PSFT's exception; owner, 2026-11-23). Each is bit-identical on every
 // target of its family; the two differ from each other.
 //   exact_portable  the exact build on plain lanes (every target; the scalar
 //                   tier, and wasm without SIMD128)
@@ -334,7 +334,7 @@ struct WalkSegment final {
     u32 count{0};
 };
 
-// The walk's tables for one size and precision. The twiddle table holds
+// The PSFT's tables for one size and precision. The twiddle table holds
 // (cos, sin) of 2 pi a / N side by side, a = 0 .. N/8, both from STXlib's
 // sincospi (the sine as the cosine of the complement); an angle between an
 // eighth and a quarter turn is read from its complement with the two
@@ -371,7 +371,7 @@ struct WalkKernels final {
     void (*magnitude32)(const WalkTables&, const float*, float*, float*) noexcept = nullptr;
 };
 
-// The walk tiers this build compiles: exact_portable everywhere; exact128
+// The PSFT tiers this build compiles: exact_portable everywhere; exact128
 // on x86-64, arm64 and wasm with SIMD128; fused128 on x86-64 and arm64.
 #if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(_M_ARM64)
 #define STXLIB_FFT_WALK_EXACT128 1
@@ -394,7 +394,7 @@ extern const WalkKernels kernels;
 } // namespace walk_fused128
 #endif
 
-// The walk tier a plan made at `level` runs: fused128 where
+// The PSFT tier a plan made at `level` runs: fused128 where
 // simd::fma128_at(level), else exact128 where this build has it and the
 // level is above scalar, else exact_portable.
 [[nodiscard]] WalkTier walk_tier_for(simd::Level level) noexcept;
@@ -404,7 +404,7 @@ extern const WalkKernels kernels;
 
 // How a plan's walk is laid out and which tier runs it. The defaults are
 // make's; tests and the benchmark choose others through PlanAccess. No choice
-// here changes a value the walk computes except the tier's family.
+// here changes a value the PSFT computes except the tier's family.
 inline constexpr u32 walk_granule_automatic = u32_max;
 struct WalkOptions final {
     bool automatic_tier{true};               // walk_tier_for(level)
@@ -428,7 +428,7 @@ inline constexpr usize plan_block_capacity = 48;
 enum class Engine : u8 {
     dif = 0,
     dit = 1,
-    walk = 2,   // the walk (walk.inc), from N = 16
+    walk = 2,   // the PSFT (walk.inc), from N = 16
 };
 
 struct Engines final {
@@ -482,9 +482,13 @@ struct PlanAccess final {
                                                         WalkOptions walk) noexcept;
     [[nodiscard]] static OperationResult<Plan32> make32(usize size, Mode mode, simd::Level level, Engines engines,
                                                         WalkOptions walk) noexcept;
-    // The walk tier the plan runs; exact_portable for the empty plan.
+    // The PSFT tier the plan runs; exact_portable for the empty plan.
     [[nodiscard]] static WalkTier walk_tier(const Plan64& plan) noexcept;
     [[nodiscard]] static WalkTier walk_tier(const Plan32& plan) noexcept;
+    // For the benchmark only: the plan's state (null for the empty plan), so
+    // a kernel can be timed below the public calls.
+    [[nodiscard]] static const PlanState* state(const Plan64& plan) noexcept;
+    [[nodiscard]] static const PlanState* state(const Plan32& plan) noexcept;
     // Whether the plan's walk runs the straight-line kernels.
     [[nodiscard]] static bool straight_line(const Plan64& plan) noexcept;
     [[nodiscard]] static bool straight_line(const Plan32& plan) noexcept;
@@ -508,7 +512,7 @@ struct PlanAccess final {
 // representable or the plan holds plan_block_capacity blocks (plan.cpp).
 [[nodiscard]] void* take_plan_block(PlanState& state, usize count, usize size) noexcept;
 
-// Builds the walk's tables for a plain plan of n = 2^m >= 16 reals: the
+// Builds the PSFT's tables for a plain plan of n = 2^m >= 16 reals: the
 // twiddle table, and the passes, cells, schedule and the plan's own work
 // unless the straight-line kernels cover n; false when a block is refused
 // (walk_plan.cpp).

@@ -105,7 +105,7 @@ def forward(m, L=2, mag=False):
     n = 1 << m
     NQ = n
     e = Emit()
-    st = {a: e.new(f"P::ld(x + {a})") for a in range(0, n, L)}
+    st = {a: e.new(f"walk_get<P>(x + {a})") for a in range(0, n, L)}
     ps, t0 = passes(m)
     add = lambda a, b: e.new(f"P::add({a}, {b})")
     sub = lambda a, b: e.new(f"P::sub({a}, {b})")
@@ -180,14 +180,14 @@ def forward(m, L=2, mag=False):
     # rows 0 and N/8: a = (a, b, c, e) of the row
     if mag:
         e.raw(f"{{ {dcv} const T s0 = a[0] + a[2], s1 = a[1] + a[3], d0 = a[0] - a[2], d1 = a[1] - a[3]; "
-              f"X[0] = std::fabs(s0 + s1); X[{half}] = std::fabs(s0 - s1); X[{quarter}] = std::sqrt(d0 * d0 + d1 * d1); }}")
+              f"X[0] = walk_flush<T>(std::fabs(s0 + s1)); X[{half}] = walk_flush<T>(std::fabs(s0 - s1)); X[{quarter}] = walk_flush<T>(std::sqrt(d0 * d0 + d1 * d1)); }}")
         e.raw(f"{{ {nyv} const T rr = {K} * (c[1] - c[3]), ii = {K} * (c[1] + c[3]), p = c[0] + rr, q = c[2] + ii, u = c[0] - rr, w = c[2] - ii; "
-              f"X[{k8}] = std::sqrt(p * p + q * q); X[{quarter + k8}] = std::sqrt(u * u + w * w); }}")
+              f"X[{k8}] = walk_flush<T>(std::sqrt(p * p + q * q)); X[{quarter + k8}] = walk_flush<T>(std::sqrt(u * u + w * w)); }}")
     else:
-        e.raw(f"{{ {dcv} const T s0 = a[0] + a[2], s1 = a[1] + a[3]; X[0] = s0 + s1; X[1] = static_cast<T>(0); X[{2*half}] = s0 - s1; X[{2*half+1}] = static_cast<T>(0); "
-              f"X[{2*quarter}] = a[0] - a[2]; X[{2*quarter+1}] = a[3] - a[1]; }}")
+        e.raw(f"{{ {dcv} const T s0 = a[0] + a[2], s1 = a[1] + a[3]; X[0] = walk_flush<T>(s0 + s1); X[1] = static_cast<T>(0); X[{2*half}] = walk_flush<T>(s0 - s1); X[{2*half+1}] = static_cast<T>(0); "
+              f"X[{2*quarter}] = walk_flush<T>(a[0] - a[2]); X[{2*quarter+1}] = walk_flush<T>(a[3] - a[1]); }}")
         e.raw(f"{{ {nyv} const T rr = {K} * (c[1] - c[3]), ii = {K} * (c[1] + c[3]); "
-              f"X[{2*k8}] = c[0] + rr; X[{2*k8+1}] = -(c[2] + ii); X[{2*(quarter+k8)}] = c[0] - rr; X[{2*(quarter+k8)+1}] = c[2] - ii; }}")
+              f"X[{2*k8}] = walk_flush<T>(c[0] + rr); X[{2*k8+1}] = walk_flush<T>(-(c[2] + ii)); X[{2*(quarter+k8)}] = walk_flush<T>(c[0] - rr); X[{2*(quarter+k8)+1}] = walk_flush<T>(c[2] - ii); }}")
     rows = list(range(1, top >> 1))
     if L == 2:
         for k in rows:
@@ -207,11 +207,11 @@ def forward(m, L=2, mag=False):
                 T1, T2 = add(PB, i34), sub(PB, i34)
                 M1 = e.new(f"P::sqrt(P::fma(P::mul({S1}, {S1}), {T1}, {T1}))")
                 M2 = e.new(f"P::sqrt(P::fma(P::mul({S2}, {S2}), {T2}, {T2}))")
-                e.raw(f"P::stl(X + {k}, {M1}, 0); P::stl(X + {quarter-k}, {M1}, 1); P::stl(X + {half-k}, {M2}, 0); P::stl(X + {quarter+k}, {M2}, 1);")
+                e.raw(f"walk_putl<P>(X + {k}, {M1}, 0); walk_putl<P>(X + {quarter-k}, {M1}, 1); walk_putl<P>(X + {half-k}, {M2}, 0); walk_putl<P>(X + {quarter+k}, {M2}, 1);")
             else:
                 N1, N2 = e.new(f"P::neg(P::add({PB}, {i34}))"), sub(PB, i34)
-                e.raw(f"P::st(X + {2*k}, P::zip1({S1}, {N1})); P::st(X + {2*(quarter-k)}, P::zip2({S1}, {N1}));")
-                e.raw(f"P::st(X + {2*(half-k)}, P::zip1({S2}, {N2})); P::st(X + {2*(quarter+k)}, P::zip2({S2}, {N2}));")
+                e.raw(f"walk_put<P>(X + {2*k}, P::zip1({S1}, {N1})); walk_put<P>(X + {2*(quarter-k)}, P::zip2({S1}, {N1}));")
+                e.raw(f"walk_put<P>(X + {2*(half-k)}, P::zip1({S2}, {N2})); walk_put<P>(X + {2*(quarter+k)}, P::zip2({S2}, {N2}));")
     else:
         pairs = [(rows[i], rows[min(i + 1, len(rows) - 1)]) for i in range(0, len(rows), 2)]
         for k1, k2 in pairs:
@@ -238,14 +238,14 @@ def forward(m, L=2, mag=False):
                 T1, T2 = add(PB, i34), sub(PB, i34)
                 M1 = e.new(f"P::sqrt(P::fma(P::mul({S1}, {S1}), {T1}, {T1}))")
                 M2 = e.new(f"P::sqrt(P::fma(P::mul({S2}, {S2}), {T2}, {T2}))")
-                e.raw(f"P::stl(X + {k1}, {M1}, 0); P::stl(X + {quarter-k1}, {M1}, 1); P::stl(X + {k2}, {M1}, 2); P::stl(X + {quarter-k2}, {M1}, 3);")
-                e.raw(f"P::stl(X + {half-k1}, {M2}, 0); P::stl(X + {quarter+k1}, {M2}, 1); P::stl(X + {half-k2}, {M2}, 2); P::stl(X + {quarter+k2}, {M2}, 3);")
+                e.raw(f"walk_putl<P>(X + {k1}, {M1}, 0); walk_putl<P>(X + {quarter-k1}, {M1}, 1); walk_putl<P>(X + {k2}, {M1}, 2); walk_putl<P>(X + {quarter-k2}, {M1}, 3);")
+                e.raw(f"walk_putl<P>(X + {half-k1}, {M2}, 0); walk_putl<P>(X + {quarter+k1}, {M2}, 1); walk_putl<P>(X + {half-k2}, {M2}, 2); walk_putl<P>(X + {quarter+k2}, {M2}, 3);")
             else:
                 N1, N2 = e.new(f"P::neg(P::add({PB}, {i34}))"), sub(PB, i34)
                 z1, z2 = e.new(f"P::zip1({S1}, {N1})"), e.new(f"P::zip2({S1}, {N1})")
                 z3, z4 = e.new(f"P::zip1({S2}, {N2})"), e.new(f"P::zip2({S2}, {N2})")
-                e.raw(f"P::st_lo(X + {2*k1}, {z1}); P::st_hi(X + {2*(quarter-k1)}, {z1}); P::st_lo(X + {2*k2}, {z2}); P::st_hi(X + {2*(quarter-k2)}, {z2});")
-                e.raw(f"P::st_lo(X + {2*(half-k1)}, {z3}); P::st_hi(X + {2*(quarter+k1)}, {z3}); P::st_lo(X + {2*(half-k2)}, {z4}); P::st_hi(X + {2*(quarter+k2)}, {z4});")
+                e.raw(f"walk_put_lo<P>(X + {2*k1}, {z1}); walk_put_hi<P>(X + {2*(quarter-k1)}, {z1}); walk_put_lo<P>(X + {2*k2}, {z2}); walk_put_hi<P>(X + {2*(quarter-k2)}, {z2});")
+                e.raw(f"walk_put_lo<P>(X + {2*(half-k1)}, {z3}); walk_put_hi<P>(X + {2*(quarter+k1)}, {z3}); walk_put_lo<P>(X + {2*(half-k2)}, {z4}); walk_put_hi<P>(X + {2*(quarter+k2)}, {z4});")
     return e
 
 
@@ -260,11 +260,11 @@ def inverse(m, L=2):
     add = lambda a, b: e.new(f"P::add({a}, {b})")
     sub = lambda a, b: e.new(f"P::sub({a}, {b})")
     st = {}
-    e.raw(f"T dc[4]{{}}; {{ const T o0 = X[0], o1 = X[{2*half}], o2 = X[{2*quarter}], o3 = -X[{2*quarter+1}], su = static_cast<T>(0.25) * (o0 + o1), di = static_cast<T>(0.25) * (o0 - o1); "
+    e.raw(f"T dc[4]{{}}; {{ const T o0 = walk_flush<T>(X[0]), o1 = walk_flush<T>(X[{2*half}]), o2 = walk_flush<T>(X[{2*quarter}]), o3 = -walk_flush<T>(X[{2*quarter+1}]), su = static_cast<T>(0.25) * (o0 + o1), di = static_cast<T>(0.25) * (o0 - o1); "
           f"dc[0] = su + static_cast<T>(0.5) * o2; dc[2] = su - static_cast<T>(0.5) * o2; dc[1] = di + static_cast<T>(0.5) * o3; dc[3] = di - static_cast<T>(0.5) * o3; }}")
     k8 = quarter >> 1
     kh = 'static_cast<T>(0.5) * C[HALFQ]'
-    e.raw(f"T ny[4]{{}}; {{ const T o0 = X[{2*k8}], o1 = -X[{2*k8+1}], o2 = X[{2*(quarter+k8)}], o3 = -X[{2*(quarter+k8)+1}], r2 = o0 - o2, i2 = o1 + o3; "
+    e.raw(f"T ny[4]{{}}; {{ const T o0 = walk_flush<T>(X[{2*k8}]), o1 = -walk_flush<T>(X[{2*k8+1}]), o2 = walk_flush<T>(X[{2*(quarter+k8)}]), o3 = -walk_flush<T>(X[{2*(quarter+k8)+1}]), r2 = o0 - o2, i2 = o1 + o3; "
           f"ny[0] = static_cast<T>(0.5) * (o0 + o2); ny[2] = static_cast<T>(0.5) * (o1 - o3); ny[1] = ({kh}) * (i2 + r2); ny[3] = ({kh}) * (i2 - r2); }}")
     nb = row(m, t0, top >> 1)
     rows = list(range(1, top >> 1))
@@ -273,8 +273,8 @@ def inverse(m, L=2):
         st[nb], st[nb + 2] = e.new("P::ld(ny)"), e.new("P::ld(ny + 2)")
         for k in rows:
             ire, iim = row(m, t0, k), row(m, t0, top - k)
-            a0, a1 = e.new(f"P::ld(X + {2*k})"), e.new(f"P::ld(X + {2*(quarter-k)})")
-            a2, a3 = e.new(f"P::ld(X + {2*(half-k)})"), e.new(f"P::ld(X + {2*(quarter+k)})")
+            a0, a1 = e.new(f"walk_get<P>(X + {2*k})"), e.new(f"walk_get<P>(X + {2*(quarter-k)})")
+            a2, a3 = e.new(f"walk_get<P>(X + {2*(half-k)})"), e.new(f"walk_get<P>(X + {2*(quarter+k)})")
             S1, N1 = e.new(f"P::zip1({a0}, {a1})"), e.new(f"P::zip2({a0}, {a1})")
             S2, N2 = e.new(f"P::zip1({a2}, {a3})"), e.new(f"P::zip2({a2}, {a3})")
             PA, R2, PB, In = add(S1, S2), sub(S1, S2), sub(N2, N1), add(N1, N2)
@@ -293,10 +293,10 @@ def inverse(m, L=2):
         st[0], st[nb] = e.new("P::ld(dc)"), e.new("P::ld(ny)")
         pairs = [(rows[i], rows[min(i + 1, len(rows) - 1)]) for i in range(0, len(rows), 2)]
         for k1, k2 in pairs:
-            A = e.new(f"P::ld2(X + {2*k1}, X + {2*(quarter-k1)})")
-            B = e.new(f"P::ld2(X + {2*k2}, X + {2*(quarter-k2)})")
-            Cc = e.new(f"P::ld2(X + {2*(half-k1)}, X + {2*(quarter+k1)})")
-            D = e.new(f"P::ld2(X + {2*(half-k2)}, X + {2*(quarter+k2)})")
+            A = e.new(f"walk_get2<P>(X + {2*k1}, X + {2*(quarter-k1)})")
+            B = e.new(f"walk_get2<P>(X + {2*k2}, X + {2*(quarter-k2)})")
+            Cc = e.new(f"walk_get2<P>(X + {2*(half-k1)}, X + {2*(quarter+k1)})")
+            D = e.new(f"walk_get2<P>(X + {2*(half-k2)}, X + {2*(quarter+k2)})")
             S1, N1 = e.new(f"P::uzp1({A}, {B})"), e.new(f"P::uzp2({A}, {B})")
             S2, N2 = e.new(f"P::uzp1({Cc}, {D})"), e.new(f"P::uzp2({Cc}, {D})")
             PA, R2, PB, In = add(S1, S2), sub(S1, S2), sub(N2, N1), add(N1, N2)
@@ -381,7 +381,7 @@ def inverse(m, L=2):
         assert len(pv) == n // L, (m, radix, t, len(pv))
         st = pv
     for a in range(0, n, L):
-        e.raw(f"P::st(y + {a}, {st[a]});")
+        e.raw(f"walk_put<P>(y + {a}, {st[a]});")
     return e
 
 

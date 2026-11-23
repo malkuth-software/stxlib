@@ -105,7 +105,7 @@ struct Features final {
 // vector128 and up), or FMA3 on SSE registers (x86-64 with the CPU's FMA flag
 // and the operating system's AVX state, at vector128 and up). False at
 // scalar, on wasm and elsewhere. This is the dispatch of the fused 128-bit
-// tier of a kernel that has one (stx_fft's walk; owner, 2026-11-23: "128 with
+// tier of a kernel that has one (stx_fft's PSFT; owner, 2026-11-23: "128 with
 // FMA is the only tier"): such a kernel runs no wider than 128 bits whatever
 // the level, since wider units throttle the CPU, and runs its exact build
 // where this is false. Computed on each call (detected_features()).

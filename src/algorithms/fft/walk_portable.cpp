@@ -1,4 +1,4 @@
-// The walk's exact build on plain lanes (WalkTier::exact_portable): compiled
+// The PSFT's exact build on plain lanes (WalkTier::exact_portable): compiled
 // on every target; the scalar tier's walk, and wasm's without SIMD128.
 
 #define STXLIB_FFT_WALK_TIER 0

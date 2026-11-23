@@ -775,7 +775,7 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/fft/kernels_scalar.cpp
     src/algorithms/fft/kernels_v128.cpp
     src/algorithms/fft/kernels_avx2_fma.cpp
-    # The plain mode's walk (src/algorithms/fft/walk.inc) per walk tier: the
+    # The plain mode's PSFT (src/algorithms/fft/walk.inc) per walk tier: the
     # exact build on plain lanes everywhere, on 128-bit vectors, and the fused
     # build on 128-bit vectors (NEON; SSE with FMA3 through an attribute).
     src/algorithms/fft/walk_plan.cpp
@@ -1714,7 +1714,7 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_fft_tests_${level} COMMAND stxlib_fft_tests)
         set_tests_properties(stxlib_fft_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
     endforeach()
-    # The walk, the plain mode's kernel from N = 16 (tests/fft_walk_tests.cpp):
+    # The PSFT, the plain mode's kernel from N = 16 (tests/fft_walk_tests.cpp):
     # every size to 2^20 against a long-double DFT, round trip and magnitude,
     # the frozen hashes of its exact and fused builds at every walk tier this
     # machine runs, layout invariance, eight threads on one plan, and the
@@ -1737,7 +1737,7 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
     target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})
-    # FFTW 3 (double and float) beside the walk in the benchmark's walk table,
+    # FFTW 3 (double and float) beside the PSFT in the benchmark's walk table,
     # when a prefix holding include/fftw3.h and lib/libfftw3{,f} is named.
     set(STXLIB_FFT_BENCH_FFTW_DIR "" CACHE PATH "FFTW 3 prefix for stxlib_fft_bench's walk table")
     if(STXLIB_FFT_BENCH_FFTW_DIR)

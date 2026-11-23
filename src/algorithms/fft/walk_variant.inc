@@ -1,7 +1,7 @@
-// One tier of the walk's kernels. walk_portable.cpp, walk_exact128.cpp and
+// One tier of the PSFT's kernels. walk_portable.cpp, walk_exact128.cpp and
 // walk_fused128.cpp each define STXLIB_FFT_WALK_TIER (0 exact_portable, 1
 // exact128, 2 fused128; plan_state.hpp, WalkTier) and STXLIB_FFT_WALK_VARIANT
-// (the namespace), then include this file, which compiles the walk
+// (the namespace), then include this file, which compiles the PSFT
 // (walk.inc), the straight-line kernels (walk_small_f64.inc,
 // walk_small_f32.inc) and the tier's policies (walk_lanes.inc) into
 // stxlib::fft::detail::STXLIB_FFT_WALK_VARIANT and defines its WalkKernels.
@@ -17,6 +17,8 @@
 #endif
 
 #include "plan_state.hpp"
+
+#include "core/subnormal.hpp"
 
 #include "stxlib/types.hpp"
 
