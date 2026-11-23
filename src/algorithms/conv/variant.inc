@@ -33,8 +33,14 @@
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #define STXLIB_CONV_NEON 1
 #include <arm_neon.h>
+#elif defined(__wasm_simd128__)
+// WebAssembly SIMD128 (Clang defines __wasm_simd128__ under -msimd128): f64x2 arithmetic is
+// IEEE 754 correctly rounded, with no fused multiply-add, so the lanes agree with the scalar
+// tier bit for bit as NEON's and SSE2's do.
+#define STXLIB_CONV_WASM 1
+#include <wasm_simd128.h>
 #else
-#error "STXLIB_CONV_LEVEL >= 1 needs x86-64 or arm64"
+#error "STXLIB_CONV_LEVEL >= 1 needs x86-64, arm64 or wasm SIMD128"
 #endif
 #endif
 

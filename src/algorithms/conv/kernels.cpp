@@ -8,7 +8,7 @@ const Kernels& kernels_for(const simd::Level level) noexcept {
 #if defined(__x86_64__) || defined(_M_X64)
     if (level == simd::Level::avx2_fma) return avx2_fma::kernels();
     if (level == simd::Level::vector128) return v128::kernels();
-#elif defined(__aarch64__) || defined(_M_ARM64)
+#elif defined(__aarch64__) || defined(_M_ARM64) || defined(__wasm_simd128__)
     if (level == simd::Level::vector128 || level == simd::Level::avx2_fma) return v128::kernels();
 #endif
     return scalar::kernels();

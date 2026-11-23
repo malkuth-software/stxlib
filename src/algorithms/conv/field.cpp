@@ -1,11 +1,12 @@
-// stxlib::conv::Field (include/stxlib/conv.hpp): compile and evaluation.
+// stxlib::conv::Field (include/stxlib/conv.hpp): the source copy and evaluation.
 //
-// Compile settles each source row once. A row's interior cells go through K1 per channel
-// (pass A lists the cells whose raw currents are not one-signed; pass B projects the listed
-// ones and reports which stayed inside their box); its end cells are compiled whole, as
-// stx_conv's compile_line_cell does. Evaluation is the separated field (work/conv FFT_MATH.md
-// Part II): row values at the eight rows around v (linear kernel plus the stored
-// corrections), then the vertical cell, admitted on the spot.
+// A field stores its source and nothing else. row_segment computes a row's cells on demand with
+// the arithmetic compile used to store: a segment's interior cells go through K1 per channel
+// (pass A lists the cells whose raw currents are not one-signed; pass B projects the listed ones
+// and reports which stayed inside their box), and their K2 raw currents get e = admitted - raw
+// where the contest acts; end cells are admitted whole, as stx_conv's compile_line_cell does.
+// Evaluation is the separated field (work/conv FFT_MATH.md Part II): row values at the eight rows
+// around v, then the vertical cell, admitted on the spot.
 
 #include "field_state.hpp"
 
@@ -16,227 +17,117 @@
 
 namespace stxlib::conv::detail {
 
-namespace {
-
-// Compile scratch, released when compile returns: four decoded row planes (one padding
-// sample at each end), K1's raw currents, list, gathered windows, admitted currents and idle
-// bytes, and per channel the listed interior cells with their corrections.
-struct CompileScratch final {
-    Vector<double> planes;
-    Vector<double> raw;
-    Vector<u32> list;
-    Vector<double> gathered;
-    Vector<double> admitted;
-    Vector<u8> idle;
-    Vector<u32> listed_cells;
-    Vector<double> listed_e;
-    usize listed_count[channel_count]{0, 0, 0, 0};
-};
-
-OperationStatus sized(Vector<double>& vector, const usize count) noexcept { return vector.resize(count); }
-
-OperationStatus prepare(CompileScratch& scratch, const usize width) noexcept {
-    const usize interior = width >= 6 ? width - 5 : 0;
-    const usize lanes = interior > 0 ? interior : 1;
-    OperationStatus status = sized(scratch.planes, channel_count * (width + 2));
-    if (status.succeeded()) status = sized(scratch.raw, 5 * lanes);
-    if (status.succeeded()) status = scratch.list.resize(lanes);
-    if (status.succeeded()) status = sized(scratch.gathered, 4 * lanes);
-    if (status.succeeded()) status = sized(scratch.admitted, 5 * lanes);
-    if (status.succeeded()) status = scratch.idle.resize(lanes);
-    if (status.succeeded()) status = scratch.listed_cells.resize(channel_count * lanes);
-    if (status.succeeded()) status = sized(scratch.listed_e, channel_count * 5 * lanes);
+OperationStatus prepare_segment(SegmentScratch& scratch, const usize capacity) noexcept {
+    OperationStatus status = scratch.planes.resize(channel_count * (capacity + 7));
+    if (status.succeeded()) status = scratch.decoded.resize((capacity + 5) * channel_count);
+    if (status.succeeded()) status = scratch.raw.resize(5 * capacity);
+    if (status.succeeded()) status = scratch.list.resize(capacity);
+    if (status.succeeded()) status = scratch.gathered.resize(4 * capacity);
+    if (status.succeeded()) status = scratch.admitted.resize(5 * capacity);
+    if (status.succeeded()) status = scratch.compact.resize(5 * capacity);
+    if (status.succeeded()) status = scratch.idle.resize(capacity);
     return status;
 }
 
-// Decodes row y into the four planes: plane c holds x = -1 .. width (ends repeated).
-void decode_row(const FieldState& field, const usize y, double* planes) noexcept {
+SegmentBuffers segment_buffers(SegmentScratch& scratch) noexcept {
+    SegmentBuffers b;
+    b.capacity = scratch.list.count();
+    b.planes = scratch.planes.mutable_view().data();
+    b.decoded = scratch.decoded.mutable_view().data();
+    b.raw = scratch.raw.mutable_view().data();
+    b.list = scratch.list.mutable_view().data();
+    b.gathered = scratch.gathered.mutable_view().data();
+    b.admitted = scratch.admitted.mutable_view().data();
+    b.compact = scratch.compact.mutable_view().data();
+    b.idle = scratch.idle.mutable_view().data();
+    return b;
+}
+
+void row_segment(const FieldState& field, const usize r, const usize imin, const usize imax, double* const cells,
+                 const SegmentBuffers& b) noexcept {
     const usize width = field.width;
-    const usize stride = width + 2;
-    const u8* const row = field.source.view().data() + y * width * 4;
-    for (usize x = 0; x < width; ++x) {
+    const usize n = imax - imin + 1;
+    const usize stride = n + 7;
+    const u8* const row = field.source.view().data() + r * width * 4;
+    // Plane c, sample k: x = imin - 3 + k, clamped to the row (compile's planes repeated the end
+    // samples once, and no window reaches further).
+    for (usize k = 0; k < stride; ++k) {
+        const i64 x = static_cast<i64>(imin) - 3 + static_cast<i64>(k);
+        const usize clamped = x < 0 ? 0 : static_cast<usize>(x) >= width ? width - 1 : static_cast<usize>(x);
         double value[channel_count];
-        decode(row + x * 4, value);
-        for (usize c = 0; c < channel_count; ++c) planes[c * stride + x + 1] = value[c];
+        decode(row + clamped * 4, value);
+        for (usize c = 0; c < channel_count; ++c) b.planes[c * stride + k] = value[c];
     }
-    for (usize c = 0; c < channel_count; ++c) {
-        planes[c * stride] = planes[c * stride + 1];
-        planes[c * stride + width + 1] = planes[c * stride + width];
-    }
-}
-
-// Lists channel c's contested interior cells of the decoded row (cells 2 .. width - 4).
-void contest_interior(const Kernels& kernels, const usize width, const double* plane, CompileScratch& scratch, const usize c) noexcept {
-    const usize interior = width >= 6 ? width - 5 : 0;
-    scratch.listed_count[c] = 0;
-    if (interior == 0) return;
-    const usize lanes = interior;
-    // Lane l is cell 2 + l; window[k][l] = y[cell - 3 + k] = plane[cell - 3 + k + 1].
-    const double* window[8];
-    for (usize k = 0; k < 8; ++k) window[k] = plane + k;
-    double* const raw_base = scratch.raw.mutable_view().data();
-    double* raw[5];
-    for (usize r = 0; r < 5; ++r) raw[r] = raw_base + r * lanes;
-    u32* const list = scratch.list.mutable_view().data();
-    const usize count = kernels.pass_a(window, raw, list, interior);
-    if (count == 0) return;
-    // Pass B reads samples 2 .. 5 of each window and the raw currents, gathered compact.
-    double* const gathered = scratch.gathered.mutable_view().data();
-    double* const admitted_base = scratch.admitted.mutable_view().data();
-    const double* gathered_window[8];
-    for (usize k = 0; k < 4; ++k) gathered_window[k + 2] = gathered + k * lanes;
-    gathered_window[0] = gathered_window[2];
-    gathered_window[1] = gathered_window[2];
-    gathered_window[6] = gathered_window[5];
-    gathered_window[7] = gathered_window[5];
-    // The raw currents of the listed lanes are gathered into the admitted planes' room first
-    // and then moved into the raw planes' front, which pass A no longer needs past count.
-    for (usize q = 0; q < count; ++q) {
-        const usize lane = list[q];
-        for (usize k = 0; k < 4; ++k) gathered[k * lanes + q] = window[k + 2][lane];
-        for (usize r = 0; r < 5; ++r) admitted_base[r * lanes + q] = raw[r][lane];
-    }
-    for (usize r = 0; r < 5; ++r) {
-        for (usize q = 0; q < count; ++q) raw[r][q] = admitted_base[r * lanes + q];
-    }
-    const double* compact_raw[5];
-    double* admitted[5];
-    for (usize r = 0; r < 5; ++r) {
-        compact_raw[r] = raw[r];
-        admitted[r] = admitted_base + r * lanes;
-    }
-    u8* const idle = scratch.idle.mutable_view().data();
-    kernels.pass_b(gathered_window, compact_raw, admitted, idle, count);
-    u32* const cells = scratch.listed_cells.mutable_view().data() + c * lanes;
-    double* const e = scratch.listed_e.mutable_view().data() + c * 5 * lanes;
-    usize kept = 0;
-    for (usize q = 0; q < count; ++q) {
-        if (idle[q] != 0) continue;
-        cells[kept] = static_cast<u32>(list[q] + 2);
-        for (usize r = 0; r < 5; ++r) e[kept * 5 + r] = admitted[r][q] - compact_raw[r][q];
-        kept = kept + 1;
-    }
-    scratch.listed_count[c] = kept;
-}
-
-OperationStatus push_end_cell(const FieldState& field, const double* planes, const usize cell, Vector<Correction>& out) noexcept {
-    const usize width = field.width;
-    const usize stride = width + 2;
-    const CellShape shape = cell_shape(cell, width);
-    for (usize c = 0; c < channel_count; ++c) {
-        double window[8];
-        for (usize k = 0; k < 8; ++k) {
-            const i64 x = static_cast<i64>(cell) - 3 + static_cast<i64>(k);
-            const usize clamped = x < 0 ? 0 : static_cast<usize>(x) >= width ? width - 1 : static_cast<usize>(x);
-            window[k] = planes[c * stride + clamped + 1];
+    const Kernels& kernels = *field.kernels;
+    // Interior cells 2 .. width - 4 within the segment.
+    const usize lo = imin > 2 ? imin : 2;
+    const usize hi = width >= 6 ? (imax < width - 4 ? imax : width - 4) : 0;
+    if (width >= 6 && lo <= hi) {
+        const usize lanes = hi - lo + 1;
+        // K2: pixels lo - 2 .. hi + 3, channel innermost: plane index k = x - (imin - 3).
+        for (usize x = lo - 2; x <= hi + 3; ++x) {
+            for (usize c = 0; c < channel_count; ++c) b.decoded[(x - (lo - 2)) * channel_count + c] = b.planes[c * stride + (x + 3 - imin)];
         }
-        double raw[5];
-        Correction entry;
-        entry.cell = static_cast<u32>(cell);
-        entry.channel = static_cast<u32>(c);
-        raw_for_shape(window, shape, raw);
-        (void)admit_cell(window, shape, raw, entry.e, false);
-        const OperationStatus pushed = out.push(static_cast<Correction&&>(entry));
-        if (pushed.failed()) return pushed;
-    }
-    return OperationStatus::success();
-}
-
-// Writes row y's run list into `out` (cleared first): end cells, then the interior cells merged
-// across channels in (cell, channel) order, then the far end cells. It reads only row y of the
-// source copy, so rows compile independently: a recompile of some rows gives the bytes a whole
-// compile gives.
-OperationStatus compile_row(const FieldState& field, CompileScratch& scratch, const usize y, Vector<Correction>& out) noexcept {
-    out.clear();
-    const usize width = field.width;
-    const usize cells = width - 1;
-    const usize stride = width + 2;
-    double* const planes = scratch.planes.mutable_view().data();
-    decode_row(field, y, planes);
-    for (usize c = 0; c < channel_count; ++c) contest_interior(*field.kernels, width, planes + c * stride, scratch, c);
-    const usize interior = width >= 6 ? width - 5 : 0;
-    const usize lanes = interior > 0 ? interior : 1;
-    // Cells before the interior: 0 and 1 (fewer when the line is short).
-    const usize first_interior = interior > 0 ? 2 : cells;
-    for (usize cell = 0; cell < first_interior && cell < cells; ++cell) {
-        const OperationStatus pushed = push_end_cell(field, planes, cell, out);
-        if (pushed.failed()) return pushed;
-    }
-    usize next[channel_count]{0, 0, 0, 0};
-    for (;;) {
-        u32 lowest = 0xffffffffu;
+        kernels.row_cells(b.decoded, lanes, cells + (lo - imin) * 24);
         for (usize c = 0; c < channel_count; ++c) {
-            if (next[c] < scratch.listed_count[c]) {
-                const u32 cell = scratch.listed_cells.view().data()[c * lanes + next[c]];
-                lowest = cell < lowest ? cell : lowest;
+            // Lane l is cell lo + l; window[k][l] = y[cell - 3 + k] = plane index (lo - imin) + l + k.
+            const double* window[8];
+            for (usize k = 0; k < 8; ++k) window[k] = b.planes + c * stride + (lo - imin) + k;
+            double* raw[5];
+            for (usize m = 0; m < 5; ++m) raw[m] = b.raw + m * lanes;
+            const usize count = kernels.pass_a(window, raw, b.list, lanes);
+            if (count == 0) continue;
+            // Pass B reads samples 2 .. 5 of each window and the raw currents, gathered compact.
+            const double* gathered_window[8];
+            for (usize k = 0; k < 4; ++k) gathered_window[k + 2] = b.gathered + k * count;
+            gathered_window[0] = gathered_window[2];
+            gathered_window[1] = gathered_window[2];
+            gathered_window[6] = gathered_window[5];
+            gathered_window[7] = gathered_window[5];
+            const double* compact_raw[5];
+            double* admitted[5];
+            for (usize m = 0; m < 5; ++m) {
+                double* const plane = b.compact + m * count;
+                compact_raw[m] = plane;
+                admitted[m] = b.admitted + m * count;
+            }
+            for (usize q = 0; q < count; ++q) {
+                const usize lane = b.list[q];
+                for (usize k = 0; k < 4; ++k) b.gathered[k * count + q] = window[k + 2][lane];
+                for (usize m = 0; m < 5; ++m) b.compact[m * count + q] = raw[m][lane];
+            }
+            kernels.pass_b(gathered_window, compact_raw, admitted, b.idle, count);
+            for (usize q = 0; q < count; ++q) {
+                if (b.idle[q] != 0) continue;
+                double* const cell = cells + (lo + b.list[q] - imin) * 24;
+                for (usize m = 0; m < 5; ++m) {
+                    const double e = admitted[m][q] - compact_raw[m][q];
+                    cell[(m + 1) * channel_count + c] = cell[(m + 1) * channel_count + c] + e;
+                }
             }
         }
-        if (lowest == 0xffffffffu) break;
+    }
+    // End cells: the anchor and the admitted currents of the clamped window.
+    for (usize i = imin; i <= imax; ++i) {
+        if (width >= 6 && i >= lo && i <= hi) continue;
+        double* const cell = cells + (i - imin) * 24;
+        const CellShape shape = cell_shape(i, width);
         for (usize c = 0; c < channel_count; ++c) {
-            if (next[c] >= scratch.listed_count[c]) continue;
-            const u32 cell = scratch.listed_cells.view().data()[c * lanes + next[c]];
-            if (cell != lowest) continue;
-            Correction entry;
-            entry.cell = cell;
-            entry.channel = static_cast<u32>(c);
-            const double* const e = scratch.listed_e.view().data() + (c * lanes + next[c]) * 5;
-            for (usize r = 0; r < 5; ++r) entry.e[r] = e[r];
-            const OperationStatus pushed = out.push(static_cast<Correction&&>(entry));
-            if (pushed.failed()) return pushed;
-            next[c] = next[c] + 1;
+            double window[8];
+            for (usize k = 0; k < 8; ++k) window[k] = b.planes[c * stride + (i - imin) + k];
+            double raw[5];
+            double admitted[5];
+            raw_for_shape(window, shape, raw);
+            (void)admit_cell(window, shape, raw, admitted, false);
+            cell[c] = window[3];
+            for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = admitted[m];
         }
     }
-    for (usize cell = interior > 0 ? width - 3 : cells; cell < cells; ++cell) {
-        const OperationStatus pushed = push_end_cell(field, planes, cell, out);
-        if (pushed.failed()) return pushed;
-    }
-    return OperationStatus::success();
 }
-
-// The listed correction of (y, i, c), or null.
-const Correction* find(const FieldState& field, const usize y, const usize i, const usize c) noexcept {
-    const View<Correction> row = row_corrections(field, y);
-    const Correction* const all = row.data();
-    usize low = 0;
-    usize high = row.count();
-    // First entry with cell >= i.
-    while (low < high) {
-        const usize middle = low + (high - low) / 2;
-        if (all[middle].cell < i) {
-            low = middle + 1;
-        } else {
-            high = middle;
-        }
-    }
-    for (usize k = low; k < row.count() && all[k].cell == i; ++k) {
-        if (all[k].channel == c) return all + k;
-    }
-    return nullptr;
-}
-
-} // namespace
 
 void row_cell(const FieldState& field, const usize y, const usize i, double* cell) noexcept {
-    const usize width = field.width;
-    const u8* const row = field.source.view().data() + y * width * 4;
-    if (interior_cell(i, width)) {
-        // Interior: anchor and raw currents by K2 row_cells (raw_for_shape's operation order), then
-        // + e on listed channels.
-        double decoded[6 * channel_count];
-        for (usize r = 0; r < 6; ++r) decode(row + (i - 2 + r) * 4, decoded + r * channel_count);
-        (*field.kernels).row_cells(decoded, 1, cell);
-        for (usize c = 0; c < channel_count; ++c) {
-            const Correction* const k = find(field, y, i, c);
-            if (k == nullptr) continue;
-            for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = cell[(m + 1) * channel_count + c] + (*k).e[m];
-        }
-        return;
-    }
-    decode(row + i * 4, cell);
-    for (usize c = 0; c < channel_count; ++c) {
-        const Correction* const k = find(field, y, i, c);
-        for (usize m = 0; m < 5; ++m) cell[(m + 1) * channel_count + c] = k == nullptr ? 0.0 : (*k).e[m];
-    }
+    SmallSegment small;
+    row_segment(field, y, i, i, cell, small.buffers());
 }
 
 void row_value(const FieldState& field, const usize y, const usize i, const double* s, const double* tau, double* out) noexcept {
@@ -366,8 +257,6 @@ OperationResult<Field> Field::make(const usize width, const usize height, const 
     // width, height <= 2^15, so width * height * 4 <= 2^32 fits usize on every target.
     const OperationStatus source = (*state).source.resize(width * height * 4);
     if (source.failed()) return OperationResult<Field>::failure(exhausted);
-    const OperationStatus rows = (*state).rows.resize((*state).height);
-    if (rows.failed()) return OperationResult<Field>::failure(exhausted);
     return OperationResult<Field>::success(static_cast<Field&&>(field));
 }
 
@@ -383,19 +272,7 @@ OperationStatus Field::compile(const Rgba8Image& source) noexcept {
         return OperationStatus::failure(ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.conv.field.compile",
                                                           ErrorDetail{.message = "the image does not have the field's size"}));
     }
-    field.ready = false;
-    detail::CompileScratch scratch;
-    if (detail::prepare(scratch, field.width).failed()) {
-        return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.compile"));
-    }
     detail::copy_source(field, source, Region{0, 0, sw, sh});
-    for (usize y = 0; y < field.height; ++y) {
-        const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
-        if (row.failed()) {
-            for (usize k = 0; k < field.height; ++k) field.rows[k].clear();
-            return OperationStatus::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.compile"));
-        }
-    }
     field.ready = true;
     return OperationStatus::success();
 }
@@ -418,20 +295,7 @@ OperationResult<NodeBox> Field::recompile(const Rgba8Image& source, const Region
     }
     NodeBox box;
     if (changed.x0 == changed.x1 || changed.y0 == changed.y1) return OperationResult<NodeBox>::success(box);
-    detail::CompileScratch scratch;
-    if (detail::prepare(scratch, field.width).failed()) {
-        return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.recompile"));
-    }
     detail::copy_source(field, source, changed);
-    // The changed rectangle in the stored orientation.
-    const Region stored = field.transposed ? Region{changed.y0, changed.x0, changed.y1, changed.x1} : changed;
-    for (usize y = stored.y0; y < stored.y1; ++y) {
-        const OperationStatus row = detail::compile_row(field, scratch, y, field.rows[y]);
-        if (row.failed()) {
-            field.ready = false;
-            return OperationResult<NodeBox>::failure(ErrorRecord::make(ErrorKind::out_of_memory, "stxlib.conv.field.recompile"));
-        }
-    }
     // A pixel x reaches the cells i with i - 3 <= x <= i + 4 (the window y[i-3 .. i+4]), so the
     // values of u in [x - 4, x + 4]; likewise along v through the vertical windows. In the
     // source's own coordinates either way.
@@ -450,8 +314,7 @@ usize Field::height() const noexcept { return state_ == nullptr ? 0 : (*state_).
 usize Field::storage_bytes() const noexcept {
     if (state_ == nullptr) return 0;
     const FieldState& field = *state_;
-    usize total = sizeof(FieldState) + field.source.capacity() + field.rows.capacity() * sizeof(Vector<detail::Correction>);
-    for (usize y = 0; y < field.height; ++y) total = total + field.rows[y].capacity() * sizeof(detail::Correction);
+    const usize total = sizeof(FieldState) + field.source.capacity();
     return total;
 }
 
