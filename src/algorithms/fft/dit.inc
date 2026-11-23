@@ -484,6 +484,36 @@ private:
         ob = c * im - s * r;
     }
 
+    // The templated scalar pair steps (T = float or double): twiddles read
+    // from the double tables and cast to T at use, as BFFT's
+    // bruun_dit_kernel.hpp pair_reduce_t and pair_expand_norm_t.
+    template <typename T>
+    static STXLIB_FFT_INLINE void pair_reduce_t(T ea, T eb, T oa, T ob, const double* cs, T& la, T& lb, T& ha,
+                                                T& hb) {
+        const T c = static_cast<T>(cs[0]);
+        const T s = static_cast<T>(cs[1]);
+        const T r = c * oa - s * ob;
+        const T im = s * oa + c * ob;
+        la = ea + r;
+        lb = eb + im;
+        ha = ea - r;
+        hb = im - eb;
+    }
+
+    template <typename T>
+    static STXLIB_FFT_INLINE void pair_expand_norm_t(T la, T lb, T ha, T hb, const double* cs, T& ea, T& eb, T& oa,
+                                                     T& ob) {
+        const T c = static_cast<T>(cs[0]);
+        const T s = static_cast<T>(cs[1]);
+        const T half = static_cast<T>(0.5);
+        const T r = half * (la - ha);
+        const T im = half * (lb + hb);
+        ea = half * (la + ha);
+        eb = half * (lb - hb);
+        oa = c * r + s * im;
+        ob = c * im - s * r;
+    }
+
     STXLIB_FFT_INLINE void butterfly4_v4f(V4F a0, V4F b0, V4F a1, V4F b1,
                                             V4F a2, V4F b2, V4F a3, V4F b3,
                                             const double* cs2, const double* cs1, const double* cs1q,
