@@ -1,0 +1,293 @@
+{
+  "schema": 1,
+  "component": "stxlib::UniqueLock",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/unique_lock.ic.toml",
+    "sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.uniquelock.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in unlocked leaves the object in locked.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.lock.unlocked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the legal blocks drive lock and observe the state after it through (object.mutex() != nullptr ? 1 : 0) + (object.owns() ? 1 : 0)",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "lock in empty: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.lock.outside.empty"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives lock in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.locked",
+      "kind": "typestate-refusal",
+      "statement": "lock in locked: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.lock.outside.locked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives lock in locked and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.moves",
+      "kind": "transition",
+      "statement": "try_lock succeeding in unlocked leaves the object in locked.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.try_lock.unlocked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the legal blocks drive try_lock and observe the state after it through (object.mutex() != nullptr ? 1 : 0) + (object.owns() ? 1 : 0)",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in empty: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.try_lock.outside.empty"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives try_lock in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.locked",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in locked: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.try_lock.outside.locked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives try_lock in locked and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.moves",
+      "kind": "transition",
+      "statement": "unlock succeeding in locked leaves the object in unlocked.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.unlock.locked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the legal blocks drive unlock and observe the state after it through (object.mutex() != nullptr ? 1 : 0) + (object.owns() ? 1 : 0)",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "unlock in empty: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.unlock.outside.empty"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives unlock in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.unlocked",
+      "kind": "typestate-refusal",
+      "statement": "unlock in unlocked: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.unlock.outside.unlocked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the misuse block drives unlock in unlocked and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    },
+    {
+      "id": "stxlib.uniquelock.release.moves",
+      "kind": "transition",
+      "statement": "release succeeding in any state leaves the object in empty.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.uniquelock.release.empty",
+          "stxlib.uniquelock.release.unlocked",
+          "stxlib.uniquelock.release.locked"
+        ],
+        "file": "tests/ic/blocks/unique_lock.blocks.json",
+        "what": "the legal blocks drive release and observe the state after it through (object.mutex() != nullptr ? 1 : 0) + (object.owns() ? 1 : 0)",
+        "run_by": "tests/ic/generated/unique_lock.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      }
+    }
+  ]
+}

@@ -1,0 +1,166 @@
+{
+  "schema": 1,
+  "component": "stxlib::AtomicWord",
+  "declaration": "include/stxlib/atomic_word.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [],
+  "initial": null,
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.atomicword.load",
+      "mode": "legal",
+      "call": "load",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "u32"
+      }
+    },
+    {
+      "name": "stxlib.atomicword.store",
+      "mode": "legal",
+      "call": "store",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicword.compare_exchange",
+      "mode": "legal",
+      "call": "compare_exchange",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.atomicword.wait",
+      "mode": "legal",
+      "call": "wait",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "u32"
+      }
+    },
+    {
+      "name": "stxlib.atomicword.wait_until",
+      "mode": "legal",
+      "call": "wait_until",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "WaitResult"
+      }
+    },
+    {
+      "name": "stxlib.atomicword.wait_for",
+      "mode": "legal",
+      "call": "wait_for",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "WaitResult"
+      }
+    },
+    {
+      "name": "stxlib.atomicword.notify_one",
+      "mode": "legal",
+      "call": "notify_one",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.atomicword.notify_all",
+      "mode": "legal",
+      "call": "notify_all",
+      "kind": "member",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::AtomicWord"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

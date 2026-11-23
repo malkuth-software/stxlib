@@ -386,6 +386,7 @@ endif()
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
     src/core/atomic_rules.cpp
+    src/core/atomic_word.cpp
     src/core/capabilities.cpp
     src/core/children.cpp
     src/core/console.cpp
@@ -413,6 +414,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/surface_input.cpp
     src/core/surface_keys.cpp
     src/core/text.cpp
+    src/core/stop_token.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/thread_records.cpp
@@ -448,13 +450,16 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/trace_posix.cpp
     src/hosted/posix/wake_posix.cpp)
 set(STXLIB_HOSTED_MACOS_SOURCES
+    src/hosted/macos/atomic_wait_macos.cpp
     src/hosted/macos/image_regions_macos.cpp
     src/hosted/macos/process_macos.cpp)
 set(STXLIB_HOSTED_LINUX_SOURCES
     src/hosted/elf/image_regions_elf.cpp
+    src/hosted/linux/atomic_wait_linux.cpp
     src/hosted/linux/process_linux.cpp)
 set(STXLIB_HOSTED_FREEBSD_SOURCES
     src/hosted/elf/image_regions_elf.cpp
+    src/hosted/freebsd/atomic_wait_freebsd.cpp
     src/hosted/freebsd/process_freebsd.cpp)
 # Emscripten (owner decision 2026-11-15): the POSIX modules that hold on
 # Emscripten's musl and file system, and emscripten/ for the services a page
@@ -479,6 +484,7 @@ set(STXLIB_HOSTED_EMSCRIPTEN_POSIX_SOURCES
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp)
 set(STXLIB_HOSTED_EMSCRIPTEN_SOURCES
+    src/hosted/emscripten/atomic_wait_emscripten.cpp
     src/hosted/emscripten/clocks_emscripten.cpp
     src/hosted/emscripten/images_emscripten.cpp
     src/hosted/emscripten/local_time_emscripten.cpp
@@ -512,6 +518,7 @@ else()
     list(APPEND STXLIB_HOSTED_EMSCRIPTEN_SOURCES src/hosted/emscripten/storage_js_emscripten.cpp)
 endif()
 set(STXLIB_HOSTED_WINDOWS_SOURCES
+    src/hosted/windows/atomic_wait_windows.cpp
     src/hosted/windows/children_windows.cpp
     src/hosted/windows/clocks_windows.cpp
     src/hosted/windows/console_windows.cpp
@@ -595,8 +602,12 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # SHGetKnownFolderPath (known_folders_windows.cpp) is shell32's;
     # CoTaskMemFree, which frees its result, is ole32's. K32EnumProcessModules,
     # K32GetModuleInformation and K32GetProcessMemoryInfo (images_windows.cpp,
-    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's.
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore)
+    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's. WaitOnAddress,
+    # WakeByAddressSingle and WakeByAddressAll (atomic_wait_windows.cpp) are
+    # in the API set api-ms-win-core-synch-l1-2-0, whose import library is
+    # synchronization (mingw-w64's libsynchronization.a, the SDK's
+    # Synchronization.lib); kernel32's import library does not carry them.
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore synchronization)
 elseif(STXLIB_HOST_FAMILY STREQUAL "glibc")
     # dlopen, dlsym, dladdr and dl_iterate_phdr (library_posix.cpp,
     # image_regions_elf.cpp): libc itself from glibc 2.34; CMAKE_DL_LIBS
@@ -857,7 +868,8 @@ if(STXLIB_TESTS)
     endif()
 
     set(stxlib_boundary_tests vocabulary memory platform path files threads thread_pool local_time rounding
-                               owned_vocabulary owned_text ascii_search heap transcode thread_records)
+                               owned_vocabulary owned_text ascii_search heap transcode thread_records
+                               atomic_word stop_token locks)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()
@@ -1705,6 +1717,14 @@ if(STXLIB_TESTS)
             "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
             "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
             "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
+            "recursive_foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*RecursiveMutex it does not hold"
+            "recursive_destroyed_held|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*RecursiveMutex was destroyed while held"
+            "unique_unlock_unheld|stxlib: requirement failed: UniqueLock::unlock while it does not hold its mutex"
+            "unique_lock_twice|stxlib: requirement failed: UniqueLock::lock while it holds its mutex"
+            "unique_wait_unheld|stxlib: requirement failed: ConditionVariable: a wait needs a UniqueLock that holds its mutex"
+            "multi_lock_same_mutex|stxlib: requirement failed: MultiLock: one Mutex named twice"
+            "atomic_load_order|stxlib: requirement failed: AtomicWord::load: not a load order"
+            "stop_callback_null|stxlib: requirement failed: StopCallback: a callback needs a function"
             "view_index|stxlib: requirement failed: View: index out of range"
             "take_failed_value|stxlib: requirement failed: OperationResult::take_value on a failure"
             "vector_index|stxlib: requirement failed: Vector: index out of range"

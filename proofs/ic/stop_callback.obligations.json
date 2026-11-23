@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopCallback",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/stop_callback.ic.toml",
+    "sha256": "fa8a13c4a7c2f0fd921f21a583ddac2a68631ca0302281c28ec0cf1cf3c0f752"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.stopcallback.register.requires.callback_function",
+      "kind": "entry-check",
+      "statement": "StopCallback runs only when not_null(function); otherwise requirement (\"StopCallback: a callback needs a function\").",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::stop_callback::admits_callback_function, called in src/core/stop_token.cpp",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "proved_against": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      }
+    }
+  ]
+}

@@ -1,0 +1,297 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopSource",
+  "declaration": "include/stxlib/stop_source.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "empty",
+    "armed",
+    "stopped"
+  ],
+  "initial": "empty",
+  "state_query": "stop_possible",
+  "blocks": [
+    {
+      "name": "stxlib.stopsource.create",
+      "mode": "legal",
+      "call": "create",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the allocator refuses the shared state",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "StopSource",
+        "state": "armed",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.copy",
+      "mode": "legal",
+      "call": "StopSource",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.stopsource.token.empty",
+      "mode": "legal",
+      "call": "token",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "StopToken",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.token.armed",
+      "mode": "legal",
+      "call": "token",
+      "kind": "member",
+      "thread": "owner",
+      "state": "armed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "armed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "StopToken",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.token.stopped",
+      "mode": "legal",
+      "call": "token",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "StopToken",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.request_stop.armed",
+      "mode": "legal",
+      "call": "request_stop",
+      "kind": "member",
+      "thread": "owner",
+      "state": "armed",
+      "moves": "stopped",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "armed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.request_stop.stopped",
+      "mode": "legal",
+      "call": "request_stop",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": "stopped",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.request_stop.outside.empty",
+      "mode": "misuse",
+      "call": "request_stop",
+      "state": "empty",
+      "expect": {
+        "kind": "value",
+        "value": "false"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.stopsource.stop_requested.empty",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.stop_requested.armed",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "armed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "armed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.stop_requested.stopped",
+      "mode": "legal",
+      "call": "stop_requested",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.stop_possible.empty",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.stop_possible.armed",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "armed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "armed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.stopsource.stop_possible.stopped",
+      "mode": "legal",
+      "call": "stop_possible",
+      "kind": "member",
+      "thread": "owner",
+      "state": "stopped",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::StopSource",
+          "state": "stopped"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    }
+  ]
+}

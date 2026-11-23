@@ -1,0 +1,68 @@
+# Behavioural constraints of stxlib::AtomicWord (atomic_word.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# No typestate: the word is a value any thread may change. The memory-order
+# requirements (a load order for a load, a wait and a compare-exchange's
+# failure; a store order for a store) are STXLIB_REQUIRE in the header,
+# whose MemoryOrder the clause grammar cannot name.
+
+schema = 1
+component = "AtomicWord"
+namespace = "stxlib"
+header = "include/stxlib/atomic_word.hpp"
+anchor = "class AtomicWord final {"
+keys = { manifest = "stxlib::AtomicWord" }
+thread = "any"
+
+# No states and no terms: the blocks drive the calls that return at once on
+# the engine's one thread.
+[engine]
+object = "stxlib::AtomicWord"
+includes = ["stxlib/atomic_word.hpp"]
+make = "default"
+
+[[call]]
+name = "load"
+declarations = ["[[nodiscard]] u32 load(const MemoryOrder order = MemoryOrder::sequential) const noexcept {"]
+returns = { type = "u32" }
+engine = { invoke = "object.load()" }
+
+[[call]]
+name = "store"
+declarations = ["void store(const u32 value, const MemoryOrder order = MemoryOrder::sequential) noexcept {"]
+engine = { invoke = "object.store(value)", draws = { value = "u32" } }
+
+[[call]]
+name = "compare_exchange"
+declarations = ["[[nodiscard]] bool compare_exchange(u32& expected, const u32 desired,"]
+returns = { type = "bool" }
+engine = { skip = "expected is a reference the call writes, which the engine's draws do not name; tests/atomic_word_tests.cpp covers it" }
+
+[[call]]
+name = "wait"
+declarations = ["u32 wait(u32 expected, MemoryOrder order = MemoryOrder::sequential) const noexcept;"]
+# Returns the first loaded value other than expected.
+returns = { type = "u32" }
+engine = { skip = "it blocks until another thread changes the word, and the engine has one thread; tests/atomic_word_tests.cpp covers it" }
+
+[[call]]
+name = "wait_until"
+declarations = ["[[nodiscard]] WaitResult wait_until(u32 expected, IntervalTime deadline,"]
+returns = { type = "WaitResult" }
+engine = { skip = "a timed wait for a change no other thread makes: each block would wait out its interval; tests/atomic_word_tests.cpp covers it" }
+
+[[call]]
+name = "wait_for"
+declarations = ["[[nodiscard]] WaitResult wait_for(u32 expected, Duration interval,"]
+returns = { type = "WaitResult" }
+engine = { skip = "a timed wait for a change no other thread makes: each block would wait out its interval; tests/atomic_word_tests.cpp covers it" }
+
+[[call]]
+name = "notify_one"
+declarations = ["void notify_one() noexcept;"]
+
+[[call]]
+name = "notify_all"
+declarations = ["void notify_all() noexcept;"]

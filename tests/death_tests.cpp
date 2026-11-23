@@ -18,6 +18,22 @@
 //                          (owner decision D11; check builds, else skipped)
 //   foreign_unlock         unlocking a Mutex the thread does not hold fails
 //                          fast (the same)
+//   recursive_foreign_unlock  unlocking a RecursiveMutex the thread does not
+//                          hold fails fast (every build)
+//   recursive_destroyed_held  destroying a held RecursiveMutex fails fast
+//                          (every build)
+//   unique_unlock_unheld   UniqueLock::unlock without the mutex is a failed
+//                          requirement
+//   unique_lock_twice      UniqueLock::lock while holding is a failed
+//                          requirement
+//   unique_wait_unheld     a condition wait on a UniqueLock that does not
+//                          hold its mutex is a failed requirement
+//   multi_lock_same_mutex  a MultiLock naming one Mutex twice is a failed
+//                          requirement
+//   atomic_load_order      AtomicWord::load with a release order is a failed
+//                          requirement
+//   stop_callback_null     a StopCallback without a function is a failed
+//                          requirement
 //   view_index             an out-of-range index is a failed requirement
 //   take_failed_value      take_value on a failure is a failed requirement
 //   take_or_fail_fast      take_or_fail_fast on a failure fails fast with
@@ -213,6 +229,72 @@ int foreign_unlock() {
     }
     stxlib::Mutex mutex{};
     mutex.unlock();
+    std::puts("survived");
+    return 0;
+}
+
+int recursive_foreign_unlock() {
+    stxlib::RecursiveMutex mutex{};
+    mutex.unlock();
+    std::puts("survived");
+    return 0;
+}
+
+int recursive_destroyed_held() {
+    {
+        stxlib::RecursiveMutex mutex{};
+        mutex.lock();
+    }
+    std::puts("survived");
+    return 0;
+}
+
+int unique_unlock_unheld() {
+    stxlib::Mutex mutex{};
+    stxlib::UniqueLock lock = stxlib::UniqueLock::deferred(mutex);
+    lock.unlock();
+    std::puts("survived");
+    return 0;
+}
+
+int unique_lock_twice() {
+    stxlib::Mutex mutex{};
+    stxlib::UniqueLock lock(mutex);
+    lock.lock();
+    std::puts("survived");
+    return 0;
+}
+
+bool never_satisfied(const void*) noexcept { return false; }
+
+int unique_wait_unheld() {
+    stxlib::Mutex mutex{};
+    stxlib::ConditionVariable condition{};
+    stxlib::UniqueLock lock = stxlib::UniqueLock::deferred(mutex);
+    condition.wait(lock, never_satisfied, nullptr);
+    std::puts("survived");
+    return 0;
+}
+
+int multi_lock_same_mutex() {
+    stxlib::Mutex mutex{};
+    const stxlib::MultiLock<stxlib::Mutex, 2> both(mutex, mutex);
+    std::puts("survived");
+    return 0;
+}
+
+int atomic_load_order() {
+    const stxlib::AtomicWord word{};
+    // A non-constant order, so the compiler cannot reject it first.
+    volatile stxlib::u8 chosen = static_cast<stxlib::u8>(stxlib::MemoryOrder::release);
+    const stxlib::u32 value = word.load(static_cast<stxlib::MemoryOrder>(chosen));
+    std::printf("survived %u\n", value);
+    return 0;
+}
+
+int stop_callback_null() {
+    const stxlib::StopToken token{};
+    const stxlib::StopCallback callback(token, nullptr, nullptr);
     std::puts("survived");
     return 0;
 }
@@ -508,6 +590,14 @@ int main(const int argc, char** const argv) {
     if (std::strcmp(name, "foreign_release_page") == 0) return foreign_release_page();
     if (std::strcmp(name, "recursive_lock") == 0) return recursive_lock();
     if (std::strcmp(name, "foreign_unlock") == 0) return foreign_unlock();
+    if (std::strcmp(name, "recursive_foreign_unlock") == 0) return recursive_foreign_unlock();
+    if (std::strcmp(name, "recursive_destroyed_held") == 0) return recursive_destroyed_held();
+    if (std::strcmp(name, "unique_unlock_unheld") == 0) return unique_unlock_unheld();
+    if (std::strcmp(name, "unique_lock_twice") == 0) return unique_lock_twice();
+    if (std::strcmp(name, "unique_wait_unheld") == 0) return unique_wait_unheld();
+    if (std::strcmp(name, "multi_lock_same_mutex") == 0) return multi_lock_same_mutex();
+    if (std::strcmp(name, "atomic_load_order") == 0) return atomic_load_order();
+    if (std::strcmp(name, "stop_callback_null") == 0) return stop_callback_null();
     if (std::strcmp(name, "view_index") == 0) return view_index();
     if (std::strcmp(name, "take_failed_value") == 0) return take_failed_value();
     if (std::strcmp(name, "take_or_fail_fast") == 0) return take_or_fail_fast();

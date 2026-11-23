@@ -1,0 +1,57 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopCallback",
+  "declaration": "include/stxlib/stop_callback.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "listed",
+    "finished",
+    "inert"
+  ],
+  "initial": "inert",
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.stopcallback.register",
+      "mode": "legal",
+      "call": "StopCallback",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [
+        {
+          "name": "function",
+          "type": "StopFunction",
+          "bounded_by": [
+            "not_null(function)"
+          ]
+        }
+      ],
+      "requires": [
+        "not_null(function)"
+      ],
+      "fails": [],
+      "returns": {
+        "type": "StopCallback",
+        "state": [
+          "listed",
+          "finished",
+          "inert"
+        ]
+      }
+    },
+    {
+      "name": "stxlib.stopcallback.register.misuse.callback_function",
+      "mode": "misuse",
+      "call": "StopCallback",
+      "violates": "not_null(function)",
+      "expect": {
+        "kind": "requirement",
+        "message": "StopCallback: a callback needs a function"
+      },
+      "leaves": "process stops"
+    }
+  ]
+}

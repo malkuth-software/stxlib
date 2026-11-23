@@ -353,7 +353,9 @@ def typestate_reading(tool, root: pathlib.Path, declarations: list) -> None:
         'OperationStatus Box::shut() noexcept {', '    if (!open()) return OperationStatus::success();',
         '    return OperationStatus::success();', '}',
         'void Box::spin() noexcept {', '    for (u32 i = 0; i < 4; ++i) held_ = nullptr;', '}',
-        'void Box::hand() noexcept {', '    backend::forget(held_);', '}'])
+        'void Box::hand() noexcept {', '    backend::forget(held_);', '}',
+        'u8* Box::drop() noexcept {', '    u8* const result = held_;', '    held_ = nullptr;', '    return result;',
+        '}'])
     view = states.View('Box', {'closed': 'held_ == nullptr', 'open': 'held_ != nullptr'}, [], {}, [],
                        {'box.cpp': states.preprocessed(source, ())}, ())
     refusal = tool.refusal_of('failure:disposed', 'test')
@@ -369,7 +371,9 @@ def typestate_reading(tool, root: pathlib.Path, declarations: list) -> None:
     check(not outcome.held and 'loop' in outcome.why, 'I15 a loop that writes a state member stops the reader')
     outcome = states.transition(view, 'hand', ('open',), 'closed')
     check(not outcome.held and 'touches' in outcome.why, 'I15 an opaque call given a state member stops it')
-    mutex = [item for item in declarations if item.path.endswith('mutex.ic.toml')][0]
+    outcome = states.transition(view, 'drop', ('open',), 'closed')
+    check(outcome.held, 'I15 a member that returns a pointer is read: ' + outcome.why)
+    mutex = [item for item in declarations if item.path.endswith('/mutex.ic.toml')][0]
     checked = deducer.typestate_view(root, mutex)
     held = tool.refusal_of('requirement', 'test')
     outcome = states.typestate_refusal(checked, 'lock', 'held', held, 'stxlib::HostCode', deducer.case_mapping)

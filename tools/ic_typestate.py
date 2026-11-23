@@ -206,7 +206,9 @@ def functions_named(view: View, name: str) -> list[Function]:
         for match in re.finditer(r'(?<![\w.>~])((?:[A-Za-z_]\w*::)*)(' + re.escape(name) + r')\s*\(', text):
             line_start: int = text.rfind('\n', 0, match.start()) + 1
             before: str = text[line_start:match.start()]
-            if re.search(r'[=(,!?|+\-*/%]|\breturn\b|\.\s*$|->\s*$|\bnew\b', before) or \
+            # A pointer return type (`Mutex* release(`) is a declarator, not a product.
+            declared: str = re.sub(r'(?<=[\w>])\s*\*+\s*$', ' ', before)
+            if re.search(r'[=(,!?|+\-*/%]|\breturn\b|\.\s*$|->\s*$|\bnew\b', declared) or \
                     re.search(r'\b(if|while|for|switch)\s*$', before):
                 continue
             open_index: int = match.end() - 1

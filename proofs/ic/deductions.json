@@ -1560,7 +1560,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1574,7 +1574,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Mutex::lock read at src/core/threads.cpp:157 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "Mutex::lock read at src/core/threads.cpp:159 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
         "path 1: the process ends (a requirement)"
       ]
     },
@@ -1583,7 +1583,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1607,7 +1607,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1621,7 +1621,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Mutex::try_lock read at src/core/threads.cpp:167 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "Mutex::try_lock read at src/core/threads.cpp:169 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
         "path 1: the process ends (a requirement)"
       ]
     },
@@ -1630,7 +1630,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1654,7 +1654,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1668,7 +1668,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Mutex::unlock read at src/core/threads.cpp:180 in the state free (owner_ != current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "Mutex::unlock read at src/core/threads.cpp:182 in the state free (owner_ != current_thread().value()) with STXLIB_LOCK_CHECKS defined",
         "path 1: the process ends (a requirement)"
       ]
     },
@@ -1677,7 +1677,7 @@
       "declaration": "include/stxlib/mutex.ic.toml",
       "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1694,6 +1694,139 @@
       "steps": [
         "Mutex::unlock read in src/core/threads.cpp with STXLIB_LOCK_CHECKS defined",
         "in held, path 1: returns; after it owner_ != current_thread().value() holds (writes: owner_ = 0)"
+      ]
+    },
+    {
+      "id": "stxlib.recursivemutex.lock.moves",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml",
+      "declaration_sha256": "b423c73792626a1acc2602bfe386df502349a29569b7cc2efb0389b32a607382",
+      "sources": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "RecursiveMutex::lock read in src/core/threads.cpp",
+        "in any state, path 2: returns; after it holder_ == current_thread().value() holds (writes: depth_ = depth_ + 1)",
+        "in any state, path 3: returns; after it holder_ == current_thread().value() holds (writes: holder_ = current_thread().value(), depth_ = 1)"
+      ]
+    },
+    {
+      "id": "stxlib.recursivemutex.try_lock.moves",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml",
+      "declaration_sha256": "b423c73792626a1acc2602bfe386df502349a29569b7cc2efb0389b32a607382",
+      "sources": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "steps": [
+        "RecursiveMutex::try_lock read in src/core/threads.cpp",
+        "in any state, path 2: returns true; after it holder_ == current_thread().value() holds (writes: depth_ = depth_ + 1)",
+        "in any state, path 4: returns true; after it holder_ == current_thread().value() holds (writes: holder_ = current_thread().value(), depth_ = 1)"
+      ]
+    },
+    {
+      "id": "stxlib.recursivemutex.unlock.outside.free",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml",
+      "declaration_sha256": "b423c73792626a1acc2602bfe386df502349a29569b7cc2efb0389b32a607382",
+      "sources": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state free is holder_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "RecursiveMutex::unlock read at src/core/threads.cpp:343 in the state free (holder_ != current_thread().value())",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.stopcallback.register.requires.callback_function",
+      "declaration": "include/stxlib/stop_callback.ic.toml",
+      "declaration_sha256": "fa8a13c4a7c2f0fd921f21a583ddac2a68631ca0302281c28ec0cf1cf3c0f752",
+      "sources": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "source structure: each call of the predicate guards the declared refusal",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)",
+        "STXLIB_REQUIRE ends the process when its condition is false (include/stxlib/require.hpp)"
+      ],
+      "steps": [
+        "guard at src/core/stop_token.cpp:301"
+      ]
+    },
+    {
+      "id": "stxlib.stopsource.request_stop.outside.empty",
+      "declaration": "include/stxlib/stop_source.ic.toml",
+      "declaration_sha256": "d390bd4a903e3063fd3f06bcee897e37eb5f60261217f5f2c4e201224509c0a7",
+      "sources": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "StopSource::request_stop read at src/core/stop_token.cpp:269 in the state empty (state_ == nullptr)",
+        "path 1: returns false"
+      ]
+    },
+    {
+      "id": "stxlib.stopsource.request_stop.moves",
+      "declaration": "include/stxlib/stop_source.ic.toml",
+      "declaration_sha256": "d390bd4a903e3063fd3f06bcee897e37eb5f60261217f5f2c4e201224509c0a7",
+      "sources": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state armed is state_ != nullptr && (*state_).requested == 0 (the declaration's represents)",
+        "the state stopped is state_ != nullptr && (*state_).requested != 0 (the declaration's represents)",
+        "a loop that writes no state member: for (;;) { StopCallback* const callback = (*state).first; if (callback",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "StopSource::request_stop read in src/core/stop_token.cpp",
+        "in armed, path 1: returns true; after it state_ != nullptr && (*state_).requested != 0 holds (writes: (*state_).requester = current_thread().value(), (*state_).requested = 1)",
+        "in stopped, path 1: returns false; after it state_ != nullptr && (*state_).requested != 0 holds"
       ]
     },
     {
@@ -2056,7 +2189,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2066,7 +2199,7 @@
         "the guard's arguments are the declared parameters (as read at each site)"
       ],
       "steps": [
-        "guard at src/core/threads.cpp:370"
+        "guard at src/core/threads.cpp:472"
       ]
     },
     {
@@ -2074,7 +2207,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2084,7 +2217,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/core/threads.cpp:370"
+        "guard at src/core/threads.cpp:472"
       ]
     },
     {
@@ -2092,7 +2225,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2102,7 +2235,7 @@
         "the guard's arguments are the declared parameters (as read at each site)"
       ],
       "steps": [
-        "guard at src/core/threads.cpp:376"
+        "guard at src/core/threads.cpp:478"
       ]
     },
     {
@@ -2110,7 +2243,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2120,7 +2253,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/core/threads.cpp:376"
+        "guard at src/core/threads.cpp:478"
       ]
     },
     {
@@ -2128,7 +2261,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2140,7 +2273,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Thread::join read at src/core/threads.cpp:419 in the state empty (state_ == nullptr || (*state_).joined)",
+        "Thread::join read at src/core/threads.cpp:521 in the state empty (state_ == nullptr || (*state_).joined)",
         "path 1: returns JoinResult::not_joinable"
       ]
     },
@@ -2149,7 +2282,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2171,7 +2304,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2183,7 +2316,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Thread::abandon read at src/core/threads.cpp:432 in the state empty (state_ == nullptr || (*state_).joined)",
+        "Thread::abandon read at src/core/threads.cpp:534 in the state empty (state_ == nullptr || (*state_).joined)",
         "path 1: returns AbandonResult::not_joinable"
       ]
     },
@@ -2192,7 +2325,7 @@
       "declaration": "include/stxlib/threads.ic.toml",
       "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
-        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2208,6 +2341,225 @@
         "Thread::abandon read in src/core/threads.cpp",
         "in started, path 1: returns AbandonResult::already_finished; after it state_ == nullptr || (*state_).joined holds (writes: state_ = nullptr)",
         "in started, path 2: returns AbandonResult::abandoned; after it state_ == nullptr || (*state_).joined holds (writes: state_ = nullptr)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.empty",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::lock read at include/stxlib/threads.hpp:244 in the state empty (mutex_ == nullptr && !owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.lock.outside.locked",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::lock read at include/stxlib/threads.hpp:244 in the state locked (mutex_ != nullptr && owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.lock.moves",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::lock read in include/stxlib/threads.hpp",
+        "in unlocked, path 1: returns; after it mutex_ != nullptr && owns_ holds (writes: owns_ = true)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.empty",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::try_lock read at include/stxlib/threads.hpp:252 in the state empty (mutex_ == nullptr && !owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.outside.locked",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::try_lock read at include/stxlib/threads.hpp:252 in the state locked (mutex_ != nullptr && owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.try_lock.moves",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::try_lock read in include/stxlib/threads.hpp",
+        "in unlocked, path 1: returns (*mutex_).try_lock(); after it mutex_ != nullptr && owns_ holds (writes: owns_ = true)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.empty",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is mutex_ == nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::unlock read at include/stxlib/threads.hpp:261 in the state empty (mutex_ == nullptr && !owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.outside.unlocked",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state unlocked is mutex_ != nullptr && !owns_ (the declaration's represents)",
+        "STXLIB_REQUIRE (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::unlock read at include/stxlib/threads.hpp:261 in the state unlocked (mutex_ != nullptr && !owns_)",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.unlock.moves",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state locked is mutex_ != nullptr && owns_ (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::unlock read in include/stxlib/threads.hpp",
+        "in locked, path 1: returns; after it mutex_ != nullptr && !owns_ holds (writes: owns_ = false)"
+      ]
+    },
+    {
+      "id": "stxlib.uniquelock.release.moves",
+      "declaration": "include/stxlib/unique_lock.ic.toml",
+      "declaration_sha256": "57959024bd0baddaf08579738e270e38bc7596922f9d294fdcfbe41e506aa120",
+      "sources": {
+        "include/stxlib/threads.hpp": "83688a4689092787db20c97899ac96889a1a86260d9d6709ce025edb527ce8ab"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "STXLIB_EARLY_EXIT_LOCK::release read in include/stxlib/threads.hpp",
+        "in any state, path 1: returns ?; after it mutex_ == nullptr && !owns_ holds (writes: mutex_ = nullptr, owns_ = false)"
       ]
     },
     {
