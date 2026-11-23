@@ -1,0 +1,446 @@
+{
+  "schema": 1,
+  "component": "stxlib::UniqueLock",
+  "declaration": "include/stxlib/unique_lock.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "empty",
+    "unlocked",
+    "locked"
+  ],
+  "initial": "empty",
+  "state_query": "owns",
+  "blocks": [
+    {
+      "name": "stxlib.uniquelock.make_empty",
+      "mode": "legal",
+      "call": "UniqueLock",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "UniqueLock",
+        "state": "empty"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.make_locked",
+      "mode": "legal",
+      "call": "UniqueLock",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "UniqueLock",
+        "state": "locked"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.deferred",
+      "mode": "legal",
+      "call": "deferred",
+      "kind": "static",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "UniqueLock",
+        "state": "unlocked",
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.move_construct",
+      "mode": "legal",
+      "call": "UniqueLock",
+      "kind": "constructor",
+      "thread": "owner",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.move_assign.empty",
+      "mode": "legal",
+      "call": "operator=",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.move_assign.unlocked",
+      "mode": "legal",
+      "call": "operator=",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.move_assign.locked",
+      "mode": "legal",
+      "call": "operator=",
+      "kind": "member",
+      "thread": "owner",
+      "state": "locked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "locked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.lock.unlocked",
+      "mode": "legal",
+      "call": "lock",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": "locked",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.lock.outside.empty",
+      "mode": "misuse",
+      "call": "lock",
+      "state": "empty",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.lock.outside.locked",
+      "mode": "misuse",
+      "call": "lock",
+      "state": "locked",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.try_lock.unlocked",
+      "mode": "legal",
+      "call": "try_lock",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": "locked",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.try_lock.outside.empty",
+      "mode": "misuse",
+      "call": "try_lock",
+      "state": "empty",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.try_lock.outside.locked",
+      "mode": "misuse",
+      "call": "try_lock",
+      "state": "locked",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.unlock.locked",
+      "mode": "legal",
+      "call": "unlock",
+      "kind": "member",
+      "thread": "owner",
+      "state": "locked",
+      "moves": "unlocked",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "locked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.uniquelock.unlock.outside.empty",
+      "mode": "misuse",
+      "call": "unlock",
+      "state": "empty",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.unlock.outside.unlocked",
+      "mode": "misuse",
+      "call": "unlock",
+      "state": "unlocked",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.uniquelock.release.empty",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": "empty",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.release.unlocked",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": "empty",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.release.locked",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "locked",
+      "moves": "empty",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "locked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.owns.empty",
+      "mode": "legal",
+      "call": "owns",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.owns.unlocked",
+      "mode": "legal",
+      "call": "owns",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.owns.locked",
+      "mode": "legal",
+      "call": "owns",
+      "kind": "member",
+      "thread": "owner",
+      "state": "locked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "locked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "bool"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.mutex.empty",
+      "mode": "legal",
+      "call": "mutex",
+      "kind": "member",
+      "thread": "owner",
+      "state": "empty",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "empty"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*",
+        "borrows": "the named mutex"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.mutex.unlocked",
+      "mode": "legal",
+      "call": "mutex",
+      "kind": "member",
+      "thread": "owner",
+      "state": "unlocked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "unlocked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*",
+        "borrows": "the named mutex"
+      }
+    },
+    {
+      "name": "stxlib.uniquelock.mutex.locked",
+      "mode": "legal",
+      "call": "mutex",
+      "kind": "member",
+      "thread": "owner",
+      "state": "locked",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::UniqueLock",
+          "state": "locked"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {
+        "type": "Mutex*",
+        "borrows": "the named mutex"
+      }
+    }
+  ]
+}

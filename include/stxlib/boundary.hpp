@@ -3,6 +3,7 @@
 // Everything stxlib::boundary offers, for consumers that want one include.
 
 #include "stxlib/ascii.hpp"
+#include "stxlib/atomic_word.hpp"
 #include "stxlib/buffer.hpp"
 #include "stxlib/callback.hpp"
 #include "stxlib/capabilities.hpp"
@@ -30,6 +31,7 @@
 #include "stxlib/result.hpp"
 #include "stxlib/search.hpp"
 #include "stxlib/shadow.hpp"
+#include "stxlib/stop_token.hpp"
 #include "stxlib/text.hpp"
 #include "stxlib/terminal.hpp"
 #include "stxlib/text_view.hpp"

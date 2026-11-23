@@ -16,6 +16,7 @@
 #include "stxlib/glyph_store.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/path.hpp"
+#include "stxlib/stop_token.hpp"
 #include "stxlib/text.hpp"
 #include "stxlib/thread_pool.hpp"
 #include "stxlib/threads.hpp"
@@ -387,6 +388,60 @@ inline bool thread_ran(const usize slot) noexcept {
     const bool result = thread_counter(slot).load(std::memory_order_acquire) != 0;
     return result;
 }
+
+// ---- locks -------------------------------------------------------------------------------------
+
+// One Mutex per slot for UniqueLock's blocks. Only the slot's lock names
+// it, so on the engine's one thread it is free whenever that lock is not
+// locked.
+inline stxlib::Mutex& slot_mutex(const usize slot) noexcept {
+    static stxlib::Mutex storage[slots]{};
+    return storage[slot % slots];
+}
+
+// UniqueLock::release as a caller must use it: the duty to unlock passes to
+// the caller, which unlocks a mutex the lock held, so the slot's Mutex is
+// free for the next lock.
+inline stxlib::Mutex* release_unique_lock(stxlib::UniqueLock& lock) noexcept {
+    const bool held = lock.owns();
+    stxlib::Mutex* const result = lock.release();
+    if (held) (*result).unlock();
+    return result;
+}
+
+// ---- stop tokens -------------------------------------------------------------------------------
+
+inline stxlib::StopSource made_stop_source(const bool stopped) noexcept {
+    stxlib::OperationResult<stxlib::StopSource> made = stxlib::StopSource::create();
+    if (made.failed()) unavailable("a stop source");
+    stxlib::StopSource result = static_cast<stxlib::OperationResult<stxlib::StopSource>&&>(made).take_value();
+    if (stopped) static_cast<void>(result.request_stop());
+    return result;
+}
+
+// A token for StopCallback's blocks, by kind: 0 from a source never
+// stopped (the callback is listed), 1 from a stopped source (it runs at
+// once), 2 with no state (it is inert).
+inline stxlib::StopToken stop_token(const u8 kind) noexcept {
+    static stxlib::StopSource armed = made_stop_source(false);
+    static stxlib::StopSource stopped = made_stop_source(true);
+    if (kind == 0) return armed.token();
+    if (kind == 1) return stopped.token();
+    return stxlib::StopToken();
+}
+
+inline std::atomic<u64>& stop_counter(const usize slot) noexcept {
+    static std::atomic<u64> storage[slots]{};
+    return storage[slot % slots];
+}
+
+// A StopCallback's function: counts its runs in its slot's counter.
+inline void stop_function(void* const context) noexcept {
+    std::atomic<u64>& ran = *static_cast<std::atomic<u64>*>(context);
+    ran.fetch_add(1, std::memory_order_relaxed);
+}
+
+inline void* stop_context(const usize slot) noexcept { return &stop_counter(slot); }
 
 // ---- a font ------------------------------------------------------------------------------------
 

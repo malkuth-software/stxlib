@@ -1,0 +1,75 @@
+# Behavioural constraints of stxlib::StopSource (stop_token.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). StopToken and StopCallback, in the same
+# header, have their own. Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: empty (no stop state: default or moved from), armed (a state, no
+# stop requested), stopped (requested, through this source or any copy).
+# stop_possible() tells empty from the others; stop_requested() tells
+# stopped.
+
+schema = 1
+component = "StopSource"
+namespace = "stxlib"
+header = "include/stxlib/stop_token.hpp"
+anchor = "class StopSource final {"
+keys = { manifest = "stxlib::StopSource" }
+# One StopSource object is used by one thread at a time; copies sharing its
+# state may be used on any threads at once.
+thread = "owner"
+states = ["empty", "armed", "stopped"]
+initial = "empty"
+state_query = { call = "stop_possible", observes = { empty = "false", armed = "true", stopped = "true" } }
+
+[represents]
+states = { empty = "state_ == nullptr", armed = "state_ != nullptr && (*state_).requested == 0", stopped = "state_ != nullptr && (*state_).requested != 0" }
+sources = ["src/core/stop_token.cpp", "include/stxlib/stop_token.hpp"]
+
+[engine]
+object = "stxlib::StopSource"
+includes = ["stxlib/stop_token.hpp"]
+make = "default"
+state_query = "(object.stop_possible() ? 1 : 0) + (object.stop_requested() ? 1 : 0)"
+state_answers = { empty = "0", armed = "1", stopped = "2" }
+
+[[call]]
+name = "create"
+kind = "static"
+declarations = ["[[nodiscard]] static OperationResult<StopSource> create() noexcept;"]
+thread = "any"
+fails = [{ failure = "out_of_memory", when = "the allocator refuses the shared state" }]
+returns = { type = "StopSource", state = "armed", owns = "caller" }
+
+[[call]]
+name = "StopSource"
+id = "copy"
+kind = "constructor"
+declarations = ["StopSource(const StopSource& other) noexcept;"]
+# The copy shares the state (and its stop) with other.
+
+[[call]]
+name = "token"
+declarations = ["[[nodiscard]] StopToken token() const noexcept;"]
+returns = { type = "StopToken", owns = "caller" }
+
+[[call]]
+name = "request_stop"
+declarations = ["bool request_stop() noexcept;"]
+in = ["armed", "stopped"]
+outside = { empty = "value:false" }
+moves = "stopped"
+# true only for the request that made the stop (armed); it runs the
+# registered callbacks on this thread before returning.
+returns = { type = "bool" }
+engine = { result_type = "bool", refused_when = "!result", expect = ["result == (step.before.state == 1U)", "object.stop_requested()"] }
+
+[[call]]
+name = "stop_requested"
+declarations = ["[[nodiscard]] bool stop_requested() const noexcept;"]
+returns = { type = "bool" }
+
+[[call]]
+name = "stop_possible"
+declarations = ["[[nodiscard]] bool stop_possible() const noexcept"]
+returns = { type = "bool" }

@@ -1,0 +1,69 @@
+# Behavioural constraints of stxlib::RecursiveMutex (threads.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States are the calling thread's view: free (it does not hold the mutex,
+# which another thread may) and held (it holds it, at some depth from 1 to
+# maximum_recursive_depth). A refusal here is a fail-fast with
+# internal_failure (stxlib.threads.lock) in every build; the IC format's
+# nearest refusal is a requirement (the process stops with the message).
+
+schema = 1
+component = "RecursiveMutex"
+namespace = "stxlib"
+header = "include/stxlib/threads.hpp"
+anchor = "class RecursiveMutex final {"
+keys = { manifest = "stxlib::RecursiveMutex" }
+thread = "any"
+states = ["free", "held"]
+initial = "free"
+state_query = { call = "held_by_current_thread", observes = { free = "false", held = "true" } }
+
+[represents]
+states = { free = "holder_ != current_thread().value()", held = "holder_ == current_thread().value()" }
+sources = ["src/core/threads.cpp", "include/stxlib/threads.hpp"]
+assume = [
+  { holds = "current_thread().value() != 0", because = "a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp)" },
+]
+succeeds = { try_lock = "result" }
+
+# The engine's one thread is the only one to lock it, so try_lock always
+# succeeds. Destroying it while held is a defect, so the teardown unlocks
+# every level the blocks took.
+[engine]
+object = "stxlib::RecursiveMutex"
+includes = ["stxlib/threads.hpp"]
+make = "default"
+teardown = { held = "while (object.held_by_current_thread()) object.unlock();" }
+
+[constants]
+maximum_recursive_depth = { cpp = "maximum_recursive_depth", type = "u32" }
+
+[[call]]
+name = "lock"
+declarations = ["void lock() noexcept;"]
+# In held, one level deeper; past maximum_recursive_depth the process stops.
+moves = "held"
+
+[[call]]
+name = "try_lock"
+declarations = ["[[nodiscard]] bool try_lock() noexcept;"]
+# held: true at once, one level deeper. free: true (held) when no other
+# thread holds it, else false (still free).
+moves = "held"
+returns = { type = "bool" }
+engine = { result_type = "bool", expect = ["result"] }
+
+[[call]]
+name = "unlock"
+declarations = ["void unlock() noexcept;"]
+in = ["held"]
+outside = "requirement"
+# One level fewer; the last unlock frees it (free).
+engine = { skip = "the state after it depends on the depth the thread holds, which no query reports (only the last unlock frees it); tests/locks_tests.cpp and the death case recursive_foreign_unlock cover it" }
+
+[[call]]
+name = "held_by_current_thread"
+declarations = ["[[nodiscard]] bool held_by_current_thread() const noexcept;"]
+returns = { type = "bool" }

@@ -12,6 +12,7 @@ Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_
 
 | Component | Clauses | Calls driven | Blocks (legal + misuse) | States reached | Edges reached | Defects (found / fixed) | Legal false positives | Obligations (discharged / all) |
 |---|---|---|---|---|---|---|---|---|
+| stxlib::AtomicWord | 0 | 4 of 8 | 5 + 0 | not run | not run | not run | not run | 0 / 0 |
 | stxlib::Buffer | 1 | 6 of 6 | 7 + 1 | not run | not run | not run | not run | 1 / 1 |
 | stxlib::fft::Plan32 | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 18 / 18 |
 | stxlib::fft::Plan64 | 9 | 6 of 6 | 7 + 9 | not run | not run | not run | not run | 16 / 16 |
@@ -21,17 +22,34 @@ Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_
 | stxlib::glyphs::GlyphStore | 3 | 7 of 7 | 8 + 3 | not run | not run | not run | not run | 6 / 6 |
 | stxlib::memory | 1 | 4 of 4 | 5 + 1 | not run | not run | not run | not run | 2 / 3 (1 open, covered by blocks or tests) |
 | stxlib::Mutex | 3 | 3 of 3 | 4 + 3 | not run | not run | not run | not run | 6 / 6 |
+| stxlib::RecursiveMutex | 1 | 3 of 4 | 4 + 0 | not run | not run | not run | not run | 3 / 3 |
+| stxlib::StopCallback | 1 | 1 of 1 | 1 + 1 | not run | not run | not run | not run | 1 / 1 |
+| stxlib::StopSource | 1 | 5 of 6 | 6 + 1 | not run | not run | not run | not run | 2 / 2 |
+| stxlib::StopToken | 0 | 2 of 4 | 3 + 0 | not run | not run | not run | not run | 0 / 0 |
 | stxlib::AtomicPool | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 17 / 17 |
 | stxlib::Thread | 4 | 5 of 5 | 6 + 4 | not run | not run | not run | not run | 8 / 8 |
+| stxlib::UniqueLock | 6 | 7 of 11 | 8 + 6 | not run | not run | not run | not run | 10 / 10 |
 | stxlib::Vector | 9 | 22 of 22 | 23 + 10 | not run | not run | not run | not run | 10 / 10 |
 | stxlib::stx_minmallocpp | 1 | 3 of 4 | 4 + 3 | not run | not run | not run | not run | 27 / 28 (1 open, covered by blocks or tests) |
 
 ## Calls the engine does not drive
 
+- stxlib::AtomicWord compare_exchange: expected is a reference the call writes, which the engine's draws do not name; tests/atomic_word_tests.cpp covers it.
+- stxlib::AtomicWord wait: it blocks until another thread changes the word, and the engine has one thread; tests/atomic_word_tests.cpp covers it.
+- stxlib::AtomicWord wait_until: a timed wait for a change no other thread makes: each block would wait out its interval; tests/atomic_word_tests.cpp covers it.
+- stxlib::AtomicWord wait_for: a timed wait for a change no other thread makes: each block would wait out its interval; tests/atomic_word_tests.cpp covers it.
 - stxlib::File create_directory: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
 - stxlib::File create_directories: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
 - stxlib::File remove_tree: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
 - stxlib::File rename: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
 - stxlib::File copy_file: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
 - stxlib::File list_directory: its declaration names some of its failures, not all (not_found among those left out); driven, it would report the declaration rather than the code.
+- stxlib::RecursiveMutex unlock: the state after it depends on the depth the thread holds, which no query reports (only the last unlock frees it); tests/locks_tests.cpp and the death case recursive_foreign_unlock cover it.
+- stxlib::StopSource StopSource: arguments the engine does not draw (no engine.invoke).
+- stxlib::StopToken StopToken: arguments the engine does not draw (no engine.invoke).
+- stxlib::StopToken same_state: arguments the engine does not draw (no engine.invoke).
+- stxlib::UniqueLock UniqueLock: a constructor.
+- stxlib::UniqueLock UniqueLock: arguments the engine does not draw (no engine.invoke).
+- stxlib::UniqueLock UniqueLock: arguments the engine does not draw (no engine.invoke).
+- stxlib::UniqueLock operator=: arguments the engine does not draw (no engine.invoke).
 - stxlib::stx_minmallocpp end_thread: ends the calling thread's allocator state, which the engine's own thread still uses.
