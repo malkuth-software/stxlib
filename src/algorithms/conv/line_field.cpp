@@ -191,7 +191,7 @@ OperationStatus transfer(const LineField& field, const Mode mode, const MutableL
     if (mode == Mode::preview) {
         double value[max_line_lanes];
         for (usize k = 0; k < target.nodes; ++k) {
-            const double x = target.nodes > 1 ? static_cast<double>(k) * (static_cast<double>(n) - 1.0) / (static_cast<double>(target.nodes) - 1.0) : 0.0;
+            const double x = (static_cast<double>(k) + 0.5) * static_cast<double>(n) / static_cast<double>(target.nodes) - 0.5;
             detail::line_at(state, x, value);
             for (usize l = 0; l < lanes; ++l) out[k * target.node_stride + l] = value[l];
         }

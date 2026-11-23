@@ -69,9 +69,10 @@ struct Region final {
     usize y1{0};
 };
 
-// Separable resampling to target_width x target_height. Preview: nodes aligned at both ends
-// (target pixel x reads source node x (w - 1) / (W - 1)). Canon: each target pixel's
-// footprint (x + [0, 1)) w / W - 1/2.
+// Separable resampling to target_width x target_height. Both modes use one lattice: target pixel
+// x covers the source footprint (x + [0, 1)) w / W - 1/2 (source node coordinates; node k is the
+// centre of source pixel k). Preview reads the footprint's centre, (x + 1/2) w / W - 1/2; canon
+// averages over it. Coordinates outside the source clamp to its border.
 struct AxisMap final {
     usize target_width{0};
     usize target_height{0};
@@ -258,10 +259,9 @@ private:
     friend struct detail::FieldAccess;
 };
 
-// Resamples to target.nodes samples. Preview: nodes aligned at both ends (target k reads x =
-// k (n - 1) / (N - 1)). Canon: the field's average over each target sample's footprint
-// (k + [0, 1)) n / N - 1/2, exact for the quintic cells. Lanes must match. On failure nothing
-// has been written.
+// Resamples to target.nodes samples on one lattice: target k covers (k + [0, 1)) n / N - 1/2.
+// Preview reads its centre, (k + 1/2) n / N - 1/2; canon averages over it (exact for the quintic
+// cells). Lanes must match. On failure nothing has been written.
 [[nodiscard]] OperationStatus transfer(const LineField& field, Mode mode, const MutableLineSamples& target) noexcept;
 // target sample k = the field at positions[k] (finite; clamped). On failure nothing has been
 // written.

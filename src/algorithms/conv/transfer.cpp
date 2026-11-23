@@ -59,11 +59,13 @@ u8* pixel_at(const MutableRgba8Image& destination, const usize x, const usize y)
 
 // ---------------------------------------------------------------- maps for preview
 
-// Preview axis map: nodes aligned at both ends.
+// Preview axis map: each destination pixel reads the centre of the footprint canon averages,
+// (x + 1/2) w / W - 1/2, so swapping preview for canon never shifts the image (owner,
+// 2026-11-23: one lattice for both modes).
 void axis_at(const double width, const double height, const double target_width, const double target_height, const usize x, const usize y,
              double& u, double& v) noexcept {
-    u = target_width > 1.0 ? static_cast<double>(x) * (width - 1.0) / (target_width - 1.0) : 0.0;
-    v = target_height > 1.0 ? static_cast<double>(y) * (height - 1.0) / (target_height - 1.0) : 0.0;
+    u = (static_cast<double>(x) + 0.5) * width / target_width - 0.5;
+    v = (static_cast<double>(y) + 0.5) * height / target_height - 0.5;
 }
 
 void mesh_at(const MeshMap& mesh, const double x, const double y, double& u, double& v) noexcept {
@@ -225,6 +227,13 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         jlo = j < jlo ? j : jlo;
         jhi = j > jhi ? j : jhi;
     }
+    // The source rows those cells read: each cell's window is rows j - 3 .. j + 4, clamped to the
+    // field (settle_range), and the simple kernel reads j - 2 .. j + 3. Only these rows are
+    // evaluated, so a region costs in proportion to its own rows, not the field's (a display
+    // reduction split into strips does the work once in all, not once per strip). The bytes are
+    // the same: the rows outside the band are never read.
+    const usize rlo = jlo > 3 ? jlo - 3 : 0;
+    const usize rhi = jhi + 4 < rows - 1 ? jhi + 4 : rows - 1;
     constexpr usize pad = 4 * channel_count;
     const usize lanes = rows * channel_count;
     Vector<FootprintNode> u_nodes;
@@ -258,17 +267,17 @@ OperationStatus axis_canon(const FieldState& field, const AxisMap& map, const Mu
         // then one vertical contest per destination column on those averages, as the 1D method
         // orders it; exact canon contests at every u node instead.
         if (fused) {
-            for (usize k = 0; k < lanes; ++k) column[k] = 0.0;
+            for (usize k = rlo * channel_count; k < (rhi + 1) * channel_count; ++k) column[k] = 0.0;
         }
         for (usize a = 0; a < node_count; ++a) {
             const usize i = nodes[a].cell;
             if (i != cached) {
-                for (usize r = 0; r < rows; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
+                for (usize r = rlo; r <= rhi; ++r) row_cell(field, r, i, row_cells + r * 6 * channel_count);
                 cached = i;
             }
             double tauu[5];
             tail_weights(nodes[a].t, tauu);
-            for (usize r = 0; r < rows; ++r) {
+            for (usize r = rlo; r <= rhi; ++r) {
                 const double* const cell = row_cells + r * 6 * channel_count;
                 for (usize c = 0; c < channel_count; ++c) {
                     double value = cell[c] + cell[1 * channel_count + c] * tauu[0];
@@ -795,16 +804,16 @@ Region affected_region(const NodeBox& box, const AxisMap& map, const usize sourc
     const double H = static_cast<double>(map.target_height);
     const double w = static_cast<double>(source_width);
     const double h = static_cast<double>(source_height);
-    // Preview: x reads u = x (w - 1) / (W - 1). Canon: footprint [x s - 1/2, (x + 1) s - 1/2],
-    // s = w / W. The union of both pixel ranges, grown by one.
+    // Preview: x reads u = (x + 1/2) s - 1/2, the centre of canon's footprint
+    // [x s - 1/2, (x + 1) s - 1/2], s = w / W. The union of both pixel ranges, grown by one.
     const double u0 = static_cast<double>(box.u0);
     const double u1 = static_cast<double>(box.u1);
     const double v0 = static_cast<double>(box.v0);
     const double v1 = static_cast<double>(box.v1);
-    const double px0 = W > 1.0 ? u0 * (W - 1.0) / (w - 1.0) : 0.0;
-    const double px1 = W > 1.0 ? u1 * (W - 1.0) / (w - 1.0) : 0.0;
-    const double py0 = H > 1.0 ? v0 * (H - 1.0) / (h - 1.0) : 0.0;
-    const double py1 = H > 1.0 ? v1 * (H - 1.0) / (h - 1.0) : 0.0;
+    const double px0 = (u0 + 0.5) * W / w - 0.5;
+    const double px1 = (u1 + 0.5) * W / w - 0.5;
+    const double py0 = (v0 + 0.5) * H / h - 0.5;
+    const double py1 = (v1 + 0.5) * H / h - 0.5;
     const double cx0 = (u0 + 0.5) * W / w - 1.0;
     const double cx1 = (u1 + 0.5) * W / w;
     const double cy0 = (v0 + 0.5) * H / h - 1.0;
