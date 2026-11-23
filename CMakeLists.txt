@@ -387,6 +387,7 @@ endif()
 set(STXLIB_BOUNDARY_SOURCES
     src/core/atomic_rules.cpp
     src/core/capabilities.cpp
+    src/core/channels.cpp
     src/core/children.cpp
     src/core/console.cpp
     src/core/desktop.cpp
@@ -402,6 +403,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/local_time.cpp
     src/core/memory.cpp
     src/core/path.cpp
+    src/core/pipes.cpp
     src/core/process.cpp
     src/core/process_info.cpp
     src/core/report.cpp
@@ -443,6 +445,7 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/library_posix.cpp
     src/hosted/posix/local_time_posix.cpp
     src/hosted/posix/pages_posix.cpp
+    src/hosted/posix/pipes_posix.cpp
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp
     src/hosted/posix/trace_posix.cpp
@@ -482,6 +485,7 @@ set(STXLIB_HOSTED_EMSCRIPTEN_SOURCES
     src/hosted/emscripten/clocks_emscripten.cpp
     src/hosted/emscripten/images_emscripten.cpp
     src/hosted/emscripten/local_time_emscripten.cpp
+    src/hosted/emscripten/pipes_emscripten.cpp
     src/hosted/emscripten/process_emscripten.cpp
     src/hosted/emscripten/runtime_emscripten.cpp
     src/hosted/emscripten/trace_emscripten.cpp
@@ -524,6 +528,7 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/known_folders_windows.cpp
     src/hosted/windows/local_time_windows.cpp
     src/hosted/windows/pages_windows.cpp
+    src/hosted/windows/pipes_windows.cpp
     src/hosted/windows/process_windows.cpp
     src/hosted/windows/terminal_windows.cpp
     src/hosted/windows/threads_windows.cpp
@@ -826,6 +831,33 @@ else()
     target_compile_definitions(stxlib_algorithms PRIVATE STXLIB_MATH_VARIANT=native)
 endif()
 
+# stx_mcp: a Model Context Protocol server over anonymous pipes
+# (include/stxlib/mcp.hpp, json.hpp; channels and pipes are the
+# boundary's). Its own target, so a program that serves no model links none
+# of it. numeric_text (stxlib_algorithms) reads and writes JSON numbers.
+set(STXLIB_MCP_SOURCES
+    src/mcp/json.cpp
+    src/mcp/protocol.cpp
+    src/mcp/schema.cpp
+    src/mcp/server.cpp)
+add_library(stxlib_mcp STATIC ${STXLIB_MCP_SOURCES})
+add_library(stxlib::mcp ALIAS stxlib_mcp)
+target_include_directories(stxlib_mcp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_features(stxlib_mcp PUBLIC cxx_std_20)
+target_compile_options(stxlib_mcp PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
+set_target_properties(stxlib_mcp PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(stxlib_mcp PUBLIC stxlib_algorithms stxlib_boundary)
+# Its headers reach thread state through threads.hpp, as the algorithms do.
+target_compile_definitions(stxlib_mcp PRIVATE $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>)
+
 option(STXLIB_BUILD_TOOLS "Build STXlib's table generators" OFF)
 if(STXLIB_BUILD_TOOLS)
     # Each regenerates its family's table header in src/algorithms/math/ byte
@@ -870,14 +902,14 @@ if(STXLIB_TESTS)
     endif()
 
     set(stxlib_boundary_tests vocabulary memory platform path files threads thread_pool local_time rounding
-                               owned_vocabulary owned_text ascii_search heap transcode thread_records)
+                               owned_vocabulary owned_text ascii_search heap transcode thread_records channels)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()
     if(stxlib_web_tests)
         list(APPEND stxlib_boundary_tests emscripten)
     else()
-        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor)
+        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor pipes)
     endif()
     foreach(test_name IN LISTS stxlib_boundary_tests)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
@@ -1084,6 +1116,20 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # stxlib::mcp: JSON reading and writing, and the server driven by a fake
+    # client over pipes (tests/mcp_tests.cpp). Pipes are not a page's, so
+    # neither is built for the web.
+    if(NOT stxlib_web_tests)
+        foreach(test_name IN ITEMS json mcp)
+            add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
+            target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::mcp)
+            target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
+            add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
+        endforeach()
+        # mcp_tests also checks the schema subset (src/mcp/schema.hpp).
+        target_include_directories(stxlib_mcp_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        set_tests_properties(stxlib_mcp_tests PROPERTIES TIMEOUT 120)
+    endif()
     # STXlib's outline-atomics helpers (tests/outline_atomics_tests.cpp):
     # every helper against a plain reference on the loop and, where the CPU
     # has LSE, on the LSE path, the register contract, detection, and a

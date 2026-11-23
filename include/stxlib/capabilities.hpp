@@ -91,9 +91,13 @@ enum class Capability : u8 {
     // decision 2026-11-15): FreeBSD's framebuffer, terminal and evdev, for
     // the appliance's foreground target.
     display_surface = 34,
+    // Anonymous pipes and the standard streams claimed for a protocol
+    // (pipes.hpp; stx_mcp's stdio transport). Every native family; not a
+    // page.
+    anonymous_pipes = 35,
 };
 
-inline constexpr usize capability_count = 35;
+inline constexpr usize capability_count = 36;
 
 // Whether this build on this host provides `capability`. A value outside
 // the set is not supported.
