@@ -576,7 +576,7 @@ void* refill(Heap& heap, const usize class_index) noexcept {
 }
 
 void* allocate_singleton(const usize bytes, const usize alignment) noexcept {
-    STX_MINMALLOCPP_CHECK(bytes >= 1 && bytes <= huge_threshold && alignment <= huge_threshold);
+    STX_MINMALLOCPP_CHECK((bytes >= 1 && bytes <= huge_threshold && alignment <= huge_threshold) || (!wide_addresses && bytes >= 1 && singleton_admits(bytes, alignment)));
     // A run of slices is taken under the structure lock (allocator.hpp,
     // "Process end").
     if (os::process_ending()) return nullptr;

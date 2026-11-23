@@ -3761,7 +3761,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3779,7 +3779,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3797,7 +3797,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3815,7 +3815,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3833,7 +3833,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3851,7 +3851,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3869,7 +3869,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3887,7 +3887,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3959,7 +3959,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3977,7 +3977,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -3995,7 +3995,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4013,7 +4013,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4031,7 +4031,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4103,7 +4103,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4121,7 +4121,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4139,11 +4139,11 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
-        "src/state/stx_minmallocpp/region.hpp": "079718a533cca1cf0ba7673ccb22387ee3286284ae4a78f0541f4af37ba72152",
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40",
+        "src/state/stx_minmallocpp/region.hpp": "131977209ade29b7c8e4c3e8a2886e05bb2693d03cfe4d953efefe522426981a",
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b",
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
-        "src/state/stx_minmallocpp/region.cpp": "929d0478f6c54cd55b30f8a377b4a868bc64a268895a87aaae1e74f8651119cc"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4",
+        "src/state/stx_minmallocpp/region.cpp": "3b4d1d1c1fee450377f4e1d041d7a460fa7b3e3239e9118aa93aa3de692840d4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4159,7 +4159,7 @@
         "release_with (src/state/stx_minmallocpp/allocator.cpp:216): 1 refusal(s), statements read up to the last",
         "release_common (src/state/stx_minmallocpp/allocator.cpp:158): 6 refusal(s), statements read up to the last",
         "release_general (src/state/stx_minmallocpp/allocator.cpp:92): 6 refusal(s), statements read up to the last",
-        "release_huge (src/state/stx_minmallocpp/region.cpp:409): 2 refusal(s), statements read up to the last",
+        "release_huge (src/state/stx_minmallocpp/region.cpp:425): 2 refusal(s), statements read up to the last",
         "files read: src/state/stx_minmallocpp/allocator.cpp, src/state/stx_minmallocpp/region.hpp, src/state/stx_minmallocpp/page.hpp, src/state/stx_minmallocpp/heap.cpp, src/state/stx_minmallocpp/region.cpp"
       ]
     },
@@ -4189,7 +4189,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4232,7 +4232,7 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -4253,8 +4253,8 @@
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
       "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
-        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
-        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
+        "src/state/stx_minmallocpp/allocator.cpp": "c4f58914f3aedd79e74c92e1c74474bc44351d0a694162c929c476827633ee40",
+        "src/state/stx_minmallocpp/heap.cpp": "577d947cd67d30df71b4cc10782b4f35b2fe3b6522b51dc9947a3479d77502e4",
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b",
         "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
       },

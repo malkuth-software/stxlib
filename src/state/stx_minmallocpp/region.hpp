@@ -176,6 +176,12 @@ static_assert(fitting_floor(2 * (huge_threshold >> slice_shift) - 1) <=
                   run_list_floor(run_list_of(region_slices - first_data_slice)),
               "a page of one block, at any size and alignment it admits, fits a new region");
 
+// The larger pages of one block wasm32 admits (layout.hpp, singleton_limit),
+// aligned to at most a slice, so a run of their slices alone.
+static_assert(fitting_floor(singleton_limit >> slice_shift) <=
+                  run_list_floor(run_list_of(region_slices - first_data_slice)),
+              "a page of one block up to singleton_limit fits a new region");
+
 // A run of slices: `base` is its region, 0 when there is none.
 struct RunPlace final {
     uptr base{0};
@@ -188,7 +194,13 @@ inline constexpr usize huge_capacity = 4096;
 
 // One block with a mapping to itself. `block` is the block's address while
 // it is live and 0 otherwise; a release takes it with a compare-exchange,
-// so a second release is refused.
+// so a second release is refused. A mapping starts on a region boundary
+// and its directory cells name its record. Where addresses are wide it
+// reserves whole regions, address space that costs nothing until
+// committed; on wasm32, where every reserved byte is linear memory, it
+// reserves only its own pages (reserved_bytes, region.cpp
+// huge_reservation), and the rest of its last cell is never another
+// mapping's or region's, since those start on a region boundary too.
 struct HugeRecord final {
     std::atomic<uptr> block{0};
     usize reserved_bytes{0};

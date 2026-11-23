@@ -51,7 +51,7 @@ namespace {
             return block;
         }
     }
-    if (request <= huge_threshold && alignment <= huge_threshold) {
+    if (singleton_admits(request, alignment)) {
         void* const alone = allocate_singleton(request, alignment);
         return alone;
     }
@@ -59,8 +59,8 @@ namespace {
     // allocate_singleton make the same test themselves.
     if (os::process_ending()) return nullptr;
     if (!ensure_started()) return nullptr;
-    // A mapping starts on a 1 GiB boundary, which meets every alignment
-    // allocate accepts.
+    // A mapping starts on a region boundary (1 GiB; 64 MiB on wasm32),
+    // which meets every alignment allocate accepts.
     void* const mapped = allocate_huge(request);
     return mapped;
 }
