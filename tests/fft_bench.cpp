@@ -23,6 +23,18 @@
 // table for engine_policy (plan.cpp): the faster engine per size and tier.
 // The shifted and dip modes are timed once each, beside BFFT's forward.
 //
+//   stxlib_fft_bench [repetitions] walk
+//
+// times only the walk (the plain mode's kernel from N = 16): the fused and
+// exact builds at 128 bits through the public calls on a caller's workspace
+// (rfft_with_work, irfft_with_work, magnitude_with_work, so STXlib's
+// subnormal scan and flush are in the time), beside BFFT's DIF and DIT
+// (with STXLIB_BFFT_ORACLE_DIR) and FFTW (with STXLIB_FFT_BENCH_FFTW_DIR, an
+// FFTW 3 prefix; plans made with FFTW_MEASURE, the inverse preserving its
+// input), both precisions, forward, inverse and magnitude. A magnitude
+// for BFFT and FFTW is their forward and a sqrt(re^2 + im^2) pass. It
+// prints the times and the ratios walk / other (below 1 is faster).
+//
 // Timing uses the host's steady clock (std::chrono): a benchmark's output
 // is not a promised result (A1, last paragraph).
 
@@ -40,6 +52,10 @@
 #include "detail/bruun_dif_kernel.hpp"
 #include "detail/bruun_dip_kernel.hpp"
 #include "detail/bruun_dit_kernel.hpp"
+#endif
+
+#if defined(STXLIB_FFT_BENCH_FFTW)
+#include <fftw3.h>
 #endif
 
 #include <chrono>
@@ -200,6 +216,7 @@ public:
         (void)ready;
     }
     void run() override { kernel_.forward_standard(input_.data(), output_.data(), work_.data(), native_.data()); }
+    [[nodiscard]] const std::vector<bruun::complex_t>& bins() const { return output_; }
 
 private:
     bruun::DIF_RFFT_kernel kernel_;
@@ -232,6 +249,7 @@ public:
         (void)ready;
     }
     void run() override { kernel_.forward_standard_f32(input_.data(), output_.data(), work_.data(), native_.data()); }
+    [[nodiscard]] const std::vector<bruun::complex_f32_t>& bins() const { return output_; }
 
 private:
     bruun::DIF_RFFT_kernel kernel_;
@@ -273,6 +291,7 @@ public:
             kernel_.inverse_simd(spectrum_.data(), back_.data(), work_.data());
         }
     }
+    [[nodiscard]] const std::vector<bruun::complex_t>& bins() const { return output_; }
 
 private:
     bruun::DIT_RFFT_kernel kernel_;
@@ -302,6 +321,7 @@ public:
             kernel_.inverse_simd_f32(spectrum_.data(), back_.data(), work_.data());
         }
     }
+    [[nodiscard]] const std::vector<bruun::complex_f32_t>& bins() const { return output_; }
 
 private:
     bruun::DIT_RFFT_kernel kernel_;
@@ -616,6 +636,308 @@ void bench_mode(const Mode mode, const int repetitions) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// The walk beside BFFT and FFTW ("stxlib_fft_bench [repetitions] walk").
+// ---------------------------------------------------------------------------
+
+enum class Run : int { forward = 0, inverse = 1, magnitude = 2 };
+
+template <typename Plan, typename Real, typename Complex>
+class WalkJob final : public Job {
+public:
+    WalkJob(const Plan& plan, const std::vector<Real>& input, const std::vector<Complex>& spectrum, const Run what)
+        : plan_(plan), input_(input), spectrum_(spectrum), bins_(spectrum.size()), back_(input.size()),
+          magnitude_(spectrum.size()), work_(plan.work_size()), what_(what) {}
+    void run() override {
+        const MutableView<Real> work(work_.data(), work_.size());
+        if (what_ == Run::forward) {
+            const stxlib::OperationStatus done = plan_.rfft_with_work(
+                View<Real>(input_.data(), input_.size()), MutableView<Complex>(bins_.data(), bins_.size()), work);
+            (void)done;
+        } else if (what_ == Run::inverse) {
+            const stxlib::OperationStatus done = plan_.irfft_with_work(
+                View<Complex>(spectrum_.data(), spectrum_.size()), MutableView<Real>(back_.data(), back_.size()), work);
+            (void)done;
+        } else {
+            const stxlib::OperationStatus done = plan_.magnitude_with_work(
+                View<Real>(input_.data(), input_.size()), MutableView<Real>(magnitude_.data(), magnitude_.size()), work);
+            (void)done;
+        }
+    }
+
+private:
+    const Plan& plan_;
+    const std::vector<Real>& input_;
+    const std::vector<Complex>& spectrum_;
+    std::vector<Complex> bins_;
+    std::vector<Real> back_;
+    std::vector<Real> magnitude_;
+    std::vector<Real> work_;
+    Run what_;
+};
+
+// A forward job, then sqrt(re^2 + im^2) over its bins.
+template <typename Forward, typename Real>
+class MagnitudeAfter final : public Job {
+public:
+    explicit MagnitudeAfter(Forward& forward) : forward_(forward), magnitude_(forward.bins().size()) {}
+    void run() override {
+        forward_.run();
+        for (usize k = 0; k < magnitude_.size(); ++k) {
+            const Real re = forward_.bins()[k].re;
+            const Real im = forward_.bins()[k].im;
+            magnitude_[k] = std::sqrt(re * re + im * im);
+        }
+    }
+
+private:
+    Forward& forward_;
+    std::vector<Real> magnitude_;
+};
+
+// Forward, inverse and magnitude times in one precision.
+struct Three final {
+    double forward{0.0};
+    double inverse{0.0};
+    double magnitude{0.0};
+};
+
+#if defined(STXLIB_FFT_BENCH_FFTW)
+// FFTW's real transforms in double (fftw_) and float (fftwf_).
+class Fftw64 final : public Job {
+public:
+    Fftw64(const usize n, const std::vector<double>& x, const std::vector<Complex64>& spectrum, const Run what)
+        : n_(n), what_(what) {
+        const int size = static_cast<int>(n);
+        in_ = static_cast<double*>(fftw_malloc(sizeof(double) * n));
+        out_ = static_cast<double*>(fftw_malloc(sizeof(double) * n));
+        bins_ = static_cast<fftw_complex*>(fftw_malloc(sizeof(fftw_complex) * (n / 2 + 1)));
+        spectrum_ = static_cast<fftw_complex*>(fftw_malloc(sizeof(fftw_complex) * (n / 2 + 1)));
+        magnitude_.assign(n / 2 + 1, 0.0);
+        forward_ = fftw_plan_dft_r2c_1d(size, in_, bins_, FFTW_MEASURE);
+        inverse_ = fftw_plan_dft_c2r_1d(size, spectrum_, out_, FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+        for (usize i = 0; i < n; ++i) in_[i] = x[i];
+        for (usize k = 0; k <= n / 2; ++k) {
+            spectrum_[k][0] = spectrum[k].re;
+            spectrum_[k][1] = spectrum[k].im;
+        }
+    }
+    Fftw64(const Fftw64&) = delete;
+    Fftw64& operator=(const Fftw64&) = delete;
+    ~Fftw64() override {
+        fftw_destroy_plan(forward_);
+        fftw_destroy_plan(inverse_);
+        fftw_free(in_);
+        fftw_free(out_);
+        fftw_free(bins_);
+        fftw_free(spectrum_);
+    }
+    void run() override {
+        if (what_ == Run::inverse) {
+            fftw_execute_dft_c2r(inverse_, spectrum_, out_);
+            return;
+        }
+        fftw_execute_dft_r2c(forward_, in_, bins_);
+        if (what_ == Run::magnitude) {
+            for (usize k = 0; k <= n_ / 2; ++k) magnitude_[k] = std::sqrt(bins_[k][0] * bins_[k][0] + bins_[k][1] * bins_[k][1]);
+        }
+    }
+
+private:
+    usize n_;
+    Run what_;
+    double* in_{nullptr};
+    double* out_{nullptr};
+    fftw_complex* bins_{nullptr};
+    fftw_complex* spectrum_{nullptr};
+    std::vector<double> magnitude_;
+    fftw_plan forward_{nullptr};
+    fftw_plan inverse_{nullptr};
+};
+
+class Fftw32 final : public Job {
+public:
+    Fftw32(const usize n, const std::vector<float>& x, const std::vector<Complex32>& spectrum, const Run what)
+        : n_(n), what_(what) {
+        const int size = static_cast<int>(n);
+        in_ = static_cast<float*>(fftwf_malloc(sizeof(float) * n));
+        out_ = static_cast<float*>(fftwf_malloc(sizeof(float) * n));
+        bins_ = static_cast<fftwf_complex*>(fftwf_malloc(sizeof(fftwf_complex) * (n / 2 + 1)));
+        spectrum_ = static_cast<fftwf_complex*>(fftwf_malloc(sizeof(fftwf_complex) * (n / 2 + 1)));
+        magnitude_.assign(n / 2 + 1, 0.0F);
+        forward_ = fftwf_plan_dft_r2c_1d(size, in_, bins_, FFTW_MEASURE);
+        inverse_ = fftwf_plan_dft_c2r_1d(size, spectrum_, out_, FFTW_MEASURE | FFTW_PRESERVE_INPUT);
+        for (usize i = 0; i < n; ++i) in_[i] = x[i];
+        for (usize k = 0; k <= n / 2; ++k) {
+            spectrum_[k][0] = spectrum[k].re;
+            spectrum_[k][1] = spectrum[k].im;
+        }
+    }
+    Fftw32(const Fftw32&) = delete;
+    Fftw32& operator=(const Fftw32&) = delete;
+    ~Fftw32() override {
+        fftwf_destroy_plan(forward_);
+        fftwf_destroy_plan(inverse_);
+        fftwf_free(in_);
+        fftwf_free(out_);
+        fftwf_free(bins_);
+        fftwf_free(spectrum_);
+    }
+    void run() override {
+        if (what_ == Run::inverse) {
+            fftwf_execute_dft_c2r(inverse_, spectrum_, out_);
+            return;
+        }
+        fftwf_execute_dft_r2c(forward_, in_, bins_);
+        if (what_ == Run::magnitude) {
+            for (usize k = 0; k <= n_ / 2; ++k) magnitude_[k] = std::sqrt(bins_[k][0] * bins_[k][0] + bins_[k][1] * bins_[k][1]);
+        }
+    }
+
+private:
+    usize n_;
+    Run what_;
+    float* in_{nullptr};
+    float* out_{nullptr};
+    fftwf_complex* bins_{nullptr};
+    fftwf_complex* spectrum_{nullptr};
+    std::vector<float> magnitude_;
+    fftwf_plan forward_{nullptr};
+    fftwf_plan inverse_{nullptr};
+};
+#endif
+
+void print_three(const char* const who, const usize n, const Three& wide, const Three& narrow) {
+    std::printf("walk-bench %-12s N=%-8zu f64 fwd %11.1f inv %11.1f mag %11.1f  f32 fwd %11.1f inv %11.1f mag %11.1f\n",
+                who, n, wide.forward, wide.inverse, wide.magnitude, narrow.forward, narrow.inverse, narrow.magnitude);
+}
+
+void print_ratio(const char* const who, const usize n, const Three& walk, const Three& walk32, const Three& other,
+                 const Three& other32) {
+    std::printf("walk-ratio walk/%-7s N=%-8zu f64 fwd %.3f inv %.3f mag %.3f  f32 fwd %.3f inv %.3f mag %.3f\n", who, n,
+                walk.forward / other.forward, walk.inverse / other.inverse, walk.magnitude / other.magnitude,
+                walk32.forward / other32.forward, walk32.inverse / other32.inverse,
+                walk32.magnitude / other32.magnitude);
+}
+
+template <typename Plan, typename Real, typename Complex>
+[[nodiscard]] Three time_walk(const Plan& plan, const std::vector<Real>& x, const std::vector<Complex>& spectrum,
+                              const int repetitions) {
+    WalkJob<Plan, Real, Complex> forward(plan, x, spectrum, Run::forward);
+    WalkJob<Plan, Real, Complex> inverse(plan, x, spectrum, Run::inverse);
+    WalkJob<Plan, Real, Complex> magnitude(plan, x, spectrum, Run::magnitude);
+    const Three result{.forward = time_job(forward, repetitions),
+                       .inverse = time_job(inverse, repetitions),
+                       .magnitude = time_job(magnitude, repetitions)};
+    return result;
+}
+
+void bench_walk(const int repetitions) {
+    using stxlib::fft::detail::WalkOptions;
+    using stxlib::fft::detail::WalkTier;
+    std::printf("walk: ns per transform; walk-ratio is the walk's (fused) time over the other's, below 1 is faster\n");
+    for (usize n = 16; n <= (usize{1} << 20); n <<= 1) {
+        Signal signal = signal_of(n);
+        Three walk{};
+        Three walk32{};
+        Three exact{};
+        Three exact32{};
+        {
+            OperationResult<Plan64> made = Plan64::make(n, Mode::plain);
+            OperationResult<Plan32> made32 = Plan32::make(n, Mode::plain);
+            if (!made.succeeded() || !made32.succeeded()) continue;
+            const Plan64 plan = static_cast<OperationResult<Plan64>&&>(made).take_value();
+            const Plan32 plan32 = static_cast<OperationResult<Plan32>&&>(made32).take_value();
+            signal.spectrum.assign(plan.bins(), Complex64{});
+            signal.spectrum32.assign(plan32.bins(), Complex32{});
+            std::vector<double> work(plan.work_size());
+            std::vector<float> work32(plan32.work_size());
+            const stxlib::OperationStatus a = plan.rfft_with_work(
+                View<double>(signal.x.data(), n), MutableView<Complex64>(signal.spectrum.data(), signal.spectrum.size()),
+                MutableView<double>(work.data(), work.size()));
+            const stxlib::OperationStatus b = plan32.rfft_with_work(
+                View<float>(signal.xf.data(), n),
+                MutableView<Complex32>(signal.spectrum32.data(), signal.spectrum32.size()),
+                MutableView<float>(work32.data(), work32.size()));
+            (void)a;
+            (void)b;
+            walk = time_walk<Plan64, double, Complex64>(plan, signal.x, signal.spectrum, repetitions);
+            walk32 = time_walk<Plan32, float, Complex32>(plan32, signal.xf, signal.spectrum32, repetitions);
+        }
+        {
+            // The exact build at 128 bits (exact128 where it runs).
+            WalkOptions options{};
+            options.automatic_tier = false;
+            options.tier = stxlib::fft::detail::walk_tier_runs(WalkTier::exact128) ? WalkTier::exact128
+                                                                                    : WalkTier::exact_portable;
+            const Engines walk_engines{.forward = Engine::walk, .inverse = Engine::walk};
+            OperationResult<Plan64> made =
+                PlanAccess::make64(n, Mode::plain, stxlib::simd::selected_level(), walk_engines, options);
+            OperationResult<Plan32> made32 =
+                PlanAccess::make32(n, Mode::plain, stxlib::simd::selected_level(), walk_engines, options);
+            if (made.succeeded() && made32.succeeded()) {
+                const Plan64 plan = static_cast<OperationResult<Plan64>&&>(made).take_value();
+                const Plan32 plan32 = static_cast<OperationResult<Plan32>&&>(made32).take_value();
+                exact = time_walk<Plan64, double, Complex64>(plan, signal.x, signal.spectrum, repetitions);
+                exact32 = time_walk<Plan32, float, Complex32>(plan32, signal.xf, signal.spectrum32, repetitions);
+            }
+        }
+        print_three("walk-fused", n, walk, walk32);
+        print_three("walk-exact", n, exact, exact32);
+        print_ratio("exact", n, walk, walk32, exact, exact32);
+#if defined(STXLIB_FFT_BENCH_BFFT)
+        {
+            BfftPlain64 dif_forward(n, signal.x);
+            BfftPlainInverse64 dif_inverse(n, signal.spectrum);
+            BfftPlain32 dif_forward32(n, signal.xf);
+            BfftPlainInverse32 dif_inverse32(n, signal.spectrum32);
+            MagnitudeAfter<BfftPlain64, double> dif_magnitude(dif_forward);
+            MagnitudeAfter<BfftPlain32, float> dif_magnitude32(dif_forward32);
+            const Three dif{.forward = time_job(dif_forward, repetitions),
+                            .inverse = time_job(dif_inverse, repetitions),
+                            .magnitude = time_job(dif_magnitude, repetitions)};
+            const Three dif32{.forward = time_job(dif_forward32, repetitions),
+                              .inverse = time_job(dif_inverse32, repetitions),
+                              .magnitude = time_job(dif_magnitude32, repetitions)};
+            BfftDit64 dit_forward(n, signal.x, signal.spectrum, true);
+            BfftDit64 dit_inverse(n, signal.x, signal.spectrum, false);
+            BfftDit32 dit_forward32(n, signal.xf, signal.spectrum32, true);
+            BfftDit32 dit_inverse32(n, signal.xf, signal.spectrum32, false);
+            MagnitudeAfter<BfftDit64, double> dit_magnitude(dit_forward);
+            MagnitudeAfter<BfftDit32, float> dit_magnitude32(dit_forward32);
+            const Three dit{.forward = time_job(dit_forward, repetitions),
+                            .inverse = time_job(dit_inverse, repetitions),
+                            .magnitude = time_job(dit_magnitude, repetitions)};
+            const Three dit32{.forward = time_job(dit_forward32, repetitions),
+                              .inverse = time_job(dit_inverse32, repetitions),
+                              .magnitude = time_job(dit_magnitude32, repetitions)};
+            print_three("bfft-dif", n, dif, dif32);
+            print_three("bfft-dit", n, dit, dit32);
+            print_ratio("bfftdif", n, walk, walk32, dif, dif32);
+            print_ratio("bfftdit", n, walk, walk32, dit, dit32);
+        }
+#endif
+#if defined(STXLIB_FFT_BENCH_FFTW)
+        {
+            Fftw64 forward(n, signal.x, signal.spectrum, Run::forward);
+            Fftw64 inverse(n, signal.x, signal.spectrum, Run::inverse);
+            Fftw64 magnitude(n, signal.x, signal.spectrum, Run::magnitude);
+            Fftw32 forward32(n, signal.xf, signal.spectrum32, Run::forward);
+            Fftw32 inverse32(n, signal.xf, signal.spectrum32, Run::inverse);
+            Fftw32 magnitude32(n, signal.xf, signal.spectrum32, Run::magnitude);
+            const Three fftw{.forward = time_job(forward, repetitions),
+                             .inverse = time_job(inverse, repetitions),
+                             .magnitude = time_job(magnitude, repetitions)};
+            const Three fftw32{.forward = time_job(forward32, repetitions),
+                               .inverse = time_job(inverse32, repetitions),
+                               .magnitude = time_job(magnitude32, repetitions)};
+            print_three("fftw", n, fftw, fftw32);
+            print_ratio("fftw", n, walk, walk32, fftw, fftw32);
+        }
+#endif
+    }
+}
+
 // The repetition count: decimal digits, 1 .. 1000; anything else is 5.
 [[nodiscard]] int repetitions_of(const char* const text) {
     int value = 0;
@@ -631,7 +953,11 @@ void bench_mode(const Mode mode, const int repetitions) {
 
 int main(const int argument_count, char** const arguments) {
     int repetitions = 5;
-    if (argument_count == 2) repetitions = repetitions_of(arguments[1]);
+    if (argument_count >= 2) repetitions = repetitions_of(arguments[1]);
+    if (argument_count == 3 && arguments[2][0] == 'w') {
+        bench_walk(repetitions);
+        return 0;
+    }
     bench_plain(repetitions);
     bench_mode(Mode::shifted, repetitions);
     bench_mode(Mode::dip, repetitions);

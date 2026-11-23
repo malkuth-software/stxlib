@@ -1737,6 +1737,15 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
     target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})
+    # FFTW 3 (double and float) beside the walk in the benchmark's walk table,
+    # when a prefix holding include/fftw3.h and lib/libfftw3{,f} is named.
+    set(STXLIB_FFT_BENCH_FFTW_DIR "" CACHE PATH "FFTW 3 prefix for stxlib_fft_bench's walk table")
+    if(STXLIB_FFT_BENCH_FFTW_DIR)
+        target_compile_definitions(stxlib_fft_bench PRIVATE STXLIB_FFT_BENCH_FFTW=1)
+        target_include_directories(stxlib_fft_bench SYSTEM PRIVATE ${STXLIB_FFT_BENCH_FFTW_DIR}/include)
+        target_link_libraries(stxlib_fft_bench PRIVATE ${STXLIB_FFT_BENCH_FFTW_DIR}/lib/libfftw3.a
+                              ${STXLIB_FFT_BENCH_FFTW_DIR}/lib/libfftw3f.a)
+    endif()
     # BFFT itself as the oracle (tests/fft_bfft_oracle_tests.cpp) and in the
     # benchmark's table, when a BFFT checkout is named. Its kernel headers
     # are compiled from there unchanged, as system headers.
