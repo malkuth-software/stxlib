@@ -21,7 +21,17 @@
 //       empty and moved-from plan; nothing is written on a refusal;
 //   F9  the subnormal rule: a subnormal input is read as zero of its sign
 //       (the same values as the input with zeros there, and the caller's
-//       input untouched), and a subnormal result is zero of its sign.
+//       input untouched), and a subnormal result is zero of its sign;
+//   F10 the plain mode's DIT engine (chosen through PlanAccess): F1, F3
+//       and F4 at the selected tier with the same bounds, the round trip
+//       across engines (DIT forward with DIF inverse and the reverse), F6
+//       across the tiers, a DIT choice below N = 16 running DIF, and make()
+//       running the engine policy's engines.
+//
+// The plain mode's DIF forward takes different paths by tier and size
+// (the fused scatter, or the residue walk and the KINV pack from the
+// tier's two-phase size: 8192 at avx2_fma, above 2^20 at vector128); F6
+// up to 2^18 checks that they give the same values.
 //
 // The reference (house style section 8, A1: test references may take
 // freedoms) sums in double-double (two-sum and two-product through the
@@ -68,6 +78,8 @@ using stxlib::fft::Complex64;
 using stxlib::fft::Mode;
 using stxlib::fft::Plan32;
 using stxlib::fft::Plan64;
+using stxlib::fft::detail::Engine;
+using stxlib::fft::detail::Engines;
 using stxlib::fft::detail::PlanAccess;
 using stxlib::simd::Level;
 
@@ -793,6 +805,151 @@ void subnormal_rule() {
     subnormal_inputs32(Mode::shifted);
 }
 
+// ---------------------------------------------------------------------------
+// F10: the DIT engine.
+// ---------------------------------------------------------------------------
+
+[[nodiscard]] Plan64 engine_plan64(const usize n, const Level level, const Engines engines) {
+    OperationResult<Plan64> made = PlanAccess::make64(n, Mode::plain, level, engines);
+    CHECK(made.succeeded());
+    if (!made.succeeded()) return Plan64();
+    return static_cast<OperationResult<Plan64>&&>(made).take_value();
+}
+
+[[nodiscard]] Plan32 engine_plan32(const usize n, const Level level, const Engines engines) {
+    OperationResult<Plan32> made = PlanAccess::make32(n, Mode::plain, level, engines);
+    CHECK(made.succeeded());
+    if (!made.succeeded()) return Plan32();
+    return static_cast<OperationResult<Plan32>&&>(made).take_value();
+}
+
+constexpr Engines dit_engines{.forward = Engine::dit, .inverse = Engine::dit};
+
+[[nodiscard]] bool same_engines(const Engines a, const Engines b) noexcept {
+    return a.forward == b.forward && a.inverse == b.inverse;
+}
+
+void dit_engine_choice() {
+    const Level selected = stxlib::simd::selected_level();
+    // Below N = 16 a DIT choice runs DIF; from 16 it is kept.
+    for (usize n = 4; n <= 32; n <<= 1) {
+        Plan64 wide = engine_plan64(n, selected, dit_engines);
+        Plan32 narrow = engine_plan32(n, selected, dit_engines);
+        const Engines want = n < 16 ? Engines{} : dit_engines;
+        CHECK(same_engines(PlanAccess::engines(wide), want));
+        CHECK(same_engines(PlanAccess::engines(narrow), want));
+    }
+    // make() runs the policy's engines; the other modes run DIF.
+    for (usize n = 16; n <= (usize{1} << 20); n <<= 2) {
+        Plan64 wide = plan64(n, Mode::plain);
+        CHECK(same_engines(PlanAccess::engines(wide), stxlib::fft::detail::engine_policy(selected, n)));
+        Plan64 shifted = plan64(n, Mode::shifted);
+        CHECK(same_engines(PlanAccess::engines(shifted), Engines{}));
+    }
+}
+
+// F1 for DIT, at the selected tier.
+void dit_against_direct_sum() {
+    const Level selected = stxlib::simd::selected_level();
+    for (usize n = 16; n <= 4096; n <<= 1) {
+        const std::vector<double> x = random_signal(n, n + 17);
+        const std::vector<WideComplex> table = twiddles(n);
+        std::vector<ReferenceBin> want(bins_of(Mode::plain, n));
+        for (usize k = 0; k < want.size(); ++k) want[k] = direct_bin(x, table, step_of(Mode::plain, k));
+        const double bound = log2_of(n) + 2.0;
+
+        Plan64 wide = engine_plan64(n, selected, dit_engines);
+        const double error64 = relative_l2(widened(forward64(wide, x)), want) / epsilon64;
+        CHECK(error64 <= bound);
+        if (error64 > bound) std::printf("  dit float64 N=%zu: %.3f eps\n", n, error64);
+
+        const std::vector<float> xf = rounded_signal(x);
+        std::vector<double> xr(n);
+        for (usize index = 0; index < n; ++index) xr[index] = static_cast<double>(xf[index]);
+        std::vector<ReferenceBin> want32(bins_of(Mode::plain, n));
+        for (usize k = 0; k < want32.size(); ++k) want32[k] = direct_bin(xr, table, step_of(Mode::plain, k));
+        Plan32 narrow = engine_plan32(n, selected, dit_engines);
+        const double error32 = relative_l2(widened(forward32(narrow, xf)), want32) / epsilon32;
+        CHECK(error32 <= bound);
+        if (error32 > bound) std::printf("  dit float32 N=%zu: %.3f eps\n", n, error32);
+    }
+}
+
+[[nodiscard]] double worst_difference(const std::vector<double>& a, const std::vector<double>& b) {
+    double worst_sample = 0.0;
+    for (usize index = 0; index < a.size() && index < b.size(); ++index) {
+        const double error = std::fabs(a[index] - b[index]);
+        if (error > worst_sample) worst_sample = error;
+    }
+    return worst_sample;
+}
+
+[[nodiscard]] double worst_difference(const std::vector<float>& a, const std::vector<float>& b) {
+    double worst_sample = 0.0;
+    for (usize index = 0; index < a.size() && index < b.size(); ++index) {
+        const double error = std::fabs(static_cast<double>(a[index]) - static_cast<double>(b[index]));
+        if (error > worst_sample) worst_sample = error;
+    }
+    return worst_sample;
+}
+
+// F3 and F4 for DIT, and the round trip across engines, at the selected tier.
+void dit_round_trip_and_parseval() {
+    const Level selected = stxlib::simd::selected_level();
+    const Engines dit_then_dif{.forward = Engine::dit, .inverse = Engine::dif};
+    const Engines dif_then_dit{.forward = Engine::dif, .inverse = Engine::dit};
+    for (usize n = 16; n <= (usize{1} << 20); n <<= 1) {
+        const std::vector<double> x = random_signal(n, 3 * n + 1);
+        const Wide signal_energy = signal_energy_of(x);
+        const double bound = log2_of(n) + 2.0;
+
+        Plan64 wide = engine_plan64(n, selected, dit_engines);
+        const std::vector<Complex64> spectrum = forward64(wide, x);
+        CHECK(worst_difference(inverse64(wide, spectrum), x) / epsilon64 <= bound);
+        const double defect = energy_defect(spectrum_energy(Mode::plain, widened(spectrum), n), signal_energy);
+        CHECK(defect / epsilon64 <= 4.0 * bound);
+        Plan64 forward_dit = engine_plan64(n, selected, dit_then_dif);
+        Plan64 inverse_dit = engine_plan64(n, selected, dif_then_dit);
+        CHECK(worst_difference(inverse64(forward_dit, forward64(forward_dit, x)), x) / epsilon64 <= bound);
+        CHECK(worst_difference(inverse64(inverse_dit, forward64(inverse_dit, x)), x) / epsilon64 <= bound);
+
+        const std::vector<float> xf = rounded_signal(x);
+        const Wide signal_energy32 = signal_energy_of(xf);
+        Plan32 narrow = engine_plan32(n, selected, dit_engines);
+        const std::vector<Complex32> spectrum32 = forward32(narrow, xf);
+        CHECK(worst_difference(inverse32(narrow, spectrum32), xf) / epsilon32 <= bound);
+        const double defect32 = energy_defect(spectrum_energy(Mode::plain, widened(spectrum32), n), signal_energy32);
+        CHECK(defect32 / epsilon32 <= 4.0 * bound);
+        Plan32 forward_dit32 = engine_plan32(n, selected, dit_then_dif);
+        Plan32 inverse_dit32 = engine_plan32(n, selected, dif_then_dit);
+        CHECK(worst_difference(inverse32(forward_dit32, forward32(forward_dit32, xf)), xf) / epsilon32 <= bound);
+        CHECK(worst_difference(inverse32(inverse_dit32, forward32(inverse_dit32, xf)), xf) / epsilon32 <= bound);
+    }
+}
+
+// F6 for DIT: every tier gives the scalar tier's values.
+void dit_tiers_agree() {
+    const Level hardware = stxlib::simd::hardware_level();
+    const Level levels[2] = {Level::vector128, Level::avx2_fma};
+    for (const Level level : levels) {
+        if (static_cast<int>(level) > static_cast<int>(hardware)) continue;
+        for (usize n = 16; n <= (usize{1} << 18); n <<= 1) {
+            const std::vector<double> x = random_signal(n, 7 * n + 5);
+            Plan64 reference = engine_plan64(n, Level::scalar, dit_engines);
+            Plan64 tier = engine_plan64(n, level, dit_engines);
+            const std::vector<Complex64> want = forward64(reference, x);
+            CHECK(same64(forward64(tier, x), want));
+            CHECK(same_samples(inverse64(tier, want), inverse64(reference, want)));
+            const std::vector<float> xf = rounded_signal(x);
+            Plan32 reference32 = engine_plan32(n, Level::scalar, dit_engines);
+            Plan32 tier32 = engine_plan32(n, level, dit_engines);
+            const std::vector<Complex32> want32 = forward32(reference32, xf);
+            CHECK(same32(forward32(tier32, xf), want32));
+            CHECK(same_samples(inverse32(tier32, want32), inverse32(reference32, want32)));
+        }
+    }
+}
+
 } // namespace
 
 int main() {
@@ -816,6 +973,10 @@ int main() {
     tiers_agree(Mode::shifted, 2);
     tiers_agree(Mode::dip, 4);
     plain_and_dip_agree();
+    dit_engine_choice();
+    dit_against_direct_sum();
+    dit_round_trip_and_parseval();
+    dit_tiers_agree();
     const Worst& record = worst();
     std::printf("worst relative L2 error in epsilons: plain64 %.3f shifted64 %.3f dip64 %.3f plain32 %.3f shifted32 %.3f\n",
                 record.plain64, record.shifted64, record.dip64, record.plain32, record.shifted32);

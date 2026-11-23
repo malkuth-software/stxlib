@@ -14,7 +14,9 @@
 // Three modes, each its own kernel:
 //
 //   plain    BFFT's DIF kernel (Bruun's real factorisation, decimation in
-//            frequency). N >= 4. N/2 + 1 bins
+//            frequency) or, from N = 16, its DIT kernel (the same
+//            factorisation, decimation in time); the plan picks per size
+//            and tier, each within the same bounds. N >= 4. N/2 + 1 bins
 //              X[k] = sum_n x[n] e^(-2 pi i k n / N),  k = 0 .. N/2,
 //            X[0] and X[N/2] real.
 //   shifted  BFFT's BODFT (odd-frequency DFT): the spectrum sampled halfway

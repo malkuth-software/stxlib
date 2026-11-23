@@ -4,15 +4,18 @@ The kernels in this directory are copied from BFFT, the owner's own real
 FFT library (falseywinchnet/bfft, MIT), at commit
 `edf5f0134290d4cc368c50a77cc19040882beb48` (2026-11-13), on the owner's
 direction of 2026-11-22 (projects `tracks/stxlib/stx_fft.md`): copy, do not
-change BFFT; three modes, each its own kernel.
+change BFFT; three modes, each its own kernel. On 2026-11-22 the owner
+asked for BFFT's speed: the rest of the DIF engine and the DIT kernel came
+over then (branch `claude/fft-speed`).
 
 | STXlib file | BFFT file (at `edf5f01`) | What came over |
 |---|---|---|
-| `dif.inc` | `src/detail/bruun_dif_kernel.hpp` | the streaming kernels and the residue engine, both precisions |
+| `dif.inc` | `src/detail/bruun_dif_kernel.hpp` | the streaming kernels, the residue engine for both precisions, the float64 fused-scatter forward into the native order with BFFT's two-phase policy, and the op schedules; vector128 bodies of the float64 residue codelets added (BFFT has AVX2 and the scalar ladder only) |
+| `dit.inc` | `src/detail/bruun_dit_kernel.hpp` | the mirrored-lane walk in the normalised basis (BFFT's live `forward_simd`, `inverse_simd` and the float32 forms), run at every tier |
 | `bodft.inc` | `src/detail/bodft_kernel.hpp` | the whole kernel (combines, leaves, schedule); the plan's tables moved to `plan.cpp` |
 | `dip.inc` | `src/detail/bruun_dip_kernel.hpp` | the whole kernel (walk, cells, seeds, tails, egress); the tables moved to `plan.cpp` |
-| `lanes.inc` | `src/detail/bruun_simd_backend.hpp`, `src/detail/bodft_kernel.hpp` | the vector macros as functions, without the fused ones |
-| `plan.cpp` | the three kernels' table construction, `src/bfft.cpp`, `src/bodft.cpp` | index tables and permutations copied; every twiddle recomputed with STXlib's `sincospi`/`cospi` |
+| `lanes.inc` | `src/detail/bruun_simd_backend.hpp`, `src/detail/bodft_kernel.hpp` | the vector macros as functions, without the fused ones (the benchmark-only fused variant restores them), and scalar V2/V4F lanes for DIT at the scalar tier |
+| `plan.cpp` | the four kernels' table construction, `src/bfft.cpp`, `src/bodft.cpp` | index tables, permutations, the native order and the schedules copied (BFFT's lambdas as functions); every twiddle recomputed with STXlib's `sincospi`/`cospi` |
 
 The kernel text was carried by a mechanical transform (kept outside the
 repository with the port's notes): fused multiply-adds spelled as the
@@ -20,10 +23,12 @@ multiply and the add or subtract, BFFT's vector macros renamed to
 `lanes.inc`'s functions, `BRUUN_LEVEL` to `STXLIB_FFT_LEVEL`. BFFT's
 internal names (`N`, `C`, `TW`, `cell_fwd_ip`, ...) are kept inside the
 kernels so a diff against BFFT reads; STXlib's names are at the interface
-(`include/stxlib/fft.hpp`, `plan_state.hpp`). Not copied: BFFT's sin/cos
-tables and code (`generated/bruun_sincos_table256.hpp`,
-`bruun_phase_slope_tables.hpp`), its DIT kernel, its native output order,
-its schedules, and everything outside the three kernels.
+(`include/stxlib/fft.hpp`, `plan_state.hpp`). The plain mode runs DIF or DIT per
+size and tier (`plan.cpp`, the engine policy) where BFFT picks one at build
+time. Not copied: BFFT's sin/cos tables and code
+(`generated/bruun_sincos_table256.hpp`, `bruun_phase_slope_tables.hpp`),
+DIT's raw-basis scalar walk, the native-order and magnitude/phase public
+interfaces, and everything outside the four kernels.
 
 BFFT's licence (its `LICENSE` at `edf5f01`, verbatim):
 
