@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "component": "stxlib::settings::Schema",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/settings_schema.ic.toml",
+    "sha256": "ccad8d2980e7e39c60557944f2e74c97d596ee68bb464a5c2def3f61feb1b07e"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.settings.schema.add_boolean.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "add_boolean in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.schema.add_integer.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "add_integer in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.schema.add_text.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "add_text in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.schema.add_migration.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "add_migration in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

@@ -127,6 +127,7 @@ OperationResult<Path> known_directory(const KnownDirectory which) noexcept {
     case KnownDirectory::user_configuration:
     case KnownDirectory::user_data:
     case KnownDirectory::user_cache:
+    case KnownDirectory::user_local_configuration:
         break;
     default:
         return failure_of(ErrorKind::unsupported, HostCode::invalid_value);

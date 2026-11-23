@@ -1,0 +1,93 @@
+{
+  "schema": 1,
+  "component": "stxlib::FileLock",
+  "declaration": "include/stxlib/file_lock.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "released",
+    "held"
+  ],
+  "initial": "released",
+  "state_query": "held",
+  "blocks": [
+    {
+      "name": "stxlib.filelock.acquire",
+      "mode": "legal",
+      "call": "acquire",
+      "kind": "static",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "limit_exceeded",
+          "when": "busy: another holder kept the lock past timeout",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "not_found",
+          "when": "the lock file's directory is missing",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "permission_denied",
+          "when": "",
+          "leaves": "unchanged"
+        },
+        {
+          "failure": "out_of_memory",
+          "when": "the host name cannot be built",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {
+        "type": "FileLock",
+        "state": [
+          "held"
+        ],
+        "owns": "caller"
+      }
+    },
+    {
+      "name": "stxlib.filelock.release.held",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "held",
+      "moves": "released",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FileLock",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.filelock.release.released",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "released",
+      "moves": "released",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::FileLock",
+          "state": "released"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

@@ -305,6 +305,9 @@ void known_directories() {
                 "/stxlib-test-home/Library/Application Support"));
     CHECK(names(stxlib::known_directory(KnownDirectory::user_data), "/stxlib-test-home/Library/Application Support"));
     CHECK(names(stxlib::known_directory(KnownDirectory::user_cache), "/stxlib-test-home/Library/Caches"));
+    // Nothing roams on macOS: the local configuration is the configuration.
+    CHECK(names(stxlib::known_directory(KnownDirectory::user_local_configuration),
+                "/stxlib-test-home/Library/Application Support"));
 #else
     static_cast<void>(stxlib::remove_variable("XDG_CONFIG_HOME"));
     static_cast<void>(stxlib::remove_variable("XDG_DATA_HOME"));
@@ -315,6 +318,7 @@ void known_directories() {
     CHECK(names(stxlib::known_directory(KnownDirectory::user_cache), "/stxlib-test-home/.cache"));
     CHECK(stxlib::set_variable("XDG_CONFIG_HOME", "/stxlib-test-config").succeeded());
     CHECK(names(stxlib::known_directory(KnownDirectory::user_configuration), "/stxlib-test-config"));
+    CHECK(names(stxlib::known_directory(KnownDirectory::user_local_configuration), "/stxlib-test-config"));
 #endif
     // An empty HOME falls back to the user database, which names an
     // absolute directory for the account running the tests.
@@ -326,6 +330,13 @@ void known_directories() {
     restore(config);
     restore(data);
     restore(cache);
+#endif
+#if defined(_WIN32)
+    // LocalAppData for both: the local configuration never roams.
+    const OperationResult<Path> local = stxlib::known_directory(KnownDirectory::user_local_configuration);
+    const OperationResult<Path> cache_folder = stxlib::known_directory(KnownDirectory::user_cache);
+    CHECK(local.succeeded() == cache_folder.succeeded());
+    if (local.succeeded() && cache_folder.succeeded()) CHECK((*local.value()) == (*cache_folder.value()));
 #endif
 }
 

@@ -55,6 +55,7 @@ OperationStatus known_folder(const KnownDirectory which, Growable<char>& text) n
         folder = &FOLDERID_RoamingAppData;
         break;
     case KnownDirectory::user_cache:
+    case KnownDirectory::user_local_configuration:
         folder = &FOLDERID_LocalAppData;
         break;
     }

@@ -1,0 +1,77 @@
+# Behavioural constraints of stxlib::settings::Store (settings.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: empty (default constructed or moved from) and open (by open or
+# open_in). valid() observes them; read_only() tells a newer program's file
+# within open. Every other call needs an open store.
+
+schema = 1
+component = "Store"
+namespace = "stxlib::settings"
+header = "include/stxlib/settings.hpp"
+anchor = "class Store final {"
+keys = { manifest = "stxlib::settings::Store" }
+thread = "owner"
+states = ["empty", "open"]
+initial = "empty"
+state_query = { call = "valid", observes = { empty = "false", open = "true" } }
+
+[[call]]
+name = "open"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<Store> open(TextView identity, Placement placement,"]
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: a malformed identity or an empty schema" },
+  { failure = "limit_exceeded", when = "busy: another process held the lock past lock_timeout_milliseconds" },
+  { failure = "not_found", when = "no_home: known_directory names no home" },
+  { failure = "out_of_memory" },
+]
+returns = { type = "Store", state = ["open"], owns = "caller" }
+
+[[call]]
+name = "open_in"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<Store> open_in(const Path& directory, const Schema& schema) noexcept;"]
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: an empty schema" },
+  { failure = "limit_exceeded", when = "busy" },
+  { failure = "out_of_memory" },
+]
+returns = { type = "Store", state = ["open"], owns = "caller" }
+
+[[call]]
+name = "save"
+declarations = ["[[nodiscard]] OperationResult<SaveOutcome> save() noexcept;"]
+in = ["open"]
+outside = "requirement"
+fails = [
+  { failure = "invalid_argument", when = "invalid_state: read-only (a newer program's file); changes kept" },
+  { failure = "limit_exceeded", when = "busy: the lock was not had in time; too_long: past the file limit; changes kept" },
+  { failure = "io_failure", when = "write_file failed; the file is unchanged and changes kept" },
+  { failure = "out_of_memory" },
+]
+
+[[call]]
+name = "reload_if_changed"
+declarations = ["[[nodiscard]] OperationResult<bool> reload_if_changed() noexcept;"]
+in = ["open"]
+outside = "requirement"
+fails = [{ failure = "out_of_memory" }]
+
+[[call]]
+name = "finish"
+declarations = ["[[nodiscard]] OperationStatus finish() noexcept;"]
+in = ["open"]
+outside = "requirement"
+fails = [{ failure = "io_failure", when = "the conflict copy could not be written; changes kept" }]
+
+[[call]]
+name = "resolve"
+declarations = ["[[nodiscard]] OperationStatus resolve(TextView key, Resolution resolution) noexcept;"]
+in = ["open"]
+outside = "requirement"
+fails = [{ failure = "invalid_argument", when = "invalid_state: the key is not in conflict" }]

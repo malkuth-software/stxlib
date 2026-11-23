@@ -65,6 +65,12 @@
     },
     {
       "type": "stxlib::File",
+      "member": "identify",
+      "constraints": "Fails not_found (nothing has that name), unchanged. Thread: any.",
+      "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::File",
       "member": "information",
       "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.",
       "declaration": "include/stxlib/files.ic.toml"
@@ -176,6 +182,18 @@
       "member": "write_file",
       "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
       "declaration": "include/stxlib/files.ic.toml"
+    },
+    {
+      "type": "stxlib::FileLock",
+      "member": "acquire",
+      "constraints": "Fails limit_exceeded (busy: another holder kept the lock past timeout), unchanged; not_found (the lock file's directory is missing), unchanged; permission_denied, unchanged; out_of_memory (the host name cannot be built), unchanged. Thread: any. Returns FileLock in held, owned by the caller.",
+      "declaration": "include/stxlib/file_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::FileLock",
+      "member": "release",
+      "constraints": "Admitted in held, released; then released.",
+      "declaration": "include/stxlib/file_lock.ic.toml"
     },
     {
       "type": "stxlib::FrozenMap",
@@ -416,6 +434,72 @@
       "member": "tags_checked",
       "constraints": "No declared constraint.",
       "declaration": "include/stxlib/memory.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Schema",
+      "member": "add_boolean",
+      "constraints": "Admitted in built. In empty: requirement, unchanged. Fails invalid_argument (invalid_name: a malformed, repeated or secret key), unchanged; limit_exceeded (table_full: maximum_keys declared), unchanged; out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_schema.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Schema",
+      "member": "add_integer",
+      "constraints": "Admitted in built. In empty: requirement, unchanged. Fails invalid_argument (invalid_name: a malformed, repeated or secret key; invalid_value: an empty range or a default outside it), unchanged; limit_exceeded (table_full), unchanged; out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_schema.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Schema",
+      "member": "add_migration",
+      "constraints": "Admitted in built. In empty: requirement, unchanged. Fails invalid_argument (invalid_value: no step, version 0, at or past the schema's version, or given before), unchanged; out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_schema.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Schema",
+      "member": "add_text",
+      "constraints": "Admitted in built. In empty: requirement, unchanged. Fails invalid_argument (invalid_name; invalid_value: a limit of 0 or at the file limit, or a longer default), unchanged; limit_exceeded (table_full), unchanged; out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_schema.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Schema",
+      "member": "create",
+      "constraints": "Fails invalid_argument (invalid_name: a malformed part; invalid_value: version 0), unchanged; out_of_memory, unchanged. Thread: any. Returns Schema in built, owned by the caller.",
+      "declaration": "include/stxlib/settings_schema.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "finish",
+      "constraints": "Admitted in open. In empty: requirement, unchanged. Fails io_failure (the conflict copy could not be written; changes kept), unchanged.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "open",
+      "constraints": "Fails invalid_argument (invalid_name: a malformed identity or an empty schema), unchanged; limit_exceeded (busy: another process held the lock past lock_timeout_milliseconds), unchanged; not_found (no_home: known_directory names no home), unchanged; out_of_memory, unchanged. Thread: any. Returns Store in open, owned by the caller.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "open_in",
+      "constraints": "Fails invalid_argument (invalid_name: an empty schema), unchanged; limit_exceeded (busy), unchanged; out_of_memory, unchanged. Thread: any. Returns Store in open, owned by the caller.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "reload_if_changed",
+      "constraints": "Admitted in open. In empty: requirement, unchanged. Fails out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "resolve",
+      "constraints": "Admitted in open. In empty: requirement, unchanged. Fails invalid_argument (invalid_state: the key is not in conflict), unchanged.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
+    },
+    {
+      "type": "stxlib::settings::Store",
+      "member": "save",
+      "constraints": "Admitted in open. In empty: requirement, unchanged. Fails invalid_argument (invalid_state: read-only (a newer program's file); changes kept), unchanged; limit_exceeded (busy: the lock was not had in time; too_long: past the file limit; changes kept), unchanged; io_failure (write_file failed; the file is unchanged and changes kept), unchanged; out_of_memory, unchanged.",
+      "declaration": "include/stxlib/settings_store.ic.toml"
     },
     {
       "type": "stxlib::stx_minmallocpp",

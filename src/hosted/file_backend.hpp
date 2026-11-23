@@ -130,9 +130,28 @@ struct Outcome final {
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome carry_permissions(i64 handle, const char* target) noexcept;
 
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome inspect(const char* name, LinkMode links, FileInformation& information) noexcept;
+// The identity of the file `name` reaches, following links (files.hpp,
+// FileIdentity). POSIX: stat's st_dev and st_ino. Windows: the volume
+// serial number and file index of GetFileInformationByHandle.
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome identify(const char* name, FileIdentity& identity) noexcept;
+
+// Inter-process locks (file_lock.hpp). open_lock opens `name` for locking,
+// creating it if missing (POSIX: O_RDWR | O_CREAT | O_CLOEXEC, mode 0600;
+// Windows: OPEN_ALWAYS, sharing read, write and delete). try_lock asks for
+// the exclusive lock without waiting: `acquired` false and success when
+// another holder has it. The lock goes with the handle (close, above).
+// POSIX: flock(LOCK_EX | LOCK_NB), which belongs to the open file
+// description on Linux, macOS and FreeBSD, so two opens in one process
+// exclude each other as two processes do; Windows: LockFileEx with
+// LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY on the first byte.
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome open_lock(const char* name, i64& handle) noexcept;
+[[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome try_lock(i64 handle, bool& acquired) noexcept;
+
 // Renames `from` over `to`; for Durability::durable, also makes the rename
-// itself durable (POSIX: flushes the directory holding `to`; Windows:
-// MOVEFILE_WRITE_THROUGH).
+// itself durable (POSIX: flushes the directory holding `to`; Windows: the
+// POSIX-semantics rename (files.hpp, write_file) followed by
+// FlushFileBuffers on the renamed file, or MOVEFILE_WRITE_THROUGH where the
+// volume refuses that rename).
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_CANCEL Outcome replace(const char* from, const char* to, Durability level) noexcept;
 // already_exists when anything has the name.
 [[nodiscard]] STXLIB_EARLY_EXIT_FOREIGN STXLIB_EARLY_EXIT_NO_EXIT Outcome create_directory(const char* name) noexcept;

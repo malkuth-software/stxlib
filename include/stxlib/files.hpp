@@ -136,6 +136,23 @@ struct FileInformation final {
     WallTime modified{};
 };
 
+// Which file a name reaches, for telling a replaced file from the one read
+// earlier (stxlib::settings revalidates with it before a replacement): the
+// device and inode on POSIX hosts (st_dev, st_ino), the volume serial number
+// and the 64-bit file index on Windows (BY_HANDLE_FILE_INFORMATION). Two
+// identities are equal only for one file on one volume while it exists; a
+// host may give a removed file's identity to a new one, so an identity is
+// compared together with the content, never alone.
+struct FileIdentity final {
+    u64 volume{0};
+    u64 file{0};
+
+    [[nodiscard]] bool operator==(const FileIdentity& other) const noexcept {
+        return volume == other.volume && file == other.file;
+    }
+    [[nodiscard]] bool operator!=(const FileIdentity& other) const noexcept { return !(*this == other); }
+};
+
 enum class FileMode : u8 {
     read = 0,       // read an existing file
     create_new = 1, // write a new file; already_exists if the name is taken
@@ -268,9 +285,62 @@ private:
 // ic: caller.
 [[nodiscard]] OperationResult<Buffer<Byte>> read_file(const Path& path, usize limit) noexcept;
 
+// An exclusive lock between processes, held on a lock file: while one
+// FileLock holds it, every other acquire on the same file waits, in this
+// process or another. Advisory: it binds only code that asks for it, never
+// a plain open or write. The host releases it when the holder's process
+// ends, a crash included, so a lock is never left behind; there is no PID or
+// timeout guessing. POSIX hosts: flock on the open file (Linux, macOS,
+// FreeBSD; a lock on a network home may not hold across machines);
+// Windows: LockFileEx on its first byte. Emscripten: one process per page,
+// so acquire always succeeds. Move-only; the destructor releases it.
+// stxlib::settings holds one around each save (settings.hpp).
+// ic: stxlib::FileLock: generated from include/stxlib/file_lock.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. States: released (initial), held. Observed by held(): released false, held true.
+// ic: Thread: owner, unless a call says otherwise.
+class FileLock final {
+public:
+    // Opens the lock file `path` (creating it, empty, if missing; its
+    // directory must exist) and waits until the lock is free or `timeout`
+    // passes, trying again every 10 ms. Past the timeout: limit_exceeded
+    // with HostCode::busy, nothing held. A zero or negative timeout tries
+    // once.
+    // ic: Fails limit_exceeded (busy: another holder kept the lock past timeout), unchanged; not_found (the lock file's
+    // ic: directory is missing), unchanged; permission_denied, unchanged; out_of_memory (the host name cannot be
+    // ic: built), unchanged. Thread: any. Returns FileLock in held, owned by the caller.
+    [[nodiscard]] static OperationResult<FileLock> acquire(const Path& path, Duration timeout) noexcept;
+
+    FileLock() noexcept = default;
+    ~FileLock();
+    FileLock(const FileLock&) = delete;
+    FileLock& operator=(const FileLock&) = delete;
+    FileLock(FileLock&& other) noexcept;
+    // Releases this lock first, as the destructor does.
+    FileLock& operator=(FileLock&& other) noexcept;
+
+    // Whether this holds a lock (not moved from or released).
+    [[nodiscard]] bool held() const noexcept { return handle_ != released; }
+    // Releases the lock now; nothing when none is held.
+    // ic: Admitted in held, released; then released.
+    void release() noexcept;
+
+private:
+    static constexpr i64 released = -1;
+
+    explicit FileLock(const i64 handle) noexcept : handle_(handle) {}
+
+    i64 handle_{released};
+};
+
 // Replaces or creates the file with `content` through a temporary file and a
 // rename, flushed as `level` says (Durability, above). The rename is atomic
-// where Capability::atomic_replace is true. On failure the old file, if any,
+// where Capability::atomic_replace is true. On Windows the rename is first
+// SetFileInformationByHandle with FileRenameInfoEx and
+// FILE_RENAME_FLAG_POSIX_SEMANTICS | FILE_RENAME_FLAG_REPLACE_IF_EXISTS
+// (NTFS from Windows 10 1709), which replaces the name in one step even
+// while another process holds the old file open; where the volume refuses it,
+// MoveFileExW with MOVEFILE_REPLACE_EXISTING. Capability::atomic_replace
+// stays false there, because the fallback may be taken. On failure the old file, if any,
 // is unchanged and the temporary file is removed. A path without a final
 // name ("/", ".") fails with invalid_argument, HostCode::invalid_name.
 // The replacement is a new file: on POSIX hosts it takes the replaced
@@ -293,6 +363,10 @@ enum class LinkMode : u8 {
 // not_found when nothing has that name.
 // ic: Fails not_found (nothing has that name), unchanged. Thread: any.
 [[nodiscard]] OperationResult<FileInformation> inspect(const Path& path, LinkMode links) noexcept;
+// The identity of the file `path` names, following links (FileIdentity,
+// above). not_found when nothing has that name.
+// ic: Fails not_found (nothing has that name), unchanged. Thread: any.
+[[nodiscard]] OperationResult<FileIdentity> identify(const Path& path) noexcept;
 // Creates one directory; already_exists if anything has that name.
 // ic: Fails already_exists (anything has that name), unchanged. Thread: any.
 [[nodiscard]] OperationStatus create_directory(const Path& path) noexcept;
@@ -442,23 +516,30 @@ enum class KnownDirectory : u8 {
     user_configuration = 1, // settings the user keeps (and roams, on Windows)
     user_data = 2,          // data the program keeps for the user
     user_cache = 3,         // data the program can rebuild; may be removed by the host
+    // Settings that belong to this machine and never roam (window
+    // placement, paths on local volumes). Only Windows roams
+    // user_configuration, so elsewhere this is the same directory.
+    user_local_configuration = 4,
 };
 
 // The directory `which` names, as each host's convention defines it. The
 // directory need not exist (a fresh account may lack it); create it with
 // create_directories before writing into it.
 //   - macOS: home is HOME, else the user database's entry (getpwuid_r);
-//     user_configuration and user_data are home/Library/Application Support,
+//     user_configuration, user_local_configuration and user_data are
+//     home/Library/Application Support,
 //     user_cache home/Library/Caches (Apple's File System Programming Guide;
 //     unconfirmed at a pin).
 //   - Linux and FreeBSD (the XDG Base Directory Specification 0.8, as
 //     published; unconfirmed at a pin): home as on macOS;
-//     user_configuration is XDG_CONFIG_HOME, else home/.config; user_data
+//     user_configuration and user_local_configuration are XDG_CONFIG_HOME,
+//     else home/.config; user_data
 //     XDG_DATA_HOME, else home/.local/share; user_cache XDG_CACHE_HOME, else
 //     home/.cache. A variable that is empty or not an absolute path is
 //     ignored, as the specification requires.
 //   - Windows: SHGetKnownFolderPath with FOLDERID_Profile, RoamingAppData,
-//     RoamingAppData and LocalAppData, in order of the enumerators. A
+//     RoamingAppData, LocalAppData and LocalAppData, in order of the
+//     enumerators. A
 //     folder redirected to a UNC share ("\\server\share") is refused as
 //     unsupported: a Path has no UNC form, as with the file functions.
 // The variables are read through environment.hpp, under its lock. Failures:

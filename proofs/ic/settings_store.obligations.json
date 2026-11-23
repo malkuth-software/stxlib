@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "component": "stxlib::settings::Store",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/settings_store.ic.toml",
+    "sha256": "3e9c81b493f0241424ff284cbc448fa37934aa1108f591ae7be691735251c99f"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.settings.store.save.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "save in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.store.reload_if_changed.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "reload_if_changed in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.store.finish.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "finish in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    },
+    {
+      "id": "stxlib.settings.store.resolve.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "resolve in empty: requirement, changing nothing observable.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

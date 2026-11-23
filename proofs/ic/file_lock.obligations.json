@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "component": "stxlib::FileLock",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/file_lock.ic.toml",
+    "sha256": "b6e0793665808fc601e6f128aae70e35c5bf0de252df0fb5ea3fe3382bd848f8"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.filelock.release.moves",
+      "kind": "transition",
+      "statement": "release succeeding in held, released leaves the object in released.",
+      "level": "none",
+      "tool": null,
+      "premises": [],
+      "status": "open"
+    }
+  ]
+}

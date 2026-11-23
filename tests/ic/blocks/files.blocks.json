@@ -1045,6 +1045,25 @@
       "returns": {}
     },
     {
+      "name": "stxlib.file.identify",
+      "mode": "legal",
+      "call": "identify",
+      "kind": "free",
+      "thread": "any",
+      "state": null,
+      "moves": null,
+      "inputs": [],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "not_found",
+          "when": "nothing has that name",
+          "leaves": "unchanged"
+        }
+      ],
+      "returns": {}
+    },
+    {
       "name": "stxlib.file.create_directory",
       "mode": "legal",
       "call": "create_directory",

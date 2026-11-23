@@ -1,0 +1,73 @@
+# Behavioural constraints of stxlib::settings::Schema (settings.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# States: empty (default constructed or moved from) and built (by create).
+# valid() observes them. Every add_* and set_file_limit needs a built schema.
+
+schema = 1
+component = "Schema"
+namespace = "stxlib::settings"
+header = "include/stxlib/settings.hpp"
+anchor = "class Schema final {"
+keys = { manifest = "stxlib::settings::Schema" }
+# Built on one thread, then read from any (a Store borrows it).
+thread = "owner"
+states = ["empty", "built"]
+initial = "empty"
+state_query = { call = "valid", observes = { empty = "false", built = "true" } }
+
+[[call]]
+name = "create"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<Schema> create(TextView part, u32 version) noexcept;"]
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: a malformed part; invalid_value: version 0" },
+  { failure = "out_of_memory" },
+]
+returns = { type = "Schema", state = ["built"], owns = "caller" }
+
+[[call]]
+name = "add_boolean"
+declarations = ["[[nodiscard]] OperationStatus add_boolean(TextView key, bool fallback) noexcept;"]
+in = ["built"]
+outside = "requirement"
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: a malformed, repeated or secret key" },
+  { failure = "limit_exceeded", when = "table_full: maximum_keys declared" },
+  { failure = "out_of_memory" },
+]
+
+[[call]]
+name = "add_integer"
+declarations = ["[[nodiscard]] OperationStatus add_integer(TextView key, i64 minimum, i64 maximum, i64 fallback) noexcept;"]
+in = ["built"]
+outside = "requirement"
+fails = [
+  { failure = "invalid_argument", when = "invalid_name: a malformed, repeated or secret key; invalid_value: an empty range or a default outside it" },
+  { failure = "limit_exceeded", when = "table_full" },
+  { failure = "out_of_memory" },
+]
+
+[[call]]
+name = "add_text"
+declarations = ["[[nodiscard]] OperationStatus add_text(TextView key, usize maximum_bytes, TextView fallback) noexcept;"]
+in = ["built"]
+outside = "requirement"
+fails = [
+  { failure = "invalid_argument", when = "invalid_name; invalid_value: a limit of 0 or at the file limit, or a longer default" },
+  { failure = "limit_exceeded", when = "table_full" },
+  { failure = "out_of_memory" },
+]
+
+[[call]]
+name = "add_migration"
+declarations = ["[[nodiscard]] OperationStatus add_migration(u32 from_version, MigrationStep step) noexcept;"]
+in = ["built"]
+outside = "requirement"
+fails = [
+  { failure = "invalid_argument", when = "invalid_value: no step, version 0, at or past the schema's version, or given before" },
+  { failure = "out_of_memory" },
+]

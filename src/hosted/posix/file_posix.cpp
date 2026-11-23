@@ -39,6 +39,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -435,6 +436,42 @@ Outcome inspect(const char* const name, const LinkMode links, FileInformation& i
     if (found != 0) return from_errno(errno);
     describe(described, information);
     return success();
+}
+
+Outcome identify(const char* const name, FileIdentity& identity) noexcept {
+    identity = FileIdentity{};
+    struct stat described{};
+    if (::stat(name, &described) != 0) return from_errno(errno);
+    identity.volume = static_cast<u64>(described.st_dev);
+    identity.file = static_cast<u64>(described.st_ino);
+    return success();
+}
+
+// The lock file holds no content; 0600 keeps another account from taking
+// the lock and stalling the owner's programs.
+Outcome open_lock(const char* const name, i64& handle) noexcept {
+    handle = no_handle;
+    const int fd = open_retrying(name, O_RDWR | O_CREAT | O_CLOEXEC, 0600);
+    if (fd < 0) return from_errno(errno);
+    handle = static_cast<i64>(fd);
+    return success();
+}
+
+// flock (4.4BSD; Linux, macOS and FreeBSD, read 2026-11-22): the lock
+// belongs to the open file description and ends when its last descriptor
+// closes, so a crash releases it. Emscripten's flock succeeds without
+// locking (one process per page), which is all a page needs.
+Outcome try_lock(const i64 handle, bool& acquired) noexcept {
+    acquired = false;
+    int locked = ::flock(descriptor(handle), LOCK_EX | LOCK_NB);
+    while (locked != 0 && errno == EINTR) locked = ::flock(descriptor(handle), LOCK_EX | LOCK_NB);
+    if (locked == 0) {
+        acquired = true;
+        return success();
+    }
+    const int error = errno;
+    if (error == EWOULDBLOCK || error == EAGAIN) return success();
+    return from_errno(error);
 }
 
 Outcome replace(const char* const from, const char* const to, const Durability level) noexcept {

@@ -7,6 +7,7 @@
 
 #include "stxlib/files.hpp"
 #include "stxlib/text.hpp"
+#include "stxlib/threads.hpp"
 
 #include "core/files_ic_checks.hpp"
 #include "core/growable.hpp"
@@ -544,6 +545,51 @@ OperationStatus write_and_replace(File& file, const View<Byte> content, const ch
     return result;
 }
 
+// ---- inter-process locks ------------------------------------------------------
+
+FileLock::~FileLock() { release(); }
+
+FileLock::FileLock(FileLock&& other) noexcept : handle_(other.handle_) { other.handle_ = released; }
+
+FileLock& FileLock::operator=(FileLock&& other) noexcept {
+    if (this == &other) return *this;
+    release();
+    handle_ = other.handle_;
+    other.handle_ = released;
+    return *this;
+}
+
+void FileLock::release() noexcept {
+    // Lets go before closing (AGENTS.md, rule 1); closing ends the lock.
+    const i64 held_handle = handle_;
+    handle_ = released;
+    if (held_handle != released) (void)file_backend::close(held_handle);
+}
+
+OperationResult<FileLock> FileLock::acquire(const Path& path, const Duration timeout) noexcept {
+    const Operation operation = "stxlib.files.lock";
+    constexpr i64 retry_milliseconds = 10;
+    Growable<char> name;
+    const Outcome converted = native_name(path, name);
+    if (!converted.ok()) return OperationResult<FileLock>::failure(record_of(converted, operation));
+    i64 handle = file_backend::no_handle;
+    const Outcome opened = file_backend::open_lock(name.data(), handle);
+    if (!opened.ok()) return OperationResult<FileLock>::failure(record_of(opened, operation));
+    // Owned from here: a failure below closes it through the FileLock.
+    FileLock candidate(handle);
+    const IntervalTime deadline = IntervalTime::now().after(timeout);
+    while (true) {
+        bool acquired = false;
+        const Outcome tried = file_backend::try_lock(candidate.handle_, acquired);
+        if (!tried.ok()) return OperationResult<FileLock>::failure(record_of(tried, operation));
+        if (acquired) return OperationResult<FileLock>::success(static_cast<FileLock&&>(candidate));
+        if (deadline <= IntervalTime::now()) break;
+        sleep_for(Duration::milliseconds(retry_milliseconds));
+    }
+    return OperationResult<FileLock>::failure(
+        host_failure::record(ErrorKind::limit_exceeded, operation, HostCode::busy));
+}
+
 OperationStatus write_file(const Path& path, const View<Byte> content, const Durability level) noexcept {
     const Operation operation = "stxlib.files.write_file";
     if (path.file_name().empty()) return failed(file_backend::failure(FileStatus::invalid_name), operation);
@@ -572,6 +618,17 @@ OperationResult<FileInformation> inspect(const Path& path, const LinkMode links)
     const Outcome outcome = file_backend::inspect(name.data(), links, information);
     if (!outcome.ok()) return OperationResult<FileInformation>::failure(record_of(outcome, operation));
     return OperationResult<FileInformation>::success(information);
+}
+
+OperationResult<FileIdentity> identify(const Path& path) noexcept {
+    const Operation operation = "stxlib.files.identify";
+    Growable<char> name;
+    const Outcome converted = native_name(path, name);
+    if (!converted.ok()) return OperationResult<FileIdentity>::failure(record_of(converted, operation));
+    FileIdentity identity{};
+    const Outcome outcome = file_backend::identify(name.data(), identity);
+    if (!outcome.ok()) return OperationResult<FileIdentity>::failure(record_of(outcome, operation));
+    return OperationResult<FileIdentity>::success(identity);
 }
 
 OperationStatus create_directory(const Path& path) noexcept {

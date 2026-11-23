@@ -23,6 +23,7 @@
 #include "hosted/file_backend.hpp"
 #include "hosted/windows/utf16.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 
@@ -489,14 +490,90 @@ Outcome inspect(const char* const name, const LinkMode links, FileInformation& i
     return success();
 }
 
-// MoveFileExW replacing a file is not documented as atomic, so
-// Capability::atomic_replace is false here. MOVEFILE_WRITE_THROUGH: the
-// call returns once the move is flushed to disk (MoveFileExW's
-// documentation).
+// FILE_RENAME_INFO as SetFileInformationByHandle takes it with
+// FileRenameInfoEx (22; "FILE_RENAME_INFO structure" and
+// "FILE_INFO_BY_HANDLE_CLASS enumeration", Microsoft Learn, read
+// 2026-11-22): a ULONG of flags (a union with the older BOOLEAN), the root
+// directory handle (null for a full path), the name's length in bytes, then
+// the name, which runs past the declared one-unit array. Restated, as
+// DispositionEx below is, so the build does not depend on the headers'
+// Windows-version guards.
+constexpr FILE_INFO_BY_HANDLE_CLASS rename_ex_class = static_cast<FILE_INFO_BY_HANDLE_CLASS>(22);
+constexpr ULONG rename_replace_if_exists = 0x1;
+constexpr ULONG rename_posix_semantics = 0x2;
+
+struct RenameHeader final {
+    ULONG flags;
+    HANDLE root_directory;
+    DWORD name_bytes;
+    wchar_t name[1];
+};
+
+// The volume refuses the POSIX-semantics rename (FAT, exFAT, network
+// redirectors, Windows before 10 1709): these errors send the caller to
+// MoveFileExW, every other error is the rename's own failure.
+bool rename_refused(const DWORD error) noexcept {
+    const bool result = error == ERROR_INVALID_PARAMETER || error == ERROR_NOT_SUPPORTED ||
+                        error == ERROR_INVALID_FUNCTION;
+    return result;
+}
+
+// Renames the open file `handle` to `target` (a "\\?\" full name, NUL
+// included in `target_count`) with POSIX semantics, replacing what is there:
+// the name changes in one step even while another process has the old file
+// open. `refused` is set when the volume does not offer it.
+Outcome rename_posix(const HANDLE handle, const wchar_t* const target, const usize target_count,
+                     bool& refused) noexcept {
+    refused = false;
+    const usize name_units = target_count - 1;
+    const usize header_bytes = sizeof(RenameHeader);
+    if (name_units > (static_cast<usize>(0xFFFFFFFFu) - header_bytes) / sizeof(wchar_t)) {
+        return failure(FileStatus::name_too_long);
+    }
+    const usize name_bytes = name_units * sizeof(wchar_t);
+    const usize storage_bytes = header_bytes + name_bytes;
+    Growable<Byte> storage;
+    if (!storage.resize(storage_bytes)) return no_memory();
+    std::memset(storage.data(), 0, storage_bytes);
+    RenameHeader header{};
+    header.flags = rename_replace_if_exists | rename_posix_semantics;
+    header.root_directory = nullptr;
+    header.name_bytes = static_cast<DWORD>(name_bytes);
+    std::memcpy(storage.data(), &header, offsetof(RenameHeader, name));
+    std::memcpy(storage.data() + offsetof(RenameHeader, name), target, name_bytes);
+    if (SetFileInformationByHandle(handle, rename_ex_class, storage.data(), static_cast<DWORD>(storage_bytes))) {
+        return success();
+    }
+    const DWORD error = GetLastError();
+    refused = rename_refused(error);
+    return from_error(error);
+}
+
+// The POSIX-semantics rename first (files.hpp, write_file); where the
+// volume refuses it, MoveFileExW, whose replacement is not documented as
+// atomic, so Capability::atomic_replace stays false here. Durable: the
+// renamed file is flushed through its handle after the POSIX-semantics
+// rename (NTFS writes the rename's log record with it), or
+// MOVEFILE_WRITE_THROUGH on the fallback, which returns once the move is on
+// disk (MoveFileExW's documentation).
 Outcome replace(const char* const from, const char* const to, const Durability level) noexcept {
     Growable<wchar_t> source;
     Growable<wchar_t> target;
     if (!wide_name(from, source) || !wide_name(to, target)) return no_memory();
+    {
+        // DELETE for the rename, GENERIC_WRITE for FlushFileBuffers.
+        const OwnedHandle opened(CreateFileW(source.data(), DELETE | GENERIC_WRITE | SYNCHRONIZE,
+                                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                                             OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+        if (!opened.valid()) return last_error();
+        bool refused = false;
+        const Outcome renamed = rename_posix(opened.get(), target.data(), target.count(), refused);
+        if (renamed.ok()) {
+            if (level == Durability::durable && !FlushFileBuffers(opened.get())) return last_error();
+            return success();
+        }
+        if (!refused) return renamed;
+    }
     DWORD flags = MOVEFILE_REPLACE_EXISTING;
     if (level == Durability::durable) flags = flags | MOVEFILE_WRITE_THROUGH;
     if (!MoveFileExW(source.data(), target.data(), flags)) {
@@ -505,8 +582,52 @@ Outcome replace(const char* const from, const char* const to, const Durability l
     return success();
 }
 
+Outcome identify(const char* const name, FileIdentity& identity) noexcept {
+    identity = FileIdentity{};
+    Growable<wchar_t> wide;
+    if (!wide_name(name, wide)) return no_memory();
+    const OwnedHandle opened(open_for_attributes(wide.data(), false));
+    if (!opened.valid()) return last_error();
+    BY_HANDLE_FILE_INFORMATION described{};
+    if (!GetFileInformationByHandle(opened.get(), &described)) return last_error();
+    identity.volume = static_cast<u64>(described.dwVolumeSerialNumber);
+    identity.file = (static_cast<u64>(described.nFileIndexHigh) << 32) | described.nFileIndexLow;
+    return success();
+}
+
+// The lock file is shared for reading, writing and deletion, so holding it
+// never stops another process from opening it to wait for the lock, nor
+// the user from removing the folder.
+Outcome open_lock(const char* const name, i64& handle) noexcept {
+    handle = no_handle;
+    Growable<wchar_t> wide;
+    if (!wide_name(name, wide)) return no_memory();
+    const HANDLE opened = CreateFileW(wide.data(), GENERIC_READ | GENERIC_WRITE,
+                                      FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr, OPEN_ALWAYS,
+                                      FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (opened == INVALID_HANDLE_VALUE) return last_error();
+    handle = static_cast<i64>(reinterpret_cast<intptr_t>(opened));
+    return success();
+}
+
+// LockFileEx on the first byte ("LockFileEx function", Microsoft Learn,
+// read 2026-11-22): the lock belongs to the handle and is released when the
+// handle closes or the process ends. A held lock fails with
+// ERROR_LOCK_VIOLATION under LOCKFILE_FAIL_IMMEDIATELY.
+Outcome try_lock(const i64 handle, bool& acquired) noexcept {
+    acquired = false;
+    OVERLAPPED at_start{};
+    if (LockFileEx(native_handle(handle), LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY, 0, 1, 0, &at_start)) {
+        acquired = true;
+        return success();
+    }
+    const DWORD error = GetLastError();
+    if (error == ERROR_LOCK_VIOLATION) return success();
+    return from_error(error);
+}
+
 // Nothing to do: Windows has no permission bits to carry. The temporary
-// file takes the directory's inherited ACL, and MoveFileExW keeps the
+// file takes the directory's inherited ACL, and either rename keeps the
 // moved file's own security descriptor ("MoveFileExW function", Microsoft
 // Learn: the moved file keeps its descriptor), so a replaced file's
 // explicit ACL is not carried (files.hpp, write_file).

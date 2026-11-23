@@ -175,6 +175,13 @@ declarations = ["[[nodiscard]] OperationResult<FileInformation> inspect(const Pa
 fails = [{ failure = "not_found", when = "nothing has that name" }]
 
 [[call]]
+name = "identify"
+kind = "free"
+thread = "any"
+declarations = ["[[nodiscard]] OperationResult<FileIdentity> identify(const Path& path) noexcept;"]
+fails = [{ failure = "not_found", when = "nothing has that name" }]
+
+[[call]]
 name = "create_directory"
 kind = "free"
 thread = "any"

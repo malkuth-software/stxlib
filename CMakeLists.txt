@@ -406,6 +406,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/process_info.cpp
     src/core/report.cpp
     src/core/require.cpp
+    src/core/settings.cpp
     src/core/shadow_frames.cpp
     src/core/stack_trace.cpp
     src/core/surface.cpp
@@ -864,7 +865,7 @@ if(STXLIB_TESTS)
     if(stxlib_web_tests)
         list(APPEND stxlib_boundary_tests emscripten)
     else()
-        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor)
+        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor settings)
     endif()
     foreach(test_name IN LISTS stxlib_boundary_tests)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
