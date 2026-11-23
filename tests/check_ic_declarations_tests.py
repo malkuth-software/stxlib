@@ -185,7 +185,9 @@ def full_components(declarations: list, root: pathlib.Path) -> None:
         'src/core/threads.cpp': ('admits_start_entry', 'admits_start_stack'),
         'src/algorithms/glyphs/glyph_store.cpp': ('admits_glyph_index',),
         'src/algorithms/fft/plan.cpp': ('fft_plan64::admits_make_mode', 'fft_plan32::admits_make_float32_mode',
-                                        'fft_plan64::admits_rfft_input', 'fft_plan32::admits_irfft_output'),
+                                        # plan.cpp's transfer check names these through the
+                                        # aliases plan64 and plan32.
+                                        'plan64::admits_rfft_input', 'plan32::admits_irfft_output'),
     }
     for path, names in sites.items():
         text = (root / path).read_text(encoding='utf-8')
