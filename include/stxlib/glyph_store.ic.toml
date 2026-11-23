@@ -26,6 +26,16 @@ namespace = "stxlib::detail::ic::glyph_store"
 includes = ["stxlib/types.hpp"]
 used_in = ["src/algorithms/glyphs/glyph_store.cpp"]
 
+# The states as conditions over the store's members, for the font it is
+# used with (the IC4 deducer reads the calls against them).
+[represents]
+states = { closed = "font_bytes_ == nullptr", open = "font_bytes_ != nullptr" }
+sources = ["src/algorithms/glyphs/glyph_store.cpp", "include/stxlib/glyph_store.hpp", "src/algorithms/glyphs/font_file.cpp"]
+assume = [
+  { holds = "font.bytes.data() != nullptr", because = "a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font" },
+  { holds = "whole()", because = "the store's invariant, which the engine checks after every block and the checked glyph tests after every call" },
+]
+
 # The block engine's view of a store (IC2): a closed store per slot, opened
 # on a four-glyph font built by tests/font_builder.hpp.
 [engine]

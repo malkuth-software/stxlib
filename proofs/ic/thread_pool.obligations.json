@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/thread_pool.ic.toml",
-    "sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b"
+    "sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -111,19 +111,60 @@
       "id": "stxlib.atomicpool.run.outside.empty",
       "kind": "typestate-refusal",
       "statement": "run in empty: failure invalid_argument (empty_pool), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.run.outside.empty"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the misuse block drives run in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.run.outside.open",
       "kind": "typestate-refusal",
       "statement": "run in open: requirement, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.run.outside.open"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the misuse block drives run in open and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.begin.requires.begin_some_tasks",
@@ -196,46 +237,154 @@
       "id": "stxlib.atomicpool.begin.moves",
       "kind": "transition",
       "statement": "begin succeeding in idle leaves the object in open.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state idle is state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "admits_begin_some_tasks() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.begin.idle"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the legal blocks drive begin and observe the state after it through object.thread_count() != 0",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.begin.outside.empty",
       "kind": "typestate-refusal",
       "statement": "begin in empty: failure invalid_argument (empty_pool), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.begin.outside.empty"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the misuse block drives begin in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.begin.outside.open",
       "kind": "typestate-refusal",
       "statement": "begin in open: requirement, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.begin.outside.open"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the misuse block drives begin in open and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.wait.moves",
       "kind": "transition",
       "statement": "wait succeeding in idle, open leaves the object in idle.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state idle is state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        ".done_cv.wait( changes no state member (the batch's wait releases and retakes sleep_lock and reads the batch through batch_finished; it writes neither batch_open nor batch_owner (ConditionVariable::wait, threads.cpp; batch_finished, thread_pool.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.wait.idle",
+          "stxlib.atomicpool.wait.open"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the legal blocks drive wait and observe the state after it through object.thread_count() != 0",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     },
     {
       "id": "stxlib.atomicpool.wait.outside.empty",
       "kind": "typestate-refusal",
       "statement": "wait in empty: failure invalid_argument (empty_pool), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.atomicpool.wait.outside.empty"
+        ],
+        "file": "tests/ic/blocks/thread_pool.blocks.json",
+        "what": "the misuse block drives wait in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/thread_pool.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      }
     }
   ]
 }

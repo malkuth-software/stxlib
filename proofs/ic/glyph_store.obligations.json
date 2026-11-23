@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/glyph_store.ic.toml",
-    "sha256": "8a38fd6ea37ebefef957757c15f283276c23b56aa89ea4646fdfd9e497c38019"
+    "sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,19 +12,63 @@
       "id": "stxlib.glyphs.glyphstore.open.moves",
       "kind": "transition",
       "statement": "open succeeding in any state leaves the object in open.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a loop that writes no state member: for (usize index = 0; index < 3; ++index) { parts_[index].points.relea",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.glyphs.glyphstore.open.closed",
+          "stxlib.glyphs.glyphstore.open.open"
+        ],
+        "file": "tests/ic/blocks/glyph_store.blocks.json",
+        "what": "the legal blocks drive open and follow open in the engine's model; no query observes the state",
+        "run_by": "tests/ic/generated/glyph_store.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      }
     },
     {
       "id": "stxlib.glyphs.glyphstore.keep.outside.closed",
       "kind": "typestate-refusal",
       "statement": "keep in closed: failure invalid_argument, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is font_bytes_ == nullptr (the declaration's represents)",
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.glyphs.glyphstore.keep.outside.closed"
+        ],
+        "file": "tests/ic/blocks/glyph_store.blocks.json",
+        "what": "the misuse block drives keep in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/glyph_store.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      }
     },
     {
       "id": "stxlib.glyphs.glyphstore.glyph.requires.glyph_index",
@@ -64,19 +108,64 @@
       "id": "stxlib.glyphs.glyphstore.glyph.outside.closed",
       "kind": "typestate-refusal",
       "statement": "glyph in closed: failure invalid_argument, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is font_bytes_ == nullptr (the declaration's represents)",
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "admits_glyph_index() in a condition only reads",
+        "STXLIB_GLYPHS_CHECK (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.glyphs.glyphstore.glyph.outside.closed"
+        ],
+        "file": "tests/ic/blocks/glyph_store.blocks.json",
+        "what": "the misuse block drives glyph in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/glyph_store.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      }
     },
     {
       "id": "stxlib.glyphs.glyphstore.release.moves",
       "kind": "transition",
       "statement": "release succeeding in any state leaves the object in closed.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a loop that writes no state member: for (usize index = 0; index < 3; ++index) { parts_[index].points.relea",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.glyphs.glyphstore.release.closed",
+          "stxlib.glyphs.glyphstore.release.open"
+        ],
+        "file": "tests/ic/blocks/glyph_store.blocks.json",
+        "what": "the legal blocks drive release and follow closed in the engine's model; no query observes the state",
+        "run_by": "tests/ic/generated/glyph_store.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+      }
     }
   ]
 }

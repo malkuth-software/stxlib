@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/memory.ic.toml",
-    "sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4"
+    "sha256": "1e08840e900772dce9f8edca12e756c760e3e7107cd514fdb139332cd077decd"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -48,7 +48,14 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "tests",
+        "tests": [
+          "tests/death_tests.cpp: double_release, foreign_release, foreign_release_page (in builds that check ownership tags)"
+        ]
+      },
+      "not_deduced": "a stale identity here is an address, not a state of an object (no represents table): that every address no live block starts at is refused needs the release path's tests read as one condition equal to that, which the deducer does not do"
     }
   ]
 }

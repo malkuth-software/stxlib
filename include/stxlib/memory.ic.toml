@@ -14,7 +14,7 @@ header = "include/stxlib/memory.hpp"
 anchor = "namespace stxlib::memory {"
 keys = { manifest = "stxlib::memory" }
 thread = "any"
-identity = { kind = "block address: the start of a block from allocate, not yet released", stale = "requirement" }
+identity = { kind = "block address: the start of a block from allocate, not yet released", stale = "requirement", tested = ["tests/death_tests.cpp: double_release, foreign_release, foreign_release_page (in builds that check ownership tags)"] }
 
 # The block engine's view of stxlib::memory (IC2): each slot keeps the
 # blocks allocate hands out, each filled with its own byte, so a block that

@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/fft_plan32.ic.toml",
-    "sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf"
+    "sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -218,10 +218,28 @@
       "id": "stxlib.fft.plan32.rfft.outside.empty",
       "kind": "typestate-refusal",
       "statement": "rfft in empty: failure invalid_argument, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.rfft.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives rfft in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      }
     },
     {
       "id": "stxlib.fft.plan32.irfft.requires.irfft_input",
@@ -297,10 +315,28 @@
       "id": "stxlib.fft.plan32.irfft.outside.empty",
       "kind": "typestate-refusal",
       "statement": "irfft in empty: failure invalid_argument, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.fft.plan32.irfft.outside.empty"
+        ],
+        "file": "tests/ic/blocks/fft_plan32.blocks.json",
+        "what": "the misuse block drives irfft in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/fft_plan32.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      }
     }
   ]
 }

@@ -33,6 +33,20 @@ namespace = "stxlib::detail::ic::thread_pool"
 includes = ["stxlib/thread_pool.hpp", "stxlib/types.hpp"]
 used_in = ["src/core/thread_pool.cpp"]
 
+# The states as conditions over the pool's members, as its owner sees them
+# (the IC4 deducer reads run, begin and wait against them). open is a batch
+# this thread began; idle, none.
+[represents]
+states = { empty = "state_ == nullptr", idle = "state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0", open = "state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value()" }
+sources = ["src/core/thread_pool.cpp", "include/stxlib/thread_pool.hpp"]
+assume = [
+  { holds = "!is_worker()", because = "the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers" },
+  { holds = "current_thread().value() != 0", because = "a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp)" },
+]
+untouching = [
+  { call = ".done_cv.wait(", because = "the batch's wait releases and retakes sleep_lock and reads the batch through batch_finished; it writes neither batch_open nor batch_owner (ConditionVariable::wait, threads.cpp; batch_finished, thread_pool.cpp)" },
+]
+
 # The block engine's view of a pool (IC2): a default (empty) pool per slot;
 # batches count their tasks' runs (tests/ic/engine/ic_inputs.hpp).
 [engine]

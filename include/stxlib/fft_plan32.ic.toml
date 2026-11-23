@@ -31,6 +31,11 @@ namespace = "stxlib::detail::ic::fft_plan32"
 includes = ["stxlib/fft.hpp", "stxlib/types.hpp"]
 used_in = ["src/algorithms/fft/plan.cpp"]
 
+# The states as conditions over the plan's members (the IC4 deducer reads
+# rfft and irfft against them).
+[represents]
+states = { empty = "state_ == nullptr", ready = "state_ != nullptr" }
+
 # The block engine's view of a plan (IC2): an empty plan per slot; the
 # transforms read a two-tone signal and a small spectrum.
 [engine]

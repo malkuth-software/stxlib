@@ -16,7 +16,7 @@ anchor = "namespace stxlib::stx_minmallocpp {"
 keys = { manifest = "stxlib::stx_minmallocpp", surface = "stx_minmallocpp" }
 # Any thread may call anything here at any time, during its own exit too.
 thread = "any"
-identity = { kind = "block address: the start of a live block", stale = "value:Release::refused" }
+identity = { kind = "block address: the start of a live block", stale = "value:Release::refused", tested = ["tests/stx_minmallocpp_direct_tests.cpp: refusals (null, the stack, the image, inside a block, the region's metadata, a page's unused tail, a second release, inside a large and a mapped block)", "tests/ic/engine/ic_allocator_inputs.hpp: interior_refused, an address inside a live block, drawn by the engine's blocks and the fuzzer"] }
 
 [constants]
 alignment_limit = { cpp = "alignment_limit", type = "usize" }

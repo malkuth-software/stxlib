@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/files.ic.toml",
-    "sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5"
+    "sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,10 +12,29 @@
       "id": "stxlib.file.read.outside.closed",
       "kind": "typestate-refusal",
       "statement": "read in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.read.outside.writing",
@@ -24,7 +43,17 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read.outside.writing"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read in writing and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "not_deduced": "no refusal in the code before file_backend::read(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
     },
     {
       "id": "stxlib.file.read.outside.appending",
@@ -33,16 +62,45 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read.outside.appending"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read in appending and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "not_deduced": "no refusal in the code before file_backend::read(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
     },
     {
       "id": "stxlib.file.write_all.outside.closed",
       "kind": "typestate-refusal",
       "statement": "write_all in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.write_all.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives write_all in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.write_all.outside.reading",
@@ -51,61 +109,190 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.write_all.outside.reading"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives write_all in reading and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "not_deduced": "no refusal in the code before its loop: the declared refusal would be the host's, from the calls inside the loop, which the deducer does not read (a loop that may return: while (written < input.count()) {\n        usize transferred )"
     },
     {
       "id": "stxlib.file.size.outside.closed",
       "kind": "typestate-refusal",
       "statement": "size in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.size.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives size in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.position.outside.closed",
       "kind": "typestate-refusal",
       "statement": "position in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.position.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives position in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.seek.outside.closed",
       "kind": "typestate-refusal",
       "statement": "seek in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.seek.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives seek in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.sync.outside.closed",
       "kind": "typestate-refusal",
       "statement": "sync in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.sync.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives sync in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.close.moves",
       "kind": "transition",
       "statement": "close succeeding in reading, writing, appending leaves the object in closed.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "the state writing is handle_ != closed && (mode_ == FileMode::create_new || mode_ == FileMode::replace) (the declaration's represents)",
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.close.reading",
+          "stxlib.file.close.writing",
+          "stxlib.file.close.appending"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the legal blocks drive close and observe the state after it through is_open",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.close.outside.closed",
       "kind": "typestate-refusal",
       "statement": "close in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.close.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives close in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.read_at.requires.read_at_offset",
@@ -145,10 +332,29 @@
       "id": "stxlib.file.read_at.outside.closed",
       "kind": "typestate-refusal",
       "statement": "read_at in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read_at.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read_at in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.read_at.outside.writing",
@@ -157,7 +363,17 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read_at.outside.writing"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read_at in writing and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "not_deduced": "no refusal in the code before file_backend::read_at(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
     },
     {
       "id": "stxlib.file.read_at.outside.appending",
@@ -166,7 +382,17 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.read_at.outside.appending"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives read_at in appending and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "not_deduced": "no refusal in the code before file_backend::read_at(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
     },
     {
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
@@ -220,55 +446,169 @@
       "id": "stxlib.file.write_all_at.outside.closed",
       "kind": "typestate-refusal",
       "statement": "write_all_at in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.write_all_at.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives write_all_at in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.write_all_at.outside.reading",
       "kind": "typestate-refusal",
       "statement": "write_all_at in reading: failure invalid_argument (invalid_state), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.write_all_at.outside.reading"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives write_all_at in reading and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.write_all_at.outside.appending",
       "kind": "typestate-refusal",
       "statement": "write_all_at in appending: failure invalid_argument (invalid_state), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.write_all_at.outside.appending"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives write_all_at in appending and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.information.outside.closed",
       "kind": "typestate-refusal",
       "statement": "information in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.information.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives information in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_modified.outside.closed",
       "kind": "typestate-refusal",
       "statement": "set_modified in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.set_modified.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives set_modified in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_modified.outside.reading",
       "kind": "typestate-refusal",
       "statement": "set_modified in reading: failure invalid_argument (invalid_state), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.set_modified.outside.reading"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives set_modified in reading and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_size.requires.set_size_bytes",
@@ -308,37 +648,101 @@
       "id": "stxlib.file.set_size.outside.closed",
       "kind": "typestate-refusal",
       "statement": "set_size in closed: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.set_size.outside.closed"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives set_size in closed and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_size.outside.reading",
       "kind": "typestate-refusal",
       "statement": "set_size in reading: failure invalid_argument (invalid_state), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.set_size.outside.reading"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives set_size in reading and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.set_size.outside.appending",
       "kind": "typestate-refusal",
       "statement": "set_size in appending: failure invalid_argument (invalid_state), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.file.set_size.outside.appending"
+        ],
+        "file": "tests/ic/blocks/files.blocks.json",
+        "what": "the misuse block drives set_size in appending and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/files.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     },
     {
       "id": "stxlib.file.identity",
       "kind": "identity",
       "statement": "A stale identity (host handle, -1 once closed or moved from) is refused: failure disposed (closed_handle), changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a stale identity is host handle, -1 once closed or moved from: the object moved from or closed, which is the state closed (handle_ == closed)",
+        "a self-move returns before it changes anything (the move assignment's first statement)"
+      ],
+      "status": "discharged",
+      "method": "a stale identity is the state closed, which moving from the object leaves and every stateful call refuses as declared (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      }
     }
   ]
 }

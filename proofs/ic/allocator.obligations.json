@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "src/state/stx_minmallocpp/allocator.ic.toml",
-    "sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec"
+    "sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -48,7 +48,15 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "tests",
+        "tests": [
+          "tests/stx_minmallocpp_direct_tests.cpp: refusals (null, the stack, the image, inside a block, the region's metadata, a page's unused tail, a second release, inside a large and a mapped block)",
+          "tests/ic/engine/ic_allocator_inputs.hpp: interior_refused, an address inside a live block, drawn by the engine's blocks and the fuzzer"
+        ]
+      },
+      "not_deduced": "a stale identity here is an address, not a state of an object (no represents table): that every address no live block starts at is refused needs the release path's tests read as one condition equal to that, which the deducer does not do"
     },
     {
       "id": "stxlib.stx_minmallocpp.page_protocol",

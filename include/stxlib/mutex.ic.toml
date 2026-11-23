@@ -18,6 +18,18 @@ thread = "any"
 states = ["free", "held"]
 initial = "free"
 
+# The states as conditions over the Mutex's members, for the calling thread,
+# in builds with lock checks (STXLIB_LOCK_CHECKS), the builds where the
+# requirements are checked (the engine's requirement_guard says the same).
+[represents]
+states = { free = "owner_ != current_thread().value()", held = "owner_ == current_thread().value()" }
+sources = ["src/core/threads.cpp", "include/stxlib/threads.hpp"]
+build = ["STXLIB_LOCK_CHECKS"]
+assume = [
+  { holds = "current_thread().value() != 0", because = "a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp)" },
+]
+succeeds = { try_lock = "result" }
+
 [engine]
 object = "stxlib::Mutex"
 includes = ["stxlib/threads.hpp", "ic/engine/ic_inputs.hpp"]

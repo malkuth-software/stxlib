@@ -26,6 +26,12 @@ namespace = "stxlib::detail::ic::threads"
 includes = ["stxlib/threads.hpp", "stxlib/types.hpp"]
 used_in = ["src/core/threads.cpp"]
 
+# The states as conditions over the Thread's members (the IC4 deducer reads
+# join and abandon against them).
+[represents]
+states = { empty = "state_ == nullptr || (*state_).joined", started = "state_ != nullptr && !(*state_).joined" }
+succeeds = { join = "result == JoinResult::joined", abandon = "result != AbandonResult::not_joinable" }
+
 # The block engine's view of a Thread (IC2): an empty Thread per slot; the
 # entry counts its runs in the slot's context.
 [engine]

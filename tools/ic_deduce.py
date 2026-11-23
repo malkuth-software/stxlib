@@ -27,6 +27,16 @@ sources they name, and discharges what deduction can:
   object: only const locals, other guards and their refusals, a reset of an
   output parameter and a void check that only reads, returns or ends the
   process precede it in its function (and the call that relays its status).
+- typestate-refusal, transition and identity, for a declaration with a
+  `represents` table (each state a condition over the object's members):
+  every path through the call, read in a state outside its `in`, refuses
+  as declared before it changes anything; every succeeding path, read in
+  each admitting state, leaves the `moves` state; moving from the object
+  and every stateful call leave and refuse the stale state
+  (tools/ic_typestate.py, whose docstring says what it follows). Without a
+  represents table, or where the code reaches the host before refusing,
+  the obligation stays open with why, and tools/ic_declarations.py records
+  the blocks or tests that cover it.
 - an invariant (`given`, `from`, `covers`, `shows`): made by the base steps
   and kept by every other, each step a list of lemmas; a step that changes a
   clause's words or counters (`X_after`) must show the clause after it, and
@@ -78,6 +88,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import ic_declarations as ic  # noqa: E402 (the declarations' own reader)
+import ic_typestate as typestate  # noqa: E402 (states read against the calls' bodies)
 
 TOOL: str = 'tools/ic_deduce.py'
 CREDIT: str = ('the counter and popcount algebra is the allocator study\'s sxv (stxlib_notes, planning/'
@@ -1866,6 +1877,9 @@ def deduce_declaration(root: Path, declaration: ic.Declaration) -> tuple[list[Re
                                           'call that relays its status)', leave_premises,
                                           ['guard at ' + seen_path + ':' + str(seen_index + 1) for seen_path,
                                            seen_index in sorted(seen)] + allowed_notes))
+    typestate_records, typestate_open = deduce_typestate(root, declaration, prefix)
+    records.extend(typestate_records)
+    open_items.extend(typestate_open)
     obligation: ic.Obligation
     composites: list[ic.Obligation] = []
     for obligation in declaration.obligations:
@@ -1944,6 +1958,117 @@ def deduce_declaration(root: Path, declaration: ic.Declaration) -> tuple[list[Re
                                   'the steps listed are every change of the invariant\'s words and counters (each '
                                   'write the covers patterns find is cited by a step\'s lemma)',
                                   'each segment between step marks is atomic (the step model)'], steps))
+    return records, open_items
+
+
+def typestate_view(root: Path, declaration: ic.Declaration) -> typestate.View:
+    represents: ic.Represents | None = declaration.represents
+    assert represents is not None
+    owner: re.Match[str] | None = re.match(r'\s*(?:class|struct)\s+([A-Za-z_]\w*)', declaration.anchor)
+    texts: dict[str, str] = {}
+    path: str
+    for path in represents.sources:
+        file: Path = root / path
+        if not file.is_file():
+            raise DeductionError(declaration.path + ': represents names a missing source ' + path)
+        texts[path] = typestate.preprocessed(file.read_text(encoding='utf-8'), represents.build)
+    view: typestate.View = typestate.View(owner.group(1) if owner else '', dict(represents.states),
+                                          list(represents.assume), dict(represents.succeeds),
+                                          list(represents.untouching), texts, represents.build)
+    return view
+
+
+def deduce_typestate(root: Path, declaration: ic.Declaration, prefix: str) \
+        -> tuple[list[Record], list[tuple[str, str]]]:
+    """The typestate refusals, transitions and identity of a declaration with a represents table."""
+    records: list[Record] = []
+    open_items: list[tuple[str, str]] = []
+    if declaration.represents is None:
+        for call in declaration.calls:
+            for state, _ in call.outside:
+                open_items.append((prefix + '.' + call.identifier + '.outside.' + state,
+                                   'the declaration has no represents table: its states are not conditions the '
+                                   'deducer can read against the code'))
+            if call.moves:
+                open_items.append((prefix + '.' + call.identifier + '.moves', 'the declaration has no represents '
+                                   'table: its states are not conditions the deducer can read against the code'))
+        if declaration.identity_kind and declaration.identity_stale is not None:
+            open_items.append((prefix + '.identity', 'a stale identity here is an address, not a state of an object '
+                               '(no represents table): that every address no live block starts at is refused needs '
+                               'the release path\'s tests read as one condition equal to that, which the deducer '
+                               'does not do'))
+        return records, open_items
+    view: typestate.View = typestate_view(root, declaration)
+    codes: str = declaration.engine.codes if declaration.engine is not None and declaration.engine.codes else \
+        'stxlib::HostCode'
+    build: list[str] = (['read with ' + ', '.join(view.build) + ' defined (the branches the sources take '
+                         'under it)'] if view.build else [])
+    discharged: set[str] = set()
+    call: ic.Call
+    for call in declaration.calls:
+        base: str = prefix + '.' + call.identifier
+        for state, refusal in call.outside:
+            identifier: str = base + '.outside.' + state
+            outcome: typestate.Outcome = typestate.typestate_refusal(view, call.name, state, refusal, codes,
+                                                                     case_mapping)
+            if not outcome.held:
+                open_items.append((identifier, outcome.why))
+                continue
+            discharged.add(identifier)
+            records.append(Record(identifier, declaration, outcome.read, 'every path through the call read in the '
+                                  'state, its conditions decided over their comparisons (tools/ic_typestate.py)',
+                                  build + outcome.premises, outcome.steps))
+        if call.moves:
+            identifier = base + '.moves'
+            outcome = typestate.transition(view, call.name, call.admitting, call.moves)
+            if not outcome.held:
+                open_items.append((identifier, outcome.why))
+                continue
+            discharged.add(identifier)
+            records.append(Record(identifier, declaration, outcome.read, 'every succeeding path through the call '
+                                  'read in each admitting state, the moved-to state decided after its writes '
+                                  '(tools/ic_typestate.py)', build + outcome.premises, outcome.steps))
+    if declaration.identity_kind and declaration.identity_stale is not None:
+        identifier = prefix + '.identity'
+        stale: str = declaration.identity_state
+        if not stale:
+            open_items.append((identifier, 'identity.state does not name the state a stale identity is in'))
+            return records, open_items
+        problems: list[str] = []
+        steps: list[str] = []
+        moved: typestate.Outcome = typestate.moved_from(view, stale)
+        if not moved.held:
+            problems.append(moved.why)
+        steps.extend(moved.steps)
+        for call in declaration.calls:
+            if not call.admitting:
+                continue
+            refusals: dict[str, ic.Refusal] = dict(call.outside)
+            if stale in call.admitting:
+                problems.append(call.name + ' admits the stale state ' + stale)
+                continue
+            if stale not in refusals or refusals[stale].record() != declaration.identity_stale.record():
+                problems.append(call.name + ' in ' + stale + ' is not declared to refuse as a stale identity does')
+                continue
+            name: str = prefix + '.' + call.identifier + '.outside.' + stale
+            if name not in discharged:
+                problems.append(call.name + ' in ' + stale + ' is not discharged')
+                continue
+            steps.append(call.name + ' in ' + stale + ': ' + call.identifier + '.outside.' + stale + ' (discharged)')
+        for call in declaration.calls:
+            if call.moves == stale and prefix + '.' + call.identifier + '.moves' in discharged:
+                steps.append(call.name + ' leaves the object in ' + stale + ' (' + call.identifier + '.moves, '
+                             'discharged)')
+        if problems:
+            open_items.append((identifier, '; '.join(problems)))
+        else:
+            records.append(Record(identifier, declaration, moved.read, 'a stale identity is the state ' + stale +
+                                  ', which moving from the object leaves and every stateful call refuses as '
+                                  'declared (tools/ic_typestate.py)',
+                                  ['a stale identity is ' + declaration.identity_kind + ': the object moved from or '
+                                   'closed, which is the state ' + stale + ' (' + view.states[stale] + ')',
+                                   'a self-move returns before it changes anything (the move assignment\'s '
+                                   'first statement)'], steps))
     return records, open_items
 
 

@@ -42,11 +42,22 @@ Properties:
       only when its body just picks predicates, a switch is fixed only by a
       literal, an output reset and a read-only check may precede a guard
       but a write may not, a unary star on an untouched value is a
-      dereference and a product is not; every obligation is discharged;
+      dereference and a product is not;
   I13 page_protocol is an invariant kept by every step: word identities are
       decided bit by bit (a partition the owner's release breaks without the
       block being held is not proved), and dropping a step, or a step's
-      lemma for a word a cited write changes, leaves it open.
+      lemma for a word a cited write changes, leaves it open;
+  I14 every obligation in proofs/ic is discharged or names what covers it
+      (the engine's blocks or tests) and why the deducer does not reach it,
+      and the obligations still open are exactly the five refusals that are
+      the host's (File) and the two identities that are addresses;
+  I15 the typestate reader (tools/ic_typestate.py) is sound on what it
+      reads: a state's condition decides a guard (equality's laws: terms
+      equal to distinct constants are unequal), a refusal that writes first
+      is not discharged, a transition that does not write its state is not,
+      a loop that writes a state member and an opaque call given a state
+      member stop it, and the Mutex's requirements hold only in the build
+      that checks them.
 """
 
 import importlib.util
@@ -243,8 +254,23 @@ def source_following(root: pathlib.Path) -> None:
     deducer = load_deducer(root)
     import json
     document = json.loads((root / 'proofs' / 'ic' / 'deductions.json').read_text(encoding='utf-8'))
-    still_open = [item['id'] for item in document['open']]
-    check(not still_open, 'I12 every obligation is discharged: ' + ', '.join(still_open) + ' open')
+    still_open = sorted(item['id'] for item in document['open'])
+    expected = sorted(['stxlib.file.read.outside.writing', 'stxlib.file.read.outside.appending',
+                       'stxlib.file.write_all.outside.reading', 'stxlib.file.read_at.outside.writing',
+                       'stxlib.file.read_at.outside.appending', 'stxlib.memory.identity',
+                       'stxlib.stx_minmallocpp.identity'])
+    check(still_open == expected, 'I14 the obligations open are the host refusals and the address identities: '
+          + ', '.join(still_open))
+    every = []
+    for path in sorted((root / 'proofs' / 'ic').glob('*.obligations.json')):
+        every.extend(json.loads(path.read_text(encoding='utf-8'))['obligations'])
+    for item in every:
+        if item['status'] == 'discharged':
+            continue
+        check(bool(item.get('covered_by')) and bool(item.get('not_deduced')),
+              'I14 ' + item['id'] + ' is open without what covers it and why it is not deduced')
+    check(len(every) == len(document['deductions']) + len(document['open']),
+          'I14 the deducer attempts every obligation (' + str(len(every)) + ' in proofs/ic)')
     lines = ['[[nodiscard]] bool pick(const u8 mode, const bool wide) noexcept {',
              '    const bool result = wide ? ::n::w::admits_a(mode)',
              '                             : ::n::s::admits_a(mode);',
@@ -301,6 +327,59 @@ def page_invariant(tool, root: pathlib.Path, declarations: list) -> None:
     check(not held, 'I13 a step that changes a word its lemmas do not describe leaves the invariant open')
 
 
+def typestate_reading(tool, root: pathlib.Path, declarations: list) -> None:
+    import dataclasses
+    deducer = load_deducer(root)
+    states = sys.modules['ic_typestate']
+    reading = states.parse('handle_ != closed && mode_ == FileMode::read')
+    check(states.decide(states.parse('handle_ == closed'), [reading]) == 'false',
+          'I15 a state decides a guard on it')
+    check(states.decide(states.parse('mode_ == FileMode::append'), [reading]) == 'false',
+          'I15 a member equal to one enumerator is not another')
+    check(states.decide(states.parse('font_bytes_ == font.bytes.data()'),
+                        [states.parse('font_bytes_ == nullptr'), states.parse('font.bytes.data() != nullptr')])
+          == 'false', 'I15 equality joins terms and splits none taken unequal')
+    check(states.decide(states.parse('a_ == 1'), [states.parse('b_ == 1')]) == 'unknown',
+          'I15 what the givens do not fix is unknown')
+    source = '\n'.join([
+        'class Box final {', 'public:', '    bool open() const noexcept { return held_ != nullptr; }',
+        '    u8* held_{nullptr};', '};',
+        'OperationStatus Box::take() noexcept {', '    count_ = count_ + 1;',
+        '    if (!open()) return OperationStatus::failure(ErrorRecord::make(ErrorKind::disposed, op));',
+        '    return OperationStatus::success();', '}',
+        'OperationStatus Box::give() noexcept {',
+        '    if (!open()) return OperationStatus::failure(ErrorRecord::make(ErrorKind::disposed, op));',
+        '    return OperationStatus::success();', '}',
+        'OperationStatus Box::shut() noexcept {', '    if (!open()) return OperationStatus::success();',
+        '    return OperationStatus::success();', '}',
+        'void Box::spin() noexcept {', '    for (u32 i = 0; i < 4; ++i) held_ = nullptr;', '}',
+        'void Box::hand() noexcept {', '    backend::forget(held_);', '}'])
+    view = states.View('Box', {'closed': 'held_ == nullptr', 'open': 'held_ != nullptr'}, [], {}, [],
+                       {'box.cpp': states.preprocessed(source, ())}, ())
+    refusal = tool.refusal_of('failure:disposed', 'test')
+    outcome = states.typestate_refusal(view, 'give', 'closed', refusal, 'stxlib::HostCode', deducer.case_mapping)
+    check(outcome.held, 'I15 a guard on the state that returns the declared failure is a typestate refusal')
+    outcome = states.typestate_refusal(view, 'take', 'closed', refusal, 'stxlib::HostCode', deducer.case_mapping)
+    check(not outcome.held, 'I15 a refusal after a write is not discharged')
+    outcome = states.typestate_refusal(view, 'give', 'open', refusal, 'stxlib::HostCode', deducer.case_mapping)
+    check(not outcome.held, 'I15 a call that succeeds in a state does not refuse there')
+    outcome = states.transition(view, 'shut', ('open',), 'closed')
+    check(not outcome.held, 'I15 a transition that does not write its state is not discharged')
+    outcome = states.transition(view, 'spin', ('open',), 'closed')
+    check(not outcome.held and 'loop' in outcome.why, 'I15 a loop that writes a state member stops the reader')
+    outcome = states.transition(view, 'hand', ('open',), 'closed')
+    check(not outcome.held and 'touches' in outcome.why, 'I15 an opaque call given a state member stops it')
+    mutex = [item for item in declarations if item.path.endswith('mutex.ic.toml')][0]
+    checked = deducer.typestate_view(root, mutex)
+    held = tool.refusal_of('requirement', 'test')
+    outcome = states.typestate_refusal(checked, 'lock', 'held', held, 'stxlib::HostCode', deducer.case_mapping)
+    check(outcome.held, 'I15 lock in held ends the process in the build that checks locks')
+    unchecked = dataclasses.replace(checked, texts={path: states.preprocessed((root / path).read_text(
+        encoding='utf-8'), ()) for path in checked.texts}, build=())
+    outcome = states.typestate_refusal(unchecked, 'lock', 'held', held, 'stxlib::HostCode', deducer.case_mapping)
+    check(not outcome.held, 'I15 without the lock checks lock in held is not a refusal')
+
+
 def gate_file(root: pathlib.Path, declarations: list) -> None:
     text = (root / 'proofs' / 'ic' / 'GATE.md').read_text(encoding='utf-8')
     for declaration in declarations:
@@ -325,6 +404,7 @@ def main() -> int:
     deductions(tool, root)
     source_following(root)
     page_invariant(tool, root, declarations)
+    typestate_reading(tool, root, declarations)
     gate_file(root, declarations)
     for label in failures:
         print('FAILED: ' + label)

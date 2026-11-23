@@ -27,7 +27,7 @@
     {
       "id": "stxlib.fft.plan32.make.requires.make_mode",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -47,7 +47,7 @@
     {
       "id": "stxlib.fft.plan32.make.refusal.make_mode",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -65,7 +65,7 @@
     {
       "id": "stxlib.fft.plan32.make.requires.make_size_limit",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -85,7 +85,7 @@
     {
       "id": "stxlib.fft.plan32.make.refusal.make_size_limit",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -103,7 +103,7 @@
     {
       "id": "stxlib.fft.plan32.make.requires.make_size_shape",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -123,7 +123,7 @@
     {
       "id": "stxlib.fft.plan32.make.refusal.make_size_shape",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -141,7 +141,7 @@
     {
       "id": "stxlib.fft.plan32.make.requires.make_float32_mode",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -161,7 +161,7 @@
     {
       "id": "stxlib.fft.plan32.make.refusal.make_float32_mode",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -179,7 +179,7 @@
     {
       "id": "stxlib.fft.plan32.rfft.requires.rfft_input",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -202,7 +202,7 @@
     {
       "id": "stxlib.fft.plan32.rfft.refusal.rfft_input",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -224,7 +224,7 @@
     {
       "id": "stxlib.fft.plan32.rfft.requires.rfft_output",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -247,7 +247,7 @@
     {
       "id": "stxlib.fft.plan32.rfft.refusal.rfft_output",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -269,7 +269,7 @@
     {
       "id": "stxlib.fft.plan32.irfft.requires.irfft_input",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -292,7 +292,7 @@
     {
       "id": "stxlib.fft.plan32.irfft.refusal.irfft_input",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -314,7 +314,7 @@
     {
       "id": "stxlib.fft.plan32.irfft.requires.irfft_output",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -337,7 +337,7 @@
     {
       "id": "stxlib.fft.plan32.irfft.refusal.irfft_output",
       "declaration": "include/stxlib/fft_plan32.ic.toml",
-      "declaration_sha256": "4313493a4330833de816b5bfbed976db0332696d97ae4a0ccd882f6295f87ddf",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -357,9 +357,51 @@
       ]
     },
     {
+      "id": "stxlib.fft.plan32.rfft.outside.empty",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
+      "sources": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Plan32::rfft read at src/algorithms/fft/plan.cpp:778 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
+      "id": "stxlib.fft.plan32.irfft.outside.empty",
+      "declaration": "include/stxlib/fft_plan32.ic.toml",
+      "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
+      "sources": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Plan32::irfft read at src/algorithms/fft/plan.cpp:792 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
       "id": "stxlib.fft.plan64.make.requires.make_mode",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -379,7 +421,7 @@
     {
       "id": "stxlib.fft.plan64.make.refusal.make_mode",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -397,7 +439,7 @@
     {
       "id": "stxlib.fft.plan64.make.requires.make_size_limit",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -417,7 +459,7 @@
     {
       "id": "stxlib.fft.plan64.make.refusal.make_size_limit",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -435,7 +477,7 @@
     {
       "id": "stxlib.fft.plan64.make.requires.make_size_shape",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -455,7 +497,7 @@
     {
       "id": "stxlib.fft.plan64.make.refusal.make_size_shape",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -473,7 +515,7 @@
     {
       "id": "stxlib.fft.plan64.rfft.requires.rfft_input",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -496,7 +538,7 @@
     {
       "id": "stxlib.fft.plan64.rfft.refusal.rfft_input",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -518,7 +560,7 @@
     {
       "id": "stxlib.fft.plan64.rfft.requires.rfft_output",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -541,7 +583,7 @@
     {
       "id": "stxlib.fft.plan64.rfft.refusal.rfft_output",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -563,7 +605,7 @@
     {
       "id": "stxlib.fft.plan64.irfft.requires.irfft_input",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -586,7 +628,7 @@
     {
       "id": "stxlib.fft.plan64.irfft.refusal.irfft_input",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -608,7 +650,7 @@
     {
       "id": "stxlib.fft.plan64.irfft.requires.irfft_output",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -631,7 +673,7 @@
     {
       "id": "stxlib.fft.plan64.irfft.refusal.irfft_output",
       "declaration": "include/stxlib/fft_plan64.ic.toml",
-      "declaration_sha256": "f0ed58fca70d9105356e816db7e38a88553e5649aef61030d8aa83d311d255a3",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
         "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
       },
@@ -651,9 +693,51 @@
       ]
     },
     {
+      "id": "stxlib.fft.plan64.rfft.outside.empty",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
+      "sources": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Plan64::rfft read at src/algorithms/fft/plan.cpp:717 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
+      "id": "stxlib.fft.plan64.irfft.outside.empty",
+      "declaration": "include/stxlib/fft_plan64.ic.toml",
+      "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
+      "sources": {
+        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Plan64::irfft read at src/algorithms/fft/plan.cpp:731 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
       "id": "stxlib.file.read_at.requires.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -674,7 +758,7 @@
     {
       "id": "stxlib.file.read_at.refusal.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -692,7 +776,7 @@
     {
       "id": "stxlib.file.write_all_at.exact.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {},
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -708,7 +792,7 @@
     {
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -729,7 +813,7 @@
     {
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -747,7 +831,7 @@
     {
       "id": "stxlib.file.set_size.requires.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -768,7 +852,7 @@
     {
       "id": "stxlib.file.set_size.refusal.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "3bda081c2fe6ba5e1edcbd230a8c50eb0a08e8d7ed7fbda160270dedb6065be5",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
       "sources": {
         "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
       },
@@ -781,6 +865,439 @@
       ],
       "steps": [
         "guard at src/core/files.cpp:433"
+      ]
+    },
+    {
+      "id": "stxlib.file.read.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::read read at src/core/files.cpp:305 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.write_all.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::write_all read at src/core/files.cpp:314 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.size.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::size read at src/core/files.cpp:328 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.position.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::position read at src/core/files.cpp:337 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.seek.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::seek read at src/core/files.cpp:346 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.sync.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::sync read at src/core/files.cpp:353 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.close.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::close read at src/core/files.cpp:360 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.close.moves",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "the state writing is handle_ != closed && (mode_ == FileMode::create_new || mode_ == FileMode::replace) (the declaration's represents)",
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "File::close read in include/stxlib/files.hpp, src/core/files.cpp",
+        "in reading, path 1: returns OperationStatus::success(); after it handle_ == closed holds (writes: handle_ = closed)",
+        "in writing, path 1: returns OperationStatus::success(); after it handle_ == closed holds (writes: handle_ = closed)",
+        "in appending, path 1: returns OperationStatus::success(); after it handle_ == closed holds (writes: handle_ = closed)"
+      ]
+    },
+    {
+      "id": "stxlib.file.read_at.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::read_at read at src/core/files.cpp:381 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::write_all_at read at src/core/files.cpp:393 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.reading",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::write_all_at read at src/core/files.cpp:393 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
+      "id": "stxlib.file.write_all_at.outside.appending",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::write_all_at read at src/core/files.cpp:393 in the state appending (handle_ != closed && mode_ == FileMode::append)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
+      "id": "stxlib.file.information.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::information read at src/core/files.cpp:412 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.set_modified.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::set_modified read at src/core/files.cpp:421 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.set_modified.outside.reading",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::set_modified read at src/core/files.cpp:421 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
+      "id": "stxlib.file.set_size.outside.closed",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is handle_ == closed (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::set_size read at src/core/files.cpp:429 in the state closed (handle_ == closed)",
+        "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
+      ]
+    },
+    {
+      "id": "stxlib.file.set_size.outside.reading",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::set_size read at src/core/files.cpp:429 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
+      "id": "stxlib.file.set_size.outside.appending",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state appending is handle_ != closed && mode_ == FileMode::append (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::set_size read at src/core/files.cpp:429 in the state appending (handle_ != closed && mode_ == FileMode::append)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
+      "id": "stxlib.file.identity",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "efdfdb0bca666d0ebb6ab0a0e2f724c81daef71ea98c98434ca18c9235fa4086",
+      "sources": {
+        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "a stale identity is the state closed, which moving from the object leaves and every stateful call refuses as declared (tools/ic_typestate.py)",
+      "premises": [
+        "a stale identity is host handle, -1 once closed or moved from: the object moved from or closed, which is the state closed (handle_ == closed)",
+        "a self-move returns before it changes anything (the move assignment's first statement)"
+      ],
+      "steps": [
+        "File::File(File&&) at src/core/files.cpp:281 writes other.handle_ = closed: other is then closed",
+        "File::operator=(File&&) at src/core/files.cpp:283 writes other.handle_ = closed: other is then closed",
+        "read in closed: read.outside.closed (discharged)",
+        "write_all in closed: write_all.outside.closed (discharged)",
+        "size in closed: size.outside.closed (discharged)",
+        "position in closed: position.outside.closed (discharged)",
+        "seek in closed: seek.outside.closed (discharged)",
+        "sync in closed: sync.outside.closed (discharged)",
+        "close in closed: close.outside.closed (discharged)",
+        "read_at in closed: read_at.outside.closed (discharged)",
+        "write_all_at in closed: write_all_at.outside.closed (discharged)",
+        "information in closed: information.outside.closed (discharged)",
+        "set_modified in closed: set_modified.outside.closed (discharged)",
+        "set_size in closed: set_size.outside.closed (discharged)",
+        "close leaves the object in closed (close.moves, discharged)"
       ]
     },
     {
@@ -866,7 +1383,7 @@
     {
       "id": "stxlib.glyphs.glyphstore.glyph.requires.glyph_index",
       "declaration": "include/stxlib/glyph_store.ic.toml",
-      "declaration_sha256": "8a38fd6ea37ebefef957757c15f283276c23b56aa89ea4646fdfd9e497c38019",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
         "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
       },
@@ -884,7 +1401,7 @@
     {
       "id": "stxlib.glyphs.glyphstore.glyph.refusal.glyph_index",
       "declaration": "include/stxlib/glyph_store.ic.toml",
-      "declaration_sha256": "8a38fd6ea37ebefef957757c15f283276c23b56aa89ea4646fdfd9e497c38019",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
       "sources": {
         "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
       },
@@ -902,9 +1419,108 @@
       ]
     },
     {
+      "id": "stxlib.glyphs.glyphstore.open.moves",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
+      "sources": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a loop that writes no state member: for (usize index = 0; index < 3; ++index) { parts_[index].points.relea",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "GlyphStore::open read in src/algorithms/glyphs/glyph_store.cpp, src/algorithms/glyphs/font_file.cpp",
+        "in any state, path 2: returns OperationStatus::success(); after it font_bytes_ != nullptr holds (writes: newer_ = 1, font_bytes_ = font.bytes.data(), font_size_ = font.bytes.count(), font_glyf_ = font.glyf, font_charstrings_ = font.charstrings, font_map_ = font.cha)"
+      ]
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.keep.outside.closed",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
+      "sources": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is font_bytes_ == nullptr (the declaration's represents)",
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "GlyphStore::keep read at src/algorithms/glyphs/glyph_store.cpp:220 in the state closed (font_bytes_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.glyph.outside.closed",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
+      "sources": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a",
+        "src/algorithms/glyphs/font_file.cpp": "7caac1966104a0d44b88cab5bbcc3dbed39422f9aac9ec08d2b0e745721928b2"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state closed is font_bytes_ == nullptr (the declaration's represents)",
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "admits_glyph_index() in a condition only reads",
+        "STXLIB_GLYPHS_CHECK (a check that ends the process or does nothing)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "GlyphStore::glyph read at src/algorithms/glyphs/glyph_store.cpp:183 in the state closed (font_bytes_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument"
+      ]
+    },
+    {
+      "id": "stxlib.glyphs.glyphstore.release.moves",
+      "declaration": "include/stxlib/glyph_store.ic.toml",
+      "declaration_sha256": "3b1afc96adb5cb22f6a5038cfad12149d26d460ae20b5a7a7129a964efaba800",
+      "sources": {
+        "src/algorithms/glyphs/glyph_store.cpp": "a4f2be9cd249723319d1be66fbb9f624d08012c755789862d190edc1816fb20a"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "assumed: font.bytes.data() != nullptr (a Font the reader made holds its file's bytes (font_file.hpp); the engine opens the store on such a font)",
+        "assumed: whole() (the store's invariant, which the engine checks after every block and the checked glyph tests after every call)",
+        "a loop that writes no state member: for (usize index = 0; index < 3; ++index) { parts_[index].points.relea",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "GlyphStore::release read in src/algorithms/glyphs/glyph_store.cpp",
+        "in any state, path 1: returns; after it font_bytes_ == nullptr holds (writes: newer_ = 1, font_bytes_ = nullptr, font_size_ = 0, font_glyf_ = FontTable{}, font_charstrings_ = FontTable{}, font_map_ = FontTable{}, read_ = 0)"
+      ]
+    },
+    {
       "id": "stxlib.memory.allocate.requires.allocate",
       "declaration": "include/stxlib/memory.ic.toml",
-      "declaration_sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4",
+      "declaration_sha256": "1e08840e900772dce9f8edca12e756c760e3e7107cd514fdb139332cd077decd",
       "sources": {
         "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
       },
@@ -923,7 +1539,7 @@
     {
       "id": "stxlib.memory.allocate.refusal.allocate",
       "declaration": "include/stxlib/memory.ic.toml",
-      "declaration_sha256": "eeb4a5b3e0b7fd8f8c9667eff81903a3751378cea4a6b76d772feb62fe76e6a4",
+      "declaration_sha256": "1e08840e900772dce9f8edca12e756c760e3e7107cd514fdb139332cd077decd",
       "sources": {
         "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
       },
@@ -940,9 +1556,150 @@
       ]
     },
     {
+      "id": "stxlib.mutex.lock.outside.held",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Mutex::lock read at src/core/threads.cpp:157 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.mutex.lock.moves",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "Mutex::lock read in src/core/threads.cpp with STXLIB_LOCK_CHECKS defined",
+        "in free, path 1: returns; after it owner_ == current_thread().value() holds (writes: owner_ = current_thread().value())"
+      ]
+    },
+    {
+      "id": "stxlib.mutex.try_lock.outside.held",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Mutex::try_lock read at src/core/threads.cpp:167 in the state held (owner_ == current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.mutex.try_lock.moves",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "steps": [
+        "Mutex::try_lock read in src/core/threads.cpp with STXLIB_LOCK_CHECKS defined",
+        "in free, path 1: returns thread_backend::mutex_try_lock(storage_); after it owner_ == current_thread().value() holds (writes: owner_ = current_thread().value())"
+      ]
+    },
+    {
+      "id": "stxlib.mutex.unlock.outside.free",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Mutex::unlock read at src/core/threads.cpp:180 in the state free (owner_ != current_thread().value()) with STXLIB_LOCK_CHECKS defined",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.mutex.unlock.moves",
+      "declaration": "include/stxlib/mutex.ic.toml",
+      "declaration_sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "Mutex::unlock read in src/core/threads.cpp with STXLIB_LOCK_CHECKS defined",
+        "in held, path 1: returns; after it owner_ != current_thread().value() holds (writes: owner_ = 0)"
+      ]
+    },
+    {
       "id": "stxlib.atomicpool.create.requires.create_some_threads",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -960,7 +1717,7 @@
     {
       "id": "stxlib.atomicpool.create.refusal.create_some_threads",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -978,7 +1735,7 @@
     {
       "id": "stxlib.atomicpool.create.requires.create_thread_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -996,7 +1753,7 @@
     {
       "id": "stxlib.atomicpool.create.refusal.create_thread_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1014,7 +1771,7 @@
     {
       "id": "stxlib.atomicpool.run.requires.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1032,7 +1789,7 @@
     {
       "id": "stxlib.atomicpool.run.refusal.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1050,7 +1807,7 @@
     {
       "id": "stxlib.atomicpool.begin.requires.begin_some_tasks",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1068,7 +1825,7 @@
     {
       "id": "stxlib.atomicpool.begin.refusal.begin_some_tasks",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1088,7 +1845,7 @@
     {
       "id": "stxlib.atomicpool.begin.requires.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1106,7 +1863,7 @@
     {
       "id": "stxlib.atomicpool.begin.refusal.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "9f60083dacbf4fa206014d4bbca0a31420000fe92e7dd84d794747888f988f9b",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1122,9 +1879,182 @@
       ]
     },
     {
+      "id": "stxlib.atomicpool.run.outside.empty",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "AtomicPool::run read at src/core/thread_pool.cpp:284 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument, PoolFailure::empty_pool"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.run.outside.open",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "AtomicPool::run read at src/core/thread_pool.cpp:284 in the state open (state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value())",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.outside.empty",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "AtomicPool::begin read at src/core/thread_pool.cpp:320 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument, PoolFailure::empty_pool"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.outside.open",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "AtomicPool::begin read at src/core/thread_pool.cpp:320 in the state open (state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value())",
+        "path 1: the process ends (a requirement)"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.begin.moves",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state idle is state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "current_thread() in a condition only reads",
+        "admits_begin_some_tasks() in a condition only reads",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "AtomicPool::begin read in src/core/thread_pool.cpp",
+        "in idle, path 3: returns OperationStatus::success(); after it state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() holds (writes: (*state_).batch_cancellation = detail::cancellation_off(), (*state_).tasks = tasks.data(), (*state_).pending = static_cast<u32>(tasks.count()), (*state_).claim_)",
+        "in idle, path 4: returns OperationStatus::success(); after it state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() holds (writes: (*state_).batch_cancellation = detail::cancellation_off(), (*state_).tasks = tasks.data(), (*state_).pending = static_cast<u32>(tasks.count()), (*state_).claim_)",
+        "in idle, path 5: returns OperationStatus::success(); after it state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() holds (writes: (*state_).batch_cancellation = detail::cancellation_off(), (*state_).tasks = tasks.data(), (*state_).pending = static_cast<u32>(tasks.count()), (*state_).claim_)",
+        "in idle, path 6: returns OperationStatus::success(); after it state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() holds (writes: (*state_).batch_cancellation = detail::cancellation_off(), (*state_).tasks = tasks.data(), (*state_).pending = static_cast<u32>(tasks.count()), (*state_).claim_)"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.wait.outside.empty",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "AtomicPool::wait read at src/core/thread_pool.cpp:347 in the state empty (state_ == nullptr)",
+        "path 1: names ErrorKind::invalid_argument, PoolFailure::empty_pool"
+      ]
+    },
+    {
+      "id": "stxlib.atomicpool.wait.moves",
+      "declaration": "include/stxlib/thread_pool.ic.toml",
+      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "sources": {
+        "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state idle is state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 (the declaration's represents)",
+        "assumed: !is_worker() (the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "the state open is state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value() (the declaration's represents)",
+        ".done_cv.wait( changes no state member (the batch's wait releases and retakes sleep_lock and reads the batch through batch_finished; it writes neither batch_open nor batch_owner (ConditionVariable::wait, threads.cpp; batch_finished, thread_pool.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "steps": [
+        "AtomicPool::wait read in src/core/thread_pool.cpp",
+        "in idle, path 1: returns OperationStatus::success(); after it state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 holds (writes: (*state_).tasks = nullptr)",
+        "in open, path 1: returns OperationStatus::success(); after it state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0 holds (writes: (*state_).tasks = nullptr, (*state_).batch_open = false, (*state_).batch_owner = 0)"
+      ]
+    },
+    {
       "id": "stxlib.thread.start.requires.start_entry",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
         "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
       },
@@ -1142,7 +2072,7 @@
     {
       "id": "stxlib.thread.start.refusal.start_entry",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
         "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
       },
@@ -1160,7 +2090,7 @@
     {
       "id": "stxlib.thread.start.requires.start_stack",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
         "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
       },
@@ -1178,7 +2108,7 @@
     {
       "id": "stxlib.thread.start.refusal.start_stack",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "b8573247efd1c902435468f6e00c1299f89b0ea2c455f61ae27c906100cfdd9f",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
       "sources": {
         "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
       },
@@ -1191,6 +2121,93 @@
       ],
       "steps": [
         "guard at src/core/threads.cpp:376"
+      ]
+    },
+    {
+      "id": "stxlib.thread.join.outside.empty",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr || (*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Thread::join read at src/core/threads.cpp:419 in the state empty (state_ == nullptr || (*state_).joined)",
+        "path 1: returns JoinResult::not_joinable"
+      ]
+    },
+    {
+      "id": "stxlib.thread.join.moves",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state started is state_ != nullptr && !(*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result == JoinResult::joined (the declaration's represents.succeeds)"
+      ],
+      "steps": [
+        "Thread::join read in src/core/threads.cpp",
+        "in started, path 2: returns JoinResult::joined; after it state_ == nullptr || (*state_).joined holds (writes: (*state_).joined = true)"
+      ]
+    },
+    {
+      "id": "stxlib.thread.abandon.outside.empty",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state empty is state_ == nullptr || (*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "Thread::abandon read at src/core/threads.cpp:432 in the state empty (state_ == nullptr || (*state_).joined)",
+        "path 1: returns AbandonResult::not_joinable"
+      ]
+    },
+    {
+      "id": "stxlib.thread.abandon.moves",
+      "declaration": "include/stxlib/threads.ic.toml",
+      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "sources": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "premises": [
+        "the state started is state_ != nullptr && !(*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result != AbandonResult::not_joinable (the declaration's represents.succeeds)"
+      ],
+      "steps": [
+        "Thread::abandon read in src/core/threads.cpp",
+        "in started, path 1: returns AbandonResult::already_finished; after it state_ == nullptr || (*state_).joined holds (writes: state_ = nullptr)",
+        "in started, path 2: returns AbandonResult::abandoned; after it state_ == nullptr || (*state_).joined holds (writes: state_ = nullptr)"
       ]
     },
     {
@@ -1386,7 +2403,7 @@
     {
       "id": "stxlib.stx_minmallocpp.allocate.requires.allocate",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1404,7 +2421,7 @@
     {
       "id": "stxlib.stx_minmallocpp.allocate.refusal.allocate",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1422,7 +2439,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_made_free",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1440,7 +2457,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_made_free",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1458,7 +2475,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_made_free",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1476,7 +2493,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_made_full",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1494,7 +2511,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_made_full",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1512,7 +2529,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_made_full",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1530,7 +2547,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_take",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
       },
@@ -1548,7 +2565,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_take",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
       },
@@ -1566,7 +2583,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_take",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
       },
@@ -1584,7 +2601,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_release",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1602,7 +2619,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_release",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1620,7 +2637,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_release",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1638,7 +2655,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_remote",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1656,7 +2673,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_remote",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1674,7 +2691,7 @@
     {
       "id": "stxlib.stx_minmallocpp.bit_collect",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
       },
@@ -1692,7 +2709,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_collect",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
       },
@@ -1710,7 +2727,7 @@
     {
       "id": "stxlib.stx_minmallocpp.count_collect",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
       },
@@ -1728,7 +2745,7 @@
     {
       "id": "stxlib.stx_minmallocpp.summary_scan",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1746,7 +2763,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_freed",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1764,7 +2781,7 @@
     {
       "id": "stxlib.stx_minmallocpp.refusal_reads_nothing",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
         "src/state/stx_minmallocpp/region.hpp": "079718a533cca1cf0ba7673ccb22387ee3286284ae4a78f0541f4af37ba72152",
@@ -1793,7 +2810,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_count_take",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
       },
@@ -1814,7 +2831,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_count_release",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
       },
@@ -1836,7 +2853,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_count_collect",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
       },
@@ -1857,7 +2874,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_count_made",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
       },
@@ -1878,7 +2895,7 @@
     {
       "id": "stxlib.stx_minmallocpp.page_protocol",
       "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
-      "declaration_sha256": "b225c8286dc25810736252daf0e0f6abf6e3daf17c87a6f962233f42438825ec",
+      "declaration_sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7",
       "sources": {
         "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
         "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
@@ -1918,5 +2935,41 @@
       ]
     }
   ],
-  "open": []
+  "open": [
+    {
+      "id": "stxlib.file.read.outside.writing",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "no refusal in the code before file_backend::read(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
+    },
+    {
+      "id": "stxlib.file.read.outside.appending",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "no refusal in the code before file_backend::read(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
+    },
+    {
+      "id": "stxlib.file.write_all.outside.reading",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "no refusal in the code before its loop: the declared refusal would be the host's, from the calls inside the loop, which the deducer does not read (a loop that may return: while (written < input.count()) {\n        usize transferred )"
+    },
+    {
+      "id": "stxlib.file.read_at.outside.writing",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "no refusal in the code before file_backend::read_at(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
+    },
+    {
+      "id": "stxlib.file.read_at.outside.appending",
+      "declaration": "include/stxlib/files.ic.toml",
+      "why": "no refusal in the code before file_backend::read_at(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
+    },
+    {
+      "id": "stxlib.memory.identity",
+      "declaration": "include/stxlib/memory.ic.toml",
+      "why": "a stale identity here is an address, not a state of an object (no represents table): that every address no live block starts at is refused needs the release path's tests read as one condition equal to that, which the deducer does not do"
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.identity",
+      "declaration": "src/state/stx_minmallocpp/allocator.ic.toml",
+      "why": "a stale identity here is an address, not a state of an object (no represents table): that every address no live block starts at is refused needs the release path's tests read as one condition equal to that, which the deducer does not do"
+    }
+  ]
 }

@@ -20,7 +20,7 @@ thread = "owner"
 states = ["closed", "reading", "writing", "appending"]
 initial = "closed"
 state_query = { call = "is_open", observes = { closed = "false", reading = "true", writing = "true", appending = "true" } }
-identity = { kind = "host handle, -1 once closed or moved from", stale = "failure:disposed:closed_handle" }
+identity = { kind = "host handle, -1 once closed or moved from", stale = "failure:disposed:closed_handle", state = "closed" }
 
 [constants]
 # Offsets above 2^63 - 1 are refused (positioned I/O, set_size).
@@ -39,6 +39,11 @@ path = "src/core/files_ic_checks.hpp"
 namespace = "stxlib::detail::ic::files"
 includes = ["stxlib/types.hpp"]
 used_in = ["src/core/files.cpp"]
+
+# The states as conditions over File's members: what the IC4 deducer
+# (tools/ic_deduce.py, tools/ic_typestate.py) reads each call against.
+[represents]
+states = { closed = "handle_ == closed", reading = "handle_ != closed && mode_ == FileMode::read", writing = "handle_ != closed && (mode_ == FileMode::create_new || mode_ == FileMode::replace)", appending = "handle_ != closed && mode_ == FileMode::append" }
 
 [[call]]
 name = "open"
