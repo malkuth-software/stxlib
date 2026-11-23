@@ -104,7 +104,7 @@ OperationStatus GlyphStore::open(const Font& font, const FontLimits& limits, con
 OperationStatus GlyphStore::place(const Font& font, const u32 glyph, const bool in_kept, StoredGlyph& stored) noexcept {
     const Operation operation("stxlib.glyphs.glyph_store");
     stored = StoredGlyph{};
-    if (!opened_for(font) || !detail::ic::glyph_store::admits_glyph_index(glyph, font.glyph_count)) {
+    if (!opened_for(font) || !::stxlib::detail::ic::glyph_store::admits_glyph_index(glyph, font.glyph_count)) {
         return detail::refuse_font(ErrorKind::invalid_argument, operation);
     }
     const u32 code = index_[glyph];
