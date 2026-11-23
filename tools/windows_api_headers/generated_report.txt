@@ -3,7 +3,7 @@
 callback: 19
 const: 863
 enum: 58
-function: 431
+function: 435
 interface: 72
 struct: 174
 type: 198

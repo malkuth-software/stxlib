@@ -149,6 +149,7 @@ EXPORTS
     SetHandleInformation
     SetInformationJobObject
     SetLastError
+    SetStdHandle
     SetThreadPriority
     SetThreadpoolWait
     SetUnhandledExceptionFilter

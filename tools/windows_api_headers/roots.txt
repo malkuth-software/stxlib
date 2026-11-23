@@ -1200,6 +1200,7 @@ SetParent
 SetPixel
 SetProcessDPIAware
 SetProcessDpiAwarenessContext
+SetStdHandle
 SetStretchBltMode
 SetThreadPriority
 SetThreadpoolWait
@@ -1600,7 +1601,10 @@ WaitForMultipleObjects
 WaitForSingleObject
 WaitForSingleObjectEx
 WaitForThreadpoolWaitCallbacks
+WaitOnAddress
 WakeAllConditionVariable
+WakeByAddressAll
+WakeByAddressSingle
 WakeConditionVariable
 WideCharToMultiByte
 WindowFromDC
