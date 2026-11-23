@@ -357,4 +357,22 @@ float cosm1pi(const float x) noexcept {
     return result;
 }
 
+// sincosd writes every zero as +0 (math.hpp): the flush can make a tiny
+// sine -0, and adding +0 changes -0 alone.
+void sincosd(const double x, double& s, double& c) noexcept {
+    double kernel_s = 0.0;
+    double kernel_c = 0.0;
+    unflushed::sincosd(flush(x), kernel_s, kernel_c);
+    s = flush(kernel_s) + 0.0;
+    c = flush(kernel_c) + 0.0;
+}
+
+void sincosd(const float x, float& s, float& c) noexcept {
+    float kernel_s = 0.0f;
+    float kernel_c = 0.0f;
+    unflushed::sincosd(flush(x), kernel_s, kernel_c);
+    s = flush(kernel_s) + 0.0f;
+    c = flush(kernel_c) + 0.0f;
+}
+
 } // namespace stxlib::math

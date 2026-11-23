@@ -107,6 +107,8 @@ struct Kernels final {
     float (*cosm1_f)(float) noexcept = nullptr;
     double (*cosm1pi_d)(double) noexcept = nullptr;
     float (*cosm1pi_f)(float) noexcept = nullptr;
+    void (*sincosd_d)(double, double&, double&) noexcept = nullptr;
+    void (*sincosd_f)(float, float&, float&) noexcept = nullptr;
 };
 
 constexpr Kernels v128_kernels = {
@@ -166,6 +168,8 @@ constexpr Kernels v128_kernels = {
     v128::cosm1,
     v128::cosm1pi,
     v128::cosm1pi,
+    v128::sincosd,
+    v128::sincosd,
 };
 
 constexpr Kernels avx2_fma_kernels = {
@@ -225,6 +229,8 @@ constexpr Kernels avx2_fma_kernels = {
     avx2_fma::cosm1,
     avx2_fma::cosm1pi,
     avx2_fma::cosm1pi,
+    avx2_fma::sincosd,
+    avx2_fma::sincosd,
 };
 
 const Kernels* select_kernels() noexcept {
@@ -513,6 +519,14 @@ float resolve_cosm1pi_f(const float x) noexcept {
     return result;
 }
 
+void resolve_sincosd_d(const double x, double& s, double& c) noexcept {
+    (*(*resolve()).sincosd_d)(x, s, c);
+}
+
+void resolve_sincosd_f(const float x, float& s, float& c) noexcept {
+    (*(*resolve()).sincosd_f)(x, s, c);
+}
+
 constexpr Kernels resolving_kernels = {
     resolve_sincos_f,
     resolve_sincos_d,
@@ -570,6 +584,8 @@ constexpr Kernels resolving_kernels = {
     resolve_cosm1_f,
     resolve_cosm1pi_d,
     resolve_cosm1pi_f,
+    resolve_sincosd_d,
+    resolve_sincosd_f,
 };
 
 std::atomic<const Kernels*> active{&resolving_kernels};
@@ -860,6 +876,14 @@ float cosm1pi(const float x) noexcept {
     return result;
 }
 
+void sincosd(const double x, double& s, double& c) noexcept {
+    (*(*active.load(std::memory_order_relaxed)).sincosd_d)(x, s, c);
+}
+
+void sincosd(const float x, float& s, float& c) noexcept {
+    (*(*active.load(std::memory_order_relaxed)).sincosd_f)(x, s, c);
+}
+
 } // namespace unflushed
 
 } // namespace stxlib::math
@@ -1148,6 +1172,14 @@ double cosm1pi(const double x) noexcept {
 float cosm1pi(const float x) noexcept {
     const float result = native::cosm1pi(x);
     return result;
+}
+
+void sincosd(const double x, double& s, double& c) noexcept {
+    native::sincosd(x, s, c);
+}
+
+void sincosd(const float x, float& s, float& c) noexcept {
+    native::sincosd(x, s, c);
 }
 
 } // namespace unflushed
