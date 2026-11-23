@@ -1,0 +1,70 @@
+{
+  "schema": 1,
+  "component": "stxlib::StopSource",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/stop_source.ic.toml",
+    "sha256": "d390bd4a903e3063fd3f06bcee897e37eb5f60261217f5f2c4e201224509c0a7"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.stopsource.request_stop.moves",
+      "kind": "transition",
+      "statement": "request_stop succeeding in armed, stopped leaves the object in stopped.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state armed is state_ != nullptr && (*state_).requested == 0 (the declaration's represents)",
+        "the state stopped is state_ != nullptr && (*state_).requested != 0 (the declaration's represents)",
+        "a loop that writes no state member: for (;;) { StopCallback* const callback = (*state).first; if (callback",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.stopsource.request_stop.armed",
+          "stxlib.stopsource.request_stop.stopped"
+        ],
+        "file": "tests/ic/blocks/stop_source.blocks.json",
+        "what": "the legal blocks drive request_stop and observe the state after it through (object.stop_possible() ? 1 : 0) + (object.stop_requested() ? 1 : 0)",
+        "run_by": "tests/ic/generated/stop_source.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      }
+    },
+    {
+      "id": "stxlib.stopsource.request_stop.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "request_stop in empty: returns false, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.stopsource.request_stop.outside.empty"
+        ],
+        "file": "tests/ic/blocks/stop_source.blocks.json",
+        "what": "the misuse block drives request_stop in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/stop_source.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/stop_token.cpp": "173efb0edd947fee5031a8ded0dc5c64074477c6270271f132e1020c69ec6773"
+      }
+    }
+  ]
+}

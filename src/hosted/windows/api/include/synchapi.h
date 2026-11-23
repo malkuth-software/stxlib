@@ -48,7 +48,10 @@ __declspec(dllimport) BOOL __stdcall TryEnterCriticalSection(LPCRITICAL_SECTION 
 __declspec(dllimport) DWORD __stdcall WaitForMultipleObjects(DWORD nCount, const HANDLE *lpHandles, BOOL bWaitAll, DWORD dwMilliseconds);
 __declspec(dllimport) DWORD __stdcall WaitForSingleObject(HANDLE hHandle, DWORD dwMilliseconds);
 __declspec(dllimport) DWORD __stdcall WaitForSingleObjectEx(HANDLE hHandle, DWORD dwMilliseconds, BOOL bAlertable);
+__declspec(dllimport) BOOL __stdcall WaitOnAddress(void *Address, PVOID CompareAddress, SIZE_T AddressSize, DWORD dwMilliseconds);
 __declspec(dllimport) void __stdcall WakeAllConditionVariable(PCONDITION_VARIABLE ConditionVariable);
+__declspec(dllimport) void __stdcall WakeByAddressAll(PVOID Address);
+__declspec(dllimport) void __stdcall WakeByAddressSingle(PVOID Address);
 __declspec(dllimport) void __stdcall WakeConditionVariable(PCONDITION_VARIABLE ConditionVariable);
 #ifdef __cplusplus
 }

@@ -44,6 +44,9 @@
 // host at failure time. Layout 13 (the coordinator, 2026-11-15, for
 // GUI.Forms' Windows debugger filter) gives the process state the debugger
 // registry (debugger_threads, below; include/stxlib/debugger_anchor.hpp).
+// Layout 14 (stx_mcp, 2026-11-22) adds the flag that makes the claim of the
+// standard streams for a protocol once per process
+// (protocol_streams_claimed; include/stxlib/pipes.hpp).
 //
 // Why (the GUI.Forms coordinator's constraint, 2026-11-13): on Windows each
 // module that links the static C++ runtime and STXlib statically has its
@@ -103,7 +106,7 @@
 namespace stxlib::state {
 
 // Raised whenever a structure below changes shape.
-inline constexpr u32 layout_version = 13;
+inline constexpr u32 layout_version = 14;
 
 // The build type's part of the layout: development builds (STXLIB_SHADOW)
 // lay ThreadState out differently from release builds, so the key the
@@ -422,6 +425,11 @@ struct ProcessState final {
     // `.stxshdw` descriptor (state.cpp). Aligned so that each entry's
     // fields are where the public layout puts them.
     alignas(8) DebuggerThreadSlot debugger_threads[debugger_thread_capacity]{};
+    // The standard streams claimed for a protocol (layout 14; pipes.hpp,
+    // claim_protocol_streams): set by the one claim a process makes, in any
+    // module; cleared again only when that claim fails before it changed
+    // anything.
+    std::atomic<bool> protocol_streams_claimed{false};
 };
 
 // What memory::release did with an address (allocator.cpp).

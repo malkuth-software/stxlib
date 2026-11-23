@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "src/state/stx_minmallocpp/allocator.ic.toml",
-    "sha256": "342104ced65332a437718666fe72951392e4cbefbb686c7e8efacf119266565f"
+    "sha256": "d4f4da7ede30bbd9c7dbc92976c1bb76de8dc0b18fd3f609ea479186015beee7"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -12,20 +12,34 @@
       "id": "stxlib.stx_minmallocpp.allocate.requires.allocate",
       "kind": "entry-check",
       "statement": "allocate runs only when power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request; otherwise returns null, unchanged.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "evidence": "generated check stxlib::stx_minmallocpp::ic::admits_allocate, called in src/state/stx_minmallocpp/allocator.cpp"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::stx_minmallocpp::ic::admits_allocate, called in src/state/stx_minmallocpp/allocator.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
     },
     {
       "id": "stxlib.stx_minmallocpp.allocate.refusal.allocate",
       "kind": "refusal-leaves",
       "statement": "Unless power_of_two(alignment) and alignment <= alignment_limit and size <= largest_request, allocate changes nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open"
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
     },
     {
       "id": "stxlib.stx_minmallocpp.identity",
@@ -34,32 +48,712 @@
       "level": "none",
       "tool": null,
       "premises": [],
-      "status": "open"
+      "status": "open",
+      "covered_by": {
+        "mechanism": "tests",
+        "tests": [
+          "tests/stx_minmallocpp_direct_tests.cpp: refusals (null, the stack, the image, inside a block, the region's metadata, a page's unused tail, a second release, inside a large and a mapped block)",
+          "tests/ic/engine/ic_allocator_inputs.hpp: interior_refused, an address inside a live block, drawn by the engine's blocks and the fuzzer"
+        ]
+      },
+      "not_deduced": "a stale identity here is an address, not a state of an object (no represents table): that every address no live block starts at is refused needs the release path's tests read as one condition equal to that, which the deducer does not do"
     },
     {
       "id": "stxlib.stx_minmallocpp.page_protocol",
       "kind": "stated",
       "statement": "For any number of threads, pages and blocks and any interleaving, the page protocol never reaches an integrity stop, never refuses a held block's release, and keeps its invariant.",
-      "level": "none",
-      "tool": null,
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
       "premises": [
         "the C++ memory model's coherence",
         "each segment between step marks atomic",
         "sequentially consistent operations linearizable",
-        "the queue and abandoned-list contracts"
+        "the queue and abandoned-list contracts",
+        "a caller releases only a block it holds, once (H, per word, is the ghost set of its blocks allocated and not released)",
+        "only the page's owner writes its free words, summary and live; another thread writes only a remote word, by fetch_or (each write is one covers finds)",
+        "low(x) is x's lowest set bit (the block take_from returns, at countr_zero), and take_from runs on a non-zero word",
+        "a sum over the page's words is at least each of its terms, and a counter is not negative",
+        "the steps listed are every change of the invariant's words and counters (each write the covers patterns find is cited by a step's lemma)",
+        "each segment between step marks is atomic (the step model)"
       ],
-      "status": "open",
-      "method": "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
+      "status": "discharged",
+      "method": "sxv's: an invariant made by the page's making and kept by every step between step marks; each step's words decided bit by bit, its counters as finite sums updated at one word with popcount by its algebra. The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6). (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "H & F == 0",
+        "H & R == 0",
+        "F & R == 0",
+        "(H | F | R) == M",
+        "Z & ~S == 0",
+        "SF + SR + SH == capacity",
+        "live == SH + SR"
+      ],
+      "shows": "SF + live == capacity",
+      "sources": [],
+      "from": [
+        "base_free: bit_made_free, summary_made_free, count_made_free, page_count_made",
+        "base_full: bit_made_full, summary_made_full, count_made_full",
+        "take: bit_take, summary_take, count_take",
+        "release: bit_release, summary_release, count_release",
+        "remote: bit_remote, count_remote",
+        "collect: bit_collect, summary_collect, count_collect",
+        "scan: summary_scan",
+        "freed: page_freed"
+      ],
+      "covers": [
+        "src/state/stx_minmallocpp: \\b(free_cell|free_cells)\\b[^;]*\\.(store|exchange|fetch_\\w+)\\( => F, Z, SF",
+        "src/state/stx_minmallocpp: \\b(remote_cell|remote_cells)\\b[^;]*\\.(store|exchange|fetch_\\w+)\\( => R, SR",
+        "src/state/stx_minmallocpp/heap.hpp: \\bcell\\.store\\( => F, Z, SF",
+        "src/state/stx_minmallocpp: page\\.live\\s*=[^=] => live",
+        "src/state/stx_minmallocpp: page\\.summary\\s*=[^=] => S"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b",
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_made_free",
+      "kind": "stated",
+      "statement": "A page made with its blocks free: every block free, none held or pending.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "F == M",
+        "H == 0",
+        "R == 0"
+      ],
+      "shows": "H & F == 0 and H & R == 0 and F & R == 0 and (H | F | R) == M",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: free_cells[word].store(free_bits, std::memory_order_relaxed);",
+        "src/state/stx_minmallocpp/heap.cpp: if (remote_cells[word].load() != 0) integrity_stop(Integrity::released_into_freed_page);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_made_free",
+      "kind": "stated",
+      "statement": "A page made with its blocks free has every word's summary bit set.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "S == W",
+        "Z & ~W == 0"
+      ],
+      "shows": "Z & ~S == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: page.summary = plan.words >= word_bits ? u64_max : (static_cast<u64>(1) << plan.words) - 1;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_made_free",
+      "kind": "stated",
+      "statement": "A page made with its blocks free counts them all free (page_count_made) and none live.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF == capacity",
+        "SR == 0",
+        "SH == 0",
+        "live == 0"
+      ],
+      "shows": "SF + SR + SH == capacity and live == SH + SR",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_made_full",
+      "kind": "stated",
+      "statement": "A page made with its blocks taken: every block held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "F == 0",
+        "H == M",
+        "R == 0"
+      ],
+      "shows": "H & F == 0 and H & R == 0 and F & R == 0 and (H | F | R) == M",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: free_cells[word].store(free_bits, std::memory_order_relaxed);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_made_full",
+      "kind": "stated",
+      "statement": "A page made with its blocks taken has no summary bit and no free word.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "S == 0",
+        "Z == 0"
+      ],
+      "shows": "Z & ~S == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: page.summary = 0;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_made_full",
+      "kind": "stated",
+      "statement": "A page made with its blocks taken counts them all live.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF == 0",
+        "SR == 0",
+        "SH == capacity",
+        "live == capacity"
+      ],
+      "shows": "SF + SR + SH == capacity and live == SH + SR",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_take",
+      "kind": "stated",
+      "statement": "take_from moves the word's lowest free block to held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "H & F == 0",
+        "H & R == 0",
+        "F & R == 0",
+        "(H | F | R) == M",
+        "F_after == F & (F - 1)",
+        "H_after == H | low(F)",
+        "R_after == R"
+      ],
+      "shows": "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and H & low(F) == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_take",
+      "kind": "stated",
+      "statement": "take_from only clears free bits, so the summary still covers every non-zero word.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "Z & ~S == 0",
+        "Z_after & ~Z == 0",
+        "S_after == S"
+      ],
+      "shows": "Z_after & ~S_after == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_take",
+      "kind": "stated",
+      "statement": "take_from keeps the page's counts: one free block fewer, one held and one live more.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF + SR + SH == capacity",
+        "live == SH + SR",
+        "F != 0",
+        "H & low(F) == 0",
+        "F_after == F & (F - 1)",
+        "H_after == H | low(F)",
+        "SF_after == SF - pop(F) + pop(F_after)",
+        "SH_after == SH - pop(H) + pop(H_after)",
+        "SR_after == SR",
+        "live_after == live + 1"
+      ],
+      "shows": "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_release",
+      "kind": "stated",
+      "statement": "The owner's release of a held block: its bit was not free (so the release is not refused) and joins the free word.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "H & F == 0",
+        "H & R == 0",
+        "F & R == 0",
+        "(H | F | R) == M",
+        "b & H == b",
+        "F_after == F | b",
+        "H_after == H & ~b",
+        "R_after == R"
+      ],
+      "shows": "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & b == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {",
+        "src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_release",
+      "kind": "stated",
+      "statement": "The owner's release sets its word's summary bit.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "Z & ~S == 0",
+        "Z_after == Z | w",
+        "S_after == S | w"
+      ],
+      "shows": "Z_after & ~S_after == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/allocator.cpp: page.summary = page.summary | (static_cast<u64>(1) << word);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_release",
+      "kind": "stated",
+      "statement": "The owner's release keeps the page's counts and never takes live below zero.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF + SR + SH == capacity",
+        "live == SH + SR",
+        "single_bit(b)",
+        "b & H == b",
+        "F & b == 0",
+        "F_after == F | b",
+        "H_after == H & ~b",
+        "SF_after == SF - pop(F) + pop(F_after)",
+        "SH_after == SH - pop(H) + pop(H_after)",
+        "SR_after == SR",
+        "live_after == live - 1",
+        "SH >= pop(H)",
+        "SR >= 0"
+      ],
+      "shows": "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after and live >= 1",
+      "sources": [
+        "src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_remote",
+      "kind": "stated",
+      "statement": "Another thread's release of a held block: its bit is neither free nor pending (so neither test refuses it) and joins the remote word.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "H & F == 0",
+        "H & R == 0",
+        "F & R == 0",
+        "(H | F | R) == M",
+        "b & H == b",
+        "R_after == R | b",
+        "H_after == H & ~b",
+        "F_after == F"
+      ],
+      "shows": "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & b == 0 and R & b == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: if ((free_cell.load(std::memory_order_relaxed) & bit) != 0) return Release::refused;",
+        "src/state/stx_minmallocpp/heap.cpp: const u64 before = remote_cell.fetch_or(bit);",
+        "src/state/stx_minmallocpp/heap.cpp: if ((before & bit) != 0) return Release::refused;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_remote",
+      "kind": "stated",
+      "statement": "Another thread's release keeps the page's counts: one held block fewer, one pending more, live unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF + SR + SH == capacity",
+        "live == SH + SR",
+        "single_bit(b)",
+        "b & H == b",
+        "R & b == 0",
+        "R_after == R | b",
+        "H_after == H & ~b",
+        "SR_after == SR - pop(R) + pop(R_after)",
+        "SH_after == SH - pop(H) + pop(H_after)",
+        "SF_after == SF",
+        "live_after == live"
+      ],
+      "shows": "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: const u64 before = remote_cell.fetch_or(bit);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.bit_collect",
+      "kind": "stated",
+      "statement": "collect merges a remote word into its free word; they never overlap, so released_twice never stops.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "H & F == 0",
+        "H & R == 0",
+        "F & R == 0",
+        "(H | F | R) == M",
+        "released == R",
+        "R_after == 0",
+        "F_after == F | released",
+        "H_after == H"
+      ],
+      "shows": "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & released == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/page.hpp: const u64 released = remote_cells[word].exchange(0);",
+        "src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);",
+        "src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_collect",
+      "kind": "stated",
+      "statement": "collect sets the merged word's summary bit.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "Z & ~S == 0",
+        "Z_after & ~(Z | w) == 0",
+        "S_after == S | w"
+      ],
+      "shows": "Z_after & ~S_after == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/page.hpp: page.summary = page.summary | (static_cast<u64>(1) << word);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.count_collect",
+      "kind": "stated",
+      "statement": "collect keeps the page's counts and never takes live below zero, so live_count never stops.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF + SR + SH == capacity",
+        "live == SH + SR",
+        "F & released == 0",
+        "released == R",
+        "R_after == 0",
+        "F_after == F | released",
+        "H_after == H",
+        "SF_after == SF - pop(F) + pop(F_after)",
+        "SR_after == SR - pop(R) + pop(R_after)",
+        "SH_after == SH",
+        "live_after == live - pop(released)",
+        "SR >= pop(R)",
+        "SH >= 0"
+      ],
+      "shows": "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after and pop(released) <= live",
+      "sources": [
+        "src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);",
+        "src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.summary_scan",
+      "kind": "stated",
+      "statement": "The refill's scan clears a summary bit only for a word with no free block.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "Z & ~S == 0",
+        "low(S) & Z == 0",
+        "S_after == S & (S - 1)",
+        "Z_after == Z"
+      ],
+      "shows": "Z_after & ~S_after == 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: if (cells[word].load(std::memory_order_relaxed) != 0) {",
+        "src/state/stx_minmallocpp/heap.cpp: page.summary = page.summary & (page.summary - 1);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_freed",
+      "kind": "stated",
+      "statement": "A page freed with no live block has no pending block, so the next page made there finds its remote words zero (released_into_freed_page never stops).",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [],
+      "status": "discharged",
+      "method": "sxv's algebra (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "SF + SR + SH == capacity",
+        "live == SH + SR",
+        "live == 0",
+        "SR >= pop(R)",
+        "SH >= 0"
+      ],
+      "shows": "pop(R) <= 0",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: STX_MINMALLOCPP_CHECK(page.live == 0 && page_whole(page));",
+        "src/state/stx_minmallocpp/heap.cpp: if (remote_cells[word].load() != 0) integrity_stop(Integrity::released_into_freed_page);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
     },
     {
       "id": "stxlib.stx_minmallocpp.refusal_reads_nothing",
       "kind": "stated",
       "statement": "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
-      "method": ""
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the region's metadata (slice heads, page records, free and remote words: the slices below first_data_slice) and the directory are not the block or its neighbours (layout.hpp, page.hpp)",
+        "the metadata accessors (slice_heads, page_metas, free_words, remote_words, directory) return pointers outside the block and its neighbours",
+        "a member function of an atomic or of metadata takes the value, not memory at it",
+        "a statement after a function's last refusal is on no refused path of that function"
+      ],
+      "status": "discharged",
+      "method": "source structure: on every path to a refusal, no pointer is formed from address, value or a value computed from them, nor dereferenced; each call they reach is read the same way",
+      "untouched": [
+        "address",
+        "value"
+      ],
+      "paths": [
+        "src/state/stx_minmallocpp/allocator.cpp: release: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_with: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_common: Release::refused",
+        "src/state/stx_minmallocpp/allocator.cpp: release_general: Release::refused",
+        "src/state/stx_minmallocpp/region.cpp: release_huge: return false"
+      ],
+      "metadata": [
+        "slice_heads",
+        "page_metas",
+        "free_words",
+        "remote_words",
+        "directory"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1",
+        "src/state/stx_minmallocpp/region.hpp": "079718a533cca1cf0ba7673ccb22387ee3286284ae4a78f0541f4af37ba72152",
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b",
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921",
+        "src/state/stx_minmallocpp/region.cpp": "929d0478f6c54cd55b30f8a377b4a868bc64a268895a87aaae1e74f8651119cc"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_take",
+      "kind": "stated",
+      "statement": "take_from keeps a page's count: the lowest free bit leaves the word and live grows by one.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "take_from runs on a non-zero word (its caller loaded it and found it non-zero)",
+        "the step is atomic (between step marks)"
+      ],
+      "status": "discharged",
+      "method": "sxv's: the sum updated at one word; pop(x & (x - 1)) = pop(x) - 1 for x != 0 (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "sum + live == capacity",
+        "word != 0",
+        "sum_after == sum - pop(word) + pop(word & (word - 1))",
+        "live_after == live + 1"
+      ],
+      "shows": "sum_after + live_after == capacity",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);",
+        "src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.hpp": "3e228fa79f5d892b5ee97a756fc0522aee91210188d17f4c5add096d29f78fbf"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_release",
+      "kind": "stated",
+      "statement": "The owner's release keeps a page's count and never takes live below zero: the block's bit joins its word and live falls by one.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the block is live (its bit is clear in the word, checked by the integrity stop before the store)",
+        "a live block counts in live, so live >= 1",
+        "the step is atomic (between step marks)"
+      ],
+      "status": "discharged",
+      "method": "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b; pop of one bit is 1 (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "sum + live == capacity",
+        "known & bit == 0",
+        "single_bit(bit)",
+        "live >= 1",
+        "sum_after == sum - pop(known) + pop(known | bit)",
+        "live_after == live - 1"
+      ],
+      "shows": "sum_after + live_after == capacity and live_after >= 0",
+      "sources": [
+        "src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {",
+        "src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);",
+        "src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/allocator.cpp": "651e56580f343c803fe01a12ab65e6f927a695c7c88d569dcf617838e5cbf8b1"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_collect",
+      "kind": "stated",
+      "statement": "Collecting the remotely released blocks of a word keeps a page's count and never takes live below zero.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the integrity stops before the store end the process when the words overlap or the count exceeds live",
+        "the step is atomic (between step marks)"
+      ],
+      "status": "discharged",
+      "method": "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "sum + live == capacity",
+        "known & released == 0",
+        "pop(released) <= live",
+        "sum_after == sum - pop(known) + pop(known | released)",
+        "live_after == live - pop(released)"
+      ],
+      "shows": "sum_after + live_after == capacity and live_after >= 0",
+      "sources": [
+        "src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);",
+        "src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);",
+        "src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);",
+        "src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/page.hpp": "25208151d89d0902b53bf4acef1c8f4dabdcc2dce686661925097b9585598f8b"
+      }
+    },
+    {
+      "id": "stxlib.stx_minmallocpp.page_count_made",
+      "kind": "stated",
+      "statement": "A page made with its blocks free starts with its count: its full words and its last word's low bits are its capacity, and live is zero.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the plan's words are the capacity in 64-bit words, rounded up, so every word but the last is full (remaining >= 64) and the last holds 1 to 64 blocks",
+        "a word with remaining >= 64 is u64_max, the last 2^remaining - 1 (or u64_max when remaining is 64)"
+      ],
+      "status": "discharged",
+      "method": "sxv's: a finite sum split at its last term; pop of all 64 bits is 64; pop(2^r - 1) = r (the counter and popcount algebra is the allocator study's sxv (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md, 2026-11-18), re-implemented here; sxv stays study-only (owner, IC decision 6))",
+      "given": [
+        "words >= 1",
+        "remaining == capacity - 64 * (words - 1)",
+        "remaining >= 1",
+        "remaining <= 64",
+        "sum == 64 * (words - 1) + pop(2^remaining - 1)",
+        "live == 0"
+      ],
+      "shows": "sum + live == capacity",
+      "sources": [
+        "src/state/stx_minmallocpp/heap.cpp: const usize remaining = plan.capacity - word * word_bits;",
+        "src/state/stx_minmallocpp/heap.cpp: free_bits = remaining >= word_bits ? u64_max : (static_cast<u64>(1) << remaining) - 1;",
+        "src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"
+      ],
+      "proved_against": {
+        "src/state/stx_minmallocpp/heap.cpp": "f09555bd07ce15fe9e9ca3d1b3e78baed30767053b2075bbbe9b5d42cb371921"
+      }
     }
   ]
 }

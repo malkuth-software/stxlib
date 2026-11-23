@@ -1,0 +1,102 @@
+{
+  "schema": 1,
+  "component": "stxlib::Mutex",
+  "declaration": "include/stxlib/mutex.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "free",
+    "held"
+  ],
+  "initial": "free",
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.mutex.lock.free",
+      "mode": "legal",
+      "call": "lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "free",
+      "moves": "held",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Mutex",
+          "state": "free"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.mutex.lock.outside.held",
+      "mode": "misuse",
+      "call": "lock",
+      "state": "held",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.mutex.try_lock.free",
+      "mode": "legal",
+      "call": "try_lock",
+      "kind": "member",
+      "thread": "any",
+      "state": "free",
+      "moves": "held",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Mutex",
+          "state": "free"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.mutex.try_lock.outside.held",
+      "mode": "misuse",
+      "call": "try_lock",
+      "state": "held",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.mutex.unlock.held",
+      "mode": "legal",
+      "call": "unlock",
+      "kind": "member",
+      "thread": "any",
+      "state": "held",
+      "moves": "free",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::Mutex",
+          "state": "held"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.mutex.unlock.outside.free",
+      "mode": "misuse",
+      "call": "unlock",
+      "state": "free",
+      "expect": {
+        "kind": "requirement"
+      },
+      "leaves": "unchanged"
+    }
+  ]
+}

@@ -3,11 +3,12 @@
 // The state behind stxlib::conv::Field and Workspace (include/stxlib/conv.hpp), shared by
 // field.cpp and transfer.cpp.
 //
-// A field keeps the straight RGBA8 source (packed, width * 4 bytes a row) and, per source row,
-// the row's contested cells as a run list sorted by (cell, channel) (work/conv
-// PERFORMANCE_REVIEW.md R6): an interior cell keeps its correction e = c - a (admitted minus
-// raw currents; the linear kernel supplies a), an end cell its admitted currents. Every
-// end cell is listed in every channel; an interior cell whose admission is idle is not listed.
+// A field keeps the straight RGBA8 source (packed, width * 4 bytes a row) and nothing else. A
+// row cell's admission is a pure function of its eight source samples, so the transfers compute
+// the cells they need on demand (row_segment), with compile's arithmetic: an interior cell is
+// its raw currents plus e = admitted - raw where the contest acts, an end cell its admitted
+// currents. (Until 2026-11-23 the corrections were stored, 48 bytes per contested cell and
+// channel, about 1 GB for a 2049 x 2049 source; the bytes of every output are unchanged.)
 
 #include "kernels.hpp"
 #include "line.hpp"
@@ -17,12 +18,6 @@
 #include "stxlib/vector.hpp"
 
 namespace stxlib::conv::detail {
-
-struct Correction final {
-    u32 cell{0};
-    u32 channel{0};
-    double e[5]{0.0, 0.0, 0.0, 0.0, 0.0};
-};
 
 struct FieldState final {
     // The stored orientation. When the source's height is over 150% of its width the field is
@@ -35,12 +30,69 @@ struct FieldState final {
     bool ready{false};
     const Kernels* kernels{nullptr};
     Vector<u8> source;
-    // Row y's run list, sorted by (cell, channel); one list per row, so a recompile replaces
-    // only the rows an edit reaches.
-    Vector<Vector<Correction>> rows;
 };
 
-inline View<Correction> row_corrections(const FieldState& field, const usize y) noexcept { return field.rows[y].view(); }
+// Scratch for row_segment over up to `capacity` cells: the decoded planes (four channels, the
+// segment's samples i - 3 .. i + 4), K2's decoded pixels, K1's raw currents, list, gathered
+// windows, admitted currents and idle bytes. Pointers into caller storage, so a single cell can
+// use stack arrays (SmallSegment) and a block can use a workspace's vectors.
+struct SegmentBuffers final {
+    usize capacity{0};
+    double* planes{nullptr};   // channel_count * (capacity + 7)
+    double* decoded{nullptr};  // (capacity + 5) * channel_count
+    double* raw{nullptr};      // 5 * capacity
+    u32* list{nullptr};        // capacity
+    double* gathered{nullptr}; // 4 * capacity
+    double* admitted{nullptr}; // 5 * capacity
+    double* compact{nullptr};  // 5 * capacity
+    u8* idle{nullptr};         // capacity
+};
+
+// Stack scratch for up to 8 cells.
+struct SmallSegment final {
+    static constexpr usize cells = 8;
+    double planes[channel_count * (cells + 7)];
+    double decoded[(cells + 5) * channel_count];
+    double raw[5 * cells];
+    u32 list[cells];
+    double gathered[4 * cells];
+    double admitted[5 * cells];
+    double compact[5 * cells];
+    u8 idle[cells];
+    SegmentBuffers buffers() noexcept {
+        SegmentBuffers b;
+        b.capacity = cells;
+        b.planes = planes;
+        b.decoded = decoded;
+        b.raw = raw;
+        b.list = list;
+        b.gathered = gathered;
+        b.admitted = admitted;
+        b.compact = compact;
+        b.idle = idle;
+        return b;
+    }
+};
+
+// Workspace scratch for row_segment over up to `capacity` cells.
+struct SegmentScratch final {
+    Vector<double> planes;
+    Vector<double> decoded;
+    Vector<double> raw;
+    Vector<u32> list;
+    Vector<double> gathered;
+    Vector<double> admitted;
+    Vector<double> compact;
+    Vector<u8> idle;
+};
+[[nodiscard]] OperationStatus prepare_segment(SegmentScratch& scratch, usize capacity) noexcept;
+SegmentBuffers segment_buffers(SegmentScratch& scratch) noexcept;
+
+// Row r's cells imin .. imax (imax - imin < buffers.capacity), 24 doubles each (anchor[4], then
+// five currents, channel innermost; row_cell's layout): an interior cell's K2 raw currents plus
+// the contest's e = admitted - raw on the channels where it acts (K1, as compile did), an end
+// cell's admitted currents. Lanes are independent, so the bytes do not depend on the segment.
+void row_segment(const FieldState& field, usize r, usize imin, usize imax, double* cells, const SegmentBuffers& buffers) noexcept;
 
 struct WorkspaceState final {
     // Field values at the destination pixels of one region row (channel innermost).
@@ -78,6 +130,19 @@ struct WorkspaceState final {
     Vector<double> axis_gather;
     Vector<double> axis_admitted;
     Vector<u8> axis_idle;
+    // Axis preview: per region row its vertical cell and weights (sv[6], tau_v[5]).
+    Vector<usize> axis_cells;
+    Vector<double> axis_weights;
+    // Axis preview: the distinct interior vertical cells the region reads, and their gathered
+    // windows (8 planes, lanes = listed cell x channel).
+    Vector<usize> axis_listed;
+    Vector<double> axis_windows;
+    // Composited affine transfer (experiment): a strip of lines' row-pass values (line-major,
+    // rows, channel innermost) and per line its source rows and vertical cells.
+    Vector<double> composite_values;
+    Vector<usize> composite_ranges;
+    // row_segment's scratch (tiled preview: limit_cells; axis paths: a block of cells).
+    SegmentScratch segment;
 };
 
 // A line field: the samples (node-major, lanes innermost, packed) and per cell and lane its
@@ -116,5 +181,15 @@ void field_value(const FieldState& field, double u, double v, double* out) noexc
 // vertical contest per destination column. Tests and measurements only.
 OperationStatus axis_canon_fused(const Field& field, const AxisMap& map, const MutableRgba8Image& destination, const Region& region,
                                  Workspace& workspace) noexcept;
+
+// The affine transfers (transfer.cpp), for tests and measurements. affine_composited is the
+// default's composited path alone (a row pass along the stored rows, then a pass along
+// destination lines, each the 1D field); it refuses (unsupported) a map whose passes would be
+// singular or reduce by more than 32, where the default falls back to affine_field, the 2D
+// field's path (the field at the pulled-back centre; canon its exact pixel average).
+OperationStatus affine_field(const Field& field, const AffineMap& map, Mode mode, const MutableRgba8Image& destination,
+                             const Region& region, Workspace& workspace) noexcept;
+OperationStatus affine_composited(const Field& field, const AffineMap& map, Mode mode, const MutableRgba8Image& destination,
+                                  const Region& region, Workspace& workspace) noexcept;
 
 } // namespace stxlib::conv::detail

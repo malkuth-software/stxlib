@@ -10,6 +10,7 @@
 
 #include "stxlib/detail/cancellation.hpp"
 
+#include "core/threads_ic_checks.hpp"
 #include "hosted/host.hpp"
 #include "hosted/thread_backend.hpp"
 #include "state/state.hpp"
@@ -104,13 +105,15 @@ bool lock_checks_enabled() noexcept {
 
 namespace {
 
-#if defined(STXLIB_LOCK_CHECKS)
-
+// A lock misuse: fail fast (D11). RecursiveMutex reports in every build;
+// Mutex in check builds.
 [[noreturn]] void lock_defect(const TextView message) noexcept {
     const ErrorRecord record =
         ErrorRecord::make(ErrorKind::internal_failure, "stxlib.threads.lock", ErrorDetail{.message = message});
     fail_fast(record);
 }
+
+#if defined(STXLIB_LOCK_CHECKS)
 
 // owner_ is written by the holder and read by any thread that locks, so it
 // is accessed atomically; a reader compares it with its own identity, which
@@ -216,9 +219,8 @@ bool host_wait(unsigned char* const condition, unsigned char* const mutex_storag
 
 } // namespace
 
-void ConditionVariable::wait(ScopedLock& lock, const WaitPredicate predicate, const void* const context) noexcept {
+void ConditionVariable::wait_held(Mutex& mutex, const WaitPredicate predicate, const void* const context) noexcept {
     require_predicate(predicate);
-    Mutex& mutex = lock.mutex_;
     while (!predicate(context)) {
         static_cast<void>(host_wait(storage_, mutex.storage_, mutex.owner_, false, Duration()));
     }
@@ -228,10 +230,9 @@ void ConditionVariable::wait(ScopedLock& lock, const WaitPredicate predicate, co
 // IntervalTime, so the deadline means the same on every host whatever clock
 // the host's wait uses; timed_out is decided by IntervalTime alone, after
 // the predicate was found false.
-WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
-                                         const IntervalTime deadline) noexcept {
+WaitResult ConditionVariable::wait_held_until(Mutex& mutex, const WaitPredicate predicate, const void* const context,
+                                              const IntervalTime deadline) noexcept {
     require_predicate(predicate);
-    Mutex& mutex = lock.mutex_;
     for (;;) {
         if (predicate(context)) return WaitResult::satisfied;
         const IntervalTime now = IntervalTime::now();
@@ -240,17 +241,119 @@ WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate p
     }
 }
 
+void ConditionVariable::wait(ScopedLock& lock, const WaitPredicate predicate, const void* const context) noexcept {
+    wait_held(lock.mutex_, predicate, context);
+}
+
+WaitResult ConditionVariable::wait_until(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
+                                         const IntervalTime deadline) noexcept {
+    const WaitResult result = wait_held_until(lock.mutex_, predicate, context, deadline);
+    return result;
+}
+
 WaitResult ConditionVariable::wait_for(ScopedLock& lock, const WaitPredicate predicate, const void* const context,
                                        const Duration interval) noexcept {
     // IntervalTime::after saturates (clocks.hpp), as stx_auxlib's
     // deadline_after did.
-    const WaitResult result = wait_until(lock, predicate, context, IntervalTime::now().after(interval));
+    const WaitResult result = wait_held_until(lock.mutex_, predicate, context, IntervalTime::now().after(interval));
+    return result;
+}
+
+namespace {
+
+void require_held(const UniqueLock& lock) noexcept {
+    STXLIB_REQUIRE(lock.owns(), "ConditionVariable: a wait needs a UniqueLock that holds its mutex");
+}
+
+} // namespace
+
+void ConditionVariable::wait(UniqueLock& lock, const WaitPredicate predicate, const void* const context) noexcept {
+    require_held(lock);
+    wait_held(*lock.mutex_, predicate, context);
+}
+
+WaitResult ConditionVariable::wait_until(UniqueLock& lock, const WaitPredicate predicate, const void* const context,
+                                         const IntervalTime deadline) noexcept {
+    require_held(lock);
+    const WaitResult result = wait_held_until(*lock.mutex_, predicate, context, deadline);
+    return result;
+}
+
+WaitResult ConditionVariable::wait_for(UniqueLock& lock, const WaitPredicate predicate, const void* const context,
+                                       const Duration interval) noexcept {
+    require_held(lock);
+    const WaitResult result = wait_held_until(*lock.mutex_, predicate, context, IntervalTime::now().after(interval));
     return result;
 }
 
 void ConditionVariable::notify_one() noexcept { thread_backend::condition_notify_one(storage_); }
 
 void ConditionVariable::notify_all() noexcept { thread_backend::condition_notify_all(storage_); }
+
+// ---- RecursiveMutex -----------------------------------------------------------
+
+// holder_ is accessed atomically (relaxed): only the holder stores its own
+// identity there, so a thread that reads its own identity is the holder,
+// and any other value means "not me" whatever its age. depth_ is the
+// holder's alone, ordered by mutex_.
+
+namespace {
+
+// holder_ is mutable, so the const query loads it here too.
+u64 holder_of(u64& holder) noexcept {
+    const u64 result = std::atomic_ref<u64>(holder).load(std::memory_order_relaxed);
+    return result;
+}
+
+void set_holder(u64& holder, const u64 value) noexcept {
+    std::atomic_ref<u64>(holder).store(value, std::memory_order_relaxed);
+}
+
+} // namespace
+
+RecursiveMutex::~RecursiveMutex() {
+    if (holder_of(holder_) != 0) lock_defect("a RecursiveMutex was destroyed while held");
+}
+
+void RecursiveMutex::lock() noexcept {
+    const u64 caller = current_thread().value();
+    if (holder_of(holder_) == caller) {
+        if (depth_ == maximum_recursive_depth) lock_defect("a RecursiveMutex was locked past its greatest depth");
+        depth_ = depth_ + 1;
+        return;
+    }
+    mutex_.lock();
+    set_holder(holder_, caller);
+    depth_ = 1;
+}
+
+bool RecursiveMutex::try_lock() noexcept {
+    const u64 caller = current_thread().value();
+    if (holder_of(holder_) == caller) {
+        if (depth_ == maximum_recursive_depth) lock_defect("a RecursiveMutex was locked past its greatest depth");
+        depth_ = depth_ + 1;
+        return true;
+    }
+    if (!mutex_.try_lock()) return false;
+    set_holder(holder_, caller);
+    depth_ = 1;
+    return true;
+}
+
+void RecursiveMutex::unlock() noexcept {
+    if (holder_of(holder_) != current_thread().value()) {
+        lock_defect("a thread unlocked a RecursiveMutex it does not hold");
+    }
+    depth_ = depth_ - 1;
+    if (depth_ != 0) return;
+    set_holder(holder_, 0);
+    mutex_.unlock();
+}
+
+bool RecursiveMutex::held_by_current_thread() const noexcept {
+    const bool result = holder_of(holder_) == current_thread().value();
+    return result;
+}
 
 // stxlib/detail/cancellation.hpp: the boundary's entry to the host's switch.
 namespace detail {
@@ -366,13 +469,13 @@ Thread& Thread::operator=(Thread&& other) noexcept {
 
 OperationResult<Thread> Thread::start(const Entry entry, void* const context, const usize stack_bytes) noexcept {
     const Operation operation = "stxlib.threads.start";
-    if (entry == nullptr) {
+    if (!detail::ic::threads::admits_start_entry(entry)) {
         const ErrorRecord refused = ErrorRecord::make(
             ErrorKind::invalid_argument, operation,
             ErrorDetail{.code = static_cast<u32>(ThreadFailure::no_entry), .message = "a thread needs an entry"});
         return OperationResult<Thread>::failure(refused);
     }
-    if (stack_bytes < minimum_thread_stack_bytes || stack_bytes > maximum_thread_stack_bytes) {
+    if (!detail::ic::threads::admits_start_stack(stack_bytes)) {
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::invalid_argument, operation,
                               ErrorDetail{.code = static_cast<u32>(ThreadFailure::stack_size_out_of_range),

@@ -12,8 +12,17 @@
 //
 //   preview  the field at each destination pixel's pulled-back centre (fast);
 //   canon    the field's average over each destination pixel's pulled-back footprint
-//            (exact for the piecewise-polynomial canon field on axis and affine maps and
-//            meshes; perspective by subdivision with a stated density bound).
+//            (exact for the piecewise-polynomial canon field on axis maps and meshes;
+//            perspective by subdivision with a stated density bound).
+//
+// Affine maps (rotation) are composited from two 1D passes (owner, 2026-11-22): a pass along
+// the field's rows, then one along destination columns (rows when the map turns by more than
+// 45 degrees), each the 1D field. Preview reads each pass at the pixel's centre, canon averages
+// each pass over the pixel's extent along it (the pixel sheared along the line, exact for the
+// quintic cells). On axis-aligned affine maps preview is the field's value at the centre, bit
+// for bit; on rotations it equals the 2D field's bytes on most pixels and differs by one code on
+// most of the rest. Outside the source each pass clamps along its own axis. A map whose passes
+// would be singular or reduce by more than 32 takes the 2D field's path instead.
 //
 // The field is the 1D form along the longer axis first (owner, 2026-11-23: three forms, of which
 // preview and canon are the default and Plan Paint's): rows are admitted first, and a source over
@@ -69,9 +78,10 @@ struct Region final {
     usize y1{0};
 };
 
-// Separable resampling to target_width x target_height. Preview: nodes aligned at both ends
-// (target pixel x reads source node x (w - 1) / (W - 1)). Canon: each target pixel's
-// footprint (x + [0, 1)) w / W - 1/2.
+// Separable resampling to target_width x target_height. Both modes use one lattice: target pixel
+// x covers the source footprint (x + [0, 1)) w / W - 1/2 (source node coordinates; node k is the
+// centre of source pixel k). Preview reads the footprint's centre, (x + 1/2) w / W - 1/2; canon
+// averages over it. Coordinates outside the source clamp to its border.
 struct AxisMap final {
     usize target_width{0};
     usize target_height{0};
@@ -198,7 +208,7 @@ private:
 // destination of the map's target size, and for an affine map onto a destination_width x
 // destination_height destination. A box touching a source border reaches without limit beyond
 // it (coordinates outside the source clamp to the border). Affine regions are whole 16-pixel
-// canon tiles. A singular affine map gives the whole destination; an empty box an empty region.
+// canon tiles, grown for the composited passes' slanted reads. A singular affine map gives the whole destination; an empty box an empty region.
 [[nodiscard]] Region affected_region(const NodeBox& box, const AxisMap& map, usize source_width, usize source_height) noexcept;
 [[nodiscard]] Region affected_region(const NodeBox& box, const AffineMap& map, usize source_width, usize source_height,
                                      usize destination_width, usize destination_height) noexcept;
@@ -258,10 +268,9 @@ private:
     friend struct detail::FieldAccess;
 };
 
-// Resamples to target.nodes samples. Preview: nodes aligned at both ends (target k reads x =
-// k (n - 1) / (N - 1)). Canon: the field's average over each target sample's footprint
-// (k + [0, 1)) n / N - 1/2, exact for the quintic cells. Lanes must match. On failure nothing
-// has been written.
+// Resamples to target.nodes samples on one lattice: target k covers (k + [0, 1)) n / N - 1/2.
+// Preview reads its centre, (k + 1/2) n / N - 1/2; canon averages over it (exact for the quintic
+// cells). Lanes must match. On failure nothing has been written.
 [[nodiscard]] OperationStatus transfer(const LineField& field, Mode mode, const MutableLineSamples& target) noexcept;
 // target sample k = the field at positions[k] (finite; clamped). On failure nothing has been
 // written.

@@ -266,9 +266,10 @@ if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND STXLIB_STATE_SHARED)
 endif()
 # The allocator's backend (include/stxlib/memory.hpp).
 # - stx_minmallocpp, the default: STXlib's own allocator
-#   (src/state/stx_minmallocpp), a conversion of mimalloc's design to
-#   house-style C++ (the owner, 2026-11-15; the default by the owner's
-#   decision of the same day, notes decisions/2026-11-15-stx-minmallocpp.md).
+#   (src/state/stx_minmallocpp), inspired by and derived from mimalloc v3,
+#   with many features of its own (the owner, 2026-11-15; the default by
+#   the owner's decision of the same day, notes
+#   decisions/2026-11-15-stx-minmallocpp.md).
 #   proofs/REPORT.md says what of it is proved, tested and measured.
 # - host: the host's C library (src/state/allocator.cpp). Sanitizers track
 #   the host allocator only, so a build with sanitizers or the integer
@@ -386,7 +387,9 @@ endif()
 # ---- stxlib::boundary -------------------------------------------------------
 set(STXLIB_BOUNDARY_SOURCES
     src/core/atomic_rules.cpp
+    src/core/atomic_word.cpp
     src/core/capabilities.cpp
+    src/core/channels.cpp
     src/core/children.cpp
     src/core/console.cpp
     src/core/desktop.cpp
@@ -402,6 +405,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/local_time.cpp
     src/core/memory.cpp
     src/core/path.cpp
+    src/core/pipes.cpp
     src/core/process.cpp
     src/core/process_info.cpp
     src/core/report.cpp
@@ -413,6 +417,7 @@ set(STXLIB_BOUNDARY_SOURCES
     src/core/surface_input.cpp
     src/core/surface_keys.cpp
     src/core/text.cpp
+    src/core/stop_token.cpp
     src/core/thread_pool.cpp
     src/core/threads.cpp
     src/core/thread_records.cpp
@@ -443,18 +448,22 @@ set(STXLIB_HOSTED_POSIX_SOURCES
     src/hosted/posix/library_posix.cpp
     src/hosted/posix/local_time_posix.cpp
     src/hosted/posix/pages_posix.cpp
+    src/hosted/posix/pipes_posix.cpp
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp
     src/hosted/posix/trace_posix.cpp
     src/hosted/posix/wake_posix.cpp)
 set(STXLIB_HOSTED_MACOS_SOURCES
+    src/hosted/macos/atomic_wait_macos.cpp
     src/hosted/macos/image_regions_macos.cpp
     src/hosted/macos/process_macos.cpp)
 set(STXLIB_HOSTED_LINUX_SOURCES
     src/hosted/elf/image_regions_elf.cpp
+    src/hosted/linux/atomic_wait_linux.cpp
     src/hosted/linux/process_linux.cpp)
 set(STXLIB_HOSTED_FREEBSD_SOURCES
     src/hosted/elf/image_regions_elf.cpp
+    src/hosted/freebsd/atomic_wait_freebsd.cpp
     src/hosted/freebsd/process_freebsd.cpp)
 # Emscripten (owner decision 2026-11-15): the POSIX modules that hold on
 # Emscripten's musl and file system, and emscripten/ for the services a page
@@ -479,9 +488,11 @@ set(STXLIB_HOSTED_EMSCRIPTEN_POSIX_SOURCES
     src/hosted/posix/terminal_posix.cpp
     src/hosted/posix/threads_posix.cpp)
 set(STXLIB_HOSTED_EMSCRIPTEN_SOURCES
+    src/hosted/emscripten/atomic_wait_emscripten.cpp
     src/hosted/emscripten/clocks_emscripten.cpp
     src/hosted/emscripten/images_emscripten.cpp
     src/hosted/emscripten/local_time_emscripten.cpp
+    src/hosted/emscripten/pipes_emscripten.cpp
     src/hosted/emscripten/process_emscripten.cpp
     src/hosted/emscripten/runtime_emscripten.cpp
     src/hosted/emscripten/trace_emscripten.cpp
@@ -512,6 +523,7 @@ else()
     list(APPEND STXLIB_HOSTED_EMSCRIPTEN_SOURCES src/hosted/emscripten/storage_js_emscripten.cpp)
 endif()
 set(STXLIB_HOSTED_WINDOWS_SOURCES
+    src/hosted/windows/atomic_wait_windows.cpp
     src/hosted/windows/children_windows.cpp
     src/hosted/windows/clocks_windows.cpp
     src/hosted/windows/console_windows.cpp
@@ -524,6 +536,7 @@ set(STXLIB_HOSTED_WINDOWS_SOURCES
     src/hosted/windows/known_folders_windows.cpp
     src/hosted/windows/local_time_windows.cpp
     src/hosted/windows/pages_windows.cpp
+    src/hosted/windows/pipes_windows.cpp
     src/hosted/windows/process_windows.cpp
     src/hosted/windows/terminal_windows.cpp
     src/hosted/windows/threads_windows.cpp
@@ -595,8 +608,12 @@ if(STXLIB_HOST_FAMILY STREQUAL "windows")
     # SHGetKnownFolderPath (known_folders_windows.cpp) is shell32's;
     # CoTaskMemFree, which frees its result, is ole32's. K32EnumProcessModules,
     # K32GetModuleInformation and K32GetProcessMemoryInfo (images_windows.cpp,
-    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's.
-    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore)
+    # process_windows.cpp; PSAPI_VERSION 2) are kernel32's. WaitOnAddress,
+    # WakeByAddressSingle and WakeByAddressAll (atomic_wait_windows.cpp) are
+    # in the API set api-ms-win-core-synch-l1-2-0, whose import library is
+    # synchronization (mingw-w64's libsynchronization.a, the SDK's
+    # Synchronization.lib); kernel32's import library does not carry them.
+    target_link_libraries(stxlib_boundary PUBLIC bcrypt shell32 ole32 kernel32 mincore synchronization)
 elseif(STXLIB_HOST_FAMILY STREQUAL "glibc")
     # dlopen, dlsym, dladdr and dl_iterate_phdr (library_posix.cpp,
     # image_regions_elf.cpp): libc itself from glibc 2.34; CMAKE_DL_LIBS
@@ -826,6 +843,33 @@ else()
     target_compile_definitions(stxlib_algorithms PRIVATE STXLIB_MATH_VARIANT=native)
 endif()
 
+# stx_mcp: a Model Context Protocol server over anonymous pipes
+# (include/stxlib/mcp.hpp, json.hpp; channels and pipes are the
+# boundary's). Its own target, so a program that serves no model links none
+# of it. numeric_text (stxlib_algorithms) reads and writes JSON numbers.
+set(STXLIB_MCP_SOURCES
+    src/mcp/json.cpp
+    src/mcp/protocol.cpp
+    src/mcp/schema.cpp
+    src/mcp/server.cpp)
+add_library(stxlib_mcp STATIC ${STXLIB_MCP_SOURCES})
+add_library(stxlib::mcp ALIAS stxlib_mcp)
+target_include_directories(stxlib_mcp
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_compile_features(stxlib_mcp PUBLIC cxx_std_20)
+target_compile_options(stxlib_mcp PRIVATE ${stxlib_warnings} -fno-exceptions ${stxlib_frame_pointers})
+set_target_properties(stxlib_mcp PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+    POSITION_INDEPENDENT_CODE ON)
+target_link_libraries(stxlib_mcp PUBLIC stxlib_algorithms stxlib_boundary)
+# Its headers reach thread state through threads.hpp, as the algorithms do.
+target_compile_definitions(stxlib_mcp PRIVATE $<$<BOOL:${stxlib_shadow_on}>:STXLIB_SHADOW>)
+
 option(STXLIB_BUILD_TOOLS "Build STXlib's table generators" OFF)
 if(STXLIB_BUILD_TOOLS)
     # Each regenerates its family's table header in src/algorithms/math/ byte
@@ -870,14 +914,15 @@ if(STXLIB_TESTS)
     endif()
 
     set(stxlib_boundary_tests vocabulary memory platform path files threads thread_pool local_time rounding
-                               owned_vocabulary owned_text ascii_search heap transcode thread_records)
+                               owned_vocabulary owned_text ascii_search heap transcode thread_records channels
+                               atomic_word stop_token locks)
     if(STXLIB_EXCEPTIONS)
         list(APPEND stxlib_boundary_tests gate trampoline shadow)
     endif()
     if(stxlib_web_tests)
         list(APPEND stxlib_boundary_tests emscripten)
     else()
-        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor)
+        list(APPEND stxlib_boundary_tests children images pages_wake debugger_anchor pipes)
     endif()
     foreach(test_name IN LISTS stxlib_boundary_tests)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
@@ -1084,6 +1129,20 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
     endforeach()
+    # stxlib::mcp: JSON reading and writing, and the server driven by a fake
+    # client over pipes (tests/mcp_tests.cpp). Pipes are not a page's, so
+    # neither is built for the web.
+    if(NOT stxlib_web_tests)
+        foreach(test_name IN ITEMS json mcp)
+            add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
+            target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::mcp)
+            target_compile_options(stxlib_${test_name}_tests PRIVATE ${stxlib_test_warnings})
+            add_test(NAME stxlib_${test_name}_tests COMMAND stxlib_${test_name}_tests)
+        endforeach()
+        # mcp_tests also checks the schema subset (src/mcp/schema.hpp).
+        target_include_directories(stxlib_mcp_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+        set_tests_properties(stxlib_mcp_tests PROPERTIES TIMEOUT 120)
+    endif()
     # STXlib's outline-atomics helpers (tests/outline_atomics_tests.cpp):
     # every helper against a plain reference on the loop and, where the CPU
     # has LSE, on the LSE path, the register contract, detection, and a
@@ -1194,6 +1253,46 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_glyph_shape_tests PRIVATE stxlib::algorithms)
     target_compile_options(stxlib_glyph_shape_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_shape_tests COMMAND stxlib_glyph_shape_tests)
+    # The block engine (the IC study's phase IC2; tests/ic/engine): the
+    # blocks tools/ic_declarations.py generates from the declarations
+    # (tests/ic/generated), run by tests/ic/ic_run.cpp in legal and misuse
+    # modes against every component with an [engine] table. The ctest runs a
+    # bounded run per component; the gate's stated run is
+    #   stxlib_ic_run --cases 20000 --gate tests/ic/results/gate_run.json
+    # The allocator's component calls stx_minmallocpp directly, which links
+    # only where stxlib_state is static. Each minimised failure the runner
+    # writes to tests/ic/regressions is a test of its own.
+    if(NOT stxlib_web_tests)
+        add_library(stxlib_ic_engine STATIC tests/ic/engine/ic_engine.cpp)
+        target_include_directories(stxlib_ic_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        target_link_libraries(stxlib_ic_engine PUBLIC stxlib::algorithms)
+        target_compile_options(stxlib_ic_engine PRIVATE ${stxlib_test_warnings})
+        if(NOT STXLIB_STATE_SHARED)
+            target_compile_definitions(stxlib_ic_engine PUBLIC STXLIB_IC_ALLOCATOR)
+        endif()
+        add_executable(stxlib_ic_run tests/ic/ic_run.cpp)
+        target_link_libraries(stxlib_ic_run PRIVATE stxlib_ic_engine)
+        target_compile_options(stxlib_ic_run PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_ic_engine_run COMMAND stxlib_ic_run --cases 200 --steps 32)
+        file(GLOB stxlib_ic_regressions CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/ic/regressions/*.cpp)
+        foreach(regression IN LISTS stxlib_ic_regressions)
+            get_filename_component(regression_name ${regression} NAME_WE)
+            add_executable(stxlib_ic_regression_${regression_name} ${regression})
+            target_link_libraries(stxlib_ic_regression_${regression_name} PRIVATE stxlib_ic_engine)
+            target_compile_options(stxlib_ic_regression_${regression_name} PRIVATE ${stxlib_test_warnings})
+            add_test(NAME stxlib_ic_regression_${regression_name} COMMAND stxlib_ic_regression_${regression_name})
+        endforeach()
+        # The engine under libFuzzer (fuzz/ic_fuzz.cpp): Clang only, off by
+        # default; libFuzzer drives coverage, the engine checks.
+        option(STXLIB_IC_FUZZ "Build the block engine's libFuzzer driver (Clang)" OFF)
+        if(STXLIB_IC_FUZZ)
+            add_executable(stxlib_ic_fuzz fuzz/ic_fuzz.cpp)
+            target_link_libraries(stxlib_ic_fuzz PRIVATE stxlib_ic_engine)
+            target_compile_options(stxlib_ic_fuzz PRIVATE ${stxlib_test_warnings} -fsanitize=fuzzer)
+            target_link_options(stxlib_ic_fuzz PRIVATE -fsanitize=fuzzer)
+        endif()
+    endif()
     # stxlib::glyphs with every check on (src/algorithms/glyphs/
     # glyph_checks.hpp): the glyph sources compiled again with
     # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call
@@ -1707,6 +1806,14 @@ if(STXLIB_TESTS)
             "foreign_release_page|stxlib::memory::release: the block is not from memory::allocate"
             "recursive_lock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*already holds"
             "foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*does not hold"
+            "recursive_foreign_unlock|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*RecursiveMutex it does not hold"
+            "recursive_destroyed_held|stxlib: fail fast: stxlib\\.threads\\.lock: internal_failure.*RecursiveMutex was destroyed while held"
+            "unique_unlock_unheld|stxlib: requirement failed: UniqueLock::unlock while it does not hold its mutex"
+            "unique_lock_twice|stxlib: requirement failed: UniqueLock::lock while it holds its mutex"
+            "unique_wait_unheld|stxlib: requirement failed: ConditionVariable: a wait needs a UniqueLock that holds its mutex"
+            "multi_lock_same_mutex|stxlib: requirement failed: MultiLock: one Mutex named twice"
+            "atomic_load_order|stxlib: requirement failed: AtomicWord::load: not a load order"
+            "stop_callback_null|stxlib: requirement failed: StopCallback: a callback needs a function"
             "view_index|stxlib: requirement failed: View: index out of range"
             "take_failed_value|stxlib: requirement failed: OperationResult::take_value on a failure"
             "vector_index|stxlib: requirement failed: Vector: index out of range"
@@ -1907,6 +2014,11 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_ic_declarations_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ic_declarations_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # The deductions (IC4, tools/ic_deduce.py): current against the
+        # declarations and the sources they read.
+        add_test(NAME stxlib_ic_deductions
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic_deduce.py check
+                    --config ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic/project.toml --root ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
         # Under Emscripten the program runs under the emulator, named before it.

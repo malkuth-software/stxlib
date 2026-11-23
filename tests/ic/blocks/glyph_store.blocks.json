@@ -1,0 +1,336 @@
+{
+  "schema": 1,
+  "component": "stxlib::glyphs::GlyphStore",
+  "declaration": "include/stxlib/glyph_store.ic.toml",
+  "generated_by": "tools/ic_declarations.py",
+  "status": "stub: the block bodies are phase IC2 (the engine); each block says what its body must do",
+  "states": [
+    "closed",
+    "open"
+  ],
+  "initial": "closed",
+  "state_query": null,
+  "blocks": [
+    {
+      "name": "stxlib.glyphs.glyphstore.open.closed",
+      "mode": "legal",
+      "call": "open",
+      "kind": "member",
+      "thread": "owner",
+      "state": "closed",
+      "moves": "open",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "closed"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the glyph index",
+          "leaves": "partial"
+        },
+        {
+          "failure": "invalid_argument",
+          "when": "a font the store cannot serve",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.open.open",
+      "mode": "legal",
+      "call": "open",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": "open",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "the glyph index",
+          "leaves": "partial"
+        },
+        {
+          "failure": "invalid_argument",
+          "when": "a font the store cannot serve",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.keep.open",
+      "mode": "legal",
+      "call": "keep",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "storage for a kept glyph",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.keep.outside.closed",
+      "mode": "misuse",
+      "call": "keep",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.glyph.open",
+      "mode": "legal",
+      "call": "glyph",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        },
+        {
+          "name": "glyph",
+          "type": "u32",
+          "bounded_by": [
+            "glyph < glyph_count"
+          ]
+        },
+        {
+          "name": "glyph_count",
+          "type": "u32",
+          "bounded_by": [
+            "glyph < glyph_count"
+          ]
+        }
+      ],
+      "requires": [
+        "glyph < glyph_count"
+      ],
+      "fails": [
+        {
+          "failure": "out_of_memory",
+          "when": "storage for the glyph",
+          "leaves": "partial"
+        },
+        {
+          "failure": "invalid_argument",
+          "when": "the font refuses the glyph's outline",
+          "leaves": "partial"
+        },
+        {
+          "failure": "limit_exceeded",
+          "when": "the outline is beyond the store's limits",
+          "leaves": "partial"
+        }
+      ],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.glyph.misuse.glyph_index",
+      "mode": "misuse",
+      "call": "glyph",
+      "violates": "glyph < glyph_count",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.glyph.outside.closed",
+      "mode": "misuse",
+      "call": "glyph",
+      "state": "closed",
+      "expect": {
+        "kind": "failure",
+        "failure": "invalid_argument"
+      },
+      "leaves": "unchanged"
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.glyphs_read.closed",
+      "mode": "legal",
+      "call": "glyphs_read",
+      "kind": "member",
+      "thread": "owner",
+      "state": "closed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "closed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.glyphs_read.open",
+      "mode": "legal",
+      "call": "glyphs_read",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.bytes_held.closed",
+      "mode": "legal",
+      "call": "bytes_held",
+      "kind": "member",
+      "thread": "owner",
+      "state": "closed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "closed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.bytes_held.open",
+      "mode": "legal",
+      "call": "bytes_held",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.whole.closed",
+      "mode": "legal",
+      "call": "whole",
+      "kind": "member",
+      "thread": "owner",
+      "state": "closed",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "closed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.whole.open",
+      "mode": "legal",
+      "call": "whole",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": null,
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.release.closed",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "closed",
+      "moves": "closed",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "closed"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    },
+    {
+      "name": "stxlib.glyphs.glyphstore.release.open",
+      "mode": "legal",
+      "call": "release",
+      "kind": "member",
+      "thread": "owner",
+      "state": "open",
+      "moves": "closed",
+      "inputs": [
+        {
+          "name": "self",
+          "type": "stxlib::glyphs::GlyphStore",
+          "state": "open"
+        }
+      ],
+      "requires": [],
+      "fails": [],
+      "returns": {}
+    }
+  ]
+}

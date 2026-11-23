@@ -1,0 +1,98 @@
+{
+  "schema": 1,
+  "component": "stxlib::RecursiveMutex",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/recursive_mutex.ic.toml",
+    "sha256": "b423c73792626a1acc2602bfe386df502349a29569b7cc2efb0389b32a607382"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.recursivemutex.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in any state leaves the object in held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.recursivemutex.lock.free",
+          "stxlib.recursivemutex.lock.held"
+        ],
+        "file": "tests/ic/blocks/recursive_mutex.blocks.json",
+        "what": "the legal blocks drive lock and observe the state after it through held_by_current_thread",
+        "run_by": "tests/ic/generated/recursive_mutex.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.recursivemutex.try_lock.moves",
+      "kind": "transition",
+      "statement": "try_lock succeeding in any state leaves the object in held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.recursivemutex.try_lock.free",
+          "stxlib.recursivemutex.try_lock.held"
+        ],
+        "file": "tests/ic/blocks/recursive_mutex.blocks.json",
+        "what": "the legal blocks drive try_lock and observe the state after it through held_by_current_thread",
+        "run_by": "tests/ic/generated/recursive_mutex.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.recursivemutex.unlock.outside.free",
+      "kind": "typestate-refusal",
+      "statement": "unlock in free: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state free is holder_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.recursivemutex.unlock.outside.free"
+        ],
+        "file": "tests/ic/blocks/recursive_mutex.blocks.json",
+        "what": "the misuse block drives unlock in free and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/recursive_mutex.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    }
+  ]
+}

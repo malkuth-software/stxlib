@@ -95,6 +95,7 @@ bool emscripten_supported(const Capability capability) noexcept {
     case Capability::process_identity:
     case Capability::main_thread:
     case Capability::display_surface:
+    case Capability::anonymous_pipes:
         return false;
     }
     return false;
@@ -184,6 +185,8 @@ bool capability_supported(const Capability capability) noexcept {
     case Capability::known_directories:
     case Capability::process_identity:
         return true; // A1 platform-rest, every family
+    case Capability::anonymous_pipes:
+        return true; // pipes_posix.cpp, pipes_windows.cpp
     case Capability::shared_memory:
     case Capability::cross_origin_isolated:
         return true; // a process's threads share its memory; no other site's content is in it
@@ -274,6 +277,8 @@ TextView capability_name(const Capability capability) noexcept {
         return "web_storage";
     case Capability::display_surface:
         return "display_surface";
+    case Capability::anonymous_pipes:
+        return "anonymous_pipes";
     }
     return "unknown";
 }

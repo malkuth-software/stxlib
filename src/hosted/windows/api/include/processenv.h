@@ -24,6 +24,7 @@ __declspec(dllimport) HANDLE __stdcall GetStdHandle(DWORD nStdHandle);
 __declspec(dllimport) DWORD __stdcall SearchPathW(LPCWSTR lpPath, LPCWSTR lpFileName, LPCWSTR lpExtension, DWORD nBufferLength, LPWSTR lpBuffer, LPWSTR *lpFilePart);
 __declspec(dllimport) BOOL __stdcall SetCurrentDirectoryW(LPCWSTR lpPathName);
 __declspec(dllimport) BOOL __stdcall SetEnvironmentVariableW(LPCWSTR lpName, LPCWSTR lpValue);
+__declspec(dllimport) BOOL __stdcall SetStdHandle(DWORD nStdHandle, HANDLE hHandle);
 #ifdef __cplusplus
 }
 #endif

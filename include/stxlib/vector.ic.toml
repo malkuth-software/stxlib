@@ -17,6 +17,15 @@ thread = "owner"
 [terms]
 count = "usize"
 
+# The block engine's view of a Vector (IC2): a Vector of u64 per slot, its
+# count read back after every block.
+[engine]
+object = "stxlib::Vector<stxlib::u64>"
+includes = ["stxlib/vector.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { count = "object.count()" }
+invariants = ["object.count() <= object.capacity()"]
+
 [checks]
 path = "include/stxlib/detail/ic/vector_checks.hpp"
 namespace = "stxlib::detail::ic::vector"
@@ -32,6 +41,7 @@ fails = [
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
 returns = { type = "Vector", owns = "caller" }
+engine = { ranges = { room = "[0, 4096]" }, ensures = ["count = 0"] }
 
 [[call]]
 name = "copy_of"
@@ -42,6 +52,7 @@ fails = [
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
 returns = { type = "Vector", owns = "caller" }
+engine = { invoke = "Object::copy_of(::stxlib_ic::inputs::values(length))", draws = { length = "u16" }, ranges = { length = "[0, 256]" }, ensures = ["count = length"] }
 
 [[call]]
 name = "copy"
@@ -51,16 +62,19 @@ fails = [
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
 returns = { type = "Vector", owns = "caller" }
+engine = { expect = ["(*made.value()).count() == object.count()"] }
 
 [[call]]
 name = "view"
 declarations = ["[[nodiscard]] View<Element> view() const& noexcept"]
 returns = { borrows = "self", until = ["a call that may reallocate or end an element", "a move from the vector", "its destruction"] }
+engine = { result_type = "stxlib::View<stxlib::u64>", expect = ["result.count() == count"] }
 
 [[call]]
 name = "mutable_view"
 declarations = ["[[nodiscard]] MutableView<Element> mutable_view() & noexcept"]
 returns = { borrows = "self", until = ["a call that may reallocate or end an element", "a move from the vector", "its destruction"] }
+engine = { result_type = "stxlib::MutableView<stxlib::u64>", expect = ["result.count() == count"] }
 
 [[call]]
 name = "operator[]"
@@ -85,6 +99,7 @@ requires = [
   { holds = "count != 0", refuses = "requirement", message = "Vector::first_element: the vector is empty" },
 ]
 returns = { borrows = "self", until = ["a call that may reallocate or end the element"] }
+engine = { invoke = "object.first_element()" }
 
 [[call]]
 name = "last_element"
@@ -96,6 +111,7 @@ requires = [
   { holds = "count != 0", refuses = "requirement", message = "Vector::last_element: the vector is empty" },
 ]
 returns = { borrows = "self", until = ["a call that may reallocate or end the element"] }
+engine = { invoke = "object.last_element()" }
 
 [[call]]
 name = "reserve"
@@ -105,6 +121,7 @@ fails = [
   { failure = "limit_exceeded", when = "wanted elements' bytes are not representable" },
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
+engine = { ranges = { wanted = "[0, 8192]" }, expect = ["object.capacity() >= wanted"] }
 
 [[call]]
 name = "push"
@@ -113,6 +130,7 @@ fails = [
   { failure = "limit_exceeded", when = "the grown capacity is not representable" },
   { failure = "out_of_memory", when = "the allocator refuses; element is not moved from" },
 ]
+engine = { invoke = "object.push(static_cast<stxlib::u64>(value))", draws = { value = "u64" }, ensures = ["count = old.count + 1"], expect = ["object.last_element() == value"] }
 
 [[call]]
 name = "push_copy"
@@ -121,6 +139,7 @@ fails = [
   { failure = "limit_exceeded", when = "the grown capacity is not representable" },
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
+engine = { invoke = "object.push_copy(value)", draws = { value = "u64" }, ensures = ["count = old.count + 1"], expect = ["object.last_element() == value"] }
 
 [[call]]
 name = "emplace"
@@ -129,6 +148,7 @@ fails = [
   { failure = "limit_exceeded", when = "the grown capacity is not representable" },
   { failure = "out_of_memory", when = "the allocator refuses; nothing is constructed" },
 ]
+engine = { invoke = "object.emplace(value)", draws = { value = "u64" }, ensures = ["count = old.count + 1"] }
 
 [[call]]
 name = "insert"
@@ -141,6 +161,7 @@ fails = [
   { failure = "limit_exceeded", when = "the grown capacity is not representable" },
   { failure = "out_of_memory", when = "the allocator refuses; element is not moved from" },
 ]
+engine = { invoke = "object.insert(index, static_cast<stxlib::u64>(value))", draws = { value = "u64" }, ensures = ["count = old.count + 1"], expect = ["object[index] == value"] }
 
 [[call]]
 name = "append_copies"
@@ -149,6 +170,7 @@ fails = [
   { failure = "limit_exceeded", when = "the grown capacity is not representable" },
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
+engine = { invoke = "object.append_copies(::stxlib_ic::inputs::values(length))", draws = { length = "u16" }, ranges = { length = "[0, 256]" }, ensures = ["count = old.count + length"] }
 
 [[call]]
 name = "resize"
@@ -158,6 +180,7 @@ fails = [
   { failure = "limit_exceeded", when = "wanted elements' bytes are not representable" },
   { failure = "out_of_memory", when = "the allocator refuses" },
 ]
+engine = { ranges = { wanted = "[0, 8192]" }, ensures = ["count = wanted"] }
 
 [[call]]
 name = "erase"
@@ -166,6 +189,7 @@ parameters = { index = "usize" }
 requires = [
   { holds = "index < count", refuses = "requirement", message = "Vector::erase: index out of range", check = "erase_index" },
 ]
+engine = { ensures = ["count = old.count - 1"] }
 
 [[call]]
 name = "erase_range"
@@ -174,6 +198,7 @@ parameters = { first = "usize", length = "usize" }
 requires = [
   { holds = "first <= count and length <= count - first", refuses = "requirement", message = "Vector::erase_range: range out of range" },
 ]
+engine = { ensures = ["count = old.count - length"] }
 
 [[call]]
 name = "take_last"
@@ -182,6 +207,7 @@ requires = [
   { holds = "count != 0", refuses = "requirement", message = "Vector::take_last: the vector is empty" },
 ]
 returns = { type = "Element", owns = "caller" }
+engine = { invoke = "object.take_last()", ensures = ["count = old.count - 1"] }
 
 [[call]]
 name = "remove_last"
@@ -189,6 +215,7 @@ declarations = ["void remove_last() noexcept"]
 requires = [
   { holds = "count != 0", refuses = "requirement", message = "Vector::remove_last: the vector is empty" },
 ]
+engine = { ensures = ["count = old.count - 1"] }
 
 [[call]]
 name = "truncate"
@@ -197,11 +224,14 @@ parameters = { smaller = "usize" }
 requires = [
   { holds = "smaller <= count", refuses = "requirement", message = "Vector::truncate: count out of range" },
 ]
+engine = { ensures = ["count = smaller"] }
 
 [[call]]
 name = "clear"
 declarations = ["void clear() noexcept"]
+engine = { ensures = ["count = 0"] }
 
 [[call]]
 name = "release"
 declarations = ["void release() noexcept"]
+engine = { ensures = ["count = 0"], expect = ["object.capacity() == 0"] }

@@ -590,12 +590,13 @@ and leaves out an empty trace. `src/state/state.hpp`: layout 8. Tests in
 `two_module_library.*`), `tests/gate_no_exceptions_tests.cpp`,
 `tests/gate_tests.cpp`, `tests/death_tests.cpp` and their CMake cases.
 
-### stx_minmallocpp: STXlib's own allocator, after mimalloc v3's design (2026-11-15)
+### stx_minmallocpp: STXlib's own allocator, derived from mimalloc v3 (2026-11-15)
 
 `src/state/stx_minmallocpp/` and `src/hosted/{posix,windows}/minmallocpp_os_*.cpp`
-are STXlib's own code, written new on the owner's order of 2026-11-15 to
-convert mimalloc to house-style C++. No source line of mimalloc is copied.
-What is taken is design, with its source named:
+are STXlib's own code, written new on the owner's order of 2026-11-15: an
+allocator inspired by and derived from mimalloc v3, with many features of
+its own (its NOTICE lists them). No source line of mimalloc is copied.
+What is taken is architecture, with its source named:
 - from mimalloc v3 (v3.6.1, <https://github.com/microsoft/mimalloc>, MIT,
   Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen; vendored under
   `third_party/mimalloc/` until 2026-11-15, no longer): thread heaps, pages
@@ -862,6 +863,22 @@ this change. The reference values in `tests/math_completion_tests.cpp` are
 the study's, rounded from MPFR 4.2.2; MPFR is not used here. No existing
 result changes; the new bit-identity items are unfrozen until the
 integrator's first freezing run.
+
+### Sine and cosine in degrees (STXlib's own, 2026-11-22)
+
+`sincosd` (`include/stxlib/math.hpp`, `src/algorithms/math/half_turn.cpp`),
+in both precisions, added for GUI.Forms, whose own deterministic
+`engine_sine_cosine_degrees` (GUI.Forms `src/core/engine/engine_math/`,
+removed by the same change on its side) it replaces. The contract keeps
+what GUI.Forms relied on: every multiple of 90 degrees exact and every zero
++0. The implementation is new, not a fold of GUI.Forms': the reduction to
+the nearest quarter turn is exact without the host's `fmod` (integer
+arithmetic from 2^53), and the rest goes through the half-turn kernel as a
+double-double number of half-turns, where GUI.Forms rounded it to radians
+once and used a Taylor kernel. Infinities and NaN give NaN (GUI.Forms gave
+sine 0 and cosine 1). No existing result changes; `math.sincosd.double`
+and `math.sincosd.float` in `tests/bit_identity_expected.txt` are unfrozen
+until the integrator's freezing run.
 
 ### stx_fft: BFFT's three kernels, from `edf5f01` (first party, MIT; 2026-11-22)
 

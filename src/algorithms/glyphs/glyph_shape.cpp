@@ -54,7 +54,7 @@ namespace {
 using detail::refuse_font;
 using detail::ShaperState;
 
-inline constexpr i64 largest_size = static_cast<i64>(1) << 24;
+inline constexpr i64 largest_size = detail::largest_glyph_size;
 
 // A glyph's box from the typeface, in the units of the shaping: once a run
 // for each glyph that the run's table of boxes holds, each reading charged

@@ -16,6 +16,14 @@ thread = "any"
 [terms]
 count = "usize"
 
+# The block engine's view of a FrozenMap (IC2): built from a drawn key set,
+# ascending or with one pair out of order (a declared failure).
+[engine]
+object = "stxlib::FrozenMap"
+includes = ["stxlib/frozen_map.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { count = "object.count()" }
+
 [checks]
 path = "src/algorithms/frozen_map_ic_checks.hpp"
 namespace = "stxlib::detail::ic::frozen_map"
@@ -32,6 +40,7 @@ fails = [
   { failure = "out_of_memory", when = "storage cannot be had" },
 ]
 returns = { type = "FrozenMap", owns = "caller" }
+engine = { invoke = "Object::build(::stxlib_ic::inputs::keys(length, ascending), ::stxlib_ic::inputs::values(length))", draws = { length = "u16", ascending = "bool" }, ranges = { length = "[0, 200]" }, ensures = ["count = length"] }
 
 [[call]]
 name = "build_weighted"
@@ -43,19 +52,23 @@ fails = [
   { failure = "out_of_memory", when = "storage cannot be had" },
 ]
 returns = { type = "FrozenMap", owns = "caller" }
+engine = { invoke = "Object::build_weighted(::stxlib_ic::inputs::keys(length, ascending), ::stxlib_ic::inputs::values(length), ::stxlib_ic::inputs::values(length), ::stxlib_ic::inputs::values(length + 1))", draws = { length = "u16", ascending = "bool" }, ranges = { length = "[0, 200]" }, ensures = ["count = length"] }
 
 [[call]]
 name = "find"
 declarations = ["[[nodiscard]] const u64* find(u64 key) const& noexcept;"]
 returns = { borrows = "self", until = ["a move from the map", "its destruction"] }
+engine = { invoke = "object.find(key)", draws = { key = "u64" }, ranges = { key = "[0, 700]" }, result_type = "const stxlib::u64*", expect = ["(result != nullptr) == object.contains(key)"] }
 
 [[call]]
 name = "contains"
 declarations = ["[[nodiscard]] bool contains(u64 key) const noexcept;"]
 
+engine = { invoke = "object.contains(key)", draws = { key = "u64" }, ranges = { key = "[0, 700]" } }
 [[call]]
 name = "lower_bound"
 declarations = ["[[nodiscard]] usize lower_bound(u64 key) const noexcept;"]
+engine = { invoke = "object.lower_bound(key)", draws = { key = "u64" }, ranges = { key = "[0, 700]" }, result_type = "stxlib::usize", expect = ["result <= count"] }
 
 [[call]]
 name = "key_at"

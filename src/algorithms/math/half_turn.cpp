@@ -1,6 +1,8 @@
 // Half-turn trigonometry and cancellation-safe cosine losses (declared, with
 // their contracts, in stxlib/math.hpp): sincospi, sinpi, cospi, sincpi,
-// cosm1 and cosm1pi. The radian sinc, sin(x) / x, is not provided (owner,
+// cosm1 and cosm1pi; and the sine and cosine of an angle in degrees,
+// sincosd, which turns its reduced angle into half-turns (2026-11-22, for
+// GUI.Forms' raster and theme paths: "The degree reduction" below). The radian sinc, sin(x) / x, is not provided (owner,
 // 2026-11-22): it is sincpi(x / pi), with the rounding of x / pi.
 //
 // Adopted 2026-11-22 from the study on branch codex/pi-trig-and-interval-study
@@ -64,6 +66,41 @@
 // integrator's run of half_turn_accuracy (2026-11-22, 4 x 100,000 inputs)
 // measured at most 0.500102 (sinpi), 0.500063 (cospi), 0.500129 (sincpi),
 // 0.500169 (cosm1pi) and 0.500154 (cosm1).
+//
+// ---- The degree reduction ----------------------------------------------------
+//
+// sincosd(x) for x in degrees: the angle is reduced to the nearest multiple
+// of 90 with no rounding, so every quarter turn is exact, and the rest, of
+// at most 46 degrees, becomes half-turns t = rest/180 as a double-double
+// for the half-turn kernel above. For m = |x|:
+//
+//   below 2^53: q = round(m / 90) and rest = m - 90 q. The quotient rounds,
+//     so q may be the integer next to the nearest, but only when m / 90 lies
+//     within 2^-53 m / 90 of a half-integer: |rest| <= 45 + 2^-53 m < 46.
+//     90 q is an integer below 2^53, exact; rest is a multiple of ulp(m)
+//     (ulp(m) <= 1 divides 90 q) of magnitude below 46, and for q >= 1
+//     (m >= 45, ulp(m) >= 2^-47) every such multiple below 2^6 is a
+//     double: the subtraction is exact. For q = 0, rest = m.
+//   from 2^53: m = M 2^k is an integer (M the 53-bit significand, k >= 1),
+//     and m mod 360 = (M mod 360)(2^k mod 360) mod 360 in integers, with
+//     2^k mod 360 by squaring; the nearest multiple of 90 is then taken in
+//     integers too.
+//
+// t = rest/180 rounds once to t_hi; the residual rest - 180 t_hi is exact
+// (two_product, then rest - product by Sterbenz, then the product's error:
+// all three are multiples of 4 ulp(t_hi), the residual below 2^5 of them),
+// so t_lo = residual/180 carries t to about 2^-106. The kernel turns t_hi,
+// and t_lo enters to first order: sin(pi(t_hi + t_lo)) = S + pi C t_lo with
+// the second-order term below 2^-210. Below 2^-92 degrees (t below 2^-99.5,
+// short of the kernel's 2^-100) the sine is m pi/180 as a double-double
+// with x^3/6 below 2^-197 of it, and the cosine rounds to 1.
+//
+// The quarter turns are applied by swapping and negating, the sign of x on
+// the sine last, and every zero is then written as +0 (x + 0 changes only
+// -0), so a quarter turn's rotation has the same bits however it was
+// reached: sincosd(-180) and sincosd(180) both give (+0, -1). Product
+// ranges: t_hi times 180 for t_hi in [2^-100, 2^-1.9]; the tiny path's
+// scaled angle times pi/180 for scaled angles in [2^-474, 2^508).
 //
 // ---- The cosine losses -------------------------------------------------------
 //
@@ -402,6 +439,131 @@ double negative_twice_square(const Wide sine) noexcept {
     return result;
 }
 
+// ---- Degrees ----------------------------------------------------------------------
+
+// One degree in radians, pi/180, as a double-double: degree_hi correctly
+// rounded, degree_hi + degree_lo within 2^-118 of pi/180 (exact rational
+// arithmetic with pi from Machin's formula at 400 bits, 2026-11-22).
+constexpr double degree_hi = 0x1.1df46a2529d39p-6;
+constexpr double degree_lo = 0x1.5c1d8becdd291p-62;
+// Below it (in degrees) the sine is the angle in radians: t = m/180 would
+// fall below the half-turn kernel's 2^-100.
+constexpr double degree_tiny_limit = 0x1p-92;
+// From it every double is an integer, reduced modulo 360 in integers.
+constexpr double degree_whole_limit = 0x1p53;
+constexpr std::uint64_t significand_mask = 0x000fffffffffffffULL;
+constexpr std::uint64_t implicit_bit = 0x0010000000000000ULL;
+// The biased exponent of 2^52: a double from 2^53 is M 2^(biased - 1075).
+constexpr std::uint64_t whole_exponent_bias = 1075;
+
+// An angle in degrees as quarter turns (modulo 4) and the exact rest, of
+// magnitude at most 46 degrees.
+struct DegreeTurn final {
+    double rest;
+    std::uint64_t quadrant;
+};
+
+// 2^k modulo 360 for k below 1024, by squaring: at most ten steps, every
+// product below 360^2.
+std::uint64_t power_of_two_mod_360(const std::uint64_t k) noexcept {
+    std::uint64_t result = 1;
+    std::uint64_t square = 2;
+    std::uint64_t bits = k;
+    for (int step = 0; step < 10; ++step) {
+        if ((bits & 1) != 0) result = (result * square) % 360;
+        square = (square * square) % 360;
+        bits = bits >> 1;
+    }
+    return result;
+}
+
+// The reduction of a finite magnitude m (the head of this file).
+DegreeTurn reduce_degrees(const double m) noexcept {
+    DegreeTurn turn{0.0, 0};
+    if (m < degree_whole_limit) {
+        // m / 90 is below 2^47: the rounding shift finds its nearest integer.
+        const double q = (m / 90.0 + rounding_shift) - rounding_shift;
+        turn.rest = m - q * 90.0;  // exact
+        turn.quadrant = static_cast<std::uint64_t>(q) & 3;
+        return turn;
+    }
+    const std::uint64_t bits = std::bit_cast<std::uint64_t>(m);
+    const std::uint64_t significand = (bits & significand_mask) | implicit_bit;
+    const std::uint64_t shift = (bits >> 52) - whole_exponent_bias;
+    const std::uint64_t units = ((significand % 360) * power_of_two_mod_360(shift)) % 360;
+    // The nearest multiple of 90 (45 goes up): q is 0 to 4, the rest in [-45, 45).
+    const std::uint64_t q = (units + 45) / 90;
+    turn.rest = static_cast<double>(units) - static_cast<double>(q * 90);
+    turn.quadrant = q & 3;
+    return turn;
+}
+
+// sin and cos of `rest` degrees (|rest| <= 46, exact), each rounded once.
+RoundedPair degree_rest(const double rest) noexcept {
+    const double m = std::fabs(rest);
+    RoundedPair result{0.0, 1.0};
+    if (m == 0.0) return result;
+    if (m < degree_tiny_limit) {
+        // x = m pi/180 below 2^-97.5: sin x = x (1 - x^2/6) with x^2/6 below
+        // 2^-197, and cos x rounds to 1. Scaled so the exact product's error
+        // stays normal; rounded before scaling back, so a normal result
+        // rounds once.
+        const double scaled = m * tiny_scale_up;
+        double product = 0.0;
+        double product_error = 0.0;
+        two_product(scaled, degree_hi, product, product_error);
+        const double low = product_error + scaled * degree_lo;
+        result.sine = (product + low) * tiny_scale_down;
+    } else {
+        // t = m/180 as t_hi + t_lo (the head of this file).
+        const double t_hi = m / 180.0;
+        double product = 0.0;
+        double product_error = 0.0;
+        two_product(t_hi, 180.0, product, product_error);
+        const double residual = (m - product) - product_error;  // exact
+        const double t_lo = residual / 180.0;
+        const HalfTurn wide = half_turn_wide(t_hi);
+        // The first-order terms of t_lo: pi C t_lo and -pi S t_lo.
+        const double sine_shift = (atan_pi_hi * wide.cosine.hi) * t_lo;
+        const double cosine_shift = (atan_pi_hi * wide.sine.hi) * t_lo;
+        result.sine = wide.sine.hi + (wide.sine.lo + sine_shift);
+        result.cosine = wide.cosine.hi + (wide.cosine.lo - cosine_shift);
+    }
+    if (rest < 0.0) result.sine = -result.sine;
+    return result;
+}
+
+// sin and cos of x degrees for any x: NaN for infinite and NaN x (NaN
+// payloads kept), every zero +0.
+RoundedPair degree_turn_rounded(const double x) noexcept {
+    const double m = std::fabs(x);
+    if (!(m < std::numeric_limits<double>::infinity())) {
+        double refused = std::numeric_limits<double>::quiet_NaN();
+        if (x != x) refused = x + x;
+        const RoundedPair result{refused, refused};
+        return result;
+    }
+    const DegreeTurn turn = reduce_degrees(m);
+    const RoundedPair base = degree_rest(turn.rest);
+    RoundedPair result{base.sine, base.cosine};
+    if (turn.quadrant == 1) {
+        result.sine = base.cosine;
+        result.cosine = -base.sine;
+    } else if (turn.quadrant == 2) {
+        result.sine = -base.sine;
+        result.cosine = -base.cosine;
+    } else if (turn.quadrant == 3) {
+        result.sine = -base.cosine;
+        result.cosine = base.sine;
+    }
+    // Odd: the sine takes x's sign.
+    if (std::signbit(x)) result.sine = -result.sine;
+    // Every zero as +0: adding +0 changes -0 alone (no fast-math, A1).
+    result.sine = result.sine + 0.0;
+    result.cosine = result.cosine + 0.0;
+    return result;
+}
+
 } // namespace
 } // namespace detail
 
@@ -496,6 +658,13 @@ double cosm1pi(const double x) noexcept {
     return result;
 }
 
+// sin and cos of x degrees: quarter turns exact, every zero +0.
+void sincosd(const double x, double& s, double& c) noexcept {
+    const detail::RoundedPair pair = detail::degree_turn_rounded(x);
+    s = pair.sine;
+    c = pair.cosine;
+}
+
 // ---- Float: the double functions of the widened argument, rounded once -------
 
 void sincospi(const float x, float& s, float& c) noexcept {
@@ -527,6 +696,15 @@ float cosm1(const float x) noexcept {
 float cosm1pi(const float x) noexcept {
     const double result = cosm1pi(detail::widen(x));
     return static_cast<float>(result);
+}
+
+// The double result rounded once. A tiny nonzero result that rounds to a
+// zero, or a subnormal the public front flushes, may come out -0: the front
+// (flush.cpp) writes every zero as +0.
+void sincosd(const float x, float& s, float& c) noexcept {
+    const detail::RoundedPair pair = detail::degree_turn_rounded(detail::widen(x));
+    s = static_cast<float>(pair.sine);
+    c = static_cast<float>(pair.cosine);
 }
 
 } // namespace stxlib::math::STXLIB_MATH_VARIANT

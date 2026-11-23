@@ -91,9 +91,15 @@ enum class PoolFailure : u32 {
 inline constexpr u32 maximum_pool_threads = 4096;
 
 // A fixed set of worker threads that run batches of PoolTask.
+// ic: stxlib::AtomicPool: generated from include/stxlib/thread_pool.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. States: empty (initial), idle, open. Thread: owner, unless a call says otherwise.
 class AtomicPool final {
 public:
     // thread_count must be 1 to maximum_pool_threads.
+    // ic: Requires thread_count != 0, else failure invalid_argument (zero_threads), unchanged. Requires thread_count <=
+    // ic: maximum_pool_threads, else failure invalid_argument (too_many_threads), unchanged. Fails out_of_memory (the
+    // ic: pool's state or its thread table), unchanged; limit_exceeded (the host refuses a worker thread), unchanged.
+    // ic: Thread: any. Returns AtomicPool in idle, owned by the caller.
     [[nodiscard]] static OperationResult<AtomicPool> create(u32 thread_count) noexcept;
     AtomicPool() noexcept = default;
     ~AtomicPool();
@@ -104,8 +110,16 @@ public:
     AtomicPool& operator=(AtomicPool&& other) noexcept;
 
     [[nodiscard]] u32 thread_count() const noexcept;
+    // ic: Admitted in idle. In empty: failure invalid_argument (empty_pool), unchanged. In open: requirement,
+    // ic: unchanged. Requires task_count <= task_limit, else failure invalid_argument (too_many_tasks), unchanged.
+    // ic: Fails invalid_argument (task_without_function: a task whose function is null; no task runs), unchanged.
     [[nodiscard]] OperationStatus run(View<PoolTask> tasks) noexcept;
+    // ic: Admitted in idle; then open. In empty: failure invalid_argument (empty_pool), unchanged. In open:
+    // ic: requirement, unchanged. Requires task_count != 0, else failure invalid_argument (empty_batch), unchanged.
+    // ic: Requires task_count <= task_limit, else failure invalid_argument (too_many_tasks), unchanged. Fails
+    // ic: invalid_argument (task_without_function: a task whose function is null; no task runs), unchanged.
     [[nodiscard]] OperationStatus begin(View<PoolTask> tasks) noexcept;
+    // ic: Admitted in idle, open; then idle. In empty: failure invalid_argument (empty_pool), unchanged.
     [[nodiscard]] OperationStatus wait() noexcept;
     // True on one of this pool's worker threads.
     [[nodiscard]] bool is_worker() const noexcept;

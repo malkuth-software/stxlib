@@ -1,0 +1,188 @@
+{
+  "schema": 1,
+  "component": "stxlib::Thread",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/threads.ic.toml",
+    "sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.thread.start.requires.start_entry",
+      "kind": "entry-check",
+      "statement": "start runs only when not_null(entry); otherwise failure invalid_argument (no_entry), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::threads::admits_start_entry, called in src/core/threads.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_entry",
+      "kind": "refusal-leaves",
+      "statement": "Unless not_null(entry), start changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.requires.start_stack",
+      "kind": "entry-check",
+      "statement": "start runs only when stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]; otherwise failure invalid_argument (stack_size_out_of_range), unchanged.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the generated predicate is the clause (tools/ic_declarations.py writes both from one text)",
+        "the guard's arguments are the declared parameters (as read at each site)"
+      ],
+      "status": "discharged",
+      "evidence": "generated check stxlib::detail::ic::threads::admits_start_stack, called in src/core/threads.cpp",
+      "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.start.refusal.start_stack",
+      "kind": "refusal-leaves",
+      "statement": "Unless stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes], start changes nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "a const local's initializer changes nothing observable (it reads)",
+        "an earlier guard's refusal path ends in a return"
+      ],
+      "status": "discharged",
+      "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.join.moves",
+      "kind": "transition",
+      "statement": "join succeeding in started leaves the object in empty.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state started is state_ != nullptr && !(*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result == JoinResult::joined (the declaration's represents.succeeds)"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.thread.join.started"
+        ],
+        "file": "tests/ic/blocks/threads.blocks.json",
+        "what": "the legal blocks drive join and observe the state after it through object.identity().present()",
+        "run_by": "tests/ic/generated/threads.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.join.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "join in empty: returns JoinResult::not_joinable, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr || (*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.thread.join.outside.empty"
+        ],
+        "file": "tests/ic/blocks/threads.blocks.json",
+        "what": "the misuse block drives join in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/threads.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.abandon.moves",
+      "kind": "transition",
+      "statement": "abandon succeeding in started leaves the object in empty.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state started is state_ != nullptr && !(*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result != AbandonResult::not_joinable (the declaration's represents.succeeds)"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.thread.abandon.started"
+        ],
+        "file": "tests/ic/blocks/threads.blocks.json",
+        "what": "the legal blocks drive abandon and observe the state after it through object.identity().present()",
+        "run_by": "tests/ic/generated/threads.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    },
+    {
+      "id": "stxlib.thread.abandon.outside.empty",
+      "kind": "typestate-refusal",
+      "statement": "abandon in empty: returns AbandonResult::not_joinable, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state empty is state_ == nullptr || (*state_).joined (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.thread.abandon.outside.empty"
+        ],
+        "file": "tests/ic/blocks/threads.blocks.json",
+        "what": "the misuse block drives abandon in empty and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/threads.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
+      }
+    }
+  ]
+}

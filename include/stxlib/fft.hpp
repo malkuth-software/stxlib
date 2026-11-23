@@ -79,6 +79,9 @@ struct PlanAccess;
 
 // A float64 plan. The default plan is the empty plan: it owns nothing, and
 // rfft and irfft refuse it.
+// ic: stxlib::fft::Plan64: generated from include/stxlib/fft_plan64.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. States: empty (initial), ready. Observed by empty(): empty true, ready false.
+// ic: Thread: owner, unless a call says otherwise.
 class Plan64 final {
 public:
     constexpr Plan64() noexcept = default;
@@ -87,6 +90,10 @@ public:
     // is not a power of two or is below the mode's minimum (4 for plain and
     // dip, 2 for shifted), limit_exceeded above max_size, out_of_memory when
     // the allocator refuses. The plan's SIMD tier is simd::selected_level().
+    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure
+    // ic: limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested
+    // ic: >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables),
+    // ic: unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.
     [[nodiscard]] static OperationResult<Plan64> make(usize size, Mode mode) noexcept;
 
     Plan64(Plan64&& other) noexcept;
@@ -108,8 +115,12 @@ public:
     // Forward: size() samples to bins() values. Fails with invalid_argument,
     // writing nothing, for the empty plan, a count other than size() or
     // bins(), or input and output that overlap.
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus rfft(View<double> input, MutableView<Complex64> output) noexcept;
     // Inverse: bins() values to size() samples, with the same failures.
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus irfft(View<Complex64> input, MutableView<double> output) noexcept;
 
 private:
@@ -121,10 +132,18 @@ private:
 
 // A float32 plan: as Plan64, with float samples and Complex32 bins. make
 // fails with unsupported for Mode::dip.
+// ic: stxlib::fft::Plan32: generated from include/stxlib/fft_plan32.ic.toml by tools/ic_declarations.py; edit the
+// ic: declaration, not these lines. States: empty (initial), ready. Observed by empty(): empty true, ready false.
+// ic: Thread: owner, unless a call says otherwise.
 class Plan32 final {
 public:
     constexpr Plan32() noexcept = default;
 
+    // ic: Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure
+    // ic: limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested
+    // ic: >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged.
+    // ic: Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by
+    // ic: the caller.
     [[nodiscard]] static OperationResult<Plan32> make(usize size, Mode mode) noexcept;
 
     Plan32(Plan32&& other) noexcept;
@@ -138,7 +157,11 @@ public:
     [[nodiscard]] usize bins() const noexcept;
     [[nodiscard]] Mode mode() const noexcept;
 
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus rfft(View<float> input, MutableView<Complex32> output) noexcept;
+    // ic: Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure
+    // ic: invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.
     [[nodiscard]] OperationStatus irfft(View<Complex32> input, MutableView<float> output) noexcept;
 
 private:

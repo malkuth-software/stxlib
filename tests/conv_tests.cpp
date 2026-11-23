@@ -39,7 +39,7 @@ using stxlib::u64;
 using stxlib::usize;
 
 // The digest of digest_outputs() on the fixtures below; 0 prints it without checking.
-constexpr u64 expected_digest = 0x273d96e8953415eeull;
+constexpr u64 expected_digest = 0x868bb92c32018a82ull;
 
 struct Random final {
     u64 state = 0x9e3779b97f4a7c15ull;
@@ -331,8 +331,8 @@ void previews_match_field() {
         CHECK(conv::transfer(field, map, conv::Mode::preview, out.view(), all, workspace).succeeded());
         for (usize y = 0; y < 23; ++y) {
             for (usize x = 0; x < 57; ++x) {
-                const double u = static_cast<double>(x) * 39.0 / 56.0;
-                const double v = static_cast<double>(y) * 29.0 / 22.0;
+                const double u = (static_cast<double>(x) + 0.5) * 40.0 / 57.0 - 0.5;
+                const double v = (static_cast<double>(y) + 0.5) * 30.0 / 23.0 - 0.5;
                 expect_pixel(field, u, v, out.rgba.data() + (y * 57 + x) * 4, mismatches);
             }
         }
@@ -350,7 +350,7 @@ void previews_match_field() {
         map.ou = 19.5 - c * 19.5 - s * 14.5;
         map.ov = 14.5 + s * 19.5 - c * 14.5;
         const conv::Region region{5, 4, 31, 22};
-        CHECK(conv::transfer(field, map, conv::Mode::preview, out.view(), region, workspace).succeeded());
+        CHECK(line::affine_field(field, map, conv::Mode::preview, out.view(), region, workspace).succeeded());
         for (usize y = 0; y < 30; ++y) {
             for (usize x = 0; x < 40; ++x) {
                 const u8* const p = out.rgba.data() + (y * 40 + x) * 4;
@@ -651,7 +651,7 @@ void affine_and_mesh_canon() {
         pull.map.ou = maps[k][4];
         pull.map.ov = maps[k][5];
         Destination out(24, 20);
-        CHECK(conv::transfer(field, pull.map, conv::Mode::canon, out.view(), all, workspace).succeeded());
+        CHECK(line::affine_field(field, pull.map, conv::Mode::canon, out.view(), all, workspace).succeeded());
         Agreement agreement;
         for (usize y = 0; y < 20; ++y) {
             for (usize x = 0; x < 24; ++x) compare_pixel(field, pull, out.rgba.data() + (y * 24 + x) * 4, x, y, steps[k], agreement);
@@ -708,9 +708,9 @@ void affine_and_mesh_canon() {
     pull.map.ov = 80.0;
     Destination whole(40, 36);
     Destination part(40, 36);
-    CHECK(conv::transfer(field, pull.map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 40, 36}, workspace).succeeded());
+    CHECK(line::affine_field(field, pull.map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 40, 36}, workspace).succeeded());
     const conv::Region inner{5, 19, 37, 33};
-    CHECK(conv::transfer(field, pull.map, conv::Mode::canon, part.view(), inner, workspace).succeeded());
+    CHECK(line::affine_field(field, pull.map, conv::Mode::canon, part.view(), inner, workspace).succeeded());
     usize differing = 0;
     for (usize y = 0; y < 36; ++y) {
         for (usize x = 0; x < 40; ++x) {
@@ -886,6 +886,20 @@ void local_recompile() {
 
 // ---------------------------------------------------------------- timing (printed, not checked)
 
+conv::AffineMap rotation_about(const double degrees, const double cx, const double cy, const double dx, const double dy) {
+    const double radians = degrees * 3.14159265358979323846 / 180.0;
+    const double c = std::cos(radians);
+    const double sn = std::sin(radians);
+    conv::AffineMap map;
+    map.a11 = c;
+    map.a12 = sn;
+    map.a21 = -sn;
+    map.a22 = c;
+    map.ou = cx - c * dx - sn * dy;
+    map.ov = cy + sn * dx - c * dy;
+    return map;
+}
+
 void timing() {
     const Image image = fixture(Kind::noise, 1024, 768, 31);
     const conv::Field field = compiled(image);
@@ -905,6 +919,74 @@ void timing() {
             std::printf("timing: 1024x768 -> %zux%zu %s %.1f ms\n", target[0], target[1], m == 0 ? "preview" : "canon", ms);
         }
     }
+    // Rotations about the centre into a 1024x768 destination, whole and a 128x128 brush region;
+    // the best of three runs each.
+    const double angles[3] = {7.0, 30.0, 45.0};
+    Destination rotated(1024, 768);
+    const conv::Region whole{0, 0, 1024, 768};
+    const conv::Region brush{448, 320, 576, 448};
+    for (const double degrees : angles) {
+        const double radians = degrees * 3.14159265358979323846 / 180.0;
+        const double c = std::cos(radians);
+        const double sn = std::sin(radians);
+        conv::AffineMap rotation;
+        rotation.a11 = c;
+        rotation.a12 = sn;
+        rotation.a21 = -sn;
+        rotation.a22 = c;
+        rotation.ou = 512.0 - c * 512.0 - sn * 384.0;
+        rotation.ov = 384.0 + sn * 512.0 - c * 384.0;
+        for (usize m = 0; m < 2; ++m) {
+            const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+            for (usize part = 0; part < 2; ++part) {
+                const conv::Region region = part == 0 ? whole : brush;
+                double best = 1e30;
+                for (usize run = 0; run < 3; ++run) {
+                    const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+                    CHECK(line::affine_field(field, rotation, mode, rotated.view(), region, workspace).succeeded());
+                    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+                    best = ms < best ? ms : best;
+                }
+                std::printf("timing: 2D field rotate %.0f deg %s %s %.2f ms\n", degrees, part == 0 ? "1024x768" : "brush 128x128",
+                            m == 0 ? "preview" : "canon", best);
+            }
+        }
+    }
+    // The composited affine transfer (experiment) on the same rotations.
+    for (const double degrees : angles) {
+        const conv::AffineMap rotation = rotation_about(degrees, 512.0, 384.0, 512.0, 384.0);
+        for (usize m = 0; m < 2; ++m) {
+            const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+            for (usize part = 0; part < 2; ++part) {
+                const conv::Region region = part == 0 ? whole : brush;
+                double best = 1e30;
+                for (usize run = 0; run < 3; ++run) {
+                    const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+                    CHECK(line::affine_composited(field, rotation, mode, rotated.view(), region, workspace).succeeded());
+                    const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+                    best = ms < best ? ms : best;
+                }
+                std::printf("timing: composited rotate %.0f deg %s %s %.2f ms\n", degrees, part == 0 ? "1024x768" : "brush 128x128",
+                            m == 0 ? "preview" : "canon", best);
+            }
+        }
+    }
+    // Point evaluation: 200,000 scattered points, the best of three runs.
+    double best = 1e30;
+    double sink = 0.0;
+    for (usize run = 0; run < 3; ++run) {
+        const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+        for (usize k = 0; k < 200000; ++k) {
+            const double u = static_cast<double>((k * 7919) % 1021) + 0.37;
+            const double v = static_cast<double>((k * 104729) % 765) + 0.61;
+            double value[4];
+            CHECK(field.evaluate(u, v, stxlib::MutableView<double>(value, 4)).succeeded());
+            sink = sink + value[0];
+        }
+        const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
+        best = ms < best ? ms : best;
+    }
+    std::printf("timing: evaluate 200000 points %.2f ms (%.1f ns/point, sink %.3g)\n", best, best * 1e6 / 200000.0, sink);
 }
 
 // ---------------------------------------------------------------- fused axis canon (experiment)
@@ -1162,7 +1244,7 @@ void line_field() {
         CHECK(conv::transfer(whole_line, conv::Mode::preview, target).succeeded());
         for (usize k = 0; k < n; ++k) {
             double value[4];
-            CHECK(whole_line.evaluate(static_cast<double>(k) * 36.0 / static_cast<double>(n - 1), stxlib::MutableView<double>(value, 4)).succeeded());
+            CHECK(whole_line.evaluate((static_cast<double>(k) + 0.5) * 37.0 / static_cast<double>(n) - 0.5, stxlib::MutableView<double>(value, 4)).succeeded());
             CHECK(std::memcmp(value, out.data() + k * 6, sizeof(value)) == 0);
         }
     }
@@ -1289,6 +1371,213 @@ void digest_outputs() {
 
 } // namespace
 
+// ---------------------------------------------------------------- regional axis canon
+
+// Axis canon over a region equals the whole transfer there, byte for byte, whatever the regions'
+// shape (row strips, column strips, tiles), on wide and tall (transposed) sources, enlarging and
+// reducing. Then the cost of a reduction done in strips against the same reduction whole: the
+// region evaluates only its own band of source rows, so strips cost about the whole once.
+void regional_axis_canon() {
+    conv::Workspace workspace = workspace_made();
+    const usize sources[2][2] = {{120, 90}, {60, 130}};
+    const usize scales[2][2] = {{2, 1}, {3, 5}}; // target = source * numerator / denominator
+    usize differ = 0;
+    for (const usize(&size)[2] : sources) {
+        const Image image = fixture(Kind::noise, size[0], size[1], 41);
+        const conv::Field field = compiled(image);
+        for (const usize(&scale)[2] : scales) {
+            conv::AxisMap map;
+            map.target_width = size[0] * scale[0] / scale[1];
+            map.target_height = size[1] * scale[0] / scale[1];
+            const usize w = map.target_width;
+            const usize h = map.target_height;
+            Destination whole(w, h);
+            CHECK(conv::transfer(field, map, conv::Mode::canon, whole.view(), conv::Region{0, 0, w, h}, workspace).succeeded());
+            const usize shapes[3][2] = {{w, 16}, {16, h}, {32, 32}};
+            for (const usize(&shape)[2] : shapes) {
+                Destination pieces(w, h);
+                for (usize y0 = 0; y0 < h; y0 += shape[1]) {
+                    for (usize x0 = 0; x0 < w; x0 += shape[0]) {
+                        const usize x1 = x0 + shape[0] < w ? x0 + shape[0] : w;
+                        const usize y1 = y0 + shape[1] < h ? y0 + shape[1] : h;
+                        CHECK(conv::transfer(field, map, conv::Mode::canon, pieces.view(), conv::Region{x0, y0, x1, y1}, workspace).succeeded());
+                    }
+                }
+                differ = differ + (whole.rgba == pieces.rgba ? 0 : 1);
+            }
+        }
+    }
+    CHECK(differ == 0);
+    std::printf("regional axis canon: %zu of 24 piecewise renders differ from the whole\n", differ);
+
+    const Image image = fixture(Kind::noise, 2049, 1602, 43);
+    const conv::Field field = compiled(image);
+    conv::AxisMap map;
+    map.target_width = 1102;
+    map.target_height = 862;
+    Destination whole(1102, 862);
+    Destination strips(1102, 862);
+    std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+    CHECK(conv::transfer(field, map, conv::Mode::canon, whole.view(), conv::Region{0, 0, 1102, 862}, workspace).succeeded());
+    const double whole_ms = milliseconds_since(start);
+    start = std::chrono::steady_clock::now();
+    for (usize y0 = 0; y0 < 862; y0 += 32) {
+        const usize y1 = y0 + 32 < 862 ? y0 + 32 : 862;
+        CHECK(conv::transfer(field, map, conv::Mode::canon, strips.view(), conv::Region{0, y0, 1102, y1}, workspace).succeeded());
+    }
+    const double strips_ms = milliseconds_since(start);
+    CHECK(whole.rgba == strips.rgba);
+    std::printf("regional axis canon: 2049x1602 -> 1102x862 whole %.1f ms, in 32-row strips %.1f ms\n", whole_ms, strips_ms);
+}
+
+
+// ---------------------------------------------------------------- composited affine (experiment)
+
+void composited_affine() {
+    conv::Workspace workspace = workspace_made();
+    u64 hash = 0xcbf29ce484222325ull;
+    const Kind kinds[] = {Kind::noise, Kind::smooth, Kind::icon};
+    const usize sizes[][2] = {{97, 71}, {40, 131}, {7, 5}, {2, 2}};
+    for (const Kind kind : kinds) {
+        for (const usize(&size)[2] : sizes) {
+            const Image image = fixture(kind, size[0], size[1], 23);
+            const conv::Field field = compiled(image);
+            const usize dw = size[0] + 9;
+            const usize dh = size[1] + 5;
+            const conv::Region all{0, 0, dw, dh};
+            // Axis-aligned maps (scale, flip, offset): the composited preview is the field's.
+            const double scales[][2] = {{1.0, 1.0}, {0.73, 1.31}, {-1.2, 0.8}, {2.5, -0.45}};
+            for (const double(&scale)[2] : scales) {
+                conv::AffineMap map;
+                map.a11 = scale[0];
+                map.a22 = scale[1];
+                map.ou = 1.25;
+                map.ov = -0.5;
+                Destination field_preview(dw, dh);
+                Destination composited(dw, dh);
+                CHECK(conv::transfer(field, map, conv::Mode::preview, field_preview.view(), all, workspace).succeeded());
+                CHECK(line::affine_composited(field, map, conv::Mode::preview, composited.view(), all, workspace).succeeded());
+                CHECK(field_preview.rgba == composited.rgba);
+            }
+            // Rotations and a shear: against the 2D field's preview and canon, measured.
+            const double angles[] = {3.0, 30.0, 45.0, 60.0, 90.0, 137.0, -20.0};
+            for (const double degrees : angles) {
+                const conv::AffineMap map = rotation_about(degrees, 0.5 * static_cast<double>(size[0]), 0.5 * static_cast<double>(size[1]),
+                                                           0.5 * static_cast<double>(dw), 0.5 * static_cast<double>(dh));
+                for (usize m = 0; m < 2; ++m) {
+                    const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+                    Destination reference(dw, dh);
+                    Destination composited(dw, dh);
+                    CHECK(conv::transfer(field, map, mode, reference.view(), all, workspace).succeeded());
+                    CHECK(line::affine_composited(field, map, mode, composited.view(), all, workspace).succeeded());
+                    // The default affine transfer is the composited one.
+                    CHECK(reference.rgba == composited.rgba);
+                    hash = fnv(hash, composited.rgba);
+                    // A sub-region writes the same bytes as the whole, and nothing outside it.
+                    const conv::Region part{dw / 4, dh / 3, dw / 4 + dw / 2, dh / 3 + dh / 2};
+                    Destination partial(dw, dh);
+                    CHECK(line::affine_composited(field, map, mode, partial.view(), part, workspace).succeeded());
+                    bool same = true;
+                    for (usize y = 0; y < dh; ++y) {
+                        for (usize x = 0; x < dw; ++x) {
+                            const bool inside = x >= part.x0 && x < part.x1 && y >= part.y0 && y < part.y1;
+                            for (usize k = 0; k < 4; ++k) {
+                                const u8 got = partial.rgba[(y * dw + x) * 4 + k];
+                                const u8 want = inside ? composited.rgba[(y * dw + x) * 4 + k] : u8{0xa5};
+                                same = same && got == want;
+                            }
+                        }
+                    }
+                    CHECK(same);
+                }
+            }
+        }
+    }
+    // Refusals: singular and over-reducing maps.
+    const Image image = fixture(Kind::smooth, 33, 21, 5);
+    const conv::Field field = compiled(image);
+    Destination out(10, 10);
+    conv::AffineMap singular;
+    singular.a21 = 0.0;
+    singular.a22 = 0.0;
+    CHECK(line::affine_composited(field, singular, conv::Mode::preview, out.view(), conv::Region{0, 0, 10, 10}, workspace).failed());
+    conv::AffineMap reducing;
+    reducing.a11 = 40.0;
+    CHECK(line::affine_composited(field, reducing, conv::Mode::canon, out.view(), conv::Region{0, 0, 10, 10}, workspace).failed());
+    std::printf("composited digest %016llx on level %d\n", static_cast<unsigned long long>(hash), static_cast<int>(stxlib::simd::selected_level()));
+    // How far the composited transfer is from the 2D field on a photograph-like source.
+    // Photograph-like: smooth waves at several scales and a hard-edged disc.
+    Image photo;
+    photo.width = 512;
+    photo.height = 384;
+    photo.rgba.resize(512 * 384 * 4);
+    for (usize y = 0; y < 384; ++y) {
+        for (usize x = 0; x < 512; ++x) {
+            const double fx = static_cast<double>(x);
+            const double fy = static_cast<double>(y);
+            const double dx = fx - 300.0;
+            const double dy = fy - 170.0;
+            const bool disc = dx * dx + dy * dy < 90.0 * 90.0;
+            double r = 128.0 + 60.0 * std::sin(fx / 23.0 + fy / 31.0) + 30.0 * std::sin(fx / 5.3 - fy / 7.1);
+            double g = 120.0 + 70.0 * std::cos(fx / 41.0 - fy / 17.0) + 20.0 * std::sin((fx + fy) / 3.7);
+            double b = disc ? 220.0 : 40.0 + 25.0 * std::sin(fy / 11.0);
+            r = r < 0.0 ? 0.0 : r > 255.0 ? 255.0 : r;
+            g = g < 0.0 ? 0.0 : g > 255.0 ? 255.0 : g;
+            u8* const px = photo.rgba.data() + (y * 512 + x) * 4;
+            px[0] = static_cast<u8>(r);
+            px[1] = static_cast<u8>(g);
+            px[2] = static_cast<u8>(b);
+            px[3] = 255;
+        }
+    }
+    const conv::Field photo_field = compiled(photo);
+    const double report_angles[] = {7.0, 30.0, 45.0};
+    for (const double degrees : report_angles) {
+        const conv::AffineMap map = rotation_about(degrees, 256.0, 192.0, 256.0, 192.0);
+        for (usize m = 0; m < 2; ++m) {
+            const conv::Mode mode = m == 0 ? conv::Mode::preview : conv::Mode::canon;
+            Destination reference(512, 384);
+            Destination composited(512, 384);
+            const conv::Region all{0, 0, 512, 384};
+            CHECK(line::affine_field(photo_field, map, mode, reference.view(), all, workspace).succeeded());
+            CHECK(line::affine_composited(photo_field, map, mode, composited.view(), all, workspace).succeeded());
+            // Pixels whose centre pulls back at least 4 nodes inside the source, and the rest.
+            usize worst[2]{0, 0};
+            usize differing[2]{0, 0};
+            usize bytes[2]{0, 0};
+            usize histogram[4]{0, 0, 0, 0};
+            double total[2]{0.0, 0.0};
+            for (usize y = 0; y < 384; ++y) {
+                for (usize x = 0; x < 512; ++x) {
+                    const double u = map.ou + map.a11 * static_cast<double>(x) + map.a12 * static_cast<double>(y);
+                    const double v = map.ov + map.a21 * static_cast<double>(x) + map.a22 * static_cast<double>(y);
+                    const usize side = u >= 4.0 && u <= 507.0 && v >= 4.0 && v <= 379.0 ? 0 : 1;
+                    for (usize k = 0; k < 4; ++k) {
+                        const usize a = reference.rgba[(y * 512 + x) * 4 + k];
+                        const usize b = composited.rgba[(y * 512 + x) * 4 + k];
+                        const usize d = a > b ? a - b : b - a;
+                        worst[side] = d > worst[side] ? d : worst[side];
+                        differing[side] = differing[side] + (d != 0 ? 1 : 0);
+                        bytes[side] = bytes[side] + 1;
+                        total[side] = total[side] + static_cast<double>(d);
+                        if (side == 0) histogram[d == 0 ? 0 : d == 1 ? 1 : d <= 4 ? 2 : 3] += 1;
+                    }
+                }
+            }
+            for (usize side = 0; side < 2; ++side) {
+                const double n = bytes[side] == 0 ? 1.0 : static_cast<double>(bytes[side]);
+                std::printf("composited vs field: rotate %.0f deg %s %s: max %zu, mean %.3f, %.2f%% of bytes differ\n", degrees,
+                            m == 0 ? "preview" : "canon", side == 0 ? "inside" : "outside/border", worst[side], total[side] / n,
+                            100.0 * static_cast<double>(differing[side]) / n);
+            }
+            const double inside = static_cast<double>(bytes[0]);
+            std::printf("composited vs field: rotate %.0f deg %s inside |d| = 0: %.2f%%, 1: %.2f%%, 2-4: %.2f%%, >4: %.3f%%\n", degrees,
+                        m == 0 ? "preview" : "canon", 100.0 * static_cast<double>(histogram[0]) / inside, 100.0 * static_cast<double>(histogram[1]) / inside,
+                        100.0 * static_cast<double>(histogram[2]) / inside, 100.0 * static_cast<double>(histogram[3]) / inside);
+        }
+    }
+}
+
 int main() {
     field_matches_reference();
     k1_tiers_identical();
@@ -1298,9 +1587,11 @@ int main() {
     projective_canon();
     local_recompile();
     longer_axis_first();
+    regional_axis_canon();
     line_field();
     refusals();
     digest_outputs();
+    composited_affine();
     timing();
     fused_experiment();
     return stxlib_tests::finish("stxlib conv");

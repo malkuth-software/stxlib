@@ -300,4 +300,25 @@ void sincospi(double x, double& s, double& c) noexcept;
 [[nodiscard]] double cosm1pi(double x) noexcept;
 [[nodiscard]] float cosm1pi(float x) noexcept;
 
+// Sine and cosine of an angle in degrees, for every finite x (2026-11-22,
+// for GUI.Forms' rotations, arcs and gradient directions). The reduction
+// to the nearest multiple of 90 degrees is exact for every finite double,
+// so every multiple of 90 is exact: 0, 90, 180 and 270 give (0, 1), (1, 0),
+// (0, -1) and (-1, 0), and large arguments lose nothing. Every zero result
+// is +0, whatever the sign of x (sincosd(-180) gives (+0, -1)), so a quarter
+// turn's rotation has the same bits however it was reached; otherwise the
+// sine is odd and the cosine even. Infinities and NaN give NaN (NaN
+// payloads kept). Double: the rest of at most 46 degrees becomes half-turns
+// rest/180 as a double-double (its low part exact to 2^-106) and takes the
+// half-turn kernel of sincospi, so the accuracy is sincospi's (measured
+// within 0.5002 ulp, above) plus at most 2^-100 relative from the
+// conversion; tests/math_completion_tests.cpp samples it against a
+// double-double reference with the half-turn limit, 0.5005 ulp (not yet
+// measured on this kernel; not proved). A subnormal x is read as zero:
+// (+0, 1). A sine that would be subnormal (|x| below about 2^-1016
+// degrees) is +0. Float: the double result of the widened argument,
+// rounded once, flushed, and a zero written as +0.
+void sincosd(double x, double& s, double& c) noexcept;
+void sincosd(float x, float& s, float& c) noexcept;
+
 } // namespace stxlib::math

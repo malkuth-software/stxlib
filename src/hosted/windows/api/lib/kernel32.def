@@ -111,6 +111,7 @@ EXPORTS
     LoadLibraryW
     LoadPackagedLibrary
     LocalFree
+    LockFileEx
     MapViewOfFile
     MoveFileExW
     MultiByteToWideChar
@@ -149,6 +150,7 @@ EXPORTS
     SetHandleInformation
     SetInformationJobObject
     SetLastError
+    SetStdHandle
     SetThreadPriority
     SetThreadpoolWait
     SetUnhandledExceptionFilter
@@ -163,6 +165,7 @@ EXPORTS
     TlsSetValue
     TryAcquireSRWLockExclusive
     TryEnterCriticalSection
+    UnlockFileEx
     UnmapViewOfFile
     UpdateProcThreadAttribute
     VerSetConditionMask

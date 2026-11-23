@@ -4,9 +4,93 @@
   "generated_by": "tools/ic_declarations.py",
   "rows": [
     {
+      "type": "stxlib::AtomicPool",
+      "member": "begin",
+      "constraints": "Admitted in idle; then open. In empty: failure invalid_argument (empty_pool), unchanged. In open: requirement, unchanged. Requires task_count != 0, else failure invalid_argument (empty_batch), unchanged. Requires task_count <= task_limit, else failure invalid_argument (too_many_tasks), unchanged. Fails invalid_argument (task_without_function: a task whose function is null; no task runs), unchanged.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicPool",
+      "member": "create",
+      "constraints": "Requires thread_count != 0, else failure invalid_argument (zero_threads), unchanged. Requires thread_count <= maximum_pool_threads, else failure invalid_argument (too_many_threads), unchanged. Fails out_of_memory (the pool's state or its thread table), unchanged; limit_exceeded (the host refuses a worker thread), unchanged. Thread: any. Returns AtomicPool in idle, owned by the caller.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicPool",
+      "member": "is_worker",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicPool",
+      "member": "run",
+      "constraints": "Admitted in idle. In empty: failure invalid_argument (empty_pool), unchanged. In open: requirement, unchanged. Requires task_count <= task_limit, else failure invalid_argument (too_many_tasks), unchanged. Fails invalid_argument (task_without_function: a task whose function is null; no task runs), unchanged.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicPool",
+      "member": "thread_count",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicPool",
+      "member": "wait",
+      "constraints": "Admitted in idle, open; then idle. In empty: failure invalid_argument (empty_pool), unchanged.",
+      "declaration": "include/stxlib/thread_pool.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "compare_exchange",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "load",
+      "constraints": "Returns u32.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "notify_all",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "notify_one",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "store",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait",
+      "constraints": "Returns u32.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait_for",
+      "constraints": "Returns WaitResult.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
+      "type": "stxlib::AtomicWord",
+      "member": "wait_until",
+      "constraints": "Returns WaitResult.",
+      "declaration": "include/stxlib/atomic_word.ic.toml"
+    },
+    {
       "type": "stxlib::Buffer",
       "member": "allocate_zeroed",
-      "constraints": "Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
+      "constraints": "Fails limit_exceeded (the elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Buffer, owned by the caller.",
       "declaration": "include/stxlib/buffer.ic.toml"
     },
     {
@@ -162,7 +246,7 @@
     {
       "type": "stxlib::File",
       "member": "write_all",
-      "constraints": "Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure any, unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been written), partly changed.",
+      "constraints": "Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure invalid_argument (invalid_state), unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been written), partly changed.",
       "declaration": "include/stxlib/files.ic.toml"
     },
     {
@@ -260,6 +344,210 @@
       "member": "value_at",
       "constraints": "Requires index < count, else requirement (\"FrozenTextMap::value_at: index out of range\").",
       "declaration": "include/stxlib/frozen_text_map.ic.toml"
+    },
+    {
+      "type": "stxlib::Mutex",
+      "member": "lock",
+      "constraints": "Admitted in free; then held. In held: requirement, unchanged.",
+      "declaration": "include/stxlib/mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::Mutex",
+      "member": "try_lock",
+      "constraints": "Admitted in free; then held. In held: requirement, unchanged.",
+      "declaration": "include/stxlib/mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::Mutex",
+      "member": "unlock",
+      "constraints": "Admitted in held; then free. In free: requirement, unchanged.",
+      "declaration": "include/stxlib/mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "held_by_current_thread",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "lock",
+      "constraints": "Admitted in any state; then held.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "try_lock",
+      "constraints": "Admitted in any state; then held. Returns bool.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::RecursiveMutex",
+      "member": "unlock",
+      "constraints": "Admitted in held. In free: requirement, unchanged.",
+      "declaration": "include/stxlib/recursive_mutex.ic.toml"
+    },
+    {
+      "type": "stxlib::StopCallback",
+      "member": "StopCallback",
+      "constraints": "Requires not_null(function), else requirement (\"StopCallback: a callback needs a function\"). Returns StopCallback in listed, finished or inert.",
+      "declaration": "include/stxlib/stop_callback.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "StopSource",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "create",
+      "constraints": "Fails out_of_memory (the allocator refuses the shared state), unchanged. Thread: any. Returns StopSource in armed, owned by the caller.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "request_stop",
+      "constraints": "Admitted in armed, stopped; then stopped. In empty: returns false, unchanged. Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "stop_possible",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "stop_requested",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopSource",
+      "member": "token",
+      "constraints": "Returns StopToken, owned by the caller.",
+      "declaration": "include/stxlib/stop_source.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "StopToken",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "same_state",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "stop_possible",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::StopToken",
+      "member": "stop_requested",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/stop_token.ic.toml"
+    },
+    {
+      "type": "stxlib::Thread",
+      "member": "abandon",
+      "constraints": "Admitted in started; then empty. In empty: returns AbandonResult::not_joinable, unchanged.",
+      "declaration": "include/stxlib/threads.ic.toml"
+    },
+    {
+      "type": "stxlib::Thread",
+      "member": "identity",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/threads.ic.toml"
+    },
+    {
+      "type": "stxlib::Thread",
+      "member": "join",
+      "constraints": "Admitted in started; then empty. In empty: returns JoinResult::not_joinable, unchanged.",
+      "declaration": "include/stxlib/threads.ic.toml"
+    },
+    {
+      "type": "stxlib::Thread",
+      "member": "request_stop",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/threads.ic.toml"
+    },
+    {
+      "type": "stxlib::Thread",
+      "member": "start",
+      "constraints": "Requires not_null(entry), else failure invalid_argument (no_entry), unchanged. Requires stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes], else failure invalid_argument (stack_size_out_of_range), unchanged. Fails out_of_memory (the shared state), unchanged; limit_exceeded (the host refuses another thread or its stack, or thread identities are exhausted), unchanged. Thread: any. Returns Thread in started, owned by the caller.",
+      "declaration": "include/stxlib/threads.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Returns UniqueLock in empty.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Returns UniqueLock in locked.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "UniqueLock",
+      "constraints": "Transfers the mutex and its state from other to the new lock.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "deferred",
+      "constraints": "Returns UniqueLock in unlocked, owned by the caller.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "lock",
+      "constraints": "Admitted in unlocked; then locked. In empty, locked: requirement, unchanged.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "mutex",
+      "constraints": "Returns a borrow of the named mutex.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "operator=",
+      "constraints": "Transfers the mutex and its state from other to this lock.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "owns",
+      "constraints": "Returns bool.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "release",
+      "constraints": "Admitted in any state; then empty. Returns Mutex*. Transfers the duty to unlock a held mutex from this lock to caller.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "try_lock",
+      "constraints": "Admitted in unlocked; then locked. In empty, locked: requirement, unchanged. Returns bool.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
+    },
+    {
+      "type": "stxlib::UniqueLock",
+      "member": "unlock",
+      "constraints": "Admitted in locked; then unlocked. In empty, unlocked: requirement, unchanged.",
+      "declaration": "include/stxlib/unique_lock.ic.toml"
     },
     {
       "type": "stxlib::Vector",
@@ -392,6 +680,120 @@
       "member": "with_capacity",
       "constraints": "Fails limit_exceeded (room elements' bytes are not representable), unchanged; out_of_memory (the allocator refuses), unchanged. Returns Vector, owned by the caller.",
       "declaration": "include/stxlib/vector.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "bins",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "empty",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "irfft",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "make",
+      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Requires mode != 2, else failure unsupported, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan32 in ready, owned by the caller.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "rfft",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan32",
+      "member": "size",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan32.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "bins",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "empty",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "irfft",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == bins, else failure invalid_argument, unchanged. Requires output_count == size, else failure invalid_argument, unchanged.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "make",
+      "constraints": "Requires mode <= 2, else failure invalid_argument, unchanged. Requires requested <= max_size, else failure limit_exceeded, unchanged. Requires power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2)), else failure invalid_argument, unchanged. Fails out_of_memory (the plan's state or tables), unchanged. Thread: any. Returns Plan64 in ready, owned by the caller.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "rfft",
+      "constraints": "Admitted in ready. In empty: failure invalid_argument, unchanged. Requires input_count == size, else failure invalid_argument, unchanged. Requires output_count == bins, else failure invalid_argument, unchanged.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::fft::Plan64",
+      "member": "size",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/fft_plan64.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "bytes_held",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "glyph",
+      "constraints": "Admitted in open. In closed: failure invalid_argument, unchanged. Requires glyph < glyph_count, else failure invalid_argument, unchanged. Fails out_of_memory (storage for the glyph), partly changed; invalid_argument (the font refuses the glyph's outline), partly changed; limit_exceeded (the outline is beyond the store's limits), partly changed.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "glyphs_read",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "keep",
+      "constraints": "Admitted in open. In closed: failure invalid_argument, unchanged. Fails out_of_memory (storage for a kept glyph), partly changed.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "open",
+      "constraints": "Admitted in any state; then open. Fails out_of_memory (the glyph index), partly changed; invalid_argument (a font the store cannot serve), partly changed.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "release",
+      "constraints": "Admitted in any state; then closed.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
+    },
+    {
+      "type": "stxlib::glyphs::GlyphStore",
+      "member": "whole",
+      "constraints": "No declared constraint.",
+      "declaration": "include/stxlib/glyph_store.ic.toml"
     },
     {
       "type": "stxlib::memory",

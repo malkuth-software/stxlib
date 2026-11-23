@@ -3,7 +3,7 @@
   "sources": [
     {
       "name": "gui_forms",
-      "path": "D:/gui_forms_main/gui_forms",
+      "path": "D:/malkuth/repos/gui_forms",
       "revision": "22cb45f59",
       "roots": [
         "src",
@@ -18,7 +18,7 @@
     },
     {
       "name": "stx",
-      "path": "D:/stx_ci",
+      "path": "D:/malkuth/repos/stx",
       "revision": "91dd981",
       "roots": [],
       "exclude": [
@@ -28,7 +28,7 @@
     },
     {
       "name": "stxlib",
-      "path": "D:/gw_win_stxlib",
+      "path": "D:/malkuth/repos/stxlib",
       "revision": "4d1ae28",
       "roots": [],
       "exclude": [
@@ -38,7 +38,7 @@
     },
     {
       "name": "miniaudio",
-      "path": "D:/gw_mingw_build/_deps/gui_forms_miniaudio-src",
+      "path": "D:/playsuite/.build/fetch/gui_forms_miniaudio-src",
       "revision": "f40cf03f80cdb7e741d43e53b7e706e8c1394bcf",
       "roots": [
         "miniaudio.h"
@@ -156,7 +156,18 @@
     "AreFileApisANSI",
     "CP_ACP",
     "CP_OEMCP",
-    "WINAPI_PARTITION_DESKTOP"
+    "WINAPI_PARTITION_DESKTOP",
+    "SetStdHandle",
+    "WaitOnAddress",
+    "WakeByAddressSingle",
+    "WakeByAddressAll",
+    "LockFileEx",
+    "UnlockFileEx",
+    "LOCKFILE_EXCLUSIVE_LOCK",
+    "LOCKFILE_FAIL_IMMEDIATELY",
+    "FILE_RENAME_INFO",
+    "FILE_RENAME_FLAG_REPLACE_IF_EXISTS",
+    "FILE_RENAME_FLAG_POSIX_SEMANTICS"
   ],
   "supplement_names": [
     "WINAPI",
@@ -202,5 +213,5 @@
     "sal"
   ],
   "excluded_tokens_comment": "C library names the metadata also carries (crt stream owns them), and macros miniaudio defines itself.",
-  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses. Then the names libc++'s build needed (queue/claude__windows-own-crt.md, api_gaps.h)."
+  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses. Then the names libc++'s build needed (queue/claude__windows-own-crt.md, api_gaps.h). Then the names of STXlib branches not yet on the scanned revision: SetStdHandle (claude/stx-mcp, pipes), WaitOnAddress, WakeByAddressSingle and WakeByAddressAll (claude/threads-additions, atomic waits); LockFileEx, UnlockFileEx, the LOCKFILE_ flags, FILE_RENAME_INFO and the FILE_RENAME_FLAG_ constants (FileRenameInfoEx is an enumerator of FILE_INFO_BY_HANDLE_CLASS, already declared) (claude/settings-store, FileLock and the POSIX-semantics replace); the scan cannot take a later STXlib revision, whose committed api/include would feed the generated headers back into the scan."
 }
