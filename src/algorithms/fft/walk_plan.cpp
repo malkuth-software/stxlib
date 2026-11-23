@@ -1,6 +1,6 @@
-// The walk's tables (plan_state.hpp, WalkTables; the kernels are walk.inc):
+// The PSFT's tables (plan_state.hpp, WalkTables; the kernels are walk.inc):
 // the twiddle table, the passes and their cells, the schedule, the gaps and
-// the strips, built once per plan in scalar code. Ported from the walk's
+// the strips, built once per plan in scalar code. Ported from the PSFT's
 // prototype (~/Developer/work/fft/ideal walk.hpp, Plan; 2026-11-23): the same
 // passes, cells, schedule keys and gap rule, so the same values in the same
 // order; the prototype's growable arrays, lambdas and stable sort are
@@ -206,6 +206,13 @@ struct ByRealRun final {
     [[nodiscard]] bool operator()(const BuiltCell& a, const BuiltCell& b) const noexcept { return a.in_re < b.in_re; }
 };
 
+// Orders cells by the first place they write (unique within a pass): a
+// crossed pass runs its cells in write order ("scattered reads, ordered
+// writes"; the prototype's fill), a plain pass writes where it reads.
+struct ByFirstWrite final {
+    [[nodiscard]] bool operator()(const BuiltCell& a, const BuiltCell& b) const noexcept { return a.out[0] < b.out[0]; }
+};
+
 // One unit of work for the schedule: a pass's row 0 (part 0), ridge
 // (part 1) or one cell (part 2, index idx). seq is the order of creation,
 // the last key, so the sort is a total order and equals the prototype's
@@ -304,7 +311,11 @@ void fill_pass(PassBuild& p, const u32 m, const u32 n) noexcept {
         }
     }
     p.cell_count = cells_at(t);
-    std::sort(p.cells, p.cells + p.cell_count, ByRealRun{});
+    if (p.shape.crossed) {
+        std::sort(p.cells, p.cells + p.cell_count, ByFirstWrite{});
+    } else {
+        std::sort(p.cells, p.cells + p.cell_count, ByRealRun{});
+    }
 }
 
 // The schedule key of one unit whose representative address is rep.
@@ -442,6 +453,8 @@ template <typename T>
             const BuiltCell& cell = p.cells[c];
             const u32 rep = cell.in_re < cell.in_im ? cell.in_re : cell.in_im;
             Op op = key_of(p, index, rep, layout.granule);
+            // Within a block a crossed pass's cells keep their write order.
+            if (p.shape.crossed) op.addr = cell.out[0];
             op.part = 2;
             op.idx = c;
             op.seq = seq;

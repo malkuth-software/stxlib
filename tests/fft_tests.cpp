@@ -15,7 +15,7 @@
 //   F6  every tier this machine runs gives the scalar tier's values (==,
 //       so the sign of a zero may differ), forward and inverse, for every
 //       size from the smallest to 2^18 (every vector path and tail); the
-//       plain mode's walk only within its exact family (a fused tier is
+//       plain mode's PSFT only within its exact family (a fused tier is
 //       held by tests/fft_walk_tests.cpp's frozen hashes);
 //       the plan made by make() runs simd::selected_level();
 //   F7  plain and dip agree on large sizes (the same bins by two kernels);
@@ -563,7 +563,7 @@ void tiers_agree(const Mode mode, const usize smallest) {
             const std::vector<double> x = random_signal(n, 7 * n + 5);
             Plan64 reference = plan64_at(n, mode, Level::scalar);
             Plan64 tier = plan64_at(n, mode, level);
-            // The plain mode's walk compares within its family: a fused tier
+            // The plain mode's PSFT compares within its family: a fused tier
             // has no scalar counterpart (fft_walk_tests' hashes hold it).
             if (mode == Mode::plain && stxlib::fft::detail::walk_fused(PlanAccess::walk_tier(tier)) && n >= 16) continue;
             const std::vector<Complex64> want = forward64(reference, x);

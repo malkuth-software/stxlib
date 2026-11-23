@@ -13,7 +13,8 @@
 //
 // Three modes, each its own kernel:
 //
-//   plain    From N = 16 the walk (src/algorithms/fft/walk.inc): radix-4
+//   plain    From N = 16 the PSFT, the progressively self-sorting Fourier
+//            transform (src/algorithms/fft/walk.inc): radix-4
 //            and radix-2 passes over real storage, the first half of the
 //            stages in place and the second "crossed", each writing its sums
 //            and differences to the runs where they belong, so the output
@@ -42,7 +43,7 @@
 // and dip's X[0] and X[N/2].
 //
 // Floating point (docs/CODE_STYLE_APPENDIX.md, A1): no contraction. The
-// walk has two builds of one source, A1 rule 1's one exception: the exact
+// PSFT has two builds of one source, A1 rule 1's one exception: the exact
 // build (no fused multiply-add), run at the lower tier (scalar, or 128-bit
 // vectors without FMA: wasm SIMD128, x86-64 without FMA3), and the fused
 // build, run at the upper tier (NEON, or 128-bit SSE with FMA3), which

@@ -12,16 +12,23 @@
 // and op schedules, DIT's bit reversal, BODFT's digit reversal, DIP's
 // boundary permutations) are BFFT's constructions, copied.
 //
-// Engines. The plain mode has three kernels: the walk (walk.inc,
+// Engines. The plain mode has three kernels: the PSFT (walk.inc,
 // walk_plan.cpp) and BFFT's DIF and DIT. A plan runs the ones engine_policy
 // gives its size (PlanAccess can choose them for tests and the benchmark),
 // and builds each kernel's tables only when it runs that kernel.
 //
 // Workspace. A plain plan's transforms run on a workspace of work_size
 // reals: the caller's (the const calls, which any number of threads may make
-// on one plan at once) or the plan's own (the others). It is [staging:
-// size + 2][scratch]: the staging area holds the flushed copy of an input
-// that has a subnormal; the scratch is the walk's work_count reals, or
+// on one plan at once) or the plan's own (the others). It is
+// [staging][pad][scratch]. The staging area, size + 2 reals when the plan
+// runs DIF or DIT and empty otherwise, holds the flushed copy of an input
+// that has a subnormal; the PSFT needs none, since it flushes its input as
+// it loads it and its output as it stores it (walk_lanes.inc). The pad
+// (under scratch_alignment bytes) puts the scratch on a cache line,
+// wherever the caller's workspace starts, since
+// the PSFT's gaps and stagger place its buffers from a line (and a vector
+// that straddles two lines costs both); the scratch is the PSFT's
+// work_count reals, or
 // 3 size + 4 for DIF and DIT (their work, N; DIF's native spectrum, N + 2;
 // the spectrum magnitude reads, N + 2), the larger of the plan's engines'.
 //
@@ -47,6 +54,7 @@
 
 #include <bit>
 #include <cmath>
+#include <cstdint>
 #include <new>
 
 namespace stxlib::fft::detail {
@@ -93,6 +101,7 @@ void* take_plan_block(PlanState& state, const usize count, const usize size) noe
     if (block == nullptr) return nullptr;
     __builtin_memset(block, 0, bytes);
     state.blocks[state.block_count] = block;
+    state.bytes = state.bytes + bytes;
     state.block_count = state.block_count + 1;
     return block;
 }
@@ -416,16 +425,12 @@ struct NativeScratch final {
 
     const usize leaf_blocks = static_cast<usize>(n) / 16;
     if (precision == Precision::float64) {
-        double* const work = static_cast<double*>(take_block(state, static_cast<usize>(n), sizeof(double)));
-        if (work == nullptr) return false;
-        tables.work64 = work;
         if (n >= 32) {
             i32* const outidx = static_cast<i32*>(take_block(state, half, sizeof(i32)));
             i32* const standard_native = static_cast<i32*>(take_block(state, half, sizeof(i32)));
-            Complex64* const native = static_cast<Complex64*>(take_block(state, half + 1, sizeof(Complex64)));
             LeafTwiddles64* const tw =
                 static_cast<LeafTwiddles64*>(take_block(state, leaf_blocks, sizeof(LeafTwiddles64)));
-            if (outidx == nullptr || standard_native == nullptr || native == nullptr || tw == nullptr) return false;
+            if (outidx == nullptr || standard_native == nullptr || tw == nullptr) return false;
             if (!build_native_order(n, kinv, outidx, standard_native)) return false;
             for (i32 m = 1; m < n / 16; ++m) {
                 LeafTwiddles64& e = tw[m];
@@ -438,18 +443,15 @@ struct NativeScratch final {
             }
             tables.outidx = outidx;
             tables.standard_native = standard_native;
-            tables.native64 = native;
             tables.tw = tw;
         }
         return true;
     }
 
     float* const cf = static_cast<float*>(take_block(state, half, sizeof(float)));
-    float* const work = static_cast<float*>(take_block(state, static_cast<usize>(n), sizeof(float)));
-    if (cf == nullptr || work == nullptr) return false;
+    if (cf == nullptr) return false;
     for (usize m = 0; m < half; ++m) cf[m] = static_cast<float>(c[m]);
     tables.cf = cf;
-    tables.work32 = work;
     if (n >= 32) {
         LeafTwiddles32* const twf = static_cast<LeafTwiddles32*>(take_block(state, leaf_blocks, sizeof(LeafTwiddles32)));
         if (twf == nullptr) return false;
@@ -543,15 +545,10 @@ struct NativeScratch final {
     tables.sin = sin_table;
     tables.cs = cs;
     tables.fterm_cs = fterm;
-    if (precision == Precision::float64) {
-        tables.work64 = state.dif.work64;
-    } else {
-        tables.work32 = state.dif.work32;
-    }
     return true;
 }
 
-// DIT and the walk run from N = 16; below that a plan runs DIF. The other
+// DIT and the PSFT run from N = 16; below that a plan runs DIF. The other
 // modes read as dif, dif.
 [[nodiscard]] Engines effective_engines(const Engines engines, const Mode mode, const usize size) noexcept {
     Engines result{};
@@ -566,6 +563,10 @@ struct NativeScratch final {
 
 // The scratch a plain plan's transforms take beyond the staging area
 // ("Workspace").
+// The scratch starts on a boundary of this many bytes (a cache line;
+// "Workspace").
+constexpr usize scratch_alignment = 64;
+
 [[nodiscard]] usize scratch_of(const PlanState& plan) noexcept {
     usize scratch = 0;
     if (runs(plan.engines, Engine::walk)) scratch = plan.walk.work_count;
@@ -832,9 +833,8 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     plan.walk_kernels = &walk_kernels_for(tier);
     if (mode == Mode::plain) {
         built = true;
-        const bool dit = runs(plan.engines, Engine::dit);
-        if (dit || runs(plan.engines, Engine::dif)) built = build_dif(plan, n, precision);
-        if (built && dit) built = build_dit(plan, n, precision);
+        if (runs(plan.engines, Engine::dif)) built = build_dif(plan, n, precision);
+        if (built && runs(plan.engines, Engine::dit)) built = build_dit(plan, n, precision);
         if (built && runs(plan.engines, Engine::walk)) built = build_walk(plan, n, float64, walk);
     }
     if (mode == Mode::shifted) built = build_bodft(plan, n, precision);
@@ -846,7 +846,9 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     }
     if (built && mode == Mode::plain) {
         const usize element = precision == Precision::float32 ? sizeof(float) : sizeof(double);
-        plan.work_size = size + 2 + scratch_of(plan);
+        const bool classic = runs(plan.engines, Engine::dif) || runs(plan.engines, Engine::dit);
+        plan.staging_count = classic ? size + 2 : 0;
+        plan.work_size = plan.staging_count + scratch_alignment / element + scratch_of(plan);
         plan.workspace = take_block(plan, plan.work_size, element);
         built = plan.workspace != nullptr;
     }
@@ -1028,17 +1030,52 @@ enum class Refusal : u8 {
     return Refusal::none;
 }
 
+// Whether any of `count` reals, or any part of `count` complex values, is
+// subnormal. Blocks of 64 with no exit inside a block, so the test of a block
+// is one vectorised OR (core/subnormal.hpp, subnormal_bit); the scan stops
+// at the first block holding a subnormal.
+constexpr usize subnormal_block = 64;
+
+template <typename Real>
+[[nodiscard]] bool any_subnormal(const Real* const values, const usize count) noexcept {
+    for (usize start = 0; start < count; start += subnormal_block) {
+        const usize end = count - start < subnormal_block ? count : start + subnormal_block;
+        decltype(stxlib::detail::subnormal_bit(Real{})) hits = 0;
+        for (usize index = start; index < end; ++index) hits |= stxlib::detail::subnormal_bit(values[index]);
+        if (hits != 0) return true;
+    }
+    return false;
+}
+
+template <typename Complex>
+[[nodiscard]] bool any_subnormal_part(const Complex* const values, const usize count) noexcept {
+    for (usize start = 0; start < count; start += subnormal_block) {
+        const usize end = count - start < subnormal_block ? count : start + subnormal_block;
+        decltype(stxlib::detail::subnormal_bit(values[0].re)) hits = 0;
+        for (usize index = start; index < end; ++index) {
+            const Complex& value = values[index];
+            hits |= stxlib::detail::subnormal_bit(value.re) | stxlib::detail::subnormal_bit(value.im);
+        }
+        if (hits != 0) return true;
+    }
+    return false;
+}
+
 // STXlib's subnormal rule (A1 rule 4) on a transform's results: a subnormal
-// output is zero of its sign.
+// output is zero of its sign. A scan first (read only, vectorised); the
+// values are rewritten only when one is subnormal, which is rare.
 void flush_outputs(double* const values, const usize count) noexcept {
+    if (!any_subnormal(values, count)) return;
     for (usize index = 0; index < count; ++index) values[index] = stxlib::detail::flush_subnormal(values[index]);
 }
 
 void flush_outputs(float* const values, const usize count) noexcept {
+    if (!any_subnormal(values, count)) return;
     for (usize index = 0; index < count; ++index) values[index] = stxlib::detail::flush_subnormal(values[index]);
 }
 
 void flush_outputs(Complex64* const values, const usize count) noexcept {
+    if (!any_subnormal_part(values, count)) return;
     for (usize index = 0; index < count; ++index) {
         Complex64& value = values[index];
         value.re = stxlib::detail::flush_subnormal(value.re);
@@ -1047,6 +1084,7 @@ void flush_outputs(Complex64* const values, const usize count) noexcept {
 }
 
 void flush_outputs(Complex32* const values, const usize count) noexcept {
+    if (!any_subnormal_part(values, count)) return;
     for (usize index = 0; index < count; ++index) {
         Complex32& value = values[index];
         value.re = stxlib::detail::flush_subnormal(value.re);
@@ -1059,20 +1097,10 @@ void flush_outputs(Complex32* const values, const usize count) noexcept {
 // copy), else the plan's staging block holding the flushed copy; the kernels
 // then read the staging block, never the caller's memory. Bit-for-bit the
 // same as flushing every input value, since the rest pass unchanged.
-[[nodiscard]] bool subnormal(const double value) noexcept {
-    return value != 0.0 && stxlib::detail::flush_subnormal(value) == 0.0;
-}
-
-[[nodiscard]] bool subnormal(const float value) noexcept {
-    return value != 0.0F && stxlib::detail::flush_subnormal(value) == 0.0F;
-}
-
 template <typename Real>
 [[nodiscard]] const Real* flushed_reals(void* const staging_block, const Real* const values,
                                         const usize count) noexcept {
-    bool found = false;
-    for (usize index = 0; index < count && !found; ++index) found = subnormal(values[index]);
-    if (!found) return values;
+    if (!any_subnormal(values, count)) return values;
     Real* const staging = static_cast<Real*>(staging_block);
     for (usize index = 0; index < count; ++index) staging[index] = stxlib::detail::flush_subnormal(values[index]);
     return staging;
@@ -1092,12 +1120,7 @@ template <typename Real>
 template <typename Complex>
 [[nodiscard]] const Complex* flushed_complex(void* const staging_block, const Complex* const values,
                                              const usize count) noexcept {
-    bool found = false;
-    for (usize index = 0; index < count && !found; ++index) {
-        const Complex& value = values[index];
-        found = subnormal(value.re) || subnormal(value.im);
-    }
-    if (!found) return values;
+    if (!any_subnormal_part(values, count)) return values;
     Complex* const staging = static_cast<Complex*>(staging_block);
     for (usize index = 0; index < count; ++index) {
         const Complex& value = values[index];
@@ -1125,14 +1148,27 @@ template <typename Complex>
 // plan.work_size reals; the checks are the caller's.
 // ---------------------------------------------------------------------------
 
+// The scratch's first real: the first scratch_alignment boundary at or
+// after the staging area ("Workspace"). `work` holds whole reals, so the
+// distance is a whole number of them.
+template <typename Real>
+[[nodiscard]] Real* scratch_in(Real* const work, const usize staging_count) noexcept {
+    Real* const after = work + staging_count;
+    const usize misalignment = static_cast<usize>(reinterpret_cast<std::uintptr_t>(after) % scratch_alignment);
+    const usize pad = misalignment == 0 ? 0 : (scratch_alignment - misalignment) / sizeof(Real);
+    return after + pad;
+}
+
 void plain_forward64(const PlanState& plan, const double* const input, Complex64* const output,
                      double* const work) noexcept {
     const usize n = plan.size;
-    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
-    double* const scratch = work + n + 2;
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
-        (*plan.walk_kernels).forward64(plan.walk, source, output, scratch);
-    } else if (plan.engines.forward == Engine::dit) {
+        (*plan.walk_kernels).forward64(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
+    if (plan.engines.forward == Engine::dit) {
         (*plan.kernels).dit_forward64(plan.dit, source, output, scratch);
     } else {
         (*plan.kernels).dif_forward64(plan.dif, source, output, scratch, reinterpret_cast<Complex64*>(scratch + n));
@@ -1143,11 +1179,13 @@ void plain_forward64(const PlanState& plan, const double* const input, Complex64
 void plain_forward32(const PlanState& plan, const float* const input, Complex32* const output,
                      float* const work) noexcept {
     const usize n = plan.size;
-    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
-    float* const scratch = work + n + 2;
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
-        (*plan.walk_kernels).forward32(plan.walk, source, output, scratch);
-    } else if (plan.engines.forward == Engine::dit) {
+        (*plan.walk_kernels).forward32(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
+    if (plan.engines.forward == Engine::dit) {
         (*plan.kernels).dit_forward32(plan.dit, source, output, scratch);
     } else {
         (*plan.kernels).dif_forward32(plan.dif, source, output, scratch);
@@ -1158,11 +1196,13 @@ void plain_forward32(const PlanState& plan, const float* const input, Complex32*
 void plain_inverse64(const PlanState& plan, const Complex64* const input, double* const output,
                      double* const work) noexcept {
     const usize n = plan.size;
-    const Complex64* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
-    double* const scratch = work + n + 2;
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.inverse == Engine::walk) {
-        (*plan.walk_kernels).inverse64(plan.walk, source, output, scratch);
-    } else if (plan.engines.inverse == Engine::dit) {
+        (*plan.walk_kernels).inverse64(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const Complex64* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
+    if (plan.engines.inverse == Engine::dit) {
         (*plan.kernels).dit_inverse64(plan.dit, source, output, scratch);
     } else {
         (*plan.kernels).dif_inverse64(plan.dif, source, output);
@@ -1173,11 +1213,13 @@ void plain_inverse64(const PlanState& plan, const Complex64* const input, double
 void plain_inverse32(const PlanState& plan, const Complex32* const input, float* const output,
                      float* const work) noexcept {
     const usize n = plan.size;
-    const Complex32* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
-    float* const scratch = work + n + 2;
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.inverse == Engine::walk) {
-        (*plan.walk_kernels).inverse32(plan.walk, source, output, scratch);
-    } else if (plan.engines.inverse == Engine::dit) {
+        (*plan.walk_kernels).inverse32(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const Complex32* const source = flushed_complex(static_cast<void*>(work), input, n / 2 + 1);
+    if (plan.engines.inverse == Engine::dit) {
         (*plan.kernels).dit_inverse32(plan.dit, source, output, scratch);
     } else {
         (*plan.kernels).dif_inverse32(plan.dif, source, output);
@@ -1185,28 +1227,28 @@ void plain_inverse32(const PlanState& plan, const Complex32* const input, float*
     flush_outputs(output, n);
 }
 
-// |X[k]|: the walk's own magnitude pass, or DIF's or DIT's spectrum (in the
+// |X[k]|: the PSFT's own magnitude pass, or DIF's or DIT's spectrum (in the
 // scratch's last N + 2 reals) and sqrt(re^2 + im^2).
 void plain_magnitude64(const PlanState& plan, const double* const input, double* const output,
                        double* const work) noexcept {
     const usize n = plan.size;
     const usize bins = n / 2 + 1;
-    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
-    double* const scratch = work + n + 2;
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
-        (*plan.walk_kernels).magnitude64(plan.walk, source, output, scratch);
+        (*plan.walk_kernels).magnitude64(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const double* const source = flushed_reals(static_cast<void*>(work), input, n);
+    Complex64* const spectrum = reinterpret_cast<Complex64*>(scratch + 2 * n + 2);
+    if (plan.engines.forward == Engine::dit) {
+        (*plan.kernels).dit_forward64(plan.dit, source, spectrum, scratch);
     } else {
-        Complex64* const spectrum = reinterpret_cast<Complex64*>(scratch + 2 * n + 2);
-        if (plan.engines.forward == Engine::dit) {
-            (*plan.kernels).dit_forward64(plan.dit, source, spectrum, scratch);
-        } else {
-            (*plan.kernels).dif_forward64(plan.dif, source, spectrum, scratch,
-                                          reinterpret_cast<Complex64*>(scratch + n));
-        }
-        for (usize k = 0; k < bins; ++k) {
-            const Complex64& value = spectrum[k];
-            output[k] = std::sqrt(value.re * value.re + value.im * value.im);
-        }
+        (*plan.kernels).dif_forward64(plan.dif, source, spectrum, scratch,
+                                      reinterpret_cast<Complex64*>(scratch + n));
+    }
+    for (usize k = 0; k < bins; ++k) {
+        const Complex64& value = spectrum[k];
+        output[k] = std::sqrt(value.re * value.re + value.im * value.im);
     }
     flush_outputs(output, bins);
 }
@@ -1215,21 +1257,21 @@ void plain_magnitude32(const PlanState& plan, const float* const input, float* c
                        float* const work) noexcept {
     const usize n = plan.size;
     const usize bins = n / 2 + 1;
-    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
-    float* const scratch = work + n + 2;
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
-        (*plan.walk_kernels).magnitude32(plan.walk, source, output, scratch);
+        (*plan.walk_kernels).magnitude32(plan.walk, input, output, scratch);
+        return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
+    }
+    const float* const source = flushed_reals(static_cast<void*>(work), input, n);
+    Complex32* const spectrum = reinterpret_cast<Complex32*>(scratch + 2 * n + 2);
+    if (plan.engines.forward == Engine::dit) {
+        (*plan.kernels).dit_forward32(plan.dit, source, spectrum, scratch);
     } else {
-        Complex32* const spectrum = reinterpret_cast<Complex32*>(scratch + 2 * n + 2);
-        if (plan.engines.forward == Engine::dit) {
-            (*plan.kernels).dit_forward32(plan.dit, source, spectrum, scratch);
-        } else {
-            (*plan.kernels).dif_forward32(plan.dif, source, spectrum, scratch);
-        }
-        for (usize k = 0; k < bins; ++k) {
-            const Complex32& value = spectrum[k];
-            output[k] = std::sqrt(value.re * value.re + value.im * value.im);
-        }
+        (*plan.kernels).dif_forward32(plan.dif, source, spectrum, scratch);
+    }
+    for (usize k = 0; k < bins; ++k) {
+        const Complex32& value = spectrum[k];
+        output[k] = std::sqrt(value.re * value.re + value.im * value.im);
     }
     flush_outputs(output, bins);
 }
@@ -1254,9 +1296,9 @@ void plain_magnitude32(const PlanState& plan, const float* const input, float* c
 // ---------------------------------------------------------------------------
 
 // The engine policy (owner, 2026-11-23: two tiers, the fused and the exact
-// walk, both 128-bit at most): the walk in both directions from N = 16 at
-// every tier, DIF below (where the walk has no kernel). The tier picks only
-// the walk's build (walk_tier_for), not the engine.
+// walk, both 128-bit at most): the PSFT in both directions from N = 16 at
+// every tier, DIF below (where the PSFT has no kernel). The tier picks only
+// the PSFT's build (walk_tier_for), not the engine.
 Engines engine_policy(const simd::Level level, const usize size, const bool float64) noexcept {
     static_cast<void>(level);
     static_cast<void>(float64);
@@ -1324,6 +1366,14 @@ WalkTier PlanAccess::walk_tier(const Plan64& plan) noexcept {
     if (plan.state_ == nullptr) return WalkTier::exact_portable;
     return (*plan.state_).walk_tier;
 }
+
+const PlanState* PlanAccess::state(const Plan64& plan) noexcept { return plan.state_; }
+
+const PlanState* PlanAccess::state(const Plan32& plan) noexcept { return plan.state_; }
+
+usize PlanAccess::bytes(const Plan64& plan) noexcept { return plan.state_ == nullptr ? 0 : plan.state_->bytes; }
+
+usize PlanAccess::bytes(const Plan32& plan) noexcept { return plan.state_ == nullptr ? 0 : plan.state_->bytes; }
 
 bool PlanAccess::straight_line(const Plan64& plan) noexcept {
     if (plan.state_ == nullptr) return false;

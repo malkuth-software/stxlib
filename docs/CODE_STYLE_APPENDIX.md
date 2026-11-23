@@ -41,7 +41,7 @@ builds, by these rules.
    - A fused multiply-add appears only where we write one. It is allowed
      only where it is exact (an error-free transformation) or where the
      result is shown to be the same with and without it.
-   - One exception (owner, 2026-11-23): stx_fft's walk
+   - One exception (owner, 2026-11-23): stx_fft's PSFT
      (`src/algorithms/fft/walk.inc`) has two builds of one source. The
      exact build has no fused multiply-add. The fused build fuses exactly
      the products the source marks, each of the form `a + b*c` or

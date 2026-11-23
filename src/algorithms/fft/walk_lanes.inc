@@ -1,4 +1,4 @@
-// The walk's vector policies for one tier (plan_state.hpp, WalkTier),
+// The PSFT's vector policies for one tier (plan_state.hpp, WalkTier),
 // chosen by STXLIB_FFT_WALK_TIER (0 exact_portable, 1 exact128, 2 fused128)
 // and the architecture. Included only by walk_variant.inc, inside the tier's
 // namespace and its target attribute; the intrinsic headers come first.
@@ -10,12 +10,18 @@
 //                   fused operation (NEON's FMLA and FMLS, x86's VFMADD and
 //                   VFNMADD, which compute exactly these two forms), in the
 //                   exact build a multiply then an add or subtract. These are
-//                   the only fused forms anywhere (A1 rule 1, the walk's
+//                   the only fused forms anywhere (A1 rule 1, the PSFT's
 //                   exception).
 //   set1            every lane one value
 //   neg             the sign flipped (exact)
 //   zip1, zip2, swap and the other lane moves: permutations, exact
 //   sqrt            IEEE square root, correctly rounded
+//   flush           STXlib's subnormal rule on every lane (A1 rule 4): a
+//                   lane below the smallest normal in magnitude keeps only its
+//                   sign; every other lane, zero and NaN included, passes
+//                   unchanged. A compare and bit operations, no arithmetic,
+//                   so the bits are the same on every policy. The PSFT's
+//                   output stores go through it (walk_put below).
 // WalkPolicies<T> names, per precision: W, the widest vector the cell loops
 // use (128 bits on every tier: the owner's ruling, 2026-11-23); Nr, a
 // narrower one for passes whose runs are shorter than W; H, two lanes for
@@ -51,6 +57,11 @@ struct PlainPolicy {
     }
     static void st(T* const p, const v a) noexcept {
         for (u32 k = 0; k < Count; ++k) p[k] = a.lane[k];
+    }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        v r{};
+        for (u32 k = 0; k < Count; ++k) r.lane[k] = stxlib::detail::flush_subnormal(a.lane[k]);
+        return r;
     }
     [[nodiscard]] static v add(const v a, const v b) noexcept {
         v r{};
@@ -176,6 +187,11 @@ struct NeonD2 {
     static constexpr u32 L = 2;
     [[nodiscard]] static v ld(const double* const p) noexcept { return vld1q_f64(p); }
     static void st(double* const p, const v a) noexcept { vst1q_f64(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const uint64x2_t small = vcagtq_f64(vdupq_n_f64(0x1p-1022), a);
+        const uint64x2_t magnitude = vdupq_n_u64(0x7fffffffffffffffULL);
+        return vreinterpretq_f64_u64(vbicq_u64(vreinterpretq_u64_f64(a), vandq_u64(small, magnitude)));
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return vaddq_f64(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return vsubq_f64(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return vmulq_f64(a, b); }
@@ -213,6 +229,11 @@ struct NeonF4 {
     static constexpr u32 L = 4;
     [[nodiscard]] static v ld(const float* const p) noexcept { return vld1q_f32(p); }
     static void st(float* const p, const v a) noexcept { vst1q_f32(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const uint32x4_t small = vcagtq_f32(vdupq_n_f32(0x1p-126F), a);
+        const uint32x4_t magnitude = vdupq_n_u32(0x7fffffffU);
+        return vreinterpretq_f32_u32(vbicq_u32(vreinterpretq_u32_f32(a), vandq_u32(small, magnitude)));
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return vaddq_f32(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return vsubq_f32(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return vmulq_f32(a, b); }
@@ -268,6 +289,11 @@ struct NeonF2 {
     static constexpr u32 L = 2;
     [[nodiscard]] static v ld(const float* const p) noexcept { return vld1_f32(p); }
     static void st(float* const p, const v a) noexcept { vst1_f32(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const uint32x2_t small = vcagt_f32(vdup_n_f32(0x1p-126F), a);
+        const uint32x2_t magnitude = vdup_n_u32(0x7fffffffU);
+        return vreinterpret_f32_u32(vbic_u32(vreinterpret_u32_f32(a), vand_u32(small, magnitude)));
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return vadd_f32(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return vsub_f32(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return vmul_f32(a, b); }
@@ -331,6 +357,11 @@ struct SseD2 {
     static constexpr u32 L = 2;
     [[nodiscard]] static v ld(const double* const p) noexcept { return _mm_loadu_pd(p); }
     static void st(double* const p, const v a) noexcept { _mm_storeu_pd(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const v magnitude = _mm_castsi128_pd(_mm_set1_epi64x(0x7fffffffffffffffLL));
+        const v small = _mm_cmplt_pd(_mm_and_pd(a, magnitude), _mm_set1_pd(0x1p-1022));
+        return _mm_andnot_pd(_mm_and_pd(small, magnitude), a);
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return _mm_add_pd(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return _mm_sub_pd(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return _mm_mul_pd(a, b); }
@@ -363,6 +394,11 @@ struct SseF4 {
     static constexpr u32 L = 4;
     [[nodiscard]] static v ld(const float* const p) noexcept { return _mm_loadu_ps(p); }
     static void st(float* const p, const v a) noexcept { _mm_storeu_ps(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const v magnitude = _mm_castsi128_ps(_mm_set1_epi32(0x7fffffff));
+        const v small = _mm_cmplt_ps(_mm_and_ps(a, magnitude), _mm_set1_ps(0x1p-126F));
+        return _mm_andnot_ps(_mm_and_ps(small, magnitude), a);
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return _mm_add_ps(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return _mm_sub_ps(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return _mm_mul_ps(a, b); }
@@ -428,6 +464,11 @@ struct SseF2 {
         return _mm_castpd_ps(_mm_load_sd(reinterpret_cast<const double*>(p)));
     }
     static void st(float* const p, const v a) noexcept { _mm_storel_pi(reinterpret_cast<__m64*>(p), a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const v magnitude = _mm_castsi128_ps(_mm_set1_epi32(0x7fffffff));
+        const v small = _mm_cmplt_ps(_mm_and_ps(a, magnitude), _mm_set1_ps(0x1p-126F));
+        return _mm_andnot_ps(_mm_and_ps(small, magnitude), a);
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return _mm_add_ps(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return _mm_sub_ps(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return _mm_mul_ps(a, b); }
@@ -486,6 +527,10 @@ struct WasmD2 {
     static constexpr u32 L = 2;
     [[nodiscard]] static v ld(const double* const p) noexcept { return wasm_v128_load(p); }
     static void st(double* const p, const v a) noexcept { wasm_v128_store(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const v small = wasm_f64x2_lt(wasm_f64x2_abs(a), wasm_f64x2_splat(0x1p-1022));
+        return wasm_v128_andnot(a, wasm_v128_and(small, wasm_i64x2_splat(0x7fffffffffffffffLL)));
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return wasm_f64x2_add(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return wasm_f64x2_sub(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return wasm_f64x2_mul(a, b); }
@@ -514,6 +559,10 @@ struct WasmF4 {
     static constexpr u32 L = 4;
     [[nodiscard]] static v ld(const float* const p) noexcept { return wasm_v128_load(p); }
     static void st(float* const p, const v a) noexcept { wasm_v128_store(p, a); }
+    [[nodiscard]] static v flush(const v a) noexcept {
+        const v small = wasm_f32x4_lt(wasm_f32x4_abs(a), wasm_f32x4_splat(0x1p-126F));
+        return wasm_v128_andnot(a, wasm_v128_and(small, wasm_i32x4_splat(0x7fffffff)));
+    }
     [[nodiscard]] static v add(const v a, const v b) noexcept { return wasm_f32x4_add(a, b); }
     [[nodiscard]] static v sub(const v a, const v b) noexcept { return wasm_f32x4_sub(a, b); }
     [[nodiscard]] static v mul(const v a, const v b) noexcept { return wasm_f32x4_mul(a, b); }
@@ -584,3 +633,85 @@ struct WalkPolicies<float> final {
 #else
 #error "walk_lanes.inc: no vector policy for this tier and architecture"
 #endif
+
+// STXlib's subnormal rule on one real (walk_flush), for inputs and outputs
+// read or written one real at a time.
+template <typename T>
+[[nodiscard]] inline T walk_flush(const T value) noexcept {
+    return stxlib::detail::flush_subnormal(value);
+}
+
+// The PSFT's input loads: STXlib's rule on its arguments (a subnormal input
+// is read as zero of its sign) folded into the load, so no transform scans
+// or copies its input first. walk_load flushes only when In (the load reads
+// the caller's input, not a work buffer).
+template <typename P>
+[[nodiscard]] inline typename P::v walk_get(const typename P::t* const p) noexcept {
+    return P::flush(P::ld(p));
+}
+
+template <typename P>
+[[nodiscard]] inline typename P::v walk_get2(const typename P::t* const p, const typename P::t* const q) noexcept {
+    return P::flush(P::ld2(p, q));
+}
+
+template <typename P, bool In>
+[[nodiscard]] inline typename P::v walk_load(const typename P::t* const p) noexcept {
+    if constexpr (In) {
+        return P::flush(P::ld(p));
+    } else {
+        return P::ld(p);
+    }
+}
+
+// One real of the input (In: flushed) or of a work buffer (unchanged).
+template <typename T, bool In>
+[[nodiscard]] inline T walk_in(const T value) noexcept {
+    if constexpr (In) {
+        return stxlib::detail::flush_subnormal(value);
+    } else {
+        return value;
+    }
+}
+
+// One real of the output (Out: flushed) or of a work buffer (unchanged).
+template <typename T, bool Out>
+[[nodiscard]] inline T walk_out(const T value) noexcept {
+    if constexpr (Out) {
+        return stxlib::detail::flush_subnormal(value);
+    } else {
+        return value;
+    }
+}
+
+// The PSFT's output stores: the rule folded into the store (flush, then
+// st), so no transform reads its output again to flush it.
+template <typename P>
+inline void walk_put(typename P::t* const p, const typename P::v a) noexcept {
+    P::st(p, P::flush(a));
+}
+
+template <typename P>
+inline void walk_putl(typename P::t* const p, const typename P::v a, const int lane) noexcept {
+    P::stl(p, P::flush(a), lane);
+}
+
+template <typename P>
+inline void walk_put_lo(typename P::t* const p, const typename P::v a) noexcept {
+    P::st_lo(p, P::flush(a));
+}
+
+template <typename P>
+inline void walk_put_hi(typename P::t* const p, const typename P::v a) noexcept {
+    P::st_hi(p, P::flush(a));
+}
+
+// A store that flushes (Out: the transform's output) or not (a work buffer).
+template <typename P, bool Out>
+inline void walk_store(typename P::t* const p, const typename P::v a) noexcept {
+    if constexpr (Out) {
+        P::st(p, P::flush(a));
+    } else {
+        P::st(p, a);
+    }
+}

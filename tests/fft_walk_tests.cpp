@@ -1,4 +1,4 @@
-// Tests of stx_fft's walk (src/algorithms/fft/walk.inc, walk_plan.cpp): the
+// Tests of stx_fft's PSFT (src/algorithms/fft/walk.inc, walk_plan.cpp): the
 // plain mode's kernel from N = 16, in both of its builds, at every walk tier
 // this machine runs.
 //
@@ -19,7 +19,7 @@
 //   W3  the layout changes only placement and order: without gaps, with
 //       every pass one sweep and with other granules, the bits are the
 //       default plan's;
-//   W4  the straight-line kernels and the walk agree within the bounds
+//   W4  the straight-line kernels and the PSFT agree within the bounds
 //       (N = 16 .. 128 in float64, 16 .. 256 in float32);
 //   W5  eight threads run one plan at once through the const calls, each
 //       with its own workspace, 200 times each, and every result has the
@@ -28,9 +28,19 @@
 //       work overlapping the input or output, a mode other than plain
 //       (unsupported); work_size() is 0 outside the plain mode; nothing is
 //       written on a refusal;
-//   W7  make() runs the walk from N = 16 (DIF below) at
+//   W7  make() runs the PSFT from N = 16 (DIF below) at
 //       walk_tier_for(selected_level()); the plan's own workspace gives the
 //       const calls' bits; a subnormal input reads as zero of its sign.
+//   W8  the subnormal rule, folded into the PSFT's loads and stores, at
+//       every tier, N = 16 .. 4096, straight-line and passes, both
+//       precisions: subnormal inputs (samples, and a spectrum's parts) give
+//       the bits of zeros of their sign there, and no output of forward,
+//       inverse or magnitude is subnormal for inputs whose transforms fall
+//       below the smallest normal.
+//   W9  the footprint: a PSFT plan (N = 2^16 and 2^20, both precisions)
+//       holds at most 3.25 N reals and its workspace is under 3 N reals (no
+//       staging area: the PSFT flushes as it loads); a plan that runs only
+//       DIT builds no DIF tables.
 
 #include "stxlib/fft.hpp"
 #include "stxlib/result.hpp"
@@ -245,7 +255,7 @@ bool within_bounds(const Outputs<Real, Complex>& got, const std::vector<Real>& x
     return good;
 }
 
-// The walk tiers this machine runs.
+// The PSFT tiers this machine runs.
 usize runnable_tiers(WalkTier (&tiers)[3]) noexcept {
     usize count = 0;
     const WalkTier all[3] = {WalkTier::exact_portable, WalkTier::exact128, WalkTier::fused128};
@@ -353,6 +363,95 @@ void straight_line_agrees(const WalkTier* const tiers, const usize tier_count) {
             CHECK(!PlanAccess::straight_line(narrow_passes));
             CHECK(within_bounds(outputs_of<Plan32, float, Complex32>(narrow_passes, xf), xf, &oracle, bound32,
                                 "passes", n));
+        }
+    }
+}
+
+// W8: the subnormal rule in the PSFT, which flushes as it loads its input and
+// stores its output (walk_lanes.inc, walk_get and walk_put), at every tier,
+// in the straight-line kernels and in the passes, both precisions:
+// - an input with subnormals of both signs gives the bits of the same input
+//   with zeros there (forward, magnitude; and the inverse for a spectrum);
+// - no output is subnormal, for inputs whose transforms fall below the
+//   smallest normal: a constant c = 2^-1000 (2^-120 in float32) with c plus
+//   the smallest normal at one sample (forward bins of about the smallest
+//   normal times a twiddle, and residues of c), and a flat spectrum of twice
+//   the smallest normal (samples of order its N-th part).
+template <typename Real>
+[[nodiscard]] bool any_subnormal_in(const std::vector<Real>& values) noexcept {
+    bool found = false;
+    for (const Real value : values) found = found || std::fpclassify(value) == FP_SUBNORMAL;
+    return found;
+}
+
+template <typename Complex>
+[[nodiscard]] bool any_subnormal_part(const std::vector<Complex>& values) noexcept {
+    bool found = false;
+    for (const Complex& value : values) {
+        found = found || std::fpclassify(value.re) == FP_SUBNORMAL || std::fpclassify(value.im) == FP_SUBNORMAL;
+    }
+    return found;
+}
+
+template <typename Plan, typename Real, typename Complex>
+void subnormal_rule_one(const Plan& plan, const usize n, const Real smallest, const Real c) {
+    const Real tiny = smallest / static_cast<Real>(8);
+    const std::vector<Real> x = prototype_input<Real>(n);
+    std::vector<Real> with_subnormal = x;
+    std::vector<Real> with_zero = x;
+    for (usize index = 0; index < n; index += 3) {
+        with_subnormal[index] = index % 2 == 0 ? tiny : -tiny * static_cast<Real>(3);
+        with_zero[index] = index % 2 == 0 ? Real{0} : -Real{0};
+    }
+    const Outputs<Real, Complex> flushed = outputs_of<Plan, Real, Complex>(plan, with_subnormal);
+    const Outputs<Real, Complex> zeroed = outputs_of<Plan, Real, Complex>(plan, with_zero);
+    CHECK(same_bits(flushed, zeroed));
+
+    // The inverse of a spectrum with subnormal parts.
+    std::vector<Complex> bins = zeroed.spectrum;
+    std::vector<Complex> bins_zeroed = bins;
+    for (usize index = 1; index < bins.size(); index += 2) {
+        bins[index].re = tiny;
+        bins[index].im = -tiny;
+        bins_zeroed[index].re = Real{0};
+        bins_zeroed[index].im = -Real{0};
+    }
+    std::vector<Real> work(plan.work_size());
+    std::vector<Real> back(n);
+    std::vector<Real> back_zeroed(n);
+    CHECK(plan.irfft_with_work(View<Complex>(bins.data(), bins.size()), MutableView<Real>(back.data(), n),
+                               MutableView<Real>(work.data(), work.size()))
+              .succeeded());
+    CHECK(plan.irfft_with_work(View<Complex>(bins_zeroed.data(), bins_zeroed.size()),
+                               MutableView<Real>(back_zeroed.data(), n), MutableView<Real>(work.data(), work.size()))
+              .succeeded());
+    CHECK(std::memcmp(back.data(), back_zeroed.data(), n * sizeof(Real)) == 0);
+
+    // Outputs below the smallest normal come back as zeros.
+    std::vector<Real> faint(n, c);
+    faint[n / 3] = c + smallest;
+    const Outputs<Real, Complex> low = outputs_of<Plan, Real, Complex>(plan, faint);
+    CHECK(!any_subnormal_part(low.spectrum));
+    CHECK(!any_subnormal_in(low.back));
+    CHECK(!any_subnormal_in(low.magnitude));
+    const std::vector<Complex> flat(n / 2 + 1, Complex{.re = smallest * static_cast<Real>(2), .im = Real{0}});
+    CHECK(plan.irfft_with_work(View<Complex>(flat.data(), flat.size()), MutableView<Real>(back.data(), n),
+                               MutableView<Real>(work.data(), work.size()))
+              .succeeded());
+    CHECK(!any_subnormal_in(back));
+}
+
+void subnormal_rule(const WalkTier* const tiers, const usize tier_count) {
+    for (usize which = 0; which < tier_count; ++which) {
+        for (usize n = 16; n <= 4096; n <<= 1) {
+            const WalkOptions small = tier_options(tiers[which]);
+            WalkOptions passes = small;
+            passes.straight_line = false;
+            const WalkOptions layouts[2] = {small, passes};
+            for (const WalkOptions& options : layouts) {
+                subnormal_rule_one<Plan64, double, Complex64>(walk_plan64(n, options), n, DBL_MIN, 0x1p-1000);
+                subnormal_rule_one<Plan32, float, Complex32>(walk_plan32(n, options), n, FLT_MIN, 0x1p-120F);
+            }
         }
     }
 }
@@ -533,6 +632,34 @@ void make_runs_the_walk() {
     }
 }
 
+// W9: the footprint.
+template <typename Plan>
+void footprint_one(const usize n, const usize real_bytes) {
+    OperationResult<Plan> made = Plan::make(n, Mode::plain);
+    CHECK(made.succeeded());
+    if (!made.succeeded()) return;
+    const Plan plan = static_cast<OperationResult<Plan>&&>(made).take_value();
+    const usize bytes = PlanAccess::bytes(plan);
+    CHECK(bytes > 0 && bytes <= 13 * n * real_bytes / 4);
+    CHECK(plan.work_size() < 3 * n);
+    if (bytes > 13 * n * real_bytes / 4) std::printf("  N=%zu: the plan holds %zu bytes\n", n, bytes);
+}
+
+void footprint() {
+    const Level selected = stxlib::simd::selected_level();
+    const Engines dit{.forward = stxlib::fft::detail::Engine::dit, .inverse = stxlib::fft::detail::Engine::dit};
+    for (usize n = usize{1} << 16; n <= (usize{1} << 20); n <<= 4) {
+        footprint_one<Plan64>(n, sizeof(double));
+        footprint_one<Plan32>(n, sizeof(float));
+        OperationResult<Plan64> made = PlanAccess::make64(n, Mode::plain, selected, dit);
+        CHECK(made.succeeded());
+        if (!made.succeeded()) continue;
+        const Plan64 plan = static_cast<OperationResult<Plan64>&&>(made).take_value();
+        const stxlib::fft::detail::PlanState* const state = PlanAccess::state(plan);
+        CHECK(state != nullptr && state->dif.idx == nullptr && state->dit.cos != nullptr);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -546,6 +673,8 @@ int main() {
     sizes_and_hashes(tiers, tier_count);
     layouts_agree(tiers, tier_count);
     straight_line_agrees(tiers, tier_count);
+    subnormal_rule(tiers, tier_count);
     threads_share_one_plan();
+    footprint();
     return stxlib_tests::finish("stx_fft walk");
 }
