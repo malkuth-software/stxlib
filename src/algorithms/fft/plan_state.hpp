@@ -86,9 +86,6 @@ struct DifTables final {
     u32 residue_op_count{0};
     const DifOp* inverse_ops{nullptr};
     u32 inverse_op_count{0};
-    double* work64{nullptr};               // [N] (Plan64)
-    Complex64* native64{nullptr};          // [N/2 + 1]: the native spectrum (Plan64, N >= 32)
-    float* work32{nullptr};                // [N] (Plan32)
 };
 
 // DIT's tables (BFFT bruun_dit_kernel.hpp, reset), N >= 16. One set serves
@@ -105,8 +102,6 @@ struct DitTables final {
     const double* sin{nullptr};            // [N/2 + 1]: sin(2 pi k / N)
     const double* cs{nullptr};             // [2 entries]: (cos, sin) of 2 pi k / s, k in [1, s/4)
     const double* fterm_cs{nullptr};       // [6 (N/8 - 1)]: the forward terminal's rotations
-    double* work64{nullptr};               // [N] (Plan64; DifTables::work64)
-    float* work32{nullptr};                // [N] (Plan32; DifTables::work32)
 };
 
 // One BODFT level's three twiddle powers, s/8 values each.
@@ -459,10 +454,16 @@ struct PlanState final {
     // "Workspace").
     void* workspace{nullptr};
     usize work_size{0};
+    // The plain mode: the reals at the start of a workspace that hold the
+    // flushed copy of an input (size + 2 when DIF or DIT runs; 0 for the
+    // PSFT alone, which flushes as it loads).
+    usize staging_count{0};
     // Every block allocated for this plan (memory::allocate), released by
     // destroy_plan_state; unused entries are null.
     void* blocks[plan_block_capacity]{};
     usize block_count{0};
+    // The bytes those blocks hold (the plan's footprint, PlanAccess::bytes).
+    usize bytes{0};
 };
 
 // For tests and the benchmark: a plan at a given tier. Requirement: the
@@ -489,6 +490,9 @@ struct PlanAccess final {
     // a kernel can be timed below the public calls.
     [[nodiscard]] static const PlanState* state(const Plan64& plan) noexcept;
     [[nodiscard]] static const PlanState* state(const Plan32& plan) noexcept;
+    // The bytes the plan's blocks hold (0 for an empty plan).
+    [[nodiscard]] static usize bytes(const Plan64& plan) noexcept;
+    [[nodiscard]] static usize bytes(const Plan32& plan) noexcept;
     // Whether the plan's walk runs the straight-line kernels.
     [[nodiscard]] static bool straight_line(const Plan64& plan) noexcept;
     [[nodiscard]] static bool straight_line(const Plan32& plan) noexcept;

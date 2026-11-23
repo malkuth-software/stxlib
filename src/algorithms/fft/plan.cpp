@@ -19,11 +19,13 @@
 //
 // Workspace. A plain plan's transforms run on a workspace of work_size
 // reals: the caller's (the const calls, which any number of threads may make
-// on one plan at once) or the plan's own (the others). It is [staging:
-// size + 2][pad][scratch]: the staging area holds the flushed copy of an
-// input that has a subnormal (DIF and DIT; the PSFT flushes its input as it
-// loads it and its output as it stores it, walk_lanes.inc); the pad (under scratch_alignment bytes) puts
-// the scratch on a cache line, wherever the caller's workspace starts, since
+// on one plan at once) or the plan's own (the others). It is
+// [staging][pad][scratch]. The staging area, size + 2 reals when the plan
+// runs DIF or DIT and empty otherwise, holds the flushed copy of an input
+// that has a subnormal; the PSFT needs none, since it flushes its input as
+// it loads it and its output as it stores it (walk_lanes.inc). The pad
+// (under scratch_alignment bytes) puts the scratch on a cache line,
+// wherever the caller's workspace starts, since
 // the PSFT's gaps and stagger place its buffers from a line (and a vector
 // that straddles two lines costs both); the scratch is the PSFT's
 // work_count reals, or
@@ -99,6 +101,7 @@ void* take_plan_block(PlanState& state, const usize count, const usize size) noe
     if (block == nullptr) return nullptr;
     __builtin_memset(block, 0, bytes);
     state.blocks[state.block_count] = block;
+    state.bytes = state.bytes + bytes;
     state.block_count = state.block_count + 1;
     return block;
 }
@@ -422,16 +425,12 @@ struct NativeScratch final {
 
     const usize leaf_blocks = static_cast<usize>(n) / 16;
     if (precision == Precision::float64) {
-        double* const work = static_cast<double*>(take_block(state, static_cast<usize>(n), sizeof(double)));
-        if (work == nullptr) return false;
-        tables.work64 = work;
         if (n >= 32) {
             i32* const outidx = static_cast<i32*>(take_block(state, half, sizeof(i32)));
             i32* const standard_native = static_cast<i32*>(take_block(state, half, sizeof(i32)));
-            Complex64* const native = static_cast<Complex64*>(take_block(state, half + 1, sizeof(Complex64)));
             LeafTwiddles64* const tw =
                 static_cast<LeafTwiddles64*>(take_block(state, leaf_blocks, sizeof(LeafTwiddles64)));
-            if (outidx == nullptr || standard_native == nullptr || native == nullptr || tw == nullptr) return false;
+            if (outidx == nullptr || standard_native == nullptr || tw == nullptr) return false;
             if (!build_native_order(n, kinv, outidx, standard_native)) return false;
             for (i32 m = 1; m < n / 16; ++m) {
                 LeafTwiddles64& e = tw[m];
@@ -444,18 +443,15 @@ struct NativeScratch final {
             }
             tables.outidx = outidx;
             tables.standard_native = standard_native;
-            tables.native64 = native;
             tables.tw = tw;
         }
         return true;
     }
 
     float* const cf = static_cast<float*>(take_block(state, half, sizeof(float)));
-    float* const work = static_cast<float*>(take_block(state, static_cast<usize>(n), sizeof(float)));
-    if (cf == nullptr || work == nullptr) return false;
+    if (cf == nullptr) return false;
     for (usize m = 0; m < half; ++m) cf[m] = static_cast<float>(c[m]);
     tables.cf = cf;
-    tables.work32 = work;
     if (n >= 32) {
         LeafTwiddles32* const twf = static_cast<LeafTwiddles32*>(take_block(state, leaf_blocks, sizeof(LeafTwiddles32)));
         if (twf == nullptr) return false;
@@ -549,11 +545,6 @@ struct NativeScratch final {
     tables.sin = sin_table;
     tables.cs = cs;
     tables.fterm_cs = fterm;
-    if (precision == Precision::float64) {
-        tables.work64 = state.dif.work64;
-    } else {
-        tables.work32 = state.dif.work32;
-    }
     return true;
 }
 
@@ -842,9 +833,8 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     plan.walk_kernels = &walk_kernels_for(tier);
     if (mode == Mode::plain) {
         built = true;
-        const bool dit = runs(plan.engines, Engine::dit);
-        if (dit || runs(plan.engines, Engine::dif)) built = build_dif(plan, n, precision);
-        if (built && dit) built = build_dit(plan, n, precision);
+        if (runs(plan.engines, Engine::dif)) built = build_dif(plan, n, precision);
+        if (built && runs(plan.engines, Engine::dit)) built = build_dit(plan, n, precision);
         if (built && runs(plan.engines, Engine::walk)) built = build_walk(plan, n, float64, walk);
     }
     if (mode == Mode::shifted) built = build_bodft(plan, n, precision);
@@ -856,7 +846,9 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     }
     if (built && mode == Mode::plain) {
         const usize element = precision == Precision::float32 ? sizeof(float) : sizeof(double);
-        plan.work_size = size + 2 + scratch_alignment / element + scratch_of(plan);
+        const bool classic = runs(plan.engines, Engine::dif) || runs(plan.engines, Engine::dit);
+        plan.staging_count = classic ? size + 2 : 0;
+        plan.work_size = plan.staging_count + scratch_alignment / element + scratch_of(plan);
         plan.workspace = take_block(plan, plan.work_size, element);
         built = plan.workspace != nullptr;
     }
@@ -1157,11 +1149,11 @@ template <typename Complex>
 // ---------------------------------------------------------------------------
 
 // The scratch's first real: the first scratch_alignment boundary at or
-// after work + size + 2 ("Workspace"). `work` holds whole reals, so the
+// after the staging area ("Workspace"). `work` holds whole reals, so the
 // distance is a whole number of them.
 template <typename Real>
-[[nodiscard]] Real* scratch_in(Real* const work, const usize size) noexcept {
-    Real* const after = work + size + 2;
+[[nodiscard]] Real* scratch_in(Real* const work, const usize staging_count) noexcept {
+    Real* const after = work + staging_count;
     const usize misalignment = static_cast<usize>(reinterpret_cast<std::uintptr_t>(after) % scratch_alignment);
     const usize pad = misalignment == 0 ? 0 : (scratch_alignment - misalignment) / sizeof(Real);
     return after + pad;
@@ -1170,7 +1162,7 @@ template <typename Real>
 void plain_forward64(const PlanState& plan, const double* const input, Complex64* const output,
                      double* const work) noexcept {
     const usize n = plan.size;
-    double* const scratch = scratch_in(work, n);
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
         (*plan.walk_kernels).forward64(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1187,7 +1179,7 @@ void plain_forward64(const PlanState& plan, const double* const input, Complex64
 void plain_forward32(const PlanState& plan, const float* const input, Complex32* const output,
                      float* const work) noexcept {
     const usize n = plan.size;
-    float* const scratch = scratch_in(work, n);
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
         (*plan.walk_kernels).forward32(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1204,7 +1196,7 @@ void plain_forward32(const PlanState& plan, const float* const input, Complex32*
 void plain_inverse64(const PlanState& plan, const Complex64* const input, double* const output,
                      double* const work) noexcept {
     const usize n = plan.size;
-    double* const scratch = scratch_in(work, n);
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.inverse == Engine::walk) {
         (*plan.walk_kernels).inverse64(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1221,7 +1213,7 @@ void plain_inverse64(const PlanState& plan, const Complex64* const input, double
 void plain_inverse32(const PlanState& plan, const Complex32* const input, float* const output,
                      float* const work) noexcept {
     const usize n = plan.size;
-    float* const scratch = scratch_in(work, n);
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.inverse == Engine::walk) {
         (*plan.walk_kernels).inverse32(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1241,7 +1233,7 @@ void plain_magnitude64(const PlanState& plan, const double* const input, double*
                        double* const work) noexcept {
     const usize n = plan.size;
     const usize bins = n / 2 + 1;
-    double* const scratch = scratch_in(work, n);
+    double* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
         (*plan.walk_kernels).magnitude64(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1265,7 +1257,7 @@ void plain_magnitude32(const PlanState& plan, const float* const input, float* c
                        float* const work) noexcept {
     const usize n = plan.size;
     const usize bins = n / 2 + 1;
-    float* const scratch = scratch_in(work, n);
+    float* const scratch = scratch_in(work, plan.staging_count);
     if (plan.engines.forward == Engine::walk) {
         (*plan.walk_kernels).magnitude32(plan.walk, input, output, scratch);
         return; // the PSFT flushes as it loads and stores (walk_lanes.inc)
@@ -1378,6 +1370,10 @@ WalkTier PlanAccess::walk_tier(const Plan64& plan) noexcept {
 const PlanState* PlanAccess::state(const Plan64& plan) noexcept { return plan.state_; }
 
 const PlanState* PlanAccess::state(const Plan32& plan) noexcept { return plan.state_; }
+
+usize PlanAccess::bytes(const Plan64& plan) noexcept { return plan.state_ == nullptr ? 0 : plan.state_->bytes; }
+
+usize PlanAccess::bytes(const Plan32& plan) noexcept { return plan.state_ == nullptr ? 0 : plan.state_->bytes; }
 
 bool PlanAccess::straight_line(const Plan64& plan) noexcept {
     if (plan.state_ == nullptr) return false;

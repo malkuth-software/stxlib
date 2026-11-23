@@ -37,6 +37,10 @@
 //       the bits of zeros of their sign there, and no output of forward,
 //       inverse or magnitude is subnormal for inputs whose transforms fall
 //       below the smallest normal.
+//   W9  the footprint: a PSFT plan (N = 2^16 and 2^20, both precisions)
+//       holds at most 3.25 N reals and its workspace is under 3 N reals (no
+//       staging area: the PSFT flushes as it loads); a plan that runs only
+//       DIT builds no DIF tables.
 
 #include "stxlib/fft.hpp"
 #include "stxlib/result.hpp"
@@ -628,6 +632,34 @@ void make_runs_the_walk() {
     }
 }
 
+// W9: the footprint.
+template <typename Plan>
+void footprint_one(const usize n, const usize real_bytes) {
+    OperationResult<Plan> made = Plan::make(n, Mode::plain);
+    CHECK(made.succeeded());
+    if (!made.succeeded()) return;
+    const Plan plan = static_cast<OperationResult<Plan>&&>(made).take_value();
+    const usize bytes = PlanAccess::bytes(plan);
+    CHECK(bytes > 0 && bytes <= 13 * n * real_bytes / 4);
+    CHECK(plan.work_size() < 3 * n);
+    if (bytes > 13 * n * real_bytes / 4) std::printf("  N=%zu: the plan holds %zu bytes\n", n, bytes);
+}
+
+void footprint() {
+    const Level selected = stxlib::simd::selected_level();
+    const Engines dit{.forward = stxlib::fft::detail::Engine::dit, .inverse = stxlib::fft::detail::Engine::dit};
+    for (usize n = usize{1} << 16; n <= (usize{1} << 20); n <<= 4) {
+        footprint_one<Plan64>(n, sizeof(double));
+        footprint_one<Plan32>(n, sizeof(float));
+        OperationResult<Plan64> made = PlanAccess::make64(n, Mode::plain, selected, dit);
+        CHECK(made.succeeded());
+        if (!made.succeeded()) continue;
+        const Plan64 plan = static_cast<OperationResult<Plan64>&&>(made).take_value();
+        const stxlib::fft::detail::PlanState* const state = PlanAccess::state(plan);
+        CHECK(state != nullptr && state->dif.idx == nullptr && state->dit.cos != nullptr);
+    }
+}
+
 } // namespace
 
 int main() {
@@ -643,5 +675,6 @@ int main() {
     straight_line_agrees(tiers, tier_count);
     subnormal_rule(tiers, tier_count);
     threads_share_one_plan();
+    footprint();
     return stxlib_tests::finish("stx_fft walk");
 }
