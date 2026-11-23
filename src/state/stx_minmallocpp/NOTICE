@@ -1,14 +1,25 @@
 stx_minmallocpp
 
 stx_minmallocpp is part of STXlib and is STXlib's own code, under STXlib's
-licence (the repository's LICENSE). It is a conversion to house-style C++ of
-the design of mimalloc v3 (https://github.com/microsoft/mimalloc), by Daan
-Leijen and Microsoft Corporation: thread heaps, pages of one block size,
-the separation of the owner's frees from other threads' frees, the rule
-that a full page is abandoned and claimed again by a later free, arenas cut
-into slices, and an address map consulted without touching the address. No
-source text of mimalloc is copied. By the owner's decision of 2026-11-15
-it carries mimalloc's notice, which follows unchanged.
+licence (the repository's LICENSE). It is an allocator inspired by and
+derived from mimalloc v3 (https://github.com/microsoft/mimalloc), by Daan
+Leijen and Microsoft Corporation, with many features of its own.
+
+What it takes from mimalloc v3 is architecture only: thread heaps, pages
+of one block size, the separation of the owner's frees from other threads'
+frees, the rule that a full page is abandoned and claimed again by a later
+free, arenas cut into slices, and an address map consulted without
+touching the address. No source text of mimalloc is copied.
+
+Its own: the free and remote bitmaps kept outside the pages, in region
+metadata behind a guard slice that is never committed; integrity stops
+when its own state is found contradicted; the orphan heap and the pages a
+heap keeps (keep_slices); TLSF slow paths for free slice runs; the step
+marks that let its shared-memory steps be enumerated in every order; and
+its proof obligations (allocator.ic.toml, proofs/ic).
+
+By the owner's decision of 2026-11-15 it carries mimalloc's notice, which
+follows unchanged.
 
 Its index of free slice runs is TLSF (M. Masmano, I. Ripoll, A. Crespo and
 J. Real, "TLSF: a new dynamic memory allocator for real-time systems",

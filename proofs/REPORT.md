@@ -335,8 +335,15 @@ the integrator builds and runs them on the M4.
 
 ## stx_minmallocpp (STXlib's own allocator; the owner, 2026-11-15)
 
-A conversion of mimalloc v3's design to house-style C++
-(`src/state/stx_minmallocpp/`), chosen with `STXLIB_ALLOCATOR=stx_minmallocpp`.
+An allocator inspired by and derived from mimalloc v3, with many features
+of its own (`src/state/stx_minmallocpp/`), chosen with
+`STXLIB_ALLOCATOR=stx_minmallocpp`. From mimalloc v3 it takes architecture
+only: thread heaps, one-size pages, the owner's frees kept apart from other
+threads', the abandonment rule, slice arenas and the address map. Its own:
+bitmaps outside the pages, metadata behind a guard slice, integrity stops,
+the orphan heap and the pages a heap keeps, TLSF slow paths, the step marks
+and the proof obligations (`NOTICE` gives the full statement and
+mimalloc's notice).
 Written on Neo. Built and run on the M4 on 2026-11-15 (macOS arm64, Clang;
 the seat's logs `stx_minmallocpp/dev/logs/battery-1`, `round-2`, `round-3`),
 and on no other host yet. "Enumerated" below means a test that covers its

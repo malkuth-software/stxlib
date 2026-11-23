@@ -1,7 +1,8 @@
 #pragma once
 
-// stx_minmallocpp: STXlib's own allocator. A conversion of mimalloc v3's
-// design to house-style C++ (the owner, 2026-11-15), for stxlib_state's
+// stx_minmallocpp: STXlib's own allocator, inspired by and derived from
+// mimalloc v3, with many features of its own (NOTICE says which are which;
+// the owner, 2026-11-15), for stxlib_state's
 // allocator calls (state.hpp, AllocatorCalls). layout.hpp, page.hpp,
 // region.hpp and heap.hpp state the structure; this is the contract.
 //
@@ -46,7 +47,8 @@
 // allocation fails and every release returns at once, whatever the size
 // (memory.hpp, "Process end", compares them).
 //
-// Not yet built, run or proved (proofs/REPORT.md, stx_minmallocpp).
+// What has been built, run and proved, and under which sanitizers, is in
+// proofs/REPORT.md (stx_minmallocpp) and proofs/ic.
 
 #include "stxlib/types.hpp"
 

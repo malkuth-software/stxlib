@@ -590,12 +590,13 @@ and leaves out an empty trace. `src/state/state.hpp`: layout 8. Tests in
 `two_module_library.*`), `tests/gate_no_exceptions_tests.cpp`,
 `tests/gate_tests.cpp`, `tests/death_tests.cpp` and their CMake cases.
 
-### stx_minmallocpp: STXlib's own allocator, after mimalloc v3's design (2026-11-15)
+### stx_minmallocpp: STXlib's own allocator, derived from mimalloc v3 (2026-11-15)
 
 `src/state/stx_minmallocpp/` and `src/hosted/{posix,windows}/minmallocpp_os_*.cpp`
-are STXlib's own code, written new on the owner's order of 2026-11-15 to
-convert mimalloc to house-style C++. No source line of mimalloc is copied.
-What is taken is design, with its source named:
+are STXlib's own code, written new on the owner's order of 2026-11-15: an
+allocator inspired by and derived from mimalloc v3, with many features of
+its own (its NOTICE lists them). No source line of mimalloc is copied.
+What is taken is architecture, with its source named:
 - from mimalloc v3 (v3.6.1, <https://github.com/microsoft/mimalloc>, MIT,
   Copyright (c) 2018-2025 Microsoft Corporation, Daan Leijen; vendored under
   `third_party/mimalloc/` until 2026-11-15, no longer): thread heaps, pages
