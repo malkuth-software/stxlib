@@ -314,6 +314,7 @@ OperationResult<usize> File::read(const MutableView<Byte> output) noexcept {
 OperationStatus File::write_all(const View<Byte> input) noexcept {
     const Operation operation = "stxlib.files.write";
     if (!is_open()) return bad_handle(operation);
+    if (mode_ == FileMode::read) return refused_state(operation);
     usize written = 0;
     while (written < input.count()) {
         usize transferred = 0;

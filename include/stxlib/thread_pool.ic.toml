@@ -91,7 +91,7 @@ requires = [
   { holds = "task_count <= task_limit", refuses = "failure:invalid_argument:too_many_tasks", check = "batch_task_limit" },
 ]
 fails = [{ failure = "invalid_argument", when = "task_without_function: a task whose function is null; no task runs" }]
-engine = { invoke = "object.run(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null))", draws = { with_null = "bool" }, ranges = { task_count = "[0, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"], expect = ["::stxlib_ic::inputs::pool_finished(slot)"] }
+engine = { invoke = "object.run(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null, object.thread_count() != 0))", draws = { with_null = "bool" }, ranges = { task_count = "[0, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"], expect = ["::stxlib_ic::inputs::pool_finished(slot)"] }
 
 [[call]]
 name = "begin"
@@ -105,7 +105,7 @@ requires = [
   { holds = "task_count <= task_limit", refuses = "failure:invalid_argument:too_many_tasks", check = "batch_task_limit" },
 ]
 fails = [{ failure = "invalid_argument", when = "task_without_function: a task whose function is null; no task runs" }]
-engine = { invoke = "object.begin(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null))", draws = { with_null = "bool" }, ranges = { task_count = "[1, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"] }
+engine = { invoke = "object.begin(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null, object.thread_count() != 0))", draws = { with_null = "bool" }, ranges = { task_count = "[1, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"] }
 
 [[call]]
 name = "wait"

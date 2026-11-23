@@ -58,7 +58,7 @@ fails = [
   { failure = "limit_exceeded", when = "the host refuses another thread or its stack, or thread identities are exhausted" },
 ]
 returns = { type = "Thread", state = "started", owns = "caller" }
-engine = { invoke = "Object::start(entry, ::stxlib_ic::inputs::thread_context(slot), stack_bytes)", pointers = { entry = { type = "::stxlib::Thread::Entry", value = "&::stxlib_ic::inputs::thread_entry" } }, ranges = { stack_bytes = "[262144, 1048576]" } }
+engine = { invoke = "Object::start(entry, ::stxlib_ic::inputs::thread_context(slot, entry != nullptr && stack_bytes >= ::stxlib::minimum_thread_stack_bytes && stack_bytes <= ::stxlib::maximum_thread_stack_bytes), stack_bytes)", pointers = { entry = { type = "::stxlib::Thread::Entry", value = "&::stxlib_ic::inputs::thread_entry" } }, ranges = { stack_bytes = "[262144, 1048576]" } }
 
 [[call]]
 name = "identity"

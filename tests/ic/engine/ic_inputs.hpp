@@ -343,9 +343,12 @@ inline void count_task(void* const argument) noexcept {
 
 // A batch of `count` tasks (at most task_capacity) that count their runs;
 // with_null makes one task's function null. Only for a slot with no batch
-// open (the engine's state says so).
-inline stxlib::View<stxlib::PoolTask> pool_tasks(const usize slot, const usize count, const bool with_null) noexcept {
-    PoolSlot& owned = pool_slot(slot);
+// open (the engine's state says so). A call the pool will refuse (accepted
+// false) gets a scratch batch, so the slot's last batch stays the one wait checks.
+inline stxlib::View<stxlib::PoolTask> pool_tasks(const usize slot, const usize count, const bool with_null,
+                                                 const bool accepted) noexcept {
+    static PoolSlot scratch{};
+    PoolSlot& owned = accepted ? pool_slot(slot) : scratch;
     const usize kept = count < task_capacity ? count : task_capacity;
     owned.ran.store(0, std::memory_order_relaxed);
     owned.expected = with_null ? 0 : kept;
@@ -378,8 +381,11 @@ inline void thread_entry(const stxlib::StopSignal& stop, void* const context) no
     ran.fetch_add(1, std::memory_order_release);
 }
 
-inline void* thread_context(const usize slot) noexcept {
-    std::atomic<u64>& counter = thread_counter(slot);
+// A start the requirements refuse (accepted false) gets a scratch counter, so
+// it cannot reset the counter of a thread already running in the slot.
+inline void* thread_context(const usize slot, const bool accepted) noexcept {
+    static std::atomic<u64> scratch{0};
+    std::atomic<u64>& counter = accepted ? thread_counter(slot) : scratch;
     counter.store(0, std::memory_order_relaxed);
     return &counter;
 }

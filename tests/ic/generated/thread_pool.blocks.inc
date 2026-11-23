@@ -190,8 +190,8 @@ inline ::stxlib_ic::Outcome legal_run(::stxlib_ic::Step& step, ObjectHolder& hol
     static_cast<void>(v_with_null);
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::run, legal: the draw misses batch_task_limit");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::run, legal: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("static_cast<void>(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(")));").end();
-    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("static_cast<void>(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0)));").end();
+    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), true, step.before.state);
     if (!(::stxlib_ic::inputs::pool_finished(step.slot))) return step.defect(::stxlib_ic::DefectKind::expectation, "AtomicPool::run, legal: ::stxlib_ic::inputs::pool_finished(step.slot)");
     return ::stxlib_ic::Outcome::completed;
@@ -225,8 +225,8 @@ inline ::stxlib_ic::Outcome misuse_run_batch_task_limit(::stxlib_ic::Step& step,
     static_cast<void>(v_with_null);
     if (::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::run, misuse of batch_task_limit: batch_task_limit holds");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::run, misuse of batch_task_limit: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))));").end();
-    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))));").end();
+    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "AtomicPool::run, misuse of batch_task_limit succeeded");
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::PoolFailure::too_many_tasks), true);
 }
@@ -261,8 +261,8 @@ inline ::stxlib_ic::Outcome outside_run_empty(::stxlib_ic::Step& step, ObjectHol
     static_cast<void>(v_with_null);
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::run in empty: batch_task_limit fails too");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::run in empty: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))));").end();
-    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))));").end();
+    const stxlib::OperationStatus status = object.run(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "AtomicPool::run in empty succeeded");
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::PoolFailure::empty_pool), true);
 }
@@ -285,7 +285,7 @@ inline void outside_run_open_call(void* const raw) noexcept {
     const bool v_with_null = context.v_with_null;
     static_cast<void>(v_with_null);
     Object& object = *holder.get();
-    static_cast<void>(object.run(::stxlib_ic::inputs::pool_tasks(slot, v_task_count, v_with_null)));
+    static_cast<void>(object.run(::stxlib_ic::inputs::pool_tasks(slot, v_task_count, v_with_null, object.thread_count() != 0)));
 }
 
 // AtomicPool::run in open.
@@ -318,7 +318,7 @@ inline ::stxlib_ic::Outcome outside_run_open(::stxlib_ic::Step& step, ObjectHold
     static_cast<void>(v_with_null);
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::run in open: batch_task_limit fails too");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::run in open: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("// stops the process as declared: ").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))").end();
+    step.line().text("// stops the process as declared: ").object(step.slot).text(".run(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))").end();
     outside_run_open_context context{};
     context.holder = &holder;
     context.slot = step.slot;
@@ -358,8 +358,8 @@ inline ::stxlib_ic::Outcome legal_begin(::stxlib_ic::Step& step, ObjectHolder& h
     if (!::stxlib::detail::ic::thread_pool::admits_begin_some_tasks(v_task_count)) return step.bail("AtomicPool::begin, legal: the draw misses begin_some_tasks");
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::begin, legal: the draw misses batch_task_limit");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::begin, legal: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("static_cast<void>(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(")));").end();
-    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("static_cast<void>(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0)));").end();
+    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), true, 2U);
     step.after.state = 2U;
     return ::stxlib_ic::Outcome::completed;
@@ -392,8 +392,8 @@ inline ::stxlib_ic::Outcome misuse_begin_begin_some_tasks(::stxlib_ic::Step& ste
     if (::stxlib::detail::ic::thread_pool::admits_begin_some_tasks(v_task_count)) return step.bail("AtomicPool::begin, misuse of begin_some_tasks: begin_some_tasks holds");
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::begin, misuse of begin_some_tasks: batch_task_limit fails too");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::begin, misuse of begin_some_tasks: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))));").end();
-    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))));").end();
+    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "AtomicPool::begin, misuse of begin_some_tasks succeeded");
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::PoolFailure::empty_batch), true);
 }
@@ -427,8 +427,8 @@ inline ::stxlib_ic::Outcome misuse_begin_batch_task_limit(::stxlib_ic::Step& ste
     if (!::stxlib::detail::ic::thread_pool::admits_begin_some_tasks(v_task_count)) return step.bail("AtomicPool::begin, misuse of batch_task_limit: begin_some_tasks fails too");
     if (::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::begin, misuse of batch_task_limit: batch_task_limit holds");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::begin, misuse of batch_task_limit: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))));").end();
-    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))));").end();
+    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "AtomicPool::begin, misuse of batch_task_limit succeeded");
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::PoolFailure::too_many_tasks), true);
 }
@@ -464,8 +464,8 @@ inline ::stxlib_ic::Outcome outside_begin_empty(::stxlib_ic::Step& step, ObjectH
     if (!::stxlib::detail::ic::thread_pool::admits_begin_some_tasks(v_task_count)) return step.bail("AtomicPool::begin in empty: begin_some_tasks fails too");
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::begin in empty: batch_task_limit fails too");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::begin in empty: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))));").end();
-    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null));
+    step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))));").end();
+    const stxlib::OperationStatus status = object.begin(::stxlib_ic::inputs::pool_tasks(step.slot, v_task_count, v_with_null, object.thread_count() != 0));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "AtomicPool::begin in empty succeeded");
     return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::PoolFailure::empty_pool), true);
 }
@@ -488,7 +488,7 @@ inline void outside_begin_open_call(void* const raw) noexcept {
     const bool v_with_null = context.v_with_null;
     static_cast<void>(v_with_null);
     Object& object = *holder.get();
-    static_cast<void>(object.begin(::stxlib_ic::inputs::pool_tasks(slot, v_task_count, v_with_null)));
+    static_cast<void>(object.begin(::stxlib_ic::inputs::pool_tasks(slot, v_task_count, v_with_null, object.thread_count() != 0)));
 }
 
 // AtomicPool::begin in open.
@@ -522,7 +522,7 @@ inline ::stxlib_ic::Outcome outside_begin_open(::stxlib_ic::Step& step, ObjectHo
     if (!::stxlib::detail::ic::thread_pool::admits_begin_some_tasks(v_task_count)) return step.bail("AtomicPool::begin in open: begin_some_tasks fails too");
     if (!::stxlib::detail::ic::thread_pool::admits_batch_task_limit(v_task_count)) return step.bail("AtomicPool::begin in open: batch_task_limit fails too");
     if (!(v_task_count <= ::stxlib_ic::inputs::task_capacity)) return step.bail("AtomicPool::begin in open: the inputs cannot realise task_count <= ::stxlib_ic::inputs::task_capacity");
-    step.line().text("// stops the process as declared: ").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text("))").end();
+    step.line().text("// stops the process as declared: ").object(step.slot).text(".begin(::stxlib_ic::inputs::pool_tasks(").unsigned_value(step.slot).text(", ").unsigned_value(static_cast<stxlib::u64>(v_task_count)).text(", ").unsigned_value(static_cast<stxlib::u64>(v_with_null)).text(", ").object(step.slot).text(".thread_count() != 0))").end();
     outside_begin_open_context context{};
     context.holder = &holder;
     context.slot = step.slot;

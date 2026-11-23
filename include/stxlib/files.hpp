@@ -182,8 +182,8 @@ public:
     // Writes every byte or fails; on failure an unknown prefix may have been
     // written.
     // ic: Admitted in writing, appending. In closed: failure disposed (closed_handle), unchanged. In reading: failure
-    // ic: any, unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an unknown prefix may have been
-    // ic: written), partly changed.
+    // ic: invalid_argument (invalid_state), unchanged. Fails limit_exceeded (no_space), partly changed; io_failure (an
+    // ic: unknown prefix may have been written), partly changed.
     [[nodiscard]] OperationStatus write_all(View<Byte> input) noexcept;
     // ic: Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged.
     [[nodiscard]] OperationResult<u64> size() noexcept;

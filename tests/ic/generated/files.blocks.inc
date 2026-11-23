@@ -255,7 +255,7 @@ inline ::stxlib_ic::Outcome outside_write_all_reading(::stxlib_ic::Step& step, O
     step.line().text("CHECK(::stxlib_ic::refused(").object(step.slot).text(".write_all(::stxlib_ic::inputs::scratch_view(").unsigned_value(static_cast<stxlib::u64>(v_length)).text("))));").end();
     const stxlib::OperationStatus status = object.write_all(::stxlib_ic::inputs::scratch_view(v_length));
     if (status.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "File::write_all in reading succeeded");
-    return step.refused(*status.error(), 0U, 0U, false);
+    return step.refused(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::HostCode::invalid_state), true);
 }
 
 // File::size, legal.

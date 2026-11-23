@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/files.ic.toml",
-    "sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f"
+    "sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -32,8 +32,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -98,18 +98,23 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
       "id": "stxlib.file.write_all.outside.reading",
       "kind": "typestate-refusal",
-      "statement": "write_all in reading: failure any, changing nothing observable.",
-      "level": "none",
-      "tool": null,
-      "premises": [],
-      "status": "open",
+      "statement": "write_all in reading: failure invalid_argument (invalid_state), changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
       "covered_by": {
         "mechanism": "engine blocks",
         "blocks": [
@@ -119,7 +124,11 @@
         "what": "the misuse block drives write_all in reading and checks the refusal and that nothing changed",
         "run_by": "tests/ic/generated/files.blocks.inc"
       },
-      "not_deduced": "no refusal in the code before its loop: the declared refusal would be the host's, from the calls inside the loop, which the deducer does not read (a loop that may return: while (written < input.count()) {\n        usize transferred )"
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
+      }
     },
     {
       "id": "stxlib.file.size.outside.closed",
@@ -145,8 +154,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -173,8 +182,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -201,8 +210,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -229,8 +238,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -262,8 +271,8 @@
       },
       "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -290,8 +299,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -309,7 +318,7 @@
       "evidence": "generated check stxlib::detail::ic::files::admits_read_at_offset, called in src/core/files.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -325,7 +334,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -352,8 +361,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -409,7 +418,7 @@
       "evidence": "generated check stxlib::detail::ic::files::admits_write_at_extent, called in src/core/files.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -439,7 +448,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -466,8 +475,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -494,8 +503,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -522,8 +531,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -550,8 +559,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -578,8 +587,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -606,8 +615,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -625,7 +634,7 @@
       "evidence": "generated check stxlib::detail::ic::files::admits_set_size_bytes, called in src/core/files.cpp",
       "method": "source structure: each evaluation of the predicate guards the declared refusal (through selector helpers and status mappings where the source uses them)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -641,7 +650,7 @@
       "status": "discharged",
       "method": "source structure: only const locals, guards and their refusals, output resets and read-only checks precede the guard in its function (and the call that relays its status)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -668,8 +677,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -696,8 +705,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -724,8 +733,8 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     },
     {
@@ -741,7 +750,7 @@
       "status": "discharged",
       "method": "a stale identity is the state closed, which moving from the object leaves and every stateful call refuses as declared (tools/ic_typestate.py)",
       "proved_against": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       }
     }
   ]

@@ -93,8 +93,8 @@ inline ::stxlib_ic::Outcome legal_start(::stxlib_ic::Step& step, ObjectHolder& h
     static_cast<void>(v_stack_bytes);
     if (!::stxlib::detail::ic::threads::admits_start_entry(v_entry)) return step.bail("Thread::start, legal: the draw misses start_entry");
     if (!::stxlib::detail::ic::threads::admits_start_stack(v_stack_bytes)) return step.bail("Thread::start, legal: the draw misses start_stack");
-    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text("), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text("));").end();
-    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot), v_stack_bytes);
+    step.line().text("::stxlib_ic::adopt(").holder(step.slot).text(", Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text(", ").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(" != nullptr && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" >= ::stxlib::minimum_thread_stack_bytes && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" <= ::stxlib::maximum_thread_stack_bytes), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text("));").end();
+    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot, v_entry != nullptr && v_stack_bytes >= ::stxlib::minimum_thread_stack_bytes && v_stack_bytes <= ::stxlib::maximum_thread_stack_bytes), v_stack_bytes);
     if (made.failed()) return step.failed(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::out_of_memory) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::limit_exceeded), true, step.before.state);
     if (holder.present()) teardown(*holder.get(), step.before.state);
     holder.replace(static_cast<stxlib::OperationResult<Object>&&>(made).take_value());
@@ -124,8 +124,8 @@ inline ::stxlib_ic::Outcome misuse_start_start_entry(::stxlib_ic::Step& step, Ob
     static_cast<void>(v_stack_bytes);
     if (::stxlib::detail::ic::threads::admits_start_entry(v_entry)) return step.bail("Thread::start, misuse of start_entry: start_entry holds");
     if (!::stxlib::detail::ic::threads::admits_start_stack(v_stack_bytes)) return step.bail("Thread::start, misuse of start_entry: start_stack fails too");
-    step.line().text("CHECK(::stxlib_ic::refused(Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text("), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(")));").end();
-    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot), v_stack_bytes);
+    step.line().text("CHECK(::stxlib_ic::refused(Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text(", ").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(" != nullptr && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" >= ::stxlib::minimum_thread_stack_bytes && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" <= ::stxlib::maximum_thread_stack_bytes), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(")));").end();
+    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot, v_entry != nullptr && v_stack_bytes >= ::stxlib::minimum_thread_stack_bytes && v_stack_bytes <= ::stxlib::maximum_thread_stack_bytes), v_stack_bytes);
     if (made.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Thread::start, misuse of start_entry succeeded");
     return step.refused(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::ThreadFailure::no_entry), true);
 }
@@ -149,8 +149,8 @@ inline ::stxlib_ic::Outcome misuse_start_start_stack(::stxlib_ic::Step& step, Ob
     static_cast<void>(v_stack_bytes);
     if (!::stxlib::detail::ic::threads::admits_start_entry(v_entry)) return step.bail("Thread::start, misuse of start_stack: start_entry fails too");
     if (::stxlib::detail::ic::threads::admits_start_stack(v_stack_bytes)) return step.bail("Thread::start, misuse of start_stack: start_stack holds");
-    step.line().text("CHECK(::stxlib_ic::refused(Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text("), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(")));").end();
-    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot), v_stack_bytes);
+    step.line().text("CHECK(::stxlib_ic::refused(Object::start(").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(", ::stxlib_ic::inputs::thread_context(").unsigned_value(step.slot).text(", ").text(v_entry == nullptr ? "nullptr" : "&::stxlib_ic::inputs::thread_entry").text(" != nullptr && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" >= ::stxlib::minimum_thread_stack_bytes && ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(" <= ::stxlib::maximum_thread_stack_bytes), ").unsigned_value(static_cast<stxlib::u64>(v_stack_bytes)).text(")));").end();
+    stxlib::OperationResult<Object> made = Object::start(v_entry, ::stxlib_ic::inputs::thread_context(step.slot, v_entry != nullptr && v_stack_bytes >= ::stxlib::minimum_thread_stack_bytes && v_stack_bytes <= ::stxlib::maximum_thread_stack_bytes), v_stack_bytes);
     if (made.succeeded()) return step.defect(::stxlib_ic::DefectKind::misuse_accepted, "Thread::start, misuse of start_stack succeeded");
     return step.refused(*made.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::invalid_argument), static_cast<stxlib::u32>(stxlib::ThreadFailure::stack_size_out_of_range), true);
 }

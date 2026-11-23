@@ -198,7 +198,8 @@
       "state": "reading",
       "expect": {
         "kind": "failure",
-        "failure": "any"
+        "failure": "invalid_argument",
+        "code": "invalid_state"
       },
       "leaves": "unchanged"
     },

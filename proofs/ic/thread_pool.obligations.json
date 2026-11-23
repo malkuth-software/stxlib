@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/thread_pool.ic.toml",
-    "sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86"
+    "sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [

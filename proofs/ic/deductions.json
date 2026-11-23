@@ -737,9 +737,9 @@
     {
       "id": "stxlib.file.read_at.requires.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -750,7 +750,7 @@
         "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:184)"
       ],
       "steps": [
-        "guard at src/core/files.cpp:384",
+        "guard at src/core/files.cpp:385",
         "FileStatus::too_large maps to failure limit_exceeded (too_long) in record_of (src/core/files.cpp:86)",
         "record_of_status (src/core/files.cpp:184) passes it to record_of"
       ]
@@ -758,9 +758,9 @@
     {
       "id": "stxlib.file.read_at.refusal.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -770,13 +770,13 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/core/files.cpp:384"
+        "guard at src/core/files.cpp:385"
       ]
     },
     {
       "id": "stxlib.file.write_all_at.exact.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {},
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -792,9 +792,9 @@
     {
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -805,7 +805,7 @@
         "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:121)"
       ],
       "steps": [
-        "guard at src/core/files.cpp:397",
+        "guard at src/core/files.cpp:398",
         "FileStatus::too_large maps to failure limit_exceeded (too_long) in record_of (src/core/files.cpp:86)",
         "failed (src/core/files.cpp:121) passes it to record_of"
       ]
@@ -813,9 +813,9 @@
     {
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -825,15 +825,15 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/core/files.cpp:397"
+        "guard at src/core/files.cpp:398"
       ]
     },
     {
       "id": "stxlib.file.set_size.requires.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -844,7 +844,7 @@
         "the functions between the guard and record_of pass the status through unchanged (read at src/core/files.cpp:121)"
       ],
       "steps": [
-        "guard at src/core/files.cpp:433",
+        "guard at src/core/files.cpp:434",
         "FileStatus::too_large maps to failure limit_exceeded (too_long) in record_of (src/core/files.cpp:86)",
         "failed (src/core/files.cpp:121) passes it to record_of"
       ]
@@ -852,9 +852,9 @@
     {
       "id": "stxlib.file.set_size.refusal.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -864,16 +864,16 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/core/files.cpp:433"
+        "guard at src/core/files.cpp:434"
       ]
     },
     {
       "id": "stxlib.file.read.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -892,10 +892,10 @@
     {
       "id": "stxlib.file.write_all.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -912,12 +912,34 @@
       ]
     },
     {
+      "id": "stxlib.file.write_all.outside.reading",
+      "declaration": "include/stxlib/files.ic.toml",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
+      "sources": {
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
+      },
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "premises": [
+        "the state reading is handle_ != closed && mode_ == FileMode::read (the declaration's represents)",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "steps": [
+        "File::write_all read at src/core/files.cpp:314 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
+      ]
+    },
+    {
       "id": "stxlib.file.size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -929,17 +951,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::size read at src/core/files.cpp:328 in the state closed (handle_ == closed)",
+        "File::size read at src/core/files.cpp:329 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.position.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -951,17 +973,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::position read at src/core/files.cpp:337 in the state closed (handle_ == closed)",
+        "File::position read at src/core/files.cpp:338 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.seek.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -973,17 +995,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::seek read at src/core/files.cpp:346 in the state closed (handle_ == closed)",
+        "File::seek read at src/core/files.cpp:347 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.sync.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -995,17 +1017,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::sync read at src/core/files.cpp:353 in the state closed (handle_ == closed)",
+        "File::sync read at src/core/files.cpp:354 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.close.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1017,17 +1039,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::close read at src/core/files.cpp:360 in the state closed (handle_ == closed)",
+        "File::close read at src/core/files.cpp:361 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.close.moves",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1051,10 +1073,10 @@
     {
       "id": "stxlib.file.read_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1066,17 +1088,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::read_at read at src/core/files.cpp:381 in the state closed (handle_ == closed)",
+        "File::read_at read at src/core/files.cpp:382 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.write_all_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1088,17 +1110,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::write_all_at read at src/core/files.cpp:393 in the state closed (handle_ == closed)",
+        "File::write_all_at read at src/core/files.cpp:394 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.write_all_at.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1110,17 +1132,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::write_all_at read at src/core/files.cpp:393 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "File::write_all_at read at src/core/files.cpp:394 in the state reading (handle_ != closed && mode_ == FileMode::read)",
         "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
       ]
     },
     {
       "id": "stxlib.file.write_all_at.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1132,17 +1154,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::write_all_at read at src/core/files.cpp:393 in the state appending (handle_ != closed && mode_ == FileMode::append)",
+        "File::write_all_at read at src/core/files.cpp:394 in the state appending (handle_ != closed && mode_ == FileMode::append)",
         "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
       ]
     },
     {
       "id": "stxlib.file.information.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1154,17 +1176,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::information read at src/core/files.cpp:412 in the state closed (handle_ == closed)",
+        "File::information read at src/core/files.cpp:413 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.set_modified.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1176,17 +1198,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::set_modified read at src/core/files.cpp:421 in the state closed (handle_ == closed)",
+        "File::set_modified read at src/core/files.cpp:422 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.set_modified.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1198,17 +1220,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::set_modified read at src/core/files.cpp:421 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "File::set_modified read at src/core/files.cpp:422 in the state reading (handle_ != closed && mode_ == FileMode::read)",
         "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
       ]
     },
     {
       "id": "stxlib.file.set_size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1220,17 +1242,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::set_size read at src/core/files.cpp:429 in the state closed (handle_ == closed)",
+        "File::set_size read at src/core/files.cpp:430 in the state closed (handle_ == closed)",
         "path 1: FileStatus::bad_handle maps to ErrorKind::disposed, HostCode::closed_handle (src/core/files.cpp:109)"
       ]
     },
     {
       "id": "stxlib.file.set_size.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1242,17 +1264,17 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::set_size read at src/core/files.cpp:429 in the state reading (handle_ != closed && mode_ == FileMode::read)",
+        "File::set_size read at src/core/files.cpp:430 in the state reading (handle_ != closed && mode_ == FileMode::read)",
         "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
       ]
     },
     {
       "id": "stxlib.file.set_size.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "include/stxlib/files.hpp": "40e8b7dc5aece08ba6b3b8080303243d8f81704c11a382dfefe52b570296e4bc",
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "include/stxlib/files.hpp": "5be91b8e162f08fdfd96657c94a038de4ee4fdb50c9a88d59d9f31be5779b7db",
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1264,16 +1286,16 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "File::set_size read at src/core/files.cpp:429 in the state appending (handle_ != closed && mode_ == FileMode::append)",
+        "File::set_size read at src/core/files.cpp:430 in the state appending (handle_ != closed && mode_ == FileMode::append)",
         "path 1: names ErrorKind::invalid_argument, HostCode::invalid_state"
       ]
     },
     {
       "id": "stxlib.file.identity",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "7db0b7d79d8c6e66bde769a0f12f40a8463ea8f5663add0cfecd00c8b5d33e2f",
+      "declaration_sha256": "2b37d0e1e7389e64e3b3221017287e858faaa44c9c1acbcc59a3d9955f24cadc",
       "sources": {
-        "src/core/files.cpp": "d5e20d39188d723ca5917249dc5f99d3532dd26869bc8dfbf0745229a22367e0"
+        "src/core/files.cpp": "540f9c7a065e44ff3b820a3aa9fafbb57aadabc66f4391e3b7911aa9ce1d8329"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -1832,7 +1854,7 @@
     {
       "id": "stxlib.atomicpool.create.requires.create_some_threads",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1850,7 +1872,7 @@
     {
       "id": "stxlib.atomicpool.create.refusal.create_some_threads",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1868,7 +1890,7 @@
     {
       "id": "stxlib.atomicpool.create.requires.create_thread_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1886,7 +1908,7 @@
     {
       "id": "stxlib.atomicpool.create.refusal.create_thread_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1904,7 +1926,7 @@
     {
       "id": "stxlib.atomicpool.run.requires.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1922,7 +1944,7 @@
     {
       "id": "stxlib.atomicpool.run.refusal.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1940,7 +1962,7 @@
     {
       "id": "stxlib.atomicpool.begin.requires.begin_some_tasks",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1958,7 +1980,7 @@
     {
       "id": "stxlib.atomicpool.begin.refusal.begin_some_tasks",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1978,7 +2000,7 @@
     {
       "id": "stxlib.atomicpool.begin.requires.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -1996,7 +2018,7 @@
     {
       "id": "stxlib.atomicpool.begin.refusal.batch_task_limit",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2014,7 +2036,7 @@
     {
       "id": "stxlib.atomicpool.run.outside.empty",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2037,7 +2059,7 @@
     {
       "id": "stxlib.atomicpool.run.outside.open",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2061,7 +2083,7 @@
     {
       "id": "stxlib.atomicpool.begin.outside.empty",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2084,7 +2106,7 @@
     {
       "id": "stxlib.atomicpool.begin.outside.open",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2108,7 +2130,7 @@
     {
       "id": "stxlib.atomicpool.begin.moves",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2137,7 +2159,7 @@
     {
       "id": "stxlib.atomicpool.wait.outside.empty",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2160,7 +2182,7 @@
     {
       "id": "stxlib.atomicpool.wait.moves",
       "declaration": "include/stxlib/thread_pool.ic.toml",
-      "declaration_sha256": "506b623bb9c75c08cd16dc2cefd724c025d8cc6f06e6056547f3c18dbd8d7e86",
+      "declaration_sha256": "cafb9700d936f0e38f3ca4dffa0a63a40e20bdc8c394957fb4971ba3e41b4dfe",
       "sources": {
         "src/core/thread_pool.cpp": "6c2d9e7c0f569cfc29a49cc49422eb53d2458c0ff51ce3f464c5284fa3343feb"
       },
@@ -2187,7 +2209,7 @@
     {
       "id": "stxlib.thread.start.requires.start_entry",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2205,7 +2227,7 @@
     {
       "id": "stxlib.thread.start.refusal.start_entry",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2223,7 +2245,7 @@
     {
       "id": "stxlib.thread.start.requires.start_stack",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2241,7 +2263,7 @@
     {
       "id": "stxlib.thread.start.refusal.start_stack",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2259,7 +2281,7 @@
     {
       "id": "stxlib.thread.join.outside.empty",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2280,7 +2302,7 @@
     {
       "id": "stxlib.thread.join.moves",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2302,7 +2324,7 @@
     {
       "id": "stxlib.thread.abandon.outside.empty",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -2323,7 +2345,7 @@
     {
       "id": "stxlib.thread.abandon.moves",
       "declaration": "include/stxlib/threads.ic.toml",
-      "declaration_sha256": "91be9e864243ad91a6cb062e769baad9cda8dd608f56a65cb88f89c6637a735f",
+      "declaration_sha256": "6e5a117f611ac07202c00e74a0e2a1a9b18b7a8b71f8aec76156e1d3e71bac4b",
       "sources": {
         "src/core/threads.cpp": "6aee59463f3864f7a09e2e9965bad82c74c835ec254def2de89233a2d715ab0b"
       },
@@ -3297,11 +3319,6 @@
       "id": "stxlib.file.read.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
       "why": "no refusal in the code before file_backend::read(...): the declared refusal would be the host's, from inside that call, which the deducer does not read"
-    },
-    {
-      "id": "stxlib.file.write_all.outside.reading",
-      "declaration": "include/stxlib/files.ic.toml",
-      "why": "no refusal in the code before its loop: the declared refusal would be the host's, from the calls inside the loop, which the deducer does not read (a loop that may return: while (written < input.count()) {\n        usize transferred )"
     },
     {
       "id": "stxlib.file.read_at.outside.writing",

@@ -258,7 +258,7 @@ def source_following(root: pathlib.Path) -> None:
     document = json.loads((root / 'proofs' / 'ic' / 'deductions.json').read_text(encoding='utf-8'))
     still_open = sorted(item['id'] for item in document['open'])
     expected = sorted(['stxlib.file.read.outside.writing', 'stxlib.file.read.outside.appending',
-                       'stxlib.file.write_all.outside.reading', 'stxlib.file.read_at.outside.writing',
+                       'stxlib.file.read_at.outside.writing',
                        'stxlib.file.read_at.outside.appending', 'stxlib.memory.identity',
                        'stxlib.stx_minmallocpp.identity'])
     check(still_open == expected, 'I14 the obligations open are the host refusals and the address identities: '

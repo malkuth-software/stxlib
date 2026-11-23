@@ -72,7 +72,7 @@ engine = { invoke = "object.read(::stxlib_ic::inputs::scratch_bytes(length))", d
 name = "write_all"
 declarations = ["[[nodiscard]] OperationStatus write_all(View<Byte> input) noexcept;"]
 in = ["writing", "appending"]
-outside = { closed = "failure:disposed:closed_handle", reading = "failure:any" }
+outside = { closed = "failure:disposed:closed_handle", reading = "failure:invalid_argument:invalid_state" }
 fails = [
   { failure = "limit_exceeded", when = "no_space", leaves = "partial" },
   { failure = "io_failure", when = "an unknown prefix may have been written", leaves = "partial" },

@@ -16,7 +16,7 @@ Run: not run yet. The runner writes tests/ic/results/gate_run.json (tests/ic/ic_
 | stxlib::Buffer | 1 | 6 of 6 | 7 + 1 | not run | not run | not run | not run | 1 / 1 |
 | stxlib::fft::Plan32 | 10 | 6 of 6 | 7 + 10 | not run | not run | not run | not run | 18 / 18 |
 | stxlib::fft::Plan64 | 9 | 6 of 6 | 7 + 9 | not run | not run | not run | not run | 16 / 16 |
-| stxlib::File | 25 | 17 of 23 | 18 + 26 | not run | not run | not run | not run | 26 / 31 (5 open, covered by blocks or tests) |
+| stxlib::File | 25 | 17 of 23 | 18 + 26 | not run | not run | not run | not run | 27 / 31 (4 open, covered by blocks or tests) |
 | stxlib::FrozenMap | 2 | 7 of 7 | 8 + 2 | not run | not run | not run | not run | 2 / 2 |
 | stxlib::FrozenTextMap | 2 | 7 of 7 | 8 + 2 | not run | not run | not run | not run | 2 / 2 |
 | stxlib::glyphs::GlyphStore | 3 | 7 of 7 | 8 + 3 | not run | not run | not run | not run | 6 / 6 |
