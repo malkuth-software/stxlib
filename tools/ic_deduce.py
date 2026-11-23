@@ -795,7 +795,8 @@ def file_hash(root: Path, path: str) -> str:
     file: Path = root / path
     if not file.is_file():
         raise DeductionError('a named source is missing: ' + path)
-    return hashlib.sha256(file.read_bytes()).hexdigest()
+    # Line endings normalised: a Windows checkout may hold the sources with CRLF.
+    return hashlib.sha256(file.read_bytes().replace(b'\r\n', b'\n')).hexdigest()
 
 
 HEADER_START: re.Pattern[str] = re.compile(r'[A-Za-z_\[]')
