@@ -1578,7 +1578,11 @@ void composited_affine() {
     }
 }
 
-int main() {
+// timing() and fused_experiment() are measurements, run only with --timing:
+// in a Debug build under ctest their canon rotations alone ran past the
+// 30-minute limit (STXlib CI after checkpoint stx4, 2026-11-23).
+int main(int argc, char** argv) {
+    const bool timed = argc > 1 && std::strcmp(argv[1], "--timing") == 0;
     field_matches_reference();
     k1_tiers_identical();
     previews_match_field();
@@ -1592,7 +1596,9 @@ int main() {
     refusals();
     digest_outputs();
     composited_affine();
-    timing();
-    fused_experiment();
+    if (timed) {
+        timing();
+        fused_experiment();
+    }
     return stxlib_tests::finish("stxlib conv");
 }
