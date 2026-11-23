@@ -722,6 +722,14 @@ set(stxlib_math_options ${stxlib_fp_options})
 set(STXLIB_ALGORITHMS_SOURCES
     ${STXLIB_MATH_SOURCES}
     src/algorithms/calendar.cpp
+    src/algorithms/conv/canon.cpp
+    src/algorithms/conv/field.cpp
+    src/algorithms/conv/kernels.cpp
+    src/algorithms/conv/kernels_avx2_fma.cpp
+    src/algorithms/conv/kernels_scalar.cpp
+    src/algorithms/conv/kernels_v128.cpp
+    src/algorithms/conv/line_field.cpp
+    src/algorithms/conv/transfer.cpp
     src/algorithms/case_folding.cpp
     src/algorithms/textlayout/analysis.cpp
     src/algorithms/textlayout/line_break.cpp
@@ -772,6 +780,11 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/random.cpp
     src/algorithms/row_height_index.cpp
     src/algorithms/simd.cpp
+    src/algorithms/syntax/css.cpp
+    src/algorithms/syntax/document.cpp
+    src/algorithms/syntax/engine.cpp
+    src/algorithms/syntax/languages.cpp
+    src/algorithms/syntax/markup.cpp
     src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)
@@ -1063,7 +1076,7 @@ if(STXLIB_TESTS)
     add_test(NAME stxlib_surface_tests COMMAND stxlib_surface_tests)
 
     # stxlib::algorithms.
-    foreach(test_name IN ITEMS calendar frozen_map hash numeric_text precedence random simd)
+    foreach(test_name IN ITEMS calendar conv frozen_map hash numeric_text precedence random simd syntax)
         add_executable(stxlib_${test_name}_tests tests/${test_name}_tests.cpp)
         target_link_libraries(stxlib_${test_name}_tests PRIVATE stxlib::algorithms)
         # core/checked.hpp (the modular marker) for the tests' own generators.
@@ -1096,6 +1109,17 @@ if(STXLIB_TESTS)
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_outline_atomics.py
                     --nm ${CMAKE_NM} ${stxlib_outline_atomics_binaries})
     endif()
+    # stxlib::syntax's hand tool: a source file as highlighted HTML, and the
+    # engine's speed (tests/syntax_show.cpp). Not a ctest.
+    add_executable(stxlib_syntax_show tests/syntax_show.cpp)
+    target_link_libraries(stxlib_syntax_show PRIVATE stxlib::algorithms)
+    target_compile_options(stxlib_syntax_show PRIVATE ${stxlib_test_warnings})
+    # stxlib::conv on every SIMD tier this machine runs: the same frozen digests
+    # (tests/conv_tests.cpp) through each forced level.
+    foreach(level IN ITEMS scalar vector128 avx2_fma)
+        add_test(NAME stxlib_conv_tests_${level} COMMAND stxlib_conv_tests)
+        set_tests_properties(stxlib_conv_tests_${level} PROPERTIES ENVIRONMENT "STX_SIMD_LEVEL=${level}")
+    endforeach()
     # stxlib::glyphs: the coverage mask against exact areas (tests/
     # glyph_mask_tests.cpp).
     add_executable(stxlib_glyph_mask_tests tests/glyph_mask_tests.cpp)
@@ -1124,6 +1148,24 @@ if(STXLIB_TESTS)
     target_include_directories(stxlib_glyph_layout_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_glyph_layout_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_layout_tests COMMAND stxlib_glyph_layout_tests)
+    # The glyph rasterizer's speed on a published same-task benchmark
+    # (tests/glyph_raster_bench.cpp): one glyph to 8-bit coverage at 10 to
+    # 100 px/em. Opt in; built only with the option, never run by ctest. The
+    # flags it was built with are printed in its header.
+    option(STXLIB_GLYPH_RASTER_BENCH "Build stxlib_glyph_raster_bench (tests/glyph_raster_bench.cpp)" OFF)
+    if(STXLIB_GLYPH_RASTER_BENCH)
+        add_executable(stxlib_glyph_raster_bench tests/glyph_raster_bench.cpp)
+        target_link_libraries(stxlib_glyph_raster_bench PRIVATE stxlib::algorithms)
+        target_compile_options(stxlib_glyph_raster_bench PRIVATE ${stxlib_test_warnings})
+        string(TOUPPER "${CMAKE_BUILD_TYPE}" stxlib_glyph_bench_config)
+        string(JOIN " " stxlib_glyph_bench_options ${stxlib_test_warnings})
+        set(stxlib_glyph_bench_flags
+            "${CMAKE_BUILD_TYPE}: ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_${stxlib_glyph_bench_config}} ${stxlib_glyph_bench_options}")
+        string(REPLACE "\"" "'" stxlib_glyph_bench_flags "${stxlib_glyph_bench_flags}")
+        string(STRIP "${stxlib_glyph_bench_flags}" stxlib_glyph_bench_flags)
+        target_compile_definitions(stxlib_glyph_raster_bench PRIVATE
+            "STXLIB_BENCH_FLAGS=\"${stxlib_glyph_bench_flags}\"")
+    endif()
     # stxlib::glyphs: a mask's surface and its turning, against numbers
     # worked out by tools/turn_lattice_oracle.py (tests/glyph_turn_tests.cpp);
     # it reads the internal header.
