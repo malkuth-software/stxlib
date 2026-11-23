@@ -3,9 +3,9 @@
 // stx_minmallocpp: the constants of its address-space layout and its size
 // classes, with the arithmetic every other file relies on.
 //
-// stx_minmallocpp is STXlib's own allocator, a conversion of mimalloc v3's
-// design to house-style C++ (the owner, 2026-11-15). The design, what it
-// keeps from mimalloc and what it reformulates are in the seat's
+// stx_minmallocpp is STXlib's own allocator, inspired by and derived from
+// mimalloc v3, with many features of its own (the owner, 2026-11-15; NOTICE
+// says what it takes and what it adds). The design is in the seat's
 // DESIGN.md (notes); this header states the numbers.
 //
 // Address space. Memory is reserved from the host in regions of 1 GiB,
@@ -43,10 +43,10 @@
 // ordinary allocation of the rounded size; no block is ever handed out at
 // an address inside another block.
 //
-// Not yet built or run. tests/stx_minmallocpp_tests.cpp checks class_of and
-// class_bytes exhaustively over 1 to 524,288, the alignment claim over every
-// (size, alignment) in range, and the block index (page.hpp) over every
-// offset of every class.
+// tests/stx_minmallocpp_tests.cpp checks class_of and class_bytes
+// exhaustively over 1 to 524,288, the alignment claim over every (size,
+// alignment) in range, and the block index (page.hpp) over every offset of
+// every class.
 
 #include "stxlib/types.hpp"
 

@@ -266,9 +266,10 @@ if(STXLIB_HOST_FAMILY STREQUAL "emscripten" AND STXLIB_STATE_SHARED)
 endif()
 # The allocator's backend (include/stxlib/memory.hpp).
 # - stx_minmallocpp, the default: STXlib's own allocator
-#   (src/state/stx_minmallocpp), a conversion of mimalloc's design to
-#   house-style C++ (the owner, 2026-11-15; the default by the owner's
-#   decision of the same day, notes decisions/2026-11-15-stx-minmallocpp.md).
+#   (src/state/stx_minmallocpp), inspired by and derived from mimalloc v3,
+#   with many features of its own (the owner, 2026-11-15; the default by
+#   the owner's decision of the same day, notes
+#   decisions/2026-11-15-stx-minmallocpp.md).
 #   proofs/REPORT.md says what of it is proved, tested and measured.
 # - host: the host's C library (src/state/allocator.cpp). Sanitizers track
 #   the host allocator only, so a build with sanitizers or the integer
