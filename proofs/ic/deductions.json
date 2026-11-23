@@ -737,7 +737,7 @@
     {
       "id": "stxlib.file.read_at.requires.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -758,7 +758,7 @@
     {
       "id": "stxlib.file.read_at.refusal.read_at_offset",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -776,7 +776,7 @@
     {
       "id": "stxlib.file.write_all_at.exact.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {},
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -792,7 +792,7 @@
     {
       "id": "stxlib.file.write_all_at.requires.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -813,7 +813,7 @@
     {
       "id": "stxlib.file.write_all_at.refusal.write_at_extent",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -831,7 +831,7 @@
     {
       "id": "stxlib.file.set_size.requires.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -852,7 +852,7 @@
     {
       "id": "stxlib.file.set_size.refusal.set_size_bytes",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
@@ -870,9 +870,9 @@
     {
       "id": "stxlib.file.read.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -892,9 +892,9 @@
     {
       "id": "stxlib.file.write_all.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -914,9 +914,9 @@
     {
       "id": "stxlib.file.write_all.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -936,9 +936,9 @@
     {
       "id": "stxlib.file.size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -958,9 +958,9 @@
     {
       "id": "stxlib.file.position.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -980,9 +980,9 @@
     {
       "id": "stxlib.file.seek.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1002,9 +1002,9 @@
     {
       "id": "stxlib.file.sync.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1024,9 +1024,9 @@
     {
       "id": "stxlib.file.close.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1046,9 +1046,9 @@
     {
       "id": "stxlib.file.close.moves",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1073,9 +1073,9 @@
     {
       "id": "stxlib.file.read_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1095,9 +1095,9 @@
     {
       "id": "stxlib.file.write_all_at.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1117,9 +1117,9 @@
     {
       "id": "stxlib.file.write_all_at.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1139,9 +1139,9 @@
     {
       "id": "stxlib.file.write_all_at.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1161,9 +1161,9 @@
     {
       "id": "stxlib.file.information.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1183,9 +1183,9 @@
     {
       "id": "stxlib.file.set_modified.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1205,9 +1205,9 @@
     {
       "id": "stxlib.file.set_modified.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1227,9 +1227,9 @@
     {
       "id": "stxlib.file.set_size.outside.closed",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1249,9 +1249,9 @@
     {
       "id": "stxlib.file.set_size.outside.reading",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1271,9 +1271,9 @@
     {
       "id": "stxlib.file.set_size.outside.appending",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },
       "level": "deduced",
@@ -1293,7 +1293,7 @@
     {
       "id": "stxlib.file.identity",
       "declaration": "include/stxlib/files.ic.toml",
-      "declaration_sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716",
+      "declaration_sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3",
       "sources": {
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       },

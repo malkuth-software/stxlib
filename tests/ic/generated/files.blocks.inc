@@ -367,7 +367,7 @@ inline ::stxlib_ic::Outcome legal_sync(::stxlib_ic::Step& step, ObjectHolder& ho
     static_cast<void>(v_level);
     step.line().text("static_cast<void>(").object(step.slot).text(".sync(static_cast<stxlib::Durability>(").unsigned_value(static_cast<stxlib::u64>(v_level)).text(")));").end();
     const stxlib::OperationStatus status = object.sync(static_cast<stxlib::Durability>(v_level));
-    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure), true, step.before.state);
+    if (status.failed()) return step.failed(*status.error(), ::stxlib_ic::kind_bit(stxlib::ErrorKind::io_failure) | ::stxlib_ic::kind_bit(stxlib::ErrorKind::permission_denied), true, step.before.state);
     return ::stxlib_ic::Outcome::completed;
 }
 

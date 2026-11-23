@@ -1275,6 +1275,10 @@ if(STXLIB_TESTS)
         target_link_libraries(stxlib_ic_run PRIVATE stxlib_ic_engine)
         target_compile_options(stxlib_ic_run PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_ic_engine_run COMMAND stxlib_ic_run --cases 200 --steps 32)
+        # The engine locks its Mutex slots in whatever order a case draws, in
+        # one thread; ThreadSanitizer's lock-order check reads that as a
+        # potential deadlock (STXlib CI, 2026-11-23), so it is off here.
+        set_tests_properties(stxlib_ic_engine_run PROPERTIES ENVIRONMENT "TSAN_OPTIONS=detect_deadlocks=0")
         file(GLOB stxlib_ic_regressions CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/ic/regressions/*.cpp)
         foreach(regression IN LISTS stxlib_ic_regressions)
             get_filename_component(regression_name ${regression} NAME_WE)

@@ -103,7 +103,10 @@ name = "sync"
 declarations = ["[[nodiscard]] OperationStatus sync(Durability level) noexcept;"]
 in = ["reading", "writing", "appending"]
 outside = "failure:disposed:closed_handle"
-fails = [{ failure = "io_failure", when = "the host cannot flush as level says" }]
+fails = [
+  { failure = "io_failure", when = "the host cannot flush as level says" },
+  { failure = "permission_denied", when = "on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)" },
+]
 engine = { invoke = "object.sync(static_cast<stxlib::Durability>(level))", draws = { level = "u8" }, ranges = { level = "[0, 2]" } }
 
 [[call]]

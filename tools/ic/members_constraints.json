@@ -240,7 +240,7 @@
     {
       "type": "stxlib::File",
       "member": "sync",
-      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host cannot flush as level says), unchanged.",
+      "constraints": "Admitted in reading, writing, appending. In closed: failure disposed (closed_handle), unchanged. Fails io_failure (the host cannot flush as level says), unchanged; permission_denied (on Windows, a file open for reading with level ordered or durable (FlushFileBuffers needs write access)), unchanged.",
       "declaration": "include/stxlib/files.ic.toml"
     },
     {

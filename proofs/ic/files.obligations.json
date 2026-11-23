@@ -4,7 +4,7 @@
   "generated_by": "tools/ic_declarations.py",
   "declaration": {
     "path": "include/stxlib/files.ic.toml",
-    "sha256": "046d7622fcb41146e596488e98de5192fb95e4d8b730dcef9c82988ed25ed716"
+    "sha256": "bb8eb1f4730b9a78fd7e93d66106de0a8c1f98006a0971aedc5fd7d86a1c94d3"
   },
   "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
   "obligations": [
@@ -32,7 +32,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -98,7 +98,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -126,7 +126,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -154,7 +154,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -182,7 +182,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -210,7 +210,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -238,7 +238,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -271,7 +271,7 @@
       },
       "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -299,7 +299,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -361,7 +361,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -475,7 +475,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -503,7 +503,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -531,7 +531,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -559,7 +559,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -587,7 +587,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -615,7 +615,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -677,7 +677,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -705,7 +705,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
@@ -733,7 +733,7 @@
       },
       "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
       "proved_against": {
-        "include/stxlib/files.hpp": "c99053a2eb9cf23d1b856f0a435efadaacfb99061f3faa4401827e71f453c689",
+        "include/stxlib/files.hpp": "8d20f6ecc937eea6efe39c169c21c98ce1bbd6bddc7391ac71540a5a24857acd",
         "src/core/files.cpp": "9e24f8733732b46bf666de76fb46ca2118b81c17d00556eac54a09d81e45d894"
       }
     },
