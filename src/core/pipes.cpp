@@ -24,7 +24,7 @@ PipeReader::~PipeReader() { close(); }
 
 PipeReader PipeReader::adopt(const i64 handle) noexcept {
     STXLIB_REQUIRE(handle != closed, "PipeReader::adopt: no handle");
-    const PipeReader result(handle);
+    PipeReader result(handle);
     return result;
 }
 
@@ -40,7 +40,7 @@ PipeWriter::~PipeWriter() { close(); }
 
 PipeWriter PipeWriter::adopt(const i64 handle) noexcept {
     STXLIB_REQUIRE(handle != closed, "PipeWriter::adopt: no handle");
-    const PipeWriter result(handle);
+    PipeWriter result(handle);
     return result;
 }
 
