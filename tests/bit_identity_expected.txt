@@ -42,7 +42,7 @@ math.cosm1pi.double 0b50fdb3498d5d83 5144
 math.sincos.double@region 58f8c080766956e2 10288
 math.sincos.double 58f8c080766956e2 10288
 math.sincospi.double 06a82241f2a56ed2 10288
-math.sincosd.double unfrozen
+math.sincosd.double f5554bedbce75f69 10288
 math.pow.double 6accc259646c4e79 5720
 math.pow.double@region 6accc259646c4e79 5720
 math.hypot.double f6c72677348cef19 5720
@@ -77,7 +77,7 @@ math.cosm1.float c30cb58e4e2fd21b 5140
 math.cosm1pi.float b408e913203784b9 5140
 math.sincos.float e0fca2706500ac67 10280
 math.sincospi.float 0fd5ac2d70027429 10280
-math.sincosd.float unfrozen
+math.sincosd.float f7249851172faa2a 10280
 math.pow.float 87882ea18b450c4f 5540
 math.pow.float@region 87882ea18b450c4f 5540
 math.hypot.float f830f5eb42b177ce 5540
