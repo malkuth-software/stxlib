@@ -258,7 +258,7 @@
     {
       "type": "stxlib::File",
       "member": "write_file",
-      "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
+      "constraints": "Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the temporary file removed), unchanged; permission_denied (the host refuses the replace: on Windows, while the old file is open (MoveFileExW refuses an open target); the old file is unchanged and the temporary file removed), unchanged. Thread: any.",
       "declaration": "include/stxlib/files.ic.toml"
     },
     {

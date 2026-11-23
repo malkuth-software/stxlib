@@ -282,7 +282,9 @@ private:
 // own.
 // ic: Fails invalid_argument (invalid_name: a path without a final name), unchanged; limit_exceeded (no_space; the old
 // ic: file is unchanged and the temporary file removed), unchanged; io_failure (the old file is unchanged and the
-// ic: temporary file removed), unchanged. Thread: any.
+// ic: temporary file removed), unchanged; permission_denied (the host refuses the replace: on Windows, while the old
+// ic: file is open (MoveFileExW refuses an open target); the old file is unchanged and the temporary file removed),
+// ic: unchanged. Thread: any.
 [[nodiscard]] OperationStatus write_file(const Path& path, View<Byte> content, Durability level) noexcept;
 
 enum class LinkMode : u8 {

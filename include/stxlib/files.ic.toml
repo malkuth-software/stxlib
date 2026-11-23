@@ -189,6 +189,7 @@ fails = [
   { failure = "invalid_argument", when = "invalid_name: a path without a final name" },
   { failure = "limit_exceeded", when = "no_space; the old file is unchanged and the temporary file removed" },
   { failure = "io_failure", when = "the old file is unchanged and the temporary file removed" },
+  { failure = "permission_denied", when = "the host refuses the replace: on Windows, while the old file is open (MoveFileExW refuses an open target); the old file is unchanged and the temporary file removed" },
 ]
 engine = { invoke = "::stxlib::write_file(::stxlib_ic::inputs::scratch_file(slot), ::stxlib_ic::inputs::scratch_view(length), static_cast<stxlib::Durability>(level))", draws = { length = "u16", level = "u8" }, ranges = { length = "[0, 2048]", level = "[0, 2]" } }
 
