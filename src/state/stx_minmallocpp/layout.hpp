@@ -113,6 +113,21 @@ inline constexpr usize alignment_limit = region_bytes;
 // slices, fits a new 32-bit region's data; region.hpp checks it).
 inline constexpr usize huge_threshold = static_cast<usize>(wide_addresses ? 32 : 16) * 1024 * 1024;
 
+// On wasm32, where every reserved byte is linear memory and a mapping of
+// its own takes a whole region boundary (64 MiB apart), a block up to this
+// size whose alignment is at most a slice is also a page of one block in a
+// shared region: 896 slices, the largest run a new 32-bit region's data
+// (992 slices) is sure to hold (region.hpp checks it). Where addresses are
+// wide it is huge_threshold, and nothing changes.
+inline constexpr usize singleton_limit = wide_addresses ? huge_threshold : static_cast<usize>(56) * 1024 * 1024;
+
+// Whether a request is a page of one block rather than a mapping of its own.
+[[nodiscard]] constexpr bool singleton_admits(const usize bytes, const usize alignment) noexcept {
+    if constexpr (wide_addresses) return bytes <= huge_threshold && alignment <= huge_threshold;
+    if (bytes <= huge_threshold && alignment <= huge_threshold) return true;
+    return bytes <= singleton_limit && alignment <= slice_bytes;
+}
+
 // The largest request considered; anything above is refused before any
 // arithmetic, so no rounding below can wrap.
 inline constexpr usize largest_request = usize_max >> 1;

@@ -176,6 +176,12 @@ static_assert(fitting_floor(2 * (huge_threshold >> slice_shift) - 1) <=
                   run_list_floor(run_list_of(region_slices - first_data_slice)),
               "a page of one block, at any size and alignment it admits, fits a new region");
 
+// The larger pages of one block wasm32 admits (layout.hpp, singleton_limit),
+// aligned to at most a slice, so a run of their slices alone.
+static_assert(fitting_floor(singleton_limit >> slice_shift) <=
+                  run_list_floor(run_list_of(region_slices - first_data_slice)),
+              "a page of one block up to singleton_limit fits a new region");
+
 // A run of slices: `base` is its region, 0 when there is none.
 struct RunPlace final {
     uptr base{0};

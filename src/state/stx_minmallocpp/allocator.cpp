@@ -51,7 +51,7 @@ namespace {
             return block;
         }
     }
-    if (request <= huge_threshold && alignment <= huge_threshold) {
+    if (singleton_admits(request, alignment)) {
         void* const alone = allocate_singleton(request, alignment);
         return alone;
     }

@@ -55,7 +55,7 @@ block's memory.
 | A1 | alignment not a power of two, or above a region (1 GiB; 64 MiB with 32-bit addresses), or size above half the address space | none | null |
 | A2 | rounded size up to 512 KiB, alignment up to 64 KiB, the class's current word non-zero | that word without its lowest bit; the page's `live` + 1 | a block |
 | A3 | as A2, current word zero | sub-graph `refill` (3.3) | a block, or null |
-| A4 | size and alignment up to 32 MiB, not A2/A3 | sub-graph `allocate_singleton`: a run from the index, one page made | a block, or null |
+| A4 | size and alignment up to 32 MiB (16 MiB with 32-bit addresses, where also a size up to 56 MiB aligned to at most 64 KiB), not A2/A3 | sub-graph `allocate_singleton`: a run from the index, one page made | a block, or null |
 | A5 | otherwise | sub-graph `allocate_huge`: one record, one mapping, its directory cells | a block, or null |
 
 A null result leaves every table as it was, except that a region, a commit
@@ -152,7 +152,7 @@ Loops bounded by the request:
 
 | Loop | Bound |
 |---|---|
-| slices of a page (`make_page`, `free_page`) | the page's slices: 1, 8, 64, or the request / 64 KiB (at most 512; 256 with 32-bit addresses) |
+| slices of a page (`make_page`, `free_page`) | the page's slices: 1, 8, 64, or the request / 64 KiB (at most 512; 896 with 32-bit addresses, for a block up to `singleton_limit` aligned to at most a slice) |
 | units of a run (`commit_run`, `give_run`) | slices / 16 + 1 (at most 33) |
 | directory cells of a huge mapping | the request / the region size (1 GiB; 64 MiB with 32-bit addresses) + 1 (with 32-bit addresses the mapping reserves only its pages, and its last cell is partly its own) |
 
