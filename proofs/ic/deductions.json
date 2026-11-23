@@ -29,7 +29,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -40,8 +40,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:415 (through the selector mode_admitted (src/algorithms/fft/plan.cpp:392))",
-        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:663) calls make_state with float64 = false"
+        "guard at src/algorithms/fft/plan.cpp:755 (through the selector mode_admitted (src/algorithms/fft/plan.cpp:732))",
+        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:1029) calls make_state with float64 = false"
       ]
     },
     {
@@ -49,7 +49,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -59,7 +59,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:415"
+        "guard at src/algorithms/fft/plan.cpp:755"
       ]
     },
     {
@@ -67,7 +67,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -78,8 +78,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:420 (through the selector size_within_limit (src/algorithms/fft/plan.cpp:398))",
-        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:663) calls make_state with float64 = false"
+        "guard at src/algorithms/fft/plan.cpp:760 (through the selector size_within_limit (src/algorithms/fft/plan.cpp:738))",
+        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:1029) calls make_state with float64 = false"
       ]
     },
     {
@@ -87,7 +87,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -97,7 +97,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:420"
+        "guard at src/algorithms/fft/plan.cpp:760"
       ]
     },
     {
@@ -105,7 +105,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -116,8 +116,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:425 (through the selector size_shaped (src/algorithms/fft/plan.cpp:404))",
-        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:663) calls make_state with float64 = false"
+        "guard at src/algorithms/fft/plan.cpp:765 (through the selector size_shaped (src/algorithms/fft/plan.cpp:744))",
+        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:1029) calls make_state with float64 = false"
       ]
     },
     {
@@ -125,7 +125,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -135,7 +135,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:425"
+        "guard at src/algorithms/fft/plan.cpp:765"
       ]
     },
     {
@@ -143,7 +143,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -154,8 +154,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:430 (the guard holds the predicate under !float64)",
-        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:663) calls make_state with float64 = false"
+        "guard at src/algorithms/fft/plan.cpp:770 (the guard holds the predicate under !float64)",
+        "PlanAccess::make32 (src/algorithms/fft/plan.cpp:1029) calls make_state with float64 = false"
       ]
     },
     {
@@ -163,7 +163,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -173,7 +173,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:430"
+        "guard at src/algorithms/fft/plan.cpp:770"
       ]
     },
     {
@@ -181,7 +181,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -193,9 +193,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:521))",
-        "Plan32::rfft (src/algorithms/fft/plan.cpp:779) calls transform_refusal with float64 = false, forward = true",
-        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:494)",
+        "guard at src/algorithms/fft/plan.cpp:890 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:866))",
+        "Plan32::rfft (src/algorithms/fft/plan.cpp:1177) calls transform_refusal with float64 = false, forward = true",
+        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:839)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -204,7 +204,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -214,11 +214,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:890",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -226,7 +226,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -238,9 +238,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:525))",
-        "Plan32::rfft (src/algorithms/fft/plan.cpp:779) calls transform_refusal with float64 = false, forward = true",
-        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:497)",
+        "guard at src/algorithms/fft/plan.cpp:891 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:870))",
+        "Plan32::rfft (src/algorithms/fft/plan.cpp:1177) calls transform_refusal with float64 = false, forward = true",
+        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:842)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -249,7 +249,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -259,11 +259,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:891",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -271,7 +271,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -283,9 +283,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:529))",
-        "Plan32::irfft (src/algorithms/fft/plan.cpp:793) calls transform_refusal with float64 = false, forward = false",
-        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:494)",
+        "guard at src/algorithms/fft/plan.cpp:890 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:874))",
+        "Plan32::irfft (src/algorithms/fft/plan.cpp:1197) calls transform_refusal with float64 = false, forward = false",
+        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:839)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -294,7 +294,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -304,11 +304,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:890",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -316,7 +316,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -328,9 +328,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:532))",
-        "Plan32::irfft (src/algorithms/fft/plan.cpp:793) calls transform_refusal with float64 = false, forward = false",
-        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:497)",
+        "guard at src/algorithms/fft/plan.cpp:891 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:877))",
+        "Plan32::irfft (src/algorithms/fft/plan.cpp:1197) calls transform_refusal with float64 = false, forward = false",
+        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:842)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -339,7 +339,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -349,11 +349,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:891",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -361,7 +361,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -373,7 +373,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Plan32::rfft read at src/algorithms/fft/plan.cpp:778 in the state empty (state_ == nullptr)",
+        "Plan32::rfft read at src/algorithms/fft/plan.cpp:1176 in the state empty (state_ == nullptr)",
         "path 1: names ErrorKind::invalid_argument"
       ]
     },
@@ -382,7 +382,7 @@
       "declaration": "include/stxlib/fft_plan32.ic.toml",
       "declaration_sha256": "10dd7b768370279bf410327c241299e01d5e77881b6d3960d6c62d1923b195c3",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -394,7 +394,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Plan32::irfft read at src/algorithms/fft/plan.cpp:792 in the state empty (state_ == nullptr)",
+        "Plan32::irfft read at src/algorithms/fft/plan.cpp:1196 in the state empty (state_ == nullptr)",
         "path 1: names ErrorKind::invalid_argument"
       ]
     },
@@ -403,7 +403,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -414,8 +414,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:415 (through the selector mode_admitted (src/algorithms/fft/plan.cpp:392))",
-        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:654) calls make_state with float64 = true"
+        "guard at src/algorithms/fft/plan.cpp:755 (through the selector mode_admitted (src/algorithms/fft/plan.cpp:732))",
+        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:1019) calls make_state with float64 = true"
       ]
     },
     {
@@ -423,7 +423,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -433,7 +433,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:415"
+        "guard at src/algorithms/fft/plan.cpp:755"
       ]
     },
     {
@@ -441,7 +441,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -452,8 +452,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:420 (through the selector size_within_limit (src/algorithms/fft/plan.cpp:398))",
-        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:654) calls make_state with float64 = true"
+        "guard at src/algorithms/fft/plan.cpp:760 (through the selector size_within_limit (src/algorithms/fft/plan.cpp:738))",
+        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:1019) calls make_state with float64 = true"
       ]
     },
     {
@@ -461,7 +461,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -471,7 +471,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:420"
+        "guard at src/algorithms/fft/plan.cpp:760"
       ]
     },
     {
@@ -479,7 +479,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -490,8 +490,8 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:425 (through the selector size_shaped (src/algorithms/fft/plan.cpp:404))",
-        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:654) calls make_state with float64 = true"
+        "guard at src/algorithms/fft/plan.cpp:765 (through the selector size_shaped (src/algorithms/fft/plan.cpp:744))",
+        "PlanAccess::make64 (src/algorithms/fft/plan.cpp:1019) calls make_state with float64 = true"
       ]
     },
     {
@@ -499,7 +499,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -509,7 +509,7 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:425"
+        "guard at src/algorithms/fft/plan.cpp:765"
       ]
     },
     {
@@ -517,7 +517,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -529,9 +529,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:521))",
-        "Plan64::rfft (src/algorithms/fft/plan.cpp:718) calls transform_refusal with float64 = true, forward = true",
-        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:494)",
+        "guard at src/algorithms/fft/plan.cpp:890 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:866))",
+        "Plan64::rfft (src/algorithms/fft/plan.cpp:1104) calls transform_refusal with float64 = true, forward = true",
+        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:839)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -540,7 +540,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -550,11 +550,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:890",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -562,7 +562,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -574,9 +574,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:525))",
-        "Plan64::rfft (src/algorithms/fft/plan.cpp:718) calls transform_refusal with float64 = true, forward = true",
-        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:497)",
+        "guard at src/algorithms/fft/plan.cpp:891 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:870))",
+        "Plan64::rfft (src/algorithms/fft/plan.cpp:1104) calls transform_refusal with float64 = true, forward = true",
+        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:842)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -585,7 +585,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -595,11 +595,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:891",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -607,7 +607,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -619,9 +619,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:529))",
-        "Plan64::irfft (src/algorithms/fft/plan.cpp:732) calls transform_refusal with float64 = true, forward = false",
-        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:494)",
+        "guard at src/algorithms/fft/plan.cpp:890 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:874))",
+        "Plan64::irfft (src/algorithms/fft/plan.cpp:1124) calls transform_refusal with float64 = true, forward = false",
+        "Refusal::input_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:839)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -630,7 +630,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -640,11 +640,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:545",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:890",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -652,7 +652,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -664,9 +664,9 @@
         "the switches read at the callers decide which declaration's predicate a shared guard evaluates (callers named by their class and call)"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:532))",
-        "Plan64::irfft (src/algorithms/fft/plan.cpp:732) calls transform_refusal with float64 = true, forward = false",
-        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:497)",
+        "guard at src/algorithms/fft/plan.cpp:891 (through the selector counts_admitted (src/algorithms/fft/plan.cpp:877))",
+        "Plan64::irfft (src/algorithms/fft/plan.cpp:1124) calls transform_refusal with float64 = true, forward = false",
+        "Refusal::output_count maps to failure invalid_argument in refused (src/algorithms/fft/plan.cpp:842)",
         "transform_refusal returns it; each of its 4 callers returns refused of it when it is not the none status"
       ]
     },
@@ -675,7 +675,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -685,11 +685,11 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/algorithms/fft/plan.cpp:546",
-        "guard at src/algorithms/fft/plan.cpp:718",
-        "guard at src/algorithms/fft/plan.cpp:732",
-        "guard at src/algorithms/fft/plan.cpp:779",
-        "guard at src/algorithms/fft/plan.cpp:793"
+        "guard at src/algorithms/fft/plan.cpp:891",
+        "guard at src/algorithms/fft/plan.cpp:1104",
+        "guard at src/algorithms/fft/plan.cpp:1124",
+        "guard at src/algorithms/fft/plan.cpp:1177",
+        "guard at src/algorithms/fft/plan.cpp:1197"
       ]
     },
     {
@@ -697,7 +697,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -709,7 +709,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Plan64::rfft read at src/algorithms/fft/plan.cpp:717 in the state empty (state_ == nullptr)",
+        "Plan64::rfft read at src/algorithms/fft/plan.cpp:1103 in the state empty (state_ == nullptr)",
         "path 1: names ErrorKind::invalid_argument"
       ]
     },
@@ -718,7 +718,7 @@
       "declaration": "include/stxlib/fft_plan64.ic.toml",
       "declaration_sha256": "3d3e9790c18dcc28e9f5e4963d8d52b69b8467d7981920dfcc16f7f61bb55cf9",
       "sources": {
-        "src/algorithms/fft/plan.cpp": "7baa34fc2325d1b59e7a45737b50aefdbf44dab3c73bee4b1179d74ff122aa13"
+        "src/algorithms/fft/plan.cpp": "e8cf0ac72990d3f4e3bdbf393e1313cc0dbca1cf7848df495565df2193c0a430"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -730,7 +730,7 @@
         "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
       ],
       "steps": [
-        "Plan64::irfft read at src/algorithms/fft/plan.cpp:731 in the state empty (state_ == nullptr)",
+        "Plan64::irfft read at src/algorithms/fft/plan.cpp:1123 in the state empty (state_ == nullptr)",
         "path 1: names ErrorKind::invalid_argument"
       ]
     },
