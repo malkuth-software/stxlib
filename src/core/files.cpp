@@ -176,6 +176,12 @@ ErrorRecord bad_handle_record(const Operation operation) noexcept {
     return result;
 }
 
+OperationStatus refused_state(const Operation operation) noexcept {
+    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation,
+                                                        HostCode::invalid_state);
+    return result;
+}
+
 OperationStatus bad_handle(const Operation operation) noexcept {
     const OperationStatus result = OperationStatus::failure(bad_handle_record(operation));
     return result;
@@ -368,16 +374,6 @@ OperationStatus File::close() noexcept {
 }
 
 // ---- positioned I/O and the open file's metadata (M2 C2) ------------------------
-
-namespace {
-
-OperationStatus refused_state(const Operation operation) noexcept {
-    const OperationStatus result = host_failure::failed(ErrorKind::invalid_argument, operation,
-                                                        HostCode::invalid_state);
-    return result;
-}
-
-} // namespace
 
 OperationResult<usize> File::read_at(const u64 offset, const MutableView<Byte> output) noexcept {
     const Operation operation = "stxlib.files.read_at";

@@ -304,6 +304,10 @@ OperationResult<JsonParser::PendingKey> JsonParser::read_string() noexcept {
                 break;
             }
         }
+        if (unit_count == 0) {
+            // Fewer than six bytes remain for the \uXXXX escape.
+            return OperationResult<PendingKey>::failure(parse_failure(position_, "a bad \\u escape in JSON"));
+        }
         u32 code_point = units[0];
         if (code_point >= 0xDC00 && code_point <= 0xDFFF) {
             return OperationResult<PendingKey>::failure(parse_failure(position_, "an unpaired surrogate in JSON"));

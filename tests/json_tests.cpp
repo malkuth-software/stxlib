@@ -200,7 +200,7 @@ void writer_basics() {
     CHECK(writer.status().succeeded());
     CHECK(text_of(out.view()) ==
           R"({"text":"line\nbreak \"quoted\" \u0001 \u007f","negative":-42,"big":18446744073709551615,"half":0.5,)"
-          R"("yes":true,"nothing":null,"list":[1," "]})");
+          R"("yes":true,"nothing":null,"list":[1,"\u2028"]})");
     // What it wrote reads back.
     const JsonDocument back = parse_or_empty(text_of(out.view()));
     CHECK(text_of(back.member_text(back.root(), "text").value_or(TextView())) ==
