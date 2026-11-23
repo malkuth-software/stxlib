@@ -160,7 +160,11 @@ OperationResult<PipePair> create_pipe() noexcept {
     }
     HANDLE read_end = nullptr;
     HANDLE write_end = nullptr;
-    if (CreatePipe(&read_end, &write_end, nullptr, 0) == 0) {
+    // An explicit 64 KiB buffer, as Linux gives by default: with 0 Windows
+    // gives 4 KiB, and a writer that sends more than that before the reader
+    // starts blocks (Shadow's probe, 2026-11-23: 4,000 of 16,000 bytes taken).
+    constexpr DWORD pipe_buffer_bytes = 65536;
+    if (CreatePipe(&read_end, &write_end, nullptr, pipe_buffer_bytes) == 0) {
         const DWORD error = GetLastError();
         return OperationResult<PipePair>::failure(
             host_failure::record(kind_of_open_failure(error), operation, HostCode::none, error_code(error)));
