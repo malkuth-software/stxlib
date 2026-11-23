@@ -73,6 +73,8 @@ struct StoredGlyph final {
     i32 advance{0};
 };
 
+// ic: stxlib::glyphs::GlyphStore: generated from include/stxlib/glyph_store.ic.toml by tools/ic_declarations.py; edit
+// ic: the declaration, not these lines. States: closed (initial), open. Thread: owner, unless a call says otherwise.
 class GlyphStore final {
 public:
     GlyphStore() noexcept = default;
@@ -83,6 +85,8 @@ public:
 
     // Makes the store ready for `font`, holding nothing yet. `limits` are
     // those every glyph is read under.
+    // ic: Admitted in any state; then open. Fails out_of_memory (the glyph index), partly changed; invalid_argument (a
+    // ic: font the store cannot serve), partly changed.
     [[nodiscard]] OperationStatus open(const Font& font, const FontLimits& limits,
                                        const StoreLimits& store_limits = StoreLimits{}) noexcept;
 
@@ -90,9 +94,15 @@ public:
     // for as long as there is room there; a character the font has no
     // glyph for, or whose glyph is refused, is passed over. `kept` is how
     // many glyphs are in the kept part afterwards.
+    // ic: Admitted in open. In closed: failure invalid_argument, unchanged. Fails out_of_memory (storage for a kept
+    // ic: glyph), partly changed.
     [[nodiscard]] OperationStatus keep(const Font& font, View<u32> characters, usize& kept) noexcept;
 
     // The glyph, read from `font` (the font opened) if it is not held.
+    // ic: Admitted in open. In closed: failure invalid_argument, unchanged. Requires glyph < glyph_count, else failure
+    // ic: invalid_argument, unchanged. Fails out_of_memory (storage for the glyph), partly changed; invalid_argument
+    // ic: (the font refuses the glyph's outline), partly changed; limit_exceeded (the outline is beyond the store's
+    // ic: limits), partly changed.
     [[nodiscard]] OperationStatus glyph(const Font& font, u32 glyph, StoredGlyph& stored) noexcept;
 
     // How many times a glyph has been read from the font so far.
@@ -109,6 +119,7 @@ public:
     [[nodiscard]] bool whole() const noexcept;
 
     // Frees what is held.
+    // ic: Admitted in any state; then closed.
     void release() noexcept;
 
 private:

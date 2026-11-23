@@ -46,7 +46,7 @@ public:
     // A buffer of `count` zeroed elements. Fails with limit_exceeded when
     // count * sizeof(Element) is not representable, out_of_memory when the
     // allocator refuses. Zero yields the empty buffer.
-    // ic: Fails limit_exceeded (count elements' bytes are not representable), unchanged; out_of_memory (the allocator
+    // ic: Fails limit_exceeded (the elements' bytes are not representable), unchanged; out_of_memory (the allocator
     // ic: refuses), unchanged. Returns Buffer, owned by the caller.
     [[nodiscard]] static OperationResult<Buffer> allocate_zeroed(const usize count) noexcept {
         if (count == 0) return OperationResult<Buffer>::success(Buffer());

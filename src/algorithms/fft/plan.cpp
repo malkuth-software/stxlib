@@ -18,6 +18,9 @@
 
 #include "plan_state.hpp"
 
+#include "algorithms/fft/plan32_ic_checks.hpp"
+#include "algorithms/fft/plan64_ic_checks.hpp"
+
 #include "core/subnormal.hpp"
 #include "stxlib/error.hpp"
 #include "stxlib/fft.hpp"
@@ -382,35 +385,49 @@ void dip_tperm(i32* const table, i32& pos, const i32 m, const i32 s, const i32 j
     return true;
 }
 
-[[nodiscard]] usize minimum_size(const Mode mode) noexcept {
-    if (mode == Mode::shifted) return 2;
-    return 4;
+// make's clauses, as include/stxlib/fft_plan64.ic.toml and fft_plan32.ic.toml
+// state them (the generated checks; the float32 plan's own differ only in
+// refusing dip).
+[[nodiscard]] bool mode_admitted(const u8 mode, const bool float64) noexcept {
+    const bool result = float64 ? ::stxlib::detail::ic::fft_plan64::admits_make_mode(mode)
+                                : ::stxlib::detail::ic::fft_plan32::admits_make_mode(mode);
+    return result;
 }
 
-[[nodiscard]] bool known_mode(const Mode mode) noexcept {
-    return mode == Mode::plain || mode == Mode::shifted || mode == Mode::dip;
+[[nodiscard]] bool size_within_limit(const usize size, const bool float64) noexcept {
+    const bool result = float64 ? ::stxlib::detail::ic::fft_plan64::admits_make_size_limit(size)
+                                : ::stxlib::detail::ic::fft_plan32::admits_make_size_limit(size);
+    return result;
+}
+
+[[nodiscard]] bool size_shaped(const usize size, const u8 mode, const bool float64) noexcept {
+    const bool result = float64 ? ::stxlib::detail::ic::fft_plan64::admits_make_size_shape(size, mode)
+                                : ::stxlib::detail::ic::fft_plan32::admits_make_size_shape(size, mode);
+    return result;
 }
 
 // A new plan state at `level`, its tables built; null with `failure` set
 // when the arguments are refused or an allocation fails.
 [[nodiscard]] PlanState* make_state(const usize size, const Mode mode, const Precision precision,
                                     const simd::Level level, ErrorRecord& failure) noexcept {
-    if (!known_mode(mode)) {
+    const u8 mode_value = static_cast<u8>(mode);
+    const bool float64 = precision == Precision::float64;
+    if (!mode_admitted(mode_value, float64)) {
         failure = ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.fft.make",
                                     ErrorDetail{.message = "the mode is not plain, shifted or dip"});
         return nullptr;
     }
-    if (size > max_size) {
+    if (!size_within_limit(size, float64)) {
         failure = ErrorRecord::make(ErrorKind::limit_exceeded, "stxlib.fft.make",
                                     ErrorDetail{.message = "the size is above fft::max_size (2^30)"});
         return nullptr;
     }
-    if (!std::has_single_bit(size) || size < minimum_size(mode)) {
+    if (!size_shaped(size, mode_value, float64)) {
         failure = ErrorRecord::make(ErrorKind::invalid_argument, "stxlib.fft.make",
                                     ErrorDetail{.message = "the size is not a power of two at least the mode's minimum"});
         return nullptr;
     }
-    if (precision == Precision::float32 && mode == Mode::dip) {
+    if (!float64 && !::stxlib::detail::ic::fft_plan32::admits_make_float32_mode(mode_value)) {
         failure = ErrorRecord::make(ErrorKind::unsupported, "stxlib.fft.make",
                                     ErrorDetail{.message = "the dip mode is float64 only"});
         return nullptr;
@@ -492,19 +509,43 @@ enum class Refusal : u8 {
     return record;
 }
 
+// The transforms' count clauses, as the declarations state them (the
+// generated checks of Plan64's and Plan32's rfft and irfft; `input` picks the
+// input's clause, else the output's).
+[[nodiscard]] bool counts_admitted(const usize input_count, const usize output_count, const usize samples,
+                                   const usize bins, const bool forward, const bool float64,
+                                   const bool input) noexcept {
+    namespace plan64 = ::stxlib::detail::ic::fft_plan64;
+    namespace plan32 = ::stxlib::detail::ic::fft_plan32;
+    if (forward && input) {
+        if (float64) return plan64::admits_rfft_input(input_count, samples);
+        return plan32::admits_rfft_input(input_count, samples);
+    }
+    if (forward) {
+        if (float64) return plan64::admits_rfft_output(output_count, bins);
+        return plan32::admits_rfft_output(output_count, bins);
+    }
+    if (input) {
+        if (float64) return plan64::admits_irfft_input(input_count, bins);
+        return plan32::admits_irfft_input(input_count, bins);
+    }
+    if (float64) return plan64::admits_irfft_output(output_count, samples);
+    return plan32::admits_irfft_output(output_count, samples);
+}
+
 // The checks every transform makes before it writes: a plan, the counts,
 // no overlap.
 [[nodiscard]] Refusal transform_refusal(const PlanState* const state, const usize input_count,
                                         const usize input_element, const void* const input,
                                         const usize output_count, const usize output_element,
-                                        const void* const output, const bool forward) noexcept {
+                                        const void* const output, const bool forward, const bool float64) noexcept {
     if (state == nullptr) return Refusal::empty_plan;
     const usize samples = (*state).size;
     const usize bins = bins_of(state);
-    const usize expected_input = forward ? samples : bins;
-    const usize expected_output = forward ? bins : samples;
-    if (input_count != expected_input) return Refusal::input_count;
-    if (output_count != expected_output) return Refusal::output_count;
+    if (!counts_admitted(input_count, output_count, samples, bins, forward, float64, true)) return Refusal::input_count;
+    if (!counts_admitted(input_count, output_count, samples, bins, forward, float64, false)) {
+        return Refusal::output_count;
+    }
     if (overlap(input, input_count * input_element, output, output_count * output_element)) {
         return Refusal::overlap;
     }
@@ -675,7 +716,7 @@ Mode Plan64::mode() const noexcept { return state_ == nullptr ? Mode::plain : (*
 
 OperationStatus Plan64::rfft(const View<double> input, const MutableView<Complex64> output) noexcept {
     const detail::Refusal refusal = detail::transform_refusal(state_, input.count(), sizeof(double), input.data(),
-                                                          output.count(), sizeof(Complex64), output.data(), true);
+                                                          output.count(), sizeof(Complex64), output.data(), true, true);
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
@@ -689,7 +730,7 @@ OperationStatus Plan64::rfft(const View<double> input, const MutableView<Complex
 
 OperationStatus Plan64::irfft(const View<Complex64> input, const MutableView<double> output) noexcept {
     const detail::Refusal refusal = detail::transform_refusal(state_, input.count(), sizeof(Complex64), input.data(),
-                                                          output.count(), sizeof(double), output.data(), false);
+                                                          output.count(), sizeof(double), output.data(), false, true);
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
@@ -736,7 +777,8 @@ Mode Plan32::mode() const noexcept { return state_ == nullptr ? Mode::plain : (*
 
 OperationStatus Plan32::rfft(const View<float> input, const MutableView<Complex32> output) noexcept {
     const detail::Refusal refusal = detail::transform_refusal(state_, input.count(), sizeof(float), input.data(),
-                                                          output.count(), sizeof(Complex32), output.data(), true);
+                                                          output.count(), sizeof(Complex32), output.data(), true,
+                                                          false);
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;
@@ -749,7 +791,7 @@ OperationStatus Plan32::rfft(const View<float> input, const MutableView<Complex3
 
 OperationStatus Plan32::irfft(const View<Complex32> input, const MutableView<float> output) noexcept {
     const detail::Refusal refusal = detail::transform_refusal(state_, input.count(), sizeof(Complex32), input.data(),
-                                                          output.count(), sizeof(float), output.data(), false);
+                                                          output.count(), sizeof(float), output.data(), false, false);
     if (refusal != detail::Refusal::none) return OperationStatus::failure(detail::refused(refusal));
     const detail::PlanState& plan = *state_;
     const detail::Kernels& kernels = *plan.kernels;

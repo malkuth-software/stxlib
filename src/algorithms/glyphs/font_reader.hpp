@@ -9,6 +9,11 @@
 
 namespace stxlib::glyphs::detail {
 
+// The largest size a glyph is fitted, drawn or shaped at, in 26.6 pixels to
+// the em (glyph_face.hpp states it, 2^24): one bound for the face and the
+// shaper, which stated it twice before (IC cleanup, 2026-11-22).
+inline constexpr i64 largest_glyph_size = static_cast<i64>(1) << 24;
+
 // A stretch of the font's bytes.
 struct Span final {
     const u8* data{nullptr};

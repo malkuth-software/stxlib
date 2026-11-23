@@ -1,0 +1,189 @@
+{
+  "schema": 1,
+  "component": "stxlib::Mutex",
+  "generated_by": "tools/ic_declarations.py",
+  "declaration": {
+    "path": "include/stxlib/mutex.ic.toml",
+    "sha256": "3d6a96480f55a5b8a56788d070e3ab16589fe8e552d3f964eb44707ad197a0a8"
+  },
+  "record": "level, tool, premises and status as in STXlib's verification programme, section 6; a discharged obligation records the source hash it was proved against",
+  "obligations": [
+    {
+      "id": "stxlib.mutex.lock.moves",
+      "kind": "transition",
+      "statement": "lock succeeding in free leaves the object in held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.lock.free"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the legal blocks drive lock and follow held in the engine's model; no query observes the state",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.mutex.lock.outside.held",
+      "kind": "typestate-refusal",
+      "statement": "lock in held: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.lock.outside.held"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the misuse block drives lock in held and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.mutex.try_lock.moves",
+      "kind": "transition",
+      "statement": "try_lock succeeding in free leaves the object in held.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is result (the declaration's represents.succeeds)"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.try_lock.free"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the legal blocks drive try_lock and follow held in the engine's model; no query observes the state",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.mutex.try_lock.outside.held",
+      "kind": "typestate-refusal",
+      "statement": "try_lock in held: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.try_lock.outside.held"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the misuse block drives try_lock in held and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.mutex.unlock.moves",
+      "kind": "transition",
+      "statement": "unlock succeeding in held leaves the object in free.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state held is owner_ == current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says",
+        "success is every return not seen to be a failure"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.unlock.held"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the legal blocks drive unlock and follow free in the engine's model; no query observes the state",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every succeeding path through the call read in each admitting state, the moved-to state decided after its writes (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    },
+    {
+      "id": "stxlib.mutex.unlock.outside.free",
+      "kind": "typestate-refusal",
+      "statement": "unlock in free: requirement, changing nothing observable.",
+      "level": "deduced",
+      "tool": "tools/ic_deduce.py",
+      "premises": [
+        "read with STXLIB_LOCK_CHECKS defined (the branches the sources take under it)",
+        "the state free is owner_ != current_thread().value() (the declaration's represents)",
+        "assumed: current_thread().value() != 0 (a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp))",
+        "a member is named with a trailing underscore (AGENTS.md), so a call whose receiver and arguments name none, nor this, nor something a state member is a field of, does not change the state",
+        "a function called inside a condition only reads",
+        "atomic loads and stores read as plain ones: one thread acts on the object at a time, as the declaration's thread rule says"
+      ],
+      "status": "discharged",
+      "covered_by": {
+        "mechanism": "engine blocks",
+        "blocks": [
+          "stxlib.mutex.unlock.outside.free"
+        ],
+        "file": "tests/ic/blocks/mutex.blocks.json",
+        "what": "the misuse block drives unlock in free and checks the refusal and that nothing changed",
+        "run_by": "tests/ic/generated/mutex.blocks.inc"
+      },
+      "method": "every path through the call read in the state, its conditions decided over their comparisons (tools/ic_typestate.py)",
+      "proved_against": {
+        "src/core/threads.cpp": "cdb82f3c18c90fefc71c2bbe8823e5fbce86cb1118352b4223fa035d52cb973f"
+      }
+    }
+  ]
+}

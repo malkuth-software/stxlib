@@ -1,0 +1,85 @@
+# Behavioural constraints of stxlib::Thread (threads.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# A joined Thread and an empty one answer alike (no identity, join
+# not_joinable), so they are one state here.
+
+schema = 1
+component = "Thread"
+namespace = "stxlib"
+header = "include/stxlib/threads.hpp"
+anchor = "class Thread final {"
+keys = { manifest = "stxlib::Thread" }
+thread = "owner"
+states = ["empty", "started"]
+initial = "empty"
+
+[constants]
+minimum_thread_stack_bytes = { cpp = "::stxlib::minimum_thread_stack_bytes", type = "usize" }
+maximum_thread_stack_bytes = { cpp = "::stxlib::maximum_thread_stack_bytes", type = "usize" }
+
+[checks]
+path = "src/core/threads_ic_checks.hpp"
+namespace = "stxlib::detail::ic::threads"
+includes = ["stxlib/threads.hpp", "stxlib/types.hpp"]
+used_in = ["src/core/threads.cpp"]
+
+# The states as conditions over the Thread's members (the IC4 deducer reads
+# join and abandon against them).
+[represents]
+states = { empty = "state_ == nullptr || (*state_).joined", started = "state_ != nullptr && !(*state_).joined" }
+succeeds = { join = "result == JoinResult::joined", abandon = "result != AbandonResult::not_joinable" }
+
+# The block engine's view of a Thread (IC2): an empty Thread per slot; the
+# entry counts its runs in the slot's context.
+[engine]
+object = "stxlib::Thread"
+includes = ["stxlib/threads.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+state_query = "object.identity().present()"
+state_answers = { empty = "false", started = "true" }
+codes = "stxlib::ThreadFailure"
+teardown = { started = "static_cast<void>(object.join());" }
+
+[[call]]
+name = "start"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<Thread> start(Entry entry, void* context,"]
+parameters = { entry = "::stxlib::Thread::Entry", stack_bytes = "usize" }
+requires = [
+  { holds = "not_null(entry)", refuses = "failure:invalid_argument:no_entry", check = "start_entry" },
+  { holds = "stack_bytes in [minimum_thread_stack_bytes, maximum_thread_stack_bytes]", refuses = "failure:invalid_argument:stack_size_out_of_range", check = "start_stack" },
+]
+fails = [
+  { failure = "out_of_memory", when = "the shared state" },
+  { failure = "limit_exceeded", when = "the host refuses another thread or its stack, or thread identities are exhausted" },
+]
+returns = { type = "Thread", state = "started", owns = "caller" }
+engine = { invoke = "Object::start(entry, ::stxlib_ic::inputs::thread_context(slot), stack_bytes)", pointers = { entry = { type = "::stxlib::Thread::Entry", value = "&::stxlib_ic::inputs::thread_entry" } }, ranges = { stack_bytes = "[262144, 1048576]" } }
+
+[[call]]
+name = "identity"
+declarations = ["[[nodiscard]] ThreadIdentity identity() const noexcept;"]
+
+[[call]]
+name = "request_stop"
+declarations = ["void request_stop() noexcept;"]
+
+[[call]]
+name = "join"
+declarations = ["[[nodiscard]] JoinResult join() noexcept;"]
+in = ["started"]
+outside = { empty = "value:JoinResult::not_joinable" }
+moves = "empty"
+engine = { result_type = "stxlib::JoinResult", expect = ["result == ::stxlib::JoinResult::joined", "::stxlib_ic::inputs::thread_ran(slot)"] }
+
+[[call]]
+name = "abandon"
+declarations = ["[[nodiscard]] AbandonResult abandon() noexcept;"]
+in = ["started"]
+outside = { empty = "value:AbandonResult::not_joinable" }
+moves = "empty"
+engine = { result_type = "stxlib::AbandonResult", expect = ["result != ::stxlib::AbandonResult::not_joinable"] }

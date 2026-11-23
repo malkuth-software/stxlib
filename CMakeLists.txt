@@ -1194,6 +1194,46 @@ if(STXLIB_TESTS)
     target_link_libraries(stxlib_glyph_shape_tests PRIVATE stxlib::algorithms)
     target_compile_options(stxlib_glyph_shape_tests PRIVATE ${stxlib_test_warnings})
     add_test(NAME stxlib_glyph_shape_tests COMMAND stxlib_glyph_shape_tests)
+    # The block engine (the IC study's phase IC2; tests/ic/engine): the
+    # blocks tools/ic_declarations.py generates from the declarations
+    # (tests/ic/generated), run by tests/ic/ic_run.cpp in legal and misuse
+    # modes against every component with an [engine] table. The ctest runs a
+    # bounded run per component; the gate's stated run is
+    #   stxlib_ic_run --cases 20000 --gate tests/ic/results/gate_run.json
+    # The allocator's component calls stx_minmallocpp directly, which links
+    # only where stxlib_state is static. Each minimised failure the runner
+    # writes to tests/ic/regressions is a test of its own.
+    if(NOT stxlib_web_tests)
+        add_library(stxlib_ic_engine STATIC tests/ic/engine/ic_engine.cpp)
+        target_include_directories(stxlib_ic_engine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/tests
+                                   ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}/include)
+        target_link_libraries(stxlib_ic_engine PUBLIC stxlib::algorithms)
+        target_compile_options(stxlib_ic_engine PRIVATE ${stxlib_test_warnings})
+        if(NOT STXLIB_STATE_SHARED)
+            target_compile_definitions(stxlib_ic_engine PUBLIC STXLIB_IC_ALLOCATOR)
+        endif()
+        add_executable(stxlib_ic_run tests/ic/ic_run.cpp)
+        target_link_libraries(stxlib_ic_run PRIVATE stxlib_ic_engine)
+        target_compile_options(stxlib_ic_run PRIVATE ${stxlib_test_warnings})
+        add_test(NAME stxlib_ic_engine_run COMMAND stxlib_ic_run --cases 200 --steps 32)
+        file(GLOB stxlib_ic_regressions CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tests/ic/regressions/*.cpp)
+        foreach(regression IN LISTS stxlib_ic_regressions)
+            get_filename_component(regression_name ${regression} NAME_WE)
+            add_executable(stxlib_ic_regression_${regression_name} ${regression})
+            target_link_libraries(stxlib_ic_regression_${regression_name} PRIVATE stxlib_ic_engine)
+            target_compile_options(stxlib_ic_regression_${regression_name} PRIVATE ${stxlib_test_warnings})
+            add_test(NAME stxlib_ic_regression_${regression_name} COMMAND stxlib_ic_regression_${regression_name})
+        endforeach()
+        # The engine under libFuzzer (fuzz/ic_fuzz.cpp): Clang only, off by
+        # default; libFuzzer drives coverage, the engine checks.
+        option(STXLIB_IC_FUZZ "Build the block engine's libFuzzer driver (Clang)" OFF)
+        if(STXLIB_IC_FUZZ)
+            add_executable(stxlib_ic_fuzz fuzz/ic_fuzz.cpp)
+            target_link_libraries(stxlib_ic_fuzz PRIVATE stxlib_ic_engine)
+            target_compile_options(stxlib_ic_fuzz PRIVATE ${stxlib_test_warnings} -fsanitize=fuzzer)
+            target_link_options(stxlib_ic_fuzz PRIVATE -fsanitize=fuzzer)
+        endif()
+    endif()
     # stxlib::glyphs with every check on (src/algorithms/glyphs/
     # glyph_checks.hpp): the glyph sources compiled again with
     # STXLIB_GLYPHS_CHECKS, so that each structure carried from call to call
@@ -1907,6 +1947,11 @@ if(STXLIB_TESTS)
         add_test(NAME stxlib_ic_declarations_tool
             COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tests/check_ic_declarations_tests.py
                     ${CMAKE_CURRENT_SOURCE_DIR})
+        # The deductions (IC4, tools/ic_deduce.py): current against the
+        # declarations and the sources they read.
+        add_test(NAME stxlib_ic_deductions
+            COMMAND ${Python3_EXECUTABLE} -I ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic_deduce.py check
+                    --config ${CMAKE_CURRENT_SOURCE_DIR}/tools/ic/project.toml --root ${CMAKE_CURRENT_SOURCE_DIR})
         # The cross-host bit identity: each run must print the frozen lines
         # (unfrozen items are reported, not failed, until the first freeze).
         # Under Emscripten the program runs under the emulator, named before it.

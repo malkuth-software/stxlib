@@ -1,0 +1,121 @@
+# Behavioural constraints of stxlib::AtomicPool (thread_pool.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Generated from it: the `// ic:` lines in
+# thread_pool.hpp, src/core/thread_pool_ic_checks.hpp, AtomicPool's rows of
+# tools/ic/members_constraints.json, tests/ic/blocks/thread_pool.blocks.json,
+# tests/ic/generated/thread_pool.blocks.inc and
+# proofs/ic/thread_pool.obligations.json. Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# Not declared here: called_from_worker and not_batch_owner need a second
+# thread calling into the pool (tests/thread_pool_tests.cpp covers them).
+
+schema = 1
+component = "AtomicPool"
+namespace = "stxlib"
+header = "include/stxlib/thread_pool.hpp"
+anchor = "class AtomicPool final {"
+keys = { manifest = "stxlib::AtomicPool" }
+thread = "owner"
+states = ["empty", "idle", "open"]
+initial = "empty"
+
+[terms]
+threads = "u32"
+
+[constants]
+maximum_pool_threads = { cpp = "::stxlib::maximum_pool_threads", type = "u32" }
+task_limit = { value = "2^32 - 1", type = "u64" }
+
+[checks]
+path = "src/core/thread_pool_ic_checks.hpp"
+namespace = "stxlib::detail::ic::thread_pool"
+includes = ["stxlib/thread_pool.hpp", "stxlib/types.hpp"]
+used_in = ["src/core/thread_pool.cpp"]
+
+# The states as conditions over the pool's members, as its owner sees them
+# (the IC4 deducer reads run, begin and wait against them). open is a batch
+# this thread began; idle, none.
+[represents]
+states = { empty = "state_ == nullptr", idle = "state_ != nullptr && !(*state_).batch_open && (*state_).batch_owner == 0", open = "state_ != nullptr && (*state_).batch_open && (*state_).batch_owner == current_thread().value()" }
+sources = ["src/core/thread_pool.cpp", "include/stxlib/thread_pool.hpp"]
+assume = [
+  { holds = "!is_worker()", because = "the states are the owner's view; a worker of the pool calling into it is refused as called_from_worker, which tests/thread_pool_tests.cpp covers" },
+  { holds = "current_thread().value() != 0", because = "a thread's identity is never 0: issue_identity refuses to issue it (threads.cpp)" },
+]
+untouching = [
+  { call = ".done_cv.wait(", because = "the batch's wait releases and retakes sleep_lock and reads the batch through batch_finished; it writes neither batch_open nor batch_owner (ConditionVariable::wait, threads.cpp; batch_finished, thread_pool.cpp)" },
+]
+
+# The block engine's view of a pool (IC2): a default (empty) pool per slot;
+# batches count their tasks' runs (tests/ic/engine/ic_inputs.hpp).
+[engine]
+object = "stxlib::AtomicPool"
+includes = ["stxlib/thread_pool.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { threads = "object.thread_count()" }
+state_query = "object.thread_count() != 0"
+state_answers = { empty = "false", idle = "true", open = "true" }
+codes = "stxlib::PoolFailure"
+teardown = { open = "static_cast<void>(object.wait());" }
+
+[[call]]
+name = "create"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<AtomicPool> create(u32 thread_count) noexcept;"]
+parameters = { thread_count = "u32" }
+requires = [
+  { holds = "thread_count != 0", refuses = "failure:invalid_argument:zero_threads", check = "create_some_threads" },
+  { holds = "thread_count <= maximum_pool_threads", refuses = "failure:invalid_argument:too_many_threads", check = "create_thread_limit" },
+]
+fails = [
+  { failure = "out_of_memory", when = "the pool's state or its thread table" },
+  { failure = "limit_exceeded", when = "the host refuses a worker thread" },
+]
+returns = { type = "AtomicPool", state = "idle", owns = "caller" }
+engine = { ranges = { thread_count = "[1, 4]" }, ensures = ["threads = thread_count"] }
+
+[[call]]
+name = "thread_count"
+declarations = ["[[nodiscard]] u32 thread_count() const noexcept;"]
+engine = { result_type = "stxlib::u32", expect = ["result == threads"] }
+
+[[call]]
+name = "run"
+declarations = ["[[nodiscard]] OperationStatus run(View<PoolTask> tasks) noexcept;"]
+in = ["idle"]
+outside = { empty = "failure:invalid_argument:empty_pool", open = "requirement" }
+parameters = { task_count = "usize" }
+requires = [
+  { holds = "task_count <= task_limit", refuses = "failure:invalid_argument:too_many_tasks", check = "batch_task_limit" },
+]
+fails = [{ failure = "invalid_argument", when = "task_without_function: a task whose function is null; no task runs" }]
+engine = { invoke = "object.run(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null))", draws = { with_null = "bool" }, ranges = { task_count = "[0, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"], expect = ["::stxlib_ic::inputs::pool_finished(slot)"] }
+
+[[call]]
+name = "begin"
+declarations = ["[[nodiscard]] OperationStatus begin(View<PoolTask> tasks) noexcept;"]
+in = ["idle"]
+outside = { empty = "failure:invalid_argument:empty_pool", open = "requirement" }
+moves = "open"
+parameters = { task_count = "usize" }
+requires = [
+  { holds = "task_count != 0", refuses = "failure:invalid_argument:empty_batch", check = "begin_some_tasks" },
+  { holds = "task_count <= task_limit", refuses = "failure:invalid_argument:too_many_tasks", check = "batch_task_limit" },
+]
+fails = [{ failure = "invalid_argument", when = "task_without_function: a task whose function is null; no task runs" }]
+engine = { invoke = "object.begin(::stxlib_ic::inputs::pool_tasks(slot, task_count, with_null))", draws = { with_null = "bool" }, ranges = { task_count = "[1, 200]" }, assume = ["task_count <= ::stxlib_ic::inputs::task_capacity"] }
+
+[[call]]
+name = "wait"
+declarations = ["[[nodiscard]] OperationStatus wait() noexcept;"]
+in = ["idle", "open"]
+outside = { empty = "failure:invalid_argument:empty_pool" }
+moves = "idle"
+engine = { expect = ["::stxlib_ic::inputs::pool_finished(slot)"] }
+
+[[call]]
+name = "is_worker"
+declarations = ["[[nodiscard]] bool is_worker() const noexcept;"]
+engine = { result_type = "bool", expect = ["!result"] }

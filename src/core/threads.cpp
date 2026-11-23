@@ -10,6 +10,7 @@
 
 #include "stxlib/detail/cancellation.hpp"
 
+#include "core/threads_ic_checks.hpp"
 #include "hosted/host.hpp"
 #include "hosted/thread_backend.hpp"
 #include "state/state.hpp"
@@ -366,13 +367,13 @@ Thread& Thread::operator=(Thread&& other) noexcept {
 
 OperationResult<Thread> Thread::start(const Entry entry, void* const context, const usize stack_bytes) noexcept {
     const Operation operation = "stxlib.threads.start";
-    if (entry == nullptr) {
+    if (!detail::ic::threads::admits_start_entry(entry)) {
         const ErrorRecord refused = ErrorRecord::make(
             ErrorKind::invalid_argument, operation,
             ErrorDetail{.code = static_cast<u32>(ThreadFailure::no_entry), .message = "a thread needs an entry"});
         return OperationResult<Thread>::failure(refused);
     }
-    if (stack_bytes < minimum_thread_stack_bytes || stack_bytes > maximum_thread_stack_bytes) {
+    if (!detail::ic::threads::admits_start_stack(stack_bytes)) {
         const ErrorRecord refused =
             ErrorRecord::make(ErrorKind::invalid_argument, operation,
                               ErrorDetail{.code = static_cast<u32>(ThreadFailure::stack_size_out_of_range),

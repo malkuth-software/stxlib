@@ -16,11 +16,31 @@ anchor = "namespace stxlib::stx_minmallocpp {"
 keys = { manifest = "stxlib::stx_minmallocpp", surface = "stx_minmallocpp" }
 # Any thread may call anything here at any time, during its own exit too.
 thread = "any"
-identity = { kind = "block address: the start of a live block", stale = "value:Release::refused" }
+identity = { kind = "block address: the start of a live block", stale = "value:Release::refused", tested = ["tests/stx_minmallocpp_direct_tests.cpp: refusals (null, the stack, the image, inside a block, the region's metadata, a page's unused tail, a second release, inside a large and a mapped block)", "tests/ic/engine/ic_allocator_inputs.hpp: interior_refused, an address inside a live block, drawn by the engine's blocks and the fuzzer"] }
 
 [constants]
 alignment_limit = { cpp = "alignment_limit", type = "usize" }
 largest_request = { cpp = "largest_request", type = "usize" }
+
+# The block engine's view of the allocator (IC2): as stxlib::memory's, over
+# stx_minmallocpp's own calls; the stale identity (an address inside a
+# block) is a compound misuse. Built where the allocator's symbols link
+# (not in a shared stxlib_state).
+[engine]
+object = "::stxlib_ic::inputs::AllocatorBlocks"
+includes = ["ic/engine/ic_allocator_inputs.hpp"]
+make = "default"
+invariants = ["object.intact()"]
+condition = "defined(STXLIB_IC_ALLOCATOR)"
+
+[[engine.compound]]
+name = "release_interior"
+mode = "misuse"
+needs = "live"
+invoke = "::stxlib_ic::inputs::interior_refused(object, which)"
+draws = { which = "u32" }
+result_type = "bool"
+expect = ["result"]
 
 [checks]
 path = "src/state/stx_minmallocpp/allocator_ic_checks.hpp"
@@ -38,35 +58,257 @@ requires = [
 ]
 fails = [{ failure = "exhausted", when = "the host refuses address space or memory, or a fixed table is full: a null result, nothing else changes" }]
 returns = { type = "void*", owns = "caller" }
+engine = { invoke = "object.keep(::stxlib::stx_minmallocpp::allocate(size, alignment), size)", needs = "live", ranges = { size = "[0, 65536]", alignment = "[1, 4096]" }, result_type = "void*", failed_when = "result == nullptr", expect = ["(reinterpret_cast<stxlib::uptr>(result) & (alignment - 1)) == 0"] }
 
 [[call]]
 name = "release"
 kind = "free"
 declarations = ["[[nodiscard]] Release release(void* address) noexcept;"]
 transfers = [{ what = "the block", from = "caller", to = "allocator" }]
+engine = { invoke = "object.release_at(which)", needs = "live", draws = { which = "u32" }, result_type = "bool", expect = ["result"] }
 
 [[call]]
 name = "trim"
 kind = "free"
 declarations = ["void trim() noexcept;"]
+engine = { needs = "none" }
 
 [[call]]
 name = "end_thread"
 kind = "free"
 declarations = ["void end_thread() noexcept;"]
+engine = { skip = "ends the calling thread's allocator state, which the engine's own thread still uses" }
 
 [[obligation]]
 id = "page_protocol"
 statement = "For any number of threads, pages and blocks and any interleaving, the page protocol never reaches an integrity stop, never refuses a held block's release, and keeps its invariant."
-method = "sxv's: read the step routines from the source, cut at STX_MINMALLOCPP_STEP marks, discharge each path algebraically (counters as finite sums with three elementary laws, popcount by its algebra). The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
+method = "sxv's: an invariant made by the page's making and kept by every step between step marks; each step's words decided bit by bit, its counters as finite sums updated at one word with popcount by its algebra. The method is credited to the allocator study of 2026-11-18 (stxlib_notes, planning/stx_minmallocpp/SXV_EVALUATION.md); sxv itself stays study-only (owner, IC decision 6)."
 premises = [
   "the C++ memory model's coherence",
   "each segment between step marks atomic",
   "sequentially consistent operations linearizable",
   "the queue and abandoned-list contracts",
+  "a caller releases only a block it holds, once (H, per word, is the ghost set of its blocks allocated and not released)",
+  "only the page's owner writes its free words, summary and live; another thread writes only a remote word, by fetch_or (each write is one covers finds)",
+  "low(x) is x's lowest set bit (the block take_from returns, at countr_zero), and take_from runs on a non-zero word",
+  "a sum over the page's words is at least each of its terms, and a counter is not negative",
 ]
+# The invariant, per page and per word w of it: H (the bits of held blocks),
+# F (the free word), R (the remote word) and M (the word's blocks); Z (the
+# words whose F is non-zero) and S (the summary), one bit per word; SF, SR
+# and SH the sums of pop(F), pop(R) and pop(H) over the words; live the
+# page's count.
+given = ["H & F == 0", "H & R == 0", "F & R == 0", "(H | F | R) == M", "Z & ~S == 0", "SF + SR + SH == capacity", "live == SH + SR"]
+shows = "SF + live == capacity"
+from = [
+  "base_free: bit_made_free, summary_made_free, count_made_free, page_count_made",
+  "base_full: bit_made_full, summary_made_full, count_made_full",
+  "take: bit_take, summary_take, count_take",
+  "release: bit_release, summary_release, count_release",
+  "remote: bit_remote, count_remote",
+  "collect: bit_collect, summary_collect, count_collect",
+  "scan: summary_scan",
+  "freed: page_freed",
+]
+covers = [
+  'src/state/stx_minmallocpp: \b(free_cell|free_cells)\b[^;]*\.(store|exchange|fetch_\w+)\( => F, Z, SF',
+  'src/state/stx_minmallocpp: \b(remote_cell|remote_cells)\b[^;]*\.(store|exchange|fetch_\w+)\( => R, SR',
+  'src/state/stx_minmallocpp/heap.hpp: \bcell\.store\( => F, Z, SF',
+  'src/state/stx_minmallocpp: page\.live\s*=[^=] => live',
+  'src/state/stx_minmallocpp: page\.summary\s*=[^=] => S',
+]
+
+# The steps of page_protocol (each a lemma the deducer proves; the words bit
+# by bit, the counters by sxv's algebra).
+[[obligation]]
+id = "bit_made_free"
+statement = "A page made with its blocks free: every block free, none held or pending."
+given = ["F == M", "H == 0", "R == 0"]
+shows = "H & F == 0 and H & R == 0 and F & R == 0 and (H | F | R) == M"
+sources = ["src/state/stx_minmallocpp/heap.cpp: free_cells[word].store(free_bits, std::memory_order_relaxed);", "src/state/stx_minmallocpp/heap.cpp: if (remote_cells[word].load() != 0) integrity_stop(Integrity::released_into_freed_page);"]
+
+[[obligation]]
+id = "summary_made_free"
+statement = "A page made with its blocks free has every word's summary bit set."
+given = ["S == W", "Z & ~W == 0"]
+shows = "Z & ~S == 0"
+sources = ["src/state/stx_minmallocpp/heap.cpp: page.summary = plan.words >= word_bits ? u64_max : (static_cast<u64>(1) << plan.words) - 1;"]
+
+[[obligation]]
+id = "count_made_free"
+statement = "A page made with its blocks free counts them all free (page_count_made) and none live."
+given = ["SF == capacity", "SR == 0", "SH == 0", "live == 0"]
+shows = "SF + SR + SH == capacity and live == SH + SR"
+sources = ["src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"]
+
+[[obligation]]
+id = "bit_made_full"
+statement = "A page made with its blocks taken: every block held."
+given = ["F == 0", "H == M", "R == 0"]
+shows = "H & F == 0 and H & R == 0 and F & R == 0 and (H | F | R) == M"
+sources = ["src/state/stx_minmallocpp/heap.cpp: free_cells[word].store(free_bits, std::memory_order_relaxed);"]
+
+[[obligation]]
+id = "summary_made_full"
+statement = "A page made with its blocks taken has no summary bit and no free word."
+given = ["S == 0", "Z == 0"]
+shows = "Z & ~S == 0"
+sources = ["src/state/stx_minmallocpp/heap.cpp: page.summary = 0;"]
+
+[[obligation]]
+id = "count_made_full"
+statement = "A page made with its blocks taken counts them all live."
+given = ["SF == 0", "SR == 0", "SH == capacity", "live == capacity"]
+shows = "SF + SR + SH == capacity and live == SH + SR"
+sources = ["src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"]
+
+[[obligation]]
+id = "bit_take"
+statement = "take_from moves the word's lowest free block to held."
+given = ["H & F == 0", "H & R == 0", "F & R == 0", "(H | F | R) == M", "F_after == F & (F - 1)", "H_after == H | low(F)", "R_after == R"]
+shows = "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and H & low(F) == 0"
+sources = ["src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);"]
+
+[[obligation]]
+id = "summary_take"
+statement = "take_from only clears free bits, so the summary still covers every non-zero word."
+given = ["Z & ~S == 0", "Z_after & ~Z == 0", "S_after == S"]
+shows = "Z_after & ~S_after == 0"
+sources = ["src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);"]
+
+[[obligation]]
+id = "count_take"
+statement = "take_from keeps the page's counts: one free block fewer, one held and one live more."
+given = ["SF + SR + SH == capacity", "live == SH + SR", "F != 0", "H & low(F) == 0", "F_after == F & (F - 1)", "H_after == H | low(F)", "SF_after == SF - pop(F) + pop(F_after)", "SH_after == SH - pop(H) + pop(H_after)", "SR_after == SR", "live_after == live + 1"]
+shows = "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after"
+sources = ["src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"]
+
+[[obligation]]
+id = "bit_release"
+statement = "The owner's release of a held block: its bit was not free (so the release is not refused) and joins the free word."
+given = ["H & F == 0", "H & R == 0", "F & R == 0", "(H | F | R) == M", "b & H == b", "F_after == F | b", "H_after == H & ~b", "R_after == R"]
+shows = "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & b == 0"
+sources = ["src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {", "src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);"]
+
+[[obligation]]
+id = "summary_release"
+statement = "The owner's release sets its word's summary bit."
+given = ["Z & ~S == 0", "Z_after == Z | w", "S_after == S | w"]
+shows = "Z_after & ~S_after == 0"
+sources = ["src/state/stx_minmallocpp/allocator.cpp: page.summary = page.summary | (static_cast<u64>(1) << word);"]
+
+[[obligation]]
+id = "count_release"
+statement = "The owner's release keeps the page's counts and never takes live below zero."
+given = ["SF + SR + SH == capacity", "live == SH + SR", "single_bit(b)", "b & H == b", "F & b == 0", "F_after == F | b", "H_after == H & ~b", "SF_after == SF - pop(F) + pop(F_after)", "SH_after == SH - pop(H) + pop(H_after)", "SR_after == SR", "live_after == live - 1", "SH >= pop(H)", "SR >= 0"]
+shows = "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after and live >= 1"
+sources = ["src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"]
+
+[[obligation]]
+id = "bit_remote"
+statement = "Another thread's release of a held block: its bit is neither free nor pending (so neither test refuses it) and joins the remote word."
+given = ["H & F == 0", "H & R == 0", "F & R == 0", "(H | F | R) == M", "b & H == b", "R_after == R | b", "H_after == H & ~b", "F_after == F"]
+shows = "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & b == 0 and R & b == 0"
+sources = ["src/state/stx_minmallocpp/heap.cpp: if ((free_cell.load(std::memory_order_relaxed) & bit) != 0) return Release::refused;", "src/state/stx_minmallocpp/heap.cpp: const u64 before = remote_cell.fetch_or(bit);", "src/state/stx_minmallocpp/heap.cpp: if ((before & bit) != 0) return Release::refused;"]
+
+[[obligation]]
+id = "count_remote"
+statement = "Another thread's release keeps the page's counts: one held block fewer, one pending more, live unchanged."
+given = ["SF + SR + SH == capacity", "live == SH + SR", "single_bit(b)", "b & H == b", "R & b == 0", "R_after == R | b", "H_after == H & ~b", "SR_after == SR - pop(R) + pop(R_after)", "SH_after == SH - pop(H) + pop(H_after)", "SF_after == SF", "live_after == live"]
+shows = "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after"
+sources = ["src/state/stx_minmallocpp/heap.cpp: const u64 before = remote_cell.fetch_or(bit);"]
+
+[[obligation]]
+id = "bit_collect"
+statement = "collect merges a remote word into its free word; they never overlap, so released_twice never stops."
+given = ["H & F == 0", "H & R == 0", "F & R == 0", "(H | F | R) == M", "released == R", "R_after == 0", "F_after == F | released", "H_after == H"]
+shows = "H_after & F_after == 0 and H_after & R_after == 0 and F_after & R_after == 0 and (H_after | F_after | R_after) == M and F & released == 0"
+sources = ["src/state/stx_minmallocpp/page.hpp: const u64 released = remote_cells[word].exchange(0);", "src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);", "src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);"]
+
+[[obligation]]
+id = "summary_collect"
+statement = "collect sets the merged word's summary bit."
+given = ["Z & ~S == 0", "Z_after & ~(Z | w) == 0", "S_after == S | w"]
+shows = "Z_after & ~S_after == 0"
+sources = ["src/state/stx_minmallocpp/page.hpp: page.summary = page.summary | (static_cast<u64>(1) << word);"]
+
+[[obligation]]
+id = "count_collect"
+statement = "collect keeps the page's counts and never takes live below zero, so live_count never stops."
+given = ["SF + SR + SH == capacity", "live == SH + SR", "F & released == 0", "released == R", "R_after == 0", "F_after == F | released", "H_after == H", "SF_after == SF - pop(F) + pop(F_after)", "SR_after == SR - pop(R) + pop(R_after)", "SH_after == SH", "live_after == live - pop(released)", "SR >= pop(R)", "SH >= 0"]
+shows = "SF_after + SR_after + SH_after == capacity and live_after == SH_after + SR_after and pop(released) <= live"
+sources = ["src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);", "src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"]
+
+[[obligation]]
+id = "summary_scan"
+statement = "The refill's scan clears a summary bit only for a word with no free block."
+given = ["Z & ~S == 0", "low(S) & Z == 0", "S_after == S & (S - 1)", "Z_after == Z"]
+shows = "Z_after & ~S_after == 0"
+sources = ["src/state/stx_minmallocpp/heap.cpp: if (cells[word].load(std::memory_order_relaxed) != 0) {", "src/state/stx_minmallocpp/heap.cpp: page.summary = page.summary & (page.summary - 1);"]
+
+[[obligation]]
+id = "page_freed"
+statement = "A page freed with no live block has no pending block, so the next page made there finds its remote words zero (released_into_freed_page never stops)."
+given = ["SF + SR + SH == capacity", "live == SH + SR", "live == 0", "SR >= pop(R)", "SH >= 0"]
+shows = "pop(R) <= 0"
+sources = ["src/state/stx_minmallocpp/heap.cpp: STX_MINMALLOCPP_CHECK(page.live == 0 && page_whole(page));", "src/state/stx_minmallocpp/heap.cpp: if (remote_cells[word].load() != 0) integrity_stop(Integrity::released_into_freed_page);"]
 
 [[obligation]]
 id = "refusal_reads_nothing"
 statement = "A release of an address that is not the start of a live block is refused without reading or writing the address or anything near it."
-premises = []
+premises = ["the region's metadata (slice heads, page records, free and remote words: the slices below first_data_slice) and the directory are not the block or its neighbours (layout.hpp, page.hpp)"]
+untouched = ["address", "value"]
+paths = [
+  "src/state/stx_minmallocpp/allocator.cpp: release: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_with: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_common: Release::refused",
+  "src/state/stx_minmallocpp/allocator.cpp: release_general: Release::refused",
+  "src/state/stx_minmallocpp/region.cpp: release_huge: return false",
+]
+metadata = ["slice_heads", "page_metas", "free_words", "remote_words", "directory"]
+
+# The page counter's invariant, step by step (IC4): for every page, the free
+# bits of its words and its live count together are its capacity,
+#   sum + live == capacity, where sum is the sum over its words of pop(free[w]).
+# Each lemma is one step that changes them, read from the source it names;
+# the deducer proves it from its givens with sxv's algebra (finite sums
+# updated at one word, popcount laws). Together with the page's making they
+# give the invariant for every page_whole check (page.hpp), relative to the
+# premises: one thread at a time in each step (each segment between step
+# marks atomic, as page_protocol assumes), and the words updated being the
+# page's own.
+[[obligation]]
+id = "page_count_take"
+statement = "take_from keeps a page's count: the lowest free bit leaves the word and live grows by one."
+method = "sxv's: the sum updated at one word; pop(x & (x - 1)) = pop(x) - 1 for x != 0"
+premises = ["take_from runs on a non-zero word (its caller loaded it and found it non-zero)", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "word != 0", "sum_after == sum - pop(word) + pop(word & (word - 1))", "live_after == live + 1"]
+shows = "sum_after + live_after == capacity"
+sources = ["src/state/stx_minmallocpp/heap.hpp: cell.store(word & (word - 1), std::memory_order_relaxed);", "src/state/stx_minmallocpp/heap.hpp: page.live = page.live + 1;"]
+
+[[obligation]]
+id = "page_count_release"
+statement = "The owner's release keeps a page's count and never takes live below zero: the block's bit joins its word and live falls by one."
+method = "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b; pop of one bit is 1"
+premises = ["the block is live (its bit is clear in the word, checked by the integrity stop before the store)", "a live block counts in live, so live >= 1", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "known & bit == 0", "single_bit(bit)", "live >= 1", "sum_after == sum - pop(known) + pop(known | bit)", "live_after == live - 1"]
+shows = "sum_after + live_after == capacity and live_after >= 0"
+sources = ["src/state/stx_minmallocpp/allocator.cpp: if ((known & bit) != 0) {", "src/state/stx_minmallocpp/allocator.cpp: free_cell.store(known | bit, std::memory_order_relaxed);", "src/state/stx_minmallocpp/allocator.cpp: page.live = page.live - 1;"]
+
+[[obligation]]
+id = "page_count_collect"
+statement = "Collecting the remotely released blocks of a word keeps a page's count and never takes live below zero."
+method = "sxv's: the sum updated at one word; pop(a | b) = pop(a) + pop(b) for disjoint a and b"
+premises = ["the integrity stops before the store end the process when the words overlap or the count exceeds live", "the step is atomic (between step marks)"]
+given = ["sum + live == capacity", "known & released == 0", "pop(released) <= live", "sum_after == sum - pop(known) + pop(known | released)", "live_after == live - pop(released)"]
+shows = "sum_after + live_after == capacity and live_after >= 0"
+sources = ["src/state/stx_minmallocpp/page.hpp: if ((known & released) != 0) integrity_stop(Integrity::released_twice);", "src/state/stx_minmallocpp/page.hpp: if (count > page.live) integrity_stop(Integrity::live_count);", "src/state/stx_minmallocpp/page.hpp: free_cells[word].store(known | released, std::memory_order_relaxed);", "src/state/stx_minmallocpp/page.hpp: page.live = page.live - count;"]
+
+[[obligation]]
+id = "page_count_made"
+statement = "A page made with its blocks free starts with its count: its full words and its last word's low bits are its capacity, and live is zero."
+method = "sxv's: a finite sum split at its last term; pop of all 64 bits is 64; pop(2^r - 1) = r"
+premises = ["the plan's words are the capacity in 64-bit words, rounded up, so every word but the last is full (remaining >= 64) and the last holds 1 to 64 blocks", "a word with remaining >= 64 is u64_max, the last 2^remaining - 1 (or u64_max when remaining is 64)"]
+given = ["words >= 1", "remaining == capacity - 64 * (words - 1)", "remaining >= 1", "remaining <= 64", "sum == 64 * (words - 1) + pop(2^remaining - 1)", "live == 0"]
+shows = "sum + live == capacity"
+sources = ["src/state/stx_minmallocpp/heap.cpp: const usize remaining = plan.capacity - word * word_bits;", "src/state/stx_minmallocpp/heap.cpp: free_bits = remaining >= word_bits ? u64_max : (static_cast<u64>(1) << remaining) - 1;", "src/state/stx_minmallocpp/heap.cpp: page.live = plan.blocks_free ? 0 : static_cast<u32>(plan.capacity);"]

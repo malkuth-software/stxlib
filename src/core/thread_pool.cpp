@@ -16,6 +16,8 @@
 
 #include "stxlib/detail/cancellation.hpp"
 
+#include "core/thread_pool_ic_checks.hpp"
+
 #include "stxlib/fail_fast.hpp"
 #include "stxlib/memory.hpp"
 #include "stxlib/require.hpp"
@@ -180,7 +182,9 @@ void publish_batch(AtomicPool::State& pool, const PoolTask* const tasks, const u
 
 // The checks shared by run and begin, which differ only on empty batches.
 OperationStatus validate_batch(const View<PoolTask> tasks, const Operation operation) noexcept {
-    if (tasks.count() > u32_maximum) return OperationStatus::failure(refusal(PoolFailure::too_many_tasks, operation));
+    if (!detail::ic::thread_pool::admits_batch_task_limit(tasks.count())) {
+        return OperationStatus::failure(refusal(PoolFailure::too_many_tasks, operation));
+    }
     for (usize index = 0; index < tasks.count(); ++index) {
         if (tasks[index].function == nullptr) {
             return OperationStatus::failure(refusal(PoolFailure::task_without_function, operation));
@@ -230,8 +234,10 @@ AtomicPool& AtomicPool::operator=(AtomicPool&& other) noexcept {
 
 OperationResult<AtomicPool> AtomicPool::create(const u32 thread_count) noexcept {
     const Operation operation = "stxlib.thread_pool.create";
-    if (thread_count == 0) return OperationResult<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
-    if (thread_count > maximum_pool_threads) {
+    if (!detail::ic::thread_pool::admits_create_some_threads(thread_count)) {
+        return OperationResult<AtomicPool>::failure(refusal(PoolFailure::zero_threads, operation));
+    }
+    if (!detail::ic::thread_pool::admits_create_thread_limit(thread_count)) {
         return OperationResult<AtomicPool>::failure(refusal(PoolFailure::too_many_threads, operation));
     }
     static_assert(static_cast<u64>(maximum_pool_threads) * sizeof(Thread) <= usize_max,
@@ -316,7 +322,9 @@ OperationStatus AtomicPool::begin(const View<PoolTask> tasks) noexcept {
     if (state_ == nullptr) return OperationStatus::failure(refusal(PoolFailure::empty_pool, operation));
     if (is_worker()) return OperationStatus::failure(refusal(PoolFailure::called_from_worker, operation));
     check_not_batch_owner(*state_, operation);
-    if (tasks.count() == 0) return OperationStatus::failure(refusal(PoolFailure::empty_batch, operation));
+    if (!detail::ic::thread_pool::admits_begin_some_tasks(tasks.count())) {
+        return OperationStatus::failure(refusal(PoolFailure::empty_batch, operation));
+    }
     OperationStatus validation = validate_batch(tasks, operation);
     if (validation.failed()) return validation;
     State& pool = *state_;

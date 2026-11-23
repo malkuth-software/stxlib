@@ -1,0 +1,98 @@
+# Behavioural constraints of stxlib::fft::Plan64 (fft.hpp), the IC
+# declaration (template_harness docs/ic_declarations.md; STXlib's project
+# file is tools/ic/project.toml). Edit this file, then run
+#   python3 -B tools/ic_declarations.py generate --config tools/ic/project.toml
+#
+# input_count and output_count are the views' counts; mode is Mode's value.
+# Not declared: the refusal of input and output that overlap (a relation of
+# addresses, which the clause language does not state; fft_tests covers it).
+
+schema = 1
+component = "Plan64"
+namespace = "stxlib::fft"
+header = "include/stxlib/fft.hpp"
+anchor = "class Plan64 final {"
+keys = { manifest = "stxlib::fft::Plan64" }
+thread = "owner"
+states = ["empty", "ready"]
+initial = "empty"
+state_query = { call = "empty", observes = { empty = "true", ready = "false" } }
+
+[terms]
+size = "usize"
+bins = "usize"
+
+[constants]
+max_size = { cpp = "::stxlib::fft::max_size", type = "usize" }
+
+[checks]
+path = "src/algorithms/fft/plan64_ic_checks.hpp"
+namespace = "stxlib::detail::ic::fft_plan64"
+includes = ["stxlib/fft.hpp", "stxlib/types.hpp"]
+used_in = ["src/algorithms/fft/plan.cpp"]
+
+# The states as conditions over the plan's members (the IC4 deducer reads
+# rfft and irfft against them).
+[represents]
+states = { empty = "state_ == nullptr", ready = "state_ != nullptr" }
+
+# The block engine's view of a plan (IC2): an empty plan per slot; the
+# transforms read a two-tone signal and a small spectrum.
+[engine]
+object = "stxlib::fft::Plan64"
+includes = ["stxlib/fft.hpp", "ic/engine/ic_inputs.hpp"]
+make = "default"
+observe = { size = "object.size()", bins = "object.bins()" }
+
+[[call]]
+name = "make"
+kind = "static"
+thread = "any"
+declarations = ["[[nodiscard]] static OperationResult<Plan64> make(usize size, Mode mode) noexcept;"]
+parameters = { requested = "usize", mode = "u8" }
+requires = [
+  { holds = "mode <= 2", refuses = "failure:invalid_argument", check = "make_mode" },
+  { holds = "requested <= max_size", refuses = "failure:limit_exceeded", check = "make_size_limit" },
+  { holds = "power_of_two(requested) and (requested >= 4 or (mode == 1 and requested >= 2))", refuses = "failure:invalid_argument", check = "make_size_shape" },
+]
+fails = [{ failure = "out_of_memory", when = "the plan's state or tables" }]
+returns = { type = "Plan64", state = "ready", owns = "caller" }
+engine = { invoke = "Object::make(requested, static_cast<::stxlib::fft::Mode>(mode))", ranges = { requested = "[2, 4096]", mode = "[0, 2]" }, ensures = ["size = requested"] }
+
+[[call]]
+name = "empty"
+declarations = ["[[nodiscard]] bool empty() const noexcept;"]
+
+[[call]]
+name = "size"
+declarations = ["[[nodiscard]] usize size() const noexcept;"]
+engine = { result_type = "stxlib::usize", expect = ["result == size"] }
+
+[[call]]
+name = "bins"
+declarations = ["[[nodiscard]] usize bins() const noexcept;"]
+engine = { result_type = "stxlib::usize", expect = ["result == bins"] }
+
+[[call]]
+name = "rfft"
+declarations = ["[[nodiscard]] OperationStatus rfft(View<double> input, MutableView<Complex64> output) noexcept;"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize" }
+requires = [
+  { holds = "input_count == size", refuses = "failure:invalid_argument", check = "rfft_input" },
+  { holds = "output_count == bins", refuses = "failure:invalid_argument", check = "rfft_output" },
+]
+engine = { invoke = "object.rfft(::stxlib_ic::inputs::samples<double>(input_count), ::stxlib_ic::inputs::spectrum_output<::stxlib::fft::Complex64>(output_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity"], expect = ["::stxlib_ic::inputs::spectrum_finite<::stxlib::fft::Complex64>(output_count)"] }
+
+[[call]]
+name = "irfft"
+declarations = ["[[nodiscard]] OperationStatus irfft(View<Complex64> input, MutableView<double> output) noexcept;"]
+in = ["ready"]
+outside = { empty = "failure:invalid_argument" }
+parameters = { input_count = "usize", output_count = "usize" }
+requires = [
+  { holds = "input_count == bins", refuses = "failure:invalid_argument", check = "irfft_input" },
+  { holds = "output_count == size", refuses = "failure:invalid_argument", check = "irfft_output" },
+]
+engine = { invoke = "object.irfft(::stxlib_ic::inputs::spectrum<::stxlib::fft::Complex64>(input_count), ::stxlib_ic::inputs::sample_output<double>(output_count))", assume = ["input_count <= ::stxlib_ic::inputs::fft_capacity", "output_count <= ::stxlib_ic::inputs::fft_capacity"], expect = ["::stxlib_ic::inputs::samples_finite<double>(output_count)"] }
