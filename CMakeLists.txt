@@ -1700,7 +1700,10 @@ if(STXLIB_TESTS)
     endforeach()
     # The benchmark beside BFFT's (tests/fft_bench.cpp), for the integrator
     # to run by hand; not a ctest.
-    add_executable(stxlib_fft_bench tests/fft_bench.cpp)
+    # tests/fft_fused_kernels.cpp is the fused measuring variant of the
+    # kernels (variant.inc with STXLIB_FFT_FUSED), compiled into the
+    # benchmark only, never into the library.
+    add_executable(stxlib_fft_bench tests/fft_bench.cpp tests/fft_fused_kernels.cpp)
     target_link_libraries(stxlib_fft_bench PRIVATE stxlib::algorithms)
     target_include_directories(stxlib_fft_bench PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_options(stxlib_fft_bench PRIVATE ${stxlib_test_warnings})

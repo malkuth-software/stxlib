@@ -1,9 +1,10 @@
 // One SIMD tier of stx_fft's kernels. kernels_scalar.cpp, kernels_v128.cpp
 // and kernels_avx2_fma.cpp each define STXLIB_FFT_LEVEL (BFFT's BRUUN_LEVEL:
 // 0 scalar, 1 SSE2 or NEON, 2 AVX2) and STXLIB_FFT_VARIANT (the namespace),
-// then include this file, which compiles the three kernels for that tier
-// into namespace stxlib::fft::detail::STXLIB_FFT_VARIANT and defines its
-// Kernels table (plan_state.hpp).
+// then include this file, which compiles the four kernels for that tier
+// (DIF, DIT, BODFT, DIP) into namespace
+// stxlib::fft::detail::STXLIB_FFT_VARIANT and defines its Kernels table
+// (plan_state.hpp).
 //
 // The avx2_fma tier's code is compiled for that target through an attribute
 // pushed after the last #include of a header and popped at the end, as the
@@ -15,6 +16,10 @@
 // Floating point: no fused multiply-add appears anywhere here (the
 // transform described in dif.inc spelled BFFT's out), and the build has
 // contraction off, so every tier rounds each output as the scalar tier does.
+// The one exception is never a plan's: stxlib_fft_bench compiles this file
+// a fourth time with STXLIB_FFT_FUSED (tests/fft_fused_kernels.cpp), where
+// lanes.inc fuses each vector multiply into the add or subtract that takes
+// it, to measure what the rule costs.
 
 #if !defined(STXLIB_FFT_LEVEL) || !defined(STXLIB_FFT_VARIANT)
 #error "variant.inc needs STXLIB_FFT_LEVEL and STXLIB_FFT_VARIANT"
@@ -85,9 +90,11 @@ inline unsigned ctz_u32(unsigned x) noexcept { return static_cast<unsigned>(std:
 
 #include "dip.inc"
 
+#include "dit.inc"
+
 void dif_forward64(const DifTables& tables, const double* input, Complex64* output) noexcept {
     const DifKernel kernel(tables);
-    kernel.forward_standard(input, output, tables.work64);
+    kernel.forward_standard(input, output, tables.work64, tables.native64);
 }
 
 void dif_inverse64(const DifTables& tables, const Complex64* input, double* output) noexcept {
@@ -138,6 +145,26 @@ void dip_inverse64(const DipTables& tables, const Complex64* input, double* outp
     kernel.inverse_standard(input, output, tables.work);
 }
 
+void dit_forward64(const DitTables& tables, const double* input, Complex64* output) noexcept {
+    const DitKernel kernel(tables);
+    kernel.forward64(input, output, tables.work64);
+}
+
+void dit_inverse64(const DitTables& tables, const Complex64* input, double* output) noexcept {
+    const DitKernel kernel(tables);
+    kernel.inverse64(input, output, tables.work64);
+}
+
+void dit_forward32(const DitTables& tables, const float* input, Complex32* output) noexcept {
+    const DitKernel kernel(tables);
+    kernel.forward32(input, output, tables.work32);
+}
+
+void dit_inverse32(const DitTables& tables, const Complex32* input, float* output) noexcept {
+    const DitKernel kernel(tables);
+    kernel.inverse32(input, output, tables.work32);
+}
+
 } // namespace
 
 const Kernels kernels = {
@@ -151,6 +178,10 @@ const Kernels kernels = {
     .bodft_inverse32 = &bodft_inverse32,
     .dip_forward64 = &dip_forward64,
     .dip_inverse64 = &dip_inverse64,
+    .dit_forward64 = &dit_forward64,
+    .dit_inverse64 = &dit_inverse64,
+    .dit_forward32 = &dit_forward32,
+    .dit_inverse32 = &dit_inverse32,
 };
 
 } // namespace stxlib::fft::detail::STXLIB_FFT_VARIANT
