@@ -53,15 +53,32 @@ add_library(stxlib_msvc_runtime_static STATIC
     $<TARGET_OBJECTS:stxlib_msvc_runtime_core>
     $<TARGET_OBJECTS:stxlib_msvc_runtime_hooks>)
 
+# new_delete.cpp once per replaceable function (STXLIB_NEW_DELETE_PART), so
+# each is its own archive member and a program's partial replacement links.
+set(stxlib_new_delete_parts)
+foreach(part RANGE 19)
+    set(part_source "${CMAKE_CURRENT_BINARY_DIR}/new_delete_part_${part}.cpp")
+    set(part_text "#define STXLIB_NEW_DELETE_PART ${part}\n#include \"${stxlib_msvc_runtime_dir}/new_delete.cpp\"\n")
+    if(EXISTS "${part_source}")
+        file(READ "${part_source}" part_old)
+    else()
+        set(part_old "")
+    endif()
+    if(NOT part_old STREQUAL part_text)
+        file(WRITE "${part_source}" "${part_text}")
+    endif()
+    list(APPEND stxlib_new_delete_parts "${part_source}")
+endforeach()
 add_library(stxlib_msvc_runtime_module STATIC
     "${stxlib_msvc_runtime_dir}/module_static.cpp"
     "${stxlib_msvc_runtime_dir}/strings.cpp"
-    "${stxlib_msvc_runtime_dir}/new_delete.cpp")
-target_include_directories(stxlib_msvc_runtime_module PRIVATE "${stxlib_msvc_runtime_include}")
+    ${stxlib_new_delete_parts})
+target_include_directories(stxlib_msvc_runtime_module PRIVATE "${stxlib_msvc_runtime_include}"
+    "${stxlib_msvc_runtime_dir}")
 # Source properties are scoped to this directory, where the targets that
 # compile these files are defined.
 set_source_files_properties("${stxlib_msvc_runtime_dir}/strings.cpp" PROPERTIES COMPILE_OPTIONS "-ffreestanding;-fno-builtin")
-set_source_files_properties("${stxlib_msvc_runtime_dir}/new_delete.cpp" PROPERTIES COMPILE_OPTIONS "-fexceptions;-fcxx-exceptions")
+set_source_files_properties(${stxlib_new_delete_parts} PROPERTIES COMPILE_OPTIONS "-fexceptions;-fcxx-exceptions")
 
 # The shared form takes its entry point, _DllMainCRTStartup, and its exit
 # table from the startup; the runtime itself needs no initialisation
