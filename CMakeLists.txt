@@ -1820,6 +1820,25 @@ if(STXLIB_TESTS)
         target_compile_options(stxlib_allocator_two_module_tests PRIVATE ${stxlib_test_warnings})
         add_test(NAME stxlib_allocator_two_module_tests COMMAND stxlib_allocator_two_module_tests)
 
+        # A module's unload (tests/allocator_unload_tests.cpp): a library
+        # holding its own static stxlib_state is dlopened, allocates, and is
+        # dlclosed; under LSan a registry table left behind fails the test.
+        # Linux with a static state only (a shared one is linked
+        # -z nodelete, so its table stays reachable); CI's linux-glibc job
+        # builds it so.
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT STXLIB_STATE_SHARED)
+            add_library(stxlib_allocator_unload_library MODULE tests/allocator_unload_library.cpp)
+            target_link_libraries(stxlib_allocator_unload_library PRIVATE stxlib::boundary)
+            target_compile_options(stxlib_allocator_unload_library PRIVATE ${stxlib_test_warnings})
+            set_target_properties(stxlib_allocator_unload_library PROPERTIES CXX_VISIBILITY_PRESET hidden)
+            add_executable(stxlib_allocator_unload_tests tests/allocator_unload_tests.cpp)
+            target_link_libraries(stxlib_allocator_unload_tests PRIVATE ${CMAKE_DL_LIBS})
+            target_compile_options(stxlib_allocator_unload_tests PRIVATE ${stxlib_test_warnings})
+            add_dependencies(stxlib_allocator_unload_tests stxlib_allocator_unload_library)
+            add_test(NAME stxlib_allocator_unload_tests COMMAND stxlib_allocator_unload_tests
+                     $<TARGET_FILE:stxlib_allocator_unload_library>)
+        endif()
+
         # The allocator at process end (the logic review's L-05): a library
         # whose threads allocate until the host stops them, and whose
         # detach-time destructor then allocates on every locking path

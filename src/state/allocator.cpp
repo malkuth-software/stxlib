@@ -246,6 +246,39 @@ bool make_room() noexcept {
     return true;
 }
 
+// The registry's table at the module's end (the GUI.Forms ABI unload test
+// under LSan, 2026-11-24: 8192 bytes leaked at each dlclose of a library
+// holding STXlib). The table lives in the module's statics, so once the
+// module is unloaded nothing can reach it. When no block is tracked it is
+// released here and the registry is emptied, so a later allocation (from a
+// destructor that runs after this one) builds a new table. While blocks are
+// still tracked the table stays: a later release must still find them.
+// Not from the process's end on ("Process end" above): a stopped thread may
+// hold the lock.
+struct RegistryEnd final {
+    constexpr RegistryEnd() noexcept = default;
+    ~RegistryEnd() {
+        if (thread_exit_backend::process_ending()) return;
+        uptr* released = nullptr;
+        {
+            const RegistryGuard lock;
+            if (registry.live == 0 && registry.slots != nullptr) {
+                released = registry.slots;
+                registry.slots = nullptr;
+                registry.capacity = 0;
+                registry.removed = 0;
+            }
+        }
+        // Let go before releasing (AGENTS.md, rule 1).
+        if (released != nullptr) backend_release(released);
+    }
+    RegistryEnd(const RegistryEnd&) = delete;
+    RegistryEnd& operator=(const RegistryEnd&) = delete;
+};
+
+// Constant-initialised; its destructor runs at the module's end.
+constinit RegistryEnd registry_end{};
+
 bool track_block(const unsigned char* const address) noexcept {
     const RegistryGuard lock;
     if (!make_room()) return false;

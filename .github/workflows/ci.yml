@@ -117,6 +117,19 @@ jobs:
             "-DCMAKE_CXX_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$flags" "-DCMAKE_SHARED_LINKER_FLAGS=$flags"
           cmake --build build-asan-ubsan --parallel 4
           ctest --test-dir build-asan-ubsan --output-on-failure --parallel 3 --timeout 1800
+      - name: Module unload under LSan (static state)
+        # GUI.Forms links stxlib_state statically into each module; a
+        # dlclosed module must leave nothing for LSan to report
+        # (tests/allocator_unload_tests.cpp; the registry table leaked
+        # until 2026-11-24). Only the unload test is built.
+        run: |
+          flags="-stdlib=libc++ -fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g"
+          cmake -S . -B build-unload -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DSTXLIB_STATE_SHARED=OFF \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g" \
+            "-DCMAKE_CXX_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$flags" "-DCMAKE_SHARED_LINKER_FLAGS=$flags" \
+            "-DCMAKE_MODULE_LINKER_FLAGS=$flags"
+          cmake --build build-unload --parallel 4 --target stxlib_allocator_unload_tests
+          ctest --test-dir build-unload -R '^stxlib_allocator_unload_tests$' -V --no-tests=error --timeout 600
       - name: TSan
         run: |
           flags="-stdlib=libc++ -fsanitize=thread -fno-omit-frame-pointer -g"
