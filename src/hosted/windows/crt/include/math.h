@@ -469,4 +469,23 @@ _STXLIB_CRT_INLINE long double __cdecl fmal(long double x, long double y, long d
 
 _STXLIB_CRT_END
 
+/* Learn: "Bessel functions: _j0, _j1, _jn, _y0, _y1, _yn" and their POSIX
+ * names. */
+_STXLIB_CRT_BEGIN
+_STXLIB_UCRT double __cdecl _j0(double x);
+_STXLIB_UCRT double __cdecl _j1(double x);
+_STXLIB_UCRT double __cdecl _jn(int order, double x);
+_STXLIB_UCRT double __cdecl _y0(double x);
+_STXLIB_UCRT double __cdecl _y1(double x);
+_STXLIB_UCRT double __cdecl _yn(int order, double x);
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX double __cdecl j0(double x);
+_STXLIB_UCRT_POSIX double __cdecl j1(double x);
+_STXLIB_UCRT_POSIX double __cdecl jn(int order, double x);
+_STXLIB_UCRT_POSIX double __cdecl y0(double x);
+_STXLIB_UCRT_POSIX double __cdecl y1(double x);
+_STXLIB_UCRT_POSIX double __cdecl yn(int order, double x);
+#endif
+_STXLIB_CRT_END
+
 #endif /* STXLIB_CRT_MATH_H */

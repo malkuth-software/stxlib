@@ -78,4 +78,17 @@ typedef struct stxlib_ucrt_locale* _locale_t;
 #define _TRUNCATE ((size_t)-1)
 #endif
 
+/* A POSIX name of a Microsoft C runtime function (open for _open): Microsoft
+ * documents both and deprecates the POSIX one (Learn, "Compatibility" and
+ * each function's page). ucrtbase.dll exports only the Microsoft name, so
+ * ucrtbase.def lists the POSIX name as an alias of it (`open == _open`):
+ * llvm-dlltool writes weak aliases, and an image imports _open. Declared
+ * unless _CRT_DECLARE_NONSTDC_NAMES is defined to 0. */
+#define _STXLIB_UCRT_POSIX __declspec(dllimport)
+#ifndef _CRT_DECLARE_NONSTDC_NAMES
+#define _CRT_DECLARE_NONSTDC_NAMES 1
+#endif
+/* The 32-bit time type the *32 functions take (Learn, "time, _time32, _time64"). */
+typedef long __time32_t;
+
 #endif /* STXLIB_CRT_COMMON_H */

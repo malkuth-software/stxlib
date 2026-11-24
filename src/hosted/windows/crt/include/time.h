@@ -97,6 +97,36 @@ _STXLIB_CRT_INLINE errno_t __cdecl localtime_s(struct tm* result, const time_t* 
     return status;
 }
 
+/* Learn: "_daylight, _dstbias, _timezone, and _tzname" (the variables are
+ * reached through __daylight, __dstbias, __timezone and __tzname, which
+ * return their addresses), "_get_daylight", "_get_timezone",
+ * "_get_tzname", "_get_dstbias", "asctime_s, _wasctime_s", "_strdate",
+ * "_strtime". */
+_STXLIB_UCRT int* __cdecl __daylight(void);
+_STXLIB_UCRT long* __cdecl __dstbias(void);
+_STXLIB_UCRT long* __cdecl __timezone(void);
+_STXLIB_UCRT char** __cdecl __tzname(void);
+#define _daylight (*__daylight())
+#define _dstbias (*__dstbias())
+#define _timezone (*__timezone())
+#define _tzname (__tzname())
+_STXLIB_UCRT errno_t __cdecl _get_daylight(int* hours);
+_STXLIB_UCRT errno_t __cdecl _get_dstbias(long* seconds);
+_STXLIB_UCRT errno_t __cdecl _get_timezone(long* seconds);
+_STXLIB_UCRT errno_t __cdecl _get_tzname(size_t* length, char* buffer, size_t size, int index);
+_STXLIB_UCRT errno_t __cdecl asctime_s(char* buffer, size_t size, const struct tm* time);
+_STXLIB_UCRT char* __cdecl _strdate(char* buffer);
+_STXLIB_UCRT char* __cdecl _strtime(char* buffer);
+_STXLIB_UCRT errno_t __cdecl _strdate_s(char* buffer, size_t size);
+_STXLIB_UCRT errno_t __cdecl _strtime_s(char* buffer, size_t size);
+
+/* The POSIX name tzset (Learn: "_tzset"). The variables' POSIX names
+ * (daylight, timezone, tzname) are not declared: ucrtbase.dll exports no
+ * variable to alias, and a macro would rename struct timeb's timezone. */
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX void __cdecl tzset(void);
+#endif
+
 _STXLIB_CRT_END
 
 #endif /* STXLIB_CRT_TIME_H */

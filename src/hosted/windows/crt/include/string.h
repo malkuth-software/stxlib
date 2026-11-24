@@ -61,6 +61,40 @@ _STXLIB_UCRT int __cdecl _strnicmp(const char* left, const char* right, size_t c
 _STXLIB_UCRT int __cdecl _strcoll_l(const char* left, const char* right, _locale_t locale);
 _STXLIB_UCRT size_t __cdecl _strxfrm_l(char* destination, const char* source, size_t count, _locale_t locale);
 
+/* Learn: "_memccpy", "_memicmp, _memicmp_l", "_strlwr ...", "_strupr ...",
+ * "_strnset ...", "_strrev ...", "_strset ...", "_stricoll ...",
+ * "_strncoll ...", "_strerror", "strncat_s". The wide forms are wchar.h's. */
+_STXLIB_UCRT void* __cdecl _memccpy(void* destination, const void* source, int character, size_t count);
+_STXLIB_UCRT int __cdecl _memicmp(const void* left, const void* right, size_t count);
+_STXLIB_UCRT char* __cdecl _strlwr(char* text);
+_STXLIB_UCRT char* __cdecl _strupr(char* text);
+_STXLIB_UCRT errno_t __cdecl _strlwr_s(char* text, size_t size);
+_STXLIB_UCRT errno_t __cdecl _strupr_s(char* text, size_t size);
+_STXLIB_UCRT char* __cdecl _strnset(char* text, int character, size_t count);
+_STXLIB_UCRT char* __cdecl _strrev(char* text);
+_STXLIB_UCRT char* __cdecl _strset(char* text, int character);
+_STXLIB_UCRT int __cdecl _stricoll(const char* left, const char* right);
+_STXLIB_UCRT int __cdecl _strncoll(const char* left, const char* right, size_t count);
+_STXLIB_UCRT int __cdecl _strnicoll(const char* left, const char* right, size_t count);
+_STXLIB_UCRT char* __cdecl _strerror(const char* message);
+_STXLIB_UCRT errno_t __cdecl strncat_s(char* destination, rsize_t size, const char* source, rsize_t count);
+
+/* The POSIX names (Learn: each function's page, "The POSIX name ... is
+ * deprecated"), imported under the Microsoft names (stxlib_crt_common.h). */
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX void* __cdecl memccpy(void* destination, const void* source, int character, size_t count);
+_STXLIB_UCRT_POSIX int __cdecl memicmp(const void* left, const void* right, size_t count);
+_STXLIB_UCRT_POSIX int __cdecl strcmpi(const char* left, const char* right);
+_STXLIB_UCRT_POSIX int __cdecl stricmp(const char* left, const char* right);
+_STXLIB_UCRT_POSIX int __cdecl strnicmp(const char* left, const char* right, size_t count);
+_STXLIB_UCRT_POSIX char* __cdecl strdup(const char* text);
+_STXLIB_UCRT_POSIX char* __cdecl strlwr(char* text);
+_STXLIB_UCRT_POSIX char* __cdecl strupr(char* text);
+_STXLIB_UCRT_POSIX char* __cdecl strnset(char* text, int character, size_t count);
+_STXLIB_UCRT_POSIX char* __cdecl strrev(char* text);
+_STXLIB_UCRT_POSIX char* __cdecl strset(char* text, int character);
+#endif
+
 _STXLIB_CRT_END
 
 #endif /* STXLIB_CRT_STRING_H */
