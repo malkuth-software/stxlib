@@ -2,6 +2,20 @@
 ; The oleacc.dll functions our sources use.
 LIBRARY oleacc.dll
 EXPORTS
+    AccNotifyTouchInteraction
+    AccSetRunningUtilityState
+    AccessibleChildren
+    AccessibleObjectFromEvent
+    AccessibleObjectFromPoint
     AccessibleObjectFromWindow
     CreateStdAccessibleObject
+    CreateStdAccessibleProxyA
+    CreateStdAccessibleProxyW
+    GetOleaccVersionInfo
+    GetRoleTextA
+    GetRoleTextW
+    GetStateTextA
+    GetStateTextW
     LresultFromObject
+    ObjectFromLresult
+    WindowFromAccessibleObject

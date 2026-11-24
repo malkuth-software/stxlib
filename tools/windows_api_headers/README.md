@@ -1,9 +1,14 @@
 # Windows API headers generator
 
 STXlib's own Windows API headers for the no-MinGW x86_64 msvc build
-(projects `desks/coordinator/NO_MINGW_SWITCH.md`): SDK-named headers that
-declare only what gui_forms, stx, STXlib, miniaudio and libc++ use, with one
-export list per system DLL. Python 3, standard library only; output is
+(projects `desks/coordinator/NO_MINGW_SWITCH.md`): SDK-named headers with one
+export list per system DLL. Since STXlib 1.0.1 they declare the whole API of
+every system DLL STXlib ships a `.def` for (`COVERED_LIBRARIES` in
+`generate.py`): every function, and every type, constant, callback and
+interface of the metadata files that declare them, so third-party code (the
+image codecs) compiles as well as our own. `roots.txt`, what gui_forms, stx,
+STXlib, miniaudio and libc++ use, is checked to be covered; it no longer
+limits what is generated. Python 3, standard library only; output is
 deterministic.
 
 | File | Role |
@@ -28,7 +33,12 @@ STXWIN_LIBCXX=<libc++ include dir> sh tools/windows_api_headers/probe.sh <clang 
 
 ## Rules the generator applies
 
-- Types live in one header, `stxwin_types.h`, in dependency order (records
+- Types live in two headers. `stxwin_types.h` holds what windows.h's
+  member headers and our sources need; `stxwin_types_more.h` holds the rest
+  and is included only by the headers outside windows.h, so a program that
+  includes windows.h alone sees no more names than the SDK's windows.h
+  gives it (appmodel.h's `PACKAGE_VERSION`, which libwebp defines as a
+  macro, stays out). Each is in dependency order (records
   forward-declared, then typedefs, enums, records, callbacks; then COM
   interfaces as C++ structs with `__declspec(uuid)`, methods in metadata
   order, `#[override_slot]` re-declarations skipped). Constants (as macros,
@@ -60,4 +70,13 @@ STXWIN_LIBCXX=<libc++ include dir> sh tools/windows_api_headers/probe.sh <clang 
   contributes its identifiers. A token that is one of our names and not the
   Windows one is listed in `sources.json` under `excluded_tokens`.
 - A used metadata file no included header reaches is added to windows.h and
-  listed in `generated_report.txt` under `[gaps]`.
+  listed in `generated_report.txt` under `[gaps]`. A metadata file that only
+  the complete coverage reaches is not; it is listed under `[standalone]`.
+- A scoped enum (`#[scoped]`) is an `enum class` in C++; C sees its
+  underlying type, since its enumerators would collide (several are named
+  `None`).
+- A record nested in another (`Outer::Inner` field types) is defined inline
+  at its first field.
+- Without `STRICT_TYPED_ITEMIDS`, the PIDL aliases (`PIDLIST_ABSOLUTE` and
+  the rest), which the metadata spells as `LPITEMIDLIST`, are macros in
+  `stxwin_supplement.h`.

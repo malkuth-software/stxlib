@@ -72,6 +72,10 @@ class Layout:
         if kind == 'record':
             record_layout = self.record_body(resolved.record, pack)
             return (record_layout.size, record_layout.alignment)
+        nested = rdl.nested_record(resolved, self.declarations)
+        if nested is not None:
+            record_layout = self.record_body(nested, pack)
+            return (record_layout.size, record_layout.alignment)
         if resolved.namespace:
             return (POINTER_SIZE, POINTER_SIZE)
         name = resolved.name
