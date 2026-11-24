@@ -1390,8 +1390,26 @@ def add_complete_libraries(model: Model) -> None:
     complete_names(model, names)
 
 
+def coclass_guid(declaration: rdl.Decl) -> bool:
+    """A GUID constant named after its coclass (`DirectManipulationManager`,
+    `FileOpenDialog`): MIDL output, which the SDK spells as CLSID_<name> beside
+    the class declaration __uuidof(<name>) needs. The metadata keeps the bare
+    name, and every DEFINE_GUID constant has a prefix with an underscore
+    (IID_, FOLDERID_, GUID_)."""
+    value_type = declaration.value_type
+    return declaration.kind == 'const' and value_type is not None and value_type.kind == 'named' \
+        and value_type.name == 'GUID' and '_' not in declaration.name
+
+
 def complete_names(model: Model, names: list[str]) -> None:
     for name in sorted(names):
+        declaration = model.declarations.get(name)
+        if declaration is not None and coclass_guid(declaration):
+            # As a root naming CLSID_<name> or CLASS:<name> would: never a
+            # bare GUID object, which would hide the class from __uuidof.
+            model.add_root('CLSID_' + name)
+            model.add_root('CLASS:' + name)
+            continue
         missing = complete_closure_problem(model, name)
         if missing is not None:
             model.gaps.append(f'complete coverage: {name} not emitted ({missing})')

@@ -439,119 +439,144 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DefaultTraceSecurityGuid = {0x0811c1af, 0x7a07, 0x4a06, {0x82, 0xed, 0x86, 0x94, 0x55, 0xcd, 0xf7, 0x13}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DefaultTraceSecurityGuid = {0x0811c1af, 0x7a07, 0x4a06, {0x82, 0xed, 0x86, 0x94, 0x55, 0xcd, 0xf7, 0x13}};
 #else
-STXWIN_EXTERN_C const GUID DefaultTraceSecurityGuid;
+STXWIN_EXTERN_C const CLSID CLSID_DefaultTraceSecurityGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) EventTraceConfigGuid = {0x01853a65, 0x418f, 0x4f36, {0xae, 0xfc, 0xdc, 0x0f, 0x1d, 0x2f, 0xd2, 0x35}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_EventTraceConfigGuid = {0x01853a65, 0x418f, 0x4f36, {0xae, 0xfc, 0xdc, 0x0f, 0x1d, 0x2f, 0xd2, 0x35}};
 #else
-STXWIN_EXTERN_C const GUID EventTraceConfigGuid;
+STXWIN_EXTERN_C const CLSID CLSID_EventTraceConfigGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) EventTraceGuid = {0x68fdd900, 0x4a3e, 0x11d1, {0x84, 0xf4, 0x00, 0x00, 0xf8, 0x04, 0x64, 0xe3}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_EventTraceGuid = {0x68fdd900, 0x4a3e, 0x11d1, {0x84, 0xf4, 0x00, 0x00, 0xf8, 0x04, 0x64, 0xe3}};
 #else
-STXWIN_EXTERN_C const GUID EventTraceGuid;
+STXWIN_EXTERN_C const CLSID CLSID_EventTraceGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) LastBranchRecordProviderGuid = {0x99134383, 0x5248, 0x43fc, {0x83, 0x4b, 0x52, 0x94, 0x54, 0xe7, 0x5d, 0xf3}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_LastBranchRecordProviderGuid = {0x99134383, 0x5248, 0x43fc, {0x83, 0x4b, 0x52, 0x94, 0x54, 0xe7, 0x5d, 0xf3}};
 #else
-STXWIN_EXTERN_C const GUID LastBranchRecordProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_LastBranchRecordProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PrivateLoggerNotificationGuid = {0x3595ab5c, 0x042a, 0x4c8e, {0xb9, 0x42, 0x2d, 0x05, 0x9b, 0xfe, 0xb1, 0xb1}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PrivateLoggerNotificationGuid = {0x3595ab5c, 0x042a, 0x4c8e, {0xb9, 0x42, 0x2d, 0x05, 0x9b, 0xfe, 0xb1, 0xb1}};
 #else
-STXWIN_EXTERN_C const GUID PrivateLoggerNotificationGuid;
+STXWIN_EXTERN_C const CLSID CLSID_PrivateLoggerNotificationGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemAlpcProviderGuid = {0xfcb9baaf, 0xe529, 0x4980, {0x92, 0xe9, 0xce, 0xd1, 0xa6, 0xaa, 0xdf, 0xdf}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemAlpcProviderGuid = {0xfcb9baaf, 0xe529, 0x4980, {0x92, 0xe9, 0xce, 0xd1, 0xa6, 0xaa, 0xdf, 0xdf}};
 #else
-STXWIN_EXTERN_C const GUID SystemAlpcProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemAlpcProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemConfigProviderGuid = {0xfef3a8b6, 0x318d, 0x4b67, {0xa9, 0x6a, 0x3b, 0x0f, 0x6b, 0x8f, 0x18, 0xfe}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemConfigProviderGuid = {0xfef3a8b6, 0x318d, 0x4b67, {0xa9, 0x6a, 0x3b, 0x0f, 0x6b, 0x8f, 0x18, 0xfe}};
 #else
-STXWIN_EXTERN_C const GUID SystemConfigProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemConfigProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemCpuProviderGuid = {0xc6c5265f, 0xeae8, 0x4650, {0xaa, 0xe4, 0x9d, 0x48, 0x60, 0x3d, 0x85, 0x10}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemCpuProviderGuid = {0xc6c5265f, 0xeae8, 0x4650, {0xaa, 0xe4, 0x9d, 0x48, 0x60, 0x3d, 0x85, 0x10}};
 #else
-STXWIN_EXTERN_C const GUID SystemCpuProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemCpuProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemHypervisorProviderGuid = {0xbafa072a, 0x918a, 0x4bed, {0xb6, 0x22, 0xbc, 0x15, 0x20, 0x97, 0x09, 0x8f}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemHypervisorProviderGuid = {0xbafa072a, 0x918a, 0x4bed, {0xb6, 0x22, 0xbc, 0x15, 0x20, 0x97, 0x09, 0x8f}};
 #else
-STXWIN_EXTERN_C const GUID SystemHypervisorProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemHypervisorProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemInterruptProviderGuid = {0xd4bbee17, 0xb545, 0x4888, {0x85, 0x8b, 0x74, 0x41, 0x69, 0x01, 0x5b, 0x25}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemInterruptProviderGuid = {0xd4bbee17, 0xb545, 0x4888, {0x85, 0x8b, 0x74, 0x41, 0x69, 0x01, 0x5b, 0x25}};
 #else
-STXWIN_EXTERN_C const GUID SystemInterruptProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemInterruptProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemIoFilterProviderGuid = {0xfbd09363, 0x9e22, 0x4661, {0xb8, 0xbf, 0xe7, 0xa3, 0x4b, 0x53, 0x5b, 0x8c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemIoFilterProviderGuid = {0xfbd09363, 0x9e22, 0x4661, {0xb8, 0xbf, 0xe7, 0xa3, 0x4b, 0x53, 0x5b, 0x8c}};
 #else
-STXWIN_EXTERN_C const GUID SystemIoFilterProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemIoFilterProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemIoProviderGuid = {0x3d5c43e3, 0x0f1c, 0x4202, {0xb8, 0x17, 0x17, 0x4c, 0x00, 0x70, 0xdc, 0x79}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemIoProviderGuid = {0x3d5c43e3, 0x0f1c, 0x4202, {0xb8, 0x17, 0x17, 0x4c, 0x00, 0x70, 0xdc, 0x79}};
 #else
-STXWIN_EXTERN_C const GUID SystemIoProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemIoProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemLockProviderGuid = {0x721ddfd3, 0xdacc, 0x4e1e, {0xb2, 0x6a, 0xa2, 0xcb, 0x31, 0xd4, 0x70, 0x5a}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemLockProviderGuid = {0x721ddfd3, 0xdacc, 0x4e1e, {0xb2, 0x6a, 0xa2, 0xcb, 0x31, 0xd4, 0x70, 0x5a}};
 #else
-STXWIN_EXTERN_C const GUID SystemLockProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemLockProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemMemoryProviderGuid = {0x82958ca9, 0xb6cd, 0x47f8, {0xa3, 0xa8, 0x03, 0xae, 0x85, 0xa4, 0xbc, 0x24}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemMemoryProviderGuid = {0x82958ca9, 0xb6cd, 0x47f8, {0xa3, 0xa8, 0x03, 0xae, 0x85, 0xa4, 0xbc, 0x24}};
 #else
-STXWIN_EXTERN_C const GUID SystemMemoryProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemMemoryProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemObjectProviderGuid = {0xfebd7460, 0x3d1d, 0x47eb, {0xaf, 0x49, 0xc9, 0xee, 0xb1, 0xe1, 0x46, 0xf2}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemObjectProviderGuid = {0xfebd7460, 0x3d1d, 0x47eb, {0xaf, 0x49, 0xc9, 0xee, 0xb1, 0xe1, 0x46, 0xf2}};
 #else
-STXWIN_EXTERN_C const GUID SystemObjectProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemObjectProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemPowerProviderGuid = {0xc134884a, 0x32d5, 0x4488, {0x80, 0xe5, 0x14, 0xed, 0x7a, 0xbb, 0x82, 0x69}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemPowerProviderGuid = {0xc134884a, 0x32d5, 0x4488, {0x80, 0xe5, 0x14, 0xed, 0x7a, 0xbb, 0x82, 0x69}};
 #else
-STXWIN_EXTERN_C const GUID SystemPowerProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemPowerProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemProcessProviderGuid = {0x151f55dc, 0x467d, 0x471f, {0x83, 0xb5, 0x5f, 0x88, 0x9d, 0x46, 0xff, 0x66}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemProcessProviderGuid = {0x151f55dc, 0x467d, 0x471f, {0x83, 0xb5, 0x5f, 0x88, 0x9d, 0x46, 0xff, 0x66}};
 #else
-STXWIN_EXTERN_C const GUID SystemProcessProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemProcessProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemProfileProviderGuid = {0xbfeb0324, 0x1cee, 0x496f, {0xa4, 0x09, 0x2a, 0xc2, 0xb4, 0x8a, 0x63, 0x22}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemProfileProviderGuid = {0xbfeb0324, 0x1cee, 0x496f, {0xa4, 0x09, 0x2a, 0xc2, 0xb4, 0x8a, 0x63, 0x22}};
 #else
-STXWIN_EXTERN_C const GUID SystemProfileProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemProfileProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemRegistryProviderGuid = {0x16156bd9, 0xfab4, 0x4cfa, {0xa2, 0x32, 0x89, 0xd1, 0x09, 0x90, 0x58, 0xe3}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemRegistryProviderGuid = {0x16156bd9, 0xfab4, 0x4cfa, {0xa2, 0x32, 0x89, 0xd1, 0x09, 0x90, 0x58, 0xe3}};
 #else
-STXWIN_EXTERN_C const GUID SystemRegistryProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemRegistryProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemSchedulerProviderGuid = {0x599a2a76, 0x4d91, 0x4910, {0x9a, 0xc7, 0x7d, 0x33, 0xf2, 0xe9, 0x7a, 0x6c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemSchedulerProviderGuid = {0x599a2a76, 0x4d91, 0x4910, {0x9a, 0xc7, 0x7d, 0x33, 0xf2, 0xe9, 0x7a, 0x6c}};
 #else
-STXWIN_EXTERN_C const GUID SystemSchedulerProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemSchedulerProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemSyscallProviderGuid = {0x434286f7, 0x6f1b, 0x45bb, {0xb3, 0x7e, 0x95, 0xf6, 0x23, 0x04, 0x6c, 0x7c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemSyscallProviderGuid = {0x434286f7, 0x6f1b, 0x45bb, {0xb3, 0x7e, 0x95, 0xf6, 0x23, 0x04, 0x6c, 0x7c}};
 #else
-STXWIN_EXTERN_C const GUID SystemSyscallProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemSyscallProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemTimerProviderGuid = {0x4f061568, 0xe215, 0x499f, {0xab, 0x2e, 0xed, 0xa0, 0xae, 0x89, 0x0a, 0x5b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemTimerProviderGuid = {0x4f061568, 0xe215, 0x499f, {0xab, 0x2e, 0xed, 0xa0, 0xae, 0x89, 0x0a, 0x5b}};
 #else
-STXWIN_EXTERN_C const GUID SystemTimerProviderGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemTimerProviderGuid;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SystemTraceControlGuid = {0x9e814aad, 0x3204, 0x11d2, {0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SystemTraceControlGuid = {0x9e814aad, 0x3204, 0x11d2, {0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39}};
 #else
-STXWIN_EXTERN_C const GUID SystemTraceControlGuid;
+STXWIN_EXTERN_C const CLSID CLSID_SystemTraceControlGuid;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("0811c1af-7a07-4a06-82ed-869455cdf713")) DefaultTraceSecurityGuid;
+class __declspec(uuid("01853a65-418f-4f36-aefc-dc0f1d2fd235")) EventTraceConfigGuid;
+class __declspec(uuid("68fdd900-4a3e-11d1-84f4-0000f80464e3")) EventTraceGuid;
+class __declspec(uuid("99134383-5248-43fc-834b-529454e75df3")) LastBranchRecordProviderGuid;
+class __declspec(uuid("3595ab5c-042a-4c8e-b942-2d059bfeb1b1")) PrivateLoggerNotificationGuid;
+class __declspec(uuid("fcb9baaf-e529-4980-92e9-ced1a6aadfdf")) SystemAlpcProviderGuid;
+class __declspec(uuid("fef3a8b6-318d-4b67-a96a-3b0f6b8f18fe")) SystemConfigProviderGuid;
+class __declspec(uuid("c6c5265f-eae8-4650-aae4-9d48603d8510")) SystemCpuProviderGuid;
+class __declspec(uuid("bafa072a-918a-4bed-b622-bc152097098f")) SystemHypervisorProviderGuid;
+class __declspec(uuid("d4bbee17-b545-4888-858b-744169015b25")) SystemInterruptProviderGuid;
+class __declspec(uuid("fbd09363-9e22-4661-b8bf-e7a34b535b8c")) SystemIoFilterProviderGuid;
+class __declspec(uuid("3d5c43e3-0f1c-4202-b817-174c0070dc79")) SystemIoProviderGuid;
+class __declspec(uuid("721ddfd3-dacc-4e1e-b26a-a2cb31d4705a")) SystemLockProviderGuid;
+class __declspec(uuid("82958ca9-b6cd-47f8-a3a8-03ae85a4bc24")) SystemMemoryProviderGuid;
+class __declspec(uuid("febd7460-3d1d-47eb-af49-c9eeb1e146f2")) SystemObjectProviderGuid;
+class __declspec(uuid("c134884a-32d5-4488-80e5-14ed7abb8269")) SystemPowerProviderGuid;
+class __declspec(uuid("151f55dc-467d-471f-83b5-5f889d46ff66")) SystemProcessProviderGuid;
+class __declspec(uuid("bfeb0324-1cee-496f-a409-2ac2b48a6322")) SystemProfileProviderGuid;
+class __declspec(uuid("16156bd9-fab4-4cfa-a232-89d1099058e3")) SystemRegistryProviderGuid;
+class __declspec(uuid("599a2a76-4d91-4910-9ac7-7d33f2e97a6c")) SystemSchedulerProviderGuid;
+class __declspec(uuid("434286f7-6f1b-45bb-b37e-95f623046c7c")) SystemSyscallProviderGuid;
+class __declspec(uuid("4f061568-e215-499f-ab2e-eda0ae890a5b")) SystemTimerProviderGuid;
+class __declspec(uuid("9e814aad-3204-11d2-9a82-006008a86939")) SystemTraceControlGuid;
 #endif
 
 #ifdef __cplusplus

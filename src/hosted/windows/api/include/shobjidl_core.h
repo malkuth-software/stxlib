@@ -523,9 +523,94 @@ STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IShellView2 = {0x88e3
 STXWIN_EXTERN_C const IID IID_IShellView2;
 #endif
 #ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AppShellVerbHandler = {0x4ed3a719, 0xcea8, 0x4bd9, {0x91, 0x0d, 0xe2, 0x52, 0xf9, 0x97, 0xaf, 0xc2}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_AppShellVerbHandler;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AppStartupLink = {0x273eb5e7, 0x88b0, 0x4843, {0xbf, 0xef, 0xe2, 0xc8, 0x1d, 0x43, 0xaa, 0xe5}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_AppStartupLink;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AppVisibility = {0x7e5fe3d9, 0x985f, 0x4908, {0x91, 0xf9, 0xee, 0x19, 0xf9, 0xfd, 0x15, 0x14}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_AppVisibility;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationActivationManager = {0x45ba127d, 0x10a8, 0x46ea, {0x8a, 0xb7, 0x56, 0xea, 0x90, 0x78, 0x94, 0x3c}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationActivationManager;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationAssociationRegistration = {0x591209c7, 0x767b, 0x42b2, {0x9f, 0xba, 0x44, 0xee, 0x46, 0x15, 0xf2, 0xc7}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationAssociationRegistration;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationDesignModeSettings = {0x958a6fb5, 0xdcb2, 0x4faf, {0xaa, 0xfd, 0x7f, 0xb0, 0x54, 0xad, 0x1a, 0x3b}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationDesignModeSettings;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationDestinations = {0x86c14003, 0x4d6b, 0x4ef3, {0xa7, 0xb4, 0x05, 0x06, 0x66, 0x3b, 0x2e, 0x68}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationDestinations;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationDocumentLists = {0x86bec222, 0x30f2, 0x47e0, {0x9f, 0x25, 0x60, 0xd1, 0x1c, 0xd7, 0x5c, 0x28}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationDocumentLists;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DefFolderMenu = {0xc63382be, 0x7933, 0x48d0, {0x9a, 0xc8, 0x85, 0xfb, 0x46, 0xbe, 0x2f, 0xdd}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DefFolderMenu;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DesktopWallpaper = {0xc2cf3110, 0x460e, 0x4fc1, {0xb9, 0xd0, 0x8a, 0x1c, 0x0c, 0x9c, 0xc4, 0xbd}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DesktopWallpaper;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5, 0x20, 0xb7, 0xc5, 0x4f, 0xd3, 0x5e, 0xd6}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DestinationList;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DestinationListBoth = {0x38fe0cf4, 0x6a59, 0x4729, {0x8e, 0x4a, 0x2d, 0x58, 0x00, 0x59, 0xed, 0xe4}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DestinationListBoth;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DriveSizeCategorizer = {0x94357b53, 0xca29, 0x4b78, {0x83, 0xae, 0xe8, 0xfe, 0x74, 0x09, 0x13, 0x4f}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DriveSizeCategorizer;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DriveTypeCategorizer = {0xb0a8f3cf, 0x4333, 0x4bab, {0x88, 0x73, 0x1c, 0xcb, 0x1c, 0xad, 0xa4, 0x8b}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DriveTypeCategorizer;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac, 0x24, 0xd3, 0xf0, 0x2f, 0xd9, 0x60, 0x7a}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_EnumerableObjectCollection;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ExecuteUnknown = {0xe44e9428, 0xbdbc, 0x4987, {0xa0, 0x99, 0x40, 0xdc, 0x8f, 0xd2, 0x55, 0xe7}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_ExecuteUnknown;
+#endif
+#ifdef INITGUID
 STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileOpenDialog = {0xdc1c5a9c, 0xe88a, 0x4dde, {0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7}};
 #else
 STXWIN_EXTERN_C const CLSID CLSID_FileOpenDialog;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileOperation = {0x3ad05575, 0x8857, 0x4850, {0x92, 0x77, 0x11, 0xb8, 0x5b, 0xdb, 0x8e, 0x09}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_FileOperation;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileSaveDialog = {0xc0b4e2f3, 0xba21, 0x4773, {0x8d, 0xba, 0x33, 0x5e, 0xc9, 0x46, 0xeb, 0x8b}};
@@ -533,159 +618,124 @@ STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FileSaveDialog = 
 STXWIN_EXTERN_C const CLSID CLSID_FileSaveDialog;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AppShellVerbHandler = {0x4ed3a719, 0xcea8, 0x4bd9, {0x91, 0x0d, 0xe2, 0x52, 0xf9, 0x97, 0xaf, 0xc2}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FrameworkInputPane = {0xd5120aa3, 0x46ba, 0x44c5, {0x82, 0x2d, 0xca, 0x80, 0x92, 0xc1, 0xfc, 0x72}};
 #else
-STXWIN_EXTERN_C const GUID AppShellVerbHandler;
+STXWIN_EXTERN_C const CLSID CLSID_FrameworkInputPane;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AppStartupLink = {0x273eb5e7, 0x88b0, 0x4843, {0xbf, 0xef, 0xe2, 0xc8, 0x1d, 0x43, 0xaa, 0xe5}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FreeSpaceCategorizer = {0xb5607793, 0x24ac, 0x44c7, {0x82, 0xe2, 0x83, 0x17, 0x26, 0xaa, 0x6c, 0xb7}};
 #else
-STXWIN_EXTERN_C const GUID AppStartupLink;
+STXWIN_EXTERN_C const CLSID CLSID_FreeSpaceCategorizer;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AppVisibility = {0x7e5fe3d9, 0x985f, 0x4908, {0x91, 0xf9, 0xee, 0x19, 0xf9, 0xfd, 0x15, 0x14}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_HomeGroup = {0xde77ba04, 0x3c92, 0x4d11, {0xa1, 0xa5, 0x42, 0x35, 0x2a, 0x53, 0xe0, 0xe3}};
 #else
-STXWIN_EXTERN_C const GUID AppVisibility;
+STXWIN_EXTERN_C const CLSID CLSID_HomeGroup;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationActivationManager = {0x45ba127d, 0x10a8, 0x46ea, {0x8a, 0xb7, 0x56, 0xea, 0x90, 0x78, 0x94, 0x3c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_KnownFolderManager = {0x4df0c730, 0xdf9d, 0x4ae3, {0x91, 0x53, 0xaa, 0x6b, 0x82, 0xe9, 0x79, 0x5a}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationActivationManager;
+STXWIN_EXTERN_C const CLSID CLSID_KnownFolderManager;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationAssociationRegistration = {0x591209c7, 0x767b, 0x42b2, {0x9f, 0xba, 0x44, 0xee, 0x46, 0x15, 0xf2, 0xc7}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_MailRecipient = {0x9e56be60, 0xc50f, 0x11cf, {0x9a, 0x2c, 0x00, 0xa0, 0xc9, 0x0a, 0x90, 0xce}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationAssociationRegistration;
+STXWIN_EXTERN_C const CLSID CLSID_MailRecipient;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationDesignModeSettings = {0x958a6fb5, 0xdcb2, 0x4faf, {0xaa, 0xfd, 0x7f, 0xb0, 0x54, 0xad, 0x1a, 0x3b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_NamespaceWalker = {0x72eb61e0, 0x8672, 0x4303, {0x91, 0x75, 0xf2, 0xe4, 0xc6, 0x8b, 0x2e, 0x7c}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationDesignModeSettings;
+STXWIN_EXTERN_C const CLSID CLSID_NamespaceWalker;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationDestinations = {0x86c14003, 0x4d6b, 0x4ef3, {0xa7, 0xb4, 0x05, 0x06, 0x66, 0x3b, 0x2e, 0x68}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_NetworkConnections = {0x7007acc7, 0x3202, 0x11d1, {0xaa, 0xd2, 0x00, 0x80, 0x5f, 0xc1, 0x27, 0x0e}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationDestinations;
+STXWIN_EXTERN_C const CLSID CLSID_NetworkConnections;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationDocumentLists = {0x86bec222, 0x30f2, 0x47e0, {0x9f, 0x25, 0x60, 0xd1, 0x1c, 0xd7, 0x5c, 0x28}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_NetworkExplorerFolder = {0xf02c1a0d, 0xbe21, 0x4350, {0x88, 0xb0, 0x73, 0x67, 0xfc, 0x96, 0xef, 0x3c}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationDocumentLists;
+STXWIN_EXTERN_C const CLSID CLSID_NetworkExplorerFolder;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DefFolderMenu = {0xc63382be, 0x7933, 0x48d0, {0x9a, 0xc8, 0x85, 0xfb, 0x46, 0xbe, 0x2f, 0xdd}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_NetworkPlaces = {0x208d2c60, 0x3aea, 0x1069, {0xa2, 0xd7, 0x08, 0x00, 0x2b, 0x30, 0x30, 0x9d}};
 #else
-STXWIN_EXTERN_C const GUID DefFolderMenu;
+STXWIN_EXTERN_C const CLSID CLSID_NetworkPlaces;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DesktopWallpaper = {0xc2cf3110, 0x460e, 0x4fc1, {0xb9, 0xd0, 0x8a, 0x1c, 0x0c, 0x9c, 0xc4, 0xbd}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_OpenControlPanel = {0x06622d85, 0x6856, 0x4460, {0x8d, 0xe1, 0xa8, 0x19, 0x21, 0xb4, 0x1c, 0x4b}};
 #else
-STXWIN_EXTERN_C const GUID DesktopWallpaper;
+STXWIN_EXTERN_C const CLSID CLSID_OpenControlPanel;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DestinationList = {0x77f10cf0, 0x3db5, 0x4966, {0xb5, 0x20, 0xb7, 0xc5, 0x4f, 0xd3, 0x5e, 0xd6}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PackageDebugSettings = {0xb1aec16f, 0x2383, 0x4852, {0xb0, 0xe9, 0x8f, 0x0b, 0x1d, 0xc6, 0x6b, 0x4d}};
 #else
-STXWIN_EXTERN_C const GUID DestinationList;
+STXWIN_EXTERN_C const CLSID CLSID_PackageDebugSettings;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DestinationListBoth = {0x38fe0cf4, 0x6a59, 0x4729, {0x8e, 0x4a, 0x2d, 0x58, 0x00, 0x59, 0xed, 0xe4}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PropertiesUI = {0xd912f8cf, 0x0396, 0x4915, {0x88, 0x4e, 0xfb, 0x42, 0x5d, 0x32, 0x94, 0x3b}};
 #else
-STXWIN_EXTERN_C const GUID DestinationListBoth;
+STXWIN_EXTERN_C const CLSID CLSID_PropertiesUI;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DriveSizeCategorizer = {0x94357b53, 0xca29, 0x4b78, {0x83, 0xae, 0xe8, 0xfe, 0x74, 0x09, 0x13, 0x4f}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ScheduledTasks = {0xd6277990, 0x4c6a, 0x11cf, {0x8d, 0x87, 0x00, 0xaa, 0x00, 0x60, 0xf5, 0xbf}};
 #else
-STXWIN_EXTERN_C const GUID DriveSizeCategorizer;
+STXWIN_EXTERN_C const CLSID CLSID_ScheduledTasks;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DriveTypeCategorizer = {0xb0a8f3cf, 0x4333, 0x4bab, {0x88, 0x73, 0x1c, 0xcb, 0x1c, 0xad, 0xa4, 0x8b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SearchFolderItemFactory = {0x14010e02, 0xbbbd, 0x41f0, {0x88, 0xe3, 0xed, 0xa3, 0x71, 0x21, 0x65, 0x84}};
 #else
-STXWIN_EXTERN_C const GUID DriveTypeCategorizer;
+STXWIN_EXTERN_C const CLSID CLSID_SearchFolderItemFactory;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) EnumerableObjectCollection = {0x2d3468c1, 0x36a7, 0x43b6, {0xac, 0x24, 0xd3, 0xf0, 0x2f, 0xd9, 0x60, 0x7a}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SharingConfigurationManager = {0x49f371e1, 0x8c5c, 0x4d9c, {0x9a, 0x3b, 0x54, 0xa6, 0x82, 0x7f, 0x51, 0x3c}};
 #else
-STXWIN_EXTERN_C const GUID EnumerableObjectCollection;
+STXWIN_EXTERN_C const CLSID CLSID_SharingConfigurationManager;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ExecuteUnknown = {0xe44e9428, 0xbdbc, 0x4987, {0xa0, 0x99, 0x40, 0xdc, 0x8f, 0xd2, 0x55, 0xe7}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ShellDesktop = {0x00021400, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
 #else
-STXWIN_EXTERN_C const GUID ExecuteUnknown;
+STXWIN_EXTERN_C const CLSID CLSID_ShellDesktop;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FileOpenDialog = {0xdc1c5a9c, 0xe88a, 0x4dde, {0xa5, 0xa1, 0x60, 0xf8, 0x2a, 0x20, 0xae, 0xf7}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ShellFSFolder = {0xf3364ba0, 0x65b9, 0x11ce, {0xa9, 0xba, 0x00, 0xaa, 0x00, 0x4a, 0xe8, 0x37}};
 #else
-STXWIN_EXTERN_C const GUID FileOpenDialog;
+STXWIN_EXTERN_C const CLSID CLSID_ShellFSFolder;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FileOperation = {0x3ad05575, 0x8857, 0x4850, {0x92, 0x77, 0x11, 0xb8, 0x5b, 0xdb, 0x8e, 0x09}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ShellItem = {0x9ac9fbe1, 0xe0a2, 0x4ad6, {0xb4, 0xee, 0xe2, 0x12, 0x01, 0x3e, 0xa9, 0x17}};
 #else
-STXWIN_EXTERN_C const GUID FileOperation;
+STXWIN_EXTERN_C const CLSID CLSID_ShellItem;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FileSaveDialog = {0xc0b4e2f3, 0xba21, 0x4773, {0x8d, 0xba, 0x33, 0x5e, 0xc9, 0x46, 0xeb, 0x8b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ShellLibrary = {0xd9b3211d, 0xe57f, 0x4426, {0xaa, 0xef, 0x30, 0xa8, 0x06, 0xad, 0xd3, 0x97}};
 #else
-STXWIN_EXTERN_C const GUID FileSaveDialog;
+STXWIN_EXTERN_C const CLSID CLSID_ShellLibrary;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FrameworkInputPane = {0xd5120aa3, 0x46ba, 0x44c5, {0x82, 0x2d, 0xca, 0x80, 0x92, 0xc1, 0xfc, 0x72}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ShellLink = {0x00021401, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
 #else
-STXWIN_EXTERN_C const GUID FrameworkInputPane;
+STXWIN_EXTERN_C const CLSID CLSID_ShellLink;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FreeSpaceCategorizer = {0xb5607793, 0x24ac, 0x44c7, {0x82, 0xe2, 0x83, 0x17, 0x26, 0xaa, 0x6c, 0xb7}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SizeCategorizer = {0x55d7b852, 0xf6d1, 0x42f2, {0xaa, 0x75, 0x87, 0x28, 0xa1, 0xb2, 0xd2, 0x64}};
 #else
-STXWIN_EXTERN_C const GUID FreeSpaceCategorizer;
+STXWIN_EXTERN_C const CLSID CLSID_SizeCategorizer;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) HomeGroup = {0xde77ba04, 0x3c92, 0x4d11, {0xa1, 0xa5, 0x42, 0x35, 0x2a, 0x53, 0xe0, 0xe3}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_SuspensionDependencyManager = {0x6b273fc5, 0x61fd, 0x4918, {0x95, 0xa2, 0xc3, 0xb5, 0xe9, 0xd7, 0xf5, 0x81}};
 #else
-STXWIN_EXTERN_C const GUID HomeGroup;
+STXWIN_EXTERN_C const CLSID CLSID_SuspensionDependencyManager;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) KnownFolderManager = {0x4df0c730, 0xdf9d, 0x4ae3, {0x91, 0x53, 0xaa, 0x6b, 0x82, 0xe9, 0x79, 0x5a}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_TaskbarList = {0x56fdf344, 0xfd6d, 0x11d0, {0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}};
 #else
-STXWIN_EXTERN_C const GUID KnownFolderManager;
+STXWIN_EXTERN_C const CLSID CLSID_TaskbarList;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) MailRecipient = {0x9e56be60, 0xc50f, 0x11cf, {0x9a, 0x2c, 0x00, 0xa0, 0xc9, 0x0a, 0x90, 0xce}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_UserNotification = {0x0010890e, 0x8789, 0x413c, {0xad, 0xbc, 0x48, 0xf5, 0xb5, 0x11, 0xb3, 0xaf}};
 #else
-STXWIN_EXTERN_C const GUID MailRecipient;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) NamespaceWalker = {0x72eb61e0, 0x8672, 0x4303, {0x91, 0x75, 0xf2, 0xe4, 0xc6, 0x8b, 0x2e, 0x7c}};
-#else
-STXWIN_EXTERN_C const GUID NamespaceWalker;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) NetworkConnections = {0x7007acc7, 0x3202, 0x11d1, {0xaa, 0xd2, 0x00, 0x80, 0x5f, 0xc1, 0x27, 0x0e}};
-#else
-STXWIN_EXTERN_C const GUID NetworkConnections;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) NetworkExplorerFolder = {0xf02c1a0d, 0xbe21, 0x4350, {0x88, 0xb0, 0x73, 0x67, 0xfc, 0x96, 0xef, 0x3c}};
-#else
-STXWIN_EXTERN_C const GUID NetworkExplorerFolder;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) NetworkPlaces = {0x208d2c60, 0x3aea, 0x1069, {0xa2, 0xd7, 0x08, 0x00, 0x2b, 0x30, 0x30, 0x9d}};
-#else
-STXWIN_EXTERN_C const GUID NetworkPlaces;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) OpenControlPanel = {0x06622d85, 0x6856, 0x4460, {0x8d, 0xe1, 0xa8, 0x19, 0x21, 0xb4, 0x1c, 0x4b}};
-#else
-STXWIN_EXTERN_C const GUID OpenControlPanel;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PackageDebugSettings = {0xb1aec16f, 0x2383, 0x4852, {0xb0, 0xe9, 0x8f, 0x0b, 0x1d, 0xc6, 0x6b, 0x4d}};
-#else
-STXWIN_EXTERN_C const GUID PackageDebugSettings;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PropertiesUI = {0xd912f8cf, 0x0396, 0x4915, {0x88, 0x4e, 0xfb, 0x42, 0x5d, 0x32, 0x94, 0x3b}};
-#else
-STXWIN_EXTERN_C const GUID PropertiesUI;
+STXWIN_EXTERN_C const CLSID CLSID_UserNotification;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SID_ExecuteCreatingProcess = {0xc2b937a9, 0x3110, 0x4398, {0x8a, 0x56, 0xf3, 0x4c, 0x63, 0x42, 0xd2, 0x44}};
@@ -728,69 +778,54 @@ STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SID_URLExecutionContext 
 STXWIN_EXTERN_C const GUID SID_URLExecutionContext;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ScheduledTasks = {0xd6277990, 0x4c6a, 0x11cf, {0x8d, 0x87, 0x00, 0xaa, 0x00, 0x60, 0xf5, 0xbf}};
-#else
-STXWIN_EXTERN_C const GUID ScheduledTasks;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SearchFolderItemFactory = {0x14010e02, 0xbbbd, 0x41f0, {0x88, 0xe3, 0xed, 0xa3, 0x71, 0x21, 0x65, 0x84}};
-#else
-STXWIN_EXTERN_C const GUID SearchFolderItemFactory;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SharingConfigurationManager = {0x49f371e1, 0x8c5c, 0x4d9c, {0x9a, 0x3b, 0x54, 0xa6, 0x82, 0x7f, 0x51, 0x3c}};
-#else
-STXWIN_EXTERN_C const GUID SharingConfigurationManager;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ShellDesktop = {0x00021400, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
-#else
-STXWIN_EXTERN_C const GUID ShellDesktop;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ShellFSFolder = {0xf3364ba0, 0x65b9, 0x11ce, {0xa9, 0xba, 0x00, 0xaa, 0x00, 0x4a, 0xe8, 0x37}};
-#else
-STXWIN_EXTERN_C const GUID ShellFSFolder;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ShellItem = {0x9ac9fbe1, 0xe0a2, 0x4ad6, {0xb4, 0xee, 0xe2, 0x12, 0x01, 0x3e, 0xa9, 0x17}};
-#else
-STXWIN_EXTERN_C const GUID ShellItem;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ShellLibrary = {0xd9b3211d, 0xe57f, 0x4426, {0xaa, 0xef, 0x30, 0xa8, 0x06, 0xad, 0xd3, 0x97}};
-#else
-STXWIN_EXTERN_C const GUID ShellLibrary;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ShellLink = {0x00021401, 0x0000, 0x0000, {0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x46}};
-#else
-STXWIN_EXTERN_C const GUID ShellLink;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SizeCategorizer = {0x55d7b852, 0xf6d1, 0x42f2, {0xaa, 0x75, 0x87, 0x28, 0xa1, 0xb2, 0xd2, 0x64}};
-#else
-STXWIN_EXTERN_C const GUID SizeCategorizer;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SuspensionDependencyManager = {0x6b273fc5, 0x61fd, 0x4918, {0x95, 0xa2, 0xc3, 0xb5, 0xe9, 0xd7, 0xf5, 0x81}};
-#else
-STXWIN_EXTERN_C const GUID SuspensionDependencyManager;
-#endif
-#ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TOID_NULL = {0x00000000, 0x0000, 0x0000, {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
 #else
 STXWIN_EXTERN_C const GUID TOID_NULL;
 #endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TaskbarList = {0x56fdf344, 0xfd6d, 0x11d0, {0x95, 0x8a, 0x00, 0x60, 0x97, 0xc9, 0xa0, 0x90}};
-#else
-STXWIN_EXTERN_C const GUID TaskbarList;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) UserNotification = {0x0010890e, 0x8789, 0x413c, {0xad, 0xbc, 0x48, 0xf5, 0xb5, 0x11, 0xb3, 0xaf}};
-#else
-STXWIN_EXTERN_C const GUID UserNotification;
+#ifdef __cplusplus
+class __declspec(uuid("4ed3a719-cea8-4bd9-910d-e252f997afc2")) AppShellVerbHandler;
+class __declspec(uuid("273eb5e7-88b0-4843-bfef-e2c81d43aae5")) AppStartupLink;
+class __declspec(uuid("7e5fe3d9-985f-4908-91f9-ee19f9fd1514")) AppVisibility;
+class __declspec(uuid("45ba127d-10a8-46ea-8ab7-56ea9078943c")) ApplicationActivationManager;
+class __declspec(uuid("591209c7-767b-42b2-9fba-44ee4615f2c7")) ApplicationAssociationRegistration;
+class __declspec(uuid("958a6fb5-dcb2-4faf-aafd-7fb054ad1a3b")) ApplicationDesignModeSettings;
+class __declspec(uuid("86c14003-4d6b-4ef3-a7b4-0506663b2e68")) ApplicationDestinations;
+class __declspec(uuid("86bec222-30f2-47e0-9f25-60d11cd75c28")) ApplicationDocumentLists;
+class __declspec(uuid("c63382be-7933-48d0-9ac8-85fb46be2fdd")) DefFolderMenu;
+class __declspec(uuid("c2cf3110-460e-4fc1-b9d0-8a1c0c9cc4bd")) DesktopWallpaper;
+class __declspec(uuid("77f10cf0-3db5-4966-b520-b7c54fd35ed6")) DestinationList;
+class __declspec(uuid("38fe0cf4-6a59-4729-8e4a-2d580059ede4")) DestinationListBoth;
+class __declspec(uuid("94357b53-ca29-4b78-83ae-e8fe7409134f")) DriveSizeCategorizer;
+class __declspec(uuid("b0a8f3cf-4333-4bab-8873-1ccb1cada48b")) DriveTypeCategorizer;
+class __declspec(uuid("2d3468c1-36a7-43b6-ac24-d3f02fd9607a")) EnumerableObjectCollection;
+class __declspec(uuid("e44e9428-bdbc-4987-a099-40dc8fd255e7")) ExecuteUnknown;
+class __declspec(uuid("dc1c5a9c-e88a-4dde-a5a1-60f82a20aef7")) FileOpenDialog;
+class __declspec(uuid("3ad05575-8857-4850-9277-11b85bdb8e09")) FileOperation;
+class __declspec(uuid("c0b4e2f3-ba21-4773-8dba-335ec946eb8b")) FileSaveDialog;
+class __declspec(uuid("d5120aa3-46ba-44c5-822d-ca8092c1fc72")) FrameworkInputPane;
+class __declspec(uuid("b5607793-24ac-44c7-82e2-831726aa6cb7")) FreeSpaceCategorizer;
+class __declspec(uuid("de77ba04-3c92-4d11-a1a5-42352a53e0e3")) HomeGroup;
+class __declspec(uuid("4df0c730-df9d-4ae3-9153-aa6b82e9795a")) KnownFolderManager;
+class __declspec(uuid("9e56be60-c50f-11cf-9a2c-00a0c90a90ce")) MailRecipient;
+class __declspec(uuid("72eb61e0-8672-4303-9175-f2e4c68b2e7c")) NamespaceWalker;
+class __declspec(uuid("7007acc7-3202-11d1-aad2-00805fc1270e")) NetworkConnections;
+class __declspec(uuid("f02c1a0d-be21-4350-88b0-7367fc96ef3c")) NetworkExplorerFolder;
+class __declspec(uuid("208d2c60-3aea-1069-a2d7-08002b30309d")) NetworkPlaces;
+class __declspec(uuid("06622d85-6856-4460-8de1-a81921b41c4b")) OpenControlPanel;
+class __declspec(uuid("b1aec16f-2383-4852-b0e9-8f0b1dc66b4d")) PackageDebugSettings;
+class __declspec(uuid("d912f8cf-0396-4915-884e-fb425d32943b")) PropertiesUI;
+class __declspec(uuid("d6277990-4c6a-11cf-8d87-00aa0060f5bf")) ScheduledTasks;
+class __declspec(uuid("14010e02-bbbd-41f0-88e3-eda371216584")) SearchFolderItemFactory;
+class __declspec(uuid("49f371e1-8c5c-4d9c-9a3b-54a6827f513c")) SharingConfigurationManager;
+class __declspec(uuid("00021400-0000-0000-c000-000000000046")) ShellDesktop;
+class __declspec(uuid("f3364ba0-65b9-11ce-a9ba-00aa004ae837")) ShellFSFolder;
+class __declspec(uuid("9ac9fbe1-e0a2-4ad6-b4ee-e212013ea917")) ShellItem;
+class __declspec(uuid("d9b3211d-e57f-4426-aaef-30a806add397")) ShellLibrary;
+class __declspec(uuid("00021401-0000-0000-c000-000000000046")) ShellLink;
+class __declspec(uuid("55d7b852-f6d1-42f2-aa75-8728a1b2d264")) SizeCategorizer;
+class __declspec(uuid("6b273fc5-61fd-4918-95a2-c3b5e9d7f581")) SuspensionDependencyManager;
+class __declspec(uuid("56fdf344-fd6d-11d0-958a-006097c9a090")) TaskbarList;
+class __declspec(uuid("0010890e-8789-413c-adbc-48f5b511b3af")) UserNotification;
 #endif
 
 #ifdef __cplusplus

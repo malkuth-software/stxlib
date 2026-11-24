@@ -20,14 +20,17 @@ STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IKsControl = {0x28f54
 STXWIN_EXTERN_C const IID IID_IKsControl;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DeviceTopology = {0x1df639d0, 0x5ec1, 0x47aa, {0x93, 0x79, 0x82, 0x8d, 0xc1, 0xaa, 0x8c, 0x59}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DeviceTopology = {0x1df639d0, 0x5ec1, 0x47aa, {0x93, 0x79, 0x82, 0x8d, 0xc1, 0xaa, 0x8c, 0x59}};
 #else
-STXWIN_EXTERN_C const GUID DeviceTopology;
+STXWIN_EXTERN_C const CLSID CLSID_DeviceTopology;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) EVENTCONTEXT_VOLUMESLIDER = {0xe2c2e9de, 0x09b1, 0x4b04, {0x84, 0xe5, 0x07, 0x93, 0x12, 0x25, 0xee, 0x04}};
 #else
 STXWIN_EXTERN_C const GUID EVENTCONTEXT_VOLUMESLIDER;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("1df639d0-5ec1-47aa-9379-828dc1aa8c59")) DeviceTopology;
 #endif
 
 #endif /* RC_INVOKED */

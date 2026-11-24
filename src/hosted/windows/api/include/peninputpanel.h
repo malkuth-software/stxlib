@@ -19,24 +19,29 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) HandwrittenTextInsertion = {0x9f074ee2, 0xe6e9, 0x4d8a, {0xa0, 0x47, 0xeb, 0x5b, 0x5c, 0x3c, 0x55, 0xda}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_HandwrittenTextInsertion = {0x9f074ee2, 0xe6e9, 0x4d8a, {0xa0, 0x47, 0xeb, 0x5b, 0x5c, 0x3c, 0x55, 0xda}};
 #else
-STXWIN_EXTERN_C const GUID HandwrittenTextInsertion;
+STXWIN_EXTERN_C const CLSID CLSID_HandwrittenTextInsertion;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PenInputPanel = {0xf744e496, 0x1b5a, 0x489e, {0x81, 0xdc, 0xfb, 0xd7, 0xac, 0x62, 0x98, 0xa8}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PenInputPanel = {0xf744e496, 0x1b5a, 0x489e, {0x81, 0xdc, 0xfb, 0xd7, 0xac, 0x62, 0x98, 0xa8}};
 #else
-STXWIN_EXTERN_C const GUID PenInputPanel;
+STXWIN_EXTERN_C const CLSID CLSID_PenInputPanel;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_TextInputPanel = {0xf9b189d7, 0x228b, 0x4f2b, {0x86, 0x50, 0xb9, 0x7f, 0x59, 0xe0, 0x2c, 0x8c}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_TextInputPanel;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PenInputPanel_Internal = {0x802b1fb9, 0x056b, 0x4720, {0xb0, 0xcc, 0x80, 0xd2, 0x3b, 0x71, 0x17, 0x1e}};
 #else
 STXWIN_EXTERN_C const GUID PenInputPanel_Internal;
 #endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TextInputPanel = {0xf9b189d7, 0x228b, 0x4f2b, {0x86, 0x50, 0xb9, 0x7f, 0x59, 0xe0, 0x2c, 0x8c}};
-#else
-STXWIN_EXTERN_C const GUID TextInputPanel;
+#ifdef __cplusplus
+class __declspec(uuid("9f074ee2-e6e9-4d8a-a047-eb5b5c3c55da")) HandwrittenTextInsertion;
+class __declspec(uuid("f744e496-1b5a-489e-81dc-fbd7ac6298a8")) PenInputPanel;
+class __declspec(uuid("f9b189d7-228b-4f2b-8650-b97f59e02c8c")) TextInputPanel;
 #endif
 
 #endif /* RC_INVOKED */

@@ -17,6 +17,36 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DCompManipulationCompositor = {0x79dea627, 0xa08a, 0x43ac, {0x8e, 0xf5, 0x69, 0x00, 0xb9, 0x29, 0x91, 0x26}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DCompManipulationCompositor;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DirectManipulationManager = {0x54e211b6, 0x3650, 0x4f75, {0x83, 0x34, 0xfa, 0x35, 0x95, 0x98, 0xe1, 0xc5}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DirectManipulationManager;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DirectManipulationPrimaryContent = {0xcaa02661, 0xd59e, 0x41c7, {0x83, 0x93, 0x3b, 0xa3, 0xba, 0xcb, 0x6b, 0x57}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DirectManipulationPrimaryContent;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DirectManipulationSharedManager = {0x99793286, 0x77cc, 0x4b57, {0x96, 0xdb, 0x3b, 0x35, 0x4f, 0x6f, 0x9f, 0xb5}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DirectManipulationSharedManager;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DirectManipulationUpdateManager = {0x9fc1bfd5, 0x1835, 0x441a, {0xb3, 0xb1, 0xb6, 0xcc, 0x74, 0xb7, 0x27, 0xd0}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DirectManipulationUpdateManager;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DirectManipulationViewport = {0x34e211b6, 0x3650, 0x4f75, {0x83, 0x34, 0xfa, 0x35, 0x95, 0x98, 0xe1, 0xc5}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_DirectManipulationViewport;
+#endif
+#ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CLSID_AutoScrollBehavior = {0x26126a51, 0x3c70, 0x4c9a, {0xae, 0xc2, 0x94, 0x88, 0x49, 0xee, 0xb0, 0x93}};
 #else
 STXWIN_EXTERN_C const GUID CLSID_AutoScrollBehavior;
@@ -46,38 +76,13 @@ STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CLSID_VirtualViewportCon
 #else
 STXWIN_EXTERN_C const GUID CLSID_VirtualViewportContent;
 #endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DCompManipulationCompositor = {0x79dea627, 0xa08a, 0x43ac, {0x8e, 0xf5, 0x69, 0x00, 0xb9, 0x29, 0x91, 0x26}};
-#else
-STXWIN_EXTERN_C const GUID DCompManipulationCompositor;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DirectManipulationManager = {0x54e211b6, 0x3650, 0x4f75, {0x83, 0x34, 0xfa, 0x35, 0x95, 0x98, 0xe1, 0xc5}};
-#else
-STXWIN_EXTERN_C const GUID DirectManipulationManager;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DirectManipulationPrimaryContent = {0xcaa02661, 0xd59e, 0x41c7, {0x83, 0x93, 0x3b, 0xa3, 0xba, 0xcb, 0x6b, 0x57}};
-#else
-STXWIN_EXTERN_C const GUID DirectManipulationPrimaryContent;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DirectManipulationSharedManager = {0x99793286, 0x77cc, 0x4b57, {0x96, 0xdb, 0x3b, 0x35, 0x4f, 0x6f, 0x9f, 0xb5}};
-#else
-STXWIN_EXTERN_C const GUID DirectManipulationSharedManager;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DirectManipulationUpdateManager = {0x9fc1bfd5, 0x1835, 0x441a, {0xb3, 0xb1, 0xb6, 0xcc, 0x74, 0xb7, 0x27, 0xd0}};
-#else
-STXWIN_EXTERN_C const GUID DirectManipulationUpdateManager;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DirectManipulationViewport = {0x34e211b6, 0x3650, 0x4f75, {0x83, 0x34, 0xfa, 0x35, 0x95, 0x98, 0xe1, 0xc5}};
-#else
-STXWIN_EXTERN_C const GUID DirectManipulationViewport;
-#endif
 #ifdef __cplusplus
+class __declspec(uuid("79dea627-a08a-43ac-8ef5-6900b9299126")) DCompManipulationCompositor;
 class __declspec(uuid("54e211b6-3650-4f75-8334-fa359598e1c5")) DirectManipulationManager;
+class __declspec(uuid("caa02661-d59e-41c7-8393-3ba3bacb6b57")) DirectManipulationPrimaryContent;
+class __declspec(uuid("99793286-77cc-4b57-96db-3b354f6f9fb5")) DirectManipulationSharedManager;
+class __declspec(uuid("9fc1bfd5-1835-441a-b3b1-b6cc74b727d0")) DirectManipulationUpdateManager;
+class __declspec(uuid("34e211b6-3650-4f75-8334-fa359598e1c5")) DirectManipulationViewport;
 #endif
 
 #endif /* RC_INVOKED */

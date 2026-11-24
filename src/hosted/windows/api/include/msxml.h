@@ -5,7 +5,6 @@
 #define STXWIN_MSXML_H
 
 #include "stxwin_supplement.h"
-#include "stxwin_types_more.h"
 #include "windows.h"
 #include "ole2.h"
 
@@ -14,29 +13,36 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DOMDocument = {0x2933bf90, 0x7b36, 0x11d2, {0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DOMDocument = {0x2933bf90, 0x7b36, 0x11d2, {0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60}};
 #else
-STXWIN_EXTERN_C const GUID DOMDocument;
+STXWIN_EXTERN_C const CLSID CLSID_DOMDocument;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DOMFreeThreadedDocument = {0x2933bf91, 0x7b36, 0x11d2, {0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DOMFreeThreadedDocument = {0x2933bf91, 0x7b36, 0x11d2, {0xb2, 0x0e, 0x00, 0xc0, 0x4f, 0x98, 0x3e, 0x60}};
 #else
-STXWIN_EXTERN_C const GUID DOMFreeThreadedDocument;
+STXWIN_EXTERN_C const CLSID CLSID_DOMFreeThreadedDocument;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) XMLDSOControl = {0x550dda30, 0x0541, 0x11d2, {0x9c, 0xa9, 0x00, 0x60, 0xb0, 0xec, 0x3d, 0x39}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_XMLDSOControl = {0x550dda30, 0x0541, 0x11d2, {0x9c, 0xa9, 0x00, 0x60, 0xb0, 0xec, 0x3d, 0x39}};
 #else
-STXWIN_EXTERN_C const GUID XMLDSOControl;
+STXWIN_EXTERN_C const CLSID CLSID_XMLDSOControl;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) XMLDocument = {0xcfc399af, 0xd876, 0x11d0, {0x9c, 0x10, 0x00, 0xc0, 0x4f, 0xc9, 0x9c, 0x8e}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_XMLDocument = {0xcfc399af, 0xd876, 0x11d0, {0x9c, 0x10, 0x00, 0xc0, 0x4f, 0xc9, 0x9c, 0x8e}};
 #else
-STXWIN_EXTERN_C const GUID XMLDocument;
+STXWIN_EXTERN_C const CLSID CLSID_XMLDocument;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) XMLHTTPRequest = {0xed8c108e, 0x4349, 0x11d2, {0x91, 0xa4, 0x00, 0xc0, 0x4f, 0x79, 0x69, 0xe8}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_XMLHTTPRequest = {0xed8c108e, 0x4349, 0x11d2, {0x91, 0xa4, 0x00, 0xc0, 0x4f, 0x79, 0x69, 0xe8}};
 #else
-STXWIN_EXTERN_C const GUID XMLHTTPRequest;
+STXWIN_EXTERN_C const CLSID CLSID_XMLHTTPRequest;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("2933bf90-7b36-11d2-b20e-00c04f983e60")) DOMDocument;
+class __declspec(uuid("2933bf91-7b36-11d2-b20e-00c04f983e60")) DOMFreeThreadedDocument;
+class __declspec(uuid("550dda30-0541-11d2-9ca9-0060b0ec3d39")) XMLDSOControl;
+class __declspec(uuid("cfc399af-d876-11d0-9c10-00c04fc99c8e")) XMLDocument;
+class __declspec(uuid("ed8c108e-4349-11d2-91a4-00c04f7969e8")) XMLHTTPRequest;
 #endif
 
 #endif /* RC_INVOKED */

@@ -90,19 +90,24 @@ STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IValueProvider = {0xc
 STXWIN_EXTERN_C const IID IID_IValueProvider;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CUIAutomationClientInfo = {0xc2d4f567, 0x8a9b, 0x4c3e, {0x9f, 0x1a, 0x2b, 0x5c, 0x7d, 0x8e, 0x0f, 0x3a}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomationClientInfo = {0xc2d4f567, 0x8a9b, 0x4c3e, {0x9f, 0x1a, 0x2b, 0x5c, 0x7d, 0x8e, 0x0f, 0x3a}};
 #else
-STXWIN_EXTERN_C const GUID CUIAutomationClientInfo;
+STXWIN_EXTERN_C const CLSID CLSID_CUIAutomationClientInfo;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CUIAutomationClientInfoSource = {0xa8d4f123, 0x7b2c, 0x4e5f, {0x9a, 0x1b, 0x3c, 0x8d, 0x6e, 0x9f, 0x0a, 0x2b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomationClientInfoSource = {0xa8d4f123, 0x7b2c, 0x4e5f, {0x9a, 0x1b, 0x3c, 0x8d, 0x6e, 0x9f, 0x0a, 0x2b}};
 #else
-STXWIN_EXTERN_C const GUID CUIAutomationClientInfoSource;
+STXWIN_EXTERN_C const CLSID CLSID_CUIAutomationClientInfoSource;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CUIAutomationRegistrar = {0x6e29fabf, 0x9977, 0x42d1, {0x8d, 0x0e, 0xca, 0x7e, 0x61, 0xad, 0x87, 0xe6}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomationRegistrar = {0x6e29fabf, 0x9977, 0x42d1, {0x8d, 0x0e, 0xca, 0x7e, 0x61, 0xad, 0x87, 0xe6}};
 #else
-STXWIN_EXTERN_C const GUID CUIAutomationRegistrar;
+STXWIN_EXTERN_C const CLSID CLSID_CUIAutomationRegistrar;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("c2d4f567-8a9b-4c3e-9f1a-2b5c7d8e0f3a")) CUIAutomationClientInfo;
+class __declspec(uuid("a8d4f123-7b2c-4e5f-9a1b-3c8d6e9f0a2b")) CUIAutomationClientInfoSource;
+class __declspec(uuid("6e29fabf-9977-42d1-8d0e-ca7e61ad87e6")) CUIAutomationRegistrar;
 #endif
 
 #endif /* RC_INVOKED */
