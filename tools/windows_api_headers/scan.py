@@ -33,9 +33,11 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 # Run with -I (isolated): the reader is imported from this directory explicitly.
 sys.path.insert(0, str(HERE))
+import local_paths  # noqa: E402
 import rdl  # noqa: E402
 
 EXTENSIONS = ('.c', '.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.ipp', '.inc')
+UUIDOF = re.compile(r'__uuidof\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)')
 INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([A-Za-z0-9_./]+)\.h[>"]', re.MULTILINE)
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
 # Umbrella names our sources may include that have no metadata file of their own.
@@ -237,7 +239,7 @@ def main() -> int:
     options = arguments.parse_args()
     pin = json.loads((HERE / 'PIN.json').read_text(encoding='utf-8'))
     sources = json.loads((HERE / 'sources.json').read_text(encoding='utf-8'))
-    metadata = pathlib.Path(pin['local_checkout']) / 'metadata' / 'win32'
+    metadata = local_paths.metadata_checkout(pin) / 'metadata' / 'win32'
     index = Index(rdl.load_directory(metadata), pin['arch'])
     header_names: set[str] = set(UMBRELLAS)
     for path in metadata.glob('*.rdl'):
@@ -252,9 +254,9 @@ def main() -> int:
     facing_count = 0
     for source in sources['sources']:
         if 'revision' in source:
-            files = git_files(source['path'], source['revision'], source['roots'], source['exclude'])
+            files = git_files(local_paths.source_path(source), source['revision'], source['roots'], source['exclude'])
         else:
-            files = directory_files(source['path'], source['roots'], source['exclude'])
+            files = directory_files(local_paths.source_path(source), source['roots'], source['exclude'])
         facing = facing_files(files, header_names)
         for path in sorted(facing):
             text = files[path]
@@ -263,9 +265,16 @@ def main() -> int:
                 name = match.group(1).lower()
                 if name in header_names:
                     includes[name] = includes.get(name, 0) + 1
-            for token in set(IDENTIFIER.findall(strip_comments_and_strings(text))):
+            code = strip_comments_and_strings(text)
+            for token in set(IDENTIFIER.findall(code)):
                 if token not in excluded_tokens:
                     resolve_token(token, index, roots, excluded_stems)
+            # __uuidof(Name) on a coclass: root CLASS:Name, which declares the
+            # class with its uuid (the bare name alone is skipped above).
+            for name in set(UUIDOF.findall(code)):
+                declaration = index.declarations.get(name)
+                if declaration is not None and is_class_guid(declaration) and declaration.source not in excluded_stems:
+                    roots.add('CLASS:' + name)
     for name in sources['extra_roots']:
         resolve_token(name, index, roots, excluded_stems)
         if name not in roots and name not in sources['supplement_names']:

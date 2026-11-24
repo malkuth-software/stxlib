@@ -2,4 +2,6 @@
 ; The api-ms-win-core-winrt-string-l1-1-0.dll functions our sources use.
 LIBRARY api-ms-win-core-winrt-string-l1-1-0.dll
 EXPORTS
+    WindowsCreateString
     WindowsCreateStringReference
+    WindowsDeleteString

@@ -6,6 +6,7 @@
 
 #include "stxwin_supplement.h"
 #include "combaseapi.h"
+#include "objidl.h"
 #include "unknwnbase.h"
 #include "wtypes.h"
 

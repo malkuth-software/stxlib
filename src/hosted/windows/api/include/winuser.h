@@ -7,6 +7,7 @@
 #include "stxwin_supplement.h"
 
 #define BN_CLICKED 0
+#define CF_BITMAP 2
 #define CF_DIB 8
 #define CF_DIBV5 17
 #define CF_HDROP 15
@@ -166,9 +167,11 @@
 #define MF_GRAYED 1
 #define MF_SEPARATOR 2048
 #define MF_STRING 0
+#define MK_CONTROL 8
 #define MK_LBUTTON 1
 #define MK_MBUTTON 16
 #define MK_RBUTTON 2
+#define MK_SHIFT 4
 #define MONITORINFOF_PRIMARY 1
 #define MONITOR_DEFAULTTONEAREST 2
 #define MONITOR_DEFAULTTONULL 0
@@ -274,6 +277,7 @@
 #define VK_LMENU 164
 #define VK_LSHIFT 160
 #define VK_LWIN 91
+#define VK_MBUTTON 4
 #define VK_MENU 18
 #define VK_MULTIPLY 106
 #define VK_NEXT 34
@@ -466,6 +470,7 @@ __declspec(dllimport) SHORT __stdcall GetKeyState(int nVirtKey);
 __declspec(dllimport) BOOL __stdcall GetLayeredWindowAttributes(HWND hwnd, COLORREF *pcrKey, BYTE *pbAlpha, DWORD *pdwFlags);
 __declspec(dllimport) BOOL __stdcall GetMonitorInfoW(HMONITOR hMonitor, LPMONITORINFO lpmi);
 __declspec(dllimport) HWND __stdcall GetParent(HWND hWnd);
+__declspec(dllimport) BOOL __stdcall GetPointerType(UINT32 pointerId, POINTER_INPUT_TYPE *pointerType);
 __declspec(dllimport) DWORD __stdcall GetQueueStatus(UINT flags);
 __declspec(dllimport) DWORD __stdcall GetSysColor(int nIndex);
 __declspec(dllimport) int __stdcall GetSystemMetrics(int nIndex);
@@ -497,6 +502,7 @@ __declspec(dllimport) BOOL __stdcall MessageBeep(UINT uType);
 __declspec(dllimport) int __stdcall MessageBoxW(HWND hWnd, LPCWSTR lpText, LPCWSTR lpCaption, UINT uType);
 __declspec(dllimport) HMONITOR __stdcall MonitorFromPoint(POINT pt, DWORD dwFlags);
 __declspec(dllimport) HMONITOR __stdcall MonitorFromWindow(HWND hwnd, DWORD dwFlags);
+__declspec(dllimport) DWORD __stdcall MsgWaitForMultipleObjects(DWORD nCount, const HANDLE *pHandles, BOOL fWaitAll, DWORD dwMilliseconds, DWORD dwWakeMask);
 __declspec(dllimport) DWORD __stdcall MsgWaitForMultipleObjectsEx(DWORD nCount, const HANDLE *pHandles, DWORD dwMilliseconds, DWORD dwWakeMask, DWORD dwFlags);
 __declspec(dllimport) void __stdcall NotifyWinEvent(DWORD event, HWND hwnd, LONG idObject, LONG idChild);
 __declspec(dllimport) BOOL __stdcall OpenClipboard(HWND hWndNewOwner);

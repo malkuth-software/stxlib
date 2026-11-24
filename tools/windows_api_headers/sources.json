@@ -4,7 +4,7 @@
     {
       "name": "gui_forms",
       "path": "D:/malkuth/repos/gui_forms",
-      "revision": "22cb45f59",
+      "revision": "ad33e3d50",
       "roots": [
         "src",
         "include",
@@ -17,9 +17,16 @@
       "exclude": []
     },
     {
+      "name": "gui_forms_tests",
+      "path": "D:/malkuth/repos/gui_forms_tests",
+      "revision": "0ef4f333",
+      "roots": [],
+      "exclude": []
+    },
+    {
       "name": "stx",
       "path": "D:/malkuth/repos/stx",
-      "revision": "91dd981",
+      "revision": "1ed38f6",
       "roots": [],
       "exclude": [
         "stx_conv/results/",
@@ -29,11 +36,13 @@
     {
       "name": "stxlib",
       "path": "D:/malkuth/repos/stxlib",
-      "revision": "4d1ae28",
+      "revision": "a8e27d6",
       "roots": [],
       "exclude": [
         "appliance/",
-        "runtime/"
+        "runtime/",
+        "src/hosted/windows/api/",
+        "src/hosted/windows/crt/"
       ]
     },
     {
@@ -167,7 +176,54 @@
     "LOCKFILE_FAIL_IMMEDIATELY",
     "FILE_RENAME_INFO",
     "FILE_RENAME_FLAG_REPLACE_IF_EXISTS",
-    "FILE_RENAME_FLAG_POSIX_SEMANTICS"
+    "FILE_RENAME_FLAG_POSIX_SEMANTICS",
+    "BN_CLICKED",
+    "COPYDATASTRUCT",
+    "CURSORINFO",
+    "CURSOR_SHOWING",
+    "CWP_SKIPDISABLED",
+    "CWP_SKIPINVISIBLE",
+    "CWP_SKIPTRANSPARENT",
+    "ChildWindowFromPointEx",
+    "CreateMutexW",
+    "FindWindowW",
+    "GCLP_HCURSOR",
+    "GR_USEROBJECTS",
+    "GUITHREADINFO",
+    "GWLP_HWNDPARENT",
+    "GetClassLongPtrW",
+    "GetCursorInfo",
+    "GetDlgItem",
+    "GetGUIThreadInfo",
+    "GetObject",
+    "GetQueueStatus",
+    "HTCLOSE",
+    "HTMINBUTTON",
+    "HTSYSMENU",
+    "HWND_BOTTOM",
+    "IMAGE_LOAD_CONFIG_DIRECTORY64",
+    "INPUT",
+    "INPUT_KEYBOARD",
+    "IsHungAppWindow",
+    "KEYEVENTF_KEYUP",
+    "PostThreadMessageW",
+    "RegisterClassW",
+    "ReleaseMutex",
+    "SMTO_ABORTIFHUNG",
+    "SMTO_BLOCK",
+    "STM_GETICON",
+    "SendInput",
+    "SendMessageTimeoutW",
+    "SetParent",
+    "VK_ATTN",
+    "WAIT_ABANDONED",
+    "WM_COMMAND",
+    "WM_COPYDATA",
+    "WM_INPUT",
+    "WNDCLASSW",
+    "WS_CHILD",
+    "WS_DISABLED",
+    "WS_VISIBLE"
   ],
   "supplement_names": [
     "WINAPI",
@@ -193,7 +249,7 @@
     "FILE",
     "time_t"
   ],
-  "excluded_stems_comment": "Metadata files whose names the sources match only by accident: the C library's (stdint, intsafe limits), GDI+ C++ types named like ours (Point, Rect), and miniaudio backends compiled out by MA_ENABLE_ONLY_SPECIFIC_BACKENDS (dsound, mmeapi, ksmedia, winsock2; audioclient and mmdeviceapi sit under #if 0). The GPU headers (d3d11, dxgi, dcomp) are linked only by build-notes, which is not scanned.",
+  "excluded_stems_comment": "Metadata files whose names the sources match only by accident: the C library's (stdint, intsafe limits), GDI+ C++ types named like ours (Point, Rect), and miniaudio backends compiled out by MA_ENABLE_ONLY_SPECIFIC_BACKENDS (dsound, mmeapi, ksmedia, winsock2; audioclient and mmdeviceapi sit under #if 0). The GPU headers d3d11 and dcomp are linked only by build-notes, which is not scanned; dxgi is gui_forms' (windows_vblank_clock.cpp, since cp37).",
   "excluded_stems": [
     "stdint",
     "intsafe",
@@ -205,7 +261,6 @@
     "audioclient",
     "mmdeviceapi",
     "d3d11",
-    "dxgi",
     "dcomp",
     "coremessaging",
     "corecrt",
@@ -213,5 +268,5 @@
     "sal"
   ],
   "excluded_tokens_comment": "C library names the metadata also carries (crt stream owns them), and macros miniaudio defines itself.",
-  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses. Then the names libc++'s build needed (queue/claude__windows-own-crt.md, api_gaps.h). Then the names of STXlib branches not yet on the scanned revision: SetStdHandle (claude/stx-mcp, pipes), WaitOnAddress, WakeByAddressSingle and WakeByAddressAll (claude/threads-additions, atomic waits); LockFileEx, UnlockFileEx, the LOCKFILE_ flags, FILE_RENAME_INFO and the FILE_RENAME_FLAG_ constants (FileRenameInfoEx is an enumerator of FILE_INFO_BY_HANDLE_CLASS, already declared) (claude/settings-store, FileLock and the POSIX-semantics replace); the scan cannot take a later STXlib revision, whose committed api/include would feed the generated headers back into the scan."
+  "extra_roots_comment": "Names the runtime stream's system_interim.h declares (queue/claude__windows-msvc-runtime.md, 'For the headers worker'), so windows.h can replace it. Then the names the hand-written stxwin_versionhelpers.h uses. Then the names libc++'s build needed (queue/claude__windows-own-crt.md, api_gaps.h). Then the names of STXlib branches not yet on the scanned revision: SetStdHandle (claude/stx-mcp, pipes), WaitOnAddress, WakeByAddressSingle and WakeByAddressAll (claude/threads-additions, atomic waits); LockFileEx, UnlockFileEx, the LOCKFILE_ flags, FILE_RENAME_INFO and the FILE_RENAME_FLAG_ constants (FileRenameInfoEx is an enumerator of FILE_INFO_BY_HANDLE_CLASS, already declared) (claude/settings-store, FileLock and the POSIX-semantics replace); the scan cannot take a later STXlib revision, whose committed api/include would feed the generated headers back into the scan. Then the names the 2026-11-24 rescan (gui_forms ad33e3d50, gui_forms_tests 0ef4f333, stx 1ed38f6, STXlib a8e27d6) no longer found, kept so that 1.0.0 removes no declaration the earlier headers had; drop them at a deliberate pruning: BN_CLICKED, COPYDATASTRUCT, CURSORINFO, CURSOR_SHOWING, CWP_SKIPDISABLED, CWP_SKIPINVISIBLE, CWP_SKIPTRANSPARENT, ChildWindowFromPointEx, CreateMutexW, FindWindowW, GCLP_HCURSOR, GR_USEROBJECTS, GUITHREADINFO, GWLP_HWNDPARENT, GetClassLongPtrW, GetCursorInfo, GetDlgItem, GetGUIThreadInfo, GetObject, GetQueueStatus, HTCLOSE, HTMINBUTTON, HTSYSMENU, HWND_BOTTOM, IMAGE_LOAD_CONFIG_DIRECTORY64, INPUT, INPUT_KEYBOARD, IsHungAppWindow, KEYEVENTF_KEYUP, PostThreadMessageW, RegisterClassW, ReleaseMutex, SMTO_ABORTIFHUNG, SMTO_BLOCK, STM_GETICON, SendInput, SendMessageTimeoutW, SetParent, VK_ATTN, WAIT_ABANDONED, WM_COMMAND, WM_COPYDATA, WM_INPUT, WNDCLASSW, WS_CHILD, WS_DISABLED, WS_VISIBLE."
 }

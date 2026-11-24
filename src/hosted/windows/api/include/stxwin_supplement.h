@@ -108,6 +108,9 @@
 #define GET_XBUTTON_WPARAM(wParam) (HIWORD(wParam))
 #define GET_KEYSTATE_LPARAM(lParam) (LOWORD(lParam))
 #define GET_APPCOMMAND_LPARAM(lParam) ((short)(HIWORD(lParam) & ~0xF000))
+/* Learn: GET_POINTERID_WPARAM (winuser.h), the pointer id in a WM_POINTER*
+ * message's wParam. */
+#define GET_POINTERID_WPARAM(wParam) (LOWORD(wParam))
 
 /* Colours (Learn: RGB, GetRValue, GetGValue, GetBValue). */
 #define RGB(r, g, b) ((COLORREF)(((BYTE)(r) | ((WORD)((BYTE)(g)) << 8)) | (((DWORD)(BYTE)(b)) << 16)))

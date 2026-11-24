@@ -95,8 +95,22 @@ typedef struct DISPATCHER_CONTEXT DISPATCHER_CONTEXT;
 typedef struct DISPPARAMS DISPPARAMS;
 typedef struct DPI_AWARENESS_CONTEXT__ DPI_AWARENESS_CONTEXT__;
 typedef struct DROPFILES DROPFILES;
+typedef struct DVTARGETDEVICE DVTARGETDEVICE;
 typedef struct DWM_BLURBEHIND DWM_BLURBEHIND;
 typedef struct DWM_TIMING_INFO DWM_TIMING_INFO;
+typedef struct DXGI_ADAPTER_DESC DXGI_ADAPTER_DESC;
+typedef struct DXGI_ADAPTER_DESC1 DXGI_ADAPTER_DESC1;
+typedef struct DXGI_FRAME_STATISTICS DXGI_FRAME_STATISTICS;
+typedef struct DXGI_GAMMA_CONTROL DXGI_GAMMA_CONTROL;
+typedef struct DXGI_GAMMA_CONTROL_CAPABILITIES DXGI_GAMMA_CONTROL_CAPABILITIES;
+typedef struct DXGI_MAPPED_RECT DXGI_MAPPED_RECT;
+typedef struct DXGI_MODE_DESC DXGI_MODE_DESC;
+typedef struct DXGI_OUTPUT_DESC DXGI_OUTPUT_DESC;
+typedef struct DXGI_RATIONAL DXGI_RATIONAL;
+typedef struct DXGI_RGB DXGI_RGB;
+typedef struct DXGI_SAMPLE_DESC DXGI_SAMPLE_DESC;
+typedef struct DXGI_SURFACE_DESC DXGI_SURFACE_DESC;
+typedef struct DXGI_SWAP_CHAIN_DESC DXGI_SWAP_CHAIN_DESC;
 typedef struct DYNAMIC_TIME_ZONE_INFORMATION DYNAMIC_TIME_ZONE_INFORMATION;
 typedef struct ELEMDESC ELEMDESC;
 typedef struct EXCEPINFO EXCEPINFO;
@@ -114,6 +128,7 @@ typedef struct FILE_RENAME_INFO FILE_RENAME_INFO;
 typedef struct FILE_STANDARD_INFO FILE_STANDARD_INFO;
 typedef struct FINDREPLACEA FINDREPLACEA;
 typedef struct FINDREPLACEW FINDREPLACEW;
+typedef struct FORMATETC FORMATETC;
 typedef struct FUNCDESC FUNCDESC;
 typedef struct _GUID GUID;
 typedef struct GUITHREADINFO GUITHREADINFO;
@@ -123,6 +138,7 @@ typedef struct HBRUSH__ HBRUSH__;
 typedef struct HDC__ HDC__;
 typedef struct HDESK__ HDESK__;
 typedef struct HDROP__ HDROP__;
+typedef struct HENHMETAFILE__ HENHMETAFILE__;
 typedef struct HFONT__ HFONT__;
 typedef struct HHOOK__ HHOOK__;
 typedef struct HICON__ HICON__;
@@ -137,11 +153,34 @@ typedef struct HSTRING_HEADER HSTRING_HEADER;
 typedef struct HSTRING__ HSTRING__;
 typedef struct HWND__ HWND__;
 typedef struct IAccessible IAccessible;
+typedef struct IAdviseSink IAdviseSink;
 typedef struct IBindCtx IBindCtx;
 typedef struct ICONINFO ICONINFO;
 typedef struct IDLDESC IDLDESC;
+typedef struct IDXGIAdapter IDXGIAdapter;
+typedef struct IDXGIAdapter1 IDXGIAdapter1;
+typedef struct IDXGIDeviceSubObject IDXGIDeviceSubObject;
+typedef struct IDXGIFactory IDXGIFactory;
+typedef struct IDXGIFactory1 IDXGIFactory1;
+typedef struct IDXGIObject IDXGIObject;
+typedef struct IDXGIOutput IDXGIOutput;
+typedef struct IDXGISurface IDXGISurface;
+typedef struct IDXGISwapChain IDXGISwapChain;
+typedef struct IDataObject IDataObject;
+typedef struct IDirectManipulationContent IDirectManipulationContent;
+typedef struct IDirectManipulationFrameInfoProvider IDirectManipulationFrameInfoProvider;
+typedef struct IDirectManipulationManager IDirectManipulationManager;
+typedef struct IDirectManipulationUpdateHandler IDirectManipulationUpdateHandler;
+typedef struct IDirectManipulationUpdateManager IDirectManipulationUpdateManager;
+typedef struct IDirectManipulationViewport IDirectManipulationViewport;
+typedef struct IDirectManipulationViewportEventHandler IDirectManipulationViewportEventHandler;
 typedef struct IDispatch IDispatch;
+typedef struct IDropSource IDropSource;
+typedef struct IDropTarget IDropTarget;
+typedef struct IDropTargetHelper IDropTargetHelper;
+typedef struct IEnumFORMATETC IEnumFORMATETC;
 typedef struct IEnumMoniker IEnumMoniker;
+typedef struct IEnumSTATDATA IEnumSTATDATA;
 typedef struct IEnumSTATSTG IEnumSTATSTG;
 typedef struct IEnumShellItems IEnumShellItems;
 typedef struct IEnumString IEnumString;
@@ -222,6 +261,7 @@ typedef struct KEYBDINPUT KEYBDINPUT;
 typedef struct KNONVOLATILE_CONTEXT_POINTERS KNONVOLATILE_CONTEXT_POINTERS;
 typedef union LARGE_INTEGER LARGE_INTEGER;
 typedef struct LIST_ENTRY LIST_ENTRY;
+typedef struct LUID LUID;
 typedef struct M128A M128A;
 typedef struct MARGINS MARGINS;
 typedef struct MINMAXINFO MINMAXINFO;
@@ -256,6 +296,7 @@ typedef struct SIZE SIZE;
 typedef struct SMALL_RECT SMALL_RECT;
 typedef struct STARTUPINFOEXW STARTUPINFOEXW;
 typedef struct STARTUPINFOW STARTUPINFOW;
+typedef struct STATDATA STATDATA;
 typedef struct STATSTG STATSTG;
 typedef struct SYSTEMTIME SYSTEMTIME;
 typedef struct SYSTEM_INFO SYSTEM_INFO;
@@ -290,6 +331,7 @@ typedef struct _TP_POOL _TP_POOL;
 typedef struct _TP_WAIT _TP_WAIT;
 typedef struct tagPROPVARIANT tagPROPVARIANT;
 typedef struct tagVARIANT tagVARIANT;
+typedef struct uSTGMEDIUM uSTGMEDIUM;
 
 /* shared.h */
 typedef unsigned long DWORD;
@@ -829,6 +871,9 @@ struct CLIPDATA {
     BYTE *pClipData;
 };
 
+/* wtypes.h */
+typedef unsigned short CLIPFORMAT;
+
 /* wtypesbase.h */
 typedef enum CLSCTX {
     CLSCTX_INPROC_SERVER = 1,
@@ -1106,6 +1151,12 @@ typedef enum CompositingMode {
     CompositingModeSourceCopy = 1,
 } CompositingMode;
 
+/* objidl.h */
+typedef enum DATADIR {
+    DATADIR_GET = 1,
+    DATADIR_SET = 2,
+} DATADIR;
+
 /* wtypes.h */
 struct DECIMAL {
     USHORT wReserved;
@@ -1204,6 +1255,78 @@ struct DIBSECTION {
     DWORD dsOffset;
 };
 
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_CONFIGURATION {
+    DIRECTMANIPULATION_CONFIGURATION_NONE = 0,
+    DIRECTMANIPULATION_CONFIGURATION_INTERACTION = 1,
+    DIRECTMANIPULATION_CONFIGURATION_TRANSLATION_X = 2,
+    DIRECTMANIPULATION_CONFIGURATION_TRANSLATION_Y = 4,
+    DIRECTMANIPULATION_CONFIGURATION_SCALING = 16,
+    DIRECTMANIPULATION_CONFIGURATION_TRANSLATION_INERTIA = 32,
+    DIRECTMANIPULATION_CONFIGURATION_SCALING_INERTIA = 128,
+    DIRECTMANIPULATION_CONFIGURATION_RAILS_X = 256,
+    DIRECTMANIPULATION_CONFIGURATION_RAILS_Y = 512,
+} DIRECTMANIPULATION_CONFIGURATION;
+STXWIN_ENUM_FLAG_OPERATORS(DIRECTMANIPULATION_CONFIGURATION)
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_GESTURE_CONFIGURATION {
+    DIRECTMANIPULATION_GESTURE_NONE = 0,
+    DIRECTMANIPULATION_GESTURE_DEFAULT = 0,
+    DIRECTMANIPULATION_GESTURE_CROSS_SLIDE_VERTICAL = 8,
+    DIRECTMANIPULATION_GESTURE_CROSS_SLIDE_HORIZONTAL = 16,
+    DIRECTMANIPULATION_GESTURE_PINCH_ZOOM = 32,
+} DIRECTMANIPULATION_GESTURE_CONFIGURATION;
+STXWIN_ENUM_FLAG_OPERATORS(DIRECTMANIPULATION_GESTURE_CONFIGURATION)
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_HITTEST_TYPE {
+    DIRECTMANIPULATION_HITTEST_TYPE_ASYNCHRONOUS = 0,
+    DIRECTMANIPULATION_HITTEST_TYPE_SYNCHRONOUS = 1,
+    DIRECTMANIPULATION_HITTEST_TYPE_AUTO_SYNCHRONOUS = 2,
+} DIRECTMANIPULATION_HITTEST_TYPE;
+STXWIN_ENUM_FLAG_OPERATORS(DIRECTMANIPULATION_HITTEST_TYPE)
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_INPUT_MODE {
+    DIRECTMANIPULATION_INPUT_MODE_AUTOMATIC = 0,
+    DIRECTMANIPULATION_INPUT_MODE_MANUAL = 1,
+} DIRECTMANIPULATION_INPUT_MODE;
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_MOTION_TYPES {
+    DIRECTMANIPULATION_MOTION_NONE = 0,
+    DIRECTMANIPULATION_MOTION_TRANSLATEX = 1,
+    DIRECTMANIPULATION_MOTION_TRANSLATEY = 2,
+    DIRECTMANIPULATION_MOTION_ZOOM = 4,
+    DIRECTMANIPULATION_MOTION_CENTERX = 16,
+    DIRECTMANIPULATION_MOTION_CENTERY = 32,
+    DIRECTMANIPULATION_MOTION_ALL = 55,
+} DIRECTMANIPULATION_MOTION_TYPES;
+STXWIN_ENUM_FLAG_OPERATORS(DIRECTMANIPULATION_MOTION_TYPES)
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_STATUS {
+    DIRECTMANIPULATION_BUILDING = 0,
+    DIRECTMANIPULATION_ENABLED = 1,
+    DIRECTMANIPULATION_DISABLED = 2,
+    DIRECTMANIPULATION_RUNNING = 3,
+    DIRECTMANIPULATION_INERTIA = 4,
+    DIRECTMANIPULATION_READY = 5,
+    DIRECTMANIPULATION_SUSPENDED = 6,
+} DIRECTMANIPULATION_STATUS;
+
+/* directmanipulation.h */
+typedef enum DIRECTMANIPULATION_VIEWPORT_OPTIONS {
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_DEFAULT = 0,
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_AUTODISABLE = 1,
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_MANUALUPDATE = 2,
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_INPUT = 4,
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_EXPLICITHITTEST = 8,
+    DIRECTMANIPULATION_VIEWPORT_OPTIONS_DISABLEPIXELSNAPPING = 16,
+} DIRECTMANIPULATION_VIEWPORT_OPTIONS;
+STXWIN_ENUM_FLAG_OPERATORS(DIRECTMANIPULATION_VIEWPORT_OPTIONS)
+
 /* winnt.h */
 typedef CONTEXT *PCONTEXT;
 
@@ -1267,6 +1390,26 @@ struct DROPFILES {
     POINT pt;
     BOOL fNC;
     BOOL fWide;
+};
+#pragma pack(pop)
+
+/* wtypes.h */
+typedef enum DVASPECT {
+    DVASPECT_CONTENT = 1,
+    DVASPECT_THUMBNAIL = 2,
+    DVASPECT_ICON = 4,
+    DVASPECT_DOCPRINT = 8,
+} DVASPECT;
+
+/* objidl.h */
+#pragma pack(push, 8)
+struct DVTARGETDEVICE {
+    DWORD tdSize;
+    WORD tdDriverNameOffset;
+    WORD tdDeviceNameOffset;
+    WORD tdPortNameOffset;
+    WORD tdExtDevmodeOffset;
+    BYTE tdData[1];
 };
 #pragma pack(pop)
 
@@ -1408,6 +1551,312 @@ enum class DXCoreMemoryType : unsigned int {
     ReservedPartition = 2,
 };
 #endif
+
+/* winnt.h */
+struct LUID {
+    DWORD LowPart;
+    LONG HighPart;
+};
+
+/* shared.h */
+typedef unsigned long long SIZE_T;
+
+/* dxgi.h */
+struct DXGI_ADAPTER_DESC {
+    WCHAR Description[128];
+    UINT VendorId;
+    UINT DeviceId;
+    UINT SubSysId;
+    UINT Revision;
+    SIZE_T DedicatedVideoMemory;
+    SIZE_T DedicatedSystemMemory;
+    SIZE_T SharedSystemMemory;
+    LUID AdapterLuid;
+};
+
+/* dxgi.h */
+struct DXGI_ADAPTER_DESC1 {
+    WCHAR Description[128];
+    UINT VendorId;
+    UINT DeviceId;
+    UINT SubSysId;
+    UINT Revision;
+    SIZE_T DedicatedVideoMemory;
+    SIZE_T DedicatedSystemMemory;
+    SIZE_T SharedSystemMemory;
+    LUID AdapterLuid;
+    UINT Flags;
+};
+
+/* dxgiformat.h */
+typedef enum DXGI_FORMAT {
+    DXGI_FORMAT_UNKNOWN = 0,
+    DXGI_FORMAT_R32G32B32A32_TYPELESS = 1,
+    DXGI_FORMAT_R32G32B32A32_FLOAT = 2,
+    DXGI_FORMAT_R32G32B32A32_UINT = 3,
+    DXGI_FORMAT_R32G32B32A32_SINT = 4,
+    DXGI_FORMAT_R32G32B32_TYPELESS = 5,
+    DXGI_FORMAT_R32G32B32_FLOAT = 6,
+    DXGI_FORMAT_R32G32B32_UINT = 7,
+    DXGI_FORMAT_R32G32B32_SINT = 8,
+    DXGI_FORMAT_R16G16B16A16_TYPELESS = 9,
+    DXGI_FORMAT_R16G16B16A16_FLOAT = 10,
+    DXGI_FORMAT_R16G16B16A16_UNORM = 11,
+    DXGI_FORMAT_R16G16B16A16_UINT = 12,
+    DXGI_FORMAT_R16G16B16A16_SNORM = 13,
+    DXGI_FORMAT_R16G16B16A16_SINT = 14,
+    DXGI_FORMAT_R32G32_TYPELESS = 15,
+    DXGI_FORMAT_R32G32_FLOAT = 16,
+    DXGI_FORMAT_R32G32_UINT = 17,
+    DXGI_FORMAT_R32G32_SINT = 18,
+    DXGI_FORMAT_R32G8X24_TYPELESS = 19,
+    DXGI_FORMAT_D32_FLOAT_S8X24_UINT = 20,
+    DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS = 21,
+    DXGI_FORMAT_X32_TYPELESS_G8X24_UINT = 22,
+    DXGI_FORMAT_R10G10B10A2_TYPELESS = 23,
+    DXGI_FORMAT_R10G10B10A2_UNORM = 24,
+    DXGI_FORMAT_R10G10B10A2_UINT = 25,
+    DXGI_FORMAT_R11G11B10_FLOAT = 26,
+    DXGI_FORMAT_R8G8B8A8_TYPELESS = 27,
+    DXGI_FORMAT_R8G8B8A8_UNORM = 28,
+    DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29,
+    DXGI_FORMAT_R8G8B8A8_UINT = 30,
+    DXGI_FORMAT_R8G8B8A8_SNORM = 31,
+    DXGI_FORMAT_R8G8B8A8_SINT = 32,
+    DXGI_FORMAT_R16G16_TYPELESS = 33,
+    DXGI_FORMAT_R16G16_FLOAT = 34,
+    DXGI_FORMAT_R16G16_UNORM = 35,
+    DXGI_FORMAT_R16G16_UINT = 36,
+    DXGI_FORMAT_R16G16_SNORM = 37,
+    DXGI_FORMAT_R16G16_SINT = 38,
+    DXGI_FORMAT_R32_TYPELESS = 39,
+    DXGI_FORMAT_D32_FLOAT = 40,
+    DXGI_FORMAT_R32_FLOAT = 41,
+    DXGI_FORMAT_R32_UINT = 42,
+    DXGI_FORMAT_R32_SINT = 43,
+    DXGI_FORMAT_R24G8_TYPELESS = 44,
+    DXGI_FORMAT_D24_UNORM_S8_UINT = 45,
+    DXGI_FORMAT_R24_UNORM_X8_TYPELESS = 46,
+    DXGI_FORMAT_X24_TYPELESS_G8_UINT = 47,
+    DXGI_FORMAT_R8G8_TYPELESS = 48,
+    DXGI_FORMAT_R8G8_UNORM = 49,
+    DXGI_FORMAT_R8G8_UINT = 50,
+    DXGI_FORMAT_R8G8_SNORM = 51,
+    DXGI_FORMAT_R8G8_SINT = 52,
+    DXGI_FORMAT_R16_TYPELESS = 53,
+    DXGI_FORMAT_R16_FLOAT = 54,
+    DXGI_FORMAT_D16_UNORM = 55,
+    DXGI_FORMAT_R16_UNORM = 56,
+    DXGI_FORMAT_R16_UINT = 57,
+    DXGI_FORMAT_R16_SNORM = 58,
+    DXGI_FORMAT_R16_SINT = 59,
+    DXGI_FORMAT_R8_TYPELESS = 60,
+    DXGI_FORMAT_R8_UNORM = 61,
+    DXGI_FORMAT_R8_UINT = 62,
+    DXGI_FORMAT_R8_SNORM = 63,
+    DXGI_FORMAT_R8_SINT = 64,
+    DXGI_FORMAT_A8_UNORM = 65,
+    DXGI_FORMAT_R1_UNORM = 66,
+    DXGI_FORMAT_R9G9B9E5_SHAREDEXP = 67,
+    DXGI_FORMAT_R8G8_B8G8_UNORM = 68,
+    DXGI_FORMAT_G8R8_G8B8_UNORM = 69,
+    DXGI_FORMAT_BC1_TYPELESS = 70,
+    DXGI_FORMAT_BC1_UNORM = 71,
+    DXGI_FORMAT_BC1_UNORM_SRGB = 72,
+    DXGI_FORMAT_BC2_TYPELESS = 73,
+    DXGI_FORMAT_BC2_UNORM = 74,
+    DXGI_FORMAT_BC2_UNORM_SRGB = 75,
+    DXGI_FORMAT_BC3_TYPELESS = 76,
+    DXGI_FORMAT_BC3_UNORM = 77,
+    DXGI_FORMAT_BC3_UNORM_SRGB = 78,
+    DXGI_FORMAT_BC4_TYPELESS = 79,
+    DXGI_FORMAT_BC4_UNORM = 80,
+    DXGI_FORMAT_BC4_SNORM = 81,
+    DXGI_FORMAT_BC5_TYPELESS = 82,
+    DXGI_FORMAT_BC5_UNORM = 83,
+    DXGI_FORMAT_BC5_SNORM = 84,
+    DXGI_FORMAT_B5G6R5_UNORM = 85,
+    DXGI_FORMAT_B5G5R5A1_UNORM = 86,
+    DXGI_FORMAT_B8G8R8A8_UNORM = 87,
+    DXGI_FORMAT_B8G8R8X8_UNORM = 88,
+    DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM = 89,
+    DXGI_FORMAT_B8G8R8A8_TYPELESS = 90,
+    DXGI_FORMAT_B8G8R8A8_UNORM_SRGB = 91,
+    DXGI_FORMAT_B8G8R8X8_TYPELESS = 92,
+    DXGI_FORMAT_B8G8R8X8_UNORM_SRGB = 93,
+    DXGI_FORMAT_BC6H_TYPELESS = 94,
+    DXGI_FORMAT_BC6H_UF16 = 95,
+    DXGI_FORMAT_BC6H_SF16 = 96,
+    DXGI_FORMAT_BC7_TYPELESS = 97,
+    DXGI_FORMAT_BC7_UNORM = 98,
+    DXGI_FORMAT_BC7_UNORM_SRGB = 99,
+    DXGI_FORMAT_AYUV = 100,
+    DXGI_FORMAT_Y410 = 101,
+    DXGI_FORMAT_Y416 = 102,
+    DXGI_FORMAT_NV12 = 103,
+    DXGI_FORMAT_P010 = 104,
+    DXGI_FORMAT_P016 = 105,
+    DXGI_FORMAT_420_OPAQUE = 106,
+    DXGI_FORMAT_YUY2 = 107,
+    DXGI_FORMAT_Y210 = 108,
+    DXGI_FORMAT_Y216 = 109,
+    DXGI_FORMAT_NV11 = 110,
+    DXGI_FORMAT_AI44 = 111,
+    DXGI_FORMAT_IA44 = 112,
+    DXGI_FORMAT_P8 = 113,
+    DXGI_FORMAT_A8P8 = 114,
+    DXGI_FORMAT_B4G4R4A4_UNORM = 115,
+    DXGI_FORMAT_P208 = 130,
+    DXGI_FORMAT_V208 = 131,
+    DXGI_FORMAT_V408 = 132,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIN_MIP_OPAQUE = 189,
+    DXGI_FORMAT_SAMPLER_FEEDBACK_MIP_REGION_USED_OPAQUE = 190,
+    DXGI_FORMAT_A4B4G4R4_UNORM = 191,
+    DXGI_FORMAT_FORCE_UINT = -1,
+} DXGI_FORMAT;
+
+/* winnt.h */
+union LARGE_INTEGER {
+    struct {
+        DWORD LowPart;
+        LONG HighPart;
+    };
+    struct {
+        DWORD LowPart;
+        LONG HighPart;
+    } u;
+    LONGLONG QuadPart;
+};
+
+/* dxgi.h */
+struct DXGI_FRAME_STATISTICS {
+    UINT PresentCount;
+    UINT PresentRefreshCount;
+    UINT SyncRefreshCount;
+    LARGE_INTEGER SyncQPCTime;
+    LARGE_INTEGER SyncGPUTime;
+};
+
+/* dxgitype.h */
+struct DXGI_RGB {
+    float Red;
+    float Green;
+    float Blue;
+};
+
+/* dxgitype.h */
+struct DXGI_GAMMA_CONTROL {
+    DXGI_RGB Scale;
+    DXGI_RGB Offset;
+    DXGI_RGB GammaCurve[1025];
+};
+
+/* dxgitype.h */
+struct DXGI_GAMMA_CONTROL_CAPABILITIES {
+    BOOL ScaleAndOffsetSupported;
+    float MaxConvertedValue;
+    float MinConvertedValue;
+    UINT NumGammaControlPoints;
+    float ControlPointPositions[1025];
+};
+
+/* shared.h */
+typedef int INT;
+
+/* dxgi.h */
+struct DXGI_MAPPED_RECT {
+    INT Pitch;
+    BYTE *pBits;
+};
+
+/* dxgitype.h */
+typedef enum DXGI_MODE_SCALING {
+    DXGI_MODE_SCALING_UNSPECIFIED = 0,
+    DXGI_MODE_SCALING_CENTERED = 1,
+    DXGI_MODE_SCALING_STRETCHED = 2,
+} DXGI_MODE_SCALING;
+
+/* dxgitype.h */
+typedef enum DXGI_MODE_SCANLINE_ORDER {
+    DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED = 0,
+    DXGI_MODE_SCANLINE_ORDER_PROGRESSIVE = 1,
+    DXGI_MODE_SCANLINE_ORDER_UPPER_FIELD_FIRST = 2,
+    DXGI_MODE_SCANLINE_ORDER_LOWER_FIELD_FIRST = 3,
+} DXGI_MODE_SCANLINE_ORDER;
+
+/* dxgicommon.h */
+struct DXGI_RATIONAL {
+    UINT Numerator;
+    UINT Denominator;
+};
+
+/* dxgitype.h */
+struct DXGI_MODE_DESC {
+    UINT Width;
+    UINT Height;
+    DXGI_RATIONAL RefreshRate;
+    DXGI_FORMAT Format;
+    DXGI_MODE_SCANLINE_ORDER ScanlineOrdering;
+    DXGI_MODE_SCALING Scaling;
+};
+
+/* dxgitype.h */
+typedef enum DXGI_MODE_ROTATION {
+    DXGI_MODE_ROTATION_UNSPECIFIED = 0,
+    DXGI_MODE_ROTATION_IDENTITY = 1,
+    DXGI_MODE_ROTATION_ROTATE90 = 2,
+    DXGI_MODE_ROTATION_ROTATE180 = 3,
+    DXGI_MODE_ROTATION_ROTATE270 = 4,
+} DXGI_MODE_ROTATION;
+
+/* windef.h */
+typedef HMONITOR__ *HMONITOR;
+
+/* dxgi.h */
+struct DXGI_OUTPUT_DESC {
+    WCHAR DeviceName[32];
+    RECT DesktopCoordinates;
+    BOOL AttachedToDesktop;
+    DXGI_MODE_ROTATION Rotation;
+    HMONITOR Monitor;
+};
+
+/* dxgicommon.h */
+struct DXGI_SAMPLE_DESC {
+    UINT Count;
+    UINT Quality;
+};
+
+/* dxgi.h */
+struct DXGI_SURFACE_DESC {
+    UINT Width;
+    UINT Height;
+    DXGI_FORMAT Format;
+    DXGI_SAMPLE_DESC SampleDesc;
+};
+
+/* dxgi.h */
+typedef enum DXGI_SWAP_EFFECT {
+    DXGI_SWAP_EFFECT_DISCARD = 0,
+    DXGI_SWAP_EFFECT_SEQUENTIAL = 1,
+    DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL = 3,
+    DXGI_SWAP_EFFECT_FLIP_DISCARD = 4,
+} DXGI_SWAP_EFFECT;
+
+/* dxgi.h */
+typedef unsigned int DXGI_USAGE;
+
+/* dxgi.h */
+struct DXGI_SWAP_CHAIN_DESC {
+    DXGI_MODE_DESC BufferDesc;
+    DXGI_SAMPLE_DESC SampleDesc;
+    DXGI_USAGE BufferUsage;
+    UINT BufferCount;
+    HWND OutputWindow;
+    BOOL Windowed;
+    DXGI_SWAP_EFFECT SwapEffect;
+    UINT Flags;
+};
 
 /* minwinbase.h */
 struct SYSTEMTIME {
@@ -1557,19 +2006,6 @@ struct FILE_ATTRIBUTE_TAG_INFO {
     DWORD ReparseTag;
 };
 
-/* winnt.h */
-union LARGE_INTEGER {
-    struct {
-        DWORD LowPart;
-        LONG HighPart;
-    };
-    struct {
-        DWORD LowPart;
-        LONG HighPart;
-    } u;
-    LONGLONG QuadPart;
-};
-
 /* winbase.h */
 struct FILE_BASIC_INFO {
     LARGE_INTEGER CreationTime;
@@ -1717,6 +2153,17 @@ struct FINDREPLACEW {
     LPCWSTR lpTemplateName;
 };
 
+/* objidl.h */
+#pragma pack(push, 8)
+struct FORMATETC {
+    CLIPFORMAT cfFormat;
+    DVTARGETDEVICE *ptd;
+    DWORD dwAspect;
+    LONG lindex;
+    DWORD tymed;
+};
+#pragma pack(pop)
+
 /* oaidl.h */
 typedef enum FUNCKIND {
     FUNC_VIRTUAL = 0,
@@ -1853,6 +2300,14 @@ struct HDROP__ {
 };
 
 /* windef.h */
+typedef HENHMETAFILE__ *HENHMETAFILE;
+
+/* windef.h */
+struct HENHMETAFILE__ {
+    int unused;
+};
+
+/* windef.h */
 typedef HFONT__ *HFONT;
 
 /* windef.h */
@@ -1918,11 +2373,11 @@ struct HMENU__ {
     int unused;
 };
 
+/* wtypes.h */
+typedef void *HMETAFILEPICT;
+
 /* minwindef.h */
 typedef HINSTANCE__ *HMODULE;
-
-/* windef.h */
-typedef HMONITOR__ *HMONITOR;
 
 /* windef.h */
 struct HMONITOR__ {
@@ -2180,7 +2635,7 @@ struct INPUT {
 };
 
 /* shared.h */
-typedef int INT;
+typedef int INT32;
 
 /* winnt.h */
 struct IO_COUNTERS {
@@ -2261,9 +2716,6 @@ typedef enum JOBOBJECTINFOCLASS {
     JobObjectCpuPartition = 52,
     MaxJobObjectInfoClass = 53,
 } JOBOBJECTINFOCLASS;
-
-/* shared.h */
-typedef unsigned long long SIZE_T;
 
 /* winnt.h */
 struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
@@ -2418,6 +2870,15 @@ typedef const void *LPCVOID;
 /* winnt.h */
 typedef const WCHAR *LPCWCH;
 
+/* objidl.h */
+typedef IDataObject *LPDATAOBJECT;
+
+/* oleidl.h */
+typedef IDropSource *LPDROPSOURCE;
+
+/* oleidl.h */
+typedef IDropTarget *LPDROPTARGET;
+
 /* minwindef.h */
 typedef DWORD *LPDWORD;
 
@@ -2486,6 +2947,9 @@ typedef SIZE *LPSIZE;
 
 /* processthreadsapi.h */
 typedef STARTUPINFOW *LPSTARTUPINFOW;
+
+/* objidl.h */
+typedef uSTGMEDIUM *LPSTGMEDIUM;
 
 /* sysinfoapi.h */
 typedef SYSTEM_INFO *LPSYSTEM_INFO;
@@ -2764,6 +3228,9 @@ struct PARAMDESCEX {
 /* uiautomationcore.h */
 typedef int PATTERNID;
 
+/* winnt.h */
+typedef const WCHAR *PCNZWCH;
+
 /* synchapi.h */
 typedef RTL_CONDITION_VARIABLE *PCONDITION_VARIABLE;
 
@@ -2826,6 +3293,9 @@ typedef LARGE_INTEGER *PLARGE_INTEGER;
 
 /* shellapi.h */
 typedef NOTIFYICONDATAW *PNOTIFYICONDATAW;
+
+/* winuser.h */
+typedef unsigned int POINTER_INPUT_TYPE;
 
 /* psapi.h */
 typedef PROCESS_MEMORY_COUNTERS *PPROCESS_MEMORY_COUNTERS;
@@ -3112,6 +3582,16 @@ struct STARTUPINFOEXW {
     LPPROC_THREAD_ATTRIBUTE_LIST lpAttributeList;
 };
 
+/* objidl.h */
+#pragma pack(push, 8)
+struct STATDATA {
+    FORMATETC formatetc;
+    DWORD advf;
+    IAdviseSink *pAdvSink;
+    DWORD dwConnection;
+};
+#pragma pack(pop)
+
 /* winnt.h */
 union ULARGE_INTEGER {
     struct {
@@ -3141,6 +3621,9 @@ struct STATSTG {
     DWORD reserved;
 };
 #pragma pack(pop)
+
+/* objidl.h */
+typedef uSTGMEDIUM STGMEDIUM;
 
 /* oaidl.h */
 typedef enum SYSKIND {
@@ -3306,6 +3789,18 @@ struct TRACKMOUSEEVENT {
     HWND hwndTrack;
     DWORD dwHoverTime;
 };
+
+/* objidl.h */
+typedef enum TYMED {
+    TYMED_HGLOBAL = 1,
+    TYMED_FILE = 2,
+    TYMED_ISTREAM = 4,
+    TYMED_ISTORAGE = 8,
+    TYMED_GDI = 16,
+    TYMED_MFPICT = 32,
+    TYMED_ENHMF = 64,
+    TYMED_NULL = 0,
+} TYMED;
 
 /* oaidl.h */
 typedef enum TYPEKIND {
@@ -3927,6 +4422,23 @@ struct tagPROPVARIANT {
 };
 #pragma pack(pop)
 
+/* objidl.h */
+#pragma pack(push, 8)
+struct uSTGMEDIUM {
+    DWORD tymed;
+    union {
+        HBITMAP hBitmap;
+        HMETAFILEPICT hMetaFilePict;
+        HENHMETAFILE hEnhMetaFile;
+        HGLOBAL hGlobal;
+        LPOLESTR lpszFileName;
+        IStream *pstm;
+        IStorage *pstg;
+    };
+    IUnknown *pUnkForRelease;
+};
+#pragma pack(pop)
+
 #ifdef __cplusplus
 
 /* unknwnbase.h */
@@ -3970,6 +4482,15 @@ struct __declspec(uuid("618736e0-3c3d-11cf-810c-00aa00389b71")) __declspec(novta
 };
 
 /* objidl.h */
+struct __declspec(uuid("0000010f-0000-0000-c000-000000000046")) __declspec(novtable) IAdviseSink : public IUnknown {
+    virtual void __stdcall OnDataChange(FORMATETC *pFormatetc, STGMEDIUM *pStgmed) = 0;
+    virtual void __stdcall OnViewChange(DWORD dwAspect, LONG lindex) = 0;
+    virtual void __stdcall OnRename(IMoniker *pmk) = 0;
+    virtual void __stdcall OnSave(void) = 0;
+    virtual void __stdcall OnClose(void) = 0;
+};
+
+/* objidl.h */
 struct __declspec(uuid("0000000e-0000-0000-c000-000000000046")) __declspec(novtable) IBindCtx : public IUnknown {
     virtual HRESULT __stdcall RegisterObjectBound(IUnknown *punk) = 0;
     virtual HRESULT __stdcall RevokeObjectBound(IUnknown *punk) = 0;
@@ -3983,12 +4504,220 @@ struct __declspec(uuid("0000000e-0000-0000-c000-000000000046")) __declspec(novta
     virtual HRESULT __stdcall RevokeObjectParam(LPOLESTR pszKey) = 0;
 };
 
+/* dxgi.h */
+struct __declspec(uuid("aec22fb8-76f3-4639-9be0-28eb43a67a2e")) __declspec(novtable) IDXGIObject : public IUnknown {
+    virtual HRESULT __stdcall SetPrivateData(const GUID &Name, UINT DataSize, const void *pData) = 0;
+    virtual HRESULT __stdcall SetPrivateDataInterface(const GUID &Name, IUnknown *pUnknown) = 0;
+    virtual HRESULT __stdcall GetPrivateData(const GUID &Name, UINT *pDataSize, void *pData) = 0;
+    virtual HRESULT __stdcall GetParent(const IID &riid, void **ppParent) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("2411e7e1-12ac-4ccf-bd14-9798e8534dc0")) __declspec(novtable) IDXGIAdapter : public IDXGIObject {
+    virtual HRESULT __stdcall EnumOutputs(UINT Output, IDXGIOutput **ppOutput) = 0;
+    virtual HRESULT __stdcall GetDesc(DXGI_ADAPTER_DESC *pDesc) = 0;
+    virtual HRESULT __stdcall CheckInterfaceSupport(const GUID &InterfaceName, LARGE_INTEGER *pUMDVersion) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("29038f61-3839-4626-91fd-086879011a05")) __declspec(novtable) IDXGIAdapter1 : public IDXGIAdapter {
+    virtual HRESULT __stdcall GetDesc1(DXGI_ADAPTER_DESC1 *pDesc) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("3d3e0379-f9de-4d58-bb6c-18d62992f1a6")) __declspec(novtable) IDXGIDeviceSubObject : public IDXGIObject {
+    virtual HRESULT __stdcall GetDevice(const IID &riid, void **ppDevice) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("7b7166ec-21c7-44ae-b21a-c9ae321ae369")) __declspec(novtable) IDXGIFactory : public IDXGIObject {
+    virtual HRESULT __stdcall EnumAdapters(UINT Adapter, IDXGIAdapter **ppAdapter) = 0;
+    virtual HRESULT __stdcall MakeWindowAssociation(HWND WindowHandle, UINT Flags) = 0;
+    virtual HRESULT __stdcall GetWindowAssociation(HWND *pWindowHandle) = 0;
+    virtual HRESULT __stdcall CreateSwapChain(IUnknown *pDevice, DXGI_SWAP_CHAIN_DESC *pDesc, IDXGISwapChain **ppSwapChain) = 0;
+    virtual HRESULT __stdcall CreateSoftwareAdapter(HMODULE Module, IDXGIAdapter **ppAdapter) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("770aae78-f26f-4dba-a829-253c83d1b387")) __declspec(novtable) IDXGIFactory1 : public IDXGIFactory {
+    virtual HRESULT __stdcall EnumAdapters1(UINT Adapter, IDXGIAdapter1 **ppAdapter) = 0;
+    virtual BOOL __stdcall IsCurrent(void) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("ae02eedb-c735-4690-8d52-5a8dc20213aa")) __declspec(novtable) IDXGIOutput : public IDXGIObject {
+    virtual HRESULT __stdcall GetDesc(DXGI_OUTPUT_DESC *pDesc) = 0;
+    virtual HRESULT __stdcall GetDisplayModeList(DXGI_FORMAT EnumFormat, UINT Flags, UINT *pNumModes, DXGI_MODE_DESC *pDesc) = 0;
+    virtual HRESULT __stdcall FindClosestMatchingMode(const DXGI_MODE_DESC *pModeToMatch, DXGI_MODE_DESC *pClosestMatch, IUnknown *pConcernedDevice) = 0;
+    virtual HRESULT __stdcall WaitForVBlank(void) = 0;
+    virtual HRESULT __stdcall TakeOwnership(IUnknown *pDevice, BOOL Exclusive) = 0;
+    virtual void __stdcall ReleaseOwnership(void) = 0;
+    virtual HRESULT __stdcall GetGammaControlCapabilities(DXGI_GAMMA_CONTROL_CAPABILITIES *pGammaCaps) = 0;
+    virtual HRESULT __stdcall SetGammaControl(const DXGI_GAMMA_CONTROL *pArray) = 0;
+    virtual HRESULT __stdcall GetGammaControl(DXGI_GAMMA_CONTROL *pArray) = 0;
+    virtual HRESULT __stdcall SetDisplaySurface(IDXGISurface *pScanoutSurface) = 0;
+    virtual HRESULT __stdcall GetDisplaySurfaceData(IDXGISurface *pDestination) = 0;
+    virtual HRESULT __stdcall GetFrameStatistics(DXGI_FRAME_STATISTICS *pStats) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("cafcb56c-6ac3-4889-bf47-9e23bbd260ec")) __declspec(novtable) IDXGISurface : public IDXGIDeviceSubObject {
+    virtual HRESULT __stdcall GetDesc(DXGI_SURFACE_DESC *pDesc) = 0;
+    virtual HRESULT __stdcall Map(DXGI_MAPPED_RECT *pLockedRect, UINT MapFlags) = 0;
+    virtual HRESULT __stdcall Unmap(void) = 0;
+};
+
+/* dxgi.h */
+struct __declspec(uuid("310d36a0-d2e7-4c0a-aa04-6a9d23b8886a")) __declspec(novtable) IDXGISwapChain : public IDXGIDeviceSubObject {
+    virtual HRESULT __stdcall Present(UINT SyncInterval, UINT Flags) = 0;
+    virtual HRESULT __stdcall GetBuffer(UINT Buffer, const IID &riid, void **ppSurface) = 0;
+    virtual HRESULT __stdcall SetFullscreenState(BOOL Fullscreen, IDXGIOutput *pTarget) = 0;
+    virtual HRESULT __stdcall GetFullscreenState(BOOL *pFullscreen, IDXGIOutput **ppTarget) = 0;
+    virtual HRESULT __stdcall GetDesc(DXGI_SWAP_CHAIN_DESC *pDesc) = 0;
+    virtual HRESULT __stdcall ResizeBuffers(UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) = 0;
+    virtual HRESULT __stdcall ResizeTarget(const DXGI_MODE_DESC *pNewTargetParameters) = 0;
+    virtual HRESULT __stdcall GetContainingOutput(IDXGIOutput **ppOutput) = 0;
+    virtual HRESULT __stdcall GetFrameStatistics(DXGI_FRAME_STATISTICS *pStats) = 0;
+    virtual HRESULT __stdcall GetLastPresentCount(UINT *pLastPresentCount) = 0;
+};
+
+/* objidl.h */
+struct __declspec(uuid("0000010e-0000-0000-c000-000000000046")) __declspec(novtable) IDataObject : public IUnknown {
+    virtual HRESULT __stdcall GetData(FORMATETC *pformatetcIn, STGMEDIUM *pmedium) = 0;
+    virtual HRESULT __stdcall GetDataHere(FORMATETC *pformatetc, STGMEDIUM *pmedium) = 0;
+    virtual HRESULT __stdcall QueryGetData(FORMATETC *pformatetc) = 0;
+    virtual HRESULT __stdcall GetCanonicalFormatEtc(FORMATETC *pformatectIn, FORMATETC *pformatetcOut) = 0;
+    virtual HRESULT __stdcall SetData(FORMATETC *pformatetc, STGMEDIUM *pmedium, BOOL fRelease) = 0;
+    virtual HRESULT __stdcall EnumFormatEtc(DWORD dwDirection, IEnumFORMATETC **ppenumFormatEtc) = 0;
+    virtual HRESULT __stdcall DAdvise(FORMATETC *pformatetc, DWORD advf, IAdviseSink *pAdvSink, DWORD *pdwConnection) = 0;
+    virtual HRESULT __stdcall DUnadvise(DWORD dwConnection) = 0;
+    virtual HRESULT __stdcall EnumDAdvise(IEnumSTATDATA **ppenumAdvise) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("b89962cb-3d89-442b-bb58-5098fa0f9f16")) __declspec(novtable) IDirectManipulationContent : public IUnknown {
+    virtual HRESULT __stdcall GetContentRect(RECT *contentSize) = 0;
+    virtual HRESULT __stdcall SetContentRect(const RECT *contentSize) = 0;
+    virtual HRESULT __stdcall GetViewport(const IID &riid, void **object) = 0;
+    virtual HRESULT __stdcall GetTag(const IID &riid, void **object, UINT32 *id) = 0;
+    virtual HRESULT __stdcall SetTag(IUnknown *object, UINT32 id) = 0;
+    virtual HRESULT __stdcall GetOutputTransform(float *matrix, DWORD pointCount) = 0;
+    virtual HRESULT __stdcall GetContentTransform(float *matrix, DWORD pointCount) = 0;
+    virtual HRESULT __stdcall SyncContentTransform(const float *matrix, DWORD pointCount) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("fb759dba-6f4c-4c01-874e-19c8a05907f9")) __declspec(novtable) IDirectManipulationFrameInfoProvider : public IUnknown {
+    virtual HRESULT __stdcall GetNextFrameInfo(ULONGLONG *time, ULONGLONG *processTime, ULONGLONG *compositionTime) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("fbf5d3b4-70c7-4163-9322-5a6f660d6fbc")) __declspec(novtable) IDirectManipulationManager : public IUnknown {
+    virtual HRESULT __stdcall Activate(HWND window) = 0;
+    virtual HRESULT __stdcall Deactivate(HWND window) = 0;
+    virtual HRESULT __stdcall RegisterHitTestTarget(HWND window, HWND hitTestWindow, DIRECTMANIPULATION_HITTEST_TYPE type) = 0;
+    virtual HRESULT __stdcall ProcessInput(const MSG *message, BOOL *handled) = 0;
+    virtual HRESULT __stdcall GetUpdateManager(const IID &riid, void **object) = 0;
+    virtual HRESULT __stdcall CreateViewport(IDirectManipulationFrameInfoProvider *frameInfo, HWND window, const IID &riid, void **object) = 0;
+    virtual HRESULT __stdcall CreateContent(IDirectManipulationFrameInfoProvider *frameInfo, const IID &clsid, const IID &riid, void **object) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("790b6337-64f8-4ff5-a269-b32bc2af27a7")) __declspec(novtable) IDirectManipulationUpdateHandler : public IUnknown {
+    virtual HRESULT __stdcall Update(void) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("b0ae62fd-be34-46e7-9caa-d361facbb9cc")) __declspec(novtable) IDirectManipulationUpdateManager : public IUnknown {
+    virtual HRESULT __stdcall RegisterWaitHandleCallback(HANDLE handle, IDirectManipulationUpdateHandler *eventHandler, DWORD *cookie) = 0;
+    virtual HRESULT __stdcall UnregisterWaitHandleCallback(DWORD cookie) = 0;
+    virtual HRESULT __stdcall Update(IDirectManipulationFrameInfoProvider *frameInfo) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("28b85a3d-60a0-48bd-9ba1-5ce8d9ea3a6d")) __declspec(novtable) IDirectManipulationViewport : public IUnknown {
+    virtual HRESULT __stdcall Enable(void) = 0;
+    virtual HRESULT __stdcall Disable(void) = 0;
+    virtual HRESULT __stdcall SetContact(UINT32 pointerId) = 0;
+    virtual HRESULT __stdcall ReleaseContact(UINT32 pointerId) = 0;
+    virtual HRESULT __stdcall ReleaseAllContacts(void) = 0;
+    virtual HRESULT __stdcall GetStatus(DIRECTMANIPULATION_STATUS *status) = 0;
+    virtual HRESULT __stdcall GetTag(const IID &riid, void **object, UINT32 *id) = 0;
+    virtual HRESULT __stdcall SetTag(IUnknown *object, UINT32 id) = 0;
+    virtual HRESULT __stdcall GetViewportRect(RECT *viewport) = 0;
+    virtual HRESULT __stdcall SetViewportRect(const RECT *viewport) = 0;
+    virtual HRESULT __stdcall ZoomToRect(float left, float top, float right, float bottom, BOOL animate) = 0;
+    virtual HRESULT __stdcall SetViewportTransform(const float *matrix, DWORD pointCount) = 0;
+    virtual HRESULT __stdcall SyncDisplayTransform(const float *matrix, DWORD pointCount) = 0;
+    virtual HRESULT __stdcall GetPrimaryContent(const IID &riid, void **object) = 0;
+    virtual HRESULT __stdcall AddContent(IDirectManipulationContent *content) = 0;
+    virtual HRESULT __stdcall RemoveContent(IDirectManipulationContent *content) = 0;
+    virtual HRESULT __stdcall SetViewportOptions(DIRECTMANIPULATION_VIEWPORT_OPTIONS options) = 0;
+    virtual HRESULT __stdcall AddConfiguration(DIRECTMANIPULATION_CONFIGURATION configuration) = 0;
+    virtual HRESULT __stdcall RemoveConfiguration(DIRECTMANIPULATION_CONFIGURATION configuration) = 0;
+    virtual HRESULT __stdcall ActivateConfiguration(DIRECTMANIPULATION_CONFIGURATION configuration) = 0;
+    virtual HRESULT __stdcall SetManualGesture(DIRECTMANIPULATION_GESTURE_CONFIGURATION configuration) = 0;
+    virtual HRESULT __stdcall SetChaining(DIRECTMANIPULATION_MOTION_TYPES enabledTypes) = 0;
+    virtual HRESULT __stdcall AddEventHandler(HWND window, IDirectManipulationViewportEventHandler *eventHandler, DWORD *cookie) = 0;
+    virtual HRESULT __stdcall RemoveEventHandler(DWORD cookie) = 0;
+    virtual HRESULT __stdcall SetInputMode(DIRECTMANIPULATION_INPUT_MODE mode) = 0;
+    virtual HRESULT __stdcall SetUpdateMode(DIRECTMANIPULATION_INPUT_MODE mode) = 0;
+    virtual HRESULT __stdcall Stop(void) = 0;
+    virtual HRESULT __stdcall Abandon(void) = 0;
+};
+
+/* directmanipulation.h */
+struct __declspec(uuid("952121da-d69f-45f9-b0f9-f23944321a6d")) __declspec(novtable) IDirectManipulationViewportEventHandler : public IUnknown {
+    virtual HRESULT __stdcall OnViewportStatusChanged(IDirectManipulationViewport *viewport, DIRECTMANIPULATION_STATUS current, DIRECTMANIPULATION_STATUS previous) = 0;
+    virtual HRESULT __stdcall OnViewportUpdated(IDirectManipulationViewport *viewport) = 0;
+    virtual HRESULT __stdcall OnContentUpdated(IDirectManipulationViewport *viewport, IDirectManipulationContent *content) = 0;
+};
+
+/* oleidl.h */
+struct __declspec(uuid("00000121-0000-0000-c000-000000000046")) __declspec(novtable) IDropSource : public IUnknown {
+    virtual HRESULT __stdcall QueryContinueDrag(BOOL fEscapePressed, DWORD grfKeyState) = 0;
+    virtual HRESULT __stdcall GiveFeedback(DWORD dwEffect) = 0;
+};
+
+/* oleidl.h */
+struct __declspec(uuid("00000122-0000-0000-c000-000000000046")) __declspec(novtable) IDropTarget : public IUnknown {
+    virtual HRESULT __stdcall DragEnter(IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) = 0;
+    virtual HRESULT __stdcall DragOver(DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) = 0;
+    virtual HRESULT __stdcall DragLeave(void) = 0;
+    virtual HRESULT __stdcall Drop(IDataObject *pDataObj, DWORD grfKeyState, POINTL pt, DWORD *pdwEffect) = 0;
+};
+
+/* shobjidl_core.h */
+struct __declspec(uuid("4657278b-411b-11d2-839a-00c04fd918d0")) __declspec(novtable) IDropTargetHelper : public IUnknown {
+    virtual HRESULT __stdcall DragEnter(HWND hwndTarget, IDataObject *pDataObject, POINT *ppt, DWORD dwEffect) = 0;
+    virtual HRESULT __stdcall DragLeave(void) = 0;
+    virtual HRESULT __stdcall DragOver(POINT *ppt, DWORD dwEffect) = 0;
+    virtual HRESULT __stdcall Drop(IDataObject *pDataObject, POINT *ppt, DWORD dwEffect) = 0;
+    virtual HRESULT __stdcall Show(BOOL fShow) = 0;
+};
+
+/* objidl.h */
+struct __declspec(uuid("00000103-0000-0000-c000-000000000046")) __declspec(novtable) IEnumFORMATETC : public IUnknown {
+    virtual HRESULT __stdcall Next(ULONG celt, FORMATETC *rgelt, ULONG *pceltFetched) = 0;
+    virtual HRESULT __stdcall Skip(ULONG celt) = 0;
+    virtual HRESULT __stdcall Reset(void) = 0;
+    virtual HRESULT __stdcall Clone(IEnumFORMATETC **ppenum) = 0;
+};
+
 /* objidl.h */
 struct __declspec(uuid("00000102-0000-0000-c000-000000000046")) __declspec(novtable) IEnumMoniker : public IUnknown {
     virtual HRESULT __stdcall Next(ULONG celt, IMoniker **rgelt, ULONG *pceltFetched) = 0;
     virtual HRESULT __stdcall Skip(ULONG celt) = 0;
     virtual HRESULT __stdcall Reset(void) = 0;
     virtual HRESULT __stdcall Clone(IEnumMoniker **ppenum) = 0;
+};
+
+/* objidl.h */
+struct __declspec(uuid("00000105-0000-0000-c000-000000000046")) __declspec(novtable) IEnumSTATDATA : public IUnknown {
+    virtual HRESULT __stdcall Next(ULONG celt, STATDATA *rgelt, ULONG *pceltFetched) = 0;
+    virtual HRESULT __stdcall Skip(ULONG celt) = 0;
+    virtual HRESULT __stdcall Reset(void) = 0;
+    virtual HRESULT __stdcall Clone(IEnumSTATDATA **ppenum) = 0;
 };
 
 /* objidl.h */

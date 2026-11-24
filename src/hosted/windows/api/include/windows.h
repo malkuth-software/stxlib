@@ -49,6 +49,7 @@
 #include "coml2api.h"
 #include "mmreg.h"
 #include "ntstatus.h"
+#include "shlguid.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #include "shellapi.h"
 #include "commdlg.h"
@@ -57,8 +58,10 @@
 #include "combaseapi.h"
 #include "oleauto.h"
 #include "oaidl.h"
+#include "objidl.h"
 #include "unknwnbase.h"
 #include "wtypes.h"
+#include "oleidl.h"
 #endif
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

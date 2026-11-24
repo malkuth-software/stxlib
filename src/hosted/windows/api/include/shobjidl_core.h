@@ -13,6 +13,11 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
+STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IDropTargetHelper = {0x4657278b, 0x411b, 0x11d2, {0x83, 0x9a, 0x00, 0xc0, 0x4f, 0xd9, 0x18, 0xd0}};
+#else
+STXWIN_EXTERN_C const IID IID_IDropTargetHelper;
+#endif
+#ifdef INITGUID
 STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IFileOpenDialog = {0xd57c7288, 0xd4ad, 0x4768, {0xbe, 0x02, 0x9d, 0x96, 0x95, 0x32, 0xd9, 0x60}};
 #else
 STXWIN_EXTERN_C const IID IID_IFileOpenDialog;
@@ -41,6 +46,7 @@ STXWIN_EXTERN_C const CLSID CLSID_FileSaveDialog;
 #ifdef __cplusplus
 extern "C" {
 #endif
+__declspec(dllimport) HRESULT __stdcall GetCurrentProcessExplicitAppUserModelID(PWSTR *AppID);
 #ifdef __cplusplus
 __declspec(dllimport) HRESULT __stdcall SHCreateItemFromParsingName(PCWSTR pszPath, IBindCtx *pbc, const IID &riid, void **ppv);
 #else

@@ -12,7 +12,8 @@ VC, mingw-w64, Wine or ReactOS header. Metadata: windows-rs at the pin in
 | WINAPI, CALLBACK, APIENTRY, STDMETHODCALLTYPE, STDAPI, STDMETHODIMP | stxwin_supplement.h | Windows Data Types; Argument Passing and Naming Conventions; COM "Defining COM interfaces" |
 | SUCCEEDED, FAILED, HRESULT_FROM_WIN32, MAKE_HRESULT, HRESULT_CODE | stxwin_supplement.h | Using Macros for Error Handling; HRESULT_FROM_WIN32 macro (winerror.h) |
 | LOWORD, HIWORD, LOBYTE, HIBYTE, MAKEWORD, MAKELONG, MAKEWPARAM, MAKELPARAM, MAKELRESULT | stxwin_supplement.h | the macro pages under Windows and Messages |
-| GET_X_LPARAM, GET_Y_LPARAM, GET_WHEEL_DELTA_WPARAM, GET_KEYSTATE_WPARAM, GET_XBUTTON_WPARAM | stxwin_supplement.h | the macro pages (windowsx.h, winuser.h) |
+| GET_X_LPARAM, GET_Y_LPARAM, GET_WHEEL_DELTA_WPARAM, GET_KEYSTATE_WPARAM, GET_XBUTTON_WPARAM, GET_POINTERID_WPARAM | stxwin_supplement.h | the macro pages (windowsx.h, winuser.h) |
+| EventRegistrationToken | eventtoken.h | EventRegistrationToken struct (Windows.Foundation; a Windows Runtime type, so not in the Win32 metadata) |
 | RGB, GetRValue, GetGValue, GetBValue | stxwin_supplement.h | the macro pages (wingdi.h) |
 | MAKEINTRESOURCEW, IS_INTRESOURCE, MAKEINTATOM, TEXT | stxwin_supplement.h | the macro pages (winuser.h, winbase.h, winnt.h) |
 | EXCEPTION_EXECUTE_HANDLER, EXCEPTION_CONTINUE_SEARCH, EXCEPTION_CONTINUE_EXECUTION | stxwin_supplement.h | try-except statement (C++ language reference) |
