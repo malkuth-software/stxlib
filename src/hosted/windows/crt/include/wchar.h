@@ -201,6 +201,116 @@ _STXLIB_CRT_INLINE int __cdecl swscanf(const wchar_t* buffer, const wchar_t* for
     return result;
 }
 
+/* _scwprintf and _vscwprintf (stdio.h's _scprintf comment). */
+_STXLIB_CRT_INLINE int __cdecl _vscwprintf(const wchar_t* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vswprintf(
+        _CRT_INTERNAL_LOCAL_PRINTF_OPTIONS | _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR, (wchar_t*)0, 0, format,
+        (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl _scwprintf(const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vscwprintf(format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+
+/* The wide secure formatted family (Learn, "sprintf_s, ..., swprintf_s",
+ * "_snprintf_s, ..., _snwprintf_s", "fprintf_s, ..., fwprintf_s",
+ * "printf_s, ..., wprintf_s", "sscanf_s, ..., swscanf_s",
+ * "fscanf_s, ..., fwscanf_s", "scanf_s, ..., wscanf_s"); stdio.h's secure
+ * family comment applies. */
+_STXLIB_CRT_INLINE int __cdecl vswprintf_s(wchar_t* buffer, size_t size, const wchar_t* format,
+                                           __builtin_va_list arguments) {
+    const int result = __stdio_common_vswprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, buffer, size, format,
+                                                  (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl swprintf_s(wchar_t* buffer, size_t size, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vswprintf_s(buffer, size, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl _vsnwprintf_s(wchar_t* buffer, size_t size, size_t max_count,
+                                             const wchar_t* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vsnwprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, buffer, size, max_count,
+                                                   format, (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl _snwprintf_s(wchar_t* buffer, size_t size, size_t max_count, const wchar_t* format,
+                                            ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vsnwprintf_s(buffer, size, max_count, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vfwprintf_s(FILE* stream, const wchar_t* format, __builtin_va_list arguments) {
+    const int result =
+        __stdio_common_vfwprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, stream, format, (_locale_t)0, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vwprintf_s(const wchar_t* format, __builtin_va_list arguments) {
+    const int result = vfwprintf_s(stdout, format, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl fwprintf_s(FILE* stream, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfwprintf_s(stream, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl wprintf_s(const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfwprintf_s(stdout, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vswscanf_s(const wchar_t* buffer, const wchar_t* format,
+                                          __builtin_va_list arguments) {
+    const int result = __stdio_common_vswscanf(_CRT_INTERNAL_LOCAL_SCANF_OPTIONS | _CRT_INTERNAL_SCANF_SECURECRT,
+                                               buffer, (size_t)-1, format, (_locale_t)0, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl swscanf_s(const wchar_t* buffer, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vswscanf_s(buffer, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vfwscanf_s(FILE* stream, const wchar_t* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vfwscanf(_CRT_INTERNAL_LOCAL_SCANF_OPTIONS | _CRT_INTERNAL_SCANF_SECURECRT,
+                                               stream, format, (_locale_t)0, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vwscanf_s(const wchar_t* format, __builtin_va_list arguments) {
+    const int result = vfwscanf_s(stdin, format, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl fwscanf_s(FILE* stream, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfwscanf_s(stream, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl wscanf_s(const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfwscanf_s(stdin, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+
 /* Learn: the wide forms of the string.h additions ("_wcslwr", "_wcsupr",
  * "_wcsnset", "_wcsrev", "_wcsset", "_wcsicoll", "_wcsncoll",
  * "_wcsnicoll", "_wcserror"), "wcsncat_s", "wmemcpy_s", "wmemmove_s",
@@ -239,5 +349,36 @@ _STXLIB_UCRT_POSIX wchar_t* __cdecl wcsupr(wchar_t* text);
 #endif
 
 _STXLIB_CRT_END
+
+/* The wide array forms of the secure printf family (stdio.h's C++ forms). */
+#ifdef __cplusplus
+extern "C++" {
+template <size_t _Size>
+inline int __cdecl vswprintf_s(wchar_t (&buffer)[_Size], const wchar_t* format, __builtin_va_list arguments) {
+    return vswprintf_s(buffer, _Size, format, arguments);
+}
+template <size_t _Size>
+inline int __cdecl swprintf_s(wchar_t (&buffer)[_Size], const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vswprintf_s(buffer, _Size, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+template <size_t _Size>
+inline int __cdecl _vsnwprintf_s(wchar_t (&buffer)[_Size], size_t max_count, const wchar_t* format,
+                                 __builtin_va_list arguments) {
+    return _vsnwprintf_s(buffer, _Size, max_count, format, arguments);
+}
+template <size_t _Size>
+inline int __cdecl _snwprintf_s(wchar_t (&buffer)[_Size], size_t max_count, const wchar_t* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vsnwprintf_s(buffer, _Size, max_count, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+}
+#endif
 
 #endif /* STXLIB_CRT_WCHAR_H */
