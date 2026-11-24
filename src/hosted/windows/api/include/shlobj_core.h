@@ -17,6 +17,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+__declspec(dllimport) HRESULT __stdcall SHCreateStdEnumFmtEtc(UINT cfmt, const FORMATETC *afmt, IEnumFORMATETC **ppenumFormatEtc);
 #ifdef __cplusplus
 __declspec(dllimport) HRESULT __stdcall SHGetKnownFolderPath(const KNOWNFOLDERID &rfid, DWORD dwFlags, HANDLE hToken, PWSTR *ppszPath);
 #else

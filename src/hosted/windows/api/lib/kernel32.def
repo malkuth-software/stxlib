@@ -54,6 +54,7 @@ EXPORTS
     GetConsoleScreenBufferInfo
     GetConsoleWindow
     GetCurrentDirectoryW
+    GetCurrentPackageFullName
     GetCurrentProcess
     GetCurrentProcessId
     GetCurrentThreadId

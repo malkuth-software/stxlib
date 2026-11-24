@@ -4,7 +4,9 @@ LIBRARY shell32.dll
 EXPORTS
     CommandLineToArgvW
     DragQueryFileW
+    GetCurrentProcessExplicitAppUserModelID
     SHCreateItemFromParsingName
+    SHCreateStdEnumFmtEtc
     SHGetKnownFolderPath
     ShellExecuteW
     Shell_NotifyIconW

@@ -36,11 +36,14 @@ EXPORTS
     _chgsign
     _chmod
     _chsize_s
+    _clearfp
     _close
     _commit
     _configthreadlocale
     _configure_narrow_argv
     _configure_wide_argv
+    _controlfp
+    _controlfp_s
     _copysign
     _create_locale
     _crt_at_quick_exit
@@ -127,6 +130,7 @@ EXPORTS
     _set_errno
     _setmode
     _sopen_s
+    _statusfp
     _strcoll_l
     _strdup
     _strftime_l

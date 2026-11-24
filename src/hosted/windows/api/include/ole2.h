@@ -7,12 +7,27 @@
 #include "stxwin_supplement.h"
 #include "objbase.h"
 #include "oleauto.h"
+#include "oleidl.h"
 #include "oaidl.h"
 
+#define DATA_E_FORMATETC ((HRESULT)(-2147221404))
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(dllimport) HRESULT __stdcall DoDragDrop(LPDATAOBJECT pDataObj, LPDROPSOURCE pDropSource, DWORD dwOKEffects, LPDWORD pdwEffect);
+__declspec(dllimport) HRESULT __stdcall OleInitialize(LPVOID pvReserved);
+__declspec(dllimport) void __stdcall OleUninitialize(void);
+__declspec(dllimport) HRESULT __stdcall RegisterDragDrop(HWND hwnd, LPDROPTARGET pDropTarget);
+__declspec(dllimport) void __stdcall ReleaseStgMedium(LPSTGMEDIUM param0);
+__declspec(dllimport) HRESULT __stdcall RevokeDragDrop(HWND hwnd);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RC_INVOKED */
 

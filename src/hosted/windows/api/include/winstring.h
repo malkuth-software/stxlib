@@ -14,7 +14,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+__declspec(dllimport) HRESULT __stdcall WindowsCreateString(PCNZWCH sourceString, UINT32 length, HSTRING *string);
 __declspec(dllimport) HRESULT __stdcall WindowsCreateStringReference(PCWSTR sourceString, UINT32 length, HSTRING_HEADER *hstringHeader, HSTRING *string);
+__declspec(dllimport) HRESULT __stdcall WindowsDeleteString(HSTRING string);
 #ifdef __cplusplus
 }
 #endif

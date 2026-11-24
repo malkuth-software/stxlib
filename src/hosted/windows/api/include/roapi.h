@@ -15,6 +15,11 @@
 extern "C" {
 #endif
 __declspec(dllimport) HRESULT __stdcall RoActivateInstance(HSTRING activatableClassId, IInspectable **instance);
+#ifdef __cplusplus
+__declspec(dllimport) HRESULT __stdcall RoGetActivationFactory(HSTRING activatableClassId, const IID &iid, void **factory);
+#else
+__declspec(dllimport) HRESULT __stdcall RoGetActivationFactory(HSTRING activatableClassId, const IID *iid, void **factory);
+#endif
 __declspec(dllimport) HRESULT __stdcall RoInitialize(RO_INIT_TYPE initType);
 __declspec(dllimport) void __stdcall RoUninitialize(void);
 #ifdef __cplusplus

@@ -3,6 +3,7 @@
 // (layout.py: x86_64 msvc rules, #[packed], #[align]). The metadata states
 // no sizes itself; this proves the C spelling matches the metadata's fields.
 #include "windows.h"
+#include "appmodel.h"
 #include "avrt.h"
 #include "basetsd.h"
 #include "bcrypt.h"
@@ -13,6 +14,7 @@
 #include "consoleapi2.h"
 #include "consoleapi3.h"
 #include "debugapi.h"
+#include "directmanipulation.h"
 #include "dwmapi.h"
 #include "errhandlingapi.h"
 #include "fibersapi.h"
@@ -33,8 +35,11 @@
 #include "ntstatus.h"
 #include "oaidl.h"
 #include "objbase.h"
+#include "objidl.h"
+#include "ole2.h"
 #include "oleacc.h"
 #include "oleauto.h"
+#include "oleidl.h"
 #include "processenv.h"
 #include "processthreadsapi.h"
 #include "profileapi.h"
@@ -45,6 +50,7 @@
 #include "shared.h"
 #include "shellapi.h"
 #include "shellscalingapi.h"
+#include "shlguid.h"
 #include "shlobj_core.h"
 #include "shobjidl_core.h"
 #include "stringapiset.h"
@@ -502,6 +508,14 @@ static_assert(STXWIN_OFFSET(DROPFILES, pFiles) == 0, "DROPFILES.pFiles");
 static_assert(STXWIN_OFFSET(DROPFILES, pt) == 4, "DROPFILES.pt");
 static_assert(STXWIN_OFFSET(DROPFILES, fNC) == 12, "DROPFILES.fNC");
 static_assert(STXWIN_OFFSET(DROPFILES, fWide) == 16, "DROPFILES.fWide");
+static_assert(sizeof(DVTARGETDEVICE) == 16, "DVTARGETDEVICE size");
+static_assert(alignof(DVTARGETDEVICE) == 4, "DVTARGETDEVICE alignment");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdSize) == 0, "DVTARGETDEVICE.tdSize");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdDriverNameOffset) == 4, "DVTARGETDEVICE.tdDriverNameOffset");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdDeviceNameOffset) == 6, "DVTARGETDEVICE.tdDeviceNameOffset");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdPortNameOffset) == 8, "DVTARGETDEVICE.tdPortNameOffset");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdExtDevmodeOffset) == 10, "DVTARGETDEVICE.tdExtDevmodeOffset");
+static_assert(STXWIN_OFFSET(DVTARGETDEVICE, tdData) == 12, "DVTARGETDEVICE.tdData");
 static_assert(sizeof(DWM_BLURBEHIND) == 20, "DWM_BLURBEHIND size");
 static_assert(alignof(DWM_BLURBEHIND) == 1, "DWM_BLURBEHIND alignment");
 static_assert(STXWIN_OFFSET(DWM_BLURBEHIND, dwFlags) == 0, "DWM_BLURBEHIND.dwFlags");
@@ -550,6 +564,96 @@ static_assert(STXWIN_OFFSET(DWM_TIMING_INFO, cRefreshStarted) == 260, "DWM_TIMIN
 static_assert(STXWIN_OFFSET(DWM_TIMING_INFO, cPixelsReceived) == 268, "DWM_TIMING_INFO.cPixelsReceived");
 static_assert(STXWIN_OFFSET(DWM_TIMING_INFO, cPixelsDrawn) == 276, "DWM_TIMING_INFO.cPixelsDrawn");
 static_assert(STXWIN_OFFSET(DWM_TIMING_INFO, cBuffersEmpty) == 284, "DWM_TIMING_INFO.cBuffersEmpty");
+static_assert(sizeof(DXGI_ADAPTER_DESC) == 304, "DXGI_ADAPTER_DESC size");
+static_assert(alignof(DXGI_ADAPTER_DESC) == 8, "DXGI_ADAPTER_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, Description) == 0, "DXGI_ADAPTER_DESC.Description");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, VendorId) == 256, "DXGI_ADAPTER_DESC.VendorId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, DeviceId) == 260, "DXGI_ADAPTER_DESC.DeviceId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, SubSysId) == 264, "DXGI_ADAPTER_DESC.SubSysId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, Revision) == 268, "DXGI_ADAPTER_DESC.Revision");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, DedicatedVideoMemory) == 272, "DXGI_ADAPTER_DESC.DedicatedVideoMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, DedicatedSystemMemory) == 280, "DXGI_ADAPTER_DESC.DedicatedSystemMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, SharedSystemMemory) == 288, "DXGI_ADAPTER_DESC.SharedSystemMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC, AdapterLuid) == 296, "DXGI_ADAPTER_DESC.AdapterLuid");
+static_assert(sizeof(DXGI_ADAPTER_DESC1) == 312, "DXGI_ADAPTER_DESC1 size");
+static_assert(alignof(DXGI_ADAPTER_DESC1) == 8, "DXGI_ADAPTER_DESC1 alignment");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, Description) == 0, "DXGI_ADAPTER_DESC1.Description");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, VendorId) == 256, "DXGI_ADAPTER_DESC1.VendorId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, DeviceId) == 260, "DXGI_ADAPTER_DESC1.DeviceId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, SubSysId) == 264, "DXGI_ADAPTER_DESC1.SubSysId");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, Revision) == 268, "DXGI_ADAPTER_DESC1.Revision");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, DedicatedVideoMemory) == 272, "DXGI_ADAPTER_DESC1.DedicatedVideoMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, DedicatedSystemMemory) == 280, "DXGI_ADAPTER_DESC1.DedicatedSystemMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, SharedSystemMemory) == 288, "DXGI_ADAPTER_DESC1.SharedSystemMemory");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, AdapterLuid) == 296, "DXGI_ADAPTER_DESC1.AdapterLuid");
+static_assert(STXWIN_OFFSET(DXGI_ADAPTER_DESC1, Flags) == 304, "DXGI_ADAPTER_DESC1.Flags");
+static_assert(sizeof(DXGI_FRAME_STATISTICS) == 32, "DXGI_FRAME_STATISTICS size");
+static_assert(alignof(DXGI_FRAME_STATISTICS) == 8, "DXGI_FRAME_STATISTICS alignment");
+static_assert(STXWIN_OFFSET(DXGI_FRAME_STATISTICS, PresentCount) == 0, "DXGI_FRAME_STATISTICS.PresentCount");
+static_assert(STXWIN_OFFSET(DXGI_FRAME_STATISTICS, PresentRefreshCount) == 4, "DXGI_FRAME_STATISTICS.PresentRefreshCount");
+static_assert(STXWIN_OFFSET(DXGI_FRAME_STATISTICS, SyncRefreshCount) == 8, "DXGI_FRAME_STATISTICS.SyncRefreshCount");
+static_assert(STXWIN_OFFSET(DXGI_FRAME_STATISTICS, SyncQPCTime) == 16, "DXGI_FRAME_STATISTICS.SyncQPCTime");
+static_assert(STXWIN_OFFSET(DXGI_FRAME_STATISTICS, SyncGPUTime) == 24, "DXGI_FRAME_STATISTICS.SyncGPUTime");
+static_assert(sizeof(DXGI_GAMMA_CONTROL) == 12324, "DXGI_GAMMA_CONTROL size");
+static_assert(alignof(DXGI_GAMMA_CONTROL) == 4, "DXGI_GAMMA_CONTROL alignment");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL, Scale) == 0, "DXGI_GAMMA_CONTROL.Scale");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL, Offset) == 12, "DXGI_GAMMA_CONTROL.Offset");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL, GammaCurve) == 24, "DXGI_GAMMA_CONTROL.GammaCurve");
+static_assert(sizeof(DXGI_GAMMA_CONTROL_CAPABILITIES) == 4116, "DXGI_GAMMA_CONTROL_CAPABILITIES size");
+static_assert(alignof(DXGI_GAMMA_CONTROL_CAPABILITIES) == 4, "DXGI_GAMMA_CONTROL_CAPABILITIES alignment");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL_CAPABILITIES, ScaleAndOffsetSupported) == 0, "DXGI_GAMMA_CONTROL_CAPABILITIES.ScaleAndOffsetSupported");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL_CAPABILITIES, MaxConvertedValue) == 4, "DXGI_GAMMA_CONTROL_CAPABILITIES.MaxConvertedValue");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL_CAPABILITIES, MinConvertedValue) == 8, "DXGI_GAMMA_CONTROL_CAPABILITIES.MinConvertedValue");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL_CAPABILITIES, NumGammaControlPoints) == 12, "DXGI_GAMMA_CONTROL_CAPABILITIES.NumGammaControlPoints");
+static_assert(STXWIN_OFFSET(DXGI_GAMMA_CONTROL_CAPABILITIES, ControlPointPositions) == 16, "DXGI_GAMMA_CONTROL_CAPABILITIES.ControlPointPositions");
+static_assert(sizeof(DXGI_MAPPED_RECT) == 16, "DXGI_MAPPED_RECT size");
+static_assert(alignof(DXGI_MAPPED_RECT) == 8, "DXGI_MAPPED_RECT alignment");
+static_assert(STXWIN_OFFSET(DXGI_MAPPED_RECT, Pitch) == 0, "DXGI_MAPPED_RECT.Pitch");
+static_assert(STXWIN_OFFSET(DXGI_MAPPED_RECT, pBits) == 8, "DXGI_MAPPED_RECT.pBits");
+static_assert(sizeof(DXGI_MODE_DESC) == 28, "DXGI_MODE_DESC size");
+static_assert(alignof(DXGI_MODE_DESC) == 4, "DXGI_MODE_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, Width) == 0, "DXGI_MODE_DESC.Width");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, Height) == 4, "DXGI_MODE_DESC.Height");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, RefreshRate) == 8, "DXGI_MODE_DESC.RefreshRate");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, Format) == 16, "DXGI_MODE_DESC.Format");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, ScanlineOrdering) == 20, "DXGI_MODE_DESC.ScanlineOrdering");
+static_assert(STXWIN_OFFSET(DXGI_MODE_DESC, Scaling) == 24, "DXGI_MODE_DESC.Scaling");
+static_assert(sizeof(DXGI_OUTPUT_DESC) == 96, "DXGI_OUTPUT_DESC size");
+static_assert(alignof(DXGI_OUTPUT_DESC) == 8, "DXGI_OUTPUT_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_OUTPUT_DESC, DeviceName) == 0, "DXGI_OUTPUT_DESC.DeviceName");
+static_assert(STXWIN_OFFSET(DXGI_OUTPUT_DESC, DesktopCoordinates) == 64, "DXGI_OUTPUT_DESC.DesktopCoordinates");
+static_assert(STXWIN_OFFSET(DXGI_OUTPUT_DESC, AttachedToDesktop) == 80, "DXGI_OUTPUT_DESC.AttachedToDesktop");
+static_assert(STXWIN_OFFSET(DXGI_OUTPUT_DESC, Rotation) == 84, "DXGI_OUTPUT_DESC.Rotation");
+static_assert(STXWIN_OFFSET(DXGI_OUTPUT_DESC, Monitor) == 88, "DXGI_OUTPUT_DESC.Monitor");
+static_assert(sizeof(DXGI_RATIONAL) == 8, "DXGI_RATIONAL size");
+static_assert(alignof(DXGI_RATIONAL) == 4, "DXGI_RATIONAL alignment");
+static_assert(STXWIN_OFFSET(DXGI_RATIONAL, Numerator) == 0, "DXGI_RATIONAL.Numerator");
+static_assert(STXWIN_OFFSET(DXGI_RATIONAL, Denominator) == 4, "DXGI_RATIONAL.Denominator");
+static_assert(sizeof(DXGI_RGB) == 12, "DXGI_RGB size");
+static_assert(alignof(DXGI_RGB) == 4, "DXGI_RGB alignment");
+static_assert(STXWIN_OFFSET(DXGI_RGB, Red) == 0, "DXGI_RGB.Red");
+static_assert(STXWIN_OFFSET(DXGI_RGB, Green) == 4, "DXGI_RGB.Green");
+static_assert(STXWIN_OFFSET(DXGI_RGB, Blue) == 8, "DXGI_RGB.Blue");
+static_assert(sizeof(DXGI_SAMPLE_DESC) == 8, "DXGI_SAMPLE_DESC size");
+static_assert(alignof(DXGI_SAMPLE_DESC) == 4, "DXGI_SAMPLE_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_SAMPLE_DESC, Count) == 0, "DXGI_SAMPLE_DESC.Count");
+static_assert(STXWIN_OFFSET(DXGI_SAMPLE_DESC, Quality) == 4, "DXGI_SAMPLE_DESC.Quality");
+static_assert(sizeof(DXGI_SURFACE_DESC) == 20, "DXGI_SURFACE_DESC size");
+static_assert(alignof(DXGI_SURFACE_DESC) == 4, "DXGI_SURFACE_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_SURFACE_DESC, Width) == 0, "DXGI_SURFACE_DESC.Width");
+static_assert(STXWIN_OFFSET(DXGI_SURFACE_DESC, Height) == 4, "DXGI_SURFACE_DESC.Height");
+static_assert(STXWIN_OFFSET(DXGI_SURFACE_DESC, Format) == 8, "DXGI_SURFACE_DESC.Format");
+static_assert(STXWIN_OFFSET(DXGI_SURFACE_DESC, SampleDesc) == 12, "DXGI_SURFACE_DESC.SampleDesc");
+static_assert(sizeof(DXGI_SWAP_CHAIN_DESC) == 72, "DXGI_SWAP_CHAIN_DESC size");
+static_assert(alignof(DXGI_SWAP_CHAIN_DESC) == 8, "DXGI_SWAP_CHAIN_DESC alignment");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, BufferDesc) == 0, "DXGI_SWAP_CHAIN_DESC.BufferDesc");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, SampleDesc) == 28, "DXGI_SWAP_CHAIN_DESC.SampleDesc");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, BufferUsage) == 36, "DXGI_SWAP_CHAIN_DESC.BufferUsage");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, BufferCount) == 40, "DXGI_SWAP_CHAIN_DESC.BufferCount");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, OutputWindow) == 48, "DXGI_SWAP_CHAIN_DESC.OutputWindow");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, Windowed) == 56, "DXGI_SWAP_CHAIN_DESC.Windowed");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, SwapEffect) == 60, "DXGI_SWAP_CHAIN_DESC.SwapEffect");
+static_assert(STXWIN_OFFSET(DXGI_SWAP_CHAIN_DESC, Flags) == 64, "DXGI_SWAP_CHAIN_DESC.Flags");
 static_assert(sizeof(DYNAMIC_TIME_ZONE_INFORMATION) == 432, "DYNAMIC_TIME_ZONE_INFORMATION size");
 static_assert(alignof(DYNAMIC_TIME_ZONE_INFORMATION) == 4, "DYNAMIC_TIME_ZONE_INFORMATION alignment");
 static_assert(STXWIN_OFFSET(DYNAMIC_TIME_ZONE_INFORMATION, Bias) == 0, "DYNAMIC_TIME_ZONE_INFORMATION.Bias");
@@ -671,6 +775,13 @@ static_assert(STXWIN_OFFSET(FINDREPLACEW, wReplaceWithLen) == 50, "FINDREPLACEW.
 static_assert(STXWIN_OFFSET(FINDREPLACEW, lCustData) == 56, "FINDREPLACEW.lCustData");
 static_assert(STXWIN_OFFSET(FINDREPLACEW, lpfnHook) == 64, "FINDREPLACEW.lpfnHook");
 static_assert(STXWIN_OFFSET(FINDREPLACEW, lpTemplateName) == 72, "FINDREPLACEW.lpTemplateName");
+static_assert(sizeof(FORMATETC) == 32, "FORMATETC size");
+static_assert(alignof(FORMATETC) == 8, "FORMATETC alignment");
+static_assert(STXWIN_OFFSET(FORMATETC, cfFormat) == 0, "FORMATETC.cfFormat");
+static_assert(STXWIN_OFFSET(FORMATETC, ptd) == 8, "FORMATETC.ptd");
+static_assert(STXWIN_OFFSET(FORMATETC, dwAspect) == 16, "FORMATETC.dwAspect");
+static_assert(STXWIN_OFFSET(FORMATETC, lindex) == 20, "FORMATETC.lindex");
+static_assert(STXWIN_OFFSET(FORMATETC, tymed) == 24, "FORMATETC.tymed");
 static_assert(sizeof(FUNCDESC) == 88, "FUNCDESC size");
 static_assert(alignof(FUNCDESC) == 8, "FUNCDESC alignment");
 static_assert(STXWIN_OFFSET(FUNCDESC, memid) == 0, "FUNCDESC.memid");
@@ -722,6 +833,9 @@ static_assert(STXWIN_OFFSET(HDESK__, unused) == 0, "HDESK__.unused");
 static_assert(sizeof(HDROP__) == 4, "HDROP__ size");
 static_assert(alignof(HDROP__) == 4, "HDROP__ alignment");
 static_assert(STXWIN_OFFSET(HDROP__, unused) == 0, "HDROP__.unused");
+static_assert(sizeof(HENHMETAFILE__) == 4, "HENHMETAFILE__ size");
+static_assert(alignof(HENHMETAFILE__) == 4, "HENHMETAFILE__ alignment");
+static_assert(STXWIN_OFFSET(HENHMETAFILE__, unused) == 0, "HENHMETAFILE__.unused");
 static_assert(sizeof(HFONT__) == 4, "HFONT__ size");
 static_assert(alignof(HFONT__) == 4, "HFONT__ alignment");
 static_assert(STXWIN_OFFSET(HFONT__, unused) == 0, "HFONT__.unused");
@@ -947,6 +1061,10 @@ static_assert(sizeof(LIST_ENTRY) == 16, "LIST_ENTRY size");
 static_assert(alignof(LIST_ENTRY) == 8, "LIST_ENTRY alignment");
 static_assert(STXWIN_OFFSET(LIST_ENTRY, Flink) == 0, "LIST_ENTRY.Flink");
 static_assert(STXWIN_OFFSET(LIST_ENTRY, Blink) == 8, "LIST_ENTRY.Blink");
+static_assert(sizeof(LUID) == 8, "LUID size");
+static_assert(alignof(LUID) == 4, "LUID alignment");
+static_assert(STXWIN_OFFSET(LUID, LowPart) == 0, "LUID.LowPart");
+static_assert(STXWIN_OFFSET(LUID, HighPart) == 4, "LUID.HighPart");
 static_assert(sizeof(M128A) == 16, "M128A size");
 static_assert(alignof(M128A) == 16, "M128A alignment");
 static_assert(STXWIN_OFFSET(M128A, Low) == 0, "M128A.Low");
@@ -1156,6 +1274,12 @@ static_assert(STXWIN_OFFSET(STARTUPINFOW, lpReserved2) == 72, "STARTUPINFOW.lpRe
 static_assert(STXWIN_OFFSET(STARTUPINFOW, hStdInput) == 80, "STARTUPINFOW.hStdInput");
 static_assert(STXWIN_OFFSET(STARTUPINFOW, hStdOutput) == 88, "STARTUPINFOW.hStdOutput");
 static_assert(STXWIN_OFFSET(STARTUPINFOW, hStdError) == 96, "STARTUPINFOW.hStdError");
+static_assert(sizeof(STATDATA) == 56, "STATDATA size");
+static_assert(alignof(STATDATA) == 8, "STATDATA alignment");
+static_assert(STXWIN_OFFSET(STATDATA, formatetc) == 0, "STATDATA.formatetc");
+static_assert(STXWIN_OFFSET(STATDATA, advf) == 32, "STATDATA.advf");
+static_assert(STXWIN_OFFSET(STATDATA, pAdvSink) == 40, "STATDATA.pAdvSink");
+static_assert(STXWIN_OFFSET(STATDATA, dwConnection) == 48, "STATDATA.dwConnection");
 static_assert(sizeof(STATSTG) == 80, "STATSTG size");
 static_assert(alignof(STATSTG) == 8, "STATSTG alignment");
 static_assert(STXWIN_OFFSET(STATSTG, pwcsName) == 0, "STATSTG.pwcsName");
@@ -1546,3 +1670,14 @@ static_assert(STXWIN_OFFSET(tagVARIANT, puintVal) == 8, "tagVARIANT.puintVal");
 static_assert(STXWIN_OFFSET(tagVARIANT, pvRecord) == 8, "tagVARIANT.pvRecord");
 static_assert(STXWIN_OFFSET(tagVARIANT, pRecInfo) == 16, "tagVARIANT.pRecInfo");
 static_assert(STXWIN_OFFSET(tagVARIANT, decVal) == 0, "tagVARIANT.decVal");
+static_assert(sizeof(uSTGMEDIUM) == 24, "uSTGMEDIUM size");
+static_assert(alignof(uSTGMEDIUM) == 8, "uSTGMEDIUM alignment");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, tymed) == 0, "uSTGMEDIUM.tymed");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, hBitmap) == 8, "uSTGMEDIUM.hBitmap");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, hMetaFilePict) == 8, "uSTGMEDIUM.hMetaFilePict");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, hEnhMetaFile) == 8, "uSTGMEDIUM.hEnhMetaFile");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, hGlobal) == 8, "uSTGMEDIUM.hGlobal");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, lpszFileName) == 8, "uSTGMEDIUM.lpszFileName");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, pstm) == 8, "uSTGMEDIUM.pstm");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, pstg) == 8, "uSTGMEDIUM.pstg");
+static_assert(STXWIN_OFFSET(uSTGMEDIUM, pUnkForRelease) == 16, "uSTGMEDIUM.pUnkForRelease");

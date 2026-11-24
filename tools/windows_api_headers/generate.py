@@ -37,6 +37,7 @@ import sys
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import layout  # noqa: E402
+import local_paths  # noqa: E402
 import rdl  # noqa: E402
 
 PRIMITIVES = {
@@ -86,7 +87,7 @@ BASE_TYPES = ['WCHAR', 'CHAR', 'LPWSTR', 'LPSTR', 'GUID', 'IID', 'CLSID', 'LONG_
               'WPARAM', 'LPARAM', 'LRESULT', 'HANDLE']
 # Hand-written headers a generated one includes after the types (stxwin_*.h).
 HAND_TAILS = {'versionhelpers': 'stxwin_versionhelpers.h'}
-HAND_WRITTEN = ['stxwin_supplement.h', 'stxwin_versionhelpers.h', 'initguid.h']
+HAND_WRITTEN = ['stxwin_supplement.h', 'stxwin_versionhelpers.h', 'initguid.h', 'eventtoken.h']
 
 CXX_KEYWORDS = {
     'alignas', 'alignof', 'and', 'asm', 'auto', 'bool', 'break', 'case', 'catch', 'char', 'class', 'const',
@@ -130,6 +131,10 @@ WINDOWS_H_NOT_LEAN = ['shellapi', 'commdlg', 'ole2', 'objbase', 'combaseapi', 'o
 # Record tags that differ from the metadata name: clang's __uuidof yields
 # `const _GUID` (Learn: __uuidof operator; GUID structure "typedef struct _GUID").
 TAG_NAMES = {'GUID': '_GUID'}
+# Guard macros the SDK defines beside a record, which code that declares the
+# record itself when it is missing tests (miniaudio.h tests
+# PROPERTYKEY_DEFINED before its own PROPERTYKEY typedef; cp37, 2026-11-24).
+RECORD_GUARDS = {'PROPERTYKEY': 'PROPERTYKEY_DEFINED'}
 # COM base headers: they hold interfaces but do not include ole2.h.
 COM_BASE_STEMS = {'unknwnbase', 'objidlbase', 'objidl', 'wtypes', 'wtypesbase', 'oaidl', 'oleidl', 'ocidl',
                   'propidlbase', 'combaseapi', 'objbase', 'ole2', 'oleauto'}
@@ -230,6 +235,9 @@ class Model:
         self.neutral: set[str] = set()
         self.iids: set[str] = set()
         self.clsids: set[str] = set()
+        # Coclasses named by __uuidof(Name) (roots CLASS:Name): declared as
+        # C++ classes with __declspec(uuid), as the SDK declares them.
+        self.coclasses: set[str] = set()
         self.winrt: dict[str, str] = {}
         self.gaps: list[str] = []
         self.methods: set[str] = set()
@@ -313,6 +321,9 @@ class Model:
         if name.startswith('CLSID_') and name[6:] in declarations:
             self.clsids.add(name[6:])
             self.close('CLSID')
+            return
+        if name.startswith('CLASS:') and name[6:] in declarations:
+            self.coclasses.add(name[6:])
             return
         if name in declarations:
             declaration = declarations[name]
@@ -630,6 +641,8 @@ class Emitter:
         lines.append('};')
         if pack:
             lines.append('#pragma pack(pop)')
+        if record.name in RECORD_GUARDS:
+            lines.append(f'#define {RECORD_GUARDS[record.name]}')
         return lines
 
     # --- types file -----------------------------------------------------------
@@ -879,6 +892,8 @@ class Emitter:
             grouped.setdefault(self.model.declarations[name].source, [])
         for name in sorted(self.model.clsids):
             grouped.setdefault(self.model.declarations[name].source, [])
+        for name in sorted(self.model.coclasses):
+            grouped.setdefault(self.model.declarations[name].source, [])
         for name in sorted(self.model.neutral):
             target = self.model.declarations.get(name + 'W')
             if target is not None:
@@ -956,6 +971,13 @@ class Emitter:
                             f'STXWIN_GUID_DEFINITION {selectany(declaration_text)} = {initializer};',
                             '#else', f'STXWIN_EXTERN_C {declaration_text};', '#endif'])
         lines.extend(externs)
+        coclasses = [name for name in sorted(self.model.coclasses) if self.model.declarations[name].source == stem]
+        if coclasses:
+            lines.append('#ifdef __cplusplus')
+            for name in coclasses:
+                guid = guid_string(self.model.declarations[name].value)
+                lines.append(f'class __declspec(uuid("{guid}")) {name};')
+            lines.append('#endif')
         functions: list[str] = []
         for declaration in declarations:
             if declaration.kind == 'function':
@@ -1154,7 +1176,7 @@ def generate(root: pathlib.Path) -> dict[str, str]:
     """Returns {relative output path: content}."""
     pin = json.loads((HERE / 'PIN.json').read_text(encoding='utf-8'))
     includes, roots = read_roots(HERE / 'roots.txt')
-    metadata = pathlib.Path(pin['local_checkout']) / 'metadata' / 'win32'
+    metadata = local_paths.metadata_checkout(pin) / 'metadata' / 'win32'
     model = Model(rdl.load_directory(metadata), pin['arch'])
     for name in BASE_TYPES:
         model.close(name)
@@ -1237,6 +1259,7 @@ def generate(root: pathlib.Path) -> dict[str, str]:
         report.append(f'{kind}: {counts[kind]}')
     report.append(f'iid: {len(model.iids)}')
     report.append(f'clsid: {len(model.clsids)}')
+    report.append(f'coclass: {len(model.coclasses)}')
     report.append(f'neutral alias: {len(model.neutral)}')
     report.append(f'headers: {len(written) + 1}')
     report.append('[gaps]')

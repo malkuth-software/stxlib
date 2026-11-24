@@ -9,6 +9,12 @@ EXPORTS
     CoInitializeEx
     CoTaskMemFree
     CoUninitialize
+    DoDragDrop
+    OleInitialize
+    OleUninitialize
     PropVariantClear
+    RegisterDragDrop
+    ReleaseStgMedium
+    RevokeDragDrop
     StringFromGUID2
     StringFromIID

@@ -2526,7 +2526,7 @@
       "declaration": "include/stxlib/memory.ic.toml",
       "declaration_sha256": "1e08840e900772dce9f8edca12e756c760e3e7107cd514fdb139332cd077decd",
       "sources": {
-        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+        "src/state/allocator.cpp": "4f062e19aa685715d1824ee9e67a9fe59311b5b49141f713bdd600274909d84f"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2536,8 +2536,8 @@
         "the guard's arguments are the declared parameters (as read at each site)"
       ],
       "steps": [
-        "guard at src/state/allocator.cpp:282",
-        "guard at src/state/allocator.cpp:332"
+        "guard at src/state/allocator.cpp:315",
+        "guard at src/state/allocator.cpp:365"
       ]
     },
     {
@@ -2545,7 +2545,7 @@
       "declaration": "include/stxlib/memory.ic.toml",
       "declaration_sha256": "1e08840e900772dce9f8edca12e756c760e3e7107cd514fdb139332cd077decd",
       "sources": {
-        "src/state/allocator.cpp": "245a8a1e39b0ba315336f2b968f3fd92c61a337b3f58460e418699291cc825ea"
+        "src/state/allocator.cpp": "4f062e19aa685715d1824ee9e67a9fe59311b5b49141f713bdd600274909d84f"
       },
       "level": "deduced",
       "tool": "tools/ic_deduce.py",
@@ -2555,8 +2555,8 @@
         "an earlier guard's refusal path ends in a return"
       ],
       "steps": [
-        "guard at src/state/allocator.cpp:282",
-        "guard at src/state/allocator.cpp:332"
+        "guard at src/state/allocator.cpp:315",
+        "guard at src/state/allocator.cpp:365"
       ]
     },
     {
