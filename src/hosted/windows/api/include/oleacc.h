@@ -162,9 +162,9 @@ STXWIN_GUID_DEFINITION const IID __declspec(selectany) IID_IAccessibleHandler = 
 STXWIN_EXTERN_C const IID IID_IAccessibleHandler;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CAccPropServices = {0xb5f8350b, 0x0548, 0x48b1, {0xa6, 0xee, 0x88, 0xbd, 0x00, 0xb4, 0xa5, 0xe7}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CAccPropServices = {0xb5f8350b, 0x0548, 0x48b1, {0xa6, 0xee, 0x88, 0xbd, 0x00, 0xb4, 0xa5, 0xe7}};
 #else
-STXWIN_EXTERN_C const GUID CAccPropServices;
+STXWIN_EXTERN_C const CLSID CLSID_CAccPropServices;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CLSID_AccPropServices = {0xb5f8350b, 0x0548, 0x48b1, {0xa6, 0xee, 0x88, 0xbd, 0x00, 0xb4, 0xa5, 0xe7}};
@@ -315,6 +315,9 @@ STXWIN_EXTERN_C const GUID PROPID_ACC_VALUE;
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PROPID_ACC_VALUEMAP = {0xda1c3d79, 0xfc5c, 0x420e, {0xb3, 0x99, 0x9d, 0x15, 0x33, 0x54, 0x9e, 0x75}};
 #else
 STXWIN_EXTERN_C const GUID PROPID_ACC_VALUEMAP;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("b5f8350b-0548-48b1-a6ee-88bd00b4a5e7")) CAccPropServices;
 #endif
 
 #ifdef __cplusplus

@@ -27,149 +27,179 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AccessibilityDockingService = {0x29ce1d46, 0xb481, 0x4aa0, {0xa0, 0x8a, 0xd3, 0xeb, 0xc8, 0xac, 0xa4, 0x02}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AccessibilityDockingService = {0x29ce1d46, 0xb481, 0x4aa0, {0xa0, 0x8a, 0xd3, 0xeb, 0xc8, 0xac, 0xa4, 0x02}};
 #else
-STXWIN_EXTERN_C const GUID AccessibilityDockingService;
+STXWIN_EXTERN_C const CLSID CLSID_AccessibilityDockingService;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AlphabeticalCategorizer = {0x3c2654c6, 0x7372, 0x4f6b, {0xb3, 0x10, 0x55, 0xd6, 0x12, 0x8f, 0x49, 0xd2}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AlphabeticalCategorizer = {0x3c2654c6, 0x7372, 0x4f6b, {0xb3, 0x10, 0x55, 0xd6, 0x12, 0x8f, 0x49, 0xd2}};
 #else
-STXWIN_EXTERN_C const GUID AlphabeticalCategorizer;
+STXWIN_EXTERN_C const CLSID CLSID_AlphabeticalCategorizer;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ApplicationAssociationRegistrationUI = {0x1968106d, 0xf3b5, 0x44cf, {0x89, 0x0e, 0x11, 0x6f, 0xcb, 0x9e, 0xce, 0xf1}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ApplicationAssociationRegistrationUI = {0x1968106d, 0xf3b5, 0x44cf, {0x89, 0x0e, 0x11, 0x6f, 0xcb, 0x9e, 0xce, 0xf1}};
 #else
-STXWIN_EXTERN_C const GUID ApplicationAssociationRegistrationUI;
+STXWIN_EXTERN_C const CLSID CLSID_ApplicationAssociationRegistrationUI;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) AttachmentServices = {0x4125dd96, 0xe03a, 0x4103, {0x8f, 0x70, 0xe0, 0x59, 0x7d, 0x80, 0x3b, 0x9c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_AttachmentServices = {0x4125dd96, 0xe03a, 0x4103, {0x8f, 0x70, 0xe0, 0x59, 0x7d, 0x80, 0x3b, 0x9c}};
 #else
-STXWIN_EXTERN_C const GUID AttachmentServices;
+STXWIN_EXTERN_C const CLSID CLSID_AttachmentServices;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CDBurn = {0xfbeb8a05, 0xbeee, 0x4442, {0x80, 0x4e, 0x40, 0x9d, 0x6c, 0x45, 0x15, 0xe9}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CDBurn = {0xfbeb8a05, 0xbeee, 0x4442, {0x80, 0x4e, 0x40, 0x9d, 0x6c, 0x45, 0x15, 0xe9}};
 #else
-STXWIN_EXTERN_C const GUID CDBurn;
+STXWIN_EXTERN_C const CLSID CLSID_CDBurn;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DesktopGadget = {0x924ccc1b, 0x6562, 0x4c85, {0x86, 0x57, 0xd1, 0x77, 0x92, 0x52, 0x22, 0xb6}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DesktopGadget = {0x924ccc1b, 0x6562, 0x4c85, {0x86, 0x57, 0xd1, 0x77, 0x92, 0x52, 0x22, 0xb6}};
 #else
-STXWIN_EXTERN_C const GUID DesktopGadget;
+STXWIN_EXTERN_C const CLSID CLSID_DesktopGadget;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) DocPropShellExtension = {0x883373c3, 0xbf89, 0x11d1, {0xbe, 0x35, 0x08, 0x00, 0x36, 0xb1, 0x1a, 0x03}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_DocPropShellExtension = {0x883373c3, 0xbf89, 0x11d1, {0xbe, 0x35, 0x08, 0x00, 0x36, 0xb1, 0x1a, 0x03}};
 #else
-STXWIN_EXTERN_C const GUID DocPropShellExtension;
+STXWIN_EXTERN_C const CLSID CLSID_DocPropShellExtension;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ExecuteFolder = {0x11dbb47c, 0xa525, 0x400b, {0x9e, 0x80, 0xa5, 0x46, 0x15, 0xa0, 0x90, 0xc0}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ExecuteFolder = {0x11dbb47c, 0xa525, 0x400b, {0x9e, 0x80, 0xa5, 0x46, 0x15, 0xa0, 0x90, 0xc0}};
 #else
-STXWIN_EXTERN_C const GUID ExecuteFolder;
+STXWIN_EXTERN_C const CLSID CLSID_ExecuteFolder;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ExplorerBrowser = {0x71f96385, 0xddd6, 0x48d3, {0xa0, 0xc1, 0xae, 0x06, 0xe8, 0xb0, 0x55, 0xfb}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ExplorerBrowser = {0x71f96385, 0xddd6, 0x48d3, {0xa0, 0xc1, 0xae, 0x06, 0xe8, 0xb0, 0x55, 0xfb}};
 #else
-STXWIN_EXTERN_C const GUID ExplorerBrowser;
+STXWIN_EXTERN_C const CLSID CLSID_ExplorerBrowser;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FSCopyHandler = {0xd197380a, 0x0a79, 0x4dc8, {0xa0, 0x33, 0xed, 0x88, 0x2c, 0x2f, 0xa1, 0x4b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FSCopyHandler = {0xd197380a, 0x0a79, 0x4dc8, {0xa0, 0x33, 0xed, 0x88, 0x2c, 0x2f, 0xa1, 0x4b}};
 #else
-STXWIN_EXTERN_C const GUID FSCopyHandler;
+STXWIN_EXTERN_C const CLSID CLSID_FSCopyHandler;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) FolderViewHost = {0x20b1cb23, 0x6968, 0x4eb9, {0xb7, 0xd4, 0xa6, 0x6d, 0x00, 0xd0, 0x7c, 0xee}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_FolderViewHost = {0x20b1cb23, 0x6968, 0x4eb9, {0xb7, 0xd4, 0xa6, 0x6d, 0x00, 0xd0, 0x7c, 0xee}};
 #else
-STXWIN_EXTERN_C const GUID FolderViewHost;
+STXWIN_EXTERN_C const CLSID CLSID_FolderViewHost;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) IENamespaceTreeControl = {0xace52d03, 0xe5cd, 0x4b20, {0x82, 0xff, 0xe7, 0x1b, 0x11, 0xbe, 0xae, 0x1d}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_IENamespaceTreeControl = {0xace52d03, 0xe5cd, 0x4b20, {0x82, 0xff, 0xe7, 0x1b, 0x11, 0xbe, 0xae, 0x1d}};
 #else
-STXWIN_EXTERN_C const GUID IENamespaceTreeControl;
+STXWIN_EXTERN_C const CLSID CLSID_IENamespaceTreeControl;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ImageProperties = {0x7ab770c7, 0x0e23, 0x4d7a, {0x8a, 0xa2, 0x19, 0xbf, 0xad, 0x47, 0x98, 0x29}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ImageProperties = {0x7ab770c7, 0x0e23, 0x4d7a, {0x8a, 0xa2, 0x19, 0xbf, 0xad, 0x47, 0x98, 0x29}};
 #else
-STXWIN_EXTERN_C const GUID ImageProperties;
+STXWIN_EXTERN_C const CLSID CLSID_ImageProperties;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) ImageRecompress = {0x6e33091c, 0xd2f8, 0x4740, {0xb5, 0x5e, 0x2e, 0x11, 0xd1, 0x47, 0x7a, 0x2c}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_ImageRecompress = {0x6e33091c, 0xd2f8, 0x4740, {0xb5, 0x5e, 0x2e, 0x11, 0xd1, 0x47, 0x7a, 0x2c}};
 #else
-STXWIN_EXTERN_C const GUID ImageRecompress;
+STXWIN_EXTERN_C const CLSID CLSID_ImageRecompress;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) InternetPrintOrdering = {0xadd36aa8, 0x751a, 0x4579, {0xa2, 0x66, 0xd6, 0x6f, 0x52, 0x02, 0xcc, 0xbb}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_InternetPrintOrdering = {0xadd36aa8, 0x751a, 0x4579, {0xa2, 0x66, 0xd6, 0x6f, 0x52, 0x02, 0xcc, 0xbb}};
 #else
-STXWIN_EXTERN_C const GUID InternetPrintOrdering;
+STXWIN_EXTERN_C const CLSID CLSID_InternetPrintOrdering;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) MergedCategorizer = {0x8e827c11, 0x33e7, 0x4bc1, {0xb2, 0x42, 0x8c, 0xd9, 0xa1, 0xc2, 0xb3, 0x04}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_MergedCategorizer = {0x8e827c11, 0x33e7, 0x4bc1, {0xb2, 0x42, 0x8c, 0xd9, 0xa1, 0xc2, 0xb3, 0x04}};
 #else
-STXWIN_EXTERN_C const GUID MergedCategorizer;
+STXWIN_EXTERN_C const CLSID CLSID_MergedCategorizer;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) NamespaceTreeControl = {0xae054212, 0x3535, 0x4430, {0x83, 0xed, 0xd5, 0x01, 0xaa, 0x66, 0x80, 0xe6}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_NamespaceTreeControl = {0xae054212, 0x3535, 0x4430, {0x83, 0xed, 0xd5, 0x01, 0xaa, 0x66, 0x80, 0xe6}};
 #else
-STXWIN_EXTERN_C const GUID NamespaceTreeControl;
+STXWIN_EXTERN_C const CLSID CLSID_NamespaceTreeControl;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PreviousVersions = {0x596ab062, 0xb4d2, 0x4215, {0x9f, 0x74, 0xe9, 0x10, 0x9b, 0x0a, 0x81, 0x53}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PreviousVersions = {0x596ab062, 0xb4d2, 0x4215, {0x9f, 0x74, 0xe9, 0x10, 0x9b, 0x0a, 0x81, 0x53}};
 #else
-STXWIN_EXTERN_C const GUID PreviousVersions;
+STXWIN_EXTERN_C const CLSID CLSID_PreviousVersions;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PublishDropTarget = {0xcc6eeffb, 0x43f6, 0x46c5, {0x96, 0x19, 0x51, 0xd5, 0x71, 0x96, 0x7f, 0x7d}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PublishDropTarget = {0xcc6eeffb, 0x43f6, 0x46c5, {0x96, 0x19, 0x51, 0xd5, 0x71, 0x96, 0x7f, 0x7d}};
 #else
-STXWIN_EXTERN_C const GUID PublishDropTarget;
+STXWIN_EXTERN_C const CLSID CLSID_PublishDropTarget;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PublishingWizard = {0x6b33163c, 0x76a5, 0x4b6c, {0xbf, 0x21, 0x45, 0xde, 0x9c, 0xd5, 0x03, 0xa1}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PublishingWizard = {0x6b33163c, 0x76a5, 0x4b6c, {0xbf, 0x21, 0x45, 0xde, 0x9c, 0xd5, 0x03, 0xa1}};
 #else
-STXWIN_EXTERN_C const GUID PublishingWizard;
+STXWIN_EXTERN_C const CLSID CLSID_PublishingWizard;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) QueryCancelAutoPlay = {0x331f1768, 0x05a9, 0x4ddd, {0xb8, 0x6e, 0xda, 0xe3, 0x4d, 0xdc, 0x99, 0x8a}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_QueryCancelAutoPlay = {0x331f1768, 0x05a9, 0x4ddd, {0xb8, 0x6e, 0xda, 0xe3, 0x4d, 0xdc, 0x99, 0x8a}};
 #else
-STXWIN_EXTERN_C const GUID QueryCancelAutoPlay;
+STXWIN_EXTERN_C const CLSID CLSID_QueryCancelAutoPlay;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_StartMenuPin = {0xa2a9545d, 0xa0c2, 0x42b4, {0x97, 0x08, 0xa0, 0xb2, 0xba, 0xdd, 0x77, 0xc8}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_StartMenuPin;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_StorageProviderBanners = {0x7ccdf9f4, 0xe576, 0x455a, {0x8b, 0xc7, 0xf6, 0xec, 0x68, 0xd6, 0xf0, 0x63}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_StorageProviderBanners;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_TimeCategorizer = {0x3bb4118f, 0xddfd, 0x4d30, {0xa3, 0x48, 0x9f, 0xb5, 0xd6, 0xbf, 0x1a, 0xfe}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_TimeCategorizer;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_TrayBandSiteService = {0xf60ad0a0, 0xe5e1, 0x45cb, {0xb5, 0x1a, 0xe1, 0x5b, 0x9f, 0x8b, 0x29, 0x34}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_TrayBandSiteService;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_TrayDeskBand = {0xe6442437, 0x6c68, 0x4f52, {0x94, 0xdd, 0x2c, 0xfe, 0xd2, 0x67, 0xef, 0xb9}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_TrayDeskBand;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_VirtualDesktopManager = {0xaa509086, 0x5ca9, 0x4c25, {0x8f, 0x95, 0x58, 0x9d, 0x3c, 0x07, 0xb4, 0x8a}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_VirtualDesktopManager;
+#endif
+#ifdef INITGUID
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_WebWizardHost = {0xc827f149, 0x55c1, 0x4d28, {0x93, 0x5e, 0x57, 0xe4, 0x7c, 0xae, 0xd9, 0x73}};
+#else
+STXWIN_EXTERN_C const CLSID CLSID_WebWizardHost;
 #endif
 #ifdef INITGUID
 STXWIN_GUID_DEFINITION const GUID __declspec(selectany) SID_SCommandBarState = {0xb99eaa5c, 0x3850, 0x4400, {0xbc, 0x33, 0x2c, 0xe5, 0x34, 0x04, 0x8b, 0xf8}};
 #else
 STXWIN_EXTERN_C const GUID SID_SCommandBarState;
 #endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) StartMenuPin = {0xa2a9545d, 0xa0c2, 0x42b4, {0x97, 0x08, 0xa0, 0xb2, 0xba, 0xdd, 0x77, 0xc8}};
-#else
-STXWIN_EXTERN_C const GUID StartMenuPin;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) StorageProviderBanners = {0x7ccdf9f4, 0xe576, 0x455a, {0x8b, 0xc7, 0xf6, 0xec, 0x68, 0xd6, 0xf0, 0x63}};
-#else
-STXWIN_EXTERN_C const GUID StorageProviderBanners;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TimeCategorizer = {0x3bb4118f, 0xddfd, 0x4d30, {0xa3, 0x48, 0x9f, 0xb5, 0xd6, 0xbf, 0x1a, 0xfe}};
-#else
-STXWIN_EXTERN_C const GUID TimeCategorizer;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TrayBandSiteService = {0xf60ad0a0, 0xe5e1, 0x45cb, {0xb5, 0x1a, 0xe1, 0x5b, 0x9f, 0x8b, 0x29, 0x34}};
-#else
-STXWIN_EXTERN_C const GUID TrayBandSiteService;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) TrayDeskBand = {0xe6442437, 0x6c68, 0x4f52, {0x94, 0xdd, 0x2c, 0xfe, 0xd2, 0x67, 0xef, 0xb9}};
-#else
-STXWIN_EXTERN_C const GUID TrayDeskBand;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) VirtualDesktopManager = {0xaa509086, 0x5ca9, 0x4c25, {0x8f, 0x95, 0x58, 0x9d, 0x3c, 0x07, 0xb4, 0x8a}};
-#else
-STXWIN_EXTERN_C const GUID VirtualDesktopManager;
-#endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) WebWizardHost = {0xc827f149, 0x55c1, 0x4d28, {0x93, 0x5e, 0x57, 0xe4, 0x7c, 0xae, 0xd9, 0x73}};
-#else
-STXWIN_EXTERN_C const GUID WebWizardHost;
+#ifdef __cplusplus
+class __declspec(uuid("29ce1d46-b481-4aa0-a08a-d3ebc8aca402")) AccessibilityDockingService;
+class __declspec(uuid("3c2654c6-7372-4f6b-b310-55d6128f49d2")) AlphabeticalCategorizer;
+class __declspec(uuid("1968106d-f3b5-44cf-890e-116fcb9ecef1")) ApplicationAssociationRegistrationUI;
+class __declspec(uuid("4125dd96-e03a-4103-8f70-e0597d803b9c")) AttachmentServices;
+class __declspec(uuid("fbeb8a05-beee-4442-804e-409d6c4515e9")) CDBurn;
+class __declspec(uuid("924ccc1b-6562-4c85-8657-d177925222b6")) DesktopGadget;
+class __declspec(uuid("883373c3-bf89-11d1-be35-080036b11a03")) DocPropShellExtension;
+class __declspec(uuid("11dbb47c-a525-400b-9e80-a54615a090c0")) ExecuteFolder;
+class __declspec(uuid("71f96385-ddd6-48d3-a0c1-ae06e8b055fb")) ExplorerBrowser;
+class __declspec(uuid("d197380a-0a79-4dc8-a033-ed882c2fa14b")) FSCopyHandler;
+class __declspec(uuid("20b1cb23-6968-4eb9-b7d4-a66d00d07cee")) FolderViewHost;
+class __declspec(uuid("ace52d03-e5cd-4b20-82ff-e71b11beae1d")) IENamespaceTreeControl;
+class __declspec(uuid("7ab770c7-0e23-4d7a-8aa2-19bfad479829")) ImageProperties;
+class __declspec(uuid("6e33091c-d2f8-4740-b55e-2e11d1477a2c")) ImageRecompress;
+class __declspec(uuid("add36aa8-751a-4579-a266-d66f5202ccbb")) InternetPrintOrdering;
+class __declspec(uuid("8e827c11-33e7-4bc1-b242-8cd9a1c2b304")) MergedCategorizer;
+class __declspec(uuid("ae054212-3535-4430-83ed-d501aa6680e6")) NamespaceTreeControl;
+class __declspec(uuid("596ab062-b4d2-4215-9f74-e9109b0a8153")) PreviousVersions;
+class __declspec(uuid("cc6eeffb-43f6-46c5-9619-51d571967f7d")) PublishDropTarget;
+class __declspec(uuid("6b33163c-76a5-4b6c-bf21-45de9cd503a1")) PublishingWizard;
+class __declspec(uuid("331f1768-05a9-4ddd-b86e-dae34ddc998a")) QueryCancelAutoPlay;
+class __declspec(uuid("a2a9545d-a0c2-42b4-9708-a0b2badd77c8")) StartMenuPin;
+class __declspec(uuid("7ccdf9f4-e576-455a-8bc7-f6ec68d6f063")) StorageProviderBanners;
+class __declspec(uuid("3bb4118f-ddfd-4d30-a348-9fb5d6bf1afe")) TimeCategorizer;
+class __declspec(uuid("f60ad0a0-e5e1-45cb-b51a-e15b9f8b2934")) TrayBandSiteService;
+class __declspec(uuid("e6442437-6c68-4f52-94dd-2cfed267efb9")) TrayDeskBand;
+class __declspec(uuid("aa509086-5ca9-4c25-8f95-589d3c07b48a")) VirtualDesktopManager;
+class __declspec(uuid("c827f149-55c1-4d28-935e-57e47caed973")) WebWizardHost;
 #endif
 
 #ifdef __cplusplus

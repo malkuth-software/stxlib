@@ -17,19 +17,24 @@
 #include "stxwin_types.h"
 
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) InMemoryPropertyStore = {0x9a02e012, 0x6303, 0x4e1e, {0xb9, 0xa1, 0x63, 0x0f, 0x80, 0x25, 0x92, 0xc5}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_InMemoryPropertyStore = {0x9a02e012, 0x6303, 0x4e1e, {0xb9, 0xa1, 0x63, 0x0f, 0x80, 0x25, 0x92, 0xc5}};
 #else
-STXWIN_EXTERN_C const GUID InMemoryPropertyStore;
+STXWIN_EXTERN_C const CLSID CLSID_InMemoryPropertyStore;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) InMemoryPropertyStoreMarshalByValue = {0xd4ca0e2d, 0x6da7, 0x4b75, {0xa9, 0x7c, 0x5f, 0x30, 0x6f, 0x0e, 0xae, 0xdc}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_InMemoryPropertyStoreMarshalByValue = {0xd4ca0e2d, 0x6da7, 0x4b75, {0xa9, 0x7c, 0x5f, 0x30, 0x6f, 0x0e, 0xae, 0xdc}};
 #else
-STXWIN_EXTERN_C const GUID InMemoryPropertyStoreMarshalByValue;
+STXWIN_EXTERN_C const CLSID CLSID_InMemoryPropertyStoreMarshalByValue;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) PropertySystem = {0xb8967f85, 0x58ae, 0x4f46, {0x9f, 0xb2, 0x5d, 0x79, 0x04, 0x79, 0x8f, 0x4b}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_PropertySystem = {0xb8967f85, 0x58ae, 0x4f46, {0x9f, 0xb2, 0x5d, 0x79, 0x04, 0x79, 0x8f, 0x4b}};
 #else
-STXWIN_EXTERN_C const GUID PropertySystem;
+STXWIN_EXTERN_C const CLSID CLSID_PropertySystem;
+#endif
+#ifdef __cplusplus
+class __declspec(uuid("9a02e012-6303-4e1e-b9a1-630f802592c5")) InMemoryPropertyStore;
+class __declspec(uuid("d4ca0e2d-6da7-4b75-a97c-5f306f0eaedc")) InMemoryPropertyStoreMarshalByValue;
+class __declspec(uuid("b8967f85-58ae-4f46-9fb2-5d7904798f4b")) PropertySystem;
 #endif
 
 #endif /* RC_INVOKED */

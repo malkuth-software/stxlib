@@ -410,14 +410,13 @@ STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomation = {
 STXWIN_EXTERN_C const CLSID CLSID_CUIAutomation;
 #endif
 #ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CUIAutomation = {0xff48dba4, 0x60ef, 0x4201, {0xaa, 0x87, 0x54, 0x10, 0x3e, 0xef, 0x59, 0x4e}};
+STXWIN_GUID_DEFINITION const CLSID __declspec(selectany) CLSID_CUIAutomation8 = {0xe22ad333, 0xb25f, 0x460c, {0x83, 0xd0, 0x05, 0x81, 0x10, 0x73, 0x95, 0xc9}};
 #else
-STXWIN_EXTERN_C const GUID CUIAutomation;
+STXWIN_EXTERN_C const CLSID CLSID_CUIAutomation8;
 #endif
-#ifdef INITGUID
-STXWIN_GUID_DEFINITION const GUID __declspec(selectany) CUIAutomation8 = {0xe22ad333, 0xb25f, 0x460c, {0x83, 0xd0, 0x05, 0x81, 0x10, 0x73, 0x95, 0xc9}};
-#else
-STXWIN_EXTERN_C const GUID CUIAutomation8;
+#ifdef __cplusplus
+class __declspec(uuid("ff48dba4-60ef-4201-aa87-54103eef594e")) CUIAutomation;
+class __declspec(uuid("e22ad333-b25f-460c-83d0-0581107395c9")) CUIAutomation8;
 #endif
 
 #endif /* RC_INVOKED */
