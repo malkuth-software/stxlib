@@ -25,6 +25,11 @@ Names, signatures and stated values. Page `ms.date` where it was read:
   modes, and `_IOLBF` behaving as `_IOFBF` on Windows.
 - "localeconv" (2020-04-02): the members of `struct lconv` and the `_W_`
   wide members.
+- "_control87, _controlfp, __control87_2", "_controlfp_s", "_statusfp,
+  _statusfp2", "_clearfp" (read 2026-11-24): the four signatures and the
+  `_MCW_`, `_DN_`, `_EM_`, `_IC_`, `_RC_` and `_PC_` values (float.h); x64
+  supports neither the precision nor the infinity control. The `_SW_` bits
+  are taken to be the `_EM_` bits; not probed.
 - "fegetround, fesetround" (2018-04-05): `FE_DOWNWARD` 0x0100 and
   `FE_UPWARD` 0x0200 since Windows 10 version 14393.
 - "signal" (2018-04-12): the six signal names, the handler type, `SIG_ERR`

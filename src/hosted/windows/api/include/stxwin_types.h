@@ -2860,6 +2860,7 @@ struct PROPERTYKEY {
     GUID fmtid;
     DWORD pid;
 };
+#define PROPERTYKEY_DEFINED
 
 /* propidlbase.h */
 typedef unsigned short PROPVAR_PAD1;

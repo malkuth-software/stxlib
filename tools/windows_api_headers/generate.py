@@ -130,6 +130,10 @@ WINDOWS_H_NOT_LEAN = ['shellapi', 'commdlg', 'ole2', 'objbase', 'combaseapi', 'o
 # Record tags that differ from the metadata name: clang's __uuidof yields
 # `const _GUID` (Learn: __uuidof operator; GUID structure "typedef struct _GUID").
 TAG_NAMES = {'GUID': '_GUID'}
+# Guard macros the SDK defines beside a record, which code that declares the
+# record itself when it is missing tests (miniaudio.h tests
+# PROPERTYKEY_DEFINED before its own PROPERTYKEY typedef; cp37, 2026-11-24).
+RECORD_GUARDS = {'PROPERTYKEY': 'PROPERTYKEY_DEFINED'}
 # COM base headers: they hold interfaces but do not include ole2.h.
 COM_BASE_STEMS = {'unknwnbase', 'objidlbase', 'objidl', 'wtypes', 'wtypesbase', 'oaidl', 'oleidl', 'ocidl',
                   'propidlbase', 'combaseapi', 'objbase', 'ole2', 'oleauto'}
@@ -630,6 +634,8 @@ class Emitter:
         lines.append('};')
         if pack:
             lines.append('#pragma pack(pop)')
+        if record.name in RECORD_GUARDS:
+            lines.append(f'#define {RECORD_GUARDS[record.name]}')
         return lines
 
     # --- types file -----------------------------------------------------------
