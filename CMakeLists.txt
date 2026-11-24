@@ -221,14 +221,18 @@ message(STATUS "STXlib exception recorder: ${STXLIB_EXCEPTIONS}")
 # src/hosted/outline_atomics_backend.hpp; owner, 2026-11-22) instead of
 # taking the toolchain runtime's, which asks the C library's getauxval.
 # The helpers are hidden, like the toolchain's, so each module needs its own
-# copy: stxlib_state links this archive PUBLIC, which puts one copy in a
+# copy: each STXlib library carries the helpers' object, which puts one copy in a
 # shared stxlib_state and one in every module that links STXlib, ahead of
 # the runtime library the compiler driver appends. All helpers are one
 # object, so the first reference takes them all. The condition matches the
 # source's STXLIB_OUTLINE_ATOMICS.
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64|ARM64)$" AND STXLIB_HOST_FAMILY MATCHES "^(glibc|musl|freebsd)$")
     set(stxlib_outline_atomics ON)
-    add_library(stxlib_outline_atomics STATIC src/hosted/elf/outline_atomics_aarch64.cpp)
+    # An object library, compiled into each of STXlib's libraries below (and
+    # into the tests that name it), so an installed STXlib exports no target
+    # of its own for it (stx's stxlibTargets, 2026-11-23: install(EXPORT)
+    # refused stxlib_state's link to a target in no export set).
+    add_library(stxlib_outline_atomics OBJECT src/hosted/elf/outline_atomics_aarch64.cpp)
     target_include_directories(stxlib_outline_atomics PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR}/src)
     target_compile_features(stxlib_outline_atomics PRIVATE cxx_std_20)
@@ -348,7 +352,7 @@ else()
 endif()
 add_library(stxlib::state ALIAS stxlib_state)
 if(stxlib_outline_atomics)
-    target_link_libraries(stxlib_state PUBLIC stxlib_outline_atomics)
+    target_sources(stxlib_state PRIVATE $<TARGET_OBJECTS:stxlib_outline_atomics>)
 endif()
 target_include_directories(stxlib_state
     PUBLIC
@@ -569,6 +573,9 @@ else()
 endif()
 
 add_library(stxlib_boundary STATIC ${STXLIB_BOUNDARY_SOURCES})
+if(stxlib_outline_atomics)
+    target_sources(stxlib_boundary PRIVATE $<TARGET_OBJECTS:stxlib_outline_atomics>)
+endif()
 add_library(stxlib::boundary ALIAS stxlib_boundary)
 target_include_directories(stxlib_boundary
     PUBLIC
@@ -816,6 +823,9 @@ set(STXLIB_ALGORITHMS_SOURCES
     src/algorithms/syntax/markup.cpp
     src/algorithms/voting.cpp)
 add_library(stxlib_algorithms STATIC ${STXLIB_ALGORITHMS_SOURCES})
+if(stxlib_outline_atomics)
+    target_sources(stxlib_algorithms PRIVATE $<TARGET_OBJECTS:stxlib_outline_atomics>)
+endif()
 add_library(stxlib::algorithms ALIAS stxlib_algorithms)
 target_include_directories(stxlib_algorithms
     PUBLIC

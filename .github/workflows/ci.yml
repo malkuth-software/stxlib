@@ -294,6 +294,15 @@ jobs:
       - name: Bit identity (this host's lines)
         if: ${{ !cancelled() && steps.plain.outcome != 'skipped' }}
         run: ctest --test-dir build-plain -R '^stxlib_bit_identity' -V --timeout 600
+      - name: Install and consume
+        # Install STXlib as stx does and build a find_package consumer
+        # (tests/install_consume). stx's CI failed here on 196f639: the
+        # installed stxlib_state linked stxlib_outline_atomics, a target in
+        # no export set, which only this host builds.
+        if: ${{ !cancelled() }}
+        run: |
+          sh tests/install_consume/run.sh . build-install-check \
+            "-DCMAKE_CXX_FLAGS=$LIBCXX" "-DCMAKE_EXE_LINKER_FLAGS=$LIBCXX" "-DCMAKE_SHARED_LINKER_FLAGS=$LIBCXX"
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
