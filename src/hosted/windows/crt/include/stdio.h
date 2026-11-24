@@ -70,6 +70,10 @@ _STXLIB_UCRT FILE* __cdecl __acrt_iob_func(unsigned index);
 #define _CRT_INTERNAL_LOCAL_SCANF_OPTIONS (0ULL)
 #define _CRT_INTERNAL_PRINTF_LEGACY_VSPRINTF_NULL_TERMINATION (1ULL)
 #define _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR (2ULL)
+/* Learn, "scanf_s, _scanf_s_l, wscanf_s, _wscanf_s_l": the secure scanf forms
+ * take a size after each c, s and [ argument. ucrtbase.dll has no separate
+ * entry for them; the scanf options word asks for it with bit 0. */
+#define _CRT_INTERNAL_SCANF_SECURECRT (1ULL)
 
 _STXLIB_UCRT int __cdecl __stdio_common_vfprintf(unsigned long long options, FILE* stream, const char* format,
                                                  _locale_t locale, __builtin_va_list arguments);
@@ -87,6 +91,30 @@ _STXLIB_UCRT int __cdecl __stdio_common_vswprintf(unsigned long long options, wc
 _STXLIB_UCRT int __cdecl __stdio_common_vswscanf(unsigned long long options, const wchar_t* buffer, size_t count,
                                                  const wchar_t* format, _locale_t locale,
                                                  __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vfwscanf(unsigned long long options, FILE* stream, const wchar_t* format,
+                                                 _locale_t locale, __builtin_va_list arguments);
+/* The secure printf entries (Learn, "sprintf_s, _sprintf_s_l, swprintf_s,
+ * _swprintf_s_l", "_snprintf_s, ...", "fprintf_s, ..."): count is the buffer
+ * size, and _snprintf_s's max_count the most characters to write or
+ * _TRUNCATE. A result that does not fit, a null buffer or a null format goes
+ * to the invalid parameter handler inside ucrtbase.dll. */
+_STXLIB_UCRT int __cdecl __stdio_common_vsprintf_s(unsigned long long options, char* buffer, size_t count,
+                                                   const char* format, _locale_t locale,
+                                                   __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vsnprintf_s(unsigned long long options, char* buffer, size_t count,
+                                                    size_t max_count, const char* format, _locale_t locale,
+                                                    __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vfprintf_s(unsigned long long options, FILE* stream, const char* format,
+                                                   _locale_t locale, __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vswprintf_s(unsigned long long options, wchar_t* buffer, size_t count,
+                                                    const wchar_t* format, _locale_t locale,
+                                                    __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vsnwprintf_s(unsigned long long options, wchar_t* buffer, size_t count,
+                                                     size_t max_count, const wchar_t* format, _locale_t locale,
+                                                     __builtin_va_list arguments);
+_STXLIB_UCRT int __cdecl __stdio_common_vfwprintf_s(unsigned long long options, FILE* stream,
+                                                    const wchar_t* format, _locale_t locale,
+                                                    __builtin_va_list arguments);
 
 /* File access (C17 7.21.5). */
 _STXLIB_UCRT FILE* __cdecl fopen(const char* path, const char* mode);
@@ -250,6 +278,129 @@ __attribute__((__format__(__scanf__, 2, 3))) _STXLIB_CRT_INLINE int __cdecl ssca
     return result;
 }
 
+/* Learn, "_scprintf, _scprintf_p, _scprintf_l, _scwprintf...": the length a
+ * format would produce, without the terminator. That is the common entry with
+ * no buffer and C's snprintf behaviour (option bit 1), as Microsoft's inline
+ * forms do. */
+__attribute__((__format__(__printf__, 1, 0))) _STXLIB_CRT_INLINE int __cdecl _vscprintf(const char* format,
+                                                                                       __builtin_va_list arguments) {
+    const int result = __stdio_common_vsprintf(
+        _CRT_INTERNAL_LOCAL_PRINTF_OPTIONS | _CRT_INTERNAL_PRINTF_STANDARD_SNPRINTF_BEHAVIOR, (char*)0, 0, format,
+        (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+__attribute__((__format__(__printf__, 1, 2))) _STXLIB_CRT_INLINE int __cdecl _scprintf(const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vscprintf(format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+
+/* The secure formatted family (Learn, "sprintf_s", "vsprintf_s",
+ * "_snprintf_s", "vsnprintf_s", "fprintf_s", "printf_s", "sscanf_s",
+ * "fscanf_s", "scanf_s"), inline as ucrtbase.dll exports only the common
+ * entries. A negative result from the sprintf forms becomes -1, as
+ * Microsoft's own inline forms do. The scanf forms carry no format attribute:
+ * their size arguments are not part of C's scanf format checking. */
+__attribute__((__format__(__printf__, 3, 0))) _STXLIB_CRT_INLINE int __cdecl vsprintf_s(
+    char* buffer, size_t size, const char* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vsprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, buffer, size, format,
+                                                 (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+__attribute__((__format__(__printf__, 3, 4))) _STXLIB_CRT_INLINE int __cdecl sprintf_s(char* buffer, size_t size,
+                                                                                       const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vsprintf_s(buffer, size, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 4, 0))) _STXLIB_CRT_INLINE int __cdecl _vsnprintf_s(
+    char* buffer, size_t size, size_t max_count, const char* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vsnprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, buffer, size, max_count,
+                                                  format, (_locale_t)0, arguments);
+    if (result < 0) return -1;
+    return result;
+}
+__attribute__((__format__(__printf__, 4, 0))) _STXLIB_CRT_INLINE int __cdecl vsnprintf_s(
+    char* buffer, size_t size, size_t max_count, const char* format, __builtin_va_list arguments) {
+    const int result = _vsnprintf_s(buffer, size, max_count, format, arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 4, 5))) _STXLIB_CRT_INLINE int __cdecl _snprintf_s(
+    char* buffer, size_t size, size_t max_count, const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vsnprintf_s(buffer, size, max_count, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 2, 0))) _STXLIB_CRT_INLINE int __cdecl vfprintf_s(
+    FILE* stream, const char* format, __builtin_va_list arguments) {
+    const int result =
+        __stdio_common_vfprintf_s(_CRT_INTERNAL_LOCAL_PRINTF_OPTIONS, stream, format, (_locale_t)0, arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 1, 0))) _STXLIB_CRT_INLINE int __cdecl vprintf_s(const char* format,
+                                                                                      __builtin_va_list arguments) {
+    const int result = vfprintf_s(stdout, format, arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 2, 3))) _STXLIB_CRT_INLINE int __cdecl fprintf_s(FILE* stream,
+                                                                                      const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfprintf_s(stream, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+__attribute__((__format__(__printf__, 1, 2))) _STXLIB_CRT_INLINE int __cdecl printf_s(const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfprintf_s(stdout, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vsscanf_s(const char* buffer, const char* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vsscanf(_CRT_INTERNAL_LOCAL_SCANF_OPTIONS | _CRT_INTERNAL_SCANF_SECURECRT,
+                                              buffer, (size_t)-1, format, (_locale_t)0, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl sscanf_s(const char* buffer, const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vsscanf_s(buffer, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vfscanf_s(FILE* stream, const char* format, __builtin_va_list arguments) {
+    const int result = __stdio_common_vfscanf(_CRT_INTERNAL_LOCAL_SCANF_OPTIONS | _CRT_INTERNAL_SCANF_SECURECRT,
+                                              stream, format, (_locale_t)0, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl vscanf_s(const char* format, __builtin_va_list arguments) {
+    const int result = vfscanf_s(stdin, format, arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl fscanf_s(FILE* stream, const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfscanf_s(stream, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+_STXLIB_CRT_INLINE int __cdecl scanf_s(const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vfscanf_s(stdin, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+
 /* Learn: "_fcloseall", "_fgetchar, _fgetwchar", "_fputchar, _fputwchar",
  * "_flushall", "_getw", "_putw", "_rmtmp", "_tempnam, _wtempnam, ...",
  * "_fsopen, _wfsopen", "_fdopen, _wfdopen", "freopen, _wfreopen",
@@ -309,5 +460,42 @@ _STXLIB_UCRT_POSIX char* __cdecl tempnam(const char* directory, const char* pref
 #endif
 
 _STXLIB_CRT_END
+
+/* Microsoft's C++ forms of the secure printf family that take the buffer
+ * size from an array argument (Learn, "Secure template overloads"). */
+#ifdef __cplusplus
+extern "C++" {
+template <size_t _Size>
+inline int __cdecl vsprintf_s(char (&buffer)[_Size], const char* format, __builtin_va_list arguments) {
+    return vsprintf_s(buffer, _Size, format, arguments);
+}
+template <size_t _Size>
+inline int __cdecl sprintf_s(char (&buffer)[_Size], const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = vsprintf_s(buffer, _Size, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+template <size_t _Size>
+inline int __cdecl _vsnprintf_s(char (&buffer)[_Size], size_t max_count, const char* format,
+                                __builtin_va_list arguments) {
+    return _vsnprintf_s(buffer, _Size, max_count, format, arguments);
+}
+template <size_t _Size>
+inline int __cdecl vsnprintf_s(char (&buffer)[_Size], size_t max_count, const char* format,
+                               __builtin_va_list arguments) {
+    return _vsnprintf_s(buffer, _Size, max_count, format, arguments);
+}
+template <size_t _Size>
+inline int __cdecl _snprintf_s(char (&buffer)[_Size], size_t max_count, const char* format, ...) {
+    __builtin_va_list arguments;
+    __builtin_va_start(arguments, format);
+    const int result = _vsnprintf_s(buffer, _Size, max_count, format, arguments);
+    __builtin_va_end(arguments);
+    return result;
+}
+}
+#endif
 
 #endif /* STXLIB_CRT_STDIO_H */
