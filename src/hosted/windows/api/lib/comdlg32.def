@@ -2,7 +2,24 @@
 ; The comdlg32.dll functions our sources use.
 LIBRARY comdlg32.dll
 EXPORTS
+    ChooseColorA
     ChooseColorW
+    ChooseFontA
+    ChooseFontW
     CommDlgExtendedError
     FindTextA
     FindTextW
+    GetFileTitleA
+    GetFileTitleW
+    GetOpenFileNameA
+    GetOpenFileNameW
+    GetSaveFileNameA
+    GetSaveFileNameW
+    PageSetupDlgA
+    PageSetupDlgW
+    PrintDlgA
+    PrintDlgExA
+    PrintDlgExW
+    PrintDlgW
+    ReplaceTextA
+    ReplaceTextW

@@ -9,14 +9,18 @@ library is used.
 ## Contents
 
 - `include/`: the headers. `assert.h`, `corecrt_startup.h`, `ctype.h`,
-  `eh.h` (C++ only), `errno.h`, `fcntl.h`, `fenv.h`, `float.h` (the
-  Microsoft control part only), `inttypes.h`, `io.h`,
-  `locale.h`, `malloc.h`, `math.h`, `process.h`, `setjmp.h`, `signal.h`,
-  `stdio.h`, `stdlib.h`, `string.h`, `sys/stat.h`, `sys/types.h`, `time.h`,
-  `uchar.h`, `wchar.h`, `wctype.h`, and `stxlib_crt_common.h` (the target
-  check, the linkage macros and the shared types).
+  `complex.h`, `conio.h`, `direct.h`, `eh.h` (C++ only), `errno.h`,
+  `fcntl.h`, `fenv.h`, `float.h` (the Microsoft control part only),
+  `inttypes.h`, `io.h`, `locale.h`, `malloc.h`, `math.h`, `process.h`,
+  `search.h`, `setjmp.h`, `signal.h`, `stdio.h`, `stdlib.h`, `string.h`,
+  `sys/locking.h`, `sys/stat.h`, `sys/timeb.h`, `sys/types.h`,
+  `sys/utime.h`, `time.h`, `uchar.h`, `wchar.h`, `wctype.h`, and
+  `stxlib_crt_common.h` (the target check, the linkage macros and the shared
+  types).
 - `ucrtbase.def`: the import list, `LIBRARY ucrtbase.dll` and one name per
-  imported function (473). Make the import library with
+  imported function (795), then the POSIX names (99) as aliases of the
+  underscore exports (`open == _open`): `llvm-dlltool` makes each a weak
+  alias, so a call to `open` imports `_open`. Make the import library with
   `llvm-dlltool -m i386:x86-64 -d ucrtbase.def -l ucrtbase.lib` or
   `lld-link /lib /def:ucrtbase.def /machine:x64`.
 - `ucrtbase_exports.txt`: the export names of `ucrtbase.dll` 10.0.26100.9711,
@@ -62,9 +66,27 @@ the printf and scanf families (over `__stdio_common_*`), `stdin`, `stdout`,
 `modff`, every `long double` function, `wmemchr` and the other `wmem*`
 functions, and `mbsinit`. Each header's opening comment says how.
 
-Not provided: `feraiseexcept` and `feupdateenv` (no export, no user in the
-build), `aligned_alloc` (the UCRT has none; use `_aligned_malloc`), `struct
-stat` and the stat functions (no user).
+## POSIX names
+
+Since STXlib 1.0.1 the headers declare the CRT's POSIX names (Microsoft's
+oldnames set: `open`, `read`, `fileno`, `stat`, `fstat`, `strdup`, `getcwd`,
+`spawnv` and the rest), unless `_CRT_DECLARE_NONSTDC_NAMES` is defined as 0.
+Each names the export its underscore form names; `stat`, `fstat`, `utime`,
+`ftime` and `strcmpi` name `_stat64i32`, `_fstat64i32`, `_utime64`,
+`_ftime64` and `_stricmp` (`POSIX_TARGETS` in `check_crt_headers.py`), the
+forms the SDK maps them to with a 64-bit `time_t`. `_stati64` and
+`_fstati64` are macros for `_stat64` and `_fstat64`.
+
+The POSIX data names (`daylight`, `timezone`, `tzname`, `environ`) are not
+declared: an import alias cannot stand for data. Use `_get_daylight` and the
+other accessors, or the `_daylight` macros.
+
+## Not provided
+
+`feraiseexcept` and `feupdateenv` (no export, no user in the build),
+`aligned_alloc` (the UCRT has none; use `_aligned_malloc`), the `_mbs*`
+multibyte-string family, the `_l` locale variants, and `conio.h`'s
+formatted console input and output (`_cprintf`, `_cscanf`).
 
 ## libc++
 

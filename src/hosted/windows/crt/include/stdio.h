@@ -250,6 +250,64 @@ __attribute__((__format__(__scanf__, 2, 3))) _STXLIB_CRT_INLINE int __cdecl ssca
     return result;
 }
 
+/* Learn: "_fcloseall", "_fgetchar, _fgetwchar", "_fputchar, _fputwchar",
+ * "_flushall", "_getw", "_putw", "_rmtmp", "_tempnam, _wtempnam, ...",
+ * "_fsopen, _wfsopen", "_fdopen, _wfdopen", "freopen, _wfreopen",
+ * "freopen_s, _wfreopen_s", "_popen, _wpopen", "_pclose", "tmpnam, _wtmpnam",
+ * "tmpnam_s, _wtmpnam_s", "tmpfile_s", "fread_s", "clearerr_s",
+ * "gets_s, _getws_s", "_getws", "_putws". */
+#define L_tmpnam 260
+#define L_tmpnam_s L_tmpnam
+#define TMP_MAX 2147483647
+#define TMP_MAX_S TMP_MAX
+
+_STXLIB_UCRT int __cdecl _fcloseall(void);
+_STXLIB_UCRT int __cdecl _fgetchar(void);
+_STXLIB_UCRT wint_t __cdecl _fgetwchar(void);
+_STXLIB_UCRT int __cdecl _fputchar(int character);
+_STXLIB_UCRT wint_t __cdecl _fputwchar(wchar_t character);
+_STXLIB_UCRT int __cdecl _flushall(void);
+_STXLIB_UCRT int __cdecl _getw(FILE* stream);
+_STXLIB_UCRT int __cdecl _putw(int word, FILE* stream);
+_STXLIB_UCRT int __cdecl _rmtmp(void);
+_STXLIB_UCRT char* __cdecl _tempnam(const char* directory, const char* prefix);
+_STXLIB_UCRT wchar_t* __cdecl _wtempnam(const wchar_t* directory, const wchar_t* prefix);
+_STXLIB_UCRT FILE* __cdecl _fsopen(const char* path, const char* mode, int share);
+_STXLIB_UCRT FILE* __cdecl _wfsopen(const wchar_t* path, const wchar_t* mode, int share);
+_STXLIB_UCRT FILE* __cdecl _wfdopen(int descriptor, const wchar_t* mode);
+_STXLIB_UCRT FILE* __cdecl _wfreopen(const wchar_t* path, const wchar_t* mode, FILE* stream);
+_STXLIB_UCRT errno_t __cdecl freopen_s(FILE** result, const char* path, const char* mode, FILE* stream);
+_STXLIB_UCRT errno_t __cdecl _wfreopen_s(FILE** result, const wchar_t* path, const wchar_t* mode, FILE* stream);
+_STXLIB_UCRT FILE* __cdecl _popen(const char* command, const char* mode);
+_STXLIB_UCRT FILE* __cdecl _wpopen(const wchar_t* command, const wchar_t* mode);
+_STXLIB_UCRT int __cdecl _pclose(FILE* stream);
+_STXLIB_UCRT char* __cdecl tmpnam(char* buffer);
+_STXLIB_UCRT wchar_t* __cdecl _wtmpnam(wchar_t* buffer);
+_STXLIB_UCRT errno_t __cdecl tmpnam_s(char* buffer, rsize_t size);
+_STXLIB_UCRT errno_t __cdecl _wtmpnam_s(wchar_t* buffer, rsize_t size);
+_STXLIB_UCRT errno_t __cdecl tmpfile_s(FILE** stream);
+_STXLIB_UCRT size_t __cdecl fread_s(void* buffer, size_t buffer_size, size_t element_size, size_t count,
+                                    FILE* stream);
+_STXLIB_UCRT errno_t __cdecl clearerr_s(FILE* stream);
+_STXLIB_UCRT char* __cdecl gets_s(char* buffer, rsize_t size);
+_STXLIB_UCRT wchar_t* __cdecl _getws_s(wchar_t* buffer, size_t size);
+_STXLIB_UCRT int __cdecl _putws(const wchar_t* text);
+
+/* The POSIX names (Learn: each function's page, "The POSIX name ... is
+ * deprecated"), imported under the Microsoft names (stxlib_crt_common.h). */
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX int __cdecl fcloseall(void);
+_STXLIB_UCRT_POSIX FILE* __cdecl fdopen(int descriptor, const char* mode);
+_STXLIB_UCRT_POSIX int __cdecl fgetchar(void);
+_STXLIB_UCRT_POSIX int __cdecl fileno(FILE* stream);
+_STXLIB_UCRT_POSIX int __cdecl flushall(void);
+_STXLIB_UCRT_POSIX int __cdecl fputchar(int character);
+_STXLIB_UCRT_POSIX int __cdecl getw(FILE* stream);
+_STXLIB_UCRT_POSIX int __cdecl putw(int word, FILE* stream);
+_STXLIB_UCRT_POSIX int __cdecl rmtmp(void);
+_STXLIB_UCRT_POSIX char* __cdecl tempnam(const char* directory, const char* prefix);
+#endif
+
 _STXLIB_CRT_END
 
 #endif /* STXLIB_CRT_STDIO_H */

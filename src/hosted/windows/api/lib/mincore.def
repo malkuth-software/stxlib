@@ -2,5 +2,6 @@
 ; The api-ms-win-core-realtime-l1-1-1.dll functions our sources use.
 LIBRARY api-ms-win-core-realtime-l1-1-1.dll
 EXPORTS
+    QueryInterruptTime
     QueryInterruptTimePrecise
     QueryUnbiasedInterruptTimePrecise

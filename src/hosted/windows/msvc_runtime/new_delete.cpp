@@ -18,6 +18,18 @@
 
 #include "system_interim.h"
 
+// Each function is its own archive member, so a program that replaces some of
+// them (a test injecting allocation failures replaces operator new and delete
+// but not the nothrow forms) does not also pull in this file's definitions of
+// those it replaced: CMakeLists.txt compiles the file once per function with
+// STXLIB_NEW_DELETE_PART set to its index. Without it, every function is
+// defined.
+#ifdef STXLIB_NEW_DELETE_PART
+#define STXLIB_NEW_DELETE_IN_PART(index) (STXLIB_NEW_DELETE_PART == (index))
+#else
+#define STXLIB_NEW_DELETE_IN_PART(index) 1
+#endif
+
 #include <new>
 #include <stddef.h>
 #include <stdlib.h>
@@ -27,19 +39,19 @@ namespace {
 // The UCRT's malloc already returns storage aligned for every fundamental
 // type (16 bytes on x64); larger alignments need _aligned_malloc, whose
 // blocks only _aligned_free may release.
-constexpr size_t default_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
+[[maybe_unused]] constexpr size_t default_alignment = __STDCPP_DEFAULT_NEW_ALIGNMENT__;
 
-void* allocate_or_null(const size_t size) noexcept {
+[[maybe_unused]] void* allocate_or_null(const size_t size) noexcept {
     const size_t request = size == 0 ? 1 : size;
     return malloc(request);
 }
 
-void* allocate_aligned_or_null(const size_t size, const size_t alignment) noexcept {
+[[maybe_unused]] void* allocate_aligned_or_null(const size_t size, const size_t alignment) noexcept {
     const size_t request = size == 0 ? 1 : size;
     return _aligned_malloc(request, alignment);
 }
 
-void* allocate(const size_t size) {
+[[maybe_unused]] void* allocate(const size_t size) {
     void* block = allocate_or_null(size);
     while (block == nullptr) {
         const std::new_handler handler = std::get_new_handler();
@@ -50,7 +62,7 @@ void* allocate(const size_t size) {
     return block;
 }
 
-void* allocate_aligned(const size_t size, const size_t alignment) {
+[[maybe_unused]] void* allocate_aligned(const size_t size, const size_t alignment) {
     void* block = allocate_aligned_or_null(size, alignment);
     while (block == nullptr) {
         const std::new_handler handler = std::get_new_handler();
@@ -61,7 +73,7 @@ void* allocate_aligned(const size_t size, const size_t alignment) {
     return block;
 }
 
-void* allocate_nothrow(const size_t size) noexcept {
+[[maybe_unused]] void* allocate_nothrow(const size_t size) noexcept {
     void* block = allocate_or_null(size);
     while (block == nullptr) {
         const std::new_handler handler = std::get_new_handler();
@@ -76,7 +88,7 @@ void* allocate_nothrow(const size_t size) noexcept {
     return block;
 }
 
-void* allocate_aligned_nothrow(const size_t size, const size_t alignment) noexcept {
+[[maybe_unused]] void* allocate_aligned_nothrow(const size_t size, const size_t alignment) noexcept {
     void* block = allocate_aligned_or_null(size, alignment);
     while (block == nullptr) {
         const std::new_handler handler = std::get_new_handler();
@@ -91,99 +103,139 @@ void* allocate_aligned_nothrow(const size_t size, const size_t alignment) noexce
     return block;
 }
 
-size_t alignment_value(const std::align_val_t alignment) noexcept {
+[[maybe_unused]] size_t alignment_value(const std::align_val_t alignment) noexcept {
     const size_t value = static_cast<size_t>(alignment);
     return value < default_alignment ? default_alignment : value;
 }
 
 } // namespace
 
+#if STXLIB_NEW_DELETE_IN_PART(0)
 void* operator new(const size_t size) {
     return allocate(size);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(1)
 void* operator new[](const size_t size) {
     return allocate(size);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(2)
 void* operator new(const size_t size, const std::nothrow_t&) noexcept {
     return allocate_nothrow(size);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(3)
 void* operator new[](const size_t size, const std::nothrow_t&) noexcept {
     return allocate_nothrow(size);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(4)
 void* operator new(const size_t size, const std::align_val_t alignment) {
     return allocate_aligned(size, alignment_value(alignment));
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(5)
 void* operator new[](const size_t size, const std::align_val_t alignment) {
     return allocate_aligned(size, alignment_value(alignment));
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(6)
 void* operator new(const size_t size, const std::align_val_t alignment, const std::nothrow_t&) noexcept {
     return allocate_aligned_nothrow(size, alignment_value(alignment));
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(7)
 void* operator new[](const size_t size, const std::align_val_t alignment, const std::nothrow_t&) noexcept {
     return allocate_aligned_nothrow(size, alignment_value(alignment));
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(8)
 void operator delete(void* const block) noexcept {
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(9)
 void operator delete[](void* const block) noexcept {
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(10)
 void operator delete(void* const block, const size_t size) noexcept {
     static_cast<void>(size);
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(11)
 void operator delete[](void* const block, const size_t size) noexcept {
     static_cast<void>(size);
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(12)
 void operator delete(void* const block, const std::nothrow_t&) noexcept {
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(13)
 void operator delete[](void* const block, const std::nothrow_t&) noexcept {
     free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(14)
 void operator delete(void* const block, const std::align_val_t alignment) noexcept {
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(15)
 void operator delete[](void* const block, const std::align_val_t alignment) noexcept {
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(16)
 void operator delete(void* const block, const size_t size, const std::align_val_t alignment) noexcept {
     static_cast<void>(size);
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(17)
 void operator delete[](void* const block, const size_t size, const std::align_val_t alignment) noexcept {
     static_cast<void>(size);
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(18)
 void operator delete(void* const block, const std::align_val_t alignment, const std::nothrow_t&) noexcept {
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif
 
+#if STXLIB_NEW_DELETE_IN_PART(19)
 void operator delete[](void* const block, const std::align_val_t alignment, const std::nothrow_t&) noexcept {
     static_cast<void>(alignment);
     _aligned_free(block);
 }
+#endif

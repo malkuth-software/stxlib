@@ -4,11 +4,22 @@
 ; Import library: llvm-dlltool -m i386:x86-64 -d ucrtbase.def -l ucrtbase.lib
 LIBRARY ucrtbase.dll
 EXPORTS
+    _Cbuild
+    _Cmulcc
+    _Cmulcr
     _Exit
+    _FCbuild
+    _FCmulcc
+    _FCmulcr
+    _LCbuild
+    _LCmulcc
+    _LCmulcr
     ___mb_cur_max_func
     ___mb_cur_max_l_func
     __acrt_iob_func
+    __daylight
     __doserrno
+    __dstbias
     __p___argc
     __p___argv
     __p___wargv
@@ -23,8 +34,11 @@ EXPORTS
     __stdio_common_vswscanf
     __sys_errlist
     __sys_nerr
+    __timezone
+    __tzname
     _abs64
     _access
+    _access_s
     _aligned_free
     _aligned_malloc
     _aligned_msize
@@ -33,8 +47,11 @@ EXPORTS
     _beginthread
     _beginthreadex
     _callnewh
+    _chdir
+    _chdrive
     _chgsign
     _chmod
+    _chsize
     _chsize_s
     _clearfp
     _close
@@ -45,39 +62,100 @@ EXPORTS
     _controlfp
     _controlfp_s
     _copysign
+    _cputs
+    _cputws
+    _creat
     _create_locale
     _crt_at_quick_exit
     _crt_atexit
     _ctime64
+    _cwait
     _difftime64
     _dup
     _dup2
+    _dupenv_s
+    _ecvt
+    _ecvt_s
     _endthread
     _endthreadex
+    _eof
     _errno
+    _execl
+    _execle
+    _execlp
+    _execlpe
     _execute_onexit_table
+    _execv
+    _execve
+    _execvp
+    _execvpe
     _exit
+    _fcloseall
+    _fcvt
+    _fcvt_s
     _fdopen
+    _fgetchar
+    _fgetwchar
+    _filelength
     _filelengthi64
     _fileno
+    _findclose
+    _findfirst64
+    _findfirst64i32
+    _findnext64
+    _findnext64i32
     _finite
+    _flushall
+    _fputchar
+    _fputwchar
     _free_locale
     _fseeki64
+    _fsopen
+    _fstat32
+    _fstat32i64
+    _fstat64
+    _fstat64i32
     _ftelli64
+    _ftime32
+    _ftime32_s
+    _ftime64
+    _ftime64_s
+    _fullpath
+    _futime32
+    _futime64
+    _gcvt
+    _gcvt_s
     _get_current_locale
+    _get_daylight
     _get_doserrno
+    _get_dstbias
     _get_errno
     _get_initial_narrow_environment
     _get_initial_wide_environment
     _get_narrow_winmain_command_line
     _get_osfhandle
     _get_terminate
+    _get_timezone
+    _get_tzname
     _get_wide_winmain_command_line
+    _getch
+    _getche
+    _getcwd
+    _getdcwd
+    _getdiskfree
+    _getdrive
     _getpid
+    _getw
+    _getwch
+    _getwche
+    _getws_s
     _gmtime64
     _gmtime64_s
     _hypot
     _hypotf
+    _i64toa
+    _i64toa_s
+    _i64tow
     _initialize_narrow_environment
     _initialize_onexit_table
     _initialize_wide_environment
@@ -110,32 +188,93 @@ EXPORTS
     _iswupper_l
     _iswxdigit_l
     _isxdigit_l
+    _itoa
+    _itoa_s
+    _itow
+    _j0
+    _j1
+    _jn
+    _kbhit
+    _lfind
+    _lfind_s
     _localtime64
     _localtime64_s
+    _locking
+    _lsearch
+    _lsearch_s
     _lseek
     _lseeki64
+    _ltoa
+    _ltoa_s
+    _ltow
+    _makepath
+    _makepath_s
     _mbtowc_l
+    _memccpy
+    _memicmp
+    _mkdir
     _mkgmtime64
+    _mktemp
+    _mktemp_s
     _mktime64
     _msize
     _open
     _open_osfhandle
+    _pclose
+    _pipe
+    _popen
+    _putch
+    _putenv
     _putenv_s
+    _putw
+    _putwch
+    _putws
     _read
     _register_onexit_function
     _register_thread_local_exe_atexit_callback
+    _rmdir
+    _rmtmp
+    _searchenv
     _set_abort_behavior
     _set_app_type
     _set_doserrno
     _set_errno
     _setmode
+    _sopen
     _sopen_s
+    _spawnl
+    _spawnle
+    _spawnlp
+    _spawnlpe
+    _spawnv
+    _spawnve
+    _spawnvp
+    _spawnvpe
+    _splitpath
+    _splitpath_s
+    _stat32
+    _stat32i64
+    _stat64
+    _stat64i32
     _statusfp
     _strcoll_l
+    _strdate
+    _strdate_s
     _strdup
+    _strerror
     _strftime_l
     _stricmp
+    _stricoll
+    _strlwr
+    _strlwr_s
+    _strncoll
     _strnicmp
+    _strnicoll
+    _strnset
+    _strrev
+    _strset
+    _strtime
+    _strtime_s
     _strtod_l
     _strtof_l
     _strtoi64
@@ -145,7 +284,13 @@ EXPORTS
     _strtoui64
     _strtoul_l
     _strtoull_l
+    _strupr
+    _strupr_s
     _strxfrm_l
+    _swab
+    _tell
+    _telli64
+    _tempnam
     _time64
     _timespec64_get
     _tolower_l
@@ -153,28 +298,112 @@ EXPORTS
     _towlower_l
     _towupper_l
     _tzset
+    _ui64toa
+    _ui64toa_s
+    _ui64tow
+    _ultoa
+    _ultoa_s
+    _ultow
+    _umask
+    _umask_s
+    _ungetch
+    _ungetwch
     _unlink
+    _utime32
+    _utime64
     _waccess
+    _waccess_s
     _wassert
+    _wchdir
     _wchmod
+    _wcreat
     _wcreate_locale
     _wcscoll_l
     _wcsdup
+    _wcserror
     _wcsicmp
+    _wcsicoll
+    _wcslwr
+    _wcslwr_s
+    _wcsncoll
     _wcsnicmp
+    _wcsnicoll
+    _wcsnset
+    _wcsrev
+    _wcsset
+    _wcsupr
+    _wcsupr_s
     _wcsxfrm_l
+    _wdupenv_s
+    _wexecl
+    _wexecle
+    _wexeclp
+    _wexeclpe
+    _wexecv
+    _wexecve
+    _wexecvp
+    _wexecvpe
+    _wfdopen
+    _wfindfirst64
+    _wfindfirst64i32
+    _wfindnext64
+    _wfindnext64i32
     _wfopen
     _wfopen_s
+    _wfreopen
+    _wfreopen_s
+    _wfsopen
+    _wfullpath
+    _wgetcwd
+    _wgetdcwd
     _wgetenv
+    _wgetenv_s
+    _wmakepath
+    _wmakepath_s
+    _wmkdir
+    _wmktemp
+    _wmktemp_s
     _wopen
+    _wpopen
+    _wputenv
     _wputenv_s
     _wremove
     _wrename
     _write
+    _wrmdir
+    _wsearchenv
     _wsetlocale
+    _wsopen
     _wsopen_s
+    _wspawnl
+    _wspawnle
+    _wspawnlp
+    _wspawnlpe
+    _wspawnv
+    _wspawnve
+    _wspawnvp
+    _wspawnvpe
+    _wsplitpath
+    _wsplitpath_s
+    _wstat32
+    _wstat32i64
+    _wstat64
+    _wstat64i32
     _wsystem
+    _wtempnam
+    _wtmpnam
+    _wtmpnam_s
+    _wtof
+    _wtoi
+    _wtoi64
+    _wtol
+    _wtoll
     _wunlink
+    _wutime32
+    _wutime64
+    _y0
+    _y1
+    _yn
     abort
     abs
     acos
@@ -182,6 +411,7 @@ EXPORTS
     acosh
     acoshf
     asctime
+    asctime_s
     asin
     asinf
     asinh
@@ -197,22 +427,93 @@ EXPORTS
     atol
     atoll
     bsearch
+    bsearch_s
     btowc
     c16rtomb
     c32rtomb
+    cabs
+    cabsf
+    cabsl
+    cacos
+    cacosf
+    cacosh
+    cacoshf
+    cacoshl
+    cacosl
     calloc
+    carg
+    cargf
+    cargl
+    casin
+    casinf
+    casinh
+    casinhf
+    casinhl
+    casinl
+    catan
+    catanf
+    catanh
+    catanhf
+    catanhl
+    catanl
     cbrt
     cbrtf
+    ccos
+    ccosf
+    ccosh
+    ccoshf
+    ccoshl
+    ccosl
     ceil
     ceilf
+    cexp
+    cexpf
+    cexpl
+    cimag
+    cimagf
+    cimagl
     clearerr
+    clearerr_s
     clock
+    clog
+    clog10
+    clog10f
+    clog10l
+    clogf
+    clogl
+    conj
+    conjf
+    conjl
     copysign
     copysignf
     cos
     cosf
     cosh
     coshf
+    cpow
+    cpowf
+    cpowl
+    cproj
+    cprojf
+    cprojl
+    creal
+    crealf
+    creall
+    csin
+    csinf
+    csinh
+    csinhf
+    csinhl
+    csinl
+    csqrt
+    csqrtf
+    csqrtl
+    ctan
+    ctanf
+    ctanh
+    ctanhf
+    ctanhl
+    ctanl
     div
     erf
     erfc
@@ -263,8 +564,10 @@ EXPORTS
     fputwc
     fputws
     fread
+    fread_s
     free
     freopen
+    freopen_s
     frexp
     fseek
     fsetpos
@@ -273,6 +576,8 @@ EXPORTS
     getc
     getchar
     getenv
+    getenv_s
+    gets_s
     getwc
     getwchar
     hypot
@@ -293,6 +598,7 @@ EXPORTS
     isupper
     iswalnum
     iswalpha
+    iswascii
     iswblank
     iswcntrl
     iswctype
@@ -338,7 +644,9 @@ EXPORTS
     mbrtoc32
     mbrtowc
     mbsrtowcs
+    mbsrtowcs_s
     mbstowcs
+    mbstowcs_s
     mbtowc
     memcpy_s
     memmove_s
@@ -352,6 +660,9 @@ EXPORTS
     nextafterf
     nexttoward
     nexttowardf
+    norm
+    normf
+    norml
     perror
     pow
     powf
@@ -361,6 +672,7 @@ EXPORTS
     putwc
     putwchar
     qsort
+    qsort_s
     quick_exit
     raise
     rand
@@ -405,6 +717,7 @@ EXPORTS
     strftime
     strlen
     strncat
+    strncat_s
     strncmp
     strncpy
     strncpy_s
@@ -432,6 +745,9 @@ EXPORTS
     tgamma
     tgammaf
     tmpfile
+    tmpfile_s
+    tmpnam
+    tmpnam_s
     tolower
     toupper
     towctrans
@@ -453,12 +769,14 @@ EXPORTS
     wcsftime
     wcslen
     wcsncat
+    wcsncat_s
     wcsncmp
     wcsncpy
     wcsncpy_s
     wcsnlen
     wcspbrk
     wcsrtombs
+    wcsrtombs_s
     wcsspn
     wcstod
     wcstof
@@ -469,11 +787,114 @@ EXPORTS
     wcstold
     wcstoll
     wcstombs
+    wcstombs_s
     wcstoul
     wcstoull
     wcstoumax
     wcsxfrm
     wctob
     wctomb
+    wctomb_s
     wctrans
     wctype
+    wmemcpy_s
+    wmemmove_s
+    access == _access
+    chdir == _chdir
+    chmod == _chmod
+    chsize == _chsize
+    close == _close
+    cputs == _cputs
+    creat == _creat
+    cwait == _cwait
+    dup == _dup
+    dup2 == _dup2
+    ecvt == _ecvt
+    eof == _eof
+    execl == _execl
+    execle == _execle
+    execlp == _execlp
+    execlpe == _execlpe
+    execv == _execv
+    execve == _execve
+    execvp == _execvp
+    execvpe == _execvpe
+    fcloseall == _fcloseall
+    fcvt == _fcvt
+    fdopen == _fdopen
+    fgetchar == _fgetchar
+    filelength == _filelength
+    fileno == _fileno
+    flushall == _flushall
+    fputchar == _fputchar
+    fstat == _fstat64i32
+    ftime == _ftime64
+    gcvt == _gcvt
+    getch == _getch
+    getche == _getche
+    getcwd == _getcwd
+    getpid == _getpid
+    getw == _getw
+    isatty == _isatty
+    itoa == _itoa
+    j0 == _j0
+    j1 == _j1
+    jn == _jn
+    kbhit == _kbhit
+    lfind == _lfind
+    locking == _locking
+    lsearch == _lsearch
+    lseek == _lseek
+    ltoa == _ltoa
+    memccpy == _memccpy
+    memicmp == _memicmp
+    mkdir == _mkdir
+    mktemp == _mktemp
+    open == _open
+    putch == _putch
+    putenv == _putenv
+    putw == _putw
+    read == _read
+    rmdir == _rmdir
+    rmtmp == _rmtmp
+    setmode == _setmode
+    sopen == _sopen
+    spawnl == _spawnl
+    spawnle == _spawnle
+    spawnlp == _spawnlp
+    spawnlpe == _spawnlpe
+    spawnv == _spawnv
+    spawnve == _spawnve
+    spawnvp == _spawnvp
+    spawnvpe == _spawnvpe
+    stat == _stat64i32
+    strcmpi == _stricmp
+    strdup == _strdup
+    stricmp == _stricmp
+    strlwr == _strlwr
+    strnicmp == _strnicmp
+    strnset == _strnset
+    strrev == _strrev
+    strset == _strset
+    strupr == _strupr
+    swab == _swab
+    tell == _tell
+    tempnam == _tempnam
+    tzset == _tzset
+    ultoa == _ultoa
+    umask == _umask
+    ungetch == _ungetch
+    unlink == _unlink
+    utime == _utime64
+    wcsdup == _wcsdup
+    wcsicmp == _wcsicmp
+    wcslwr == _wcslwr
+    wcsnicmp == _wcsnicmp
+    wcsnset == _wcsnset
+    wcsrev == _wcsrev
+    wcsset == _wcsset
+    wcsupr == _wcsupr
+    write == _write
+    y0 == _y0
+    y1 == _y1
+    yn == _yn

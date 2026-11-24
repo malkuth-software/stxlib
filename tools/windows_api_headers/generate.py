@@ -9,18 +9,30 @@ checkout), `roots.txt` (scan.py's output: the header names our sources
 include and the names they use) and `layout.py`'s rules. Outputs, under
 `src/hosted/windows/api/`:
 
-- `include/stxwin_types.h`: every used type, in dependency order (records
-  forward-declared first, then typedefs, enums, records and callbacks, then
-  COM interfaces as C++ structs with their vtables in metadata order);
-- `include/<stem>.h`: per metadata file (one per SDK header), the used
+- `include/stxwin_types.h`: the types windows.h's headers and our sources
+  need, in dependency order (records forward-declared first, then typedefs,
+  enums, records and callbacks, then COM interfaces as C++ structs with
+  their vtables in metadata order);
+- `include/stxwin_types_more.h`: the other emitted types, for the headers
+  windows.h does not include (split_types);
+- `include/<stem>.h`: per metadata file (one per SDK header), the emitted
   constants (as macros, like the SDK), functions and GUID declarations;
 - `include/<name>.h` for the umbrella names our sources include (windows.h,
   uiautomation.h, ...), which include their member headers;
-- `lib/<dll>.def`: one export list per system DLL, used functions only;
-- `lib/uuid.c`: the GUIDs (IIDs, CLSIDs, other GUID constants) used;
+- `lib/<dll>.def`: one export list per system DLL, every emitted function;
+- `lib/uuid.c`: the GUIDs (IIDs, CLSIDs, other GUID constants) emitted;
 - `check/layout_check.cpp`: static_asserts of sizeof, alignof and offsetof
   for every emitted record against `layout.py`'s computation from the
   metadata.
+
+What is emitted (STXlib 1.0.1): every function of each DLL in
+COVERED_LIBRARIES, with every type, constant, callback and interface of the
+metadata files that declare them; every constant of the other metadata files
+the closure reaches whose type is already emitted; and the closure of
+`roots.txt`, which is now the check that nothing our sources use is missing
+rather than the limit of what is generated. Names that cannot be spelled
+(record-scoped constants, anonymous nested records) are listed under
+`[gaps]` in `generated_report.txt`.
 
 `stxwin_supplement.h` (macros and inline helpers that are not metadata) is
 hand-written and not touched here. Output is deterministic: names sorted or
@@ -121,7 +133,7 @@ WINDOWS_H_MEMBERS = [
     'jobapi', 'jobapi2', 'namedpipeapi', 'threadpoolapiset', 'threadpoollegacyapiset', 'timezoneapi',
     'stringapiset', 'datetimeapi', 'securitybaseapi', 'interlockedapi', 'realtimeapiset', 'fibersapi',
     'wow64apiset', 'utilapiset', 'winver', 'imm', 'winsvc', 'apiquery2', 'enclaveapi', 'namespaceapi',
-    'systemtopologyapi', 'processtopologyapi', 'psapi', 'winioctl', 'excpt',
+    'systemtopologyapi', 'processtopologyapi', 'psapi', 'winioctl', 'excpt', 'guiddef',
 ]
 # Included by windows.h only without WIN32_LEAN_AND_MEAN.
 WINDOWS_H_NOT_LEAN = ['shellapi', 'commdlg', 'ole2', 'objbase', 'combaseapi', 'oleauto', 'oaidl', 'objidl',
@@ -252,11 +264,19 @@ class Model:
             return None
         return self.declarations.get(type_ref.name)
 
+    def nested_record(self, type_ref: 'rdl.TypeRef | None') -> 'rdl.Decl | None':
+        """The nested record a named type `Outer::Inner` names, or None."""
+        return rdl.nested_record(type_ref, self.declarations)
+
     def type_names(self, type_ref: 'rdl.TypeRef | None', names: list[str]) -> None:
         """Appends every named type that type_ref mentions."""
         if type_ref is None:
             return
         if type_ref.kind == 'named':
+            if type_ref.namespace and self.nested_record(type_ref) is not None:
+                # A record nested in another: its fields' types come in with
+                # the outer record's (record_type_names walks record.nested).
+                return
             if type_ref.namespace:
                 self.winrt[type_ref.name] = type_ref.namespace
             elif type_ref.name not in PRIMITIVES and type_ref.name != 'String':
@@ -297,6 +317,11 @@ class Model:
                 names.extend(NATIVE_TYPEDEF_DEPENDENCIES.get(declaration.name, []))
             else:
                 self.type_names(declaration.aliased, names)
+                aliased = declaration.aliased
+                if aliased.kind == 'named' and aliased.name == declaration.name + 'A' and \
+                        declaration.name + 'W' in self.declarations:
+                    # The typedef is emitted as the UNICODE choice of W and A.
+                    names.append(declaration.name + 'W')
         elif kind == 'const':
             self.type_names(declaration.value_type, names)
         elif kind in ('function', 'callback'):
@@ -318,7 +343,8 @@ class Model:
             self.iids.add(name[4:])
             self.close(name[4:])
             return
-        if name.startswith('CLSID_') and name[6:] in declarations:
+        if name.startswith('CLSID_') and name[6:] in declarations and declarations[name[6:]].value \
+                and name not in declarations:
             self.clsids.add(name[6:])
             self.close('CLSID')
             return
@@ -384,6 +410,11 @@ class Speller:
 
     def base_name(self, type_ref: rdl.TypeRef) -> tuple[str, bool]:
         """(spelling, is_interface) of a named type."""
+        nested = self.model.nested_record(type_ref) if type_ref.namespace else None
+        if nested is not None:
+            # Elaborated: valid in C, where the tag is at file scope, and in
+            # C++ inside the record that declares it.
+            return (f'{nested.kind} {nested.name}', False)
         if type_ref.namespace:
             path = type_ref.namespace.replace('super::', 'ABI::Windows::')
             return (path + type_ref.name, True)
@@ -479,6 +510,10 @@ class Emitter:
         self.roots = roots
         self.includes = includes
         self.macro_names: set[str] = set()
+        # The types stxwin_types.h holds (see split_types); the rest of the
+        # used types go into stxwin_types_more.h.
+        self.first_tier: 'set[str] | None' = None
+        self.more_stems: set[str] = set()
         self.layout = layout.Layout(model.declarations, PRIMITIVES)
         # Record field names: a macro of the same name would rename the field.
         self.field_names: set[str] = set()
@@ -514,14 +549,48 @@ class Emitter:
         if declaration.kind in ('struct', 'union'):
             for name in self.layout.complete_dependencies(declaration):
                 result.append(name)
+        # An array's element type must be complete even behind a pointer
+        # (`typedef SID_AND_ATTRIBUTES (*PSID_AND_ATTRIBUTES_ARRAY)[1]`).
+        pending: list['rdl.TypeRef | None'] = []
+        if declaration.kind == 'type' and declaration.name not in NATIVE_TYPEDEFS:
+            pending.append(declaration.aliased)
+        elif declaration.kind in ('struct', 'union'):
+            records: list[rdl.Decl] = [declaration]
+            while records:
+                record = records.pop()
+                for field in record.fields:
+                    pending.append(field.field_type)
+                    if field.field_type.kind == 'record':
+                        records.append(field.field_type.record)
+                records.extend(nested for nested in record.nested if nested.kind in ('struct', 'union'))
+        while pending:
+            current = pending.pop()
+            if current is None:
+                continue
+            if current.kind == 'array':
+                element = current.target
+                while element is not None and element.kind == 'array':
+                    element = element.target
+                if element is not None and element.kind == 'named' and not element.namespace:
+                    target = self.model.declarations.get(element.name)
+                    if target is not None and target.kind in ('struct', 'union', 'type'):
+                        result.append(element.name)
+            if current.kind in ('pointer', 'array', 'ptr64', 'reference'):
+                pending.append(current.target)
         return result
 
-    def type_order(self) -> list[rdl.Decl]:
+    def in_tier(self, name: str, first: bool) -> bool:
+        if self.first_tier is None:
+            return first
+        return (name in self.first_tier) == first
+
+    def type_order(self, first: bool = True) -> list[rdl.Decl]:
         """Typedefs, enums, records and callbacks in an order that declares before use."""
         candidates: list[str] = []
         for name in sorted(self.model.used):
             declaration = self.model.declarations.get(name)
-            if declaration is not None and declaration.kind in ('type', 'enum', 'struct', 'union', 'callback'):
+            if declaration is not None and declaration.kind in ('type', 'enum', 'struct', 'union', 'callback') \
+                    and self.in_tier(name, first):
                 candidates.append(name)
         order: list[rdl.Decl] = []
         state: dict[str, int] = {}
@@ -538,7 +607,8 @@ class Emitter:
                     stack.append((name, dependencies, position + 1))
                     dependency = dependencies[position]
                     declaration = self.model.declarations.get(dependency)
-                    if declaration is None or declaration.kind not in ('type', 'enum', 'struct', 'union', 'callback'):
+                    if declaration is None or declaration.kind not in ('type', 'enum', 'struct', 'union', 'callback') \
+                            or dependency in CRT_OWNED or not self.in_tier(dependency, first):
                         continue
                     status = state.get(dependency, 0)
                     if status == 1:
@@ -551,17 +621,17 @@ class Emitter:
                 order.append(self.model.declarations[name])
         return order
 
-    def interface_order(self) -> list[rdl.Decl]:
+    def interface_order(self, first: bool = True) -> list[rdl.Decl]:
         names: list[str] = []
         for name in sorted(self.model.used):
-            if self.model.is_interface(name):
+            if self.model.is_interface(name) and self.in_tier(name, first):
                 names.append(name)
         order: list[rdl.Decl] = []
         done: set[str] = set()
         for start in names:
             chain: list[str] = []
             current = start
-            while current not in done and self.model.is_interface(current):
+            while current not in done and self.model.is_interface(current) and self.in_tier(current, first):
                 chain.append(current)
                 base = self.model.declarations[current].base
                 if base is None or base.namespace:
@@ -577,7 +647,18 @@ class Emitter:
 
     def record_lines(self, record: rdl.Decl, indent: str, inherited_pack: int) -> list[str]:
         lines: list[str] = []
+        # A nested record a field names (`u: GDI_OBJECT::__MIDL_IAdviseSink_0002`)
+        # is defined inline at the first such field, as MIDL writes it
+        # (`union __MIDL_IAdviseSink_0002 { ... } u;`); later fields name its tag.
+        referenced: set[str] = set()
+        for field in record.fields:
+            nested_type = self.field_nested(field.field_type)
+            if nested_type is not None:
+                referenced.add(nested_type.name)
+        defined: set[str] = set()
         for nested in record.nested:
+            if nested.kind in ('struct', 'union') and nested.name in referenced:
+                continue
             if nested.kind in ('struct', 'union'):
                 lines.append(f'{indent}{nested.kind} {nested.name} {{')
                 lines.extend(self.record_lines(nested, indent + '    ', inherited_pack))
@@ -600,6 +681,16 @@ class Emitter:
                 else:
                     lines.append(f'{indent}}} {safe_name(field.name)};')
                 continue
+            nested_type = self.field_nested(field_type)
+            if nested_type is not None and nested_type.name not in defined:
+                defined.add(nested_type.name)
+                spelled = self.speller.spell(field_type, safe_name(field.name))
+                elaborated = f'{nested_type.kind} {nested_type.name}'
+                before, after = spelled.split(elaborated, 1)
+                lines.append(f'{indent}{prefix}{before}{elaborated} {{')
+                lines.extend(self.record_lines(nested_type, indent + '    ', inherited_pack))
+                lines.append(f'{indent}}}{after};')
+                continue
             if field.bits:
                 backing = self.speller.spell(field_type, '')
                 for bit in field.bits:
@@ -610,6 +701,15 @@ class Emitter:
                 continue
             lines.append(f'{indent}{prefix}{self.speller.spell(field_type, safe_name(field.name))};')
         return lines
+
+    def field_nested(self, type_ref: rdl.TypeRef) -> 'rdl.Decl | None':
+        """The nested record a field's type names, through pointers and arrays."""
+        current: 'rdl.TypeRef | None' = type_ref
+        while current is not None and current.kind in ('pointer', 'array', 'ptr64'):
+            current = current.target
+        if current is None or current.kind != 'named' or not current.namespace:
+            return None
+        return self.model.nested_record(current)
 
     def record_definition(self, record: rdl.Decl) -> list[str]:
         lines: list[str] = []
@@ -682,7 +782,12 @@ class Emitter:
         for member, value in declaration.members:
             lines.append(f'    {member} = {value},')
         if scoped:
+            # C has no scoped enumerators, and unscoped ones would collide
+            # (several scoped enums have a `None`): C sees the underlying
+            # type, so records and callbacks using the enum keep their layout.
             lines.append('};')
+            lines.append('#else')
+            lines.append(f'typedef {PRIMITIVES[base]} {declaration.name};')
             lines.append('#endif')
         else:
             lines.append(f'}} {declaration.name};')
@@ -692,14 +797,18 @@ class Emitter:
 
     def callback_line(self, declaration: rdl.Decl) -> list[str]:
         convention = '__cdecl' if declaration.abi == 'C' else '__stdcall'
-        result = declaration.result
         if has_reference(declaration.params, declaration.result):
-            raise GenerationError(f'{declaration.name}: reference in a callback')
-        parameters = self.speller.parameters(declaration.params, True, self.macro_names)
+            # A reference parameter (REFIID) is & in C++ and * in C, as for functions.
+            return ['#ifdef __cplusplus', self.callback_typedef(declaration, convention, True), '#else',
+                    self.callback_typedef(declaration, convention, False), '#endif']
+        return [self.callback_typedef(declaration, convention, True)]
+
+    def callback_typedef(self, declaration: rdl.Decl, convention: str, in_cxx: bool) -> str:
+        parameters = self.speller.parameters(declaration.params, in_cxx, self.macro_names)
         inner = f'({convention} *{declaration.name})({parameters})'
-        if result is None:
-            return [f'typedef void {inner};']
-        return [f'typedef {self.speller.spell(result, inner)};']
+        if declaration.result is None:
+            return f'typedef void {inner};'
+        return f'typedef {self.speller.spell(declaration.result, inner, False, in_cxx)};'
 
     def interface_lines(self, declaration: rdl.Decl) -> list[str]:
         guid = declaration.attribute('guid')
@@ -762,15 +871,39 @@ class Emitter:
                 lines.append(f'{opening} struct {name}; {closing}')
             lines.append('#endif')
             lines.append('')
+        lines.extend(self.type_definitions(True))
+        lines.append('#endif /* RC_INVOKED */')
+        lines.append('')
+        lines.append('#endif /* STXWIN_TYPES_H */')
+        return '\n'.join(lines) + '\n'
+
+    def more_types_header(self) -> str:
+        """stxwin_types_more.h: the used types outside stxwin_types.h, which
+        only headers windows.h does not include need (split_types)."""
+        lines = header_preamble('stxwin_types_more.h', 'The Windows API types of the headers windows.h does not '
+                                'include, in dependency order after stxwin_types.h.')
+        lines.append('#include "stxwin_types.h"')
+        lines.append('#ifndef RC_INVOKED')
+        lines.append('')
+        lines.extend(self.type_definitions(False))
+        lines.append('#endif /* RC_INVOKED */')
+        lines.append('')
+        lines.append('#endif /* STXWIN_TYPES_MORE_H */')
+        return '\n'.join(lines) + '\n'
+
+    def type_definitions(self, first: bool) -> list[str]:
+        lines: list[str] = []
         lines.append('/* Records and interfaces, declared first so any order of use is possible. */')
         for name in sorted(self.model.used):
+            if not self.in_tier(name, first):
+                continue
             declaration = self.model.declarations.get(name)
             if declaration is not None and declaration.kind in ('struct', 'union'):
                 lines.append(f'typedef {declaration.kind} {TAG_NAMES.get(name, name)} {name};')
             elif declaration is not None and declaration.kind == 'interface':
                 lines.append(f'typedef struct {name} {name};')
         lines.append('')
-        for declaration in self.type_order():
+        for declaration in self.type_order(first):
             kind = declaration.kind
             lines.append(f'/* {declaration.source}.h */')
             if kind == 'type':
@@ -785,7 +918,7 @@ class Emitter:
             elif kind == 'callback':
                 lines.extend(self.callback_line(declaration))
             lines.append('')
-        interfaces = self.interface_order()
+        interfaces = self.interface_order(first)
         if interfaces:
             lines.append('#ifdef __cplusplus')
             lines.append('')
@@ -795,10 +928,7 @@ class Emitter:
                 lines.append('')
             lines.append('#endif /* __cplusplus */')
             lines.append('')
-        lines.append('#endif /* RC_INVOKED */')
-        lines.append('')
-        lines.append('#endif /* STXWIN_TYPES_H */')
-        return '\n'.join(lines) + '\n'
+        return lines
 
     # --- constants and functions ----------------------------------------------
 
@@ -921,8 +1051,11 @@ class Emitter:
         return lines
 
     def stem_header(self, stem: str, declarations: list[rdl.Decl], members: list[str]) -> str:
-        lines = header_preamble(f'{stem}.h', f'What our sources use of the SDK header {stem}.h.')
+        lines = header_preamble(f'{stem}.h', f'The SDK header {stem}.h: what our sources use, and the whole '
+                                'API of the system DLLs STXlib covers.')
         lines.append('#include "stxwin_supplement.h"')
+        if stem in self.more_stems:
+            lines.append('#include "stxwin_types_more.h"')
         for member in members:
             lines.append(f'#include "{member}.h"')
         lines.append('')
@@ -1020,7 +1153,7 @@ class Emitter:
         lines = ['/* Generated by tools/windows_api_headers/generate.py from windows-rs metadata; do not edit.',
                  ' * The GUIDs our sources use: interface IIDs, class CLSIDs and other GUID constants.',
                  ' * Built into uuid.lib by the own-runtime assembly project. */',
-                 '#include "stxwin_types.h"', '#include "stxwin_supplement.h"', '']
+                 '#include "stxwin_types_more.h"', '#include "stxwin_supplement.h"', '']
         for _, declaration_text, initializer in self.guid_definitions():
             lines.append(f'STXWIN_GUID_DEFINITION {selectany(declaration_text)} = {initializer};')
         return '\n'.join(lines) + '\n'
@@ -1038,6 +1171,10 @@ class Emitter:
         for name in sorted(self.model.used):
             declaration = self.model.declarations.get(name)
             if declaration is None or declaration.kind != 'const' or name in self.model.neutral:
+                continue
+            if name.startswith('IID_') and name[4:] in self.model.iids or \
+                    name.startswith('CLSID_') and name[6:] in self.model.clsids:
+                # Also an interface's IID or a coclass's CLSID: defined once, above.
                 continue
             value_type = declaration.value_type
             if value_type.kind != 'named' or value_type.name not in ('GUID', 'PROPERTYKEY', 'DEVPROPKEY'):
@@ -1155,6 +1292,163 @@ def header_preamble(file_name: str, purpose: str) -> list[str]:
             f'#ifndef {guard}', f'#define {guard}', '']
 
 
+# The system DLLs STXlib ships an export list for (STXlib 1.0.1, coordinator
+# 2026-11-24: complete coverage). Every function the metadata says each one
+# exports is generated, with every type and constant of the metadata files
+# that declare those functions, so a program on the own runtime finds the
+# whole API of a DLL it links, not only the part our sources use. The
+# used-name scan (roots.txt) stays a check that nothing we use is missing.
+COVERED_LIBRARIES = ['advapi32.dll', 'api-ms-win-core-realtime-l1-1-1.dll', 'api-ms-win-core-synch-l1-2-0.dll',
+                     'api-ms-win-core-winrt-l1-1-0.dll', 'api-ms-win-core-winrt-string-l1-1-0.dll',
+                     'api-ms-win-shcore-scaling-l1-1-1.dll', 'avrt.dll', 'bcrypt.dll', 'comdlg32.dll',
+                     'dwmapi.dll', 'gdi32.dll', 'icuin.dll', 'imm32.dll', 'kernel32.dll', 'ole32.dll',
+                     'oleacc.dll', 'oleaut32.dll', 'shell32.dll', 'uiautomationcore.dll', 'user32.dll',
+                     'uxtheme.dll']
+COMPLETE_KINDS = ('const', 'type', 'struct', 'union', 'enum', 'callback', 'interface')
+
+
+def function_library(declaration: rdl.Decl) -> 'str | None':
+    """The DLL a function is imported from, lower-case; None for an import-only entry."""
+    library = declaration.attribute('library')
+    if library is None or 'import' in library.arguments:
+        return None
+    return library.arguments[0].strip('"').lower()
+
+
+def unreferenced_nested(record: rdl.Decl, declarations: dict) -> 'str | None':
+    """A nested record no field of its owner names (`userSTGMEDIUM`'s
+    `_STGMEDIUM_UNION`): MSVC makes it an anonymous member, which the metadata
+    does not say, so the record's C spelling and layout are unknown."""
+    records: list[rdl.Decl] = [record]
+    while records:
+        current = records.pop()
+        named: set[str] = set()
+        for field in current.fields:
+            target: 'rdl.TypeRef | None' = field.field_type
+            while target is not None and target.kind in ('pointer', 'array', 'ptr64'):
+                target = target.target
+            nested = rdl.nested_record(target, declarations)
+            if nested is not None:
+                named.add(nested.name)
+            if field.field_type.kind == 'record':
+                records.append(field.field_type.record)
+        for nested in current.nested:
+            if nested.kind in ('struct', 'union'):
+                if nested.name not in named:
+                    return f'{record.name}::{nested.name} is a nested record no field names'
+                records.append(nested)
+    return None
+
+
+def complete_closure_problem(model: Model, name: str) -> 'str | None':
+    """Why a name the complete coverage would add cannot be emitted (a name
+    its closure needs is missing from the metadata, or a record in it has an
+    unnamed nested record), or None. Names already used are fine."""
+    pending = [name]
+    seen: set[str] = set()
+    while pending:
+        current = pending.pop()
+        if current in seen or current in model.used or current in CRT_OWNED:
+            continue
+        seen.add(current)
+        declaration = model.declarations.get(current)
+        if declaration is None:
+            if current + 'W' in model.declarations or current in model.enumerators:
+                continue
+            return f'needs {current}, which is not in the metadata'
+        if declaration.kind in ('struct', 'union'):
+            problem = unreferenced_nested(declaration, model.declarations)
+            if problem is not None:
+                return problem
+        pending.extend(model.dependencies(declaration))
+    return None
+
+
+def add_complete_libraries(model: Model) -> None:
+    """Closes every function of COVERED_LIBRARIES and every type and constant
+    of the metadata files declaring them; W/A pairs and W constants also get
+    their neutral name, as a root naming it would."""
+    covered = set(COVERED_LIBRARIES)
+    stems: set[str] = set()
+    names: list[str] = []
+    for declaration in model.declarations.values():
+        if declaration.kind == 'function' and function_library(declaration) in covered:
+            stems.add(declaration.source)
+            names.append(declaration.name)
+    for declaration in model.declarations.values():
+        if declaration.source in stems and declaration.kind in COMPLETE_KINDS:
+            names.append(declaration.name)
+    complete_names(model, names)
+    # The constants of a header the closure reaches are completed too
+    # (winerror.h's HRESULT values): a source including it expects all of
+    # them, not only those a covered function names. Its types stay as
+    # reached; completing them would pull in unrelated DirectX headers.
+    reached = {model.declarations[name].source for name in model.used if name in model.declarations}
+    names = [declaration.name for declaration in model.declarations.values()
+             if declaration.source in reached - stems and declaration.kind == 'const'
+             and set(model.dependencies(declaration)) <= model.used]
+    complete_names(model, names)
+
+
+def complete_names(model: Model, names: list[str]) -> None:
+    for name in sorted(names):
+        missing = complete_closure_problem(model, name)
+        if missing is not None:
+            model.gaps.append(f'complete coverage: {name} not emitted ({missing})')
+            continue
+        model.add_root(name)
+        if name.endswith('W') and name[:-1] + 'A' in model.declarations or \
+                name.endswith('W') and model.declarations.get(name[:-1]) is not None and \
+                model.declarations[name[:-1]].kind == 'const':
+            model.add_root(name[:-1])
+
+
+def split_types(model: Model, emitter: 'Emitter', root_used: set[str], fallback: list[str],
+                stems: dict[str, list[rdl.Decl]]) -> None:
+    """Splits the types between stxwin_types.h and stxwin_types_more.h.
+
+    The complete coverage adds the types of headers windows.h does not include
+    (appmodel.h's PACKAGE_VERSION, which libwebp also defines as a macro); as
+    in the SDK, a program that includes only windows.h must not see them.
+    stxwin_types.h keeps what our sources use and the closure of every
+    constant and function of the headers windows.h includes; the rest goes to
+    stxwin_types_more.h, which the other headers include."""
+    windows_scope: set[str] = set()
+    pending = list(WINDOWS_H_MEMBERS) + list(WINDOWS_H_NOT_LEAN) + list(fallback) + ['windows']
+    com_stems = {declaration.source for declaration in model.declarations.values() if declaration.kind == 'interface'}
+    while pending:
+        current = pending.pop()
+        if current in windows_scope:
+            continue
+        windows_scope.add(current)
+        pending.extend(UMBRELLA_MEMBERS.get(current, []))
+        if current in com_stems and current not in COM_BASE_STEMS:
+            pending.append('ole2')
+    first: set[str] = set()
+    pending = list(BASE_TYPES) + sorted(root_used)
+    for name in model.used:
+        declaration = model.declarations.get(name)
+        if declaration is not None and declaration.source in windows_scope:
+            pending.append(name)
+    while pending:
+        current = pending.pop()
+        if current in first or current not in model.used:
+            continue
+        first.add(current)
+        declaration = model.declarations.get(current)
+        if declaration is None:
+            continue
+        pending.extend(model.dependencies(declaration))
+        if declaration.kind == 'interface' and declaration.base is not None and not declaration.base.namespace:
+            pending.append(declaration.base.name)
+    emitter.first_tier = first
+    for stem, declarations in stems.items():
+        for declaration in declarations:
+            if declaration.name not in first:
+                emitter.more_stems.add(stem)
+                break
+
+
 def read_roots(path: pathlib.Path) -> tuple[list[str], list[str]]:
     includes: list[str] = []
     roots: list[str] = []
@@ -1182,6 +1476,15 @@ def generate(root: pathlib.Path) -> dict[str, str]:
         model.close(name)
     for name in roots:
         model.add_root(name)
+    # The stems our sources' names reach; a stem only the complete coverage
+    # adds stays a header of its own, as in the SDK, outside windows.h.
+    root_used: set[str] = set(model.used)
+    root_stems: set[str] = set()
+    for name in model.used:
+        declaration = model.declarations.get(name)
+        if declaration is not None and declaration.kind in ('const', 'function'):
+            root_stems.add(declaration.source)
+    add_complete_libraries(model)
     emitter = Emitter(model, roots, includes)
     stems = emitter.stems()
 
@@ -1194,7 +1497,6 @@ def generate(root: pathlib.Path) -> dict[str, str]:
 
     outputs: dict[str, str] = {}
     base = 'src/hosted/windows/api/'
-    outputs[base + 'include/stxwin_types.h'] = emitter.types_header()
 
     # COM interface headers are MIDL output, which brings in windows.h and the
     # COM base (Learn: CoTaskMemFree, "combaseapi.h (include Objbase.h)";
@@ -1216,10 +1518,17 @@ def generate(root: pathlib.Path) -> dict[str, str]:
         if current in com_stems and current not in COM_BASE_STEMS:
             pending.append('ole2')
     fallback: list[str] = []
+    standalone: list[str] = []
     for stem in sorted(stems):
-        if stem not in reachable:
+        if stem in reachable:
+            continue
+        if stem in root_stems:
             fallback.append(stem)
             model.gaps.append(f'{stem}.h: used but not reachable from an included header; added to windows.h')
+        else:
+            standalone.append(stem)
+
+    split_types(model, emitter, root_used, fallback, stems)
 
     written: set[str] = set()
     queue = sorted(set(stems) | set(includes))
@@ -1243,6 +1552,8 @@ def generate(root: pathlib.Path) -> dict[str, str]:
         if stem in written:
             lean_members.append(stem)
     outputs[base + 'include/windows.h'] = emitter.umbrella_header('windows', windows_members, lean_members)
+    outputs[base + 'include/stxwin_types.h'] = emitter.types_header()
+    outputs[base + 'include/stxwin_types_more.h'] = emitter.more_types_header()
     outputs[base + 'lib/uuid.c'] = emitter.uuid_source()
     for file_name, text in emitter.export_lists().items():
         outputs[base + f'lib/{file_name}.def'] = text
@@ -1262,6 +1573,8 @@ def generate(root: pathlib.Path) -> dict[str, str]:
     report.append(f'coclass: {len(model.coclasses)}')
     report.append(f'neutral alias: {len(model.neutral)}')
     report.append(f'headers: {len(written) + 1}')
+    report.append('[standalone]')
+    report.extend(f'{stem}.h' for stem in standalone)
     report.append('[gaps]')
     for gap in sorted(set(model.gaps)):
         report.append(gap)

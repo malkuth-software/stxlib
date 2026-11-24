@@ -18,7 +18,7 @@ x64 only. What it supplies:
 | `std::exception_ptr`'s `__ExceptionPtr*` functions (libc++ calls them on this ABI) | `exception_ptr.cpp` |
 | `__std_terminate`, `_purecall`, `set_unexpected`, `_get_unexpected`, `unexpected`, the unhandled-exception filter | `terminate.cpp` |
 | Throwing std::bad_alloc, bad_cast, bad_typeid | `cxx_hooks.cpp` |
-| Per module: memcpy and the vcruntime string group, operator new and delete | `strings.cpp`, `new_delete.cpp` |
+| Per module: memcpy and the vcruntime string group, operator new and delete (one archive member per function, so a program may replace some of them) | `strings.cpp`, `new_delete.cpp` |
 | `__C_specific_handler` (`__try`/`__except`/`__finally`), `_setjmp`, `_setjmpex`, `longjmp` (unwinding) | `structured_handler.cpp`, `setjmp_x64.S`, `jump.cpp` |
 | The one include for the C library and the Windows API, shared with the startup shim: STXlib's own headers (`src/hosted/windows/crt/include`, `src/hosted/windows/api/include`) plus the three names they lack (WinMain, wWinMain, `__fastfail`), so both build with `-nostdinc` | `system_interim.h` |
 

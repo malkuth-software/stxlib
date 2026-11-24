@@ -201,6 +201,43 @@ _STXLIB_CRT_INLINE int __cdecl swscanf(const wchar_t* buffer, const wchar_t* for
     return result;
 }
 
+/* Learn: the wide forms of the string.h additions ("_wcslwr", "_wcsupr",
+ * "_wcsnset", "_wcsrev", "_wcsset", "_wcsicoll", "_wcsncoll",
+ * "_wcsnicoll", "_wcserror"), "wcsncat_s", "wmemcpy_s", "wmemmove_s",
+ * "mbsrtowcs_s", "wcsrtombs_s" and "iswascii". */
+_STXLIB_UCRT wchar_t* __cdecl _wcslwr(wchar_t* text);
+_STXLIB_UCRT wchar_t* __cdecl _wcsupr(wchar_t* text);
+_STXLIB_UCRT errno_t __cdecl _wcslwr_s(wchar_t* text, size_t size);
+_STXLIB_UCRT errno_t __cdecl _wcsupr_s(wchar_t* text, size_t size);
+_STXLIB_UCRT wchar_t* __cdecl _wcsnset(wchar_t* text, wchar_t character, size_t count);
+_STXLIB_UCRT wchar_t* __cdecl _wcsrev(wchar_t* text);
+_STXLIB_UCRT wchar_t* __cdecl _wcsset(wchar_t* text, wchar_t character);
+_STXLIB_UCRT int __cdecl _wcsicoll(const wchar_t* left, const wchar_t* right);
+_STXLIB_UCRT int __cdecl _wcsncoll(const wchar_t* left, const wchar_t* right, size_t count);
+_STXLIB_UCRT int __cdecl _wcsnicoll(const wchar_t* left, const wchar_t* right, size_t count);
+_STXLIB_UCRT wchar_t* __cdecl _wcserror(int number);
+_STXLIB_UCRT errno_t __cdecl wcsncat_s(wchar_t* destination, rsize_t size, const wchar_t* source, rsize_t count);
+_STXLIB_UCRT errno_t __cdecl wmemcpy_s(wchar_t* destination, rsize_t size, const wchar_t* source, rsize_t count);
+_STXLIB_UCRT errno_t __cdecl wmemmove_s(wchar_t* destination, rsize_t size, const wchar_t* source, rsize_t count);
+_STXLIB_UCRT errno_t __cdecl mbsrtowcs_s(size_t* converted, wchar_t* destination, size_t size, const char** source,
+                                         size_t count, mbstate_t* state);
+_STXLIB_UCRT errno_t __cdecl wcsrtombs_s(size_t* converted, char* destination, size_t size,
+                                         const wchar_t** source, size_t count, mbstate_t* state);
+_STXLIB_UCRT int __cdecl iswascii(wint_t character);
+
+/* The POSIX names (Learn: each function's page, "The POSIX name ... is
+ * deprecated"), imported under the Microsoft names (stxlib_crt_common.h). */
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcsdup(const wchar_t* text);
+_STXLIB_UCRT_POSIX int __cdecl wcsicmp(const wchar_t* left, const wchar_t* right);
+_STXLIB_UCRT_POSIX int __cdecl wcsnicmp(const wchar_t* left, const wchar_t* right, size_t count);
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcsnset(wchar_t* text, wchar_t character, size_t count);
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcsrev(wchar_t* text);
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcsset(wchar_t* text, wchar_t character);
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcslwr(wchar_t* text);
+_STXLIB_UCRT_POSIX wchar_t* __cdecl wcsupr(wchar_t* text);
+#endif
+
 _STXLIB_CRT_END
 
 #endif /* STXLIB_CRT_WCHAR_H */

@@ -146,6 +146,98 @@ _STXLIB_UCRT char** __cdecl __sys_errlist(void);
 #define _sys_nerr (*__sys_nerr())
 #define _sys_errlist (__sys_errlist())
 
+/* Learn: "_itoa, _itow ...", "_itoa_s ...", "_ecvt", "_fcvt", "_gcvt",
+ * "_ecvt_s", "_fcvt_s", "_gcvt_s", "_putenv, _wputenv", "_swab",
+ * "_fullpath, _wfullpath", "_splitpath, _wsplitpath",
+ * "_makepath, _wmakepath", "_searchenv, _wsearchenv", "getenv_s, _wgetenv_s",
+ * "_dupenv_s, _wdupenv_s", "bsearch_s", "qsort_s", "mbstowcs_s",
+ * "wcstombs_s", "wctomb_s", "_wtoi, _wtol ...", "_wtof", "_sleep" is not
+ * declared (Learn: obsolete). */
+#define _MAX_PATH 260
+#define _MAX_DRIVE 3
+#define _MAX_DIR 256
+#define _MAX_FNAME 256
+#define _MAX_EXT 256
+
+_STXLIB_UCRT char* __cdecl _itoa(int value, char* buffer, int radix);
+_STXLIB_UCRT char* __cdecl _ltoa(long value, char* buffer, int radix);
+_STXLIB_UCRT char* __cdecl _ultoa(unsigned long value, char* buffer, int radix);
+_STXLIB_UCRT char* __cdecl _i64toa(long long value, char* buffer, int radix);
+_STXLIB_UCRT char* __cdecl _ui64toa(unsigned long long value, char* buffer, int radix);
+_STXLIB_UCRT wchar_t* __cdecl _itow(int value, wchar_t* buffer, int radix);
+_STXLIB_UCRT wchar_t* __cdecl _ltow(long value, wchar_t* buffer, int radix);
+_STXLIB_UCRT wchar_t* __cdecl _ultow(unsigned long value, wchar_t* buffer, int radix);
+_STXLIB_UCRT wchar_t* __cdecl _i64tow(long long value, wchar_t* buffer, int radix);
+_STXLIB_UCRT wchar_t* __cdecl _ui64tow(unsigned long long value, wchar_t* buffer, int radix);
+_STXLIB_UCRT errno_t __cdecl _itoa_s(int value, char* buffer, size_t size, int radix);
+_STXLIB_UCRT errno_t __cdecl _ltoa_s(long value, char* buffer, size_t size, int radix);
+_STXLIB_UCRT errno_t __cdecl _ultoa_s(unsigned long value, char* buffer, size_t size, int radix);
+_STXLIB_UCRT errno_t __cdecl _i64toa_s(long long value, char* buffer, size_t size, int radix);
+_STXLIB_UCRT errno_t __cdecl _ui64toa_s(unsigned long long value, char* buffer, size_t size, int radix);
+_STXLIB_UCRT char* __cdecl _ecvt(double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT char* __cdecl _fcvt(double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT char* __cdecl _gcvt(double value, int digits, char* buffer);
+_STXLIB_UCRT errno_t __cdecl _ecvt_s(char* buffer, size_t size, double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT errno_t __cdecl _fcvt_s(char* buffer, size_t size, double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT errno_t __cdecl _gcvt_s(char* buffer, size_t size, double value, int digits);
+_STXLIB_UCRT int __cdecl _putenv(const char* assignment);
+_STXLIB_UCRT int __cdecl _wputenv(const wchar_t* assignment);
+_STXLIB_UCRT void __cdecl _swab(char* source, char* destination, int count);
+_STXLIB_UCRT char* __cdecl _fullpath(char* absolute, const char* relative, size_t size);
+_STXLIB_UCRT wchar_t* __cdecl _wfullpath(wchar_t* absolute, const wchar_t* relative, size_t size);
+_STXLIB_UCRT void __cdecl _splitpath(const char* path, char* drive, char* directory, char* name, char* extension);
+_STXLIB_UCRT void __cdecl _wsplitpath(const wchar_t* path, wchar_t* drive, wchar_t* directory, wchar_t* name,
+                                      wchar_t* extension);
+_STXLIB_UCRT errno_t __cdecl _splitpath_s(const char* path, char* drive, size_t drive_size, char* directory,
+                                          size_t directory_size, char* name, size_t name_size, char* extension,
+                                          size_t extension_size);
+_STXLIB_UCRT errno_t __cdecl _wsplitpath_s(const wchar_t* path, wchar_t* drive, size_t drive_size,
+                                           wchar_t* directory, size_t directory_size, wchar_t* name,
+                                           size_t name_size, wchar_t* extension, size_t extension_size);
+_STXLIB_UCRT void __cdecl _makepath(char* path, const char* drive, const char* directory, const char* name,
+                                    const char* extension);
+_STXLIB_UCRT void __cdecl _wmakepath(wchar_t* path, const wchar_t* drive, const wchar_t* directory,
+                                     const wchar_t* name, const wchar_t* extension);
+_STXLIB_UCRT errno_t __cdecl _makepath_s(char* path, size_t size, const char* drive, const char* directory,
+                                         const char* name, const char* extension);
+_STXLIB_UCRT errno_t __cdecl _wmakepath_s(wchar_t* path, size_t size, const wchar_t* drive,
+                                          const wchar_t* directory, const wchar_t* name, const wchar_t* extension);
+_STXLIB_UCRT void __cdecl _searchenv(const char* file, const char* variable, char* found);
+_STXLIB_UCRT void __cdecl _wsearchenv(const wchar_t* file, const wchar_t* variable, wchar_t* found);
+_STXLIB_UCRT errno_t __cdecl getenv_s(size_t* required, char* buffer, rsize_t size, const char* name);
+_STXLIB_UCRT errno_t __cdecl _wgetenv_s(size_t* required, wchar_t* buffer, size_t size, const wchar_t* name);
+_STXLIB_UCRT errno_t __cdecl _dupenv_s(char** buffer, size_t* size, const char* name);
+_STXLIB_UCRT errno_t __cdecl _wdupenv_s(wchar_t** buffer, size_t* size, const wchar_t* name);
+_STXLIB_UCRT void* __cdecl bsearch_s(const void* key, const void* base, rsize_t count, rsize_t size,
+                                     int(__cdecl* compare)(void* context, const void* key, const void* element),
+                                     void* context);
+_STXLIB_UCRT void __cdecl qsort_s(void* base, rsize_t count, rsize_t size,
+                                  int(__cdecl* compare)(void* context, const void* left, const void* right),
+                                  void* context);
+_STXLIB_UCRT errno_t __cdecl mbstowcs_s(size_t* converted, wchar_t* destination, size_t size, const char* source,
+                                        size_t count);
+_STXLIB_UCRT errno_t __cdecl wcstombs_s(size_t* converted, char* destination, size_t size, const wchar_t* source,
+                                        size_t count);
+_STXLIB_UCRT errno_t __cdecl wctomb_s(int* written, char* destination, rsize_t size, wchar_t character);
+_STXLIB_UCRT int __cdecl _wtoi(const wchar_t* text);
+_STXLIB_UCRT long __cdecl _wtol(const wchar_t* text);
+_STXLIB_UCRT long long __cdecl _wtoll(const wchar_t* text);
+_STXLIB_UCRT long long __cdecl _wtoi64(const wchar_t* text);
+_STXLIB_UCRT double __cdecl _wtof(const wchar_t* text);
+
+/* The POSIX names (Learn: each function's page, "The POSIX name ... is
+ * deprecated"), imported under the Microsoft names (stxlib_crt_common.h). */
+#if _CRT_DECLARE_NONSTDC_NAMES
+_STXLIB_UCRT_POSIX char* __cdecl ecvt(double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT_POSIX char* __cdecl fcvt(double value, int digits, int* decimal, int* sign);
+_STXLIB_UCRT_POSIX char* __cdecl gcvt(double value, int digits, char* buffer);
+_STXLIB_UCRT_POSIX char* __cdecl itoa(int value, char* buffer, int radix);
+_STXLIB_UCRT_POSIX char* __cdecl ltoa(long value, char* buffer, int radix);
+_STXLIB_UCRT_POSIX char* __cdecl ultoa(unsigned long value, char* buffer, int radix);
+_STXLIB_UCRT_POSIX int __cdecl putenv(const char* assignment);
+_STXLIB_UCRT_POSIX void __cdecl swab(char* source, char* destination, int count);
+#endif
+
 _STXLIB_CRT_END
 
 #endif /* STXLIB_CRT_STDLIB_H */

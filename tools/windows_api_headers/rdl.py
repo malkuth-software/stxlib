@@ -612,3 +612,27 @@ def load_directory(directory: pathlib.Path) -> list[Decl]:
     for path in paths:
         declarations.extend(parse_file(path))
     return declarations
+
+
+def nested_record(type_ref: 'TypeRef | None', declarations: dict) -> 'Decl | None':
+    """The record a named type `Outer::Inner` (or `Outer::Middle::Inner`)
+    names, nested in a struct or union declared at file scope; None for any
+    other type, a WinRT path among them."""
+    if type_ref is None or type_ref.kind != 'named' or not type_ref.namespace:
+        return None
+    path = [segment for segment in type_ref.namespace.split('::') if segment]
+    if not path or path[0] == 'super':
+        return None
+    current = declarations.get(path[0])
+    if current is None or current.kind not in ('struct', 'union'):
+        return None
+    for segment in path[1:] + [type_ref.name]:
+        found = None
+        for nested in current.nested:
+            if nested.name == segment and nested.kind in ('struct', 'union'):
+                found = nested
+                break
+        if found is None:
+            return None
+        current = found
+    return current
