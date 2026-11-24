@@ -47,8 +47,11 @@ env:
   CMAKE_CXX_COMPILER_LAUNCHER: ccache
 jobs:
   linux-glibc:
-    # Debug (shadowing and allocation tags on), ASan+UBSan and TSan, with
-    # libc++ (the Linux profile's C++ library), then the advisory clang-tidy.
+    # Debug (shadowing and allocation tags on), no exceptions, ASan+UBSan and
+    # the static-state unload check, with libc++ (the Linux profile's C++
+    # library), then the advisory clang-tidy. TSan is its own job
+    # (linux-glibc-tsan) since run 45343326038 (2026-11-24) was cancelled at
+    # 90 minutes in TSan, 47 of 163 done, every test passed so far.
     runs-on: ubuntu-24.04
     # 60 (was 40): since 2026-11-17 the job has needed about 41 minutes
     # (TSan alone about 15, stxlib_textlayout_bidi_tests 9 of them) and was
@@ -86,10 +89,6 @@ jobs:
           path: .ccache
           key: ccache-v1-linux-glibc-${{ github.sha }}
           restore-keys: ccache-v1-linux-glibc-
-      # Newer runner kernels use more mmap randomisation bits than older TSan
-      # runtimes accept; 28 is what they expect.
-      - name: Allow TSan's memory layout
-        run: sudo sysctl vm.mmap_rnd_bits=28
       - name: Debug
         run: |
           cmake -S . -B build-debug -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -130,14 +129,6 @@ jobs:
             "-DCMAKE_MODULE_LINKER_FLAGS=$flags"
           cmake --build build-unload --parallel 4 --target stxlib_allocator_unload_tests
           ctest --test-dir build-unload -R '^stxlib_allocator_unload_tests$' -V --no-tests=error --timeout 600
-      - name: TSan
-        run: |
-          flags="-stdlib=libc++ -fsanitize=thread -fno-omit-frame-pointer -g"
-          cmake -S . -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            "-DCMAKE_C_FLAGS=-fsanitize=thread -fno-omit-frame-pointer -g" \
-            "-DCMAKE_CXX_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$flags" "-DCMAKE_SHARED_LINKER_FLAGS=$flags"
-          cmake --build build-tsan --parallel 4
-          ctest --test-dir build-tsan --output-on-failure --parallel 3 --timeout 1800
       # Advisory only (.clang-tidy): reported, never failing the job.
       - name: clang-tidy (advisory, misc-const-correctness)
         if: always()
@@ -146,6 +137,56 @@ jobs:
           run-clang-tidy-22 -p build-debug -j 4 -quiet "$PWD/(src|tests)/" > clang-tidy.log 2>&1 || true
           echo "findings: $(grep -c 'warning:' clang-tidy.log) warnings, $(grep -c 'error:' clang-tidy.log) errors"
           grep -E 'warning:|error:' clang-tidy.log | sed "s|$PWD/||" | sort -u | head -60
+      - name: Compiler cache statistics
+        if: always()
+        run: ccache --show-stats
+
+  linux-glibc-tsan:
+    # TSan with libc++ (RelWithDebInfo), split from linux-glibc on
+    # 2026-11-24 so neither job nears its timeout.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      CC: clang-22
+      CXX: clang++-22
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_BASEDIR: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install LLVM 22 from apt.llvm.org
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key -o "$RUNNER_TEMP/llvm-key.asc"
+          sudo install -m 0644 "$RUNNER_TEMP/llvm-key.asc" /usr/share/keyrings/apt-llvm.asc
+          echo 'deb [signed-by=/usr/share/keyrings/apt-llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
+          sudo apt-get update
+          # llvm-22 for llvm-symbolizer: TSan's suppressions match function
+          # names, and unsymbolized stacks match none (CI 43504193172).
+          sudo apt-get install -y --no-install-recommends clang-22 lld-22 llvm-22 \
+            libc++-22-dev libc++abi-22-dev libclang-rt-22-dev ninja-build ccache
+          echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
+      - name: Compiler
+        run: |
+          clang++-22 --version | head -1
+          clang++-22 --version | head -1 | grep -q ' 22\.1\.8' || echo "::warning::LLVM is not 22.1.8 on linux-glibc-tsan: $(clang++-22 --version | head -1)"
+          command -v llvm-symbolizer
+      - uses: actions/cache@v6
+        with:
+          path: .ccache
+          key: ccache-v1-linux-glibc-tsan-${{ github.sha }}
+          restore-keys: ccache-v1-linux-glibc-tsan-
+      # Newer runner kernels use more mmap randomisation bits than older TSan
+      # runtimes accept; 28 is what they expect.
+      - name: Allow TSan's memory layout
+        run: sudo sysctl vm.mmap_rnd_bits=28
+      - name: TSan
+        run: |
+          flags="-stdlib=libc++ -fsanitize=thread -fno-omit-frame-pointer -g"
+          cmake -S . -B build-tsan -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            "-DCMAKE_C_FLAGS=-fsanitize=thread -fno-omit-frame-pointer -g" \
+            "-DCMAKE_CXX_FLAGS=$flags" "-DCMAKE_EXE_LINKER_FLAGS=$flags" "-DCMAKE_SHARED_LINKER_FLAGS=$flags"
+          cmake --build build-tsan --parallel 4
+          ctest --test-dir build-tsan --output-on-failure --parallel 3 --timeout 1800
       - name: Compiler cache statistics
         if: always()
         run: ccache --show-stats
