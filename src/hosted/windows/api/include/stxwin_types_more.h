@@ -10,6 +10,19 @@
 /* Records and interfaces, declared first so any order of use is possible. */
 typedef struct AASHELLMENUFILENAME AASHELLMENUFILENAME;
 typedef struct AASHELLMENUITEM AASHELLMENUITEM;
+typedef struct ADDRINFOA ADDRINFOA;
+typedef struct ADDRINFOEX2A ADDRINFOEX2A;
+typedef struct ADDRINFOEX2W ADDRINFOEX2W;
+typedef struct ADDRINFOEX3 ADDRINFOEX3;
+typedef struct ADDRINFOEX4 ADDRINFOEX4;
+typedef struct ADDRINFOEX5 ADDRINFOEX5;
+typedef struct ADDRINFOEX6 ADDRINFOEX6;
+typedef struct ADDRINFOEX7 ADDRINFOEX7;
+typedef struct ADDRINFOEXA ADDRINFOEXA;
+typedef struct ADDRINFOEXW ADDRINFOEXW;
+typedef struct ADDRINFOW ADDRINFOW;
+typedef struct ADDRINFO_DNS_SERVER ADDRINFO_DNS_SERVER;
+typedef struct AFPROTOCOLS AFPROTOCOLS;
 typedef struct APARTMENT_SHUTDOWN_REGISTRATION_COOKIE__ APARTMENT_SHUTDOWN_REGISTRATION_COOKIE__;
 typedef struct AUDIT_POLICY_INFORMATION AUDIT_POLICY_INFORMATION;
 typedef struct AUTO_SCROLL_DATA AUTO_SCROLL_DATA;
@@ -91,6 +104,7 @@ typedef struct CRYPT_PROVIDERS CRYPT_PROVIDERS;
 typedef struct CRYPT_PROVIDER_REF CRYPT_PROVIDER_REF;
 typedef struct CRYPT_PROVIDER_REFS CRYPT_PROVIDER_REFS;
 typedef struct CRYPT_PROVIDER_REG CRYPT_PROVIDER_REG;
+typedef struct CSADDR_INFO CSADDR_INFO;
 typedef struct CSFV CSFV;
 typedef struct D3DDDICB_DESTROYALLOCATION2FLAGS D3DDDICB_DESTROYALLOCATION2FLAGS;
 typedef struct D3DDDICB_LOCK2FLAGS D3DDDICB_LOCK2FLAGS;
@@ -632,6 +646,7 @@ typedef struct FILEDESCRIPTORW FILEDESCRIPTORW;
 typedef struct FILEGROUPDESCRIPTORA FILEGROUPDESCRIPTORA;
 typedef struct FILEGROUPDESCRIPTORW FILEGROUPDESCRIPTORW;
 typedef struct FILE_ATTRIBUTES_ARRAY FILE_ATTRIBUTES_ARRAY;
+typedef struct FLOWSPEC FLOWSPEC;
 typedef struct FN_OBJECT_MGR_FUNCTS FN_OBJECT_MGR_FUNCTS;
 typedef struct FOLDERSETTINGS FOLDERSETTINGS;
 typedef struct FONTDESC FONTDESC;
@@ -830,6 +845,7 @@ typedef struct IMenuPopup IMenuPopup;
 typedef struct INHERITED_FROMA INHERITED_FROMA;
 typedef struct INHERITED_FROMW INHERITED_FROMW;
 typedef struct INTLIST INTLIST;
+typedef struct IN_ADDR IN_ADDR;
 typedef struct INameSpaceTreeAccessible INameSpaceTreeAccessible;
 typedef struct INameSpaceTreeControl INameSpaceTreeControl;
 typedef struct INameSpaceTreeControl2 INameSpaceTreeControl2;
@@ -965,7 +981,6 @@ typedef struct IStorageProviderCopyHook IStorageProviderCopyHook;
 typedef struct IStreamAsync IStreamAsync;
 typedef struct IStreamUnbufferedInfo IStreamUnbufferedInfo;
 typedef struct ISuspensionDependencyManager ISuspensionDependencyManager;
-typedef struct ITEMIDLIST ITEMIDLIST;
 typedef struct ITEMSPACING ITEMSPACING;
 typedef struct ITaskbarList ITaskbarList;
 typedef struct ITaskbarList2 ITaskbarList2;
@@ -1200,6 +1215,7 @@ typedef struct QACONTROL QACONTROL;
 typedef struct QCMINFO QCMINFO;
 typedef struct QCMINFO_IDMAP QCMINFO_IDMAP;
 typedef struct QCMINFO_IDMAP_PLACEMENT QCMINFO_IDMAP_PLACEMENT;
+typedef struct QOS QOS;
 typedef struct SAFER_CODE_PROPERTIES_V1 SAFER_CODE_PROPERTIES_V1;
 typedef struct SAFER_CODE_PROPERTIES_V2 SAFER_CODE_PROPERTIES_V2;
 typedef struct SAFER_HASH_IDENTIFICATION SAFER_HASH_IDENTIFICATION;
@@ -1208,6 +1224,7 @@ typedef struct SAFER_IDENTIFICATION_HEADER SAFER_IDENTIFICATION_HEADER;
 typedef struct SAFER_LEVEL_HANDLE__ SAFER_LEVEL_HANDLE__;
 typedef struct SAFER_PATHNAME_IDENTIFICATION SAFER_PATHNAME_IDENTIFICATION;
 typedef struct SAFER_URLZONE_IDENTIFICATION SAFER_URLZONE_IDENTIFICATION;
+typedef struct SCOPE_ID SCOPE_ID;
 typedef struct SECURITY_LOGON_SESSION_DATA SECURITY_LOGON_SESSION_DATA;
 typedef struct SERIALIZEDPROPERTYVALUE SERIALIZEDPROPERTYVALUE;
 typedef struct SERVER_INFO_100 SERVER_INFO_100;
@@ -1346,10 +1363,19 @@ typedef struct SHELLSTATEA SHELLSTATEA;
 typedef struct SHELLSTATEW SHELLSTATEW;
 typedef struct SHELL_ITEM_RESOURCE SHELL_ITEM_RESOURCE;
 typedef struct SHFOLDERCUSTOMSETTINGS SHFOLDERCUSTOMSETTINGS;
-typedef struct SHITEMID SHITEMID;
 typedef struct SMCSHCHANGENOTIFYSTRUCT SMCSHCHANGENOTIFYSTRUCT;
 typedef struct SMDATA SMDATA;
 typedef struct SMINFO SMINFO;
+typedef struct SOCKADDR SOCKADDR;
+typedef struct SOCKADDR_DL SOCKADDR_DL;
+typedef struct SOCKADDR_IN SOCKADDR_IN;
+typedef struct SOCKADDR_STORAGE_LH SOCKADDR_STORAGE_LH;
+typedef struct SOCKADDR_STORAGE_XP SOCKADDR_STORAGE_XP;
+typedef struct SOCKADDR_UN SOCKADDR_UN;
+typedef struct SOCKET_ADDRESS SOCKET_ADDRESS;
+typedef struct SOCKET_ADDRESS_LIST SOCKET_ADDRESS_LIST;
+typedef struct SOCKET_PROCESSOR_AFFINITY SOCKET_PROCESSOR_AFFINITY;
+typedef struct SOCK_NOTIFY_REGISTRATION SOCK_NOTIFY_REGISTRATION;
 typedef struct SORTCOLUMN SORTCOLUMN;
 typedef struct SSL_ECCKEY_BLOB SSL_ECCKEY_BLOB;
 typedef struct STRING STRING;
@@ -1478,6 +1504,29 @@ typedef struct WER_REPORT_METADATA_V3 WER_REPORT_METADATA_V3;
 typedef struct WER_REPORT_SIGNATURE WER_REPORT_SIGNATURE;
 typedef struct WER_RUNTIME_EXCEPTION_INFORMATION WER_RUNTIME_EXCEPTION_INFORMATION;
 typedef struct WNODE_HEADER WNODE_HEADER;
+typedef struct WSABUF WSABUF;
+typedef struct WSACMSGHDR WSACMSGHDR;
+typedef struct WSACOMPLETION WSACOMPLETION;
+typedef struct WSADATA WSADATA;
+typedef struct WSAMSG WSAMSG;
+typedef struct WSANAMESPACE_INFOA WSANAMESPACE_INFOA;
+typedef struct WSANAMESPACE_INFOEXA WSANAMESPACE_INFOEXA;
+typedef struct WSANAMESPACE_INFOEXW WSANAMESPACE_INFOEXW;
+typedef struct WSANAMESPACE_INFOW WSANAMESPACE_INFOW;
+typedef struct WSANETWORKEVENTS WSANETWORKEVENTS;
+typedef struct WSANSCLASSINFOA WSANSCLASSINFOA;
+typedef struct WSANSCLASSINFOW WSANSCLASSINFOW;
+typedef struct WSAPOLLFD WSAPOLLFD;
+typedef struct WSAPROTOCOLCHAIN WSAPROTOCOLCHAIN;
+typedef struct WSAPROTOCOL_INFOA WSAPROTOCOL_INFOA;
+typedef struct WSAPROTOCOL_INFOW WSAPROTOCOL_INFOW;
+typedef struct WSAQUERYSET2A WSAQUERYSET2A;
+typedef struct WSAQUERYSET2W WSAQUERYSET2W;
+typedef struct WSAQUERYSETA WSAQUERYSETA;
+typedef struct WSAQUERYSETW WSAQUERYSETW;
+typedef struct WSASERVICECLASSINFOA WSASERVICECLASSINFOA;
+typedef struct WSASERVICECLASSINFOW WSASERVICECLASSINFOW;
+typedef struct WSAVERSION WSAVERSION;
 typedef struct WTA_OPTIONS WTA_OPTIONS;
 typedef struct _BCRYPT_PARAMETER_SET_KEY_BLOB _BCRYPT_PARAMETER_SET_KEY_BLOB;
 typedef struct _EVENT_TRACE_LOGFILEA _EVENT_TRACE_LOGFILEA;
@@ -1490,6 +1539,14 @@ typedef struct _RO_REGISTRATION_COOKIE _RO_REGISTRATION_COOKIE;
 typedef struct _TRUSTEE_A _TRUSTEE_A;
 typedef struct _TRUSTEE_W _TRUSTEE_W;
 typedef struct _WER_REPORT_PARAMETER _WER_REPORT_PARAMETER;
+typedef struct fd_set fd_set;
+typedef struct hostent hostent;
+typedef struct linger linger;
+typedef struct netent netent;
+typedef struct protoent protoent;
+typedef struct servent servent;
+typedef struct sockproto sockproto;
+typedef struct timeval timeval;
 
 /* shlobj.h */
 #pragma pack(push, 8)
@@ -1540,6 +1597,230 @@ typedef enum ACTIVATEOPTIONS {
 } ACTIVATEOPTIONS;
 STXWIN_ENUM_FLAG_OPERATORS(ACTIVATEOPTIONS)
 
+/* ws2def.h */
+typedef unsigned short ADDRESS_FAMILY;
+
+/* ws2tcpip.h */
+#ifdef UNICODE
+typedef ADDRINFOW ADDRINFO;
+#else
+typedef ADDRINFOA ADDRINFO;
+#endif
+
+/* ws2def.h */
+struct ADDRINFOA {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    CHAR *ai_canonname;
+    SOCKADDR *ai_addr;
+    ADDRINFOA *ai_next;
+};
+
+/* ws2tcpip.h */
+#ifdef UNICODE
+typedef ADDRINFOEXW ADDRINFOEX;
+#else
+typedef ADDRINFOEXA ADDRINFOEX;
+#endif
+
+/* ws2def.h */
+struct ADDRINFOEX2A {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    CHAR *ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    LPGUID ai_provider;
+    ADDRINFOEX2A *ai_next;
+    int ai_version;
+    CHAR *ai_fqdn;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX2W {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    LPGUID ai_provider;
+    ADDRINFOEX2W *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX3 {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    LPGUID ai_provider;
+    ADDRINFOEX3 *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+    int ai_interfaceindex;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX4 {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    GUID *ai_provider;
+    ADDRINFOEX4 *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+    int ai_interfaceindex;
+    HANDLE ai_resolutionhandle;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX5 {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    GUID *ai_provider;
+    ADDRINFOEX5 *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+    int ai_interfaceindex;
+    HANDLE ai_resolutionhandle;
+    unsigned int ai_ttl;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX6 {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    GUID *ai_provider;
+    ADDRINFOEX5 *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+    int ai_interfaceindex;
+    HANDLE ai_resolutionhandle;
+    unsigned int ai_ttl;
+    unsigned int ai_numservers;
+    ADDRINFO_DNS_SERVER *ai_servers;
+    ULONG64 ai_responseflags;
+};
+
+/* ws2def.h */
+struct ADDRINFOEX7 {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    GUID *ai_provider;
+    ADDRINFOEX7 *ai_next;
+    int ai_version;
+    PWSTR ai_fqdn;
+    int ai_interfaceindex;
+    HANDLE ai_resolutionhandle;
+    unsigned int ai_ttl;
+    unsigned int ai_numservers;
+    ADDRINFO_DNS_SERVER *ai_servers;
+    ULONG64 ai_responseflags;
+    ULONG64 ai_extraflags;
+};
+
+/* ws2def.h */
+struct ADDRINFOEXA {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    CHAR *ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    LPGUID ai_provider;
+    ADDRINFOEXA *ai_next;
+};
+
+/* ws2def.h */
+struct ADDRINFOEXW {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    void *ai_blob;
+    size_t ai_bloblen;
+    LPGUID ai_provider;
+    ADDRINFOEXW *ai_next;
+};
+
+/* ws2tcpip.h */
+typedef ADDRINFOA ADDRINFOT;
+
+/* ws2def.h */
+struct ADDRINFOW {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    PWSTR ai_canonname;
+    SOCKADDR *ai_addr;
+    ADDRINFOW *ai_next;
+};
+
+/* ws2def.h */
+struct ADDRINFO_DNS_SERVER {
+    unsigned int ai_servertype;
+    unsigned long long ai_flags;
+    unsigned int ai_addrlen;
+    SOCKADDR *ai_addr;
+    union {
+        PWSTR ai_template;
+        PWSTR ai_hostname;
+    };
+};
+
 /* shobjidl_core.h */
 typedef enum ADJACENT_DISPLAY_EDGES {
     ADE_NONE = 0,
@@ -1547,6 +1828,12 @@ typedef enum ADJACENT_DISPLAY_EDGES {
     ADE_RIGHT = 2,
 } ADJACENT_DISPLAY_EDGES;
 STXWIN_ENUM_FLAG_OPERATORS(ADJACENT_DISPLAY_EDGES)
+
+/* winsock2.h */
+struct AFPROTOCOLS {
+    INT iAddressFamily;
+    INT iProtocol;
+};
 
 /* shobjidl_core.h */
 typedef enum AHE_TYPE {
@@ -1833,9 +2120,6 @@ typedef enum AutomationIdentifierType {
     AutomationIdentifierType_Changes = 7,
     AutomationIdentifierType_Style = 8,
 } AutomationIdentifierType;
-
-/* shtypes.h */
-typedef ITEMIDLIST *LPITEMIDLIST;
 
 /* shlobj.h */
 #pragma pack(push, 8)
@@ -2205,9 +2489,6 @@ struct BP_PAINTPARAMS {
     const BLENDFUNCTION *pBlendFunction;
 };
 
-/* shtypes.h */
-typedef const ITEMIDLIST *LPCITEMIDLIST;
-
 /* shlobj_core.h */
 #pragma pack(push, 8)
 struct BROWSEINFOA {
@@ -2433,6 +2714,9 @@ struct CMINVOKECOMMANDINFOEX_REMOTE {
 };
 #pragma pack(pop)
 
+/* ws2def.h */
+typedef WSACMSGHDR CMSGHDR;
+
 /* shobjidl_core.h */
 struct CM_COLUMNINFO {
     DWORD cbSize;
@@ -2587,6 +2871,13 @@ typedef enum CPVIEW {
 } CPVIEW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIALW CREDENTIAL;
+#else
+typedef CREDENTIALA CREDENTIAL;
+#endif
+
+/* wincred.h */
 typedef CREDENTIAL_ATTRIBUTEA *PCREDENTIAL_ATTRIBUTEA;
 
 /* wincred.h */
@@ -2625,6 +2916,13 @@ struct CREDENTIALW {
 };
 
 /* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIAL_ATTRIBUTEW CREDENTIAL_ATTRIBUTE;
+#else
+typedef CREDENTIAL_ATTRIBUTEA CREDENTIAL_ATTRIBUTE;
+#endif
+
+/* wincred.h */
 struct CREDENTIAL_ATTRIBUTEA {
     LPSTR Keyword;
     DWORD Flags;
@@ -2639,6 +2937,13 @@ struct CREDENTIAL_ATTRIBUTEW {
     DWORD ValueSize;
     LPBYTE Value;
 };
+
+/* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIAL_TARGET_INFORMATIONW CREDENTIAL_TARGET_INFORMATION;
+#else
+typedef CREDENTIAL_TARGET_INFORMATIONA CREDENTIAL_TARGET_INFORMATION;
+#endif
 
 /* wincred.h */
 struct CREDENTIAL_TARGET_INFORMATIONA {
@@ -2667,6 +2972,13 @@ struct CREDENTIAL_TARGET_INFORMATIONW {
     DWORD CredTypeCount;
     LPDWORD CredTypes;
 };
+
+/* wincred.h */
+#ifdef UNICODE
+typedef CREDUI_INFOW CREDUI_INFO;
+#else
+typedef CREDUI_INFOA CREDUI_INFO;
+#endif
 
 /* wincred.h */
 struct CREDUI_INFOA {
@@ -2805,6 +3117,23 @@ struct CRYPT_PROVIDER_REG {
     PWSTR *rgpszAliases;
     PCRYPT_IMAGE_REG pUM;
     PCRYPT_IMAGE_REG pKM;
+};
+
+/* ws2def.h */
+typedef SOCKADDR *LPSOCKADDR;
+
+/* ws2def.h */
+struct SOCKET_ADDRESS {
+    LPSOCKADDR lpSockaddr;
+    INT iSockaddrLength;
+};
+
+/* ws2def.h */
+struct CSADDR_INFO {
+    SOCKET_ADDRESS LocalAddr;
+    SOCKET_ADDRESS RemoteAddr;
+    INT iSocketType;
+    INT iProtocol;
 };
 
 /* shobjidl_core.h */
@@ -10083,6 +10412,9 @@ typedef enum FD_FLAGS {
     FD_UNICODE = -2147483648,
 } FD_FLAGS;
 
+/* winsock2.h */
+typedef fd_set FD_SET;
+
 /* shobjidl_core.h */
 typedef enum FFFP_MODE {
     FFFP_EXACTMATCH = 0,
@@ -10162,6 +10494,21 @@ typedef enum FILE_USAGE_TYPE {
     FUT_EDITING = 1,
     FUT_GENERIC = 2,
 } FILE_USAGE_TYPE;
+
+/* qos.h */
+typedef unsigned int SERVICETYPE;
+
+/* qos.h */
+struct FLOWSPEC {
+    ULONG TokenRate;
+    ULONG TokenBucketSize;
+    ULONG PeakBandwidth;
+    ULONG Latency;
+    ULONG DelayVariation;
+    SERVICETYPE ServiceType;
+    ULONG MaxSduSize;
+    ULONG MinimumPolicedSize;
+};
 
 /* shobjidl_core.h */
 typedef enum FLYOUT_PLACEMENT {
@@ -10314,6 +10661,9 @@ typedef enum GESTURE_TYPE {
 /* shlobj_core.h */
 typedef int GPFIDL_FLAGS;
 
+/* winsock2.h */
+typedef unsigned int GROUP;
+
 /* ocidl.h */
 typedef enum GUIDKIND {
     GUIDKIND_DEFAULT_SOURCE_DISP_IID = 1,
@@ -10367,6 +10717,9 @@ typedef enum HOMEGROUPSHARINGCHOICES {
     HGSC_PRINTERS = 16,
 } HOMEGROUPSHARINGCHOICES;
 STXWIN_ENUM_FLAG_OPERATORS(HOMEGROUPSHARINGCHOICES)
+
+/* winsock2.h */
+typedef hostent HOSTENT;
 
 /* uxtheme.h */
 typedef void *HPAINTBUFFER;
@@ -10484,20 +10837,61 @@ struct INTLIST {
     int iValues[402];
 };
 
-/* shtypes.h */
-#pragma pack(push, 1)
-struct SHITEMID {
-    USHORT cb;
-    BYTE abID[1];
+/* inaddr.h */
+struct IN_ADDR {
+    union {
+        struct {
+            UCHAR s_b1;
+            UCHAR s_b2;
+            UCHAR s_b3;
+            UCHAR s_b4;
+        } S_un_b;
+        struct {
+            USHORT s_w1;
+            USHORT s_w2;
+        } S_un_w;
+        ULONG S_addr;
+    } S_un;
 };
-#pragma pack(pop)
 
-/* shtypes.h */
-#pragma pack(push, 1)
-struct ITEMIDLIST {
-    SHITEMID mkid;
-};
-#pragma pack(pop)
+/* ws2def.h */
+typedef enum IPPROTO {
+    IPPROTO_HOPOPTS = 0,
+    IPPROTO_ICMP = 1,
+    IPPROTO_IGMP = 2,
+    IPPROTO_GGP = 3,
+    IPPROTO_IPV4 = 4,
+    IPPROTO_ST = 5,
+    IPPROTO_TCP = 6,
+    IPPROTO_CBT = 7,
+    IPPROTO_EGP = 8,
+    IPPROTO_IGP = 9,
+    IPPROTO_PUP = 12,
+    IPPROTO_UDP = 17,
+    IPPROTO_IDP = 22,
+    IPPROTO_RDP = 27,
+    IPPROTO_IPV6 = 41,
+    IPPROTO_ROUTING = 43,
+    IPPROTO_FRAGMENT = 44,
+    IPPROTO_ESP = 50,
+    IPPROTO_AH = 51,
+    IPPROTO_ICMPV6 = 58,
+    IPPROTO_NONE = 59,
+    IPPROTO_DSTOPTS = 60,
+    IPPROTO_ND = 77,
+    IPPROTO_ICLFXBM = 78,
+    IPPROTO_PIM = 103,
+    IPPROTO_PGM = 113,
+    IPPROTO_L2TP = 115,
+    IPPROTO_SCTP = 132,
+    IPPROTO_RAW = 255,
+    IPPROTO_MAX = 256,
+    IPPROTO_RESERVED_RAW = 257,
+    IPPROTO_RESERVED_IPSEC = 258,
+    IPPROTO_RESERVED_IPSECOFFLOAD = 259,
+    IPPROTO_RESERVED_WNV = 260,
+    IPPROTO_RESERVED_MAX = 261,
+} IPPROTO;
 
 /* shlobj_core.h */
 #pragma pack(push, 8)
@@ -11306,6 +11700,9 @@ struct LICINFO {
     BOOL fLicVerified;
 };
 
+/* winsock2.h */
+typedef linger LINGER;
+
 /* shlobj.h */
 typedef AASHELLMENUITEM *LPAASHELLMENUITEM;
 
@@ -11324,11 +11721,38 @@ typedef IActiveDesktop *LPACTIVEDESKTOP;
 /* shlobj.h */
 typedef IActiveDesktopP *LPACTIVEDESKTOPP;
 
+/* ws2tcpip.h */
+typedef ADDRINFOA *LPADDRINFO;
+
+/* ws2def.h */
+typedef ADDRINFOEX2A *LPADDRINFOEX2A;
+
+/* ws2def.h */
+typedef ADDRINFOEX2W *LPADDRINFOEX2W;
+
+/* ws2def.h */
+typedef ADDRINFOEX3 *LPADDRINFOEX3;
+
+/* ws2def.h */
+typedef ADDRINFOEX4 *LPADDRINFOEX4;
+
+/* ws2def.h */
+typedef ADDRINFOEX5 *LPADDRINFOEX5;
+
+/* ws2def.h */
+typedef ADDRINFOEXA *LPADDRINFOEXA;
+
+/* ws2def.h */
+typedef ADDRINFOEXW *LPADDRINFOEXW;
+
 /* shlobj.h */
 typedef IADesktopP2 *LPADESKTOPP2;
 
 /* ocidl.h */
 typedef IAdviseSinkEx *LPADVISESINKEX;
+
+/* winsock2.h */
+typedef AFPROTOCOLS *LPAFPROTOCOLS;
 
 /* shlobj_core.h */
 typedef BROWSEINFOA *LPBROWSEINFOA;
@@ -11393,6 +11817,15 @@ typedef COMPPOS *LPCOMPPOS;
 /* shlobj_core.h */
 typedef COMPSTATEINFO *LPCOMPSTATEINFO;
 
+/* winsock2.h */
+typedef QOS *LPQOS;
+
+/* ws2def.h */
+typedef WSABUF *LPWSABUF;
+
+/* winsock2.h */
+typedef int (__stdcall *LPCONDITIONPROC)(LPWSABUF lpCallerId, LPWSABUF lpCallerData, LPQOS lpSQOS, LPQOS lpGQOS, LPWSABUF lpCalleeId, LPWSABUF lpCalleeData, GROUP *g, DWORD_PTR dwCallbackData);
+
 /* ocidl.h */
 typedef CONNECTDATA *LPCONNECTDATA;
 
@@ -11422,6 +11855,9 @@ typedef ICopyHookW *LPCOPYHOOKW;
 
 /* shlobj_core.h */
 typedef const PROPPRG *LPCPROPPRG;
+
+/* ws2def.h */
+typedef CSADDR_INFO *LPCSADDR_INFO;
 
 /* shlobj_core.h */
 typedef CSFV *LPCSFV;
@@ -11491,6 +11927,9 @@ typedef IExtractImage2 *LPEXTRACTIMAGE2;
 
 /* shobjidl_core.h */
 typedef EXTRASEARCH *LPEXTRASEARCH;
+
+/* winsock2.h */
+typedef fd_set *LPFD_SET;
 
 /* shlobj_core.h */
 typedef FILEDESCRIPTORA *LPFILEDESCRIPTORA;
@@ -11565,6 +12004,9 @@ typedef HEAPENTRY32 *LPHEAPENTRY32;
 /* tlhelp32.h */
 typedef HEAPLIST32 *LPHEAPLIST32;
 
+/* winsock2.h */
+typedef hostent *LPHOSTENT;
+
 /* shlobj_core.h */
 typedef CIDA *LPIDA;
 
@@ -11573,6 +12015,15 @@ typedef IE4COMPONENT *LPIE4COMPONENT;
 
 /* ocidl.h */
 typedef LICINFO *LPLICINFO;
+
+/* winsock2.h */
+typedef linger *LPLINGER;
+
+/* winsock2.h */
+typedef OVERLAPPED *LPWSAOVERLAPPED;
+
+/* ws2tcpip.h */
+typedef void (__stdcall *LPLOOKUPSERVICE_COMPLETION_ROUTINE)(DWORD dwError, DWORD dwBytes, LPWSAOVERLAPPED lpOverlapped);
 
 /* tlhelp32.h */
 typedef MODULEENTRY32 *LPMODULEENTRY32;
@@ -11685,6 +12136,9 @@ typedef PROPPAGEINFO *LPPROPPAGEINFO;
 /* shlobj_core.h */
 typedef PROPPRG *LPPROPPRG;
 
+/* winsock2.h */
+typedef protoent *LPPROTOENT;
+
 /* ocidl.h */
 typedef IProvideClassInfo *LPPROVIDECLASSINFO;
 
@@ -11699,6 +12153,9 @@ typedef QCMINFO *LPQCMINFO;
 
 /* ocidl.h */
 typedef IQuickActivate *LPQUICKACTIVATE;
+
+/* winsock2.h */
+typedef servent *LPSERVENT;
 
 /* lmserver.h */
 typedef SERVER_INFO_100 *LPSERVER_INFO_100;
@@ -12084,6 +12541,24 @@ typedef ISimpleFrameSite *LPSIMPLEFRAMESITE;
 /* shobjidl_core.h */
 typedef SMDATA *LPSMDATA;
 
+/* winsock2.h */
+typedef SOCKADDR_IN *LPSOCKADDR_IN;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_LH *LPSOCKADDR_STORAGE;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_LH *LPSOCKADDR_STORAGE_LH;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_XP *LPSOCKADDR_STORAGE_XP;
+
+/* ws2def.h */
+typedef SOCKET_ADDRESS *LPSOCKET_ADDRESS;
+
+/* ws2def.h */
+typedef SOCKET_ADDRESS_LIST *LPSOCKET_ADDRESS_LIST;
+
 /* ocidl.h */
 typedef ISpecifyPropertyPages *LPSPECIFYPROPERTYPAGES;
 
@@ -12111,6 +12586,9 @@ typedef THUMBBUTTON *LPTHUMBBUTTON;
 /* shlobj.h */
 typedef IThumbnailCapture *LPTHUMBNAILCAPTURE;
 
+/* winsock2.h */
+typedef timeval *LPTIMEVAL;
+
 /* ocidl.h */
 typedef IViewObjectEx *LPVIEWOBJECTEX;
 
@@ -12119,6 +12597,155 @@ typedef CHAR *LPVIEWSETTINGS;
 
 /* shlobj_core.h */
 typedef WALLPAPEROPT *LPWALLPAPEROPT;
+
+/* ws2def.h */
+typedef WSACMSGHDR *LPWSACMSGHDR;
+
+/* winsock2.h */
+typedef WSACOMPLETION *LPWSACOMPLETION;
+
+/* winsock2.h */
+typedef enum WSACOMPLETIONTYPE {
+    NSP_NOTIFY_IMMEDIATELY = 0,
+    NSP_NOTIFY_HWND = 1,
+    NSP_NOTIFY_EVENT = 2,
+    NSP_NOTIFY_PORT = 3,
+    NSP_NOTIFY_APC = 4,
+} WSACOMPLETIONTYPE;
+
+/* winsock2.h */
+typedef WSACOMPLETIONTYPE *LPWSACOMPLETIONTYPE;
+
+/* winsock2.h */
+typedef WSADATA *LPWSADATA;
+
+/* winsock2.h */
+typedef enum WSAECOMPARATOR {
+    COMP_EQUAL = 0,
+    COMP_NOTLESS = 1,
+} WSAECOMPARATOR;
+
+/* winsock2.h */
+typedef WSAECOMPARATOR *LPWSAECOMPARATOR;
+
+/* winsock2.h */
+typedef enum WSAESETSERVICEOP {
+    RNRSERVICE_REGISTER = 0,
+    RNRSERVICE_DEREGISTER = 1,
+    RNRSERVICE_DELETE = 2,
+} WSAESETSERVICEOP;
+
+/* winsock2.h */
+typedef WSAESETSERVICEOP *LPWSAESETSERVICEOP;
+
+/* ws2def.h */
+typedef WSAMSG *LPWSAMSG;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOA *LPWSANAMESPACE_INFOA;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOW *LPWSANAMESPACE_INFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSANAMESPACE_INFOW LPWSANAMESPACE_INFO;
+#else
+typedef LPWSANAMESPACE_INFOA LPWSANAMESPACE_INFO;
+#endif
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOEXA *LPWSANAMESPACE_INFOEXA;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOEXW *LPWSANAMESPACE_INFOEXW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSANAMESPACE_INFOEXW LPWSANAMESPACE_INFOEX;
+#else
+typedef LPWSANAMESPACE_INFOEXA LPWSANAMESPACE_INFOEX;
+#endif
+
+/* winsock2.h */
+typedef WSANETWORKEVENTS *LPWSANETWORKEVENTS;
+
+/* winsock2.h */
+typedef WSANSCLASSINFOA *LPWSANSCLASSINFOA;
+
+/* winsock2.h */
+typedef WSANSCLASSINFOW *LPWSANSCLASSINFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSANSCLASSINFOW LPWSANSCLASSINFO;
+#else
+typedef LPWSANSCLASSINFOA LPWSANSCLASSINFO;
+#endif
+
+/* winsock2.h */
+typedef void (__stdcall *LPWSAOVERLAPPED_COMPLETION_ROUTINE)(DWORD dwError, DWORD cbTransferred, LPWSAOVERLAPPED lpOverlapped, DWORD dwFlags);
+
+/* winsock2.h */
+typedef WSAPOLLFD *LPWSAPOLLFD;
+
+/* winsock2.h */
+typedef WSAPROTOCOLCHAIN *LPWSAPROTOCOLCHAIN;
+
+/* winsock2.h */
+typedef WSAPROTOCOL_INFOA *LPWSAPROTOCOL_INFOA;
+
+/* winsock2.h */
+typedef WSAPROTOCOL_INFOW *LPWSAPROTOCOL_INFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSAPROTOCOL_INFOW LPWSAPROTOCOL_INFO;
+#else
+typedef LPWSAPROTOCOL_INFOA LPWSAPROTOCOL_INFO;
+#endif
+
+/* winsock2.h */
+typedef WSAQUERYSETA *LPWSAQUERYSETA;
+
+/* winsock2.h */
+typedef WSAQUERYSETW *LPWSAQUERYSETW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSAQUERYSETW LPWSAQUERYSET;
+#else
+typedef LPWSAQUERYSETA LPWSAQUERYSET;
+#endif
+
+/* winsock2.h */
+typedef WSAQUERYSET2A *LPWSAQUERYSET2A;
+
+/* winsock2.h */
+typedef WSAQUERYSET2W *LPWSAQUERYSET2W;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSAQUERYSET2W LPWSAQUERYSET2;
+#else
+typedef LPWSAQUERYSET2A LPWSAQUERYSET2;
+#endif
+
+/* winsock2.h */
+typedef WSASERVICECLASSINFOA *LPWSASERVICECLASSINFOA;
+
+/* winsock2.h */
+typedef WSASERVICECLASSINFOW *LPWSASERVICECLASSINFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef LPWSASERVICECLASSINFOW LPWSASERVICECLASSINFO;
+#else
+typedef LPWSASERVICECLASSINFOA LPWSASERVICECLASSINFO;
+#endif
+
+/* winsock2.h */
+typedef WSAVERSION *LPWSAVERSION;
 
 /* ntsecapi.h */
 struct LSA_AUTH_INFORMATION {
@@ -13122,6 +13749,52 @@ struct PACKAGE_INFO {
 /* appmodel.h */
 typedef _PACKAGE_INFO_REFERENCE *PACKAGE_INFO_REFERENCE;
 
+/* ws2def.h */
+typedef ADDRINFOA *PADDRINFOA;
+
+/* ws2def.h */
+typedef ADDRINFOEXA *PADDRINFOEXA;
+
+/* ws2def.h */
+typedef ADDRINFOEXW *PADDRINFOEXW;
+
+/* ws2tcpip.h */
+#ifdef UNICODE
+typedef PADDRINFOEXW PADDRINFOEX;
+#else
+typedef PADDRINFOEXA PADDRINFOEX;
+#endif
+
+/* ws2def.h */
+typedef ADDRINFOEX2A *PADDRINFOEX2A;
+
+/* ws2def.h */
+typedef ADDRINFOEX2W *PADDRINFOEX2W;
+
+/* ws2def.h */
+typedef ADDRINFOEX3 *PADDRINFOEX3;
+
+/* ws2def.h */
+typedef ADDRINFOEX4 *PADDRINFOEX4;
+
+/* ws2def.h */
+typedef ADDRINFOEX5 *PADDRINFOEX5;
+
+/* ws2def.h */
+typedef ADDRINFOEX6 *PADDRINFOEX6;
+
+/* ws2def.h */
+typedef ADDRINFOEX7 *PADDRINFOEX7;
+
+/* ws2tcpip.h */
+typedef ADDRINFOA *PADDRINFOT;
+
+/* ws2def.h */
+typedef ADDRINFOW *PADDRINFOW;
+
+/* winsock2.h */
+typedef AFPROTOCOLS *PAFPROTOCOLS;
+
 /* ntsecapi.h */
 typedef AUDIT_POLICY_INFORMATION *PAUDIT_POLICY_INFORMATION;
 
@@ -13218,6 +13891,9 @@ typedef const EVENT_RECORD *PCEVENT_RECORD;
 /* evntrace.h */
 typedef CLASSIC_EVENT_ID *PCLASSIC_EVENT_ID;
 
+/* ws2def.h */
+typedef WSACMSGHDR *PCMSGHDR;
+
 /* wct.h */
 typedef HRESULT (__cdecl *PCOGETACTIVATIONSTATE)(GUID param0, DWORD param1, DWORD *param2);
 
@@ -13240,16 +13916,44 @@ typedef CREDENTIALA *PCREDENTIALA;
 typedef CREDENTIALW *PCREDENTIALW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIALW PCREDENTIAL;
+#else
+typedef PCREDENTIALA PCREDENTIAL;
+#endif
+
+/* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIAL_ATTRIBUTEW PCREDENTIAL_ATTRIBUTE;
+#else
+typedef PCREDENTIAL_ATTRIBUTEA PCREDENTIAL_ATTRIBUTE;
+#endif
+
+/* wincred.h */
 typedef CREDENTIAL_TARGET_INFORMATIONA *PCREDENTIAL_TARGET_INFORMATIONA;
 
 /* wincred.h */
 typedef CREDENTIAL_TARGET_INFORMATIONW *PCREDENTIAL_TARGET_INFORMATIONW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIAL_TARGET_INFORMATIONW PCREDENTIAL_TARGET_INFORMATION;
+#else
+typedef PCREDENTIAL_TARGET_INFORMATIONA PCREDENTIAL_TARGET_INFORMATION;
+#endif
+
+/* wincred.h */
 typedef CREDUI_INFOA *PCREDUI_INFOA;
 
 /* wincred.h */
 typedef CREDUI_INFOW *PCREDUI_INFOW;
+
+/* wincred.h */
+#ifdef UNICODE
+typedef PCREDUI_INFOW PCREDUI_INFO;
+#else
+typedef PCREDUI_INFOA PCREDUI_INFO;
+#endif
 
 /* wincred.h */
 typedef CRED_MARSHAL_TYPE *PCRED_MARSHAL_TYPE;
@@ -13280,6 +13984,9 @@ typedef CRYPT_PROVIDER_REFS *PCRYPT_PROVIDER_REFS;
 
 /* bcrypt.h */
 typedef CRYPT_PROVIDER_REG *PCRYPT_PROVIDER_REG;
+
+/* ws2def.h */
+typedef CSADDR_INFO *PCSADDR_INFO;
 
 /* shlobj.h */
 typedef const SFV_SETITEMPOS *PCSFV_SETITEMPOS;
@@ -13639,6 +14346,9 @@ typedef _EXPLICIT_ACCESS_A *PEXPLICIT_ACCESS_A;
 
 /* accctrl.h */
 typedef _EXPLICIT_ACCESS_W *PEXPLICIT_ACCESS_W;
+
+/* winsock2.h */
+typedef fd_set *PFD_SET;
 
 /* d3dkmthk.h */
 typedef NTSTATUS (__stdcall *PFND3DKMT_ACQUIREKEYEDMUTEX)(D3DKMT_ACQUIREKEYEDMUTEX *param0);
@@ -14234,6 +14944,9 @@ typedef HEAPENTRY32 *PHEAPENTRY32;
 /* tlhelp32.h */
 typedef HEAPLIST32 *PHEAPLIST32;
 
+/* winsock2.h */
+typedef hostent *PHOSTENT;
+
 /* werapi.h */
 typedef void **PHREPORTSTORE;
 
@@ -14299,6 +15012,9 @@ typedef HRESULT (__stdcall *PINSPECT_HSTRING_CALLBACK2)(void *context, UINT64 re
 
 /* uxtheme.h */
 typedef INTLIST *PINTLIST;
+
+/* ws2def.h */
+typedef IPPROTO *PIPROTO;
 
 /* ntsecapi.h */
 typedef KERB_ADD_BINDING_CACHE_ENTRY_EX_REQUEST *PKERB_ADD_BINDING_CACHE_ENTRY_EX_REQUEST;
@@ -14563,6 +15279,9 @@ typedef enum PLACEHOLDER_STATES {
     PS_ALL = 15,
 } PLACEHOLDER_STATES;
 STXWIN_ENUM_FLAG_OPERATORS(PLACEHOLDER_STATES)
+
+/* winsock2.h */
+typedef linger *PLINGER;
 
 /* ntsecapi.h */
 typedef LSA_AUTH_INFORMATION *PLSA_AUTH_INFORMATION;
@@ -15047,6 +15766,9 @@ typedef PROFILE_SOURCE_INFO *PPROFILE_SOURCE_INFO;
 /* shlobj_core.h */
 typedef PROPPRG *PPROPPRG;
 
+/* winsock2.h */
+typedef protoent *PPROTOENT;
+
 /* evntprov.h */
 typedef unsigned long long *PREGHANDLE;
 
@@ -15175,6 +15897,9 @@ struct PROPPRG {
 };
 #pragma pack(pop)
 
+/* winsock2.h */
+typedef protoent PROTOENT;
+
 /* winsafer.h */
 typedef SAFER_CODE_PROPERTIES_V2 *PSAFER_CODE_PROPERTIES;
 
@@ -15208,11 +15933,17 @@ typedef BOOLEAN (__cdecl *PSAM_PASSWORD_FILTER_ROUTINE)(PUNICODE_STRING AccountN
 /* ntsecapi.h */
 typedef NTSTATUS (__cdecl *PSAM_PASSWORD_NOTIFICATION_ROUTINE)(PUNICODE_STRING UserName, ULONG RelativeId, PUNICODE_STRING NewPassword);
 
+/* ws2def.h */
+typedef SCOPE_ID *PSCOPE_ID;
+
 /* ntsecapi.h */
 typedef SECURITY_LOGON_SESSION_DATA *PSECURITY_LOGON_SESSION_DATA;
 
 /* ntsecapi.h */
 typedef SECURITY_LOGON_TYPE *PSECURITY_LOGON_TYPE;
+
+/* winsock2.h */
+typedef servent *PSERVENT;
 
 /* lmserver.h */
 typedef SERVER_INFO_100 *PSERVER_INFO_100;
@@ -15605,6 +16336,36 @@ typedef SMCSHCHANGENOTIFYSTRUCT *PSMCSHCHANGENOTIFYSTRUCT;
 /* shobjidl_core.h */
 typedef SMINFO *PSMINFO;
 
+/* ws2def.h */
+typedef SOCKADDR *PSOCKADDR;
+
+/* ws2def.h */
+typedef SOCKADDR_DL *PSOCKADDR_DL;
+
+/* ws2def.h */
+typedef SOCKADDR_IN *PSOCKADDR_IN;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_LH *PSOCKADDR_STORAGE;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_LH *PSOCKADDR_STORAGE_LH;
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_XP *PSOCKADDR_STORAGE_XP;
+
+/* afunix.h */
+typedef SOCKADDR_UN *PSOCKADDR_UN;
+
+/* ws2def.h */
+typedef SOCKET_ADDRESS *PSOCKET_ADDRESS;
+
+/* ws2def.h */
+typedef SOCKET_ADDRESS_LIST *PSOCKET_ADDRESS_LIST;
+
+/* ws2def.h */
+typedef SOCKET_PROCESSOR_AFFINITY *PSOCKET_PROCESSOR_AFFINITY;
+
 /* bcrypt.h */
 typedef SSL_ECCKEY_BLOB *PSSL_ECCKEY_BLOB;
 
@@ -15628,6 +16389,9 @@ typedef TA_TRANSFORM_OPACITY *PTA_TRANSFORM_OPACITY;
 
 /* tlhelp32.h */
 typedef THREADENTRY32 *PTHREADENTRY32;
+
+/* winsock2.h */
+typedef timeval *PTIMEVAL;
 
 /* bcrypt.h */
 typedef TLS_HYBRID_KEYEXCHANGE_BLOB *PTLS_HYBRID_KEYEXCHANGE_BLOB;
@@ -15803,6 +16567,108 @@ typedef enum WER_SUBMIT_RESULT {
 /* werapi.h */
 typedef WER_SUBMIT_RESULT *PWER_SUBMIT_RESULT;
 
+/* ws2def.h */
+typedef WSACMSGHDR *PWSACMSGHDR;
+
+/* winsock2.h */
+typedef WSACOMPLETION *PWSACOMPLETION;
+
+/* winsock2.h */
+typedef WSACOMPLETIONTYPE *PWSACOMPLETIONTYPE;
+
+/* winsock2.h */
+typedef WSAECOMPARATOR *PWSAECOMPARATOR;
+
+/* winsock2.h */
+typedef WSAESETSERVICEOP *PWSAESETSERVICEOP;
+
+/* ws2def.h */
+typedef WSAMSG *PWSAMSG;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOA *PWSANAMESPACE_INFOA;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOW *PWSANAMESPACE_INFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSANAMESPACE_INFOW PWSANAMESPACE_INFO;
+#else
+typedef PWSANAMESPACE_INFOA PWSANAMESPACE_INFO;
+#endif
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOEXA *PWSANAMESPACE_INFOEXA;
+
+/* winsock2.h */
+typedef WSANAMESPACE_INFOEXW *PWSANAMESPACE_INFOEXW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSANAMESPACE_INFOEXW PWSANAMESPACE_INFOEX;
+#else
+typedef PWSANAMESPACE_INFOEXA PWSANAMESPACE_INFOEX;
+#endif
+
+/* winsock2.h */
+typedef WSANSCLASSINFOA *PWSANSCLASSINFOA;
+
+/* winsock2.h */
+typedef WSANSCLASSINFOW *PWSANSCLASSINFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSANSCLASSINFOW PWSANSCLASSINFO;
+#else
+typedef PWSANSCLASSINFOA PWSANSCLASSINFO;
+#endif
+
+/* winsock2.h */
+typedef WSAPOLLFD *PWSAPOLLFD;
+
+/* winsock2.h */
+typedef WSAQUERYSETA *PWSAQUERYSETA;
+
+/* winsock2.h */
+typedef WSAQUERYSETW *PWSAQUERYSETW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSAQUERYSETW PWSAQUERYSET;
+#else
+typedef PWSAQUERYSETA PWSAQUERYSET;
+#endif
+
+/* winsock2.h */
+typedef WSAQUERYSET2A *PWSAQUERYSET2A;
+
+/* winsock2.h */
+typedef WSAQUERYSET2W *PWSAQUERYSET2W;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSAQUERYSET2W PWSAQUERYSET2;
+#else
+typedef PWSAQUERYSET2A PWSAQUERYSET2;
+#endif
+
+/* winsock2.h */
+typedef WSASERVICECLASSINFOA *PWSASERVICECLASSINFOA;
+
+/* winsock2.h */
+typedef WSASERVICECLASSINFOW *PWSASERVICECLASSINFOW;
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef PWSASERVICECLASSINFOW PWSASERVICECLASSINFO;
+#else
+typedef PWSASERVICECLASSINFOA PWSASERVICECLASSINFO;
+#endif
+
+/* winsock2.h */
+typedef WSAVERSION *PWSAVERSION;
+
 /* uxtheme.h */
 typedef WTA_OPTIONS *PWTA_OPTIONS;
 
@@ -15948,6 +16814,19 @@ struct QCMINFO_IDMAP {
     QCMINFO_IDMAP_PLACEMENT pIdList[1];
 };
 #pragma pack(pop)
+
+/* ws2def.h */
+struct WSABUF {
+    ULONG len;
+    CHAR *buf;
+};
+
+/* winsock2.h */
+struct QOS {
+    FLOWSPEC SendingFlowspec;
+    FLOWSPEC ReceivingFlowspec;
+    WSABUF ProviderSpecific;
+};
 
 /* ocidl.h */
 typedef enum READYSTATE {
@@ -16300,6 +17179,29 @@ typedef enum SCNRT_STATUS {
     SCNRT_DISABLE = 1,
 } SCNRT_STATUS;
 
+/* ws2def.h */
+struct SCOPE_ID {
+    union {
+        struct {
+            unsigned int Zone : 28;
+            unsigned int Level : 4;
+        };
+        ULONG Value;
+    };
+};
+
+/* ws2def.h */
+typedef enum SCOPE_LEVEL {
+    ScopeLevelInterface = 1,
+    ScopeLevelLink = 2,
+    ScopeLevelSubnet = 3,
+    ScopeLevelAdmin = 4,
+    ScopeLevelSite = 5,
+    ScopeLevelOrganization = 8,
+    ScopeLevelGlobal = 14,
+    ScopeLevelCount = 16,
+} SCOPE_LEVEL;
+
 /* ntsecapi.h */
 struct SECURITY_LOGON_SESSION_DATA {
     ULONG Size;
@@ -16334,6 +17236,9 @@ struct SERIALIZEDPROPERTYVALUE {
     BYTE rgb[1];
 };
 #pragma pack(pop)
+
+/* winsock2.h */
+typedef servent SERVENT;
 
 /* lmserver.h */
 struct SERVER_INFO_100 {
@@ -17637,6 +18542,78 @@ struct SMINFO {
 };
 #pragma pack(pop)
 
+/* ws2def.h */
+struct SOCKADDR {
+    ADDRESS_FAMILY sa_family;
+    CHAR sa_data[14];
+};
+
+/* ws2def.h */
+struct SOCKADDR_DL {
+    ADDRESS_FAMILY sdl_family;
+    UCHAR sdl_data[8];
+    UCHAR sdl_zero[4];
+};
+
+/* ws2def.h */
+struct SOCKADDR_IN {
+    ADDRESS_FAMILY sin_family;
+    USHORT sin_port;
+    IN_ADDR sin_addr;
+    CHAR sin_zero[8];
+};
+
+/* ws2def.h */
+typedef SOCKADDR_STORAGE_LH SOCKADDR_STORAGE;
+
+/* ws2def.h */
+struct SOCKADDR_STORAGE_LH {
+    ADDRESS_FAMILY ss_family;
+    CHAR __ss_pad1[6];
+    long long __ss_align;
+    CHAR __ss_pad2[112];
+};
+
+/* ws2def.h */
+struct SOCKADDR_STORAGE_XP {
+    short ss_family;
+    CHAR __ss_pad1[6];
+    long long __ss_align;
+    CHAR __ss_pad2[112];
+};
+
+/* afunix.h */
+struct SOCKADDR_UN {
+    ADDRESS_FAMILY sun_family;
+    char sun_path[108];
+};
+
+/* winsock2.h */
+typedef unsigned long long SOCKET;
+
+/* ws2def.h */
+struct SOCKET_ADDRESS_LIST {
+    INT iAddressCount;
+    SOCKET_ADDRESS Address[1];
+};
+
+/* ws2def.h */
+struct SOCKET_PROCESSOR_AFFINITY {
+    PROCESSOR_NUMBER Processor;
+    USHORT NumaNodeId;
+    USHORT Reserved;
+};
+
+/* winsock2.h */
+struct SOCK_NOTIFY_REGISTRATION {
+    SOCKET socket;
+    PVOID completionKey;
+    UINT16 eventFilter;
+    UINT8 operation;
+    UINT8 triggerFlags;
+    DWORD registrationResult;
+};
+
 /* shobjidl_core.h */
 typedef int SORTDIRECTION;
 
@@ -17997,6 +18974,9 @@ struct THUMBBUTTON {
     THUMBBUTTONFLAGS dwFlags;
 };
 #pragma pack(pop)
+
+/* winsock2.h */
+typedef timeval TIMEVAL;
 
 /* bcrypt.h */
 struct TLS_HYBRID_KEYEXCHANGE_BLOB {
@@ -21568,6 +22548,326 @@ typedef enum WMIDPREQUESTCODE {
 /* evntrace.h */
 typedef ULONG (__stdcall *WMIDPREQUEST)(WMIDPREQUESTCODE RequestCode, PVOID RequestContext, ULONG *BufferSize, PVOID Buffer);
 
+/* ws2def.h */
+struct WSACMSGHDR {
+    SIZE_T cmsg_len;
+    INT cmsg_level;
+    INT cmsg_type;
+};
+
+/* winsock2.h */
+struct WSACOMPLETION {
+    WSACOMPLETIONTYPE Type;
+    union {
+        struct {
+            HWND hWnd;
+            UINT uMsg;
+            WPARAM context;
+        } WindowMessage;
+        struct {
+            LPWSAOVERLAPPED lpOverlapped;
+        } Event;
+        struct {
+            LPWSAOVERLAPPED lpOverlapped;
+            LPWSAOVERLAPPED_COMPLETION_ROUTINE lpfnCompletionProc;
+        } Apc;
+        struct {
+            LPWSAOVERLAPPED lpOverlapped;
+            HANDLE hPort;
+            ULONG_PTR Key;
+        } Port;
+    } Parameters;
+};
+
+/* winsock2.h */
+struct WSADATA {
+    WORD wVersion;
+    WORD wHighVersion;
+    unsigned short iMaxSockets;
+    unsigned short iMaxUdpDg;
+    CHAR *lpVendorInfo;
+    char szDescription[257];
+    char szSystemStatus[129];
+};
+
+/* ws2def.h */
+struct WSAMSG {
+    LPSOCKADDR name;
+    INT namelen;
+    LPWSABUF lpBuffers;
+    ULONG dwBufferCount;
+    WSABUF Control;
+    ULONG dwFlags;
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSANAMESPACE_INFOW WSANAMESPACE_INFO;
+#else
+typedef WSANAMESPACE_INFOA WSANAMESPACE_INFO;
+#endif
+
+/* winsock2.h */
+struct WSANAMESPACE_INFOA {
+    GUID NSProviderId;
+    DWORD dwNameSpace;
+    BOOL fActive;
+    DWORD dwVersion;
+    LPSTR lpszIdentifier;
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSANAMESPACE_INFOEXW WSANAMESPACE_INFOEX;
+#else
+typedef WSANAMESPACE_INFOEXA WSANAMESPACE_INFOEX;
+#endif
+
+/* winsock2.h */
+struct WSANAMESPACE_INFOEXA {
+    GUID NSProviderId;
+    DWORD dwNameSpace;
+    BOOL fActive;
+    DWORD dwVersion;
+    LPSTR lpszIdentifier;
+    BLOB ProviderSpecific;
+};
+
+/* winsock2.h */
+struct WSANAMESPACE_INFOEXW {
+    GUID NSProviderId;
+    DWORD dwNameSpace;
+    BOOL fActive;
+    DWORD dwVersion;
+    LPWSTR lpszIdentifier;
+    BLOB ProviderSpecific;
+};
+
+/* winsock2.h */
+struct WSANAMESPACE_INFOW {
+    GUID NSProviderId;
+    DWORD dwNameSpace;
+    BOOL fActive;
+    DWORD dwVersion;
+    LPWSTR lpszIdentifier;
+};
+
+/* winsock2.h */
+struct WSANETWORKEVENTS {
+    int lNetworkEvents;
+    int iErrorCode[10];
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSANSCLASSINFOW WSANSCLASSINFO;
+#else
+typedef WSANSCLASSINFOA WSANSCLASSINFO;
+#endif
+
+/* winsock2.h */
+struct WSANSCLASSINFOA {
+    LPSTR lpszName;
+    DWORD dwNameSpace;
+    DWORD dwValueType;
+    DWORD dwValueSize;
+    LPVOID lpValue;
+};
+
+/* winsock2.h */
+struct WSANSCLASSINFOW {
+    LPWSTR lpszName;
+    DWORD dwNameSpace;
+    DWORD dwValueType;
+    DWORD dwValueSize;
+    LPVOID lpValue;
+};
+
+/* winsock2.h */
+struct WSAPOLLFD {
+    SOCKET fd;
+    SHORT events;
+    SHORT revents;
+};
+
+/* winsock2.h */
+struct WSAPROTOCOLCHAIN {
+    int ChainLen;
+    DWORD ChainEntries[7];
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSAPROTOCOL_INFOW WSAPROTOCOL_INFO;
+#else
+typedef WSAPROTOCOL_INFOA WSAPROTOCOL_INFO;
+#endif
+
+/* winsock2.h */
+struct WSAPROTOCOL_INFOA {
+    DWORD dwServiceFlags1;
+    DWORD dwServiceFlags2;
+    DWORD dwServiceFlags3;
+    DWORD dwServiceFlags4;
+    DWORD dwProviderFlags;
+    GUID ProviderId;
+    DWORD dwCatalogEntryId;
+    WSAPROTOCOLCHAIN ProtocolChain;
+    int iVersion;
+    int iAddressFamily;
+    int iMaxSockAddr;
+    int iMinSockAddr;
+    int iSocketType;
+    int iProtocol;
+    int iProtocolMaxOffset;
+    int iNetworkByteOrder;
+    int iSecurityScheme;
+    DWORD dwMessageSize;
+    DWORD dwProviderReserved;
+    CHAR szProtocol[256];
+};
+
+/* winsock2.h */
+struct WSAPROTOCOL_INFOW {
+    DWORD dwServiceFlags1;
+    DWORD dwServiceFlags2;
+    DWORD dwServiceFlags3;
+    DWORD dwServiceFlags4;
+    DWORD dwProviderFlags;
+    GUID ProviderId;
+    DWORD dwCatalogEntryId;
+    WSAPROTOCOLCHAIN ProtocolChain;
+    int iVersion;
+    int iAddressFamily;
+    int iMaxSockAddr;
+    int iMinSockAddr;
+    int iSocketType;
+    int iProtocol;
+    int iProtocolMaxOffset;
+    int iNetworkByteOrder;
+    int iSecurityScheme;
+    DWORD dwMessageSize;
+    DWORD dwProviderReserved;
+    WCHAR szProtocol[256];
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSAQUERYSETW WSAQUERYSET;
+#else
+typedef WSAQUERYSETA WSAQUERYSET;
+#endif
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSAQUERYSET2W WSAQUERYSET2;
+#else
+typedef WSAQUERYSET2A WSAQUERYSET2;
+#endif
+
+/* winsock2.h */
+struct WSAQUERYSET2A {
+    DWORD dwSize;
+    LPSTR lpszServiceInstanceName;
+    LPWSAVERSION lpVersion;
+    LPSTR lpszComment;
+    DWORD dwNameSpace;
+    LPGUID lpNSProviderId;
+    LPSTR lpszContext;
+    DWORD dwNumberOfProtocols;
+    LPAFPROTOCOLS lpafpProtocols;
+    LPSTR lpszQueryString;
+    DWORD dwNumberOfCsAddrs;
+    LPCSADDR_INFO lpcsaBuffer;
+    DWORD dwOutputFlags;
+    LPBLOB lpBlob;
+};
+
+/* winsock2.h */
+struct WSAQUERYSET2W {
+    DWORD dwSize;
+    LPWSTR lpszServiceInstanceName;
+    LPWSAVERSION lpVersion;
+    LPWSTR lpszComment;
+    DWORD dwNameSpace;
+    LPGUID lpNSProviderId;
+    LPWSTR lpszContext;
+    DWORD dwNumberOfProtocols;
+    LPAFPROTOCOLS lpafpProtocols;
+    LPWSTR lpszQueryString;
+    DWORD dwNumberOfCsAddrs;
+    LPCSADDR_INFO lpcsaBuffer;
+    DWORD dwOutputFlags;
+    LPBLOB lpBlob;
+};
+
+/* winsock2.h */
+struct WSAQUERYSETA {
+    DWORD dwSize;
+    LPSTR lpszServiceInstanceName;
+    LPGUID lpServiceClassId;
+    LPWSAVERSION lpVersion;
+    LPSTR lpszComment;
+    DWORD dwNameSpace;
+    LPGUID lpNSProviderId;
+    LPSTR lpszContext;
+    DWORD dwNumberOfProtocols;
+    LPAFPROTOCOLS lpafpProtocols;
+    LPSTR lpszQueryString;
+    DWORD dwNumberOfCsAddrs;
+    LPCSADDR_INFO lpcsaBuffer;
+    DWORD dwOutputFlags;
+    LPBLOB lpBlob;
+};
+
+/* winsock2.h */
+struct WSAQUERYSETW {
+    DWORD dwSize;
+    LPWSTR lpszServiceInstanceName;
+    LPGUID lpServiceClassId;
+    LPWSAVERSION lpVersion;
+    LPWSTR lpszComment;
+    DWORD dwNameSpace;
+    LPGUID lpNSProviderId;
+    LPWSTR lpszContext;
+    DWORD dwNumberOfProtocols;
+    LPAFPROTOCOLS lpafpProtocols;
+    LPWSTR lpszQueryString;
+    DWORD dwNumberOfCsAddrs;
+    LPCSADDR_INFO lpcsaBuffer;
+    DWORD dwOutputFlags;
+    LPBLOB lpBlob;
+};
+
+/* winsock2.h */
+#ifdef UNICODE
+typedef WSASERVICECLASSINFOW WSASERVICECLASSINFO;
+#else
+typedef WSASERVICECLASSINFOA WSASERVICECLASSINFO;
+#endif
+
+/* winsock2.h */
+struct WSASERVICECLASSINFOA {
+    LPGUID lpServiceClassId;
+    LPSTR lpszServiceClassName;
+    DWORD dwCount;
+    LPWSANSCLASSINFOA lpClassInfos;
+};
+
+/* winsock2.h */
+struct WSASERVICECLASSINFOW {
+    LPGUID lpServiceClassId;
+    LPWSTR lpszServiceClassName;
+    DWORD dwCount;
+    LPWSANSCLASSINFOW lpClassInfos;
+};
+
+/* winsock2.h */
+struct WSAVERSION {
+    DWORD dwVersion;
+    WSAECOMPARATOR ecHow;
+};
+
 /* uxtheme.h */
 struct WTA_OPTIONS {
     DWORD dwFlags;
@@ -22051,6 +23351,68 @@ typedef enum _TRANSFER_SOURCE_FLAGS {
     TSF_SUSPEND_SHELLEVENTS = 2048,
 } _TRANSFER_SOURCE_FLAGS;
 
+/* winsock2.h */
+typedef unsigned int u_int;
+
+/* winsock2.h */
+struct fd_set {
+    u_int fd_count;
+    SOCKET fd_array[64];
+};
+
+/* winsock2.h */
+struct hostent {
+    CHAR *h_name;
+    CHAR **h_aliases;
+    short h_addrtype;
+    short h_length;
+    CHAR **h_addr_list;
+};
+
+/* winsock2.h */
+typedef unsigned short u_short;
+
+/* winsock2.h */
+struct linger {
+    u_short l_onoff;
+    u_short l_linger;
+};
+
+/* winsock2.h */
+typedef unsigned int u_long;
+
+/* winsock2.h */
+struct netent {
+    CHAR *n_name;
+    CHAR **n_aliases;
+    short n_addrtype;
+    u_long n_net;
+};
+
+/* winsock2.h */
+struct protoent {
+    CHAR *p_name;
+    CHAR **p_aliases;
+    short p_proto;
+};
+
+/* winsock2.h */
+struct servent {
+    CHAR *s_name;
+    CHAR **s_aliases;
+    CHAR *s_proto;
+    short s_port;
+};
+
+/* ws2tcpip.h */
+typedef int socklen_t;
+
+/* winsock2.h */
+struct sockproto {
+    u_short sp_family;
+    u_short sp_protocol;
+};
+
 /* shobjidl_core.h */
 typedef enum tagBANDSITECID {
     BSID_BANDADDED = 0,
@@ -22162,6 +23524,18 @@ typedef enum tagSORTDIRECTION {
     SORT_DESCENDING = -1,
     SORT_ASCENDING = 1,
 } tagSORTDIRECTION;
+
+/* winsock2.h */
+struct timeval {
+    int tv_sec;
+    int tv_usec;
+};
+
+/* winsock2.h */
+typedef unsigned char u_char;
+
+/* winsock2.h */
+typedef unsigned long long u_int64;
 
 /* icu.h */
 typedef UResourceBundle *u_nl_catd;

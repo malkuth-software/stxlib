@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(stxlib VERSION 1.0.3 LANGUAGES CXX)
+project(stxlib VERSION 1.0.4 LANGUAGES CXX)
 
 # STXlib: the boundary library between GUI.Forms and everything outside it
 # (AGENTS.md). This file builds stxlib::boundary, its interface modules and

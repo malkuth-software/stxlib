@@ -5,7 +5,6 @@
 #define STXWIN_MMEAPI_H
 
 #include "stxwin_supplement.h"
-#include "stxwin_types_more.h"
 
 #define AUXCAPS_AUXIN 2
 #define AUXCAPS_CDAUDIO 1
@@ -249,10 +248,184 @@
 #define WOM_CLOSE 956
 #define WOM_DONE 957
 #define WOM_OPEN 955
+#ifdef UNICODE
+#define auxGetDevCaps auxGetDevCapsW
+#else
+#define auxGetDevCaps auxGetDevCapsA
+#endif
+#ifdef UNICODE
+#define midiInGetDevCaps midiInGetDevCapsW
+#else
+#define midiInGetDevCaps midiInGetDevCapsA
+#endif
+#ifdef UNICODE
+#define midiInGetErrorText midiInGetErrorTextW
+#else
+#define midiInGetErrorText midiInGetErrorTextA
+#endif
+#ifdef UNICODE
+#define midiOutGetDevCaps midiOutGetDevCapsW
+#else
+#define midiOutGetDevCaps midiOutGetDevCapsA
+#endif
+#ifdef UNICODE
+#define midiOutGetErrorText midiOutGetErrorTextW
+#else
+#define midiOutGetErrorText midiOutGetErrorTextA
+#endif
+#ifdef UNICODE
+#define mixerGetControlDetails mixerGetControlDetailsW
+#else
+#define mixerGetControlDetails mixerGetControlDetailsA
+#endif
+#ifdef UNICODE
+#define mixerGetDevCaps mixerGetDevCapsW
+#else
+#define mixerGetDevCaps mixerGetDevCapsA
+#endif
+#ifdef UNICODE
+#define mixerGetLineControls mixerGetLineControlsW
+#else
+#define mixerGetLineControls mixerGetLineControlsA
+#endif
+#ifdef UNICODE
+#define mixerGetLineInfo mixerGetLineInfoW
+#else
+#define mixerGetLineInfo mixerGetLineInfoA
+#endif
+#ifdef UNICODE
+#define waveInGetDevCaps waveInGetDevCapsW
+#else
+#define waveInGetDevCaps waveInGetDevCapsA
+#endif
+#ifdef UNICODE
+#define waveInGetErrorText waveInGetErrorTextW
+#else
+#define waveInGetErrorText waveInGetErrorTextA
+#endif
+#ifdef UNICODE
+#define waveOutGetDevCaps waveOutGetDevCapsW
+#else
+#define waveOutGetDevCaps waveOutGetDevCapsA
+#endif
+#ifdef UNICODE
+#define waveOutGetErrorText waveOutGetErrorTextW
+#else
+#define waveOutGetErrorText waveOutGetErrorTextA
+#endif
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+__declspec(dllimport) MMRESULT __stdcall auxGetDevCapsA(UINT_PTR uDeviceID, LPAUXCAPSA pac, UINT cbac);
+__declspec(dllimport) MMRESULT __stdcall auxGetDevCapsW(UINT_PTR uDeviceID, LPAUXCAPSW pac, UINT cbac);
+__declspec(dllimport) UINT __stdcall auxGetNumDevs(void);
+__declspec(dllimport) MMRESULT __stdcall auxGetVolume(UINT uDeviceID, LPDWORD pdwVolume);
+__declspec(dllimport) MMRESULT __stdcall auxOutMessage(UINT uDeviceID, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2);
+__declspec(dllimport) MMRESULT __stdcall auxSetVolume(UINT uDeviceID, DWORD dwVolume);
+__declspec(dllimport) MMRESULT __stdcall midiConnect(HMIDI hmi, HMIDIOUT hmo, LPVOID pReserved);
+__declspec(dllimport) MMRESULT __stdcall midiDisconnect(HMIDI hmi, HMIDIOUT hmo, LPVOID pReserved);
+__declspec(dllimport) MMRESULT __stdcall midiInAddBuffer(HMIDIIN hmi, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiInClose(HMIDIIN hmi);
+__declspec(dllimport) MMRESULT __stdcall midiInGetDevCapsA(UINT_PTR uDeviceID, LPMIDIINCAPSA pmic, UINT cbmic);
+__declspec(dllimport) MMRESULT __stdcall midiInGetDevCapsW(UINT_PTR uDeviceID, LPMIDIINCAPSW pmic, UINT cbmic);
+__declspec(dllimport) MMRESULT __stdcall midiInGetErrorTextA(MMRESULT mmrError, LPSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall midiInGetErrorTextW(MMRESULT mmrError, LPWSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall midiInGetID(HMIDIIN hmi, LPUINT puDeviceID);
+__declspec(dllimport) UINT __stdcall midiInGetNumDevs(void);
+__declspec(dllimport) MMRESULT __stdcall midiInMessage(HMIDIIN hmi, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2);
+__declspec(dllimport) MMRESULT __stdcall midiInOpen(LPHMIDIIN phmi, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall midiInPrepareHeader(HMIDIIN hmi, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiInReset(HMIDIIN hmi);
+__declspec(dllimport) MMRESULT __stdcall midiInStart(HMIDIIN hmi);
+__declspec(dllimport) MMRESULT __stdcall midiInStop(HMIDIIN hmi);
+__declspec(dllimport) MMRESULT __stdcall midiInUnprepareHeader(HMIDIIN hmi, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiOutCacheDrumPatches(HMIDIOUT hmo, UINT uPatch, LPWORD pwkya, UINT fuCache);
+__declspec(dllimport) MMRESULT __stdcall midiOutCachePatches(HMIDIOUT hmo, UINT uBank, LPWORD pwpa, UINT fuCache);
+__declspec(dllimport) MMRESULT __stdcall midiOutClose(HMIDIOUT hmo);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetDevCapsA(UINT_PTR uDeviceID, LPMIDIOUTCAPSA pmoc, UINT cbmoc);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetDevCapsW(UINT_PTR uDeviceID, LPMIDIOUTCAPSW pmoc, UINT cbmoc);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetErrorTextA(MMRESULT mmrError, LPSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetErrorTextW(MMRESULT mmrError, LPWSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetID(HMIDIOUT hmo, LPUINT puDeviceID);
+__declspec(dllimport) UINT __stdcall midiOutGetNumDevs(void);
+__declspec(dllimport) MMRESULT __stdcall midiOutGetVolume(HMIDIOUT hmo, LPDWORD pdwVolume);
+__declspec(dllimport) MMRESULT __stdcall midiOutLongMsg(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiOutMessage(HMIDIOUT hmo, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2);
+__declspec(dllimport) MMRESULT __stdcall midiOutOpen(LPHMIDIOUT phmo, UINT uDeviceID, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall midiOutPrepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiOutReset(HMIDIOUT hmo);
+__declspec(dllimport) MMRESULT __stdcall midiOutSetVolume(HMIDIOUT hmo, DWORD dwVolume);
+__declspec(dllimport) MMRESULT __stdcall midiOutShortMsg(HMIDIOUT hmo, DWORD dwMsg);
+__declspec(dllimport) MMRESULT __stdcall midiOutUnprepareHeader(HMIDIOUT hmo, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiStreamClose(HMIDISTRM hms);
+__declspec(dllimport) MMRESULT __stdcall midiStreamOpen(LPHMIDISTRM phms, LPUINT puDeviceID, DWORD cMidi, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall midiStreamOut(HMIDISTRM hms, LPMIDIHDR pmh, UINT cbmh);
+__declspec(dllimport) MMRESULT __stdcall midiStreamPause(HMIDISTRM hms);
+__declspec(dllimport) MMRESULT __stdcall midiStreamPosition(HMIDISTRM hms, LPMMTIME lpmmt, UINT cbmmt);
+__declspec(dllimport) MMRESULT __stdcall midiStreamProperty(HMIDISTRM hms, LPBYTE lppropdata, DWORD dwProperty);
+__declspec(dllimport) MMRESULT __stdcall midiStreamRestart(HMIDISTRM hms);
+__declspec(dllimport) MMRESULT __stdcall midiStreamStop(HMIDISTRM hms);
+__declspec(dllimport) MMRESULT __stdcall mixerClose(HMIXER hmx);
+__declspec(dllimport) MMRESULT __stdcall mixerGetControlDetailsA(HMIXEROBJ hmxobj, LPMIXERCONTROLDETAILS pmxcd, DWORD fdwDetails);
+__declspec(dllimport) MMRESULT __stdcall mixerGetControlDetailsW(HMIXEROBJ hmxobj, LPMIXERCONTROLDETAILS pmxcd, DWORD fdwDetails);
+__declspec(dllimport) MMRESULT __stdcall mixerGetDevCapsA(UINT_PTR uMxId, LPMIXERCAPSA pmxcaps, UINT cbmxcaps);
+__declspec(dllimport) MMRESULT __stdcall mixerGetDevCapsW(UINT_PTR uMxId, LPMIXERCAPSW pmxcaps, UINT cbmxcaps);
+__declspec(dllimport) MMRESULT __stdcall mixerGetID(HMIXEROBJ hmxobj, UINT *puMxId, DWORD fdwId);
+__declspec(dllimport) MMRESULT __stdcall mixerGetLineControlsA(HMIXEROBJ hmxobj, LPMIXERLINECONTROLSA pmxlc, DWORD fdwControls);
+__declspec(dllimport) MMRESULT __stdcall mixerGetLineControlsW(HMIXEROBJ hmxobj, LPMIXERLINECONTROLSW pmxlc, DWORD fdwControls);
+__declspec(dllimport) MMRESULT __stdcall mixerGetLineInfoA(HMIXEROBJ hmxobj, LPMIXERLINEA pmxl, DWORD fdwInfo);
+__declspec(dllimport) MMRESULT __stdcall mixerGetLineInfoW(HMIXEROBJ hmxobj, LPMIXERLINEW pmxl, DWORD fdwInfo);
+__declspec(dllimport) UINT __stdcall mixerGetNumDevs(void);
+__declspec(dllimport) DWORD __stdcall mixerMessage(HMIXER hmx, UINT uMsg, DWORD_PTR dwParam1, DWORD_PTR dwParam2);
+__declspec(dllimport) MMRESULT __stdcall mixerOpen(LPHMIXER phmx, UINT uMxId, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall mixerSetControlDetails(HMIXEROBJ hmxobj, LPMIXERCONTROLDETAILS pmxcd, DWORD fdwDetails);
+__declspec(dllimport) MMRESULT __stdcall waveInAddBuffer(HWAVEIN hwi, LPWAVEHDR pwh, UINT cbwh);
+__declspec(dllimport) MMRESULT __stdcall waveInClose(HWAVEIN hwi);
+__declspec(dllimport) MMRESULT __stdcall waveInGetDevCapsA(UINT_PTR uDeviceID, LPWAVEINCAPSA pwic, UINT cbwic);
+__declspec(dllimport) MMRESULT __stdcall waveInGetDevCapsW(UINT_PTR uDeviceID, LPWAVEINCAPSW pwic, UINT cbwic);
+__declspec(dllimport) MMRESULT __stdcall waveInGetErrorTextA(MMRESULT mmrError, LPSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall waveInGetErrorTextW(MMRESULT mmrError, LPWSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall waveInGetID(HWAVEIN hwi, LPUINT puDeviceID);
+__declspec(dllimport) UINT __stdcall waveInGetNumDevs(void);
+__declspec(dllimport) MMRESULT __stdcall waveInGetPosition(HWAVEIN hwi, LPMMTIME pmmt, UINT cbmmt);
+__declspec(dllimport) MMRESULT __stdcall waveInMessage(HWAVEIN hwi, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2);
+__declspec(dllimport) MMRESULT __stdcall waveInOpen(LPHWAVEIN phwi, UINT uDeviceID, LPCWAVEFORMATEX pwfx, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall waveInPrepareHeader(HWAVEIN hwi, LPWAVEHDR pwh, UINT cbwh);
+__declspec(dllimport) MMRESULT __stdcall waveInReset(HWAVEIN hwi);
+__declspec(dllimport) MMRESULT __stdcall waveInStart(HWAVEIN hwi);
+__declspec(dllimport) MMRESULT __stdcall waveInStop(HWAVEIN hwi);
+__declspec(dllimport) MMRESULT __stdcall waveInUnprepareHeader(HWAVEIN hwi, LPWAVEHDR pwh, UINT cbwh);
+__declspec(dllimport) MMRESULT __stdcall waveOutBreakLoop(HWAVEOUT hwo);
+__declspec(dllimport) MMRESULT __stdcall waveOutClose(HWAVEOUT hwo);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetDevCapsA(UINT_PTR uDeviceID, LPWAVEOUTCAPSA pwoc, UINT cbwoc);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetDevCapsW(UINT_PTR uDeviceID, LPWAVEOUTCAPSW pwoc, UINT cbwoc);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetErrorTextA(MMRESULT mmrError, LPSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetErrorTextW(MMRESULT mmrError, LPWSTR pszText, UINT cchText);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetID(HWAVEOUT hwo, LPUINT puDeviceID);
+__declspec(dllimport) UINT __stdcall waveOutGetNumDevs(void);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetPitch(HWAVEOUT hwo, LPDWORD pdwPitch);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetPlaybackRate(HWAVEOUT hwo, LPDWORD pdwRate);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetPosition(HWAVEOUT hwo, LPMMTIME pmmt, UINT cbmmt);
+__declspec(dllimport) MMRESULT __stdcall waveOutGetVolume(HWAVEOUT hwo, LPDWORD pdwVolume);
+__declspec(dllimport) MMRESULT __stdcall waveOutMessage(HWAVEOUT hwo, UINT uMsg, DWORD_PTR dw1, DWORD_PTR dw2);
+__declspec(dllimport) MMRESULT __stdcall waveOutOpen(LPHWAVEOUT phwo, UINT uDeviceID, LPCWAVEFORMATEX pwfx, DWORD_PTR dwCallback, DWORD_PTR dwInstance, DWORD fdwOpen);
+__declspec(dllimport) MMRESULT __stdcall waveOutPause(HWAVEOUT hwo);
+__declspec(dllimport) MMRESULT __stdcall waveOutPrepareHeader(HWAVEOUT hwo, LPWAVEHDR pwh, UINT cbwh);
+__declspec(dllimport) MMRESULT __stdcall waveOutReset(HWAVEOUT hwo);
+__declspec(dllimport) MMRESULT __stdcall waveOutRestart(HWAVEOUT hwo);
+__declspec(dllimport) MMRESULT __stdcall waveOutSetPitch(HWAVEOUT hwo, DWORD dwPitch);
+__declspec(dllimport) MMRESULT __stdcall waveOutSetPlaybackRate(HWAVEOUT hwo, DWORD dwRate);
+__declspec(dllimport) MMRESULT __stdcall waveOutSetVolume(HWAVEOUT hwo, DWORD dwVolume);
+__declspec(dllimport) MMRESULT __stdcall waveOutUnprepareHeader(HWAVEOUT hwo, LPWAVEHDR pwh, UINT cbwh);
+__declspec(dllimport) MMRESULT __stdcall waveOutWrite(HWAVEOUT hwo, LPWAVEHDR pwh, UINT cbwh);
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* RC_INVOKED */
 

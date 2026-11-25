@@ -8,6 +8,9 @@ VC, mingw-w64, Wine or ReactOS header. Metadata: windows-rs at the pin in
 |---|---|---|
 | base typedefs (`NATIVE_TYPEDEFS`) | generate.py | Windows Data Types (learn.microsoft.com/windows/win32/winprog/windows-data-types) |
 | windows.h members, WIN32_LEAN_AND_MEAN | generate.py | Using the Windows Headers; each function page's "Header: X.h (include Windows.h)" line; guiddef.h: GUID structure (guiddef.h), usable after windows.h alone |
+| winver.h includes verrsrc.h; mmsystem.h's members (playsoundapi.h, timeapi.h, mmeapi.h, ...); stralign.h and mcx.h in windows.h | generate.py | VS_FIXEDFILEINFO: "verrsrc.h (include Windows.h)"; PlaySound: "playsoundapi.h (include Windows.h)"; timeBeginPeriod: "timeapi.h (include Windows.h)"; waveOutOpen: "mmeapi.h (include Windows.h)"; the "Header" lines of the stralign.h and mcx.h pages |
+| PSAPI_VERSION and the K32 names | generate.py (`IMPORT_ALIAS_CONDITIONS`) | EnumProcesses, GetProcessMemoryInfo: "Kernel32.dll on Windows 7 and Windows Server 2008 R2; Psapi.dll (if PSAPI_VERSION=1)", and the K32 prefix under PSAPI_VERSION 2 |
+| neutral typedefs (WNDCLASS, LOGFONT) | generate.py (`typedef_line`) | each structure page's "The ... header defines X as an alias that automatically selects the ANSI or Unicode version" note |
 | umbrella members (uiautomation.h, objbase.h, ole2.h, shobjidl.h, shlobj.h) | generate.py | function and interface pages' "Header" lines, e.g. IUIAutomation: "uiautomationclient.h (include UIAutomation.h)" |
 | WINAPI, CALLBACK, APIENTRY, STDMETHODCALLTYPE, STDAPI, STDMETHODIMP | stxwin_supplement.h | Windows Data Types; Argument Passing and Naming Conventions; COM "Defining COM interfaces" |
 | SUCCEEDED, FAILED, HRESULT_FROM_WIN32, MAKE_HRESULT, HRESULT_CODE | stxwin_supplement.h | Using Macros for Error Handling; HRESULT_FROM_WIN32 macro (winerror.h) |

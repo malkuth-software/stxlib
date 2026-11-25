@@ -662,6 +662,8 @@
 #else
 #define Shell_GetCachedImageIndex Shell_GetCachedImageIndexA
 #endif
+#define ILCloneChild ILCloneFirst
+#define ILCloneFull ILClone
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

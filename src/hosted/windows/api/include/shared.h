@@ -359,6 +359,7 @@ __declspec(dllimport) unsigned int __stdcall VARIANT_UserSize64(unsigned int *pa
 __declspec(dllimport) unsigned char *__stdcall VARIANT_UserUnmarshal(unsigned int *param0, unsigned char *param1, VARIANT *param2);
 __declspec(dllimport) unsigned char *__stdcall VARIANT_UserUnmarshal64(unsigned int *param0, unsigned char *param1, VARIANT *param2);
 __declspec(dllimport) ULONGLONG __stdcall VerSetConditionMask(ULONGLONG ConditionMask, DWORD TypeMask, BYTE Condition);
+__declspec(dllimport) MMRESULT __stdcall joyConfigChanged(DWORD dwFlags);
 #ifdef __cplusplus
 }
 #endif

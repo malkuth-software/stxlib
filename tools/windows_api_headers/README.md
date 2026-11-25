@@ -6,10 +6,16 @@ export list per system DLL. Since STXlib 1.0.1 they declare the whole API of
 every system DLL STXlib ships a `.def` for (`COVERED_LIBRARIES` in
 `generate.py`): every function, and every type, constant, callback and
 interface of the metadata files that declare them, so third-party code (the
-image codecs) compiles as well as our own. `roots.txt`, what gui_forms, stx,
-STXlib, miniaudio and libc++ use, is checked to be covered; it no longer
-limits what is generated. Python 3, standard library only; output is
-deterministic.
+image codecs) compiles as well as our own. Since 1.0.4 they also hold every
+function-free metadata file windows.h includes (`WHOLE_STEMS`: verrsrc.h,
+dlgs.h, mmsystem.h and the others) whole, and `generate.py` fails when a
+file of windows.h's default include set (`SDK_WINDOWS_H`) is partial or
+absent, unless `WINDOWS_H_UNCOVERED` names the DLL it lacks and why; the
+state of each file is listed under `[windows.h]` in `generated_report.txt`.
+`roots.txt`, what gui_forms, stx, STXlib, Plan Paint, Pocket Reference,
+miniaudio and libc++ use (their resource scripts included), is checked to
+be covered; it no longer limits what is generated. Python 3, standard
+library only; output is deterministic.
 
 | File | Role |
 |---|---|
@@ -19,6 +25,8 @@ deterministic.
 | `scan.py` | writes `roots.txt`: included Windows header names and used metadata names |
 | `layout.py` | x86_64 msvc record layout from the metadata, for the layout check |
 | `generate.py` | writes `src/hosted/windows/api/{include,lib,check}` and `generated_report.txt`; `--check` compares instead |
+| `test_tools.py` | unit tests of the scan's and the generator's rules on synthetic metadata (no checkout needed) |
+| `sdk_gaps.py` | survey: every metadata file against the committed headers by word, and the metadata names given working trees use that no header spells |
 | `probe.sh` | compile probes: every header alone (C++20, C17; plain, UNICODE, LEAN), layout check, uuid.c, RC_INVOKED |
 | `REFERENCES.md` | Microsoft Learn pages behind the hand-written parts |
 
@@ -27,7 +35,9 @@ deterministic.
 ```text
 python3 -I tools/windows_api_headers/scan.py        # needs the repositories in sources.json
 python3 -I tools/windows_api_headers/generate.py    # needs the metadata checkout in PIN.json
-python3 -I tools/windows_api_headers/generate.py --check   # reproduces the committed files byte for byte
+python3 -I tools/windows_api_headers/generate.py --check   # reproduces the committed files byte for byte; fails on a windows.h coverage gap
+python3 -I tools/windows_api_headers/test_tools.py         # the rules on synthetic metadata
+python3 -I tools/windows_api_headers/sdk_gaps.py <out> [repository ...]   # the survey
 STXWIN_LIBCXX=<libc++ include dir> sh tools/windows_api_headers/probe.sh <clang bin> <log dir> [crt include dir ...]
 ```
 
@@ -72,6 +82,18 @@ STXWIN_LIBCXX=<libc++ include dir> sh tools/windows_api_headers/probe.sh <clang 
 - A used metadata file no included header reaches is added to windows.h and
   listed in `generated_report.txt` under `[gaps]`. A metadata file that only
   the complete coverage reaches is not; it is listed under `[standalone]`.
+- Resource scripts (`.rc`, `.rc2`, `.rc.in`) are scanned as Windows-facing
+  roots; one that Visual Studio wrote in UTF-16 is decoded by its byte order
+  mark.
+- A typedef or callback with ANSI and wide forms (`WNDCLASS`, `LPDEVMODE`,
+  `FONTENUMPROC`), which the metadata gives the A form, is a typedef of the W
+  or A form by `UNICODE`.
+- A function the metadata imports under another name
+  (`GetProcessMemoryInfo`, imported as `K32GetProcessMemoryInfo`) is a macro
+  for that name when its DLL is covered, as the SDK spells it; psapi.h's
+  apply only with `PSAPI_VERSION` 2, its default (`IMPORT_ALIAS_CONDITIONS`).
+  `PSAPI_VERSION` and mmiscapi.h's copies of the C library's `SEEK_*` are
+  defined under `#ifndef` (`OVERRIDABLE_CONSTANTS`).
 - A scoped enum (`#[scoped]`) is an `enum class` in C++; C sees its
   underlying type, since its enumerators would collide (several are named
   `None`).

@@ -32,6 +32,8 @@
 #                                       that folder has sources;
 #   <name>.lib for each api/lib/<name>.c  static data libraries (uuid: the
 #                                       GUIDs our sources reference);
+#   m.lib                               an empty library for builds that link
+#                                       a bare `m` (empty_math_library.c);
 #   <name>.lib for each export list     import libraries written by
 #                                       llvm-dlltool: ucrtbase.lib from
 #                                       crt/ucrtbase.def, and one per
@@ -105,6 +107,14 @@ foreach(stxlib_data_source IN LISTS stxlib_data_sources)
     set_target_properties(stxlib_windows_data_${stxlib_data_name} PROPERTIES OUTPUT_NAME "${stxlib_data_name}")
     list(APPEND stxlib_own_runtime_archives stxlib_windows_data_${stxlib_data_name})
 endforeach()
+
+# ---- the empty math library -------------------------------------------------------
+# m.lib holds nothing (empty_math_library.c): a portable build that links a
+# bare `m`, as libavif and plutovg do, then finds it, as MinGW's libm.a is
+# found; the math functions are ucrtbase's.
+add_library(stxlib_windows_empty_math STATIC empty_math_library.c)
+set_target_properties(stxlib_windows_empty_math PROPERTIES OUTPUT_NAME "m")
+list(APPEND stxlib_own_runtime_archives stxlib_windows_empty_math)
 
 # ---- import libraries ---------------------------------------------------------------
 # llvm-dlltool writes a COFF short-import library from each export list

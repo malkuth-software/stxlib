@@ -10,7 +10,44 @@
 #define LIST_MODULES_64BIT 2
 #define LIST_MODULES_ALL 3
 #define LIST_MODULES_DEFAULT 0
+#ifndef PSAPI_VERSION
 #define PSAPI_VERSION 2
+#endif
+#ifdef UNICODE
+#define EnumPageFiles EnumPageFilesW
+#else
+#define EnumPageFiles EnumPageFilesA
+#endif
+#ifdef UNICODE
+#define GetDeviceDriverBaseName GetDeviceDriverBaseNameW
+#else
+#define GetDeviceDriverBaseName GetDeviceDriverBaseNameA
+#endif
+#ifdef UNICODE
+#define GetDeviceDriverFileName GetDeviceDriverFileNameW
+#else
+#define GetDeviceDriverFileName GetDeviceDriverFileNameA
+#endif
+#ifdef UNICODE
+#define GetMappedFileName GetMappedFileNameW
+#else
+#define GetMappedFileName GetMappedFileNameA
+#endif
+#ifdef UNICODE
+#define GetModuleBaseName GetModuleBaseNameW
+#else
+#define GetModuleBaseName GetModuleBaseNameA
+#endif
+#ifdef UNICODE
+#define GetModuleFileNameEx GetModuleFileNameExW
+#else
+#define GetModuleFileNameEx GetModuleFileNameExA
+#endif
+#ifdef UNICODE
+#define GetProcessImageFileName GetProcessImageFileNameW
+#else
+#define GetProcessImageFileName GetProcessImageFileNameA
+#endif
 #ifdef UNICODE
 #define K32EnumPageFiles K32EnumPageFilesW
 #else
@@ -45,6 +82,35 @@
 #define K32GetProcessImageFileName K32GetProcessImageFileNameW
 #else
 #define K32GetProcessImageFileName K32GetProcessImageFileNameA
+#endif
+#if PSAPI_VERSION > 1
+#define EmptyWorkingSet K32EmptyWorkingSet
+#define EnumDeviceDrivers K32EnumDeviceDrivers
+#define EnumPageFilesA K32EnumPageFilesA
+#define EnumPageFilesW K32EnumPageFilesW
+#define EnumProcessModules K32EnumProcessModules
+#define EnumProcessModulesEx K32EnumProcessModulesEx
+#define EnumProcesses K32EnumProcesses
+#define GetDeviceDriverBaseNameA K32GetDeviceDriverBaseNameA
+#define GetDeviceDriverBaseNameW K32GetDeviceDriverBaseNameW
+#define GetDeviceDriverFileNameA K32GetDeviceDriverFileNameA
+#define GetDeviceDriverFileNameW K32GetDeviceDriverFileNameW
+#define GetMappedFileNameA K32GetMappedFileNameA
+#define GetMappedFileNameW K32GetMappedFileNameW
+#define GetModuleBaseNameA K32GetModuleBaseNameA
+#define GetModuleBaseNameW K32GetModuleBaseNameW
+#define GetModuleFileNameExA K32GetModuleFileNameExA
+#define GetModuleFileNameExW K32GetModuleFileNameExW
+#define GetModuleInformation K32GetModuleInformation
+#define GetPerformanceInfo K32GetPerformanceInfo
+#define GetProcessImageFileNameA K32GetProcessImageFileNameA
+#define GetProcessImageFileNameW K32GetProcessImageFileNameW
+#define GetProcessMemoryInfo K32GetProcessMemoryInfo
+#define GetWsChanges K32GetWsChanges
+#define GetWsChangesEx K32GetWsChangesEx
+#define InitializeProcessForWsWatch K32InitializeProcessForWsWatch
+#define QueryWorkingSet K32QueryWorkingSet
+#define QueryWorkingSetEx K32QueryWorkingSetEx
 #endif
 
 #ifndef RC_INVOKED
