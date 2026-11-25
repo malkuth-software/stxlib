@@ -25,14 +25,20 @@ include and the names they use) and `layout.py`'s rules. Outputs, under
   for every emitted record against `layout.py`'s computation from the
   metadata.
 
-What is emitted (STXlib 1.0.1): every function of each DLL in
+What is emitted (STXlib 1.0.4): every function of each DLL in
 COVERED_LIBRARIES, with every type, constant, callback and interface of the
-metadata files that declare them; every constant of the other metadata files
-the closure reaches whose type is already emitted; and the closure of
-`roots.txt`, which is now the check that nothing our sources use is missing
-rather than the limit of what is generated. Names that cannot be spelled
-(record-scoped constants, anonymous nested records) are listed under
-`[gaps]` in `generated_report.txt`.
+metadata files that declare them and of WHOLE_STEMS (the function-free files
+windows.h includes); every constant of the other metadata files the closure
+reaches whose type is already emitted; the import aliases of the covered
+DLLs; and the closure of `roots.txt`, which is now the check that nothing our
+sources use is missing rather than the limit of what is generated. Names
+that cannot be spelled (record-scoped constants, anonymous nested records)
+are listed under `[gaps]` in `generated_report.txt`.
+
+The windows.h check: every file of SDK_WINDOWS_H must be complete, or name
+the DLLs it lacks in WINDOWS_H_UNCOVERED with a reason. Each file's state is
+listed under `[windows.h]` in `generated_report.txt`; a failure makes the
+run, `--check` included, exit 1.
 
 `stxwin_supplement.h` (macros and inline helpers that are not metadata) is
 hand-written and not touched here. Output is deterministic: names sorted or
@@ -132,8 +138,8 @@ WINDOWS_H_MEMBERS = [
     'libloaderapi', 'errhandlingapi', 'sysinfoapi', 'heapapi', 'debugapi', 'profileapi', 'ioapiset',
     'jobapi', 'jobapi2', 'namedpipeapi', 'threadpoolapiset', 'threadpoollegacyapiset', 'timezoneapi',
     'stringapiset', 'datetimeapi', 'securitybaseapi', 'interlockedapi', 'realtimeapiset', 'fibersapi',
-    'wow64apiset', 'utilapiset', 'winver', 'imm', 'winsvc', 'apiquery2', 'enclaveapi', 'namespaceapi',
-    'systemtopologyapi', 'processtopologyapi', 'psapi', 'winioctl', 'excpt', 'guiddef',
+    'wow64apiset', 'utilapiset', 'winver', 'stralign', 'mcx', 'imm', 'winsvc', 'apiquery2', 'enclaveapi',
+    'namespaceapi', 'systemtopologyapi', 'processtopologyapi', 'psapi', 'winioctl', 'excpt', 'guiddef',
 ]
 # Included by windows.h only without WIN32_LEAN_AND_MEAN.
 WINDOWS_H_NOT_LEAN = ['shellapi', 'commdlg', 'ole2', 'objbase', 'combaseapi', 'oleauto', 'oaidl', 'objidl',
@@ -165,7 +171,30 @@ UMBRELLA_MEMBERS = {
     'windowsx': [],
     'inspectable': ['unknwnbase', 'hstring'],
     'winstring': ['hstring'],
+    # The SDK's winver.h includes verrsrc.h (Learn: VS_FIXEDFILEINFO, "verrsrc.h
+    # (include Windows.h)"), and mmsystem.h is the umbrella of the multimedia
+    # headers (Learn: PlaySound, "playsoundapi.h (include Windows.h)";
+    # timeBeginPeriod, "timeapi.h (include Windows.h)"; waveOutOpen, "mmeapi.h
+    # (include Windows.h)").
+    'winver': ['verrsrc'],
+    'mmsystem': ['mmsyscom', 'mciapi', 'mmiscapi', 'mmiscapi2', 'playsoundapi', 'mmeapi', 'timeapi', 'joystickapi'],
 }
+# Metadata files that declare no function of their own but that windows.h
+# includes: each is emitted whole, every constant, type and callback, as the
+# SDK has it (coordinator, 2026-11-24: verrsrc.h's VS_* and VFT_* names in
+# resource scripts were missing because coverage started from functions).
+WHOLE_STEMS = ['cderr', 'dlgs', 'mcx', 'mmsyscom', 'mmsystem', 'nb30', 'rpc', 'stralign', 'verrsrc', 'wincon',
+               'windef', 'winperf']
+# Constants emitted under #ifndef: those a program may set before including
+# the header, as the SDK lets it (psapi.h: PSAPI_VERSION 1 names the psapi.dll
+# entries, 2 the kernel32 K32 ones), and the C library's SEEK_* origins, which
+# mmiscapi.h repeats for mmioSeek and stdio.h owns.
+OVERRIDABLE_CONSTANTS = {'PSAPI_VERSION', 'SEEK_CUR', 'SEEK_END', 'SEEK_SET'}
+# The condition under which a header's import aliases apply (see
+# add_import_aliases): psapi.h maps EnumProcesses to K32EnumProcesses only
+# with PSAPI_VERSION 2 (Learn: EnumProcesses, "Kernel32.dll on Windows 7 and
+# Windows Server 2008 R2; Psapi.dll (if PSAPI_VERSION=1)").
+IMPORT_ALIAS_CONDITIONS = {'psapi': 'PSAPI_VERSION > 1'}
 
 
 class GenerationError(Exception):
@@ -254,6 +283,18 @@ class Model:
         self.gaps: list[str] = []
         self.methods: set[str] = set()
         self.crt_headers: set[str] = set()
+        # Functions the metadata declares under one name and imports under
+        # another (`GetProcessMemoryInfo`, imported as `K32GetProcessMemoryInfo`):
+        # name -> the emitted function it is a macro for (add_import_aliases).
+        self.import_aliases: dict[str, str] = {}
+
+    def is_neutral_type(self, declaration: rdl.Decl) -> bool:
+        """A typedef or callback with an ANSI and a wide form (`WNDCLASS`,
+        `LPSHELLEXECUTEINFO`, `FONTENUMPROC`): the metadata gives it the A
+        form; the SDK chooses by UNICODE, and so does typedef_line."""
+        name = declaration.name
+        return declaration.kind in ('type', 'callback') and name not in NATIVE_TYPEDEFS and \
+            name + 'A' in self.declarations and name + 'W' in self.declarations
 
     def is_interface(self, name: str) -> bool:
         declaration = self.declarations.get(name)
@@ -315,15 +356,15 @@ class Model:
         elif kind == 'type':
             if declaration.name in NATIVE_TYPEDEFS:
                 names.extend(NATIVE_TYPEDEF_DEPENDENCIES.get(declaration.name, []))
+            elif self.is_neutral_type(declaration):
+                # The typedef is emitted as the UNICODE choice of W and A.
+                names.extend([declaration.name + 'A', declaration.name + 'W'])
             else:
                 self.type_names(declaration.aliased, names)
-                aliased = declaration.aliased
-                if aliased.kind == 'named' and aliased.name == declaration.name + 'A' and \
-                        declaration.name + 'W' in self.declarations:
-                    # The typedef is emitted as the UNICODE choice of W and A.
-                    names.append(declaration.name + 'W')
         elif kind == 'const':
             self.type_names(declaration.value_type, names)
+        elif kind == 'callback' and self.is_neutral_type(declaration):
+            names.extend([declaration.name + 'A', declaration.name + 'W'])
         elif kind in ('function', 'callback'):
             for parameter in declaration.params:
                 self.type_names(parameter.param_type, names)
@@ -356,10 +397,14 @@ class Model:
             ansi = declarations.get(name + 'A')
             wide = declarations.get(name + 'W')
             if ansi is not None and wide is not None:
-                # The neutral name: an alias chosen by UNICODE.
+                # The neutral name: an alias chosen by UNICODE. A neutral
+                # typedef is itself emitted (typedef_line); a neutral function
+                # or constant is a macro in its header (stem_header).
                 self.neutral.add(name)
                 self.close(name + 'A')
                 self.close(name + 'W')
+                if declaration.kind in ('type', 'callback'):
+                    self.close(name)
                 return
             if declaration.kind == 'const' and wide is not None:
                 self.neutral.add(name)
@@ -757,11 +802,9 @@ class Emitter:
             if text.endswith('*'):
                 return [f'typedef {text}{name};']
             return [f'typedef {text} {name};']
-        aliased = declaration.aliased
-        if aliased.kind == 'named' and aliased.name.endswith('A') and aliased.name[:-1] == name and \
-                name + 'W' in self.model.declarations:
+        if self.model.is_neutral_type(declaration):
             return ['#ifdef UNICODE', f'typedef {name}W {name};', '#else', f'typedef {name}A {name};', '#endif']
-        return [f'typedef {self.speller.spell(aliased, name)};']
+        return [f'typedef {self.speller.spell(declaration.aliased, name)};']
 
     def enum_lines(self, declaration: rdl.Decl) -> list[str]:
         representation = declaration.attribute('repr')
@@ -915,6 +958,8 @@ class Emitter:
                     lines.append(f'/* {declaration.name} is opaque: declared, never defined. */')
                 else:
                     lines.extend(self.record_definition(declaration))
+            elif kind == 'callback' and self.model.is_neutral_type(declaration):
+                lines.extend(self.typedef_line(declaration))
             elif kind == 'callback':
                 lines.extend(self.callback_line(declaration))
             lines.append('')
@@ -994,7 +1039,8 @@ class Emitter:
         library = declaration.attribute('library')
         for argument in library.arguments:
             if argument == 'import':
-                self.model.gaps.append(f'{declaration.name}: imported under another name; not emitted')
+                if declaration.name not in self.model.import_aliases:
+                    self.model.gaps.append(f'{declaration.name}: imported under another name; not emitted')
                 return []
         convention = '__cdecl' if declaration.abi == 'C' else '__stdcall'
         noreturn = '__declspec(noreturn) ' if declaration.attribute('noreturn') is not None else ''
@@ -1028,6 +1074,8 @@ class Emitter:
             target = self.model.declarations.get(name + 'W')
             if target is not None:
                 grouped.setdefault(target.source, [])
+        for name in sorted(self.model.import_aliases):
+            grouped.setdefault(self.model.declarations[name].source, [])
         return grouped
 
     def is_early_neutral(self, name: str) -> bool:
@@ -1074,7 +1122,7 @@ class Emitter:
                 continue
             if declaration.name in self.field_names or declaration.name in self.model.methods:
                 self.model.gaps.append(f'{declaration.name}: constant macro shares a record field or method name')
-            if declaration.source in ('sdkddkver', 'winapifamily'):
+            if declaration.source in ('sdkddkver', 'winapifamily') or declaration.name in OVERRIDABLE_CONSTANTS:
                 macros.extend([f'#ifndef {declaration.name}', f'#define {declaration.name} {body}', '#endif'])
             else:
                 macros.append(f'#define {declaration.name} {body}')
@@ -1088,6 +1136,7 @@ class Emitter:
             if self.model.declarations[ansi].kind == 'type' or wide.kind in ('struct', 'union', 'type', 'callback'):
                 continue
             macros.extend(['#ifdef UNICODE', f'#define {name} {name}W', '#else', f'#define {name} {ansi}', '#endif'])
+        macros.extend(self.import_alias_lines(stem))
         lines.extend(macros)
         lines.append('')
         lines.append('#ifndef RC_INVOKED')
@@ -1129,6 +1178,26 @@ class Emitter:
         lines.append('')
         lines.append(f'#endif /* {guard_name(stem + ".h")} */')
         return '\n'.join(lines) + '\n'
+
+    def import_alias_lines(self, stem: str) -> list[str]:
+        """The header's import aliases as macros, as the SDK spells them
+        (`#define GetProcessMemoryInfo K32GetProcessMemoryInfo`), under the
+        header's condition in IMPORT_ALIAS_CONDITIONS if it has one."""
+        names = [name for name in sorted(self.model.import_aliases)
+                 if self.model.declarations[name].source == stem]
+        if not names:
+            return []
+        lines: list[str] = []
+        condition = IMPORT_ALIAS_CONDITIONS.get(stem)
+        if condition is not None:
+            lines.append(f'#if {condition}')
+        for name in names:
+            if name in self.field_names or name in self.model.methods:
+                self.model.gaps.append(f'{name}: import alias macro shares a record field or method name')
+            lines.append(f'#define {name} {self.model.import_aliases[name]}')
+        if condition is not None:
+            lines.append('#endif')
+        return lines
 
     def umbrella_header(self, name: str, members: list[str], lean_members: list[str]) -> str:
         lines = header_preamble(f'{name}.h', f'The SDK header {name}.h: includes its member headers.')
@@ -1293,7 +1362,8 @@ def header_preamble(file_name: str, purpose: str) -> list[str]:
 
 
 # The system DLLs STXlib ships an export list for (STXlib 1.0.1, coordinator
-# 2026-11-24: complete coverage). Every function the metadata says each one
+# 2026-11-24: complete coverage; version.dll and winmm.dll since 1.0.4, for
+# GetFileVersionInfo, PlaySound and timeBeginPeriod). Every function the metadata says each one
 # exports is generated, with every type and constant of the metadata files
 # that declare those functions, so a program on the own runtime finds the
 # whole API of a DLL it links, not only the part our sources use. The
@@ -1303,8 +1373,44 @@ COVERED_LIBRARIES = ['advapi32.dll', 'api-ms-win-core-realtime-l1-1-1.dll', 'api
                      'api-ms-win-shcore-scaling-l1-1-1.dll', 'avrt.dll', 'bcrypt.dll', 'comdlg32.dll',
                      'dwmapi.dll', 'gdi32.dll', 'icuin.dll', 'imm32.dll', 'kernel32.dll', 'ole32.dll',
                      'oleacc.dll', 'oleaut32.dll', 'shell32.dll', 'uiautomationcore.dll', 'user32.dll',
-                     'uxtheme.dll']
+                     'uxtheme.dll', 'version.dll', 'winmm.dll']
 COMPLETE_KINDS = ('const', 'type', 'struct', 'union', 'enum', 'callback', 'interface')
+# windows.h's default include set, by metadata file: the headers windows.h
+# includes with no NO* or WIN32_LEAN_AND_MEAN macro set, and the headers that
+# winver.h (verrsrc.h) and mmsystem.h (the multimedia headers) include for it
+# (Learn: "Using the Windows Headers"; each function page's "Header: X.h
+# (include Windows.h)" line). winsock.h is one too, but the metadata has no
+# file for it (it carries winsock2.h). The headers windows.h's members include
+# in turn (the API-set headers under winbase.h) are not checked.
+SDK_WINDOWS_H = ['windef', 'winbase', 'wingdi', 'winuser', 'winnls', 'wincon', 'winver', 'verrsrc', 'winreg',
+                 'winnetwk', 'cderr', 'dde', 'ddeml', 'dlgs', 'lzexpand', 'mmsystem', 'mmsyscom', 'mciapi',
+                 'mmiscapi', 'mmiscapi2', 'playsoundapi', 'mmeapi', 'timeapi', 'joystickapi', 'nb30', 'rpc',
+                 'shellapi', 'winperf', 'wincrypt', 'winefs', 'winscard', 'winspool', 'ole2', 'commdlg',
+                 'stralign', 'winsvc', 'mcx', 'imm']
+# The DLLs whose functions a file of SDK_WINDOWS_H may lack, each with the
+# reason (coordinator, 2026-11-24: STXlib covers version.dll and winmm.dll
+# and leaves these out). A file named here may also lack the types and
+# constants only those functions use. Every other file must be complete;
+# generate.py fails otherwise, and fails on an entry that excuses nothing.
+NOT_LINKED = 'no program in the family links it; STXlib ships no import list for it'
+API_SET = 'an API set STXlib ships no import list for; kernel32.dll does not export the function'
+KERNELBASE = 'kernelbase.dll\'s own export, which kernel32.dll does not forward; STXlib ships no import list for it'
+WINDOWS_H_UNCOVERED: dict[str, dict[str, str]] = {
+    'winbase': {'api-ms-win-core-backgroundtask-l1-1-0.dll': API_SET, 'api-ms-win-core-comm-l1-1-1.dll': API_SET,
+                'api-ms-win-core-comm-l1-1-2.dll': API_SET},
+    'wingdi': {'msimg32.dll': NOT_LINKED, 'opengl32.dll': NOT_LINKED, 'winspool.drv': NOT_LINKED},
+    'winnls': {'kernelbase.dll': KERNELBASE, 'normaliz.dll': NOT_LINKED},
+    'winnetwk': {'mpr.dll': NOT_LINKED},
+    'lzexpand': {'lz32.dll': NOT_LINKED},
+    'mmiscapi': {'api-ms-win-mm-misc-l1-1-1.dll': API_SET},
+    'nb30': {'netapi32.dll': NOT_LINKED},
+    'shellapi': {'shlwapi.dll': NOT_LINKED},
+    'wincrypt': {'crypt32.dll': NOT_LINKED, 'cryptnet.dll': NOT_LINKED, 'wintrust.dll': NOT_LINKED},
+    'winscard': {'scarddlg.dll': NOT_LINKED, 'winscard.dll': NOT_LINKED},
+    'winspool': {'winspool.drv': NOT_LINKED},
+    'winsvc': {'api-ms-win-service-core-l1-1-3.dll': API_SET, 'api-ms-win-service-core-l1-1-4.dll': API_SET,
+               'api-ms-win-service-core-l1-1-5.dll': API_SET},
+}
 
 
 def function_library(declaration: rdl.Decl) -> 'str | None':
@@ -1366,10 +1472,10 @@ def complete_closure_problem(model: Model, name: str) -> 'str | None':
 
 def add_complete_libraries(model: Model) -> None:
     """Closes every function of COVERED_LIBRARIES and every type and constant
-    of the metadata files declaring them; W/A pairs and W constants also get
-    their neutral name, as a root naming it would."""
+    of the metadata files declaring them and of WHOLE_STEMS; W/A pairs and W
+    constants also get their neutral name, as a root naming it would."""
     covered = set(COVERED_LIBRARIES)
-    stems: set[str] = set()
+    stems: set[str] = set(WHOLE_STEMS)
     names: list[str] = []
     for declaration in model.declarations.values():
         if declaration.kind == 'function' and function_library(declaration) in covered:
@@ -1388,6 +1494,105 @@ def add_complete_libraries(model: Model) -> None:
              if declaration.source in reached - stems and declaration.kind == 'const'
              and set(model.dependencies(declaration)) <= model.used]
     complete_names(model, names)
+
+
+def missing_declarations(model: Model, stem: str) -> list[rdl.Decl]:
+    """The declarations of a metadata file that no generated header spells:
+    not emitted, and not a macro (a neutral name or an import alias)."""
+    missing: list[rdl.Decl] = []
+    for name in sorted(model.declarations):
+        declaration = model.declarations[name]
+        if declaration.source != stem or declaration.kind not in COMPLETE_KINDS + ('function',):
+            continue
+        if declaration.kind == 'function':
+            if name in model.import_aliases or name in model.used and function_library(declaration) is not None \
+                    or name in model.neutral:
+                continue
+        elif name in model.used or declaration.kind == 'const' and name in model.neutral:
+            continue
+        if declaration.kind == 'const' and coclass_guid(declaration) and name in model.clsids:
+            # Emitted as CLSID_<name> and the class declaration (complete_names).
+            continue
+        missing.append(declaration)
+    return missing
+
+
+def windows_h_coverage(model: Model) -> tuple[list[str], list[str]]:
+    """The [windows.h] report lines and the failures: every file of
+    SDK_WINDOWS_H must be complete, or name each DLL whose functions it lacks
+    in WINDOWS_H_UNCOVERED with a reason. An entry that excuses nothing is a
+    failure too, so the list cannot go stale."""
+    report: list[str] = []
+    failures: list[str] = []
+    for stem in SDK_WINDOWS_H:
+        allowed = WINDOWS_H_UNCOVERED.get(stem, {})
+        missing = missing_declarations(model, stem)
+        if not any(declaration.source == stem for declaration in model.declarations.values()):
+            failures.append(f'{stem}.h: no metadata file')
+            continue
+        if not missing:
+            report.append(f'{stem}.h: complete')
+            for dll in sorted(allowed):
+                failures.append(f'{stem}.h: complete, but WINDOWS_H_UNCOVERED still names {dll}')
+            continue
+        dlls: dict[str, int] = {}
+        others = 0
+        for declaration in missing:
+            if declaration.kind == 'function':
+                library = declaration.attribute('library').arguments[0].strip('"').lower()
+                dlls[library] = dlls.get(library, 0) + 1
+            else:
+                others += 1
+        unexcused = sorted(dll for dll in dlls if dll not in allowed)
+        for dll in unexcused:
+            failures.append(f'{stem}.h: {dlls[dll]} function{"" if dlls[dll] == 1 else "s"} from {dll} missing')
+        for dll in sorted(allowed):
+            if dll not in dlls:
+                failures.append(f'{stem}.h: WINDOWS_H_UNCOVERED names {dll}, which no missing function needs')
+        if others and not allowed:
+            names = [declaration.name for declaration in missing if declaration.kind != 'function']
+            shown = ', '.join(names[:12]) + (f', ... ({len(names) - 12} more)' if len(names) > 12 else '')
+            failures.append(f'{stem}.h: {others} declaration{"" if others == 1 else "s"} missing: {shown}')
+        functions = ', '.join(f'{dlls[dll]} function{"" if dlls[dll] == 1 else "s"} from {dll}' for dll in sorted(dlls))
+        report.append(f'{stem}.h: lacks {functions}' + (f' and {others} declarations only those use' if others else '')
+                      + ' (WINDOWS_H_UNCOVERED)')
+    return report, failures
+
+
+def import_target(declaration: rdl.Decl) -> 'str | None':
+    """The export a function is imported as (`#[library("KERNEL32.dll", import =
+    "K32EnumProcesses")]` -> K32EnumProcesses), or None."""
+    library = declaration.attribute('library')
+    if library is None or 'import' not in library.arguments:
+        return None
+    arguments = library.arguments
+    for index in range(arguments.index('import') + 1, len(arguments)):
+        if arguments[index].startswith('"'):
+            return arguments[index].strip('"')
+    return None
+
+
+def add_import_aliases(model: Model) -> None:
+    """Every function of a covered DLL that the metadata imports under another
+    name (psapi.h's PSAPI_VERSION 2 names, oleauto.h's VarIntFromBool,
+    winuser.h's AnsiLower) becomes a macro for the function it is imported
+    as, when that function is emitted; a W/A pair of them also gets its
+    neutral name (GetModuleBaseName)."""
+    covered = set(COVERED_LIBRARIES)
+    for name in sorted(model.declarations):
+        declaration = model.declarations[name]
+        if declaration.kind != 'function':
+            continue
+        target = import_target(declaration)
+        if target is None or declaration.attribute('library').arguments[0].strip('"').lower() not in covered:
+            continue
+        emitted = model.declarations.get(target)
+        if target in model.used and emitted is not None and emitted.kind == 'function' and \
+                function_library(emitted) is not None:
+            model.import_aliases[name] = target
+    for name in sorted(model.import_aliases):
+        if name.endswith('W') and name[:-1] + 'A' in model.import_aliases:
+            model.neutral.add(name[:-1])
 
 
 def coclass_guid(declaration: rdl.Decl) -> bool:
@@ -1484,8 +1689,8 @@ def read_roots(path: pathlib.Path) -> tuple[list[str], list[str]]:
     return includes, roots
 
 
-def generate(root: pathlib.Path) -> dict[str, str]:
-    """Returns {relative output path: content}."""
+def generate(root: pathlib.Path) -> tuple[dict[str, str], list[str]]:
+    """Returns ({relative output path: content}, the windows.h coverage failures)."""
     pin = json.loads((HERE / 'PIN.json').read_text(encoding='utf-8'))
     includes, roots = read_roots(HERE / 'roots.txt')
     metadata = local_paths.metadata_checkout(pin) / 'metadata' / 'win32'
@@ -1503,6 +1708,7 @@ def generate(root: pathlib.Path) -> dict[str, str]:
         if declaration is not None and declaration.kind in ('const', 'function'):
             root_stems.add(declaration.source)
     add_complete_libraries(model)
+    add_import_aliases(model)
     emitter = Emitter(model, roots, includes)
     stems = emitter.stems()
 
@@ -1512,6 +1718,7 @@ def generate(root: pathlib.Path) -> dict[str, str]:
             if declaration.kind == 'const':
                 emitter.macro_names.add(declaration.name)
     emitter.macro_names.update(model.neutral)
+    emitter.macro_names.update(model.import_aliases)
 
     outputs: dict[str, str] = {}
     base = 'src/hosted/windows/api/'
@@ -1596,8 +1803,11 @@ def generate(root: pathlib.Path) -> dict[str, str]:
     report.append('[gaps]')
     for gap in sorted(set(model.gaps)):
         report.append(gap)
+    coverage, failures = windows_h_coverage(model)
+    report.append('[windows.h]')
+    report.extend(coverage)
     outputs['tools/windows_api_headers/generated_report.txt'] = '\n'.join(report) + '\n'
-    return outputs
+    return outputs, failures
 
 
 def main() -> int:
@@ -1607,7 +1817,9 @@ def main() -> int:
                            help='compare with the committed files instead of writing them')
     options = arguments.parse_args()
     root = pathlib.Path(options.root)
-    outputs = generate(root)
+    outputs, failures = generate(root)
+    for line in failures:
+        print(f'windows.h coverage: {line}')
     generated_dirs = ['src/hosted/windows/api/include', 'src/hosted/windows/api/lib',
                       'src/hosted/windows/api/check']
     hand_written: set[str] = set()
@@ -1631,16 +1843,17 @@ def main() -> int:
             differences.append(f'stale: {relative}')
         for line in differences:
             print(line)
-        print(f'generate --check: {len(outputs)} files, {len(differences)} differences')
-        return 1 if differences else 0
+        print(f'generate --check: {len(outputs)} files, {len(differences)} differences, '
+              f'{len(failures)} windows.h coverage failures')
+        return 1 if differences or failures else 0
     for relative in sorted(existing - set(outputs)):
         (root / relative).unlink()
     for relative in sorted(outputs):
         path = root / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(outputs[relative].encode('utf-8'))
-    print(f'generate: {len(outputs)} files written')
-    return 0
+    print(f'generate: {len(outputs)} files written, {len(failures)} windows.h coverage failures')
+    return 1 if failures else 0
 
 
 if __name__ == '__main__':

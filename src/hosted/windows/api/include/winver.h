@@ -5,11 +5,47 @@
 #define STXWIN_WINVER_H
 
 #include "stxwin_supplement.h"
+#include "verrsrc.h"
 
+#ifdef UNICODE
+#define GetFileVersionInfo GetFileVersionInfoW
+#else
+#define GetFileVersionInfo GetFileVersionInfoA
+#endif
+#ifdef UNICODE
+#define GetFileVersionInfoEx GetFileVersionInfoExW
+#else
+#define GetFileVersionInfoEx GetFileVersionInfoExA
+#endif
+#ifdef UNICODE
+#define GetFileVersionInfoSize GetFileVersionInfoSizeW
+#else
+#define GetFileVersionInfoSize GetFileVersionInfoSizeA
+#endif
+#ifdef UNICODE
+#define GetFileVersionInfoSizeEx GetFileVersionInfoSizeExW
+#else
+#define GetFileVersionInfoSizeEx GetFileVersionInfoSizeExA
+#endif
+#ifdef UNICODE
+#define VerFindFile VerFindFileW
+#else
+#define VerFindFile VerFindFileA
+#endif
+#ifdef UNICODE
+#define VerInstallFile VerInstallFileW
+#else
+#define VerInstallFile VerInstallFileA
+#endif
 #ifdef UNICODE
 #define VerLanguageName VerLanguageNameW
 #else
 #define VerLanguageName VerLanguageNameA
+#endif
+#ifdef UNICODE
+#define VerQueryValue VerQueryValueW
+#else
+#define VerQueryValue VerQueryValueA
 #endif
 
 #ifndef RC_INVOKED
@@ -19,8 +55,22 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+__declspec(dllimport) BOOL __stdcall GetFileVersionInfoA(LPCSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+__declspec(dllimport) BOOL __stdcall GetFileVersionInfoExA(DWORD dwFlags, LPCSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+__declspec(dllimport) BOOL __stdcall GetFileVersionInfoExW(DWORD dwFlags, LPCWSTR lpwstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+__declspec(dllimport) DWORD __stdcall GetFileVersionInfoSizeA(LPCSTR lptstrFilename, LPDWORD lpdwHandle);
+__declspec(dllimport) DWORD __stdcall GetFileVersionInfoSizeExA(DWORD dwFlags, LPCSTR lpwstrFilename, LPDWORD lpdwHandle);
+__declspec(dllimport) DWORD __stdcall GetFileVersionInfoSizeExW(DWORD dwFlags, LPCWSTR lpwstrFilename, LPDWORD lpdwHandle);
+__declspec(dllimport) DWORD __stdcall GetFileVersionInfoSizeW(LPCWSTR lptstrFilename, LPDWORD lpdwHandle);
+__declspec(dllimport) BOOL __stdcall GetFileVersionInfoW(LPCWSTR lptstrFilename, DWORD dwHandle, DWORD dwLen, LPVOID lpData);
+__declspec(dllimport) DWORD __stdcall VerFindFileA(DWORD uFlags, LPCSTR szFileName, LPCSTR szWinDir, LPCSTR szAppDir, LPSTR szCurDir, PUINT puCurDirLen, LPSTR szDestDir, PUINT puDestDirLen);
+__declspec(dllimport) DWORD __stdcall VerFindFileW(DWORD uFlags, LPCWSTR szFileName, LPCWSTR szWinDir, LPCWSTR szAppDir, LPWSTR szCurDir, PUINT puCurDirLen, LPWSTR szDestDir, PUINT puDestDirLen);
+__declspec(dllimport) DWORD __stdcall VerInstallFileA(DWORD uFlags, LPCSTR szSrcFileName, LPCSTR szDestFileName, LPCSTR szSrcDir, LPCSTR szDestDir, LPCSTR szCurDir, LPSTR szTmpFile, PUINT puTmpFileLen);
+__declspec(dllimport) DWORD __stdcall VerInstallFileW(DWORD uFlags, LPCWSTR szSrcFileName, LPCWSTR szDestFileName, LPCWSTR szSrcDir, LPCWSTR szDestDir, LPCWSTR szCurDir, LPWSTR szTmpFile, PUINT puTmpFileLen);
 __declspec(dllimport) DWORD __stdcall VerLanguageNameA(DWORD wLang, LPSTR szLang, DWORD cchLang);
 __declspec(dllimport) DWORD __stdcall VerLanguageNameW(DWORD wLang, LPWSTR szLang, DWORD cchLang);
+__declspec(dllimport) BOOL __stdcall VerQueryValueA(LPCVOID pBlock, LPCSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen);
+__declspec(dllimport) BOOL __stdcall VerQueryValueW(LPCVOID pBlock, LPCWSTR lpSubBlock, LPVOID *lplpBuffer, PUINT puLen);
 #ifdef __cplusplus
 }
 #endif

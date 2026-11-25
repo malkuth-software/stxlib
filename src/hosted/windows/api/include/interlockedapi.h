@@ -6,6 +6,7 @@
 
 #include "stxwin_supplement.h"
 
+#define InterlockedPushListSList InterlockedPushListSListEx
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

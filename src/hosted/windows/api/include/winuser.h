@@ -3776,6 +3776,16 @@
 #else
 #define wvsprintf wvsprintfA
 #endif
+#define AnsiLower CharLowerA
+#define AnsiLowerBuff CharLowerBuffA
+#define AnsiNext CharNextA
+#define AnsiPrev CharPrevA
+#define AnsiToOem CharToOemA
+#define AnsiToOemBuff CharToOemBuffA
+#define AnsiUpper CharUpperA
+#define AnsiUpperBuff CharUpperBuffA
+#define OemToAnsi OemToCharA
+#define OemToAnsiBuff OemToCharBuffA
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

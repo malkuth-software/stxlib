@@ -1318,6 +1318,7 @@
 #else
 #define lstrlen lstrlenA
 #endif
+#define CaptureStackBackTrace RtlCaptureStackBackTrace
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

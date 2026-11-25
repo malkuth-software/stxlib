@@ -408,6 +408,9 @@
 #else
 #define PKU2U_PACKAGE_NAME_ PKU2U_PACKAGE_NAME_A
 #endif
+#define RtlDecryptMemory SystemFunction041
+#define RtlEncryptMemory SystemFunction040
+#define RtlGenRandom SystemFunction036
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

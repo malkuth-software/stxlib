@@ -3275,6 +3275,7 @@
 #else
 #define ACCESS_DS_SOURCE_ ACCESS_DS_SOURCE_A
 #endif
+#define RtlCompareDeviceMemory RtlCompareMemory
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

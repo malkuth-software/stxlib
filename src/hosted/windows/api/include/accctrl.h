@@ -137,6 +137,7 @@
 #else
 #define ACCCTRL_DEFAULT_PROVIDER ACCCTRL_DEFAULT_PROVIDERA
 #endif
+#define AccFree LocalFree
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

@@ -32,6 +32,11 @@
 #define GetObject GetObjectA
 #endif
 #ifdef UNICODE
+#define PlaySound PlaySoundW
+#else
+#define PlaySound PlaySoundA
+#endif
+#ifdef UNICODE
 #define SetEnvironmentVariable SetEnvironmentVariableW
 #else
 #define SetEnvironmentVariable SetEnvironmentVariableA
@@ -76,11 +81,13 @@ typedef struct ACTCTXW ACTCTXW;
 typedef struct ACTCTX_SECTION_KEYED_DATA ACTCTX_SECTION_KEYED_DATA;
 typedef struct ACTCTX_SECTION_KEYED_DATA_2600 ACTCTX_SECTION_KEYED_DATA_2600;
 typedef struct ACTCTX_SECTION_KEYED_DATA_ASSEMBLY_METADATA ACTCTX_SECTION_KEYED_DATA_ASSEMBLY_METADATA;
+typedef struct ACTION_HEADER ACTION_HEADER;
 typedef struct ACTIVATION_CONTEXT_ASSEMBLY_DETAILED_INFORMATION ACTIVATION_CONTEXT_ASSEMBLY_DETAILED_INFORMATION;
 typedef struct ACTIVATION_CONTEXT_BASIC_INFORMATION ACTIVATION_CONTEXT_BASIC_INFORMATION;
 typedef struct ACTIVATION_CONTEXT_DETAILED_INFORMATION ACTIVATION_CONTEXT_DETAILED_INFORMATION;
 typedef struct ACTIVATION_CONTEXT_QUERY_INDEX ACTIVATION_CONTEXT_QUERY_INDEX;
 typedef struct ACTIVATION_CONTEXT_RUN_LEVEL_INFORMATION ACTIVATION_CONTEXT_RUN_LEVEL_INFORMATION;
+typedef struct ADAPTER_STATUS ADAPTER_STATUS;
 typedef struct ADMINISTRATOR_POWER_POLICY ADMINISTRATOR_POWER_POLICY;
 typedef struct ALLOC_CONSOLE_OPTIONS ALLOC_CONSOLE_OPTIONS;
 typedef struct ALTTABINFO ALTTABINFO;
@@ -91,6 +98,7 @@ typedef struct ANON_OBJECT_HEADER_V2 ANON_OBJECT_HEADER_V2;
 typedef struct APC_CALLBACK_DATA APC_CALLBACK_DATA;
 typedef struct APPBARDATA APPBARDATA;
 typedef struct APPLICATIONLAUNCH_SETTING_VALUE APPLICATIONLAUNCH_SETTING_VALUE;
+typedef struct APP_LOCAL_DEVICE_ID APP_LOCAL_DEVICE_ID;
 typedef struct APP_MEMORY_INFORMATION APP_MEMORY_INFORMATION;
 typedef struct ARM64EC_NT_CONTEXT ARM64EC_NT_CONTEXT;
 typedef struct ARM64_NT_CONTEXT ARM64_NT_CONTEXT;
@@ -104,6 +112,10 @@ typedef struct AUDIODESCRIPTION AUDIODESCRIPTION;
 typedef struct AUTHENTICODE_EXTRA_CERT_CHAIN_POLICY_PARA AUTHENTICODE_EXTRA_CERT_CHAIN_POLICY_PARA;
 typedef struct AUTHENTICODE_EXTRA_CERT_CHAIN_POLICY_STATUS AUTHENTICODE_EXTRA_CERT_CHAIN_POLICY_STATUS;
 typedef struct AUTHENTICODE_TS_EXTRA_CERT_CHAIN_POLICY_PARA AUTHENTICODE_TS_EXTRA_CERT_CHAIN_POLICY_PARA;
+typedef struct AUXCAPS2A AUXCAPS2A;
+typedef struct AUXCAPS2W AUXCAPS2W;
+typedef struct AUXCAPSA AUXCAPSA;
+typedef struct AUXCAPSW AUXCAPSW;
 typedef struct AXESLISTA AXESLISTA;
 typedef struct AXESLISTW AXESLISTW;
 typedef struct AXISINFOA AXISINFOA;
@@ -368,6 +380,7 @@ typedef struct CREATESTRUCTA CREATESTRUCTA;
 typedef struct CREATESTRUCTW CREATESTRUCTW;
 typedef struct CREATE_PROCESS_DEBUG_INFO CREATE_PROCESS_DEBUG_INFO;
 typedef struct CREATE_THREAD_DEBUG_INFO CREATE_THREAD_DEBUG_INFO;
+typedef struct CRGB CRGB;
 typedef struct CRL_CONTEXT CRL_CONTEXT;
 typedef struct CRL_DIST_POINT CRL_DIST_POINT;
 typedef struct CRL_DIST_POINTS_INFO CRL_DIST_POINTS_INFO;
@@ -533,6 +546,8 @@ typedef struct DRIVER_INFO_ENTRY DRIVER_INFO_ENTRY;
 typedef struct DRIVER_RUNTIME_REPORT DRIVER_RUNTIME_REPORT;
 typedef struct DROPFILES DROPFILES;
 typedef struct DROPSTRUCT DROPSTRUCT;
+typedef struct DRVCONFIGINFO DRVCONFIGINFO;
+typedef struct DRVCONFIGINFOEX DRVCONFIGINFOEX;
 typedef struct DSSSEED DSSSEED;
 typedef struct DVTARGETDEVICE DVTARGETDEVICE;
 typedef struct DWM_BLURBEHIND DWM_BLURBEHIND;
@@ -695,6 +710,8 @@ typedef struct FILE_STREAM_INFO FILE_STREAM_INFO;
 typedef struct FILTERKEYS FILTERKEYS;
 typedef struct FINDREPLACEA FINDREPLACEA;
 typedef struct FINDREPLACEW FINDREPLACEW;
+typedef struct FIND_NAME_BUFFER FIND_NAME_BUFFER;
+typedef struct FIND_NAME_HEADER FIND_NAME_HEADER;
 typedef struct FIXED FIXED;
 typedef struct FLAGGED_BYTE_BLOB FLAGGED_BYTE_BLOB;
 typedef struct FLAG_STGMEDIUM FLAG_STGMEDIUM;
@@ -739,6 +756,7 @@ typedef struct HDC__ HDC__;
 typedef struct HDDEDATA__ HDDEDATA__;
 typedef struct HDESK__ HDESK__;
 typedef struct HDROP__ HDROP__;
+typedef struct HDRVR__ HDRVR__;
 typedef struct HEAP_MEMORY_USAGE_ENTRY HEAP_MEMORY_USAGE_ENTRY;
 typedef struct HEAP_MEMORY_USAGE_INFORMATION HEAP_MEMORY_USAGE_INFORMATION;
 typedef struct HEAP_OPTIMIZE_RESOURCES_INFORMATION HEAP_OPTIMIZE_RESOURCES_INFORMATION;
@@ -749,6 +767,7 @@ typedef struct HELPWININFOW HELPWININFOW;
 typedef struct HENHMETAFILE__ HENHMETAFILE__;
 typedef struct HFONT__ HFONT__;
 typedef struct HGESTUREINFO__ HGESTUREINFO__;
+typedef struct HGLRC__ HGLRC__;
 typedef struct HHOOK__ HHOOK__;
 typedef struct HIBERFILE_BUCKET HIBERFILE_BUCKET;
 typedef struct HICON__ HICON__;
@@ -763,6 +782,13 @@ typedef struct HKL__ HKL__;
 typedef struct HMAC_INFO HMAC_INFO;
 typedef struct HMENU__ HMENU__;
 typedef struct HMETAFILE__ HMETAFILE__;
+typedef struct HMIDIIN__ HMIDIIN__;
+typedef struct HMIDIOUT__ HMIDIOUT__;
+typedef struct HMIDISTRM__ HMIDISTRM__;
+typedef struct HMIDI__ HMIDI__;
+typedef struct HMIXEROBJ__ HMIXEROBJ__;
+typedef struct HMIXER__ HMIXER__;
+typedef struct HMMIO__ HMMIO__;
 typedef struct HMONITOR__ HMONITOR__;
 typedef struct HPALETTE__ HPALETTE__;
 typedef struct HPEN__ HPEN__;
@@ -777,6 +803,10 @@ typedef struct HSZPAIR HSZPAIR;
 typedef struct HSZ__ HSZ__;
 typedef struct HTASK__ HTASK__;
 typedef struct HTOUCHINPUT__ HTOUCHINPUT__;
+typedef struct HUMPD__ HUMPD__;
+typedef struct HWAVEIN__ HWAVEIN__;
+typedef struct HWAVEOUT__ HWAVEOUT__;
+typedef struct HWAVE__ HWAVE__;
 typedef struct HWINEVENTHOOK__ HWINEVENTHOOK__;
 typedef struct HWINSTA__ HWINSTA__;
 typedef struct HWND__ HWND__;
@@ -1003,6 +1033,7 @@ typedef struct IStorage IStorage;
 typedef struct IStream IStream;
 typedef struct ISurrogate ISurrogate;
 typedef struct ISurrogateService ISurrogateService;
+typedef struct ITEMIDLIST ITEMIDLIST;
 typedef struct ITextProvider ITextProvider;
 typedef struct ITextProvider2 ITextProvider2;
 typedef struct ITextRangeProvider ITextRangeProvider;
@@ -1068,6 +1099,12 @@ typedef struct JOBOBJECT_NOTIFICATION_LIMIT_INFORMATION JOBOBJECT_NOTIFICATION_L
 typedef struct JOBOBJECT_NOTIFICATION_LIMIT_INFORMATION_2 JOBOBJECT_NOTIFICATION_LIMIT_INFORMATION_2;
 typedef struct JOBOBJECT_SECURITY_LIMIT_INFORMATION JOBOBJECT_SECURITY_LIMIT_INFORMATION;
 typedef struct JOB_SET_ARRAY JOB_SET_ARRAY;
+typedef struct JOYCAPS2A JOYCAPS2A;
+typedef struct JOYCAPS2W JOYCAPS2W;
+typedef struct JOYCAPSA JOYCAPSA;
+typedef struct JOYCAPSW JOYCAPSW;
+typedef struct JOYINFO JOYINFO;
+typedef struct JOYINFOEX JOYINFOEX;
 typedef struct KBDLLHOOKSTRUCT KBDLLHOOKSTRUCT;
 typedef struct KERNEL_CET_CONTEXT KERNEL_CET_CONTEXT;
 typedef struct KERNINGPAIR KERNINGPAIR;
@@ -1077,6 +1114,7 @@ typedef struct KEY_TYPE_SUBTYPE KEY_TYPE_SUBTYPE;
 typedef struct KNONVOLATILE_CONTEXT_POINTERS KNONVOLATILE_CONTEXT_POINTERS;
 typedef struct KNONVOLATILE_CONTEXT_POINTERS_ARM64 KNONVOLATILE_CONTEXT_POINTERS_ARM64;
 typedef struct KTMOBJECT_CURSOR KTMOBJECT_CURSOR;
+typedef struct LANA_ENUM LANA_ENUM;
 typedef union LARGE_INTEGER LARGE_INTEGER;
 typedef struct LASTINPUTINFO LASTINPUTINFO;
 typedef struct LAYERPLANEDESCRIPTOR LAYERPLANEDESCRIPTOR;
@@ -1100,6 +1138,50 @@ typedef struct M128A M128A;
 typedef struct MARGINS MARGINS;
 typedef struct MAT2 MAT2;
 typedef struct MAXVERSIONTESTED_INFO MAXVERSIONTESTED_INFO;
+typedef struct MCI_ANIM_OPEN_PARMSA MCI_ANIM_OPEN_PARMSA;
+typedef struct MCI_ANIM_OPEN_PARMSW MCI_ANIM_OPEN_PARMSW;
+typedef struct MCI_ANIM_PLAY_PARMS MCI_ANIM_PLAY_PARMS;
+typedef struct MCI_ANIM_RECT_PARMS MCI_ANIM_RECT_PARMS;
+typedef struct MCI_ANIM_STEP_PARMS MCI_ANIM_STEP_PARMS;
+typedef struct MCI_ANIM_UPDATE_PARMS MCI_ANIM_UPDATE_PARMS;
+typedef struct MCI_ANIM_WINDOW_PARMSA MCI_ANIM_WINDOW_PARMSA;
+typedef struct MCI_ANIM_WINDOW_PARMSW MCI_ANIM_WINDOW_PARMSW;
+typedef struct MCI_BREAK_PARMS MCI_BREAK_PARMS;
+typedef struct MCI_GENERIC_PARMS MCI_GENERIC_PARMS;
+typedef struct MCI_GETDEVCAPS_PARMS MCI_GETDEVCAPS_PARMS;
+typedef struct MCI_INFO_PARMSA MCI_INFO_PARMSA;
+typedef struct MCI_INFO_PARMSW MCI_INFO_PARMSW;
+typedef struct MCI_LOAD_PARMSA MCI_LOAD_PARMSA;
+typedef struct MCI_LOAD_PARMSW MCI_LOAD_PARMSW;
+typedef struct MCI_OPEN_PARMSA MCI_OPEN_PARMSA;
+typedef struct MCI_OPEN_PARMSW MCI_OPEN_PARMSW;
+typedef struct MCI_OVLY_LOAD_PARMSA MCI_OVLY_LOAD_PARMSA;
+typedef struct MCI_OVLY_LOAD_PARMSW MCI_OVLY_LOAD_PARMSW;
+typedef struct MCI_OVLY_OPEN_PARMSA MCI_OVLY_OPEN_PARMSA;
+typedef struct MCI_OVLY_OPEN_PARMSW MCI_OVLY_OPEN_PARMSW;
+typedef struct MCI_OVLY_RECT_PARMS MCI_OVLY_RECT_PARMS;
+typedef struct MCI_OVLY_SAVE_PARMSA MCI_OVLY_SAVE_PARMSA;
+typedef struct MCI_OVLY_SAVE_PARMSW MCI_OVLY_SAVE_PARMSW;
+typedef struct MCI_OVLY_WINDOW_PARMSA MCI_OVLY_WINDOW_PARMSA;
+typedef struct MCI_OVLY_WINDOW_PARMSW MCI_OVLY_WINDOW_PARMSW;
+typedef struct MCI_PLAY_PARMS MCI_PLAY_PARMS;
+typedef struct MCI_RECORD_PARMS MCI_RECORD_PARMS;
+typedef struct MCI_SAVE_PARMSA MCI_SAVE_PARMSA;
+typedef struct MCI_SAVE_PARMSW MCI_SAVE_PARMSW;
+typedef struct MCI_SEEK_PARMS MCI_SEEK_PARMS;
+typedef struct MCI_SEQ_SET_PARMS MCI_SEQ_SET_PARMS;
+typedef struct MCI_SET_PARMS MCI_SET_PARMS;
+typedef struct MCI_STATUS_PARMS MCI_STATUS_PARMS;
+typedef struct MCI_SYSINFO_PARMSA MCI_SYSINFO_PARMSA;
+typedef struct MCI_SYSINFO_PARMSW MCI_SYSINFO_PARMSW;
+typedef struct MCI_VD_ESCAPE_PARMSA MCI_VD_ESCAPE_PARMSA;
+typedef struct MCI_VD_ESCAPE_PARMSW MCI_VD_ESCAPE_PARMSW;
+typedef struct MCI_VD_PLAY_PARMS MCI_VD_PLAY_PARMS;
+typedef struct MCI_VD_STEP_PARMS MCI_VD_STEP_PARMS;
+typedef struct MCI_WAVE_DELETE_PARMS MCI_WAVE_DELETE_PARMS;
+typedef struct MCI_WAVE_OPEN_PARMSA MCI_WAVE_OPEN_PARMSA;
+typedef struct MCI_WAVE_OPEN_PARMSW MCI_WAVE_OPEN_PARMSW;
+typedef struct MCI_WAVE_SET_PARMS MCI_WAVE_SET_PARMS;
 typedef struct MDICREATESTRUCTA MDICREATESTRUCTA;
 typedef struct MDICREATESTRUCTW MDICREATESTRUCTW;
 typedef struct MDINEXTMENU MDINEXTMENU;
@@ -1129,8 +1211,42 @@ typedef struct METAFILEPICT METAFILEPICT;
 typedef struct METAHEADER METAHEADER;
 typedef struct METARECORD METARECORD;
 typedef struct METHODDATA METHODDATA;
+typedef struct MIDIEVENT MIDIEVENT;
+typedef struct MIDIHDR MIDIHDR;
+typedef struct MIDIINCAPS2A MIDIINCAPS2A;
+typedef struct MIDIINCAPS2W MIDIINCAPS2W;
+typedef struct MIDIINCAPSA MIDIINCAPSA;
+typedef struct MIDIINCAPSW MIDIINCAPSW;
+typedef struct MIDIOUTCAPS2A MIDIOUTCAPS2A;
+typedef struct MIDIOUTCAPS2W MIDIOUTCAPS2W;
+typedef struct MIDIOUTCAPSA MIDIOUTCAPSA;
+typedef struct MIDIOUTCAPSW MIDIOUTCAPSW;
+typedef struct MIDIPROPTEMPO MIDIPROPTEMPO;
+typedef struct MIDIPROPTIMEDIV MIDIPROPTIMEDIV;
+typedef struct MIDISTRMBUFFVER MIDISTRMBUFFVER;
 typedef struct MINIMIZEDMETRICS MINIMIZEDMETRICS;
 typedef struct MINMAXINFO MINMAXINFO;
+typedef struct MIXERCAPS2A MIXERCAPS2A;
+typedef struct MIXERCAPS2W MIXERCAPS2W;
+typedef struct MIXERCAPSA MIXERCAPSA;
+typedef struct MIXERCAPSW MIXERCAPSW;
+typedef struct MIXERCONTROLA MIXERCONTROLA;
+typedef struct MIXERCONTROLDETAILS MIXERCONTROLDETAILS;
+typedef struct MIXERCONTROLDETAILS_BOOLEAN MIXERCONTROLDETAILS_BOOLEAN;
+typedef struct MIXERCONTROLDETAILS_LISTTEXTA MIXERCONTROLDETAILS_LISTTEXTA;
+typedef struct MIXERCONTROLDETAILS_LISTTEXTW MIXERCONTROLDETAILS_LISTTEXTW;
+typedef struct MIXERCONTROLDETAILS_SIGNED MIXERCONTROLDETAILS_SIGNED;
+typedef struct MIXERCONTROLDETAILS_UNSIGNED MIXERCONTROLDETAILS_UNSIGNED;
+typedef struct MIXERCONTROLW MIXERCONTROLW;
+typedef struct MIXERLINEA MIXERLINEA;
+typedef struct MIXERLINECONTROLSA MIXERLINECONTROLSA;
+typedef struct MIXERLINECONTROLSW MIXERLINECONTROLSW;
+typedef struct MIXERLINEW MIXERLINEW;
+typedef struct MMCKINFO MMCKINFO;
+typedef struct MMIOINFO MMIOINFO;
+typedef struct MMTIME MMTIME;
+typedef struct MODEMDEVCAPS MODEMDEVCAPS;
+typedef struct MODEMSETTINGS MODEMSETTINGS;
 typedef struct MODULEINFO MODULEINFO;
 typedef struct MONCBSTRUCT MONCBSTRUCT;
 typedef struct MONCONVSTRUCT MONCONVSTRUCT;
@@ -1156,6 +1272,8 @@ typedef struct MULTIKEYHELPA MULTIKEYHELPA;
 typedef struct MULTIKEYHELPW MULTIKEYHELPW;
 typedef struct MULTI_QI MULTI_QI;
 typedef struct Matrix Matrix;
+typedef struct NAME_BUFFER NAME_BUFFER;
+typedef struct NCB NCB;
 typedef struct NCCALCSIZE_PARAMS NCCALCSIZE_PARAMS;
 typedef struct NC_ADDRESS NC_ADDRESS;
 typedef struct NETWORK_APP_INSTANCE_EA NETWORK_APP_INSTANCE_EA;
@@ -1231,8 +1349,14 @@ typedef struct PANOSE PANOSE;
 typedef struct PARAMDATA PARAMDATA;
 typedef struct PARAMDESC PARAMDESC;
 typedef struct PARAMDESCEX PARAMDESCEX;
+typedef struct PCMWAVEFORMAT PCMWAVEFORMAT;
 typedef struct PELARRAY PELARRAY;
 typedef struct PERFORMANCE_DATA PERFORMANCE_DATA;
+typedef struct PERF_COUNTER_BLOCK PERF_COUNTER_BLOCK;
+typedef struct PERF_COUNTER_DEFINITION PERF_COUNTER_DEFINITION;
+typedef struct PERF_DATA_BLOCK PERF_DATA_BLOCK;
+typedef struct PERF_INSTANCE_DEFINITION PERF_INSTANCE_DEFINITION;
+typedef struct PERF_OBJECT_TYPE PERF_OBJECT_TYPE;
 typedef struct PIXELFORMATDESCRIPTOR PIXELFORMATDESCRIPTOR;
 typedef struct PKCS12_PBES2_EXPORT_PARAMS PKCS12_PBES2_EXPORT_PARAMS;
 typedef struct POINT POINT;
@@ -1464,6 +1588,8 @@ typedef struct SERVICE_TRIGGER SERVICE_TRIGGER;
 typedef struct SERVICE_TRIGGER_CUSTOM_STATE_ID SERVICE_TRIGGER_CUSTOM_STATE_ID;
 typedef struct SERVICE_TRIGGER_INFO SERVICE_TRIGGER_INFO;
 typedef struct SERVICE_TRIGGER_SPECIFIC_DATA_ITEM SERVICE_TRIGGER_SPECIFIC_DATA_ITEM;
+typedef struct SESSION_BUFFER SESSION_BUFFER;
+typedef struct SESSION_HEADER SESSION_HEADER;
 typedef struct SET_POWER_SETTING_VALUE SET_POWER_SETTING_VALUE;
 typedef struct SE_ACCESS_REPLY SE_ACCESS_REPLY;
 typedef struct SE_ACCESS_REQUEST SE_ACCESS_REQUEST;
@@ -1480,6 +1606,7 @@ typedef struct SHFILEINFOA SHFILEINFOA;
 typedef struct SHFILEINFOW SHFILEINFOW;
 typedef struct SHFILEOPSTRUCTA SHFILEOPSTRUCTA;
 typedef struct SHFILEOPSTRUCTW SHFILEOPSTRUCTW;
+typedef struct SHITEMID SHITEMID;
 typedef struct SHNAMEMAPPINGA SHNAMEMAPPINGA;
 typedef struct SHNAMEMAPPINGW SHNAMEMAPPINGW;
 typedef struct SHQUERYRBINFO SHQUERYRBINFO;
@@ -1558,6 +1685,7 @@ typedef struct TAPE_WRITE_MARKS TAPE_WRITE_MARKS;
 typedef struct TEXTMETRICA TEXTMETRICA;
 typedef struct TEXTMETRICW TEXTMETRICW;
 typedef struct THREAD_POWER_THROTTLING_STATE THREAD_POWER_THROTTLING_STATE;
+typedef struct TIMECAPS TIMECAPS;
 typedef struct TIME_ZONE_INFORMATION TIME_ZONE_INFORMATION;
 typedef struct TITLEBARINFO TITLEBARINFO;
 typedef struct TITLEBARINFOEX TITLEBARINFOEX;
@@ -1632,8 +1760,19 @@ typedef struct VALENTA VALENTA;
 typedef struct VALENTW VALENTW;
 typedef struct VARDESC VARDESC;
 typedef struct VERSIONEDSTREAM VERSIONEDSTREAM;
+typedef struct VS_FIXEDFILEINFO VS_FIXEDFILEINFO;
+typedef struct WAVEFORMAT WAVEFORMAT;
 typedef struct WAVEFORMATEX WAVEFORMATEX;
 typedef struct WAVEFORMATEXTENSIBLE WAVEFORMATEXTENSIBLE;
+typedef struct WAVEHDR WAVEHDR;
+typedef struct WAVEINCAPS2A WAVEINCAPS2A;
+typedef struct WAVEINCAPS2W WAVEINCAPS2W;
+typedef struct WAVEINCAPSA WAVEINCAPSA;
+typedef struct WAVEINCAPSW WAVEINCAPSW;
+typedef struct WAVEOUTCAPS2A WAVEOUTCAPS2A;
+typedef struct WAVEOUTCAPS2W WAVEOUTCAPS2W;
+typedef struct WAVEOUTCAPSA WAVEOUTCAPSA;
+typedef struct WAVEOUTCAPSW WAVEOUTCAPSW;
 typedef struct WCRANGE WCRANGE;
 typedef struct WGLSWAP WGLSWAP;
 typedef struct WIN32_FILE_ATTRIBUTE_DATA WIN32_FILE_ATTRIBUTE_DATA;
@@ -1930,6 +2069,13 @@ struct ACL_SIZE_INFORMATION {
     DWORD AclBytesFree;
 };
 
+/* winbase.h */
+#ifdef UNICODE
+typedef ACTCTXW ACTCTX;
+#else
+typedef ACTCTXA ACTCTX;
+#endif
+
 /* minwindef.h */
 typedef HINSTANCE__ *HMODULE;
 
@@ -2046,6 +2192,13 @@ struct ACTCTX_SECTION_KEYED_DATA_2600 {
     ULONG ulAssemblyRosterIndex;
 };
 
+/* nb30.h */
+struct ACTION_HEADER {
+    ULONG transport_id;
+    USHORT action_code;
+    USHORT reserved;
+};
+
 /* shared.h */
 typedef long LONG;
 
@@ -2138,6 +2291,40 @@ struct ACTIVATION_CONTEXT_RUN_LEVEL_INFORMATION {
     DWORD ulFlags;
     ACTCTX_REQUESTED_RUN_LEVEL RunLevel;
     DWORD UiAccess;
+};
+
+/* shared.h */
+typedef unsigned char UCHAR;
+
+/* nb30.h */
+struct ADAPTER_STATUS {
+    UCHAR adapter_address[6];
+    UCHAR rev_major;
+    UCHAR reserved0;
+    UCHAR adapter_type;
+    UCHAR rev_minor;
+    WORD duration;
+    WORD frmr_recv;
+    WORD frmr_xmit;
+    WORD iframe_recv_err;
+    WORD xmit_aborts;
+    DWORD xmit_success;
+    DWORD recv_success;
+    WORD iframe_xmit_err;
+    WORD recv_buff_unavail;
+    WORD t1_timeouts;
+    WORD ti_timeouts;
+    DWORD reserved1;
+    WORD free_ncbs;
+    WORD max_cfg_ncbs;
+    WORD max_ncbs;
+    WORD xmit_buf_unavail;
+    WORD max_dgram_size;
+    WORD pending_sess;
+    WORD max_cfg_sess;
+    WORD max_sess;
+    WORD max_sess_pkt_size;
+    WORD name_count;
 };
 
 /* winnt.h */
@@ -2323,6 +2510,11 @@ struct APPLICATIONLAUNCH_SETTING_VALUE {
 
 /* winbase.h */
 typedef DWORD (__stdcall *APPLICATION_RECOVERY_CALLBACK)(PVOID pvParameter);
+
+/* windef.h */
+struct APP_LOCAL_DEVICE_ID {
+    BYTE value[32];
+};
 
 /* shared.h */
 typedef unsigned long long ULONG64;
@@ -2691,6 +2883,81 @@ struct AUTHENTICODE_TS_EXTRA_CERT_CHAIN_POLICY_PARA {
     BOOL fCommercial;
 };
 
+/* mmeapi.h */
+#ifdef UNICODE
+typedef AUXCAPSW AUXCAPS;
+#else
+typedef AUXCAPSA AUXCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef AUXCAPS2W AUXCAPS2;
+#else
+typedef AUXCAPS2A AUXCAPS2;
+#endif
+
+/* mmsyscom.h */
+typedef unsigned int MMVERSION;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct AUXCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    WORD wTechnology;
+    WORD wReserved1;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct AUXCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    WORD wTechnology;
+    WORD wReserved1;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct AUXCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    WORD wTechnology;
+    WORD wReserved1;
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct AUXCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    WORD wTechnology;
+    WORD wReserved1;
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
 /* avrt.h */
 typedef enum AVRT_PRIORITY {
     AVRT_PRIORITY_VERYLOW = -2,
@@ -2699,6 +2966,13 @@ typedef enum AVRT_PRIORITY {
     AVRT_PRIORITY_HIGH = 1,
     AVRT_PRIORITY_CRITICAL = 2,
 } AVRT_PRIORITY;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef AXESLISTW AXESLIST;
+#else
+typedef AXESLISTA AXESLIST;
+#endif
 
 /* wingdi.h */
 struct AXISINFOA {
@@ -2727,6 +3001,13 @@ struct AXESLISTW {
     DWORD axlNumAxes;
     AXISINFOW axlAxisInfo[16];
 };
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef AXISINFOW AXISINFO;
+#else
+typedef AXISINFOA AXISINFO;
+#endif
 
 /* combaseapi.h */
 typedef enum AgileReferenceOptions {
@@ -3375,9 +3656,6 @@ struct CASCODE {
 };
 #pragma pack(pop)
 
-/* shared.h */
-typedef unsigned char UCHAR;
-
 /* propidlbase.h */
 #pragma pack(push, 8)
 struct CAUB {
@@ -3415,6 +3693,13 @@ struct CBTACTIVATESTRUCT {
     BOOL fMouse;
     HWND hWndActive;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef CBT_CREATEWNDW CBT_CREATEWND;
+#else
+typedef CBT_CREATEWNDA CBT_CREATEWND;
+#endif
 
 /* winuser.h */
 struct CBT_CREATEWNDA {
@@ -4441,6 +4726,13 @@ struct CHAR_INFO {
     WORD Attributes;
 };
 
+/* commdlg.h */
+#ifdef UNICODE
+typedef CHOOSECOLORW CHOOSECOLOR;
+#else
+typedef CHOOSECOLORA CHOOSECOLOR;
+#endif
+
 /* windef.h */
 typedef DWORD COLORREF;
 
@@ -4478,6 +4770,13 @@ struct CHOOSECOLORW {
     LPCCHOOKPROC lpfnHook;
     LPCWSTR lpTemplateName;
 };
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef CHOOSEFONTW CHOOSEFONT;
+#else
+typedef CHOOSEFONTA CHOOSEFONT;
+#endif
 
 /* minwindef.h */
 typedef HINSTANCE__ *HINSTANCE;
@@ -6017,6 +6316,13 @@ struct CPINFO {
 };
 
 /* winnls.h */
+#ifdef UNICODE
+typedef CPINFOEXW CPINFOEX;
+#else
+typedef CPINFOEXA CPINFOEX;
+#endif
+
+/* winnls.h */
 struct CPINFOEXA {
     UINT MaxCharSize;
     BYTE DefaultChar[2];
@@ -6070,6 +6376,13 @@ struct CREATEFILE3_EXTENDED_PARAMETERS {
     LPSECURITY_ATTRIBUTES lpSecurityAttributes;
     HANDLE hTemplateFile;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef CREATESTRUCTW CREATESTRUCT;
+#else
+typedef CREATESTRUCTA CREATESTRUCT;
+#endif
 
 /* windef.h */
 typedef HMENU__ *HMENU;
@@ -6128,6 +6441,14 @@ struct CREATE_THREAD_DEBUG_INFO {
     HANDLE hThread;
     LPVOID lpThreadLocalBase;
     LPTHREAD_START_ROUTINE lpStartAddress;
+};
+
+/* dlgs.h */
+struct CRGB {
+    BYTE bRed;
+    BYTE bGreen;
+    BYTE bBlue;
+    BYTE bExtra;
 };
 
 /* minwinbase.h */
@@ -6540,6 +6861,13 @@ struct CRYPT_OID_INFO {
 };
 
 /* wincrypt.h */
+#ifdef UNICODE
+typedef CRYPT_PASSWORD_CREDENTIALSW CRYPT_PASSWORD_CREDENTIALS;
+#else
+typedef CRYPT_PASSWORD_CREDENTIALSA CRYPT_PASSWORD_CREDENTIALS;
+#endif
+
+/* wincrypt.h */
 struct CRYPT_PASSWORD_CREDENTIALSA {
     DWORD cbSize;
     LPSTR pszUsername;
@@ -6934,6 +7262,13 @@ struct CT_EXTRA_CERT_CHAIN_POLICY_STATUS {
     DWORD cEntries;
     DWORD cValidated;
 };
+
+/* winnls.h */
+#ifdef UNICODE
+typedef CURRENCYFMTW CURRENCYFMT;
+#else
+typedef CURRENCYFMTA CURRENCYFMT;
+#endif
 
 /* winnls.h */
 struct CURRENCYFMTA {
@@ -7374,6 +7709,13 @@ typedef BOOL (__stdcall *DESKTOPENUMPROCA)(LPSTR param0, LPARAM param1);
 /* winuser.h */
 typedef BOOL (__stdcall *DESKTOPENUMPROCW)(LPWSTR param0, LPARAM param1);
 
+/* winuser.h */
+#ifdef UNICODE
+typedef DESKTOPENUMPROCW DESKTOPENUMPROC;
+#else
+typedef DESKTOPENUMPROCA DESKTOPENUMPROC;
+#endif
+
 /* sysinfoapi.h */
 typedef enum DEVELOPER_DRIVE_ENABLEMENT_STATE {
     DeveloperDriveEnablementStateError = 0,
@@ -7381,6 +7723,13 @@ typedef enum DEVELOPER_DRIVE_ENABLEMENT_STATE {
     DeveloperDriveDisabledBySystemPolicy = 2,
     DeveloperDriveDisabledByGroupPolicy = 3,
 } DEVELOPER_DRIVE_ENABLEMENT_STATE;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef DEVMODEW DEVMODE;
+#else
+typedef DEVMODEA DEVMODE;
+#endif
 
 /* windef.h */
 struct POINTL {
@@ -8128,6 +8477,13 @@ typedef enum DISPLAYCONFIG_TOPOLOGY_ID {
 } DISPLAYCONFIG_TOPOLOGY_ID;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef DISPLAY_DEVICEW DISPLAY_DEVICE;
+#else
+typedef DISPLAY_DEVICEA DISPLAY_DEVICE;
+#endif
+
+/* wingdi.h */
 struct DISPLAY_DEVICEA {
     DWORD cb;
     CHAR DeviceName[32];
@@ -8193,6 +8549,13 @@ struct DLGTEMPLATE {
 typedef void *DLL_DIRECTORY_COOKIE;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef DOCINFOW DOCINFO;
+#else
+typedef DOCINFOA DOCINFO;
+#endif
+
+/* wingdi.h */
 struct DOCINFOA {
     int cbSize;
     LPCSTR lpszDocName;
@@ -8232,6 +8595,13 @@ typedef enum DPI_HOSTING_BEHAVIOR {
     DPI_HOSTING_BEHAVIOR_DEFAULT = 0,
     DPI_HOSTING_BEHAVIOR_MIXED = 1,
 } DPI_HOSTING_BEHAVIOR;
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef DRAGINFOW DRAGINFO;
+#else
+typedef DRAGINFOA DRAGINFO;
+#endif
 
 /* winnt.h */
 typedef CHAR *PZZSTR;
@@ -8290,6 +8660,15 @@ struct DRAWTEXTPARAMS {
     UINT uiLengthDrawn;
 };
 
+/* mmiscapi.h */
+typedef DWORD (__stdcall *DRIVERMSGPROC)(DWORD param0, DWORD param1, DWORD_PTR param2, DWORD_PTR param3, DWORD_PTR param4);
+
+/* mmsyscom.h */
+typedef HDRVR__ *HDRVR;
+
+/* mmiscapi.h */
+typedef LRESULT (__stdcall *DRIVERPROC)(DWORD_PTR param0, HDRVR param1, UINT param2, LPARAM param3, LPARAM param4);
+
 /* winnt.h */
 struct DRIVER_INFO_ENTRY {
     CHAR InternalName[32];
@@ -8347,6 +8726,28 @@ struct DROPSTRUCT {
     POINT ptDrop;
     DWORD dwControlData;
 };
+
+/* mmsyscom.h */
+typedef void (__stdcall *DRVCALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmiscapi.h */
+#pragma pack(push, 1)
+struct DRVCONFIGINFO {
+    DWORD dwDCISize;
+    LPCWSTR lpszDCISectionName;
+    LPCWSTR lpszDCIAliasName;
+};
+#pragma pack(pop)
+
+/* mmiscapi.h */
+#pragma pack(push, 1)
+struct DRVCONFIGINFOEX {
+    DWORD dwDCISize;
+    LPCWSTR lpszDCISectionName;
+    LPCWSTR lpszDCIAliasName;
+    DWORD dnDevNode;
+};
+#pragma pack(pop)
 
 /* wincrypt.h */
 typedef _PRIVKEYVER3 DSSPRIVKEY_VER3;
@@ -8842,6 +9243,13 @@ typedef int (__stdcall *EDITWORDBREAKPROCA)(LPSTR lpch, int ichCurrent, int cch,
 
 /* winuser.h */
 typedef int (__stdcall *EDITWORDBREAKPROCW)(LPWSTR lpch, int ichCurrent, int cch, int code);
+
+/* winuser.h */
+#ifdef UNICODE
+typedef EDITWORDBREAKPROCW EDITWORDBREAKPROC;
+#else
+typedef EDITWORDBREAKPROCA EDITWORDBREAKPROC;
+#endif
 
 /* winuser.h */
 typedef enum EDIT_CONTROL_FEATURE {
@@ -9677,6 +10085,13 @@ typedef tagEMRSETICMPROFILE EMRSETICMPROFILEA;
 typedef tagEMRSETICMPROFILE EMRSETICMPROFILEW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef EMRSETICMPROFILEW EMRSETICMPROFILE;
+#else
+typedef EMRSETICMPROFILEA EMRSETICMPROFILE;
+#endif
+
+/* wingdi.h */
 typedef tagEMRSELECTCLIPPATH EMRSETLAYOUT;
 
 /* wingdi.h */
@@ -10012,6 +10427,13 @@ typedef enum ENLISTMENT_INFORMATION_CLASS {
 } ENLISTMENT_INFORMATION_CLASS;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef ENUMLOGFONTW ENUMLOGFONT;
+#else
+typedef ENUMLOGFONTA ENUMLOGFONT;
+#endif
+
+/* wingdi.h */
 struct LOGFONTA {
     LONG lfHeight;
     LONG lfWidth;
@@ -10037,12 +10459,26 @@ struct ENUMLOGFONTA {
 };
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef ENUMLOGFONTEXW ENUMLOGFONTEX;
+#else
+typedef ENUMLOGFONTEXA ENUMLOGFONTEX;
+#endif
+
+/* wingdi.h */
 struct ENUMLOGFONTEXA {
     LOGFONTA elfLogFont;
     BYTE elfFullName[64];
     BYTE elfStyle[32];
     BYTE elfScript[32];
 };
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef ENUMLOGFONTEXDVW ENUMLOGFONTEXDV;
+#else
+typedef ENUMLOGFONTEXDVA ENUMLOGFONTEXDV;
+#endif
 
 /* wingdi.h */
 struct ENUMLOGFONTEXDVA {
@@ -10091,6 +10527,13 @@ typedef BOOL (__stdcall *ENUMRESTYPEPROCA)(HMODULE hModule, LPSTR lpType, LONG_P
 
 /* libloaderapi.h */
 typedef BOOL (__stdcall *ENUMRESTYPEPROCW)(HMODULE hModule, LPWSTR lpType, LONG_PTR lParam);
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef ENUMTEXTMETRICW ENUMTEXTMETRIC;
+#else
+typedef ENUMTEXTMETRICA ENUMTEXTMETRIC;
+#endif
 
 /* wingdi.h */
 #pragma pack(push, 4)
@@ -10193,6 +10636,13 @@ struct ENUM_PAGE_FILE_INFORMATION {
 };
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef ENUM_SERVICE_STATUSW ENUM_SERVICE_STATUS;
+#else
+typedef ENUM_SERVICE_STATUSA ENUM_SERVICE_STATUS;
+#endif
+
+/* winsvc.h */
 struct SERVICE_STATUS {
     DWORD dwServiceType;
     DWORD dwCurrentState;
@@ -10216,6 +10666,13 @@ struct ENUM_SERVICE_STATUSW {
     LPWSTR lpDisplayName;
     SERVICE_STATUS ServiceStatus;
 };
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef ENUM_SERVICE_STATUS_PROCESSW ENUM_SERVICE_STATUS_PROCESS;
+#else
+typedef ENUM_SERVICE_STATUS_PROCESSA ENUM_SERVICE_STATUS_PROCESS;
+#endif
 
 /* winsvc.h */
 struct SERVICE_STATUS_PROCESS {
@@ -10350,6 +10807,13 @@ typedef EXCEPTION_DISPOSITION (__stdcall *EXCEPTION_ROUTINE)(EXCEPTION_RECORD *E
 
 /* winnt.h */
 typedef unsigned int EXECUTION_STATE;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef EXTLOGFONTW EXTLOGFONT;
+#else
+typedef EXTLOGFONTA EXTLOGFONT;
+#endif
 
 /* wingdi.h */
 struct EXTLOGFONTA {
@@ -10874,6 +11338,13 @@ typedef enum FINDEX_SEARCH_OPS {
 } FINDEX_SEARCH_OPS;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef FINDREPLACEW FINDREPLACE;
+#else
+typedef FINDREPLACEA FINDREPLACE;
+#endif
+
+/* commdlg.h */
 typedef UINT_PTR (__stdcall *LPFRHOOKPROC)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
 
 /* commdlg.h */
@@ -10904,6 +11375,23 @@ struct FINDREPLACEW {
     LPARAM lCustData;
     LPFRHOOKPROC lpfnHook;
     LPCWSTR lpTemplateName;
+};
+
+/* nb30.h */
+struct FIND_NAME_BUFFER {
+    UCHAR length;
+    UCHAR access_control;
+    UCHAR frame_control;
+    UCHAR destination_addr[6];
+    UCHAR source_addr[6];
+    UCHAR routing_info[18];
+};
+
+/* nb30.h */
+struct FIND_NAME_HEADER {
+    WORD node_count;
+    UCHAR reserved;
+    UCHAR unique_group;
 };
 
 /* winnt.h */
@@ -10977,6 +11465,13 @@ typedef int (__stdcall *FONTENUMPROCA)(const LOGFONTA *param0, const TEXTMETRICA
 /* wingdi.h */
 typedef int (__stdcall *FONTENUMPROCW)(const LOGFONTW *param0, const TEXTMETRICW *param1, DWORD param2, LPARAM param3);
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef FONTENUMPROCW FONTENUMPROC;
+#else
+typedef FONTENUMPROCA FONTENUMPROC;
+#endif
+
 /* objidl.h */
 #pragma pack(push, 8)
 struct FORMATETC {
@@ -10987,6 +11482,9 @@ struct FORMATETC {
     DWORD tymed;
 };
 #pragma pack(pop)
+
+/* mmiscapi.h */
+typedef unsigned int FOURCC;
 
 /* winnt.h */
 #pragma pack(push, 4)
@@ -11061,6 +11559,13 @@ typedef enum FillMode {
     FillModeAlternate = 0,
     FillModeWinding = 1,
 } FillMode;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef GCP_RESULTSW GCP_RESULTS;
+#else
+typedef GCP_RESULTSA GCP_RESULTS;
+#endif
 
 /* wingdi.h */
 struct GCP_RESULTSA {
@@ -11435,6 +11940,13 @@ struct HDROP__ {
     int unused;
 };
 
+/* mmsyscom.h */
+#pragma pack(push, 1)
+struct HDRVR__ {
+    int unused;
+};
+#pragma pack(pop)
+
 /* winuser.h */
 typedef void *HDWP;
 
@@ -11490,6 +12002,13 @@ struct HELPINFO {
 typedef unsigned int HELPPOLY;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef HELPWININFOW HELPWININFO;
+#else
+typedef HELPWININFOA HELPWININFO;
+#endif
+
+/* winuser.h */
 struct HELPWININFOA {
     int wStructSize;
     int x;
@@ -11536,6 +12055,14 @@ struct HGESTUREINFO__ {
 };
 
 /* windef.h */
+typedef HGLRC__ *HGLRC;
+
+/* windef.h */
+struct HGLRC__ {
+    int unused;
+};
+
+/* windef.h */
 typedef HHOOK__ *HHOOK;
 
 /* windef.h */
@@ -11578,6 +12105,13 @@ struct HID_XFER_PACKET {
     ULONG reportBufferLen;
     UCHAR reportId;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef HIGHCONTRASTW HIGHCONTRAST;
+#else
+typedef HIGHCONTRASTA HIGHCONTRAST;
+#endif
 
 /* winuser.h */
 struct HIGHCONTRASTA {
@@ -11655,6 +12189,76 @@ struct HMETAFILE__ {
     int unused;
 };
 
+/* mmeapi.h */
+typedef HMIDI__ *HMIDI;
+
+/* mmeapi.h */
+typedef HMIDIIN__ *HMIDIIN;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIDIIN__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+typedef HMIDIOUT__ *HMIDIOUT;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIDIOUT__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+typedef HMIDISTRM__ *HMIDISTRM;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIDISTRM__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIDI__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+typedef HMIXER__ *HMIXER;
+
+/* mmeapi.h */
+typedef HMIXEROBJ__ *HMIXEROBJ;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIXEROBJ__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HMIXER__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmiscapi.h */
+typedef HMMIO__ *HMMIO;
+
+/* mmiscapi.h */
+#pragma pack(push, 1)
+struct HMMIO__ {
+    int unused;
+};
+#pragma pack(pop)
+
 /* windef.h */
 struct HMONITOR__ {
     int unused;
@@ -11690,6 +12294,9 @@ typedef void *HPOWERNOTIFY;
 
 /* prsht.h */
 typedef _PSP *HPROPSHEETPAGE;
+
+/* mmiscapi.h */
+typedef CHAR *HPSTR;
 
 /* winuser.h */
 typedef HRAWINPUT__ *HRAWINPUT;
@@ -11778,6 +12385,44 @@ struct HTOUCHINPUT__ {
 typedef _HTTPSPolicyCallbackData HTTPSPolicyCallbackData;
 
 /* windef.h */
+typedef HUMPD__ *HUMPD;
+
+/* windef.h */
+struct HUMPD__ {
+    int unused;
+};
+
+/* mmeapi.h */
+typedef HWAVE__ *HWAVE;
+
+/* mmeapi.h */
+typedef HWAVEIN__ *HWAVEIN;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HWAVEIN__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+typedef HWAVEOUT__ *HWAVEOUT;
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HWAVEOUT__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct HWAVE__ {
+    int unused;
+};
+#pragma pack(pop)
+
+/* windef.h */
 typedef HWINEVENTHOOK__ *HWINEVENTHOOK;
 
 /* windef.h */
@@ -11797,6 +12442,13 @@ struct HWINSTA__ {
 struct HWND__ {
     int unused;
 };
+
+/* winbase.h */
+#ifdef UNICODE
+typedef HW_PROFILE_INFOW HW_PROFILE_INFO;
+#else
+typedef HW_PROFILE_INFOA HW_PROFILE_INFO;
+#endif
 
 /* winbase.h */
 struct HW_PROFILE_INFOA {
@@ -11889,6 +12541,13 @@ struct ICONINFO {
 };
 
 /* winuser.h */
+#ifdef UNICODE
+typedef ICONINFOEXW ICONINFOEX;
+#else
+typedef ICONINFOEXA ICONINFOEX;
+#endif
+
+/* winuser.h */
 struct ICONINFOEXA {
     DWORD cbSize;
     BOOL fIcon;
@@ -11913,6 +12572,13 @@ struct ICONINFOEXW {
     WCHAR szModName[260];
     WCHAR szResName[260];
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef ICONMETRICSW ICONMETRICS;
+#else
+typedef ICONMETRICSA ICONMETRICS;
+#endif
 
 /* winuser.h */
 struct ICONMETRICSA {
@@ -13380,6 +14046,13 @@ struct IMECHARPOSITION {
 };
 
 /* imm.h */
+#ifdef UNICODE
+typedef IMEMENUITEMINFOW IMEMENUITEMINFO;
+#else
+typedef IMEMENUITEMINFOA IMEMENUITEMINFO;
+#endif
+
+/* imm.h */
 struct IMEMENUITEMINFOA {
     UINT cbSize;
     UINT fType;
@@ -13605,6 +14278,24 @@ typedef unsigned int IPAddr;
 
 /* shared.h */
 typedef unsigned int IPMask;
+
+/* shtypes.h */
+#pragma pack(push, 1)
+struct SHITEMID {
+    USHORT cb;
+    BYTE abID[1];
+};
+#pragma pack(pop)
+
+/* shtypes.h */
+#pragma pack(push, 1)
+struct ITEMIDLIST {
+    SHITEMID mkid;
+};
+#pragma pack(pop)
+
+/* rpc.h */
+typedef void *I_RPC_HANDLE;
 
 /* gdiplusenums.h */
 typedef enum InterpolationMode {
@@ -14014,6 +14705,175 @@ struct JOB_SET_ARRAY {
     DWORD Flags;
 };
 
+/* joystickapi.h */
+#ifdef UNICODE
+typedef JOYCAPSW JOYCAPS;
+#else
+typedef JOYCAPSA JOYCAPS;
+#endif
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef JOYCAPS2W JOYCAPS2;
+#else
+typedef JOYCAPS2A JOYCAPS2;
+#endif
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    CHAR szPname[32];
+    UINT wXmin;
+    UINT wXmax;
+    UINT wYmin;
+    UINT wYmax;
+    UINT wZmin;
+    UINT wZmax;
+    UINT wNumButtons;
+    UINT wPeriodMin;
+    UINT wPeriodMax;
+    UINT wRmin;
+    UINT wRmax;
+    UINT wUmin;
+    UINT wUmax;
+    UINT wVmin;
+    UINT wVmax;
+    UINT wCaps;
+    UINT wMaxAxes;
+    UINT wNumAxes;
+    UINT wMaxButtons;
+    CHAR szRegKey[32];
+    CHAR szOEMVxD[260];
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    WCHAR szPname[32];
+    UINT wXmin;
+    UINT wXmax;
+    UINT wYmin;
+    UINT wYmax;
+    UINT wZmin;
+    UINT wZmax;
+    UINT wNumButtons;
+    UINT wPeriodMin;
+    UINT wPeriodMax;
+    UINT wRmin;
+    UINT wRmax;
+    UINT wUmin;
+    UINT wUmax;
+    UINT wVmin;
+    UINT wVmax;
+    UINT wCaps;
+    UINT wMaxAxes;
+    UINT wNumAxes;
+    UINT wMaxButtons;
+    WCHAR szRegKey[32];
+    WCHAR szOEMVxD[260];
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYCAPSA {
+    WORD wMid;
+    WORD wPid;
+    CHAR szPname[32];
+    UINT wXmin;
+    UINT wXmax;
+    UINT wYmin;
+    UINT wYmax;
+    UINT wZmin;
+    UINT wZmax;
+    UINT wNumButtons;
+    UINT wPeriodMin;
+    UINT wPeriodMax;
+    UINT wRmin;
+    UINT wRmax;
+    UINT wUmin;
+    UINT wUmax;
+    UINT wVmin;
+    UINT wVmax;
+    UINT wCaps;
+    UINT wMaxAxes;
+    UINT wNumAxes;
+    UINT wMaxButtons;
+    CHAR szRegKey[32];
+    CHAR szOEMVxD[260];
+};
+#pragma pack(pop)
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYCAPSW {
+    WORD wMid;
+    WORD wPid;
+    WCHAR szPname[32];
+    UINT wXmin;
+    UINT wXmax;
+    UINT wYmin;
+    UINT wYmax;
+    UINT wZmin;
+    UINT wZmax;
+    UINT wNumButtons;
+    UINT wPeriodMin;
+    UINT wPeriodMax;
+    UINT wRmin;
+    UINT wRmax;
+    UINT wUmin;
+    UINT wUmax;
+    UINT wVmin;
+    UINT wVmax;
+    UINT wCaps;
+    UINT wMaxAxes;
+    UINT wNumAxes;
+    UINT wMaxButtons;
+    WCHAR szRegKey[32];
+    WCHAR szOEMVxD[260];
+};
+#pragma pack(pop)
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYINFO {
+    UINT wXpos;
+    UINT wYpos;
+    UINT wZpos;
+    UINT wButtons;
+};
+#pragma pack(pop)
+
+/* joystickapi.h */
+#pragma pack(push, 1)
+struct JOYINFOEX {
+    DWORD dwSize;
+    DWORD dwFlags;
+    DWORD dwXpos;
+    DWORD dwYpos;
+    DWORD dwZpos;
+    DWORD dwRpos;
+    DWORD dwUpos;
+    DWORD dwVpos;
+    DWORD dwButtons;
+    DWORD dwButtonNumber;
+    DWORD dwPOV;
+    DWORD dwReserved1;
+    DWORD dwReserved2;
+};
+#pragma pack(pop)
+
 /* winuser.h */
 struct KBDLLHOOKSTRUCT {
     DWORD vkCode;
@@ -14048,6 +14908,9 @@ struct KERNINGPAIR {
     WORD wSecond;
     int iKernAmount;
 };
+
+/* mmeapi.h */
+typedef unsigned short KEYARRAY[128];
 
 /* wincrypt.h */
 struct KEY_TYPE_SUBTYPE {
@@ -14174,6 +15037,12 @@ typedef enum KTMOBJECT_TYPE {
     KTMOBJECT_ENLISTMENT = 3,
     KTMOBJECT_INVALID = 4,
 } KTMOBJECT_TYPE;
+
+/* nb30.h */
+struct LANA_ENUM {
+    UCHAR length;
+    UCHAR lana[255];
+};
 
 /* winnls.h */
 typedef DWORD LGRPID;
@@ -14311,6 +15180,20 @@ struct LOGBRUSH {
     ULONG_PTR lbHatch;
 };
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef LOGCOLORSPACEW LOGCOLORSPACE;
+#else
+typedef LOGCOLORSPACEA LOGCOLORSPACE;
+#endif
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LOGFONTW LOGFONT;
+#else
+typedef LOGFONTA LOGFONT;
+#endif
+
 /* winnt.h */
 typedef enum LOGICAL_PROCESSOR_RELATIONSHIP {
     RelationProcessorCore = 0,
@@ -14352,6 +15235,32 @@ typedef ANIMATIONINFO *LPANIMATIONINFO;
 /* winuser.h */
 typedef AUDIODESCRIPTION *LPAUDIODESCRIPTION;
 
+/* mmeapi.h */
+typedef AUXCAPSA *LPAUXCAPSA;
+
+/* mmeapi.h */
+typedef AUXCAPSW *LPAUXCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPAUXCAPSW LPAUXCAPS;
+#else
+typedef LPAUXCAPSA LPAUXCAPS;
+#endif
+
+/* mmeapi.h */
+typedef AUXCAPS2A *LPAUXCAPS2A;
+
+/* mmeapi.h */
+typedef AUXCAPS2W *LPAUXCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPAUXCAPS2W LPAUXCAPS2;
+#else
+typedef LPAUXCAPS2A LPAUXCAPS2;
+#endif
+
 /* wingdi.h */
 typedef AXESLISTA *LPAXESLISTA;
 
@@ -14359,10 +15268,24 @@ typedef AXESLISTA *LPAXESLISTA;
 typedef AXESLISTW *LPAXESLISTW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef LPAXESLISTW LPAXESLIST;
+#else
+typedef LPAXESLISTA LPAXESLIST;
+#endif
+
+/* wingdi.h */
 typedef AXISINFOA *LPAXISINFOA;
 
 /* wingdi.h */
 typedef AXISINFOW *LPAXISINFOW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPAXISINFOW LPAXISINFO;
+#else
+typedef LPAXISINFOA LPAXISINFO;
+#endif
 
 /* objidl.h */
 typedef IBindCtx *LPBC;
@@ -14433,6 +15356,13 @@ typedef CBT_CREATEWNDA *LPCBT_CREATEWNDA;
 /* winuser.h */
 typedef CBT_CREATEWNDW *LPCBT_CREATEWNDW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef LPCBT_CREATEWNDW LPCBT_CREATEWND;
+#else
+typedef LPCBT_CREATEWNDA LPCBT_CREATEWND;
+#endif
+
 /* winnt.h */
 typedef const CHAR *LPCCH;
 
@@ -14441,6 +15371,13 @@ typedef const DLGTEMPLATE *LPCDLGTEMPLATEA;
 
 /* winuser.h */
 typedef const DLGTEMPLATE *LPCDLGTEMPLATEW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPCDLGTEMPLATEW LPCDLGTEMPLATE;
+#else
+typedef LPCDLGTEMPLATEA LPCDLGTEMPLATE;
+#endif
 
 /* guiddef.h */
 typedef const GUID *LPCGUID;
@@ -14458,16 +15395,33 @@ typedef CHOOSECOLORA *LPCHOOSECOLORA;
 typedef CHOOSECOLORW *LPCHOOSECOLORW;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef LPCHOOSECOLORW LPCHOOSECOLOR;
+#else
+typedef LPCHOOSECOLORA LPCHOOSECOLOR;
+#endif
+
+/* commdlg.h */
 typedef CHOOSEFONTA *LPCHOOSEFONTA;
 
 /* commdlg.h */
 typedef CHOOSEFONTW *LPCHOOSEFONTW;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef LPCHOOSEFONTW LPCHOOSEFONT;
+#else
+typedef LPCHOOSEFONTA LPCHOOSEFONT;
+#endif
 
 /* wingdi.h */
 typedef CIEXYZ *LPCIEXYZ;
 
 /* wingdi.h */
 typedef CIEXYZTRIPLE *LPCIEXYZTRIPLE;
+
+/* shtypes.h */
+typedef const ITEMIDLIST *LPCITEMIDLIST;
 
 /* unknwnbase.h */
 typedef IClassFactory *LPCLASSFACTORY;
@@ -14490,11 +15444,27 @@ typedef const MENUITEMINFOA *LPCMENUITEMINFOA;
 /* winuser.h */
 typedef const MENUITEMINFOW *LPCMENUITEMINFOW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef LPCMENUITEMINFOW LPCMENUITEMINFO;
+#else
+typedef LPCMENUITEMINFOA LPCMENUITEMINFO;
+#endif
+
+/* mmiscapi.h */
+typedef const MMCKINFO *LPCMMCKINFO;
+
+/* mmiscapi.h */
+typedef const MMIOINFO *LPCMMIOINFO;
+
 /* wtypesbase.h */
 typedef const OLECHAR *LPCOLESTR;
 
 /* wingdi.h */
 typedef COLORADJUSTMENT *LPCOLORADJUSTMENT;
+
+/* windef.h */
+typedef unsigned int *LPCOLORREF;
 
 /* winuser.h */
 typedef COMBOBOXINFO *LPCOMBOBOXINFO;
@@ -14529,6 +15499,13 @@ typedef CPINFOEXA *LPCPINFOEXA;
 /* winnls.h */
 typedef CPINFOEXW *LPCPINFOEXW;
 
+/* winnls.h */
+#ifdef UNICODE
+typedef LPCPINFOEXW LPCPINFOEX;
+#else
+typedef LPCPINFOEXA LPCPINFOEX;
+#endif
+
 /* fileapi.h */
 typedef CREATEFILE2_EXTENDED_PARAMETERS *LPCREATEFILE2_EXTENDED_PARAMETERS;
 
@@ -14540,6 +15517,13 @@ typedef CREATESTRUCTA *LPCREATESTRUCTA;
 
 /* winuser.h */
 typedef CREATESTRUCTW *LPCREATESTRUCTW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPCREATESTRUCTW LPCREATESTRUCT;
+#else
+typedef LPCREATESTRUCTA LPCREATESTRUCT;
+#endif
 
 /* windef.h */
 typedef const RECT *LPCRECT;
@@ -14565,6 +15549,13 @@ typedef CURRENCYFMTA *LPCURRENCYFMTA;
 /* winnls.h */
 typedef CURRENCYFMTW *LPCURRENCYFMTW;
 
+/* winnls.h */
+#ifdef UNICODE
+typedef LPCURRENCYFMTW LPCURRENCYFMT;
+#else
+typedef LPCURRENCYFMTA LPCURRENCYFMT;
+#endif
+
 /* winuser.h */
 typedef CURSORINFO *LPCURSORINFO;
 
@@ -14579,6 +15570,9 @@ typedef const CHAR *LPCUTSTR;
 
 /* shared.h */
 typedef const void *LPCVOID;
+
+/* mmeapi.h */
+typedef const WAVEFORMATEX *LPCWAVEFORMATEX;
 
 /* winnt.h */
 typedef const WCHAR *LPCWCH;
@@ -14620,13 +15614,17 @@ typedef DELETEITEMSTRUCT *LPDELETEITEMSTRUCT;
 typedef DESIGNVECTOR *LPDESIGNVECTOR;
 
 /* wingdi.h */
-typedef DEVMODEA *LPDEVMODE;
-
-/* wingdi.h */
 typedef DEVMODEA *LPDEVMODEA;
 
 /* wingdi.h */
 typedef DEVMODEW *LPDEVMODEW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPDEVMODEW LPDEVMODE;
+#else
+typedef LPDEVMODEA LPDEVMODE;
+#endif
 
 /* commdlg.h */
 typedef DEVNAMES *LPDEVNAMES;
@@ -14643,6 +15641,13 @@ typedef DISPLAY_DEVICEA *LPDISPLAY_DEVICEA;
 /* wingdi.h */
 typedef DISPLAY_DEVICEW *LPDISPLAY_DEVICEW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPDISPLAY_DEVICEW LPDISPLAY_DEVICE;
+#else
+typedef LPDISPLAY_DEVICEA LPDISPLAY_DEVICE;
+#endif
+
 /* winuser.h */
 typedef DLGITEMTEMPLATE *LPDLGITEMTEMPLATEA;
 
@@ -14650,10 +15655,24 @@ typedef DLGITEMTEMPLATE *LPDLGITEMTEMPLATEA;
 typedef DLGITEMTEMPLATE *LPDLGITEMTEMPLATEW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef LPDLGITEMTEMPLATEW LPDLGITEMTEMPLATE;
+#else
+typedef LPDLGITEMTEMPLATEA LPDLGITEMTEMPLATE;
+#endif
+
+/* winuser.h */
 typedef DLGTEMPLATE *LPDLGTEMPLATEA;
 
 /* winuser.h */
 typedef DLGTEMPLATE *LPDLGTEMPLATEW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPDLGTEMPLATEW LPDLGTEMPLATE;
+#else
+typedef LPDLGTEMPLATEA LPDLGTEMPLATE;
+#endif
 
 /* wingdi.h */
 typedef DOCINFOA *LPDOCINFOA;
@@ -14661,11 +15680,25 @@ typedef DOCINFOA *LPDOCINFOA;
 /* wingdi.h */
 typedef DOCINFOW *LPDOCINFOW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPDOCINFOW LPDOCINFO;
+#else
+typedef LPDOCINFOA LPDOCINFO;
+#endif
+
 /* shellapi.h */
 typedef DRAGINFOA *LPDRAGINFOA;
 
 /* shellapi.h */
 typedef DRAGINFOW *LPDRAGINFOW;
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef LPDRAGINFOW LPDRAGINFO;
+#else
+typedef LPDRAGINFOA LPDRAGINFO;
+#endif
 
 /* winuser.h */
 typedef DRAWITEMSTRUCT *LPDRAWITEMSTRUCT;
@@ -14681,6 +15714,15 @@ typedef DROPSTRUCT *LPDROPSTRUCT;
 
 /* oleidl.h */
 typedef IDropTarget *LPDROPTARGET;
+
+/* mmsyscom.h */
+typedef void (__stdcall *LPDRVCALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFO *LPDRVCONFIGINFO;
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFOEX *LPDRVCONFIGINFOEX;
 
 /* minwindef.h */
 typedef DWORD *LPDWORD;
@@ -14701,7 +15743,27 @@ typedef IEnumFORMATETC *LPENUMFORMATETC;
 typedef ENUMLOGFONTA *LPENUMLOGFONTA;
 
 /* wingdi.h */
+typedef ENUMLOGFONTW *LPENUMLOGFONTW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPENUMLOGFONTW LPENUMLOGFONT;
+#else
+typedef LPENUMLOGFONTA LPENUMLOGFONT;
+#endif
+
+/* wingdi.h */
 typedef ENUMLOGFONTEXA *LPENUMLOGFONTEXA;
+
+/* wingdi.h */
+typedef ENUMLOGFONTEXW *LPENUMLOGFONTEXW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPENUMLOGFONTEXW LPENUMLOGFONTEX;
+#else
+typedef LPENUMLOGFONTEXA LPENUMLOGFONTEX;
+#endif
 
 /* wingdi.h */
 typedef ENUMLOGFONTEXDVA *LPENUMLOGFONTEXDVA;
@@ -14710,10 +15772,11 @@ typedef ENUMLOGFONTEXDVA *LPENUMLOGFONTEXDVA;
 typedef ENUMLOGFONTEXDVW *LPENUMLOGFONTEXDVW;
 
 /* wingdi.h */
-typedef ENUMLOGFONTEXW *LPENUMLOGFONTEXW;
-
-/* wingdi.h */
-typedef ENUMLOGFONTW *LPENUMLOGFONTW;
+#ifdef UNICODE
+typedef LPENUMLOGFONTEXDVW LPENUMLOGFONTEXDV;
+#else
+typedef LPENUMLOGFONTEXDVA LPENUMLOGFONTEXDV;
+#endif
 
 /* objidl.h */
 typedef IEnumMoniker *LPENUMMONIKER;
@@ -14733,6 +15796,13 @@ typedef ENUMTEXTMETRICA *LPENUMTEXTMETRICA;
 /* wingdi.h */
 typedef ENUMTEXTMETRICW *LPENUMTEXTMETRICW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPENUMTEXTMETRICW LPENUMTEXTMETRIC;
+#else
+typedef LPENUMTEXTMETRICA LPENUMTEXTMETRIC;
+#endif
+
 /* winsvc.h */
 typedef ENUM_SERVICE_STATUSA *LPENUM_SERVICE_STATUSA;
 
@@ -14740,10 +15810,24 @@ typedef ENUM_SERVICE_STATUSA *LPENUM_SERVICE_STATUSA;
 typedef ENUM_SERVICE_STATUSW *LPENUM_SERVICE_STATUSW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef LPENUM_SERVICE_STATUSW LPENUM_SERVICE_STATUS;
+#else
+typedef LPENUM_SERVICE_STATUSA LPENUM_SERVICE_STATUS;
+#endif
+
+/* winsvc.h */
 typedef ENUM_SERVICE_STATUS_PROCESSA *LPENUM_SERVICE_STATUS_PROCESSA;
 
 /* winsvc.h */
 typedef ENUM_SERVICE_STATUS_PROCESSW *LPENUM_SERVICE_STATUS_PROCESSW;
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef LPENUM_SERVICE_STATUS_PROCESSW LPENUM_SERVICE_STATUS_PROCESS;
+#else
+typedef LPENUM_SERVICE_STATUS_PROCESSA LPENUM_SERVICE_STATUS_PROCESS;
+#endif
 
 /* winbase.h */
 typedef EVENTLOG_FULL_INFORMATION *LPEVENTLOG_FULL_INFORMATION;
@@ -14767,6 +15851,13 @@ typedef EXTLOGFONTA *LPEXTLOGFONTA;
 typedef EXTLOGFONTW *LPEXTLOGFONTW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef LPEXTLOGFONTW LPEXTLOGFONT;
+#else
+typedef LPEXTLOGFONTA LPEXTLOGFONT;
+#endif
+
+/* wingdi.h */
 typedef EXTLOGPEN *LPEXTLOGPEN;
 
 /* wingdi.h */
@@ -14786,6 +15877,13 @@ typedef FINDREPLACEA *LPFINDREPLACEA;
 
 /* commdlg.h */
 typedef FINDREPLACEW *LPFINDREPLACEW;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef LPFINDREPLACEW LPFINDREPLACE;
+#else
+typedef LPFINDREPLACEA LPFINDREPLACE;
+#endif
 
 /* prsht.h */
 typedef BOOL (__stdcall *LPFNADDPROPSHEETPAGE)(HPROPSHEETPAGE param0, LPARAM param1);
@@ -14823,6 +15921,13 @@ typedef GCP_RESULTSA *LPGCP_RESULTSA;
 
 /* wingdi.h */
 typedef GCP_RESULTSW *LPGCP_RESULTSW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPGCP_RESULTSW LPGCP_RESULTS;
+#else
+typedef LPGCP_RESULTSA LPGCP_RESULTS;
+#endif
 
 /* wingdi.h */
 typedef GLYPHMETRICS *LPGLYPHMETRICS;
@@ -14876,10 +15981,24 @@ typedef HELPWININFOA *LPHELPWININFOA;
 typedef HELPWININFOW *LPHELPWININFOW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef LPHELPWININFOW LPHELPWININFO;
+#else
+typedef LPHELPWININFOA LPHELPWININFO;
+#endif
+
+/* winuser.h */
 typedef HIGHCONTRASTA *LPHIGHCONTRASTA;
 
 /* winuser.h */
 typedef HIGHCONTRASTW *LPHIGHCONTRASTW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPHIGHCONTRASTW LPHIGHCONTRAST;
+#else
+typedef LPHIGHCONTRASTA LPHIGHCONTRAST;
+#endif
 
 /* shared.h */
 typedef void **LPHINTERNET;
@@ -14887,17 +16006,55 @@ typedef void **LPHINTERNET;
 /* imm.h */
 typedef HKL__ **LPHKL;
 
+/* mmeapi.h */
+typedef HMIDI__ **LPHMIDI;
+
+/* mmeapi.h */
+typedef HMIDIIN__ **LPHMIDIIN;
+
+/* mmeapi.h */
+typedef HMIDIOUT__ **LPHMIDIOUT;
+
+/* mmeapi.h */
+typedef HMIDISTRM__ **LPHMIDISTRM;
+
+/* mmeapi.h */
+typedef HMIXER__ **LPHMIXER;
+
+/* mmeapi.h */
+typedef HMIXEROBJ__ **LPHMIXEROBJ;
+
+/* mmeapi.h */
+typedef HWAVEIN__ **LPHWAVEIN;
+
+/* mmeapi.h */
+typedef HWAVEOUT__ **LPHWAVEOUT;
+
 /* winbase.h */
 typedef HW_PROFILE_INFOA *LPHW_PROFILE_INFOA;
 
 /* winbase.h */
 typedef HW_PROFILE_INFOW *LPHW_PROFILE_INFOW;
 
+/* winbase.h */
+#ifdef UNICODE
+typedef LPHW_PROFILE_INFOW LPHW_PROFILE_INFO;
+#else
+typedef LPHW_PROFILE_INFOA LPHW_PROFILE_INFO;
+#endif
+
 /* winuser.h */
 typedef ICONMETRICSA *LPICONMETRICSA;
 
 /* winuser.h */
 typedef ICONMETRICSW *LPICONMETRICSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPICONMETRICSW LPICONMETRICS;
+#else
+typedef LPICONMETRICSA LPICONMETRICS;
+#endif
 
 /* guiddef.h */
 typedef GUID *LPIID;
@@ -14910,6 +16067,13 @@ typedef IMEMENUITEMINFOA *LPIMEMENUITEMINFOA;
 
 /* imm.h */
 typedef IMEMENUITEMINFOW *LPIMEMENUITEMINFOW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef LPIMEMENUITEMINFOW LPIMEMENUITEMINFO;
+#else
+typedef LPIMEMENUITEMINFOA LPIMEMENUITEMINFO;
+#endif
 
 /* objidl.h */
 typedef IInitializeSpy *LPINITIALIZESPY;
@@ -14932,6 +16096,9 @@ typedef INTERFACEINFO *LPINTERFACEINFO;
 /* shared.h */
 typedef WCHAR *LPINTERNET_PORT;
 
+/* shtypes.h */
+typedef ITEMIDLIST *LPITEMIDLIST;
+
 /* winbase.h */
 typedef JIT_DEBUG_INFO *LPJIT_DEBUG_INFO;
 
@@ -14941,11 +16108,46 @@ typedef JIT_DEBUG_INFO *LPJIT_DEBUG_INFO32;
 /* winbase.h */
 typedef JIT_DEBUG_INFO *LPJIT_DEBUG_INFO64;
 
+/* joystickapi.h */
+typedef JOYCAPSA *LPJOYCAPSA;
+
+/* joystickapi.h */
+typedef JOYCAPSW *LPJOYCAPSW;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef LPJOYCAPSW LPJOYCAPS;
+#else
+typedef LPJOYCAPSA LPJOYCAPS;
+#endif
+
+/* joystickapi.h */
+typedef JOYCAPS2A *LPJOYCAPS2A;
+
+/* joystickapi.h */
+typedef JOYCAPS2W *LPJOYCAPS2W;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef LPJOYCAPS2W LPJOYCAPS2;
+#else
+typedef LPJOYCAPS2A LPJOYCAPS2;
+#endif
+
+/* joystickapi.h */
+typedef JOYINFO *LPJOYINFO;
+
+/* joystickapi.h */
+typedef JOYINFOEX *LPJOYINFOEX;
+
 /* winuser.h */
 typedef KBDLLHOOKSTRUCT *LPKBDLLHOOKSTRUCT;
 
 /* wingdi.h */
 typedef KERNINGPAIR *LPKERNINGPAIR;
+
+/* mmeapi.h */
+typedef WCHAR *LPKEYARRAY;
 
 /* winuser.h */
 typedef KEYBDINPUT *LPKEYBDINPUT;
@@ -14975,6 +16177,20 @@ typedef LOGCOLORSPACEA *LPLOGCOLORSPACEA;
 typedef LOGCOLORSPACEW *LPLOGCOLORSPACEW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef LPLOGCOLORSPACEW LPLOGCOLORSPACE;
+#else
+typedef LPLOGCOLORSPACEA LPLOGCOLORSPACE;
+#endif
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPLOGFONTW LPLOGFONT;
+#else
+typedef LPLOGFONTA LPLOGFONT;
+#endif
+
+/* wingdi.h */
 typedef LOGPALETTE *LPLOGPALETTE;
 
 /* wingdi.h */
@@ -14995,11 +16211,241 @@ typedef IMarshal *LPMARSHAL;
 /* wingdi.h */
 typedef MAT2 *LPMAT2;
 
+/* mciapi.h */
+typedef MCI_ANIM_OPEN_PARMSA *LPMCI_ANIM_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_ANIM_OPEN_PARMSW *LPMCI_ANIM_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_ANIM_OPEN_PARMSW LPMCI_ANIM_OPEN_PARMS;
+#else
+typedef LPMCI_ANIM_OPEN_PARMSA LPMCI_ANIM_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_ANIM_PLAY_PARMS *LPMCI_ANIM_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_RECT_PARMS *LPMCI_ANIM_RECT_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_STEP_PARMS *LPMCI_ANIM_STEP_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_UPDATE_PARMS *LPMCI_ANIM_UPDATE_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_WINDOW_PARMSA *LPMCI_ANIM_WINDOW_PARMSA;
+
+/* mciapi.h */
+typedef MCI_ANIM_WINDOW_PARMSW *LPMCI_ANIM_WINDOW_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_ANIM_WINDOW_PARMSW LPMCI_ANIM_WINDOW_PARMS;
+#else
+typedef LPMCI_ANIM_WINDOW_PARMSA LPMCI_ANIM_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_BREAK_PARMS *LPMCI_BREAK_PARMS;
+
+/* mciapi.h */
+typedef MCI_GENERIC_PARMS *LPMCI_GENERIC_PARMS;
+
+/* mciapi.h */
+typedef MCI_GETDEVCAPS_PARMS *LPMCI_GETDEVCAPS_PARMS;
+
+/* mciapi.h */
+typedef MCI_INFO_PARMSA *LPMCI_INFO_PARMSA;
+
+/* mciapi.h */
+typedef MCI_INFO_PARMSW *LPMCI_INFO_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_INFO_PARMSW LPMCI_INFO_PARMS;
+#else
+typedef LPMCI_INFO_PARMSA LPMCI_INFO_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_LOAD_PARMSA *LPMCI_LOAD_PARMSA;
+
+/* mciapi.h */
+typedef MCI_LOAD_PARMSW *LPMCI_LOAD_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_LOAD_PARMSW LPMCI_LOAD_PARMS;
+#else
+typedef LPMCI_LOAD_PARMSA LPMCI_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OPEN_PARMSA *LPMCI_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OPEN_PARMSW *LPMCI_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_OPEN_PARMSW LPMCI_OPEN_PARMS;
+#else
+typedef LPMCI_OPEN_PARMSA LPMCI_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_LOAD_PARMSA *LPMCI_OVLY_LOAD_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_LOAD_PARMSW *LPMCI_OVLY_LOAD_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_OVLY_LOAD_PARMSW LPMCI_OVLY_LOAD_PARMS;
+#else
+typedef LPMCI_OVLY_LOAD_PARMSA LPMCI_OVLY_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_OPEN_PARMSA *LPMCI_OVLY_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_OPEN_PARMSW *LPMCI_OVLY_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_OVLY_OPEN_PARMSW LPMCI_OVLY_OPEN_PARMS;
+#else
+typedef LPMCI_OVLY_OPEN_PARMSA LPMCI_OVLY_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_RECT_PARMS *LPMCI_OVLY_RECT_PARMS;
+
+/* mciapi.h */
+typedef MCI_OVLY_SAVE_PARMSA *LPMCI_OVLY_SAVE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_SAVE_PARMSW *LPMCI_OVLY_SAVE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_OVLY_SAVE_PARMSW LPMCI_OVLY_SAVE_PARMS;
+#else
+typedef LPMCI_OVLY_SAVE_PARMSA LPMCI_OVLY_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_WINDOW_PARMSA *LPMCI_OVLY_WINDOW_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_WINDOW_PARMSW *LPMCI_OVLY_WINDOW_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_OVLY_WINDOW_PARMSW LPMCI_OVLY_WINDOW_PARMS;
+#else
+typedef LPMCI_OVLY_WINDOW_PARMSA LPMCI_OVLY_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_PLAY_PARMS *LPMCI_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_RECORD_PARMS *LPMCI_RECORD_PARMS;
+
+/* mciapi.h */
+typedef MCI_SAVE_PARMSA *LPMCI_SAVE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_SAVE_PARMSW *LPMCI_SAVE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_SAVE_PARMSW LPMCI_SAVE_PARMS;
+#else
+typedef LPMCI_SAVE_PARMSA LPMCI_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_SEEK_PARMS *LPMCI_SEEK_PARMS;
+
+/* mciapi.h */
+typedef MCI_SEQ_SET_PARMS *LPMCI_SEQ_SET_PARMS;
+
+/* mciapi.h */
+typedef MCI_SET_PARMS *LPMCI_SET_PARMS;
+
+/* mciapi.h */
+typedef MCI_STATUS_PARMS *LPMCI_STATUS_PARMS;
+
+/* mciapi.h */
+typedef MCI_SYSINFO_PARMSA *LPMCI_SYSINFO_PARMSA;
+
+/* mciapi.h */
+typedef MCI_SYSINFO_PARMSW *LPMCI_SYSINFO_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_SYSINFO_PARMSW LPMCI_SYSINFO_PARMS;
+#else
+typedef LPMCI_SYSINFO_PARMSA LPMCI_SYSINFO_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_VD_ESCAPE_PARMSA *LPMCI_VD_ESCAPE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_VD_ESCAPE_PARMSW *LPMCI_VD_ESCAPE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_VD_ESCAPE_PARMSW LPMCI_VD_ESCAPE_PARMS;
+#else
+typedef LPMCI_VD_ESCAPE_PARMSA LPMCI_VD_ESCAPE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_VD_PLAY_PARMS *LPMCI_VD_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_VD_STEP_PARMS *LPMCI_VD_STEP_PARMS;
+
+/* mciapi.h */
+typedef MCI_WAVE_DELETE_PARMS *LPMCI_WAVE_DELETE_PARMS;
+
+/* mciapi.h */
+typedef MCI_WAVE_OPEN_PARMSA *LPMCI_WAVE_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_WAVE_OPEN_PARMSW *LPMCI_WAVE_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef LPMCI_WAVE_OPEN_PARMSW LPMCI_WAVE_OPEN_PARMS;
+#else
+typedef LPMCI_WAVE_OPEN_PARMSA LPMCI_WAVE_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_WAVE_SET_PARMS *LPMCI_WAVE_SET_PARMS;
+
 /* winuser.h */
 typedef MDICREATESTRUCTA *LPMDICREATESTRUCTA;
 
 /* winuser.h */
 typedef MDICREATESTRUCTW *LPMDICREATESTRUCTW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPMDICREATESTRUCTW LPMDICREATESTRUCT;
+#else
+typedef LPMDICREATESTRUCTA LPMDICREATESTRUCT;
+#endif
 
 /* winuser.h */
 typedef MDINEXTMENU *LPMDINEXTMENU;
@@ -15026,10 +16472,24 @@ typedef MENUITEMINFOA *LPMENUITEMINFOA;
 typedef MENUITEMINFOW *LPMENUITEMINFOW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef LPMENUITEMINFOW LPMENUITEMINFO;
+#else
+typedef LPMENUITEMINFOA LPMENUITEMINFO;
+#endif
+
+/* winuser.h */
 typedef void *LPMENUTEMPLATEA;
 
 /* winuser.h */
 typedef void *LPMENUTEMPLATEW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPMENUTEMPLATEW LPMENUTEMPLATE;
+#else
+typedef LPMENUTEMPLATEA LPMENUTEMPLATE;
+#endif
 
 /* objidl.h */
 typedef IMessageFilter *LPMESSAGEFILTER;
@@ -15040,11 +16500,183 @@ typedef METAFILEPICT *LPMETAFILEPICT;
 /* oleauto.h */
 typedef METHODDATA *LPMETHODDATA;
 
+/* mmeapi.h */
+typedef void (__stdcall *LPMIDICALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmeapi.h */
+typedef MIDIHDR *LPMIDIHDR;
+
+/* mmeapi.h */
+typedef MIDIINCAPSA *LPMIDIINCAPSA;
+
+/* mmeapi.h */
+typedef MIDIINCAPSW *LPMIDIINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIDIINCAPSW LPMIDIINCAPS;
+#else
+typedef LPMIDIINCAPSA LPMIDIINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIINCAPS2A *LPMIDIINCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIINCAPS2W *LPMIDIINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIDIINCAPS2W LPMIDIINCAPS2;
+#else
+typedef LPMIDIINCAPS2A LPMIDIINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSA *LPMIDIOUTCAPSA;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSW *LPMIDIOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIDIOUTCAPSW LPMIDIOUTCAPS;
+#else
+typedef LPMIDIOUTCAPSA LPMIDIOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2A *LPMIDIOUTCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2W *LPMIDIOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIDIOUTCAPS2W LPMIDIOUTCAPS2;
+#else
+typedef LPMIDIOUTCAPS2A LPMIDIOUTCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIDIPROPTEMPO *LPMIDIPROPTEMPO;
+
+/* mmeapi.h */
+typedef MIDIPROPTIMEDIV *LPMIDIPROPTIMEDIV;
+
 /* winuser.h */
 typedef MINIMIZEDMETRICS *LPMINIMIZEDMETRICS;
 
 /* winuser.h */
 typedef MINMAXINFO *LPMINMAXINFO;
+
+/* mmeapi.h */
+typedef MIXERCAPSA *LPMIXERCAPSA;
+
+/* mmeapi.h */
+typedef MIXERCAPSW *LPMIXERCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERCAPSW LPMIXERCAPS;
+#else
+typedef LPMIXERCAPSA LPMIXERCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCAPS2A *LPMIXERCAPS2A;
+
+/* mmeapi.h */
+typedef MIXERCAPS2W *LPMIXERCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERCAPS2W LPMIXERCAPS2;
+#else
+typedef LPMIXERCAPS2A LPMIXERCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLA *LPMIXERCONTROLA;
+
+/* mmeapi.h */
+typedef MIXERCONTROLW *LPMIXERCONTROLW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERCONTROLW LPMIXERCONTROL;
+#else
+typedef LPMIXERCONTROLA LPMIXERCONTROL;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS *LPMIXERCONTROLDETAILS;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_BOOLEAN *LPMIXERCONTROLDETAILS_BOOLEAN;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_LISTTEXTA *LPMIXERCONTROLDETAILS_LISTTEXTA;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_LISTTEXTW *LPMIXERCONTROLDETAILS_LISTTEXTW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERCONTROLDETAILS_LISTTEXTW LPMIXERCONTROLDETAILS_LISTTEXT;
+#else
+typedef LPMIXERCONTROLDETAILS_LISTTEXTA LPMIXERCONTROLDETAILS_LISTTEXT;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_SIGNED *LPMIXERCONTROLDETAILS_SIGNED;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_UNSIGNED *LPMIXERCONTROLDETAILS_UNSIGNED;
+
+/* mmeapi.h */
+typedef MIXERLINEA *LPMIXERLINEA;
+
+/* mmeapi.h */
+typedef MIXERLINEW *LPMIXERLINEW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERLINEW LPMIXERLINE;
+#else
+typedef LPMIXERLINEA LPMIXERLINE;
+#endif
+
+/* mmeapi.h */
+typedef MIXERLINECONTROLSA *LPMIXERLINECONTROLSA;
+
+/* mmeapi.h */
+typedef MIXERLINECONTROLSW *LPMIXERLINECONTROLSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPMIXERLINECONTROLSW LPMIXERLINECONTROLS;
+#else
+typedef LPMIXERLINECONTROLSA LPMIXERLINECONTROLS;
+#endif
+
+/* mmiscapi.h */
+typedef MMCKINFO *LPMMCKINFO;
+
+/* mmiscapi.h */
+typedef MMIOINFO *LPMMIOINFO;
+
+/* mmiscapi.h */
+typedef LRESULT (__stdcall *LPMMIOPROC)(LPSTR lpmmioinfo, UINT uMsg, LPARAM lParam1, LPARAM lParam2);
+
+/* mmsyscom.h */
+typedef MMTIME *LPMMTIME;
+
+/* mcx.h */
+typedef MODEMDEVCAPS *LPMODEMDEVCAPS;
+
+/* mcx.h */
+typedef MODEMSETTINGS *LPMODEMSETTINGS;
 
 /* psapi.h */
 typedef MODULEINFO *LPMODULEINFO;
@@ -15060,6 +16692,13 @@ typedef MONITORINFOEXA *LPMONITORINFOEXA;
 
 /* winuser.h */
 typedef MONITORINFOEXW *LPMONITORINFOEXW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPMONITORINFOEXW LPMONITORINFOEX;
+#else
+typedef LPMONITORINFOEXA LPMONITORINFOEX;
+#endif
 
 /* winuser.h */
 typedef MOUSEHOOKSTRUCT *LPMOUSEHOOKSTRUCT;
@@ -15086,6 +16725,13 @@ typedef MSGBOXPARAMSA *LPMSGBOXPARAMSA;
 typedef MSGBOXPARAMSW *LPMSGBOXPARAMSW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef LPMSGBOXPARAMSW LPMSGBOXPARAMS;
+#else
+typedef LPMSGBOXPARAMSA LPMSGBOXPARAMS;
+#endif
+
+/* winuser.h */
 typedef MSLLHOOKSTRUCT *LPMSLLHOOKSTRUCT;
 
 /* winuser.h */
@@ -15095,6 +16741,13 @@ typedef MULTIKEYHELPA *LPMULTIKEYHELPA;
 typedef MULTIKEYHELPW *LPMULTIKEYHELPW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef LPMULTIKEYHELPW LPMULTIKEYHELP;
+#else
+typedef LPMULTIKEYHELPA LPMULTIKEYHELP;
+#endif
+
+/* winuser.h */
 typedef NCCALCSIZE_PARAMS *LPNCCALCSIZE_PARAMS;
 
 /* wingdi.h */
@@ -15102,6 +16755,13 @@ typedef NEWTEXTMETRICA *LPNEWTEXTMETRICA;
 
 /* wingdi.h */
 typedef NEWTEXTMETRICW *LPNEWTEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPNEWTEXTMETRICW LPNEWTEXTMETRIC;
+#else
+typedef LPNEWTEXTMETRICA LPNEWTEXTMETRIC;
+#endif
 
 /* winnls.h */
 typedef NLSVERSIONINFO *LPNLSVERSIONINFO;
@@ -15118,11 +16778,25 @@ typedef NONCLIENTMETRICSA *LPNONCLIENTMETRICSA;
 /* winuser.h */
 typedef NONCLIENTMETRICSW *LPNONCLIENTMETRICSW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef LPNONCLIENTMETRICSW LPNONCLIENTMETRICS;
+#else
+typedef LPNONCLIENTMETRICSA LPNONCLIENTMETRICS;
+#endif
+
 /* winnls.h */
 typedef NUMBERFMTA *LPNUMBERFMTA;
 
 /* winnls.h */
 typedef NUMBERFMTW *LPNUMBERFMTW;
+
+/* winnls.h */
+#ifdef UNICODE
+typedef LPNUMBERFMTW LPNUMBERFMT;
+#else
+typedef LPNUMBERFMTA LPNUMBERFMT;
+#endif
 
 /* commdlg.h */
 typedef UINT_PTR (__stdcall *LPOFNHOOKPROC)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
@@ -15131,13 +16805,27 @@ typedef UINT_PTR (__stdcall *LPOFNHOOKPROC)(HWND param0, UINT param1, WPARAM par
 typedef OFNOTIFYA *LPOFNOTIFYA;
 
 /* commdlg.h */
+typedef OFNOTIFYW *LPOFNOTIFYW;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef LPOFNOTIFYW LPOFNOTIFY;
+#else
+typedef LPOFNOTIFYA LPOFNOTIFY;
+#endif
+
+/* commdlg.h */
 typedef OFNOTIFYEXA *LPOFNOTIFYEXA;
 
 /* commdlg.h */
 typedef OFNOTIFYEXW *LPOFNOTIFYEXW;
 
 /* commdlg.h */
-typedef OFNOTIFYW *LPOFNOTIFYW;
+#ifdef UNICODE
+typedef LPOFNOTIFYEXW LPOFNOTIFYEX;
+#else
+typedef LPOFNOTIFYEXA LPOFNOTIFYEX;
+#endif
 
 /* winbase.h */
 typedef OFSTRUCT *LPOFSTRUCT;
@@ -15179,13 +16867,37 @@ typedef OPENFILENAMEA *LPOPENFILENAMEA;
 typedef OPENFILENAMEW *LPOPENFILENAMEW;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef LPOPENFILENAMEW LPOPENFILENAME;
+#else
+typedef LPOPENFILENAMEA LPOPENFILENAME;
+#endif
+
+/* commdlg.h */
 typedef OPENFILENAME_NT4A *LPOPENFILENAME_NT4A;
 
 /* commdlg.h */
 typedef OPENFILENAME_NT4W *LPOPENFILENAME_NT4W;
 
+/* commdlg.h */
+#ifdef UNICODE
+typedef LPOPENFILENAME_NT4W LPOPENFILENAME_NT4;
+#else
+typedef LPOPENFILENAME_NT4A LPOPENFILENAME_NT4;
+#endif
+
 /* winnt.h */
 typedef OSVERSIONINFOA *LPOSVERSIONINFOA;
+
+/* winnt.h */
+typedef _OSVERSIONINFOW *LPOSVERSIONINFOW;
+
+/* winnt.h */
+#ifdef UNICODE
+typedef LPOSVERSIONINFOW LPOSVERSIONINFO;
+#else
+typedef LPOSVERSIONINFOA LPOSVERSIONINFO;
+#endif
 
 /* winnt.h */
 typedef OSVERSIONINFOEXA *LPOSVERSIONINFOEXA;
@@ -15194,13 +16906,24 @@ typedef OSVERSIONINFOEXA *LPOSVERSIONINFOEXA;
 typedef _OSVERSIONINFOEXW *LPOSVERSIONINFOEXW;
 
 /* winnt.h */
-typedef _OSVERSIONINFOW *LPOSVERSIONINFOW;
+#ifdef UNICODE
+typedef LPOSVERSIONINFOEXW LPOSVERSIONINFOEX;
+#else
+typedef LPOSVERSIONINFOEXA LPOSVERSIONINFOEX;
+#endif
 
 /* wingdi.h */
 typedef OUTLINETEXTMETRICA *LPOUTLINETEXTMETRICA;
 
 /* wingdi.h */
 typedef OUTLINETEXTMETRICW *LPOUTLINETEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPOUTLINETEXTMETRICW LPOUTLINETEXTMETRIC;
+#else
+typedef LPOUTLINETEXTMETRICA LPOUTLINETEXTMETRIC;
+#endif
 
 /* minwinbase.h */
 typedef OVERLAPPED *LPOVERLAPPED;
@@ -15221,6 +16944,13 @@ typedef PAGESETUPDLGA *LPPAGESETUPDLGA;
 typedef PAGESETUPDLGW *LPPAGESETUPDLGW;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef LPPAGESETUPDLGW LPPAGESETUPDLG;
+#else
+typedef LPPAGESETUPDLGA LPPAGESETUPDLG;
+#endif
+
+/* commdlg.h */
 typedef UINT_PTR (__stdcall *LPPAGESETUPHOOK)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
 
 /* winuser.h */
@@ -15235,8 +16965,14 @@ typedef PANOSE *LPPANOSE;
 /* oleauto.h */
 typedef PARAMDATA *LPPARAMDATA;
 
+/* mmeapi.h */
+typedef WCHAR *LPPATCHARRAY;
+
 /* wingdi.h */
 typedef LOGBRUSH *LPPATTERN;
+
+/* mmeapi.h */
+typedef PCMWAVEFORMAT *LPPCMWAVEFORMAT;
 
 /* wingdi.h */
 typedef PELARRAY *LPPELARRAY;
@@ -15262,11 +16998,21 @@ typedef POINT *LPPOINT;
 /* wingdi.h */
 typedef POINTFX *LPPOINTFX;
 
+/* windef.h */
+typedef POINTS *LPPOINTS;
+
 /* wingdi.h */
 typedef POLYTEXTA *LPPOLYTEXTA;
 
 /* wingdi.h */
 typedef POLYTEXTW *LPPOLYTEXTW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPPOLYTEXTW LPPOLYTEXT;
+#else
+typedef LPPOLYTEXTA LPPOLYTEXT;
+#endif
 
 /* winbase.h */
 typedef REASON_CONTEXT *LPPOWER_REQUEST_CONTEXT;
@@ -15275,13 +17021,27 @@ typedef REASON_CONTEXT *LPPOWER_REQUEST_CONTEXT;
 typedef PRINTDLGA *LPPRINTDLGA;
 
 /* commdlg.h */
+typedef PRINTDLGW *LPPRINTDLGW;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef LPPRINTDLGW LPPRINTDLG;
+#else
+typedef LPPRINTDLGA LPPRINTDLG;
+#endif
+
+/* commdlg.h */
 typedef PRINTDLGEXA *LPPRINTDLGEXA;
 
 /* commdlg.h */
 typedef PRINTDLGEXW *LPPRINTDLGEXW;
 
 /* commdlg.h */
-typedef PRINTDLGW *LPPRINTDLGW;
+#ifdef UNICODE
+typedef LPPRINTDLGEXW LPPRINTDLGEX;
+#else
+typedef LPPRINTDLGEXA LPPRINTDLGEX;
+#endif
 
 /* commdlg.h */
 typedef UINT_PTR (__stdcall *LPPRINTHOOKPROC)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
@@ -15305,10 +17065,24 @@ typedef QUERY_SERVICE_CONFIGA *LPQUERY_SERVICE_CONFIGA;
 typedef QUERY_SERVICE_CONFIGW *LPQUERY_SERVICE_CONFIGW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef LPQUERY_SERVICE_CONFIGW LPQUERY_SERVICE_CONFIG;
+#else
+typedef LPQUERY_SERVICE_CONFIGA LPQUERY_SERVICE_CONFIG;
+#endif
+
+/* winsvc.h */
 typedef QUERY_SERVICE_LOCK_STATUSA *LPQUERY_SERVICE_LOCK_STATUSA;
 
 /* winsvc.h */
 typedef QUERY_SERVICE_LOCK_STATUSW *LPQUERY_SERVICE_LOCK_STATUSW;
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef LPQUERY_SERVICE_LOCK_STATUSW LPQUERY_SERVICE_LOCK_STATUS;
+#else
+typedef LPQUERY_SERVICE_LOCK_STATUSA LPQUERY_SERVICE_LOCK_STATUS;
+#endif
 
 /* wingdi.h */
 typedef RASTERIZER_STATUS *LPRASTERIZER_STATUS;
@@ -15345,6 +17119,13 @@ typedef REGISTERWORDA *LPREGISTERWORDA;
 
 /* imm.h */
 typedef REGISTERWORDW *LPREGISTERWORDW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef LPREGISTERWORDW LPREGISTERWORD;
+#else
+typedef LPREGISTERWORDA LPREGISTERWORD;
+#endif
 
 /* wingdi.h */
 typedef RGBQUAD *LPRGBQUAD;
@@ -15400,6 +17181,13 @@ typedef SERIALKEYSA *LPSERIALKEYSA;
 /* winuser.h */
 typedef SERIALKEYSW *LPSERIALKEYSW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef LPSERIALKEYSW LPSERIALKEYS;
+#else
+typedef LPSERIALKEYSA LPSERIALKEYS;
+#endif
+
 /* winsvc.h */
 typedef SERVICE_CUSTOM_SYSTEM_STATE_CHANGE_DATA_ITEM *LPSERVICE_CUSTOM_SYSTEM_STATE_CHANGE_DATA_ITEM;
 
@@ -15413,10 +17201,24 @@ typedef SERVICE_DESCRIPTIONA *LPSERVICE_DESCRIPTIONA;
 typedef SERVICE_DESCRIPTIONW *LPSERVICE_DESCRIPTIONW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef LPSERVICE_DESCRIPTIONW LPSERVICE_DESCRIPTION;
+#else
+typedef LPSERVICE_DESCRIPTIONA LPSERVICE_DESCRIPTION;
+#endif
+
+/* winsvc.h */
 typedef SERVICE_FAILURE_ACTIONSA *LPSERVICE_FAILURE_ACTIONSA;
 
 /* winsvc.h */
 typedef SERVICE_FAILURE_ACTIONSW *LPSERVICE_FAILURE_ACTIONSW;
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef LPSERVICE_FAILURE_ACTIONSW LPSERVICE_FAILURE_ACTIONS;
+#else
+typedef LPSERVICE_FAILURE_ACTIONSA LPSERVICE_FAILURE_ACTIONS;
+#endif
 
 /* winsvc.h */
 typedef SERVICE_FAILURE_ACTIONS_FLAG *LPSERVICE_FAILURE_ACTIONS_FLAG;
@@ -15440,6 +17242,13 @@ typedef SERVICE_REQUIRED_PRIVILEGES_INFOA *LPSERVICE_REQUIRED_PRIVILEGES_INFOA;
 typedef SERVICE_REQUIRED_PRIVILEGES_INFOW *LPSERVICE_REQUIRED_PRIVILEGES_INFOW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef LPSERVICE_REQUIRED_PRIVILEGES_INFOW LPSERVICE_REQUIRED_PRIVILEGES_INFO;
+#else
+typedef LPSERVICE_REQUIRED_PRIVILEGES_INFOA LPSERVICE_REQUIRED_PRIVILEGES_INFO;
+#endif
+
+/* winsvc.h */
 typedef SERVICE_SID_INFO *LPSERVICE_SID_INFO;
 
 /* winsvc.h */
@@ -15454,6 +17263,13 @@ typedef SERVICE_TABLE_ENTRYA *LPSERVICE_TABLE_ENTRYA;
 /* winsvc.h */
 typedef SERVICE_TABLE_ENTRYW *LPSERVICE_TABLE_ENTRYW;
 
+/* winsvc.h */
+#ifdef UNICODE
+typedef LPSERVICE_TABLE_ENTRYW LPSERVICE_TABLE_ENTRY;
+#else
+typedef LPSERVICE_TABLE_ENTRYA LPSERVICE_TABLE_ENTRY;
+#endif
+
 /* commdlg.h */
 typedef UINT_PTR (__stdcall *LPSETUPHOOKPROC)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
 
@@ -15462,6 +17278,13 @@ typedef SHELLEXECUTEINFOA *LPSHELLEXECUTEINFOA;
 
 /* shellapi.h */
 typedef SHELLEXECUTEINFOW *LPSHELLEXECUTEINFOW;
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef LPSHELLEXECUTEINFOW LPSHELLEXECUTEINFO;
+#else
+typedef LPSHELLEXECUTEINFOA LPSHELLEXECUTEINFO;
+#endif
 
 /* winuser.h */
 typedef SHELLHOOKINFO *LPSHELLHOOKINFO;
@@ -15473,10 +17296,24 @@ typedef SHFILEOPSTRUCTA *LPSHFILEOPSTRUCTA;
 typedef SHFILEOPSTRUCTW *LPSHFILEOPSTRUCTW;
 
 /* shellapi.h */
+#ifdef UNICODE
+typedef LPSHFILEOPSTRUCTW LPSHFILEOPSTRUCT;
+#else
+typedef LPSHFILEOPSTRUCTA LPSHFILEOPSTRUCT;
+#endif
+
+/* shellapi.h */
 typedef SHNAMEMAPPINGA *LPSHNAMEMAPPINGA;
 
 /* shellapi.h */
 typedef SHNAMEMAPPINGW *LPSHNAMEMAPPINGW;
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef LPSHNAMEMAPPINGW LPSHNAMEMAPPING;
+#else
+typedef LPSHNAMEMAPPINGA LPSHNAMEMAPPING;
+#endif
 
 /* shellapi.h */
 typedef SHQUERYRBINFO *LPSHQUERYRBINFO;
@@ -15493,8 +17330,25 @@ typedef SOUNDSENTRYA *LPSOUNDSENTRYA;
 /* winuser.h */
 typedef SOUNDSENTRYW *LPSOUNDSENTRYW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef LPSOUNDSENTRYW LPSOUNDSENTRY;
+#else
+typedef LPSOUNDSENTRYA LPSOUNDSENTRY;
+#endif
+
 /* processthreadsapi.h */
 typedef STARTUPINFOA *LPSTARTUPINFOA;
+
+/* processthreadsapi.h */
+typedef STARTUPINFOW *LPSTARTUPINFOW;
+
+/* processthreadsapi.h */
+#ifdef UNICODE
+typedef LPSTARTUPINFOW LPSTARTUPINFO;
+#else
+typedef LPSTARTUPINFOA LPSTARTUPINFO;
+#endif
 
 /* winbase.h */
 typedef STARTUPINFOEXA *LPSTARTUPINFOEXA;
@@ -15502,8 +17356,12 @@ typedef STARTUPINFOEXA *LPSTARTUPINFOEXA;
 /* winbase.h */
 typedef STARTUPINFOEXW *LPSTARTUPINFOEXW;
 
-/* processthreadsapi.h */
-typedef STARTUPINFOW *LPSTARTUPINFOW;
+/* winbase.h */
+#ifdef UNICODE
+typedef LPSTARTUPINFOEXW LPSTARTUPINFOEX;
+#else
+typedef LPSTARTUPINFOEXA LPSTARTUPINFOEX;
+#endif
 
 /* objidl.h */
 typedef STATDATA *LPSTATDATA;
@@ -15525,6 +17383,13 @@ typedef STYLEBUFA *LPSTYLEBUFA;
 
 /* imm.h */
 typedef STYLEBUFW *LPSTYLEBUFW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef LPSTYLEBUFW LPSTYLEBUF;
+#else
+typedef LPSTYLEBUFA LPSTYLEBUF;
+#endif
 
 /* winuser.h */
 typedef STYLESTRUCT *LPSTYLESTRUCT;
@@ -15552,6 +17417,19 @@ typedef TEXTMETRICA *LPTEXTMETRICA;
 
 /* wingdi.h */
 typedef TEXTMETRICW *LPTEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef LPTEXTMETRICW LPTEXTMETRIC;
+#else
+typedef LPTEXTMETRICA LPTEXTMETRIC;
+#endif
+
+/* mmiscapi2.h */
+typedef void (__stdcall *LPTIMECALLBACK)(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* timeapi.h */
+typedef TIMECAPS *LPTIMECAPS;
 
 /* timezoneapi.h */
 typedef TIME_ZONE_INFORMATION *LPTIME_ZONE_INFORMATION;
@@ -15601,6 +17479,70 @@ typedef tagVARIANT *LPVARIANT;
 /* propidlbase.h */
 typedef VERSIONEDSTREAM *LPVERSIONEDSTREAM;
 
+/* mmeapi.h */
+typedef void (__stdcall *LPWAVECALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmeapi.h */
+typedef WAVEFORMAT *LPWAVEFORMAT;
+
+/* mmeapi.h */
+typedef WAVEFORMATEX *LPWAVEFORMATEX;
+
+/* mmeapi.h */
+typedef WAVEHDR *LPWAVEHDR;
+
+/* mmeapi.h */
+typedef WAVEINCAPSA *LPWAVEINCAPSA;
+
+/* mmeapi.h */
+typedef WAVEINCAPSW *LPWAVEINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPWAVEINCAPSW LPWAVEINCAPS;
+#else
+typedef LPWAVEINCAPSA LPWAVEINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEINCAPS2A *LPWAVEINCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEINCAPS2W *LPWAVEINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPWAVEINCAPS2W LPWAVEINCAPS2;
+#else
+typedef LPWAVEINCAPS2A LPWAVEINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSA *LPWAVEOUTCAPSA;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSW *LPWAVEOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPWAVEOUTCAPSW LPWAVEOUTCAPS;
+#else
+typedef LPWAVEOUTCAPSA LPWAVEOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2A *LPWAVEOUTCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2W *LPWAVEOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef LPWAVEOUTCAPS2W LPWAVEOUTCAPS2;
+#else
+typedef LPWAVEOUTCAPS2A LPWAVEOUTCAPS2;
+#endif
+
 /* winnt.h */
 typedef WCHAR *LPWCH;
 
@@ -15635,13 +17577,27 @@ typedef WINDOWPOS *LPWINDOWPOS;
 typedef WNDCLASSA *LPWNDCLASSA;
 
 /* winuser.h */
+typedef WNDCLASSW *LPWNDCLASSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef LPWNDCLASSW LPWNDCLASS;
+#else
+typedef LPWNDCLASSA LPWNDCLASS;
+#endif
+
+/* winuser.h */
 typedef WNDCLASSEXA *LPWNDCLASSEXA;
 
 /* winuser.h */
 typedef WNDCLASSEXW *LPWNDCLASSEXW;
 
 /* winuser.h */
-typedef WNDCLASSW *LPWNDCLASSW;
+#ifdef UNICODE
+typedef LPWNDCLASSEXW LPWNDCLASSEX;
+#else
+typedef LPWNDCLASSEXA LPWNDCLASSEX;
+#endif
 
 /* minwindef.h */
 typedef WCHAR *LPWORD;
@@ -15732,6 +17688,547 @@ struct MAT2 {
 struct MAXVERSIONTESTED_INFO {
     ULONGLONG MaxVersionTested;
 };
+
+/* mciapi.h */
+typedef unsigned int MCIDEVICEID;
+
+/* mciapi.h */
+typedef unsigned int MCIERROR;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_ANIM_OPEN_PARMSW MCI_ANIM_OPEN_PARMS;
+#else
+typedef MCI_ANIM_OPEN_PARMSA MCI_ANIM_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_OPEN_PARMSA {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCSTR lpstrDeviceType;
+    LPCSTR lpstrElementName;
+    LPCSTR lpstrAlias;
+    DWORD dwStyle;
+    HWND hWndParent;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_OPEN_PARMSW {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCWSTR lpstrDeviceType;
+    LPCWSTR lpstrElementName;
+    LPCWSTR lpstrAlias;
+    DWORD dwStyle;
+    HWND hWndParent;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_PLAY_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrom;
+    DWORD dwTo;
+    DWORD dwSpeed;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_RECT_PARMS {
+    DWORD_PTR dwCallback;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_STEP_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrames;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_UPDATE_PARMS {
+    DWORD_PTR dwCallback;
+    RECT rc;
+    HDC hDC;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_ANIM_WINDOW_PARMSW MCI_ANIM_WINDOW_PARMS;
+#else
+typedef MCI_ANIM_WINDOW_PARMSA MCI_ANIM_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_WINDOW_PARMSA {
+    DWORD_PTR dwCallback;
+    HWND hWnd;
+    UINT nCmdShow;
+    LPCSTR lpstrText;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_ANIM_WINDOW_PARMSW {
+    DWORD_PTR dwCallback;
+    HWND hWnd;
+    UINT nCmdShow;
+    LPCWSTR lpstrText;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_BREAK_PARMS {
+    DWORD_PTR dwCallback;
+    int nVirtKey;
+    HWND hwndBreak;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_GENERIC_PARMS {
+    DWORD_PTR dwCallback;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_GETDEVCAPS_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwReturn;
+    DWORD dwItem;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_INFO_PARMSW MCI_INFO_PARMS;
+#else
+typedef MCI_INFO_PARMSA MCI_INFO_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_INFO_PARMSA {
+    DWORD_PTR dwCallback;
+    LPSTR lpstrReturn;
+    DWORD dwRetSize;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_INFO_PARMSW {
+    DWORD_PTR dwCallback;
+    LPWSTR lpstrReturn;
+    DWORD dwRetSize;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_LOAD_PARMSW MCI_LOAD_PARMS;
+#else
+typedef MCI_LOAD_PARMSA MCI_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_LOAD_PARMSA {
+    DWORD_PTR dwCallback;
+    LPCSTR lpfilename;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_LOAD_PARMSW {
+    DWORD_PTR dwCallback;
+    LPCWSTR lpfilename;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_OPEN_PARMSW MCI_OPEN_PARMS;
+#else
+typedef MCI_OPEN_PARMSA MCI_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OPEN_PARMSA {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCSTR lpstrDeviceType;
+    LPCSTR lpstrElementName;
+    LPCSTR lpstrAlias;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OPEN_PARMSW {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCWSTR lpstrDeviceType;
+    LPCWSTR lpstrElementName;
+    LPCWSTR lpstrAlias;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_OVLY_LOAD_PARMSW MCI_OVLY_LOAD_PARMS;
+#else
+typedef MCI_OVLY_LOAD_PARMSA MCI_OVLY_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_LOAD_PARMSA {
+    DWORD_PTR dwCallback;
+    LPCSTR lpfilename;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_LOAD_PARMSW {
+    DWORD_PTR dwCallback;
+    LPCWSTR lpfilename;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_OVLY_OPEN_PARMSW MCI_OVLY_OPEN_PARMS;
+#else
+typedef MCI_OVLY_OPEN_PARMSA MCI_OVLY_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_OPEN_PARMSA {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCSTR lpstrDeviceType;
+    LPCSTR lpstrElementName;
+    LPCSTR lpstrAlias;
+    DWORD dwStyle;
+    HWND hWndParent;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_OPEN_PARMSW {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCWSTR lpstrDeviceType;
+    LPCWSTR lpstrElementName;
+    LPCWSTR lpstrAlias;
+    DWORD dwStyle;
+    HWND hWndParent;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_RECT_PARMS {
+    DWORD_PTR dwCallback;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_OVLY_SAVE_PARMSW MCI_OVLY_SAVE_PARMS;
+#else
+typedef MCI_OVLY_SAVE_PARMSA MCI_OVLY_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_SAVE_PARMSA {
+    DWORD_PTR dwCallback;
+    LPCSTR lpfilename;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_SAVE_PARMSW {
+    DWORD_PTR dwCallback;
+    LPCWSTR lpfilename;
+    RECT rc;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_OVLY_WINDOW_PARMSW MCI_OVLY_WINDOW_PARMS;
+#else
+typedef MCI_OVLY_WINDOW_PARMSA MCI_OVLY_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_WINDOW_PARMSA {
+    DWORD_PTR dwCallback;
+    HWND hWnd;
+    UINT nCmdShow;
+    LPCSTR lpstrText;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_OVLY_WINDOW_PARMSW {
+    DWORD_PTR dwCallback;
+    HWND hWnd;
+    UINT nCmdShow;
+    LPCWSTR lpstrText;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_PLAY_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrom;
+    DWORD dwTo;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_RECORD_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrom;
+    DWORD dwTo;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_SAVE_PARMSW MCI_SAVE_PARMS;
+#else
+typedef MCI_SAVE_PARMSA MCI_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SAVE_PARMSA {
+    DWORD_PTR dwCallback;
+    LPCSTR lpfilename;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SAVE_PARMSW {
+    DWORD_PTR dwCallback;
+    LPCWSTR lpfilename;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SEEK_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwTo;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SEQ_SET_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwTimeFormat;
+    DWORD dwAudio;
+    DWORD dwTempo;
+    DWORD dwPort;
+    DWORD dwSlave;
+    DWORD dwMaster;
+    DWORD dwOffset;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SET_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwTimeFormat;
+    DWORD dwAudio;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_STATUS_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD_PTR dwReturn;
+    DWORD dwItem;
+    DWORD dwTrack;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_SYSINFO_PARMSW MCI_SYSINFO_PARMS;
+#else
+typedef MCI_SYSINFO_PARMSA MCI_SYSINFO_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SYSINFO_PARMSA {
+    DWORD_PTR dwCallback;
+    LPSTR lpstrReturn;
+    DWORD dwRetSize;
+    DWORD dwNumber;
+    UINT wDeviceType;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_SYSINFO_PARMSW {
+    DWORD_PTR dwCallback;
+    LPWSTR lpstrReturn;
+    DWORD dwRetSize;
+    DWORD dwNumber;
+    UINT wDeviceType;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_VD_ESCAPE_PARMSW MCI_VD_ESCAPE_PARMS;
+#else
+typedef MCI_VD_ESCAPE_PARMSA MCI_VD_ESCAPE_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_VD_ESCAPE_PARMSA {
+    DWORD_PTR dwCallback;
+    LPCSTR lpstrCommand;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_VD_ESCAPE_PARMSW {
+    DWORD_PTR dwCallback;
+    LPCWSTR lpstrCommand;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_VD_PLAY_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrom;
+    DWORD dwTo;
+    DWORD dwSpeed;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_VD_STEP_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrames;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_WAVE_DELETE_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwFrom;
+    DWORD dwTo;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef MCI_WAVE_OPEN_PARMSW MCI_WAVE_OPEN_PARMS;
+#else
+typedef MCI_WAVE_OPEN_PARMSA MCI_WAVE_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_WAVE_OPEN_PARMSA {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCSTR lpstrDeviceType;
+    LPCSTR lpstrElementName;
+    LPCSTR lpstrAlias;
+    DWORD dwBufferSeconds;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_WAVE_OPEN_PARMSW {
+    DWORD_PTR dwCallback;
+    MCIDEVICEID wDeviceID;
+    LPCWSTR lpstrDeviceType;
+    LPCWSTR lpstrElementName;
+    LPCWSTR lpstrAlias;
+    DWORD dwBufferSeconds;
+};
+#pragma pack(pop)
+
+/* mciapi.h */
+#pragma pack(push, 1)
+struct MCI_WAVE_SET_PARMS {
+    DWORD_PTR dwCallback;
+    DWORD dwTimeFormat;
+    DWORD dwAudio;
+    UINT wInput;
+    UINT wOutput;
+    WORD wFormatTag;
+    WORD wReserved2;
+    WORD nChannels;
+    WORD wReserved3;
+    DWORD nSamplesPerSec;
+    DWORD nAvgBytesPerSec;
+    WORD nBlockAlign;
+    WORD wReserved4;
+    WORD wBitsPerSample;
+    WORD wReserved5;
+};
+#pragma pack(pop)
+
+/* winuser.h */
+#ifdef UNICODE
+typedef MDICREATESTRUCTW MDICREATESTRUCT;
+#else
+typedef MDICREATESTRUCTA MDICREATESTRUCT;
+#endif
 
 /* winuser.h */
 struct MDICREATESTRUCTA {
@@ -15951,6 +18448,13 @@ struct MENUINFO {
 };
 
 /* winuser.h */
+#ifdef UNICODE
+typedef MENUITEMINFOW MENUITEMINFO;
+#else
+typedef MENUITEMINFOA MENUITEMINFO;
+#endif
+
+/* winuser.h */
 struct MENUITEMINFOA {
     UINT cbSize;
     UINT fMask;
@@ -16000,6 +18504,13 @@ typedef void MENUTEMPLATEA;
 
 /* winuser.h */
 typedef void MENUTEMPLATEW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef MENUTEMPLATEW MENUTEMPLATE;
+#else
+typedef MENUTEMPLATEA MENUTEMPLATE;
+#endif
 
 /* winnt.h */
 struct MESSAGE_RESOURCE_BLOCK {
@@ -16066,6 +18577,203 @@ struct METHODDATA {
 /* wingdi.h */
 typedef int (__stdcall *MFENUMPROC)(HDC hdc, HANDLETABLE *lpht, METARECORD *lpMR, int nObj, LPARAM param);
 
+/* mmeapi.h */
+typedef void (__stdcall *MIDICALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIEVENT {
+    DWORD dwDeltaTime;
+    DWORD dwStreamID;
+    DWORD dwEvent;
+    DWORD dwParms[1];
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIHDR {
+    LPSTR lpData;
+    DWORD dwBufferLength;
+    DWORD dwBytesRecorded;
+    DWORD_PTR dwUser;
+    DWORD dwFlags;
+    MIDIHDR *lpNext;
+    DWORD_PTR reserved;
+    DWORD dwOffset;
+    DWORD_PTR dwReserved[8];
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIDIINCAPSW MIDIINCAPS;
+#else
+typedef MIDIINCAPSA MIDIINCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIDIINCAPS2W MIDIINCAPS2;
+#else
+typedef MIDIINCAPS2A MIDIINCAPS2;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIINCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIINCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIINCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIINCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIDIOUTCAPSW MIDIOUTCAPS;
+#else
+typedef MIDIOUTCAPSA MIDIOUTCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIDIOUTCAPS2W MIDIOUTCAPS2;
+#else
+typedef MIDIOUTCAPS2A MIDIOUTCAPS2;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIOUTCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    WORD wTechnology;
+    WORD wVoices;
+    WORD wNotes;
+    WORD wChannelMask;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIOUTCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    WORD wTechnology;
+    WORD wVoices;
+    WORD wNotes;
+    WORD wChannelMask;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIOUTCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    WORD wTechnology;
+    WORD wVoices;
+    WORD wNotes;
+    WORD wChannelMask;
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIOUTCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    WORD wTechnology;
+    WORD wVoices;
+    WORD wNotes;
+    WORD wChannelMask;
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIPROPTEMPO {
+    DWORD cbStruct;
+    DWORD dwTempo;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDIPROPTIMEDIV {
+    DWORD cbStruct;
+    DWORD dwTimeDiv;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIDISTRMBUFFVER {
+    DWORD dwVersion;
+    DWORD dwMid;
+    DWORD dwOEMVersion;
+};
+#pragma pack(pop)
+
 /* winuser.h */
 struct MINIMIZEDMETRICS {
     UINT cbSize;
@@ -16083,6 +18791,296 @@ struct MINMAXINFO {
     POINT ptMinTrackSize;
     POINT ptMaxTrackSize;
 };
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERCAPSW MIXERCAPS;
+#else
+typedef MIXERCAPSA MIXERCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERCAPS2W MIXERCAPS2;
+#else
+typedef MIXERCAPS2A MIXERCAPS2;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD fdwSupport;
+    DWORD cDestinations;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD fdwSupport;
+    DWORD cDestinations;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD fdwSupport;
+    DWORD cDestinations;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD fdwSupport;
+    DWORD cDestinations;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERCONTROLW MIXERCONTROL;
+#else
+typedef MIXERCONTROLA MIXERCONTROL;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLA {
+    DWORD cbStruct;
+    DWORD dwControlID;
+    DWORD dwControlType;
+    DWORD fdwControl;
+    DWORD cMultipleItems;
+    CHAR szShortName[16];
+    CHAR szName[64];
+    union {
+        struct {
+            LONG lMinimum;
+            LONG lMaximum;
+        };
+        struct {
+            DWORD dwMinimum;
+            DWORD dwMaximum;
+        };
+        DWORD dwReserved[6];
+    } Bounds;
+    union {
+        DWORD cSteps;
+        DWORD cbCustomData;
+        DWORD dwReserved[6];
+    } Metrics;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS {
+    DWORD cbStruct;
+    DWORD dwControlID;
+    DWORD cChannels;
+    union {
+        HWND hwndOwner;
+        DWORD cMultipleItems;
+    };
+    DWORD cbDetails;
+    LPVOID paDetails;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS_BOOLEAN {
+    LONG fValue;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERCONTROLDETAILS_LISTTEXTW MIXERCONTROLDETAILS_LISTTEXT;
+#else
+typedef MIXERCONTROLDETAILS_LISTTEXTA MIXERCONTROLDETAILS_LISTTEXT;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS_LISTTEXTA {
+    DWORD dwParam1;
+    DWORD dwParam2;
+    CHAR szName[64];
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS_LISTTEXTW {
+    DWORD dwParam1;
+    DWORD dwParam2;
+    WCHAR szName[64];
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS_SIGNED {
+    LONG lValue;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLDETAILS_UNSIGNED {
+    DWORD dwValue;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERCONTROLW {
+    DWORD cbStruct;
+    DWORD dwControlID;
+    DWORD dwControlType;
+    DWORD fdwControl;
+    DWORD cMultipleItems;
+    WCHAR szShortName[16];
+    WCHAR szName[64];
+    union {
+        struct {
+            LONG lMinimum;
+            LONG lMaximum;
+        };
+        struct {
+            DWORD dwMinimum;
+            DWORD dwMaximum;
+        };
+        DWORD dwReserved[6];
+    } Bounds;
+    union {
+        DWORD cSteps;
+        DWORD cbCustomData;
+        DWORD dwReserved[6];
+    } Metrics;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERLINEW MIXERLINE;
+#else
+typedef MIXERLINEA MIXERLINE;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERLINEA {
+    DWORD cbStruct;
+    DWORD dwDestination;
+    DWORD dwSource;
+    DWORD dwLineID;
+    DWORD fdwLine;
+    DWORD_PTR dwUser;
+    DWORD dwComponentType;
+    DWORD cChannels;
+    DWORD cConnections;
+    DWORD cControls;
+    CHAR szShortName[16];
+    CHAR szName[64];
+    struct {
+        DWORD dwType;
+        DWORD dwDeviceID;
+        WORD wMid;
+        WORD wPid;
+        MMVERSION vDriverVersion;
+        CHAR szPname[32];
+    } Target;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef MIXERLINECONTROLSW MIXERLINECONTROLS;
+#else
+typedef MIXERLINECONTROLSA MIXERLINECONTROLS;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERLINECONTROLSA {
+    DWORD cbStruct;
+    DWORD dwLineID;
+    union {
+        DWORD dwControlID;
+        DWORD dwControlType;
+    };
+    DWORD cControls;
+    DWORD cbmxctrl;
+    LPMIXERCONTROLA pamxctrl;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERLINECONTROLSW {
+    DWORD cbStruct;
+    DWORD dwLineID;
+    union {
+        DWORD dwControlID;
+        DWORD dwControlType;
+    };
+    DWORD cControls;
+    DWORD cbmxctrl;
+    LPMIXERCONTROLW pamxctrl;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct MIXERLINEW {
+    DWORD cbStruct;
+    DWORD dwDestination;
+    DWORD dwSource;
+    DWORD dwLineID;
+    DWORD fdwLine;
+    DWORD_PTR dwUser;
+    DWORD dwComponentType;
+    DWORD cChannels;
+    DWORD cConnections;
+    DWORD cControls;
+    WCHAR szShortName[16];
+    WCHAR szName[64];
+    struct {
+        DWORD dwType;
+        DWORD dwDeviceID;
+        WORD wMid;
+        WORD wPid;
+        MMVERSION vDriverVersion;
+        WCHAR szPname[32];
+    } Target;
+};
+#pragma pack(pop)
 
 /* objidl.h */
 typedef enum MKRREDUCE {
@@ -16105,6 +19103,110 @@ typedef enum MKSYS {
     MKSYS_SESSIONMONIKER = 9,
     MKSYS_LUAMONIKER = 10,
 } MKSYS;
+
+/* mmiscapi.h */
+#pragma pack(push, 1)
+struct MMCKINFO {
+    FOURCC ckid;
+    DWORD cksize;
+    FOURCC fccType;
+    DWORD dwDataOffset;
+    DWORD dwFlags;
+};
+#pragma pack(pop)
+
+/* mmiscapi.h */
+#pragma pack(push, 1)
+struct MMIOINFO {
+    DWORD dwFlags;
+    FOURCC fccIOProc;
+    LPMMIOPROC pIOProc;
+    UINT wErrorRet;
+    HTASK htask;
+    LONG cchBuffer;
+    HPSTR pchBuffer;
+    HPSTR pchNext;
+    HPSTR pchEndRead;
+    HPSTR pchEndWrite;
+    LONG lBufOffset;
+    LONG lDiskOffset;
+    DWORD adwInfo[3];
+    DWORD dwReserved1;
+    DWORD dwReserved2;
+    HMMIO hmmio;
+};
+#pragma pack(pop)
+
+/* mmiscapi.h */
+typedef LRESULT (__stdcall *MMIOPROC)(LPSTR lpmmioinfo, UINT uMsg, LPARAM lParam1, LPARAM lParam2);
+
+/* mmsyscom.h */
+typedef unsigned int MMRESULT;
+
+/* mmsyscom.h */
+#pragma pack(push, 1)
+struct MMTIME {
+    UINT wType;
+    union {
+        DWORD ms;
+        DWORD sample;
+        DWORD cb;
+        DWORD ticks;
+        struct {
+            BYTE hour;
+            BYTE min;
+            BYTE sec;
+            BYTE frame;
+            BYTE fps;
+            BYTE dummy;
+            BYTE pad[2];
+        } smpte;
+        struct {
+            DWORD songptrpos;
+        } midi;
+    } u;
+};
+#pragma pack(pop)
+
+/* mcx.h */
+struct MODEMDEVCAPS {
+    DWORD dwActualSize;
+    DWORD dwRequiredSize;
+    DWORD dwDevSpecificOffset;
+    DWORD dwDevSpecificSize;
+    DWORD dwModemProviderVersion;
+    DWORD dwModemManufacturerOffset;
+    DWORD dwModemManufacturerSize;
+    DWORD dwModemModelOffset;
+    DWORD dwModemModelSize;
+    DWORD dwModemVersionOffset;
+    DWORD dwModemVersionSize;
+    DWORD dwDialOptions;
+    DWORD dwCallSetupFailTimer;
+    DWORD dwInactivityTimeout;
+    DWORD dwSpeakerVolume;
+    DWORD dwSpeakerMode;
+    DWORD dwModemOptions;
+    DWORD dwMaxDTERate;
+    DWORD dwMaxDCERate;
+    BYTE abVariablePortion[1];
+};
+
+/* mcx.h */
+struct MODEMSETTINGS {
+    DWORD dwActualSize;
+    DWORD dwRequiredSize;
+    DWORD dwDevSpecificOffset;
+    DWORD dwDevSpecificSize;
+    DWORD dwCallSetupFailTimer;
+    DWORD dwInactivityTimeout;
+    DWORD dwSpeakerVolume;
+    DWORD dwSpeakerMode;
+    DWORD dwPreferredModemOptions;
+    DWORD dwNegotiatedModemOptions;
+    DWORD dwNegotiatedDCERate;
+    BYTE abVariablePortion[1];
+};
 
 /* psapi.h */
 struct MODULEINFO {
@@ -16153,6 +19255,13 @@ struct MONERRSTRUCT {
 };
 
 /* ddeml.h */
+#ifdef UNICODE
+typedef MONHSZSTRUCTW MONHSZSTRUCT;
+#else
+typedef MONHSZSTRUCTA MONHSZSTRUCT;
+#endif
+
+/* ddeml.h */
 struct MONHSZSTRUCTA {
     UINT cb;
     BOOL fsAction;
@@ -16182,6 +19291,13 @@ struct MONITORINFO {
     RECT rcWork;
     DWORD dwFlags;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef MONITORINFOEXW MONITORINFOEX;
+#else
+typedef MONITORINFOEXA MONITORINFOEX;
+#endif
 
 /* winuser.h */
 #ifdef __cplusplus
@@ -16310,6 +19426,13 @@ struct MSG {
 typedef void (__stdcall *MSGBOXCALLBACK)(LPHELPINFO lpHelpInfo);
 
 /* winuser.h */
+#ifdef UNICODE
+typedef MSGBOXPARAMSW MSGBOXPARAMS;
+#else
+typedef MSGBOXPARAMSA MSGBOXPARAMS;
+#endif
+
+/* winuser.h */
 struct MSGBOXPARAMSA {
     UINT cbSize;
     HWND hwndOwner;
@@ -16347,6 +19470,13 @@ struct MSLLHOOKSTRUCT {
 };
 
 /* winuser.h */
+#ifdef UNICODE
+typedef MULTIKEYHELPW MULTIKEYHELP;
+#else
+typedef MULTIKEYHELPA MULTIKEYHELP;
+#endif
+
+/* winuser.h */
 struct MULTIKEYHELPA {
     DWORD mkSize;
     CHAR mkKeylist;
@@ -16378,6 +19508,32 @@ typedef BOOL (__stdcall *NAMEENUMPROCA)(LPSTR param0, LPARAM param1);
 /* winuser.h */
 typedef BOOL (__stdcall *NAMEENUMPROCW)(LPWSTR param0, LPARAM param1);
 
+/* nb30.h */
+struct NAME_BUFFER {
+    UCHAR name[16];
+    UCHAR name_num;
+    UCHAR name_flags;
+};
+
+/* nb30.h */
+struct NCB {
+    UCHAR ncb_command;
+    UCHAR ncb_retcode;
+    UCHAR ncb_lsn;
+    UCHAR ncb_num;
+    PUCHAR ncb_buffer;
+    WORD ncb_length;
+    UCHAR ncb_callname[16];
+    UCHAR ncb_name[16];
+    UCHAR ncb_rto;
+    UCHAR ncb_sto;
+    void (__stdcall *ncb_post)(NCB *);
+    UCHAR ncb_lana_num;
+    UCHAR ncb_cmd_cplt;
+    UCHAR ncb_reserve[18];
+    HANDLE ncb_event;
+};
+
 /* winuser.h */
 typedef WINDOWPOS *PWINDOWPOS;
 
@@ -16402,6 +19558,20 @@ struct NETWORK_APP_INSTANCE_EA {
 
 /* shellapi.h */
 /* NET_ADDRESS_INFO_ is opaque: declared, never defined. */
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef NEWTEXTMETRICW NEWTEXTMETRIC;
+#else
+typedef NEWTEXTMETRICA NEWTEXTMETRIC;
+#endif
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef NEWTEXTMETRICEXW NEWTEXTMETRICEX;
+#else
+typedef NEWTEXTMETRICEXA NEWTEXTMETRICEX;
+#endif
 
 /* winnls.h */
 struct NLSVERSIONINFO {
@@ -16430,6 +19600,13 @@ struct NMHDR {
     UINT_PTR idFrom;
     UINT code;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef NONCLIENTMETRICSW NONCLIENTMETRICS;
+#else
+typedef NONCLIENTMETRICSA NONCLIENTMETRICS;
+#endif
 
 /* winuser.h */
 struct NONCLIENTMETRICSA {
@@ -16496,6 +19673,13 @@ typedef enum NORM_FORM {
 } NORM_FORM;
 
 /* shellapi.h */
+#ifdef UNICODE
+typedef NOTIFYICONDATAW NOTIFYICONDATA;
+#else
+typedef NOTIFYICONDATAA NOTIFYICONDATA;
+#endif
+
+/* shellapi.h */
 struct NOTIFYICONDATAA {
     DWORD cbSize;
     HWND hWnd;
@@ -16558,6 +19742,32 @@ typedef ABC *NPABC;
 /* wingdi.h */
 typedef ABCFLOAT *NPABCFLOAT;
 
+/* mmeapi.h */
+typedef AUXCAPSA *NPAUXCAPSA;
+
+/* mmeapi.h */
+typedef AUXCAPSW *NPAUXCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPAUXCAPSW NPAUXCAPS;
+#else
+typedef NPAUXCAPSA NPAUXCAPS;
+#endif
+
+/* mmeapi.h */
+typedef AUXCAPS2A *NPAUXCAPS2A;
+
+/* mmeapi.h */
+typedef AUXCAPS2W *NPAUXCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPAUXCAPS2W NPAUXCAPS2;
+#else
+typedef NPAUXCAPS2A NPAUXCAPS2;
+#endif
+
 /* wingdi.h */
 typedef BITMAP *NPBITMAP;
 
@@ -16588,6 +19798,19 @@ typedef DEVMODEA *NPDEVMODEA;
 /* wingdi.h */
 typedef DEVMODEW *NPDEVMODEW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef NPDEVMODEW NPDEVMODE;
+#else
+typedef NPDEVMODEA NPDEVMODE;
+#endif
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFO *NPDRVCONFIGINFO;
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFOEX *NPDRVCONFIGINFOEX;
+
 /* winuser.h */
 typedef EVENTMSG *NPEVENTMSG;
 
@@ -16599,6 +19822,13 @@ typedef EXTLOGFONTA *NPEXTLOGFONTA;
 
 /* wingdi.h */
 typedef EXTLOGFONTW *NPEXTLOGFONTW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef NPEXTLOGFONTW NPEXTLOGFONT;
+#else
+typedef NPEXTLOGFONTA NPEXTLOGFONT;
+#endif
 
 /* wingdi.h */
 typedef EXTLOGPEN *NPEXTLOGPEN;
@@ -16615,6 +19845,45 @@ typedef IMEMENUITEMINFOA *NPIMEMENUITEMINFOA;
 /* imm.h */
 typedef IMEMENUITEMINFOW *NPIMEMENUITEMINFOW;
 
+/* imm.h */
+#ifdef UNICODE
+typedef NPIMEMENUITEMINFOW NPIMEMENUITEMINFO;
+#else
+typedef NPIMEMENUITEMINFOA NPIMEMENUITEMINFO;
+#endif
+
+/* joystickapi.h */
+typedef JOYCAPSA *NPJOYCAPSA;
+
+/* joystickapi.h */
+typedef JOYCAPSW *NPJOYCAPSW;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef NPJOYCAPSW NPJOYCAPS;
+#else
+typedef NPJOYCAPSA NPJOYCAPS;
+#endif
+
+/* joystickapi.h */
+typedef JOYCAPS2A *NPJOYCAPS2A;
+
+/* joystickapi.h */
+typedef JOYCAPS2W *NPJOYCAPS2W;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef NPJOYCAPS2W NPJOYCAPS2;
+#else
+typedef NPJOYCAPS2A NPJOYCAPS2;
+#endif
+
+/* joystickapi.h */
+typedef JOYINFO *NPJOYINFO;
+
+/* joystickapi.h */
+typedef JOYINFOEX *NPJOYINFOEX;
+
 /* wingdi.h */
 typedef LOGBRUSH *NPLOGBRUSH;
 
@@ -16628,10 +19897,81 @@ typedef LOGFONTA *NPLOGFONTA;
 typedef LOGFONTW *NPLOGFONTW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef NPLOGFONTW NPLOGFONT;
+#else
+typedef NPLOGFONTA NPLOGFONT;
+#endif
+
+/* wingdi.h */
 typedef LOGPALETTE *NPLOGPALETTE;
 
 /* wingdi.h */
 typedef LOGPEN *NPLOGPEN;
+
+/* mmeapi.h */
+typedef MIDIHDR *NPMIDIHDR;
+
+/* mmeapi.h */
+typedef MIDIINCAPSA *NPMIDIINCAPSA;
+
+/* mmeapi.h */
+typedef MIDIINCAPSW *NPMIDIINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPMIDIINCAPSW NPMIDIINCAPS;
+#else
+typedef NPMIDIINCAPSA NPMIDIINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIINCAPS2A *NPMIDIINCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIINCAPS2W *NPMIDIINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPMIDIINCAPS2W NPMIDIINCAPS2;
+#else
+typedef NPMIDIINCAPS2A NPMIDIINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSA *NPMIDIOUTCAPSA;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSW *NPMIDIOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPMIDIOUTCAPSW NPMIDIOUTCAPS;
+#else
+typedef NPMIDIOUTCAPSA NPMIDIOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2A *NPMIDIOUTCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2W *NPMIDIOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPMIDIOUTCAPS2W NPMIDIOUTCAPS2;
+#else
+typedef NPMIDIOUTCAPS2A NPMIDIOUTCAPS2;
+#endif
+
+/* mmiscapi.h */
+typedef MMCKINFO *NPMMCKINFO;
+
+/* mmiscapi.h */
+typedef MMIOINFO *NPMMIOINFO;
+
+/* mmsyscom.h */
+typedef MMTIME *NPMMTIME;
 
 /* winuser.h */
 typedef MSG *NPMSG;
@@ -16643,10 +19983,24 @@ typedef NEWTEXTMETRICA *NPNEWTEXTMETRICA;
 typedef NEWTEXTMETRICW *NPNEWTEXTMETRICW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef NPNEWTEXTMETRICW NPNEWTEXTMETRIC;
+#else
+typedef NPNEWTEXTMETRICA NPNEWTEXTMETRIC;
+#endif
+
+/* wingdi.h */
 typedef OUTLINETEXTMETRICA *NPOUTLINETEXTMETRICA;
 
 /* wingdi.h */
 typedef OUTLINETEXTMETRICW *NPOUTLINETEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef NPOUTLINETEXTMETRICW NPOUTLINETEXTMETRIC;
+#else
+typedef NPOUTLINETEXTMETRICA NPOUTLINETEXTMETRIC;
+#endif
 
 /* winuser.h */
 typedef PAINTSTRUCT *NPPAINTSTRUCT;
@@ -16654,8 +20008,14 @@ typedef PAINTSTRUCT *NPPAINTSTRUCT;
 /* wingdi.h */
 typedef LOGBRUSH *NPPATTERN;
 
+/* mmeapi.h */
+typedef PCMWAVEFORMAT *NPPCMWAVEFORMAT;
+
 /* wingdi.h */
 typedef PELARRAY *NPPELARRAY;
+
+/* windef.h */
+typedef POINT *NPPOINT;
 
 /* wingdi.h */
 typedef POLYTEXTA *NPPOLYTEXTA;
@@ -16663,14 +20023,31 @@ typedef POLYTEXTA *NPPOLYTEXTA;
 /* wingdi.h */
 typedef POLYTEXTW *NPPOLYTEXTW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef NPPOLYTEXTW NPPOLYTEXT;
+#else
+typedef NPPOLYTEXTA NPPOLYTEXT;
+#endif
+
 /* imm.h */
 typedef RECONVERTSTRING *NPRECONVERTSTRING;
+
+/* windef.h */
+typedef RECT *NPRECT;
 
 /* imm.h */
 typedef REGISTERWORDA *NPREGISTERWORDA;
 
 /* imm.h */
 typedef REGISTERWORDW *NPREGISTERWORDW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef NPREGISTERWORDW NPREGISTERWORD;
+#else
+typedef NPREGISTERWORDA NPREGISTERWORD;
+#endif
 
 /* wingdi.h */
 typedef RGBTRIPLE *NPRGBTRIPLE;
@@ -16687,14 +20064,102 @@ typedef STYLEBUFA *NPSTYLEBUFA;
 /* imm.h */
 typedef STYLEBUFW *NPSTYLEBUFW;
 
+/* imm.h */
+#ifdef UNICODE
+typedef NPSTYLEBUFW NPSTYLEBUF;
+#else
+typedef NPSTYLEBUFA NPSTYLEBUF;
+#endif
+
 /* wingdi.h */
 typedef TEXTMETRICA *NPTEXTMETRICA;
 
 /* wingdi.h */
 typedef TEXTMETRICW *NPTEXTMETRICW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef NPTEXTMETRICW NPTEXTMETRIC;
+#else
+typedef NPTEXTMETRICA NPTEXTMETRIC;
+#endif
+
+/* timeapi.h */
+typedef TIMECAPS *NPTIMECAPS;
+
+/* mmeapi.h */
+typedef WAVEFORMAT *NPWAVEFORMAT;
+
+/* mmeapi.h */
+typedef WAVEFORMATEX *NPWAVEFORMATEX;
+
+/* mmeapi.h */
+typedef WAVEHDR *NPWAVEHDR;
+
+/* mmeapi.h */
+typedef WAVEINCAPSA *NPWAVEINCAPSA;
+
+/* mmeapi.h */
+typedef WAVEINCAPSW *NPWAVEINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPWAVEINCAPSW NPWAVEINCAPS;
+#else
+typedef NPWAVEINCAPSA NPWAVEINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEINCAPS2A *NPWAVEINCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEINCAPS2W *NPWAVEINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPWAVEINCAPS2W NPWAVEINCAPS2;
+#else
+typedef NPWAVEINCAPS2A NPWAVEINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSA *NPWAVEOUTCAPSA;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSW *NPWAVEOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPWAVEOUTCAPSW NPWAVEOUTCAPS;
+#else
+typedef NPWAVEOUTCAPSA NPWAVEOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2A *NPWAVEOUTCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2W *NPWAVEOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef NPWAVEOUTCAPS2W NPWAVEOUTCAPS2;
+#else
+typedef NPWAVEOUTCAPS2A NPWAVEOUTCAPS2;
+#endif
+
 /* winuser.h */
 typedef WNDCLASSA *NPWNDCLASSA;
+
+/* winuser.h */
+typedef WNDCLASSW *NPWNDCLASSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef NPWNDCLASSW NPWNDCLASS;
+#else
+typedef NPWNDCLASSA NPWNDCLASS;
+#endif
 
 /* winuser.h */
 typedef WNDCLASSEXA *NPWNDCLASSEXA;
@@ -16703,7 +20168,11 @@ typedef WNDCLASSEXA *NPWNDCLASSEXA;
 typedef WNDCLASSEXW *NPWNDCLASSEXW;
 
 /* winuser.h */
-typedef WNDCLASSW *NPWNDCLASSW;
+#ifdef UNICODE
+typedef NPWNDCLASSEXW NPWNDCLASSEX;
+#else
+typedef NPWNDCLASSEXA NPWNDCLASSEX;
+#endif
 
 /* shared.h */
 typedef long NTSTATUS;
@@ -16782,6 +20251,13 @@ struct NUMA_NODE_RELATIONSHIP {
         GROUP_AFFINITY GroupMasks[1];
     };
 };
+
+/* winnls.h */
+#ifdef UNICODE
+typedef NUMBERFMTW NUMBERFMT;
+#else
+typedef NUMBERFMTA NUMBERFMT;
+#endif
 
 /* winnls.h */
 struct NUMBERFMTA {
@@ -16953,11 +20429,25 @@ typedef enum OFFER_PRIORITY {
 } OFFER_PRIORITY;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef OFNOTIFYW OFNOTIFY;
+#else
+typedef OFNOTIFYA OFNOTIFY;
+#endif
+
+/* commdlg.h */
 struct OFNOTIFYA {
     NMHDR hdr;
     LPOPENFILENAMEA lpOFN;
     LPSTR pszFile;
 };
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef OFNOTIFYEXW OFNOTIFYEX;
+#else
+typedef OFNOTIFYEXA OFNOTIFYEX;
+#endif
 
 /* commdlg.h */
 struct OFNOTIFYEXA {
@@ -17045,6 +20535,13 @@ struct OLEVERB {
 #pragma pack(pop)
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef OPENFILENAMEW OPENFILENAME;
+#else
+typedef OPENFILENAMEA OPENFILENAME;
+#endif
+
+/* commdlg.h */
 struct OPENFILENAMEA {
     DWORD lStructSize;
     HWND hwndOwner;
@@ -17099,6 +20596,13 @@ struct OPENFILENAMEW {
 };
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef OPENFILENAME_NT4W OPENFILENAME_NT4;
+#else
+typedef OPENFILENAME_NT4A OPENFILENAME_NT4;
+#endif
+
+/* commdlg.h */
 struct OPENFILENAME_NT4A {
     DWORD lStructSize;
     HWND hwndOwner;
@@ -17147,6 +20651,13 @@ struct OPENFILENAME_NT4W {
 };
 
 /* shellapi.h */
+#ifdef UNICODE
+typedef OPEN_PRINTER_PROPS_INFOW OPEN_PRINTER_PROPS_INFO;
+#else
+typedef OPEN_PRINTER_PROPS_INFOA OPEN_PRINTER_PROPS_INFO;
+#endif
+
+/* shellapi.h */
 struct OPEN_PRINTER_PROPS_INFOA {
     DWORD dwSize;
     LPSTR pszSheetName;
@@ -17192,6 +20703,16 @@ typedef enum ORIENTATION_PREFERENCE {
 STXWIN_ENUM_FLAG_OPERATORS(ORIENTATION_PREFERENCE)
 
 /* winnt.h */
+typedef _OSVERSIONINFOW OSVERSIONINFOW;
+
+/* winnt.h */
+#ifdef UNICODE
+typedef OSVERSIONINFOW OSVERSIONINFO;
+#else
+typedef OSVERSIONINFOA OSVERSIONINFO;
+#endif
+
+/* winnt.h */
 struct OSVERSIONINFOA {
     DWORD dwOSVersionInfoSize;
     DWORD dwMajorVersion;
@@ -17200,6 +20721,16 @@ struct OSVERSIONINFOA {
     DWORD dwPlatformId;
     CHAR szCSDVersion[128];
 };
+
+/* winnt.h */
+typedef _OSVERSIONINFOEXW OSVERSIONINFOEXW;
+
+/* winnt.h */
+#ifdef UNICODE
+typedef OSVERSIONINFOEXW OSVERSIONINFOEX;
+#else
+typedef OSVERSIONINFOEXA OSVERSIONINFOEX;
+#endif
 
 /* winnt.h */
 struct OSVERSIONINFOEXA {
@@ -17217,16 +20748,17 @@ struct OSVERSIONINFOEXA {
 };
 
 /* winnt.h */
-typedef _OSVERSIONINFOEXW OSVERSIONINFOEXW;
-
-/* winnt.h */
-typedef _OSVERSIONINFOW OSVERSIONINFOW;
-
-/* winnt.h */
 typedef enum OS_DEPLOYEMENT_STATE_VALUES {
     OS_DEPLOYMENT_STANDARD = 1,
     OS_DEPLOYMENT_COMPACT = 2,
 } OS_DEPLOYEMENT_STATE_VALUES;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef OUTLINETEXTMETRICW OUTLINETEXTMETRIC;
+#else
+typedef OUTLINETEXTMETRICA OUTLINETEXTMETRIC;
+#endif
 
 /* winnt.h */
 typedef CHAR *PSTR;
@@ -17453,6 +20985,13 @@ typedef ACTCTXA *PACTCTXA;
 typedef ACTCTXW *PACTCTXW;
 
 /* winbase.h */
+#ifdef UNICODE
+typedef PACTCTXW PACTCTX;
+#else
+typedef PACTCTXA PACTCTX;
+#endif
+
+/* winbase.h */
 typedef ACTCTX_SECTION_KEYED_DATA *PACTCTX_SECTION_KEYED_DATA;
 
 /* winbase.h */
@@ -17460,6 +20999,9 @@ typedef ACTCTX_SECTION_KEYED_DATA_2600 *PACTCTX_SECTION_KEYED_DATA_2600;
 
 /* winbase.h */
 typedef ACTCTX_SECTION_KEYED_DATA_ASSEMBLY_METADATA *PACTCTX_SECTION_KEYED_DATA_ASSEMBLY_METADATA;
+
+/* nb30.h */
+typedef ACTION_HEADER *PACTION_HEADER;
 
 /* winnt.h */
 typedef ACTIVATION_CONTEXT_ASSEMBLY_DETAILED_INFORMATION *PACTIVATION_CONTEXT_ASSEMBLY_DETAILED_INFORMATION;
@@ -17476,8 +21018,18 @@ typedef ACTIVATION_CONTEXT_QUERY_INDEX *PACTIVATION_CONTEXT_QUERY_INDEX;
 /* winnt.h */
 typedef ACTIVATION_CONTEXT_RUN_LEVEL_INFORMATION *PACTIVATION_CONTEXT_RUN_LEVEL_INFORMATION;
 
+/* nb30.h */
+typedef ADAPTER_STATUS *PADAPTER_STATUS;
+
 /* winnt.h */
 typedef ADMINISTRATOR_POWER_POLICY *PADMINISTRATOR_POWER_POLICY;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef PAGESETUPDLGW PAGESETUPDLG;
+#else
+typedef PAGESETUPDLGA PAGESETUPDLG;
+#endif
 
 /* commdlg.h */
 struct PAGESETUPDLGA {
@@ -17580,6 +21132,9 @@ typedef AR_STATE *PAR_STATE;
 /* winnt.h */
 typedef ASSEMBLY_FILE_DETAILED_INFORMATION *PASSEMBLY_FILE_DETAILED_INFORMATION;
 
+/* mmeapi.h */
+typedef unsigned short PATCHARRAY[128];
+
 /* wingdi.h */
 typedef LOGBRUSH PATTERN;
 
@@ -17601,6 +21156,32 @@ typedef AUTHENTICODE_EXTRA_CERT_CHAIN_POLICY_STATUS *PAUTHENTICODE_EXTRA_CERT_CH
 /* wincrypt.h */
 typedef AUTHENTICODE_TS_EXTRA_CERT_CHAIN_POLICY_PARA *PAUTHENTICODE_TS_EXTRA_CERT_CHAIN_POLICY_PARA;
 
+/* mmeapi.h */
+typedef AUXCAPSA *PAUXCAPSA;
+
+/* mmeapi.h */
+typedef AUXCAPSW *PAUXCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PAUXCAPSW PAUXCAPS;
+#else
+typedef PAUXCAPSA PAUXCAPS;
+#endif
+
+/* mmeapi.h */
+typedef AUXCAPS2A *PAUXCAPS2A;
+
+/* mmeapi.h */
+typedef AUXCAPS2W *PAUXCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PAUXCAPS2W PAUXCAPS2;
+#else
+typedef PAUXCAPS2A PAUXCAPS2;
+#endif
+
 /* avrt.h */
 typedef AVRT_PRIORITY *PAVRT_PRIORITY;
 
@@ -17611,10 +21192,24 @@ typedef AXESLISTA *PAXESLISTA;
 typedef AXESLISTW *PAXESLISTW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef PAXESLISTW PAXESLIST;
+#else
+typedef PAXESLISTA PAXESLIST;
+#endif
+
+/* wingdi.h */
 typedef AXISINFOA *PAXISINFOA;
 
 /* wingdi.h */
 typedef AXISINFOW *PAXISINFOW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef PAXISINFOW PAXISINFO;
+#else
+typedef PAXISINFOA PAXISINFO;
+#endif
 
 /* memoryapi.h */
 typedef void (__stdcall *PBAD_MEMORY_CALLBACK_ROUTINE)(void);
@@ -17672,6 +21267,13 @@ typedef const ACTCTXA *PCACTCTXA;
 
 /* winbase.h */
 typedef const ACTCTXW *PCACTCTXW;
+
+/* winbase.h */
+#ifdef UNICODE
+typedef PCACTCTXW PCACTCTX;
+#else
+typedef PCACTCTXA PCACTCTX;
+#endif
 
 /* winbase.h */
 typedef const ACTCTX_SECTION_KEYED_DATA *PCACTCTX_SECTION_KEYED_DATA;
@@ -17741,6 +21343,13 @@ typedef const CHOOSEFONTA *PCCHOOSEFONTA;
 
 /* commdlg.h */
 typedef const CHOOSEFONTW *PCCHOOSEFONTW;
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef PCCHOOSEFONTW PCCHOOSEFONT;
+#else
+typedef PCCHOOSEFONTA PCCHOOSEFONT;
+#endif
 
 /* winnt.h */
 typedef const COMPATIBILITY_CONTEXT_ELEMENT *PCCOMPATIBILITY_CONTEXT_ELEMENT;
@@ -18108,6 +21717,25 @@ typedef CMS_DH_KEY_INFO *PCMS_DH_KEY_INFO;
 /* wincrypt.h */
 typedef CMS_KEY_INFO *PCMS_KEY_INFO;
 
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEFORMAT {
+    WORD wFormatTag;
+    WORD nChannels;
+    DWORD nSamplesPerSec;
+    DWORD nAvgBytesPerSec;
+    WORD nBlockAlign;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct PCMWAVEFORMAT {
+    WAVEFORMAT wf;
+    WORD wBitsPerSample;
+};
+#pragma pack(pop)
+
 /* winnt.h */
 typedef CM_POWER_DATA *PCM_POWER_DATA;
 
@@ -18343,6 +21971,13 @@ typedef CRYPT_PASSWORD_CREDENTIALSA *PCRYPT_PASSWORD_CREDENTIALSA;
 typedef CRYPT_PASSWORD_CREDENTIALSW *PCRYPT_PASSWORD_CREDENTIALSW;
 
 /* wincrypt.h */
+#ifdef UNICODE
+typedef PCRYPT_PASSWORD_CREDENTIALSW PCRYPT_PASSWORD_CREDENTIALS;
+#else
+typedef PCRYPT_PASSWORD_CREDENTIALSA PCRYPT_PASSWORD_CREDENTIALS;
+#endif
+
+/* wincrypt.h */
 typedef CRYPT_PKCS8_EXPORT_PARAMS *PCRYPT_PKCS8_EXPORT_PARAMS;
 
 /* wincrypt.h */
@@ -18538,6 +22173,13 @@ typedef DEVMODEA *PDEVMODEA;
 typedef DEVMODEW *PDEVMODEW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef PDEVMODEW PDEVMODE;
+#else
+typedef PDEVMODEA PDEVMODE;
+#endif
+
+/* wingdi.h */
 typedef DIBSECTION *PDIBSECTION;
 
 /* winnt.h */
@@ -18552,11 +22194,25 @@ typedef DISPLAY_DEVICEA *PDISPLAY_DEVICEA;
 /* wingdi.h */
 typedef DISPLAY_DEVICEW *PDISPLAY_DEVICEW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef PDISPLAY_DEVICEW PDISPLAY_DEVICE;
+#else
+typedef PDISPLAY_DEVICEA PDISPLAY_DEVICE;
+#endif
+
 /* winuser.h */
 typedef DLGITEMTEMPLATE *PDLGITEMTEMPLATEA;
 
 /* winuser.h */
 typedef DLGITEMTEMPLATE *PDLGITEMTEMPLATEW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PDLGITEMTEMPLATEW PDLGITEMTEMPLATE;
+#else
+typedef PDLGITEMTEMPLATEA PDLGITEMTEMPLATE;
+#endif
 
 /* libloaderapi.h */
 typedef void **PDLL_DIRECTORY_COOKIE;
@@ -18575,6 +22231,15 @@ typedef DRIVER_RUNTIME_REPORT *PDRIVER_RUNTIME_REPORT;
 
 /* winuser.h */
 typedef DROPSTRUCT *PDROPSTRUCT;
+
+/* mmsyscom.h */
+typedef void (__stdcall *PDRVCALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFO *PDRVCONFIGINFO;
+
+/* mmiscapi.h */
+typedef DRVCONFIGINFOEX *PDRVCONFIGINFOEX;
 
 /* winnt.h */
 typedef unsigned long long *PDWORDLONG;
@@ -18895,6 +22560,13 @@ typedef tagEMRSETICMPROFILE *PEMRSETICMPROFILEA;
 typedef tagEMRSETICMPROFILE *PEMRSETICMPROFILEW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef PEMRSETICMPROFILEW PEMRSETICMPROFILE;
+#else
+typedef PEMRSETICMPROFILEA PEMRSETICMPROFILE;
+#endif
+
+/* wingdi.h */
 typedef tagEMRSELECTCLIPPATH *PEMRSETLAYOUT;
 
 /* wingdi.h */
@@ -19034,10 +22706,24 @@ typedef ENUMLOGFONTEXDVA *PENUMLOGFONTEXDVA;
 typedef ENUMLOGFONTEXDVW *PENUMLOGFONTEXDVW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef PENUMLOGFONTEXDVW PENUMLOGFONTEXDV;
+#else
+typedef PENUMLOGFONTEXDVA PENUMLOGFONTEXDV;
+#endif
+
+/* wingdi.h */
 typedef ENUMTEXTMETRICA *PENUMTEXTMETRICA;
 
 /* wingdi.h */
 typedef ENUMTEXTMETRICW *PENUMTEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef PENUMTEXTMETRICW PENUMTEXTMETRIC;
+#else
+typedef PENUMTEXTMETRICA PENUMTEXTMETRIC;
+#endif
 
 /* libloaderapi.h */
 typedef ENUMUILANG *PENUMUILANG;
@@ -19075,6 +22761,81 @@ struct PERFORMANCE_DATA {
 
 /* psapi.h */
 typedef _PERFORMANCE_INFORMATION PERFORMANCE_INFORMATION;
+
+/* winperf.h */
+#pragma pack(push, 8)
+struct PERF_COUNTER_BLOCK {
+    DWORD ByteLength;
+};
+#pragma pack(pop)
+
+/* winperf.h */
+#pragma pack(push, 8)
+struct PERF_COUNTER_DEFINITION {
+    DWORD ByteLength;
+    DWORD CounterNameTitleIndex;
+    DWORD CounterNameTitle;
+    DWORD CounterHelpTitleIndex;
+    DWORD CounterHelpTitle;
+    LONG DefaultScale;
+    DWORD DetailLevel;
+    DWORD CounterType;
+    DWORD CounterSize;
+    DWORD CounterOffset;
+};
+#pragma pack(pop)
+
+/* winperf.h */
+#pragma pack(push, 8)
+struct PERF_DATA_BLOCK {
+    WCHAR Signature[4];
+    DWORD LittleEndian;
+    DWORD Version;
+    DWORD Revision;
+    DWORD TotalByteLength;
+    DWORD HeaderLength;
+    DWORD NumObjectTypes;
+    LONG DefaultObject;
+    SYSTEMTIME SystemTime;
+    LARGE_INTEGER PerfTime;
+    LARGE_INTEGER PerfFreq;
+    LARGE_INTEGER PerfTime100nSec;
+    DWORD SystemNameLength;
+    DWORD SystemNameOffset;
+};
+#pragma pack(pop)
+
+/* winperf.h */
+#pragma pack(push, 8)
+struct PERF_INSTANCE_DEFINITION {
+    DWORD ByteLength;
+    DWORD ParentObjectTitleIndex;
+    DWORD ParentObjectInstance;
+    LONG UniqueID;
+    DWORD NameOffset;
+    DWORD NameLength;
+};
+#pragma pack(pop)
+
+/* winperf.h */
+#pragma pack(push, 8)
+struct PERF_OBJECT_TYPE {
+    DWORD TotalByteLength;
+    DWORD DefinitionLength;
+    DWORD HeaderLength;
+    DWORD ObjectNameTitleIndex;
+    DWORD ObjectNameTitle;
+    DWORD ObjectHelpTitleIndex;
+    DWORD ObjectHelpTitle;
+    DWORD DetailLevel;
+    DWORD NumCounters;
+    LONG DefaultCounter;
+    LONG NumInstances;
+    DWORD CodePage;
+    LARGE_INTEGER PerfTime;
+    LARGE_INTEGER PerfFreq;
+};
+#pragma pack(pop)
 
 /* winnt.h */
 typedef EVENTLOGRECORD *PEVENTLOGRECORD;
@@ -19114,6 +22875,13 @@ typedef EXTLOGFONTA *PEXTLOGFONTA;
 
 /* wingdi.h */
 typedef EXTLOGFONTW *PEXTLOGFONTW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef PEXTLOGFONTW PEXTLOGFONT;
+#else
+typedef PEXTLOGFONTA PEXTLOGFONT;
+#endif
 
 /* wingdi.h */
 typedef EXTLOGPEN *PEXTLOGPEN;
@@ -19228,6 +22996,12 @@ typedef FILE_STORAGE_INFO *PFILE_STORAGE_INFO;
 
 /* winbase.h */
 typedef FILE_STREAM_INFO *PFILE_STREAM_INFO;
+
+/* nb30.h */
+typedef FIND_NAME_BUFFER *PFIND_NAME_BUFFER;
+
+/* nb30.h */
+typedef FIND_NAME_HEADER *PFIND_NAME_HEADER;
 
 /* winnt.h */
 typedef FIRMWARE_TYPE *PFIRMWARE_TYPE;
@@ -19544,6 +23318,13 @@ typedef HELPWININFOA *PHELPWININFOA;
 /* winuser.h */
 typedef HELPWININFOW *PHELPWININFOW;
 
+/* winuser.h */
+#ifdef UNICODE
+typedef PHELPWININFOW PHELPWININFO;
+#else
+typedef PHELPWININFOA PHELPWININFO;
+#endif
+
 /* winnt.h */
 typedef HIBERFILE_BUCKET *PHIBERFILE_BUCKET;
 
@@ -19581,10 +23362,24 @@ typedef ICONINFOEXA *PICONINFOEXA;
 typedef ICONINFOEXW *PICONINFOEXW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef PICONINFOEXW PICONINFOEX;
+#else
+typedef PICONINFOEXA PICONINFOEX;
+#endif
+
+/* winuser.h */
 typedef ICONMETRICSA *PICONMETRICSA;
 
 /* winuser.h */
 typedef ICONMETRICSW *PICONMETRICSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PICONMETRICSW PICONMETRICS;
+#else
+typedef PICONMETRICSA PICONMETRICS;
+#endif
 
 /* winnt.h */
 typedef IMAGE_ALPHA64_RUNTIME_FUNCTION_ENTRY *PIMAGE_ALPHA64_RUNTIME_FUNCTION_ENTRY;
@@ -19853,6 +23648,13 @@ typedef IMEMENUITEMINFOA *PIMEMENUITEMINFOA;
 /* imm.h */
 typedef IMEMENUITEMINFOW *PIMEMENUITEMINFOW;
 
+/* imm.h */
+#ifdef UNICODE
+typedef PIMEMENUITEMINFOW PIMEMENUITEMINFO;
+#else
+typedef PIMEMENUITEMINFOA PIMEMENUITEMINFO;
+#endif
+
 /* synchapi.h */
 typedef RTL_RUN_ONCE *PINIT_ONCE;
 
@@ -19934,6 +23736,38 @@ typedef JOBOBJECT_SECURITY_LIMIT_INFORMATION *PJOBOBJECT_SECURITY_LIMIT_INFORMAT
 /* winnt.h */
 typedef JOB_SET_ARRAY *PJOB_SET_ARRAY;
 
+/* joystickapi.h */
+typedef JOYCAPSA *PJOYCAPSA;
+
+/* joystickapi.h */
+typedef JOYCAPSW *PJOYCAPSW;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef PJOYCAPSW PJOYCAPS;
+#else
+typedef PJOYCAPSA PJOYCAPS;
+#endif
+
+/* joystickapi.h */
+typedef JOYCAPS2A *PJOYCAPS2A;
+
+/* joystickapi.h */
+typedef JOYCAPS2W *PJOYCAPS2W;
+
+/* joystickapi.h */
+#ifdef UNICODE
+typedef PJOYCAPS2W PJOYCAPS2;
+#else
+typedef PJOYCAPS2A PJOYCAPS2;
+#endif
+
+/* joystickapi.h */
+typedef JOYINFO *PJOYINFO;
+
+/* joystickapi.h */
+typedef JOYINFOEX *PJOYINFOEX;
+
 /* winuser.h */
 typedef KBDLLHOOKSTRUCT *PKBDLLHOOKSTRUCT;
 
@@ -19967,6 +23801,9 @@ typedef KTMOBJECT_CURSOR *PKTMOBJECT_CURSOR;
 
 /* winnt.h */
 typedef KTMOBJECT_TYPE *PKTMOBJECT_TYPE;
+
+/* nb30.h */
+typedef LANA_ENUM *PLANA_ENUM;
 
 /* winnt.h */
 typedef LARGE_INTEGER *PLARGE_INTEGER;
@@ -20008,6 +23845,13 @@ typedef LOGFONTA *PLOGFONTA;
 typedef LOGFONTW *PLOGFONTW;
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef PLOGFONTW PLOGFONT;
+#else
+typedef PLOGFONTA PLOGFONT;
+#endif
+
+/* wingdi.h */
 typedef LOGPALETTE *PLOGPALETTE;
 
 /* wingdi.h */
@@ -20033,6 +23877,213 @@ typedef MANDATORY_LEVEL *PMANDATORY_LEVEL;
 
 /* winnt.h */
 typedef MAXVERSIONTESTED_INFO *PMAXVERSIONTESTED_INFO;
+
+/* mciapi.h */
+typedef MCI_ANIM_OPEN_PARMSA *PMCI_ANIM_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_ANIM_OPEN_PARMSW *PMCI_ANIM_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_ANIM_OPEN_PARMSW PMCI_ANIM_OPEN_PARMS;
+#else
+typedef PMCI_ANIM_OPEN_PARMSA PMCI_ANIM_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_ANIM_PLAY_PARMS *PMCI_ANIM_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_RECT_PARMS *PMCI_ANIM_RECT_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_STEP_PARMS *PMCI_ANIM_STEP_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_UPDATE_PARMS *PMCI_ANIM_UPDATE_PARMS;
+
+/* mciapi.h */
+typedef MCI_ANIM_WINDOW_PARMSA *PMCI_ANIM_WINDOW_PARMSA;
+
+/* mciapi.h */
+typedef MCI_ANIM_WINDOW_PARMSW *PMCI_ANIM_WINDOW_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_ANIM_WINDOW_PARMSW PMCI_ANIM_WINDOW_PARMS;
+#else
+typedef PMCI_ANIM_WINDOW_PARMSA PMCI_ANIM_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_BREAK_PARMS *PMCI_BREAK_PARMS;
+
+/* mciapi.h */
+typedef MCI_GENERIC_PARMS *PMCI_GENERIC_PARMS;
+
+/* mciapi.h */
+typedef MCI_GETDEVCAPS_PARMS *PMCI_GETDEVCAPS_PARMS;
+
+/* mciapi.h */
+typedef MCI_LOAD_PARMSA *PMCI_LOAD_PARMSA;
+
+/* mciapi.h */
+typedef MCI_LOAD_PARMSW *PMCI_LOAD_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_LOAD_PARMSW PMCI_LOAD_PARMS;
+#else
+typedef PMCI_LOAD_PARMSA PMCI_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OPEN_PARMSA *PMCI_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OPEN_PARMSW *PMCI_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_OPEN_PARMSW PMCI_OPEN_PARMS;
+#else
+typedef PMCI_OPEN_PARMSA PMCI_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_LOAD_PARMSA *PMCI_OVLY_LOAD_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_LOAD_PARMSW *PMCI_OVLY_LOAD_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_OVLY_LOAD_PARMSW PMCI_OVLY_LOAD_PARMS;
+#else
+typedef PMCI_OVLY_LOAD_PARMSA PMCI_OVLY_LOAD_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_OPEN_PARMSA *PMCI_OVLY_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_OPEN_PARMSW *PMCI_OVLY_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_OVLY_OPEN_PARMSW PMCI_OVLY_OPEN_PARMS;
+#else
+typedef PMCI_OVLY_OPEN_PARMSA PMCI_OVLY_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_RECT_PARMS *PMCI_OVLY_RECT_PARMS;
+
+/* mciapi.h */
+typedef MCI_OVLY_SAVE_PARMSA *PMCI_OVLY_SAVE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_SAVE_PARMSW *PMCI_OVLY_SAVE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_OVLY_SAVE_PARMSW PMCI_OVLY_SAVE_PARMS;
+#else
+typedef PMCI_OVLY_SAVE_PARMSA PMCI_OVLY_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_OVLY_WINDOW_PARMSA *PMCI_OVLY_WINDOW_PARMSA;
+
+/* mciapi.h */
+typedef MCI_OVLY_WINDOW_PARMSW *PMCI_OVLY_WINDOW_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_OVLY_WINDOW_PARMSW PMCI_OVLY_WINDOW_PARMS;
+#else
+typedef PMCI_OVLY_WINDOW_PARMSA PMCI_OVLY_WINDOW_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_PLAY_PARMS *PMCI_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_SAVE_PARMSA *PMCI_SAVE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_SAVE_PARMSW *PMCI_SAVE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_SAVE_PARMSW PMCI_SAVE_PARMS;
+#else
+typedef PMCI_SAVE_PARMSA PMCI_SAVE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_SEEK_PARMS *PMCI_SEEK_PARMS;
+
+/* mciapi.h */
+typedef MCI_SEQ_SET_PARMS *PMCI_SEQ_SET_PARMS;
+
+/* mciapi.h */
+typedef MCI_SET_PARMS *PMCI_SET_PARMS;
+
+/* mciapi.h */
+typedef MCI_STATUS_PARMS *PMCI_STATUS_PARMS;
+
+/* mciapi.h */
+typedef MCI_SYSINFO_PARMSA *PMCI_SYSINFO_PARMSA;
+
+/* mciapi.h */
+typedef MCI_SYSINFO_PARMSW *PMCI_SYSINFO_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_SYSINFO_PARMSW PMCI_SYSINFO_PARMS;
+#else
+typedef PMCI_SYSINFO_PARMSA PMCI_SYSINFO_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_VD_ESCAPE_PARMSA *PMCI_VD_ESCAPE_PARMSA;
+
+/* mciapi.h */
+typedef MCI_VD_ESCAPE_PARMSW *PMCI_VD_ESCAPE_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_VD_ESCAPE_PARMSW PMCI_VD_ESCAPE_PARMS;
+#else
+typedef PMCI_VD_ESCAPE_PARMSA PMCI_VD_ESCAPE_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_VD_PLAY_PARMS *PMCI_VD_PLAY_PARMS;
+
+/* mciapi.h */
+typedef MCI_VD_STEP_PARMS *PMCI_VD_STEP_PARMS;
+
+/* mciapi.h */
+typedef MCI_WAVE_DELETE_PARMS *PMCI_WAVE_DELETE_PARMS;
+
+/* mciapi.h */
+typedef MCI_WAVE_OPEN_PARMSA *PMCI_WAVE_OPEN_PARMSA;
+
+/* mciapi.h */
+typedef MCI_WAVE_OPEN_PARMSW *PMCI_WAVE_OPEN_PARMSW;
+
+/* mciapi.h */
+#ifdef UNICODE
+typedef PMCI_WAVE_OPEN_PARMSW PMCI_WAVE_OPEN_PARMS;
+#else
+typedef PMCI_WAVE_OPEN_PARMSA PMCI_WAVE_OPEN_PARMS;
+#endif
+
+/* mciapi.h */
+typedef MCI_WAVE_SET_PARMS *PMCI_WAVE_SET_PARMS;
 
 /* winuser.h */
 typedef MDINEXTMENU *PMDINEXTMENU;
@@ -20094,11 +24145,171 @@ typedef MESSAGE_RESOURCE_DATA *PMESSAGE_RESOURCE_DATA;
 /* winnt.h */
 typedef MESSAGE_RESOURCE_ENTRY *PMESSAGE_RESOURCE_ENTRY;
 
+/* mmeapi.h */
+typedef MIDIHDR *PMIDIHDR;
+
+/* mmeapi.h */
+typedef MIDIINCAPSA *PMIDIINCAPSA;
+
+/* mmeapi.h */
+typedef MIDIINCAPSW *PMIDIINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIDIINCAPSW PMIDIINCAPS;
+#else
+typedef PMIDIINCAPSA PMIDIINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIINCAPS2A *PMIDIINCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIINCAPS2W *PMIDIINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIDIINCAPS2W PMIDIINCAPS2;
+#else
+typedef PMIDIINCAPS2A PMIDIINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSA *PMIDIOUTCAPSA;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPSW *PMIDIOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIDIOUTCAPSW PMIDIOUTCAPS;
+#else
+typedef PMIDIOUTCAPSA PMIDIOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2A *PMIDIOUTCAPS2A;
+
+/* mmeapi.h */
+typedef MIDIOUTCAPS2W *PMIDIOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIDIOUTCAPS2W PMIDIOUTCAPS2;
+#else
+typedef PMIDIOUTCAPS2A PMIDIOUTCAPS2;
+#endif
+
 /* winuser.h */
 typedef MINIMIZEDMETRICS *PMINIMIZEDMETRICS;
 
 /* winuser.h */
 typedef MINMAXINFO *PMINMAXINFO;
+
+/* mmeapi.h */
+typedef MIXERCAPSA *PMIXERCAPSA;
+
+/* mmeapi.h */
+typedef MIXERCAPSW *PMIXERCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERCAPSW PMIXERCAPS;
+#else
+typedef PMIXERCAPSA PMIXERCAPS;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCAPS2A *PMIXERCAPS2A;
+
+/* mmeapi.h */
+typedef MIXERCAPS2W *PMIXERCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERCAPS2W PMIXERCAPS2;
+#else
+typedef PMIXERCAPS2A PMIXERCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLA *PMIXERCONTROLA;
+
+/* mmeapi.h */
+typedef MIXERCONTROLW *PMIXERCONTROLW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERCONTROLW PMIXERCONTROL;
+#else
+typedef PMIXERCONTROLA PMIXERCONTROL;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS *PMIXERCONTROLDETAILS;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_BOOLEAN *PMIXERCONTROLDETAILS_BOOLEAN;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_LISTTEXTA *PMIXERCONTROLDETAILS_LISTTEXTA;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_LISTTEXTW *PMIXERCONTROLDETAILS_LISTTEXTW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERCONTROLDETAILS_LISTTEXTW PMIXERCONTROLDETAILS_LISTTEXT;
+#else
+typedef PMIXERCONTROLDETAILS_LISTTEXTA PMIXERCONTROLDETAILS_LISTTEXT;
+#endif
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_SIGNED *PMIXERCONTROLDETAILS_SIGNED;
+
+/* mmeapi.h */
+typedef MIXERCONTROLDETAILS_UNSIGNED *PMIXERCONTROLDETAILS_UNSIGNED;
+
+/* mmeapi.h */
+typedef MIXERLINEA *PMIXERLINEA;
+
+/* mmeapi.h */
+typedef MIXERLINEW *PMIXERLINEW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERLINEW PMIXERLINE;
+#else
+typedef PMIXERLINEA PMIXERLINE;
+#endif
+
+/* mmeapi.h */
+typedef MIXERLINECONTROLSA *PMIXERLINECONTROLSA;
+
+/* mmeapi.h */
+typedef MIXERLINECONTROLSW *PMIXERLINECONTROLSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PMIXERLINECONTROLSW PMIXERLINECONTROLS;
+#else
+typedef PMIXERLINECONTROLSA PMIXERLINECONTROLS;
+#endif
+
+/* mmiscapi.h */
+typedef MMCKINFO *PMMCKINFO;
+
+/* mmiscapi.h */
+typedef MMIOINFO *PMMIOINFO;
+
+/* mmsyscom.h */
+typedef MMTIME *PMMTIME;
+
+/* mcx.h */
+typedef MODEMDEVCAPS *PMODEMDEVCAPS;
+
+/* mcx.h */
+typedef MODEMSETTINGS *PMODEMSETTINGS;
 
 /* ddeml.h */
 typedef MONCBSTRUCT *PMONCBSTRUCT;
@@ -20114,6 +24325,13 @@ typedef MONHSZSTRUCTA *PMONHSZSTRUCTA;
 
 /* ddeml.h */
 typedef MONHSZSTRUCTW *PMONHSZSTRUCTW;
+
+/* ddeml.h */
+#ifdef UNICODE
+typedef PMONHSZSTRUCTW PMONHSZSTRUCT;
+#else
+typedef PMONHSZSTRUCTA PMONHSZSTRUCT;
+#endif
 
 /* winnt.h */
 typedef MONITOR_DISPLAY_STATE *PMONITOR_DISPLAY_STATE;
@@ -20146,6 +24364,13 @@ typedef MSGBOXPARAMSA *PMSGBOXPARAMSA;
 typedef MSGBOXPARAMSW *PMSGBOXPARAMSW;
 
 /* winuser.h */
+#ifdef UNICODE
+typedef PMSGBOXPARAMSW PMSGBOXPARAMS;
+#else
+typedef PMSGBOXPARAMSA PMSGBOXPARAMS;
+#endif
+
+/* winuser.h */
 typedef MSLLHOOKSTRUCT *PMSLLHOOKSTRUCT;
 
 /* winuser.h */
@@ -20153,6 +24378,28 @@ typedef MULTIKEYHELPA *PMULTIKEYHELPA;
 
 /* winuser.h */
 typedef MULTIKEYHELPW *PMULTIKEYHELPW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PMULTIKEYHELPW PMULTIKEYHELP;
+#else
+typedef PMULTIKEYHELPA PMULTIKEYHELP;
+#endif
+
+/* winperf.h */
+typedef DWORD (__stdcall *PM_CLOSE_PROC)(void);
+
+/* winperf.h */
+typedef DWORD (__stdcall *PM_COLLECT_PROC)(LPWSTR pValueName, void **ppData, DWORD *pcbTotalBytes, DWORD *pNumObjectTypes);
+
+/* winperf.h */
+typedef DWORD (__stdcall *PM_OPEN_PROC)(LPWSTR pContext);
+
+/* nb30.h */
+typedef NAME_BUFFER *PNAME_BUFFER;
+
+/* nb30.h */
+typedef NCB *PNCB;
 
 /* shellapi.h */
 typedef NC_ADDRESS *PNC_ADDRESS;
@@ -20166,11 +24413,25 @@ typedef NEWTEXTMETRICA *PNEWTEXTMETRICA;
 /* wingdi.h */
 typedef NEWTEXTMETRICW *PNEWTEXTMETRICW;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef PNEWTEXTMETRICW PNEWTEXTMETRIC;
+#else
+typedef PNEWTEXTMETRICA PNEWTEXTMETRIC;
+#endif
+
 /* winuser.h */
 typedef NONCLIENTMETRICSA *PNONCLIENTMETRICSA;
 
 /* winuser.h */
 typedef NONCLIENTMETRICSW *PNONCLIENTMETRICSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PNONCLIENTMETRICSW PNONCLIENTMETRICS;
+#else
+typedef PNONCLIENTMETRICSA PNONCLIENTMETRICS;
+#endif
 
 /* winnt.h */
 typedef NON_PAGED_DEBUG_INFO *PNON_PAGED_DEBUG_INFO;
@@ -20180,6 +24441,13 @@ typedef NOTIFYICONDATAA *PNOTIFYICONDATAA;
 
 /* shellapi.h */
 typedef NOTIFYICONDATAW *PNOTIFYICONDATAW;
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef PNOTIFYICONDATAW PNOTIFYICONDATA;
+#else
+typedef PNOTIFYICONDATAA PNOTIFYICONDATA;
+#endif
 
 /* shellapi.h */
 typedef NOTIFYICONIDENTIFIER *PNOTIFYICONIDENTIFIER;
@@ -20377,6 +24645,13 @@ struct POINTFX {
 };
 
 /* wingdi.h */
+#ifdef UNICODE
+typedef POLYTEXTW POLYTEXT;
+#else
+typedef POLYTEXTA POLYTEXT;
+#endif
+
+/* wingdi.h */
 struct POLYTEXTA {
     int x;
     int y;
@@ -20404,6 +24679,13 @@ typedef OPEN_PRINTER_PROPS_INFOA *POPEN_PRINTER_PROPS_INFOA;
 /* shellapi.h */
 typedef OPEN_PRINTER_PROPS_INFOW *POPEN_PRINTER_PROPS_INFOW;
 
+/* shellapi.h */
+#ifdef UNICODE
+typedef POPEN_PRINTER_PROPS_INFOW POPEN_PRINTER_PROPS_INFO;
+#else
+typedef POPEN_PRINTER_PROPS_INFOA POPEN_PRINTER_PROPS_INFO;
+#endif
+
 /* winbase.h */
 typedef OPERATION_END_PARAMETERS *POPERATION_END_PARAMETERS;
 
@@ -20414,19 +24696,40 @@ typedef OPERATION_START_PARAMETERS *POPERATION_START_PARAMETERS;
 typedef OSVERSIONINFOA *POSVERSIONINFOA;
 
 /* winnt.h */
+typedef _OSVERSIONINFOW *POSVERSIONINFOW;
+
+/* winnt.h */
+#ifdef UNICODE
+typedef POSVERSIONINFOW POSVERSIONINFO;
+#else
+typedef POSVERSIONINFOA POSVERSIONINFO;
+#endif
+
+/* winnt.h */
 typedef OSVERSIONINFOEXA *POSVERSIONINFOEXA;
 
 /* winnt.h */
 typedef _OSVERSIONINFOEXW *POSVERSIONINFOEXW;
 
 /* winnt.h */
-typedef _OSVERSIONINFOW *POSVERSIONINFOW;
+#ifdef UNICODE
+typedef POSVERSIONINFOEXW POSVERSIONINFOEX;
+#else
+typedef POSVERSIONINFOEXA POSVERSIONINFOEX;
+#endif
 
 /* wingdi.h */
 typedef OUTLINETEXTMETRICA *POUTLINETEXTMETRICA;
 
 /* wingdi.h */
 typedef OUTLINETEXTMETRICW *POUTLINETEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef POUTLINETEXTMETRICW POUTLINETEXTMETRIC;
+#else
+typedef POUTLINETEXTMETRICA POUTLINETEXTMETRIC;
+#endif
 
 /* winnt.h */
 typedef DWORD (__cdecl *POUT_OF_PROCESS_FUNCTION_TABLE_CALLBACK)(HANDLE Process, PVOID TableAddress, PDWORD Entries, PRUNTIME_FUNCTION *Functions);
@@ -20777,6 +25080,9 @@ typedef PALETTEENTRY *PPALETTEENTRY;
 /* wingdi.h */
 typedef LOGBRUSH *PPATTERN;
 
+/* mmeapi.h */
+typedef PCMWAVEFORMAT *PPCMWAVEFORMAT;
+
 /* wingdi.h */
 typedef PELARRAY *PPELARRAY;
 
@@ -20788,6 +25094,21 @@ typedef PERFORMANCE_DATA *PPERFORMANCE_DATA;
 
 /* psapi.h */
 typedef _PERFORMANCE_INFORMATION *PPERFORMANCE_INFORMATION;
+
+/* winperf.h */
+typedef PERF_COUNTER_BLOCK *PPERF_COUNTER_BLOCK;
+
+/* winperf.h */
+typedef PERF_COUNTER_DEFINITION *PPERF_COUNTER_DEFINITION;
+
+/* winperf.h */
+typedef PERF_DATA_BLOCK *PPERF_DATA_BLOCK;
+
+/* winperf.h */
+typedef PERF_INSTANCE_DEFINITION *PPERF_INSTANCE_DEFINITION;
+
+/* winperf.h */
+typedef PERF_OBJECT_TYPE *PPERF_OBJECT_TYPE;
 
 /* wingdi.h */
 typedef PIXELFORMATDESCRIPTOR *PPIXELFORMATDESCRIPTOR;
@@ -20989,17 +25310,33 @@ struct PPM_WMI_PERF_STATES_EX {
     PPM_WMI_PERF_STATE State[1];
 };
 
+/* windef.h */
+typedef POINT *PPOINT;
+
 /* winuser.h */
 typedef POINTER_TYPE_INFO *PPOINTER_TYPE_INFO;
 
 /* wingdi.h */
 typedef POINTFLOAT *PPOINTFLOAT;
 
+/* windef.h */
+typedef POINTL *PPOINTL;
+
+/* windef.h */
+typedef POINTS *PPOINTS;
+
 /* wingdi.h */
 typedef POLYTEXTA *PPOLYTEXTA;
 
 /* wingdi.h */
 typedef POLYTEXTW *PPOLYTEXTW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef PPOLYTEXTW PPOLYTEXT;
+#else
+typedef PPOLYTEXTA PPOLYTEXT;
+#endif
 
 /* winuser.h */
 typedef POWERBROADCAST_SETTING *PPOWERBROADCAST_SETTING;
@@ -21322,6 +25659,13 @@ typedef PVALUEA *PPVALUEA;
 /* winreg.h */
 typedef PVALUEW *PPVALUEW;
 
+/* winreg.h */
+#ifdef UNICODE
+typedef PPVALUEW PPVALUE;
+#else
+typedef PPVALUEA PPVALUE;
+#endif
+
 /* winbase.h */
 typedef BOOL (__stdcall *PQUERYACTCTXW_FUNC)(DWORD dwFlags, HANDLE hActCtx, PVOID pvSubInstance, ULONG ulInfoClass, PVOID pvBuffer, SIZE_T cbBuffer, SIZE_T *pcbWrittenOrRequired);
 
@@ -21373,6 +25717,12 @@ typedef REASON_CONTEXT *PREASON_CONTEXT;
 /* imm.h */
 typedef RECONVERTSTRING *PRECONVERTSTRING;
 
+/* windef.h */
+typedef RECT *PRECT;
+
+/* windef.h */
+typedef RECTL *PRECTL;
+
 /* libloaderapi.h */
 typedef REDIRECTION_DESCRIPTOR *PREDIRECTION_DESCRIPTOR;
 
@@ -21387,6 +25737,13 @@ typedef REGISTERWORDA *PREGISTERWORDA;
 
 /* imm.h */
 typedef REGISTERWORDW *PREGISTERWORDW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef PREGISTERWORDW PREGISTERWORD;
+#else
+typedef PREGISTERWORDA PREGISTERWORD;
+#endif
 
 /* winnt.h */
 typedef REPARSE_GUID_DATA_BUFFER *PREPARSE_GUID_DATA_BUFFER;
@@ -21422,6 +25779,13 @@ typedef RID_DEVICE_INFO_KEYBOARD *PRID_DEVICE_INFO_KEYBOARD;
 typedef RID_DEVICE_INFO_MOUSE *PRID_DEVICE_INFO_MOUSE;
 
 /* commdlg.h */
+#ifdef UNICODE
+typedef PRINTDLGW PRINTDLG;
+#else
+typedef PRINTDLGA PRINTDLG;
+#endif
+
+/* commdlg.h */
 struct PRINTDLGA {
     DWORD lStructSize;
     HWND hwndOwner;
@@ -21443,6 +25807,13 @@ struct PRINTDLGA {
     HGLOBAL hPrintTemplate;
     HGLOBAL hSetupTemplate;
 };
+
+/* commdlg.h */
+#ifdef UNICODE
+typedef PRINTDLGEXW PRINTDLGEX;
+#else
+typedef PRINTDLGEXA PRINTDLGEX;
+#endif
 
 /* commdlg.h */
 struct PRINTDLGEXA {
@@ -22094,13 +26465,27 @@ typedef ROOT_INFO_LUID *PROOT_INFO_LUID;
 typedef BOOL (__stdcall *PROPENUMPROCA)(HWND param0, LPCSTR param1, HANDLE param2);
 
 /* winuser.h */
+typedef BOOL (__stdcall *PROPENUMPROCW)(HWND param0, LPCWSTR param1, HANDLE param2);
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PROPENUMPROCW PROPENUMPROC;
+#else
+typedef PROPENUMPROCA PROPENUMPROC;
+#endif
+
+/* winuser.h */
 typedef BOOL (__stdcall *PROPENUMPROCEXA)(HWND param0, LPSTR param1, HANDLE param2, ULONG_PTR param3);
 
 /* winuser.h */
 typedef BOOL (__stdcall *PROPENUMPROCEXW)(HWND param0, LPWSTR param1, HANDLE param2, ULONG_PTR param3);
 
 /* winuser.h */
-typedef BOOL (__stdcall *PROPENUMPROCW)(HWND param0, LPCWSTR param1, HANDLE param2);
+#ifdef UNICODE
+typedef PROPENUMPROCEXW PROPENUMPROCEX;
+#else
+typedef PROPENUMPROCEXA PROPENUMPROCEX;
+#endif
 
 /* shared.h */
 typedef int PROPERTYID;
@@ -22483,6 +26868,13 @@ typedef SERVICE_CONTROL_STATUS_REASON_PARAMSA *PSERVICE_CONTROL_STATUS_REASON_PA
 typedef SERVICE_CONTROL_STATUS_REASON_PARAMSW *PSERVICE_CONTROL_STATUS_REASON_PARAMSW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef PSERVICE_CONTROL_STATUS_REASON_PARAMSW PSERVICE_CONTROL_STATUS_REASON_PARAMS;
+#else
+typedef PSERVICE_CONTROL_STATUS_REASON_PARAMSA PSERVICE_CONTROL_STATUS_REASON_PARAMS;
+#endif
+
+/* winsvc.h */
 typedef SERVICE_LAUNCH_PROTECTED_INFO *PSERVICE_LAUNCH_PROTECTED_INFO;
 
 /* winsvc.h */
@@ -22492,6 +26884,13 @@ typedef SERVICE_NOTIFY_2A *PSERVICE_NOTIFYA;
 typedef SERVICE_NOTIFY_2W *PSERVICE_NOTIFYW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef PSERVICE_NOTIFYW PSERVICE_NOTIFY;
+#else
+typedef PSERVICE_NOTIFYA PSERVICE_NOTIFY;
+#endif
+
+/* winsvc.h */
 typedef SERVICE_NOTIFY_1 *PSERVICE_NOTIFY_1;
 
 /* winsvc.h */
@@ -22499,6 +26898,13 @@ typedef SERVICE_NOTIFY_2A *PSERVICE_NOTIFY_2A;
 
 /* winsvc.h */
 typedef SERVICE_NOTIFY_2W *PSERVICE_NOTIFY_2W;
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef PSERVICE_NOTIFY_2W PSERVICE_NOTIFY_2;
+#else
+typedef PSERVICE_NOTIFY_2A PSERVICE_NOTIFY_2;
+#endif
 
 /* winsvc.h */
 typedef SERVICE_START_REASON *PSERVICE_START_REASON;
@@ -22514,6 +26920,12 @@ typedef SERVICE_TRIGGER_INFO *PSERVICE_TRIGGER_INFO;
 
 /* winsvc.h */
 typedef SERVICE_TRIGGER_SPECIFIC_DATA_ITEM *PSERVICE_TRIGGER_SPECIFIC_DATA_ITEM;
+
+/* nb30.h */
+typedef SESSION_BUFFER *PSESSION_BUFFER;
+
+/* nb30.h */
+typedef SESSION_HEADER *PSESSION_HEADER;
 
 /* winnt.h */
 typedef SET_POWER_SETTING_VALUE *PSET_POWER_SETTING_VALUE;
@@ -22642,6 +27054,9 @@ struct PSINJECTDATA {
 /* windef.h */
 typedef SIZE *PSIZE;
 
+/* windef.h */
+typedef SIZE *PSIZEL;
+
 /* basetsd.h */
 typedef ULONG_PTR *PSIZE_T;
 
@@ -22677,6 +27092,13 @@ typedef STYLEBUFA *PSTYLEBUFA;
 
 /* imm.h */
 typedef STYLEBUFW *PSTYLEBUFW;
+
+/* imm.h */
+#ifdef UNICODE
+typedef PSTYLEBUFW PSTYLEBUF;
+#else
+typedef PSTYLEBUFA PSTYLEBUF;
+#endif
 
 /* winnt.h */
 typedef SUPPORTED_OS_INFO *PSUPPORTED_OS_INFO;
@@ -22809,6 +27231,16 @@ typedef TEXTMETRICA *PTEXTMETRICA;
 
 /* wingdi.h */
 typedef TEXTMETRICW *PTEXTMETRICW;
+
+/* wingdi.h */
+#ifdef UNICODE
+typedef PTEXTMETRICW PTEXTMETRIC;
+#else
+typedef PTEXTMETRICA PTEXTMETRIC;
+#endif
+
+/* timeapi.h */
+typedef TIMECAPS *PTIMECAPS;
 
 /* synchapi.h */
 typedef void (__stdcall *PTIMERAPCROUTINE)(LPVOID lpArgToCompletionRoutine, DWORD dwTimerLowValue, DWORD dwTimerHighValue);
@@ -23180,6 +27612,20 @@ typedef VALENTA *PVALENTA;
 typedef VALENTW *PVALENTW;
 
 /* winreg.h */
+#ifdef UNICODE
+typedef PVALENTW PVALENT;
+#else
+typedef PVALENTA PVALENT;
+#endif
+
+/* winreg.h */
+#ifdef UNICODE
+typedef PVALUEW PVALUE;
+#else
+typedef PVALUEA PVALUE;
+#endif
+
+/* winreg.h */
 struct PVALUEA {
     LPSTR pv_valuename;
     int pv_valuelen;
@@ -23198,8 +27644,69 @@ struct PVALUEW {
 /* winnt.h */
 typedef LONG (__stdcall *PVECTORED_EXCEPTION_HANDLER)(EXCEPTION_POINTERS *ExceptionInfo);
 
+/* mmeapi.h */
+typedef WAVEFORMAT *PWAVEFORMAT;
+
+/* mmeapi.h */
+typedef WAVEFORMATEX *PWAVEFORMATEX;
+
 /* shared.h */
 typedef WAVEFORMATEXTENSIBLE *PWAVEFORMATEXTENSIBLE;
+
+/* mmeapi.h */
+typedef WAVEHDR *PWAVEHDR;
+
+/* mmeapi.h */
+typedef WAVEINCAPSA *PWAVEINCAPSA;
+
+/* mmeapi.h */
+typedef WAVEINCAPSW *PWAVEINCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PWAVEINCAPSW PWAVEINCAPS;
+#else
+typedef PWAVEINCAPSA PWAVEINCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEINCAPS2A *PWAVEINCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEINCAPS2W *PWAVEINCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PWAVEINCAPS2W PWAVEINCAPS2;
+#else
+typedef PWAVEINCAPS2A PWAVEINCAPS2;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSA *PWAVEOUTCAPSA;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPSW *PWAVEOUTCAPSW;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PWAVEOUTCAPSW PWAVEOUTCAPS;
+#else
+typedef PWAVEOUTCAPSA PWAVEOUTCAPS;
+#endif
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2A *PWAVEOUTCAPS2A;
+
+/* mmeapi.h */
+typedef WAVEOUTCAPS2W *PWAVEOUTCAPS2W;
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef PWAVEOUTCAPS2W PWAVEOUTCAPS2;
+#else
+typedef PWAVEOUTCAPS2A PWAVEOUTCAPS2;
+#endif
 
 /* winnt.h */
 typedef WCHAR *PWCH;
@@ -23232,13 +27739,27 @@ typedef WINDOW_ACTION *PWINDOW_ACTION;
 typedef WNDCLASSA *PWNDCLASSA;
 
 /* winuser.h */
+typedef WNDCLASSW *PWNDCLASSW;
+
+/* winuser.h */
+#ifdef UNICODE
+typedef PWNDCLASSW PWNDCLASS;
+#else
+typedef PWNDCLASSA PWNDCLASS;
+#endif
+
+/* winuser.h */
 typedef WNDCLASSEXA *PWNDCLASSEXA;
 
 /* winuser.h */
 typedef WNDCLASSEXW *PWNDCLASSEXW;
 
 /* winuser.h */
-typedef WNDCLASSW *PWNDCLASSW;
+#ifdef UNICODE
+typedef PWNDCLASSEXW PWNDCLASSEX;
+#else
+typedef PWNDCLASSEXA PWNDCLASSEX;
+#endif
 
 /* winnt.h */
 typedef WOW64_CONTEXT *PWOW64_CONTEXT;
@@ -23349,6 +27870,13 @@ struct QUERYCONTEXT {
 typedef DWORD (__cdecl *QUERYHANDLER)(LPVOID keycontext, PVALCONTEXT val_list, DWORD num_vals, LPVOID outputbuffer, DWORD *total_outlen, DWORD input_blen);
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef QUERY_SERVICE_CONFIGW QUERY_SERVICE_CONFIG;
+#else
+typedef QUERY_SERVICE_CONFIGA QUERY_SERVICE_CONFIG;
+#endif
+
+/* winsvc.h */
 struct QUERY_SERVICE_CONFIGA {
     DWORD dwServiceType;
     DWORD dwStartType;
@@ -23373,6 +27901,13 @@ struct QUERY_SERVICE_CONFIGW {
     LPWSTR lpServiceStartName;
     LPWSTR lpDisplayName;
 };
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef QUERY_SERVICE_LOCK_STATUSW QUERY_SERVICE_LOCK_STATUS;
+#else
+typedef QUERY_SERVICE_LOCK_STATUSA QUERY_SERVICE_LOCK_STATUS;
+#endif
 
 /* winsvc.h */
 struct QUERY_SERVICE_LOCK_STATUSA {
@@ -23602,6 +28137,13 @@ typedef enum REGCLS {
 STXWIN_ENUM_FLAG_OPERATORS(REGCLS)
 
 /* imm.h */
+#ifdef UNICODE
+typedef REGISTERWORDW REGISTERWORD;
+#else
+typedef REGISTERWORDA REGISTERWORD;
+#endif
+
+/* imm.h */
 struct REGISTERWORDA {
     LPSTR lpReading;
     LPSTR lpWord;
@@ -23740,6 +28282,9 @@ typedef void *RPC_AUTHZ_HANDLE;
 
 /* rpcdce.h */
 typedef void *RPC_AUTH_IDENTITY_HANDLE;
+
+/* rpc.h */
+typedef int RPC_STATUS;
 
 /* wincrypt.h */
 struct RSAPUBKEY {
@@ -24327,6 +28872,13 @@ struct SECURITY_OBJECT_AI_PARAMS {
 typedef void (__stdcall *SENDASYNCPROC)(HWND param0, UINT param1, ULONG_PTR param2, LRESULT param3);
 
 /* winuser.h */
+#ifdef UNICODE
+typedef SERIALKEYSW SERIALKEYS;
+#else
+typedef SERIALKEYSA SERIALKEYS;
+#endif
+
+/* winuser.h */
 struct SERIALKEYSA {
     UINT cbSize;
     DWORD dwFlags;
@@ -24375,6 +28927,13 @@ struct SERVERSILO_DIAGNOSTIC_INFORMATION {
 };
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_CONTROL_STATUS_REASON_PARAMSW SERVICE_CONTROL_STATUS_REASON_PARAMS;
+#else
+typedef SERVICE_CONTROL_STATUS_REASON_PARAMSA SERVICE_CONTROL_STATUS_REASON_PARAMS;
+#endif
+
+/* winsvc.h */
 struct SERVICE_CONTROL_STATUS_REASON_PARAMSA {
     DWORD dwReason;
     LPSTR pszComment;
@@ -24410,6 +28969,13 @@ struct SERVICE_DELAYED_AUTO_START_INFO {
 };
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_DESCRIPTIONW SERVICE_DESCRIPTION;
+#else
+typedef SERVICE_DESCRIPTIONA SERVICE_DESCRIPTION;
+#endif
+
+/* winsvc.h */
 struct SERVICE_DESCRIPTIONA {
     LPSTR lpDescription;
 };
@@ -24432,6 +28998,13 @@ typedef enum SERVICE_ERROR_TYPE {
     SevereError = 2,
     CriticalError = 3,
 } SERVICE_ERROR_TYPE;
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_FAILURE_ACTIONSW SERVICE_FAILURE_ACTIONS;
+#else
+typedef SERVICE_FAILURE_ACTIONSA SERVICE_FAILURE_ACTIONS;
+#endif
 
 /* winsvc.h */
 struct SERVICE_FAILURE_ACTIONSA {
@@ -24493,6 +29066,13 @@ typedef SERVICE_NOTIFY_2A SERVICE_NOTIFYA;
 typedef SERVICE_NOTIFY_2W SERVICE_NOTIFYW;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_NOTIFYW SERVICE_NOTIFY;
+#else
+typedef SERVICE_NOTIFYA SERVICE_NOTIFY;
+#endif
+
+/* winsvc.h */
 struct SERVICE_NOTIFY_1 {
     DWORD dwVersion;
     PFN_SC_NOTIFY_CALLBACK pfnNotifyCallback;
@@ -24500,6 +29080,13 @@ struct SERVICE_NOTIFY_1 {
     DWORD dwNotificationStatus;
     SERVICE_STATUS_PROCESS ServiceStatus;
 };
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_NOTIFY_2W SERVICE_NOTIFY_2;
+#else
+typedef SERVICE_NOTIFY_2A SERVICE_NOTIFY_2;
+#endif
 
 /* winsvc.h */
 struct SERVICE_NOTIFY_2A {
@@ -24542,6 +29129,13 @@ typedef enum SERVICE_REGISTRY_STATE_TYPE {
 } SERVICE_REGISTRY_STATE_TYPE;
 
 /* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_REQUIRED_PRIVILEGES_INFOW SERVICE_REQUIRED_PRIVILEGES_INFO;
+#else
+typedef SERVICE_REQUIRED_PRIVILEGES_INFOA SERVICE_REQUIRED_PRIVILEGES_INFO;
+#endif
+
+/* winsvc.h */
 struct SERVICE_REQUIRED_PRIVILEGES_INFOA {
     LPSTR pmszRequiredPrivileges;
 };
@@ -24578,6 +29172,13 @@ typedef SERVICE_STATUS_HANDLE__ *SERVICE_STATUS_HANDLE;
 struct SERVICE_STATUS_HANDLE__ {
     int unused;
 };
+
+/* winsvc.h */
+#ifdef UNICODE
+typedef SERVICE_TABLE_ENTRYW SERVICE_TABLE_ENTRY;
+#else
+typedef SERVICE_TABLE_ENTRYA SERVICE_TABLE_ENTRY;
+#endif
 
 /* winsvc.h */
 struct SERVICE_TABLE_ENTRYA {
@@ -24618,6 +29219,24 @@ struct SERVICE_TRIGGER_SPECIFIC_DATA_ITEM {
     DWORD dwDataType;
     DWORD cbData;
     PBYTE pData;
+};
+
+/* nb30.h */
+struct SESSION_BUFFER {
+    UCHAR lsn;
+    UCHAR state;
+    UCHAR local_name[16];
+    UCHAR remote_name[16];
+    UCHAR rcvs_outstanding;
+    UCHAR sends_outstanding;
+};
+
+/* nb30.h */
+struct SESSION_HEADER {
+    UCHAR sess_name;
+    UCHAR num_sess;
+    UCHAR rcv_dg_outstanding;
+    UCHAR rcv_any_outstanding;
 };
 
 /* winnt.h */
@@ -24750,6 +29369,13 @@ struct SHCREATEPROCESSINFOW {
 };
 
 /* shellapi.h */
+#ifdef UNICODE
+typedef SHELLEXECUTEINFOW SHELLEXECUTEINFO;
+#else
+typedef SHELLEXECUTEINFOA SHELLEXECUTEINFO;
+#endif
+
+/* shellapi.h */
 struct SHELLEXECUTEINFOA {
     DWORD cbSize;
     ULONG fMask;
@@ -24800,6 +29426,13 @@ struct SHELLHOOKINFO {
 };
 
 /* shellapi.h */
+#ifdef UNICODE
+typedef SHFILEINFOW SHFILEINFO;
+#else
+typedef SHFILEINFOA SHFILEINFO;
+#endif
+
+/* shellapi.h */
 struct SHFILEINFOA {
     HICON hIcon;
     int iIcon;
@@ -24816,6 +29449,13 @@ struct SHFILEINFOW {
     WCHAR szDisplayName[260];
     WCHAR szTypeName[80];
 };
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef SHFILEOPSTRUCTW SHFILEOPSTRUCT;
+#else
+typedef SHFILEOPSTRUCTA SHFILEOPSTRUCT;
+#endif
 
 /* shellapi.h */
 struct SHFILEOPSTRUCTA {
@@ -24840,6 +29480,13 @@ struct SHFILEOPSTRUCTW {
     LPVOID hNameMappings;
     PCWSTR lpszProgressTitle;
 };
+
+/* shellapi.h */
+#ifdef UNICODE
+typedef SHNAMEMAPPINGW SHNAMEMAPPING;
+#else
+typedef SHNAMEMAPPINGA SHNAMEMAPPING;
+#endif
 
 /* shellapi.h */
 struct SHNAMEMAPPINGA {
@@ -25065,6 +29712,13 @@ struct SOLE_AUTHENTICATION_SERVICE {
 #pragma pack(pop)
 
 /* winuser.h */
+#ifdef UNICODE
+typedef SOUNDSENTRYW SOUNDSENTRY;
+#else
+typedef SOUNDSENTRYA SOUNDSENTRY;
+#endif
+
+/* winuser.h */
 struct SOUNDSENTRYA {
     UINT cbSize;
     DWORD dwFlags;
@@ -25137,6 +29791,13 @@ struct SSL_KEY_PIN_EXTRA_CERT_CHAIN_POLICY_STATUS {
 };
 
 /* processthreadsapi.h */
+#ifdef UNICODE
+typedef STARTUPINFOW STARTUPINFO;
+#else
+typedef STARTUPINFOA STARTUPINFO;
+#endif
+
+/* processthreadsapi.h */
 struct STARTUPINFOA {
     DWORD cb;
     LPSTR lpReserved;
@@ -25157,6 +29818,13 @@ struct STARTUPINFOA {
     HANDLE hStdOutput;
     HANDLE hStdError;
 };
+
+/* winbase.h */
+#ifdef UNICODE
+typedef STARTUPINFOEXW STARTUPINFOEX;
+#else
+typedef STARTUPINFOEXA STARTUPINFOEX;
+#endif
 
 /* winbase.h */
 struct STARTUPINFOEXA {
@@ -25271,6 +29939,13 @@ typedef enum STREAM_INFO_LEVELS {
     FindStreamInfoStandard = 0,
     FindStreamInfoMaxInfoLevel = 1,
 } STREAM_INFO_LEVELS;
+
+/* imm.h */
+#ifdef UNICODE
+typedef STYLEBUFW STYLEBUF;
+#else
+typedef STYLEBUFA STYLEBUF;
+#endif
 
 /* imm.h */
 struct STYLEBUFA {
@@ -25831,6 +30506,13 @@ typedef _PUBKEY TEKPUBKEY;
 /* uiautomationcore.h */
 typedef int TEXTATTRIBUTEID;
 
+/* wingdi.h */
+#ifdef UNICODE
+typedef TEXTMETRICW TEXTMETRIC;
+#else
+typedef TEXTMETRICA TEXTMETRIC;
+#endif
+
 /* processthreadsapi.h */
 typedef enum THREAD_INFORMATION_CLASS {
     ThreadMemoryPriority = 0,
@@ -25846,6 +30528,17 @@ struct THREAD_POWER_THROTTLING_STATE {
     ULONG ControlMask;
     ULONG StateMask;
 };
+
+/* mmiscapi2.h */
+typedef void (__stdcall *TIMECALLBACK)(UINT uTimerID, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
+
+/* timeapi.h */
+#pragma pack(push, 1)
+struct TIMECAPS {
+    UINT wPeriodMin;
+    UINT wPeriodMax;
+};
+#pragma pack(pop)
 
 /* winnls.h */
 typedef BOOL (__stdcall *TIMEFMT_ENUMPROCA)(LPSTR param0);
@@ -26783,6 +31476,13 @@ struct UiaRect {
 };
 
 /* winreg.h */
+#ifdef UNICODE
+typedef VALENTW VALENT;
+#else
+typedef VALENTA VALENT;
+#endif
+
+/* winreg.h */
 struct VALENTA {
     LPSTR ve_valuename;
     DWORD ve_valuelen;
@@ -26885,6 +31585,23 @@ struct VERSIONEDSTREAM {
 };
 #pragma pack(pop)
 
+/* verrsrc.h */
+struct VS_FIXEDFILEINFO {
+    DWORD dwSignature;
+    DWORD dwStrucVersion;
+    DWORD dwFileVersionMS;
+    DWORD dwFileVersionLS;
+    DWORD dwProductVersionMS;
+    DWORD dwProductVersionLS;
+    DWORD dwFileFlagsMask;
+    DWORD dwFileFlags;
+    DWORD dwFileOS;
+    DWORD dwFileType;
+    DWORD dwFileSubtype;
+    DWORD dwFileDateMS;
+    DWORD dwFileDateLS;
+};
+
 /* peninputpanel.h */
 typedef enum VisualState {
     InPlace = 0,
@@ -26899,6 +31616,9 @@ typedef void (__stdcall *WAITORTIMERCALLBACK)(PVOID param0, BOOLEAN param1);
 
 /* winnt.h */
 typedef void (__stdcall *WAITORTIMERCALLBACKFUNC)(PVOID param0, BOOLEAN param1);
+
+/* mmeapi.h */
+typedef void (__stdcall *WAVECALLBACK)(HDRVR hdrvr, UINT uMsg, DWORD_PTR dwUser, DWORD_PTR dw1, DWORD_PTR dw2);
 
 /* mmeapi.h */
 #pragma pack(push, 1)
@@ -26924,6 +31644,168 @@ struct WAVEFORMATEXTENSIBLE {
     } Samples;
     DWORD dwChannelMask;
     GUID SubFormat;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEHDR {
+    LPSTR lpData;
+    DWORD dwBufferLength;
+    DWORD dwBytesRecorded;
+    DWORD_PTR dwUser;
+    DWORD dwFlags;
+    DWORD dwLoops;
+    WAVEHDR *lpNext;
+    DWORD_PTR reserved;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef WAVEINCAPSW WAVEINCAPS;
+#else
+typedef WAVEINCAPSA WAVEINCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef WAVEINCAPS2W WAVEINCAPS2;
+#else
+typedef WAVEINCAPS2A WAVEINCAPS2;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEINCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEINCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEINCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEINCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef WAVEOUTCAPSW WAVEOUTCAPS;
+#else
+typedef WAVEOUTCAPSA WAVEOUTCAPS;
+#endif
+
+/* mmeapi.h */
+#ifdef UNICODE
+typedef WAVEOUTCAPS2W WAVEOUTCAPS2;
+#else
+typedef WAVEOUTCAPS2A WAVEOUTCAPS2;
+#endif
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEOUTCAPS2A {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEOUTCAPS2W {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    DWORD dwSupport;
+    GUID ManufacturerGuid;
+    GUID ProductGuid;
+    GUID NameGuid;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEOUTCAPSA {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    CHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    DWORD dwSupport;
+};
+#pragma pack(pop)
+
+/* mmeapi.h */
+#pragma pack(push, 1)
+struct WAVEOUTCAPSW {
+    WORD wMid;
+    WORD wPid;
+    MMVERSION vDriverVersion;
+    WCHAR szPname[32];
+    DWORD dwFormats;
+    WORD wChannels;
+    WORD wReserved1;
+    DWORD dwSupport;
 };
 #pragma pack(pop)
 
@@ -27275,6 +32157,20 @@ typedef BOOL (__stdcall *WINSTAENUMPROCA)(LPSTR param0, LPARAM param1);
 typedef BOOL (__stdcall *WINSTAENUMPROCW)(LPWSTR param0, LPARAM param1);
 
 /* winuser.h */
+#ifdef UNICODE
+typedef WINSTAENUMPROCW WINSTAENUMPROC;
+#else
+typedef WINSTAENUMPROCA WINSTAENUMPROC;
+#endif
+
+/* winuser.h */
+#ifdef UNICODE
+typedef WNDCLASSW WNDCLASS;
+#else
+typedef WNDCLASSA WNDCLASS;
+#endif
+
+/* winuser.h */
 typedef LRESULT (__stdcall *WNDPROC)(HWND param0, UINT param1, WPARAM param2, LPARAM param3);
 
 /* winuser.h */
@@ -27290,6 +32186,13 @@ struct WNDCLASSA {
     LPCSTR lpszMenuName;
     LPCSTR lpszClassName;
 };
+
+/* winuser.h */
+#ifdef UNICODE
+typedef WNDCLASSEXW WNDCLASSEX;
+#else
+typedef WNDCLASSEXA WNDCLASSEX;
+#endif
 
 /* winuser.h */
 struct WNDCLASSEXA {
@@ -27549,6 +32452,9 @@ struct XSTATE_CONTEXT {
     PXSAVE_AREA Area;
     PVOID Buffer;
 };
+
+/* mciapi.h */
+typedef UINT (__stdcall *YIELDPROC)(MCIDEVICEID mciId, DWORD dwYieldData);
 
 /* winnt.h */
 /* _ACTIVATION_CONTEXT is opaque: declared, never defined. */

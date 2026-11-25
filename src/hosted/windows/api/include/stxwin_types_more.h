@@ -965,7 +965,6 @@ typedef struct IStorageProviderCopyHook IStorageProviderCopyHook;
 typedef struct IStreamAsync IStreamAsync;
 typedef struct IStreamUnbufferedInfo IStreamUnbufferedInfo;
 typedef struct ISuspensionDependencyManager ISuspensionDependencyManager;
-typedef struct ITEMIDLIST ITEMIDLIST;
 typedef struct ITEMSPACING ITEMSPACING;
 typedef struct ITaskbarList ITaskbarList;
 typedef struct ITaskbarList2 ITaskbarList2;
@@ -1346,7 +1345,6 @@ typedef struct SHELLSTATEA SHELLSTATEA;
 typedef struct SHELLSTATEW SHELLSTATEW;
 typedef struct SHELL_ITEM_RESOURCE SHELL_ITEM_RESOURCE;
 typedef struct SHFOLDERCUSTOMSETTINGS SHFOLDERCUSTOMSETTINGS;
-typedef struct SHITEMID SHITEMID;
 typedef struct SMCSHCHANGENOTIFYSTRUCT SMCSHCHANGENOTIFYSTRUCT;
 typedef struct SMDATA SMDATA;
 typedef struct SMINFO SMINFO;
@@ -1834,9 +1832,6 @@ typedef enum AutomationIdentifierType {
     AutomationIdentifierType_Style = 8,
 } AutomationIdentifierType;
 
-/* shtypes.h */
-typedef ITEMIDLIST *LPITEMIDLIST;
-
 /* shlobj.h */
 #pragma pack(push, 8)
 struct BANDINFOSFB {
@@ -2204,9 +2199,6 @@ struct BP_PAINTPARAMS {
     const RECT *prcExclude;
     const BLENDFUNCTION *pBlendFunction;
 };
-
-/* shtypes.h */
-typedef const ITEMIDLIST *LPCITEMIDLIST;
 
 /* shlobj_core.h */
 #pragma pack(push, 8)
@@ -2587,6 +2579,13 @@ typedef enum CPVIEW {
 } CPVIEW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIALW CREDENTIAL;
+#else
+typedef CREDENTIALA CREDENTIAL;
+#endif
+
+/* wincred.h */
 typedef CREDENTIAL_ATTRIBUTEA *PCREDENTIAL_ATTRIBUTEA;
 
 /* wincred.h */
@@ -2625,6 +2624,13 @@ struct CREDENTIALW {
 };
 
 /* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIAL_ATTRIBUTEW CREDENTIAL_ATTRIBUTE;
+#else
+typedef CREDENTIAL_ATTRIBUTEA CREDENTIAL_ATTRIBUTE;
+#endif
+
+/* wincred.h */
 struct CREDENTIAL_ATTRIBUTEA {
     LPSTR Keyword;
     DWORD Flags;
@@ -2639,6 +2645,13 @@ struct CREDENTIAL_ATTRIBUTEW {
     DWORD ValueSize;
     LPBYTE Value;
 };
+
+/* wincred.h */
+#ifdef UNICODE
+typedef CREDENTIAL_TARGET_INFORMATIONW CREDENTIAL_TARGET_INFORMATION;
+#else
+typedef CREDENTIAL_TARGET_INFORMATIONA CREDENTIAL_TARGET_INFORMATION;
+#endif
 
 /* wincred.h */
 struct CREDENTIAL_TARGET_INFORMATIONA {
@@ -2667,6 +2680,13 @@ struct CREDENTIAL_TARGET_INFORMATIONW {
     DWORD CredTypeCount;
     LPDWORD CredTypes;
 };
+
+/* wincred.h */
+#ifdef UNICODE
+typedef CREDUI_INFOW CREDUI_INFO;
+#else
+typedef CREDUI_INFOA CREDUI_INFO;
+#endif
 
 /* wincred.h */
 struct CREDUI_INFOA {
@@ -10484,21 +10504,6 @@ struct INTLIST {
     int iValues[402];
 };
 
-/* shtypes.h */
-#pragma pack(push, 1)
-struct SHITEMID {
-    USHORT cb;
-    BYTE abID[1];
-};
-#pragma pack(pop)
-
-/* shtypes.h */
-#pragma pack(push, 1)
-struct ITEMIDLIST {
-    SHITEMID mkid;
-};
-#pragma pack(pop)
-
 /* shlobj_core.h */
 #pragma pack(push, 8)
 struct ITEMSPACING {
@@ -13240,16 +13245,44 @@ typedef CREDENTIALA *PCREDENTIALA;
 typedef CREDENTIALW *PCREDENTIALW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIALW PCREDENTIAL;
+#else
+typedef PCREDENTIALA PCREDENTIAL;
+#endif
+
+/* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIAL_ATTRIBUTEW PCREDENTIAL_ATTRIBUTE;
+#else
+typedef PCREDENTIAL_ATTRIBUTEA PCREDENTIAL_ATTRIBUTE;
+#endif
+
+/* wincred.h */
 typedef CREDENTIAL_TARGET_INFORMATIONA *PCREDENTIAL_TARGET_INFORMATIONA;
 
 /* wincred.h */
 typedef CREDENTIAL_TARGET_INFORMATIONW *PCREDENTIAL_TARGET_INFORMATIONW;
 
 /* wincred.h */
+#ifdef UNICODE
+typedef PCREDENTIAL_TARGET_INFORMATIONW PCREDENTIAL_TARGET_INFORMATION;
+#else
+typedef PCREDENTIAL_TARGET_INFORMATIONA PCREDENTIAL_TARGET_INFORMATION;
+#endif
+
+/* wincred.h */
 typedef CREDUI_INFOA *PCREDUI_INFOA;
 
 /* wincred.h */
 typedef CREDUI_INFOW *PCREDUI_INFOW;
+
+/* wincred.h */
+#ifdef UNICODE
+typedef PCREDUI_INFOW PCREDUI_INFO;
+#else
+typedef PCREDUI_INFOA PCREDUI_INFO;
+#endif
 
 /* wincred.h */
 typedef CRED_MARSHAL_TYPE *PCRED_MARSHAL_TYPE;

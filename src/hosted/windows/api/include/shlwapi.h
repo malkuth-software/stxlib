@@ -8,6 +8,11 @@
 #include "windows.h"
 #include "ole2.h"
 
+#define StrCatA lstrcatA
+#define StrCmpA lstrcmpA
+#define StrCmpIA lstrcmpiA
+#define StrCpyA lstrcpyA
+#define StrCpyNA lstrcpynA
 
 #ifndef RC_INVOKED
 #include "stxwin_types.h"

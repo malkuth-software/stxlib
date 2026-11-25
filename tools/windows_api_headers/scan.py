@@ -11,7 +11,8 @@ writes `roots.txt`: the Windows header names the sources include and every
 identifier in a Windows-facing file that names a declaration in the
 metadata (`PIN.json`), resolved as described in `resolve_token`.
 
-A file is Windows-facing when its path has a `windows` or `win32` directory
+A file is Windows-facing when it is a resource script (`.rc`, `.rc2`, or a
+CMake-configured `.rc.in`), when its path has a `windows` or `win32` directory
 or a `_windows`/`_win`/`_win32` stem suffix, or when it includes a header
 named after a metadata file (or windows.h and the other umbrella names in
 `UMBRELLAS`). Comments and string literals are removed before the
@@ -36,7 +37,11 @@ sys.path.insert(0, str(HERE))
 import local_paths  # noqa: E402
 import rdl  # noqa: E402
 
-EXTENSIONS = ('.c', '.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.ipp', '.inc')
+# Resource scripts are roots too: rc reads winver.h, winuser.h and the
+# others with RC_INVOKED, and their names (VS_FFI_FILEFLAGSMASK, VOS_NT_WINDOWS32)
+# must be spelled there.
+RESOURCE_EXTENSIONS = ('.rc', '.rc2', '.rc.in')
+EXTENSIONS = ('.c', '.cc', '.cpp', '.cxx', '.h', '.hh', '.hpp', '.ipp', '.inc') + RESOURCE_EXTENSIONS
 UUIDOF = re.compile(r'__uuidof\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)')
 INCLUDE = re.compile(r'^\s*#\s*include\s*[<"]([A-Za-z0-9_./]+)\.h[>"]', re.MULTILINE)
 IDENTIFIER = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
@@ -72,7 +77,17 @@ def strip_comments_and_strings(text: str) -> str:
     return ''.join(result)
 
 
+def decode_source(body: bytes) -> str:
+    """A source file's text. Resource scripts are often UTF-16 with a byte
+    order mark (what Visual Studio writes); everything else is read as UTF-8."""
+    if body.startswith(b'\xff\xfe') or body.startswith(b'\xfe\xff'):
+        return body.decode('utf-16', errors='replace')
+    return body.decode('utf-8-sig', errors='replace')
+
+
 def windows_facing_path(path: str) -> bool:
+    if path.lower().endswith(RESOURCE_EXTENSIONS):
+        return True
     parts = path.lower().split('/')
     for directory in parts[:-1]:
         if directory in ('windows', 'win32', 'windows_msvc_startup', 'msvc_runtime'):
@@ -109,7 +124,7 @@ def git_files(repository: str, revision: str, roots: list[str], exclusions: list
         size = int(header[2])
         body = output[header_end + 1:header_end + 1 + size]
         offset = header_end + 1 + size + 1
-        files[path] = body.decode('utf-8', errors='replace')
+        files[path] = decode_source(body)
     return files
 
 
@@ -120,7 +135,7 @@ def directory_files(directory: str, roots: list[str], exclusions: list[str]) -> 
         for path in sorted((base / root).rglob('*')):
             relative = path.relative_to(base).as_posix()
             if path.is_file() and relative.endswith(EXTENSIONS) and not excluded_path(relative, exclusions):
-                files[relative] = path.read_text(encoding='utf-8', errors='replace')
+                files[relative] = decode_source(path.read_bytes())
     return files
 
 
