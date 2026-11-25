@@ -15326,6 +15326,9 @@ typedef BITMAPV4HEADER *LPBITMAPV4HEADER;
 /* wingdi.h */
 typedef BITMAPV5HEADER *LPBITMAPV5HEADER;
 
+/* wtypesbase.h */
+typedef BLOB *LPBLOB;
+
 /* minwindef.h */
 typedef int *LPBOOL;
 

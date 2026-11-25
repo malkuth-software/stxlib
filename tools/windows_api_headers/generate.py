@@ -178,13 +178,16 @@ UMBRELLA_MEMBERS = {
     # (include Windows.h)").
     'winver': ['verrsrc'],
     'mmsystem': ['mmsyscom', 'mciapi', 'mmiscapi', 'mmiscapi2', 'playsoundapi', 'mmeapi', 'timeapi', 'joystickapi'],
+    # The SDK's winsock2.h includes ws2def.h (Learn: AF_UNIX and SOCKADDR,
+    # "ws2def.h (include Winsock2.h)").
+    'winsock2': ['ws2def'],
 }
 # Metadata files that declare no function of their own but that windows.h
 # includes: each is emitted whole, every constant, type and callback, as the
 # SDK has it (coordinator, 2026-11-24: verrsrc.h's VS_* and VFT_* names in
 # resource scripts were missing because coverage started from functions).
-WHOLE_STEMS = ['cderr', 'dlgs', 'mcx', 'mmsyscom', 'mmsystem', 'nb30', 'rpc', 'stralign', 'verrsrc', 'wincon',
-               'windef', 'winperf']
+WHOLE_STEMS = ['afunix', 'cderr', 'dlgs', 'mcx', 'mmsyscom', 'mmsystem', 'nb30', 'rpc', 'stralign', 'verrsrc', 'wincon',
+               'windef', 'winperf', 'ws2def']
 # Constants emitted under #ifndef: those a program may set before including
 # the header, as the SDK lets it (psapi.h: PSAPI_VERSION 1 names the psapi.dll
 # entries, 2 the kernel32 K32 ones), and the C library's SEEK_* origins, which
@@ -1373,7 +1376,7 @@ COVERED_LIBRARIES = ['advapi32.dll', 'api-ms-win-core-realtime-l1-1-1.dll', 'api
                      'api-ms-win-shcore-scaling-l1-1-1.dll', 'avrt.dll', 'bcrypt.dll', 'comdlg32.dll',
                      'dwmapi.dll', 'gdi32.dll', 'icuin.dll', 'imm32.dll', 'kernel32.dll', 'ole32.dll',
                      'oleacc.dll', 'oleaut32.dll', 'shell32.dll', 'uiautomationcore.dll', 'user32.dll',
-                     'uxtheme.dll', 'version.dll', 'winmm.dll']
+                     'uxtheme.dll', 'version.dll', 'winmm.dll', 'ws2_32.dll']
 COMPLETE_KINDS = ('const', 'type', 'struct', 'union', 'enum', 'callback', 'interface')
 # windows.h's default include set, by metadata file: the headers windows.h
 # includes with no NO* or WIN32_LEAN_AND_MEAN macro set, and the headers that
